@@ -1,0 +1,19 @@
+{
+  "date": "2026-07-21",
+  "health": 100,
+  "markdown_files": 290,
+  "adr_count": 11,
+  "api_spec_count": 1,
+  "event_count": 7,
+  "business_rules_referenced": 8,
+  "fr_referenced": 9,
+  "domains_in_traceability": 6,
+  "traceability_links": 9,
+  "metadata_complete_pct": 100,
+  "reviewed_pct": 42,
+  "trends_generated": true,
+  "top_changed_files": [],
+  "active_areas": {},
+  "coverage_overall": 68.75,
+  "docs_sync_signal": "n/a (no local git diff)"
+}

@@ -1,0 +1,71 @@
+# DEPRECATED — legacy v1 router kept for compatibility only.
+# Canonical router: ai-platform/orchestrator/router.yaml (ORCH-002, registry-driven).
+# Prompt paths below resolve to the canonical versioned prompts under ai-platform/prompts/.
+id: ORCH-001
+version: 1.1
+description: AI Orchestrator v1 (DEPRECATED) — route tasks to specialist agents with required context.
+
+agents:
+  architecture:
+    name: Architecture Assistant
+    tool_role: ChatGPT / Architect mode
+    prompts:
+      - ai-platform/prompts/architecture-review/v1/prompt.md
+    context:
+      - ai-platform/policies/ai-rules.md
+      - ai/generated/memory_global.md
+      - ai/02_architecture.md
+      - ai/ontology/ontology.yaml
+  requirements:
+    name: Requirement Assistant
+    tool_role: ChatGPT / BA mode
+    prompts:
+      - ai-platform/prompts/frd-generator/v1/prompt.md
+    context:
+      - ai-platform/policies/ai-rules.md
+      - ai/01_business.md
+      - ai/generated/memory_global.md
+      - 25 Glossary/GLOSSARY.md
+  code:
+    name: Code Assistant
+    tool_role: Claude in Cursor
+    prompts:
+      - ai-platform/prompts/implement-feature/v1/prompt.md
+    context:
+      - ai-platform/policies/ai-rules.md
+      - ai/sprint/Sprint-01.md
+      - ai/08_standards.md
+      - ai/generated/memory_ecmf.md
+      - 03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md
+  qa:
+    name: QA Assistant
+    tool_role: ChatGPT or Cursor
+    prompts:
+      - ai-platform/prompts/code-review/v1/prompt.md
+      - ai-platform/prompts/bug-analysis/v1/prompt.md
+    context:
+      - ai-platform/policies/ai-rules.md
+      - 26 Traceability/TRACEABILITY_MATRIX.md
+      - ai/generated/memory_global.md
+  security:
+    name: Security Assistant
+    tool_role: ChatGPT
+    prompts:
+      - ai-platform/prompts/security-review/v1/prompt.md
+    context:
+      - ai/07_security.md
+      - ai-platform/policies/ai-rules.md
+
+routes:
+  - agent: architecture
+    any: ["architecture", "adr", "solution design", "domain boundary", "clean architecture"]
+  - agent: requirements
+    any: ["frd", "business rule", "requirement", "acceptance criteria", "user story"]
+  - agent: code
+    any: ["implement", "coding", "fastapi", "endpoint", "bugfix", "refactor", "sprint-01"]
+  - agent: qa
+    any: ["test", "qa", "regression", "traceability", "review code"]
+  - agent: security
+    any: ["security", "authz", "authn", "pii", "permission"]
+
+default_agent: code

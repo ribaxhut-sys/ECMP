@@ -1,0 +1,25 @@
+id: ORCH-002
+version: 2.0
+description: Registry-driven AI Orchestrator (reads agents/ + capabilities/)
+default_agent: AGENT-CODE
+default_capability: CAP-IMPLEMENT-FEATURE
+memory_version: v1
+rag_enabled: true
+pack_preferred: true
+
+# keyword routing to capability IDs (not hardcoded agent logic)
+routes:
+  - capability: CAP-REVIEW-ARCHITECTURE
+    any: ["architecture", "adr", "solution design", "domain boundary", "clean architecture"]
+  - capability: CAP-GENERATE-FRD
+    any: ["frd", "business rule", "requirement", "acceptance criteria", "user story"]
+  - capability: CAP-IMPLEMENT-FEATURE
+    any: ["implement", "coding", "fastapi", "endpoint", "bug fix", "refactor", "sprint-01"]
+  - capability: CAP-REVIEW-CODE
+    any: ["test", "qa", "regression", "review code", "code review"]
+  - capability: CAP-REVIEW-SECURITY
+    any: ["security", "authz", "authn", "pii", "permission"]
+  - capability: CAP-BUG-ANALYSIS
+    any: ["bug", "defect", "incident analysis"]
+  - capability: CAP-SYNC-DOCS
+    any: ["sync docs", "update documentation", "docs drift"]

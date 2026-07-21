@@ -1,0 +1,15 @@
+%% ECMP — Case State Machine (baseline Workflow Config)
+%% Source of truth definisi transisi: Administration Workflow Config (ADR-008)
+%% Docs: 20 Domain Architecture/ECMF/CASE_STATE_MACHINE.md (DOM-ECMF-003)
+%% Sprint-01 hanya REGISTERED; enforcement transisi = gate G1
+stateDiagram-v2
+    [*] --> REGISTERED : RegisterCase (API-001, EVT-001)
+    REGISTERED --> ASSIGNED : AssignCase (EVT-002 + EVT-003)
+    ASSIGNED --> IN_PROGRESS : Start handling (EVT-003)
+    IN_PROGRESS --> PENDING_REVIEW : Submit for review (EVT-003)
+    PENDING_REVIEW --> CLOSED : Approve, Resolution wajib per BR-ECMF-06 (EVT-003 + EVT-005)
+    PENDING_REVIEW --> IN_PROGRESS : Reviewer reject (EVT-003)
+    CLOSED --> REOPENED : Reopen per BR-ECMF-07, reason wajib (EVT-007 + EVT-003)
+    REOPENED --> ASSIGNED : Re-assign (EVT-002 + EVT-003)
+    REOPENED --> IN_PROGRESS : Resume by assignee (EVT-003)
+    CLOSED --> [*]

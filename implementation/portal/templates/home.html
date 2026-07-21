@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>ECMP Developer Portal</h1>
+  <p class="muted">Satu antarmuka untuk dokumentasi, RAG, dashboard, impact analysis, dan AI Platform orchestrator.</p>
+</div>
+<div class="grid">
+  <a class="tile" href="/search"><strong>RAG Search</strong><br/><span class="muted">Cari konteks relevan</span></a>
+  <a class="tile" href="/dashboard"><strong>Dashboard</strong><br/><span class="muted">Coverage, eval, telemetry, feedback</span></a>
+  <a class="tile" href="/impact"><strong>Impact Analysis</strong><br/><span class="muted">BR/API/Event → dampak</span></a>
+  <a class="tile" href="/orchestrate"><strong>AI Orchestrator</strong><br/><span class="muted">Capability + agent routing</span></a>
+  <a class="tile" href="/docs-link"><strong>MkDocs</strong><br/><span class="muted">Portal dokumentasi</span></a>
+</div>
+<div class="card">
+  <h2>Engineering OS Actions</h2>
+  <form method="post" action="/tools/run" style="display:flex;flex-wrap:wrap;gap:.5rem">
+    <button name="action" value="rag-index">Build RAG Index</button>
+    <button name="action" value="memory" class="btn secondary">AI Memory</button>
+    <button name="action" value="packs" class="btn secondary">ECMF Pack</button>
+    <button name="action" value="graph" class="btn secondary">Knowledge Graph</button>
+    <button name="action" value="eval">AI Eval</button>
+    <button name="action" value="telemetry">Telemetry</button>
+    <button name="action" value="coverage">Coverage</button>
+    <button name="action" value="metrics">Metrics</button>
+    <button name="action" value="trends">Trends</button>
+    <button name="action" value="feedback">Feedback</button>
+    <button name="action" value="health">Health</button>
+    <button name="action" value="all">Run ALL</button>
+  </form>
+</div>
+{% endblock %}

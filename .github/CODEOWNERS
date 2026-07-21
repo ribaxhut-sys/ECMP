@@ -1,0 +1,20 @@
+# Contract and platform ownership — PRs touching these paths need the owning reviewer.
+# Replace placeholders with real GitHub handles when the team is onboarded.
+
+# API contracts
+/07\ API\ Catalog/                    @ecmp-solution-architect
+# Event contracts
+/08\ Event\ Catalog/                  @ecmp-solution-architect @ecmp-integration-lead
+# Business rules & FRD
+/02\ Business\ Rules/                 @ecmp-ba-lead
+/03\ Functional\ Requirements/        @ecmp-ba-lead
+# ADRs & governance
+/05\ Architecture\ Decision\ Records/ @ecmp-solution-architect
+/27\ Project\ Decisions/              @ecmp-pmo
+# Security standards
+/10\ Security\ and\ Access\ Standards/ @ecmp-security
+# Backend implementation
+/implementation/backend/              @ecmp-tech-lead
+/implementation/infrastructure/       @ecmp-tech-lead
+# CI
+/.github/workflows/                   @ecmp-tech-lead

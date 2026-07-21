@@ -1,0 +1,19 @@
+%% ECMP — Sequence Create Case (Sprint-01, implementasi nyata)
+%% Selaras FR-001/FR-001a/FR-001b/FR-001c (FRD-001), ADR-009 (transactional outbox), ADR-007 (Bearer slice)
+%% Docs: 04 Solution Architecture/ECMP_Solution_Architecture_v1.0.md (§5)
+sequenceDiagram
+    actor CS as CS Agent (cases:create)
+    participant API as case-service API-001<br/>POST /v1/cases
+    participant CM as Customer Master (INT-001, mode stub)
+    participant DB as PostgreSQL
+
+    CS->>API: POST /v1/cases (Bearer token, payload case)
+    API->>API: AuthN/AuthZ (401 UNAUTHENTICATED / 403 FORBIDDEN)
+    API->>API: Validasi payload (400 VALIDATION_ERROR, Error envelope)
+    API->>CM: Verifikasi customerId
+    CM-->>API: Stub: terima non-empty, customerVerified=false
+    API->>DB: BEGIN transaksi tunggal
+    Note over API,DB: INSERT cases (caseId format CASE- + 10 hex, status REGISTERED)<br/>+ INSERT audit_log (action case.create, FR-001c/BR-008)<br/>+ INSERT outbox (EVT-001 CaseCreated, ADR-009)
+    DB-->>API: COMMIT
+    API-->>CS: 201 Created (Case: status REGISTERED, customerVerified=false)
+    Note over DB: EVT-001 dikuras dari outbox oleh publisher in-process (DEV)<br/>broker deferred (ADR-009)

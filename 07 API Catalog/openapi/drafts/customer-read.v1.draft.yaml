@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: ECMP Customer Read API (DRAFT)
+  version: 0.1.0-draft
+  description: |
+    **DRAFT — non-normative.** This skeleton becomes normative only after review and
+    merge into a versioned spec at gate G1 ("OpenAPI merged sebelum kode",
+    Test Strategy §3 / DEC-002). Do NOT implement against this file.
+
+    Scope: API-010 Customer 360 read (FR-010, FRD-003) — read-only proxy to the
+    external Customer Master per INT-001 (ADR-002: ECMP is NOT the customer SoR;
+    no write-back, cache read-only only). No mutation endpoints exist in this
+    contract by design (BR-003 / BR-CRM-01/04).
+    Versioning per ADR-006: URL prefix /v1. Error responses use the Error envelope
+    {code, message, details?}. All timestamps ISO-8601 UTC; payload fields camelCase.
+  x-frd: FRD-003
+x-status: draft
+servers:
+  - url: http://localhost:8000/v1
+    description: Local development
+  - url: https://api.example.local/ecmp/v1
+    description: Example deployed base
+tags:
+  - name: Customers
+    description: Customer reference read (read-only, INT-001)
+paths:
+  /customers/{customerId}:
+    get:
+      summary: Get customer reference profile (DRAFT)
+      operationId: getCustomer
+      x-ear-id: API-010
+      x-fr: FR-010
+      x-integration: INT-001
+      tags: [Customers]
+      description: |
+        DRAFT. Read-only customer profile sourced from Customer Master (INT-001):
+        - Mode stub (Sprint-01 heritage): no external call; stub MUST NOT fabricate
+          customer data — real profile data requires INT-001 real mode (INT-001A
+          sandbox open item).
+        - Mode real: existence + profile by customerId, timeout 3s per call.
+
+        Authorization & masking (SEC-RAM-001 Planned, BR-CRM-02 baseline DEC-004):
+        - Requires permission `customers:read`.
+        - Contact channel values (phone/email) are returned UNMASKED only for role
+          CS Agent; all non-CS roles receive MASKED values (need-to-know). Masking
+          is server-side; the response shape is identical, flagged via `masked`.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Customer found (contact values masked for non-CS roles)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+              examples:
+                csAgentUnmasked:
+                  summary: Role CS Agent — unmasked
+                  value:
+                    customerId: "CUST-10001"
+                    fullName: "Budi Santoso"
+                    status: ACTIVE
+                    contactChannels:
+                      - type: PHONE
+                        value: "+62811000111"
+                        masked: false
+                      - type: EMAIL
+                        value: "budi.santoso@example.com"
+                        masked: false
+                nonCsMasked:
+                  summary: Non-CS role — phone/email masked (BR-CRM-02)
+                  value:
+                    customerId: "CUST-10001"
+                    fullName: "Budi Santoso"
+                    status: ACTIVE
+                    contactChannels:
+                      - type: PHONE
+                        value: "+62811***111"
+                        masked: true
+                      - type: EMAIL
+                        value: "b***@example.com"
+                        masked: true
+        "401":
+          description: Missing or invalid token (code=UNAUTHENTICATED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Authenticated but missing permission customers:read (code=FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Customer not found in Customer Master (code=NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "504":
+          description: |
+            Customer Master timeout/unavailable in real mode (code=UPSTREAM_TIMEOUT).
+            NOTE: fallback semantics for the read path (unlike the create path,
+            which degrades to stub behavior per INT-001) to be decided at G1 review.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Target: JWT signed by IdP (ADR-007 target phase).
+        Slice phase (DEV/CI only): static env token; claims {userId, permissions[]}.
+        401 = authentication failure; 403 = missing permission.
+  schemas:
+    CustomerStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+      description: Status as reported by Customer Master (baseline enum; frozen at G1)
+    ContactChannel:
+      type: object
+      required: [type, value, masked]
+      properties:
+        type:
+          type: string
+          enum: [PHONE, EMAIL]
+          description: Contact channel types subject to masking per BR-CRM-02
+        value:
+          type: string
+          description: Masked for non-CS roles (BR-CRM-02 baseline DEC-004)
+        masked:
+          type: boolean
+          description: True when the value has been masked for the caller's role
+    Customer:
+      type: object
+      description: |
+        Read-only customer reference from Customer Master (INT-001).
+        ECMP is not the SoR (ADR-002) — no write operations exist for this entity.
+      required: [customerId, fullName, status, contactChannels]
+      properties:
+        customerId:
+          type: string
+        fullName:
+          type: string
+        status:
+          $ref: "#/components/schemas/CustomerStatus"
+        contactChannels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContactChannel"
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+security:
+  - bearerAuth: []

@@ -1,0 +1,316 @@
+openapi: 3.0.3
+info:
+  title: ECMP Case Service API — Case Actions (DRAFT)
+  version: 0.1.0-draft
+  description: |
+    **DRAFT — non-normative.** This skeleton becomes normative only after review and
+    merge into the versioned spec (case-service.v1.yaml) at gate G1 ("OpenAPI merged
+    sebelum kode", Test Strategy §3 / DEC-002). Do NOT implement against this file.
+
+    Scope: lifecycle actions for Sprint-02 — API-003 AssignCase (FR-003) and
+    API-004 TransitionStatus (FR-004), per FRD-002 and the baseline transition
+    matrix in 20 Domain Architecture/ECMF/CASE_STATE_MACHINE.md (DOM-ECMF-003).
+    Versioning per ADR-006: URL prefix /v1. Error responses use the Error envelope
+    {code, message, details?}. All timestamps ISO-8601 UTC; payload fields camelCase.
+  x-frd: FRD-002
+x-status: draft
+servers:
+  - url: http://localhost:8000/v1
+    description: Local development
+  - url: https://api.example.local/ecmp/v1
+    description: Example deployed base
+tags:
+  - name: Cases
+    description: Case lifecycle actions (assign, status transition)
+paths:
+  /cases/{caseId}/assign:
+    post:
+      summary: Assign or reassign case (DRAFT)
+      operationId: assignCase
+      x-ear-id: API-003
+      x-fr: FR-003
+      x-event: [EVT-002, EVT-003]
+      tags: [Cases]
+      description: |
+        DRAFT. Assign/reassign a case to a handler/unit (business action AssignCase,
+        DOM-ECMF-002).
+
+        Guards (BR-002 / BR-ECMF-02, DOM-ECMF-003):
+        - Caller needs permission `cases:assign` (SEC-RAM-001 Planned, role Supervisor).
+        - Cross-unit assignment only by the supervisor of the case's owning unit;
+          org-unit enforcement waits for `orgUnitId` claims (limitation L-3, gate G1).
+        - Allowed only from status `REGISTERED` or `REOPENED` (transition matrix
+          REGISTERED→ASSIGNED and REOPENED→ASSIGNED); any other current status → 409.
+        - `assigneeId` / `unitId` must be valid.
+
+        Emits (in the same transaction via outbox, ADR-009 / BR-008; payloads per
+        08 Event Catalog/events/events.yaml):
+        - EVT-002 CaseAssigned {caseId, assigneeId, unitId, assignedBy,
+          previousAssigneeId (nullable — set on reassignment), assignedAt}
+        - EVT-003 StatusChanged {caseId, fromStatus, toStatus, changedBy, changedAt,
+          reason (nullable)} — every valid transition emits EVT-003 (DOM-ECMF-003)
+        Audit action: `case.assign` (immutable, same transaction, BR-008).
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRequest"
+            examples:
+              assign:
+                value:
+                  assigneeId: "USR-2001"
+                  unitId: "UNIT-01"
+      responses:
+        "200":
+          description: Case assigned; status is now ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          description: Validation error, e.g. missing assigneeId/unitId (code=VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid token (code=UNAUTHENTICATED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: |
+            Authenticated but not allowed: missing permission cases:assign, or
+            cross-unit assignment by non-supervisor (BR-002) (code=FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Case not found (code=NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            Case not in an assignable status — current status has no →ASSIGNED
+            transition in the active workflow config (code=INVALID_STATE)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /cases/{caseId}/status:
+    post:
+      summary: Change case status via allowed transition (DRAFT)
+      operationId: changeCaseStatus
+      x-ear-id: API-004
+      x-fr: FR-004
+      x-event: [EVT-003]
+      tags: [Cases]
+      description: |
+        DRAFT. Transition a case to a new status (business action TransitionStatus,
+        DOM-ECMF-002). Transitions are validated against the active Workflow Config;
+        the baseline matrix is DOM-ECMF-003 (CASE_STATE_MACHINE.md):
+        REGISTERED→ASSIGNED, ASSIGNED→IN_PROGRESS, IN_PROGRESS→PENDING_REVIEW,
+        PENDING_REVIEW→CLOSED, PENDING_REVIEW→IN_PROGRESS, CLOSED→REOPENED,
+        REOPENED→ASSIGNED, REOPENED→IN_PROGRESS.
+
+        Guards (BR-001 / BR-ECMF-03, DOM-ECMF-003):
+        - Caller needs the status-transition permission (`cases:status` per
+          SEC-RAM-001 Planned; final name frozen at G1).
+        - Per-transition guards apply (e.g. only assignee may start handling;
+          Resolution mandatory for →CLOSED per BR-ECMF-06).
+        - `reason` is optional in general but MANDATORY for Administrator override
+          transitions (exception BR-ECMF-03) and for CLOSED→REOPENED (BR-ECMF-07).
+        - Illegal transition → 409, state unchanged, no event emitted.
+          NOTE: FRD-002 §6 AC currently words the rejection as 400; this draft
+          proposes 409 CONFLICT for state-conflict semantics (400 stays reserved
+          for payload validation). To be reconciled at G1 review before freeze.
+
+        Emits on valid transition only (same transaction via outbox, ADR-009):
+        - EVT-003 StatusChanged {caseId, fromStatus, toStatus, changedBy, changedAt,
+          reason (nullable; mandatory for override)} — payload per events.yaml
+        - Specific events per matrix (EVT-005 CaseClosed on →CLOSED, EVT-007
+          CaseReopened on CLOSED→REOPENED) are documented in DOM-ECMF-003.
+        Audit action: `case.status_change` (immutable, same transaction, BR-008).
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusChangeRequest"
+            examples:
+              startHandling:
+                value:
+                  toStatus: IN_PROGRESS
+              reopenWithReason:
+                value:
+                  toStatus: REOPENED
+                  reason: "Customer reports issue recurred within 30 days"
+      responses:
+        "200":
+          description: Transition applied; response reflects the new status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          description: Validation error, e.g. toStatus not a known enum value (code=VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid token (code=UNAUTHENTICATED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Authenticated but missing transition permission or per-transition guard fails (code=FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Case not found (code=NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            Illegal transition — fromStatus→toStatus not in the active workflow
+            config (code=INVALID_TRANSITION); case state unchanged, no event emitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Target: JWT signed by IdP (ADR-007 target phase).
+        Slice phase (DEV/CI only): static env token; claims {userId, permissions[]}.
+        401 = authentication failure; 403 = missing permission.
+  schemas:
+    CaseType:
+      type: string
+      enum: [COMPLAINT, INQUIRY]
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    CaseStatus:
+      type: string
+      enum: [REGISTERED, ASSIGNED, IN_PROGRESS, PENDING_REVIEW, CLOSED, REOPENED]
+      description: |
+        Full baseline status set per DOM-ECMF-003 (Sprint-02 scope).
+        The merged case-service.v1.yaml currently exposes REGISTERED only
+        (Sprint-01); merging this draft extends the enum.
+    AssignRequest:
+      type: object
+      required: [assigneeId, unitId]
+      properties:
+        assigneeId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Target handler principal id
+        unitId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Organizational unit owning the assignment (BR-002)
+    StatusChangeRequest:
+      type: object
+      required: [toStatus]
+      properties:
+        toStatus:
+          $ref: "#/components/schemas/CaseStatus"
+        reason:
+          type: string
+          nullable: true
+          maxLength: 1000
+          description: |
+            Optional; MANDATORY for Administrator override transitions
+            (BR-ECMF-03 exception) and for CLOSED→REOPENED (BR-ECMF-07)
+    Case:
+      type: object
+      description: |
+        Case representation, aligned with case-service.v1.yaml (self-contained
+        copy for the draft; consolidated on merge). The DB audit column
+        updated_by is intentionally NOT exposed (21 Technical Standards §4).
+        assigneeId/unitId are the Sprint-02 additions carried by AssignCase.
+      required:
+        [caseId, customerId, caseType, priority, subject, description, status, createdAt, createdBy, updatedAt]
+      properties:
+        caseId:
+          type: string
+          pattern: "^CASE-[0-9A-F]{10}$"
+          description: System generated, format CASE-<10-hex> (FRD-001 §7)
+        customerId:
+          type: string
+        caseType:
+          $ref: "#/components/schemas/CaseType"
+        priority:
+          $ref: "#/components/schemas/Priority"
+        subject:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/CaseStatus"
+        channel:
+          type: string
+          nullable: true
+        customerVerified:
+          type: boolean
+          default: false
+        assigneeId:
+          type: string
+          nullable: true
+          description: Current assignee (null until first assignment)
+        unitId:
+          type: string
+          nullable: true
+          description: Current owning unit (null until first assignment)
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO-8601, always UTC (FRD-001 §7)
+        createdBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO-8601, always UTC (FRD-001 §7)
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+security:
+  - bearerAuth: []

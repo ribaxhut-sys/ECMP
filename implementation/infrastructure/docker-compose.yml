@@ -1,0 +1,22 @@
+# ECMP local development infrastructure (G0 floor per DEC-002).
+# Usage: docker compose -f implementation/infrastructure/docker-compose.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecmp-postgres
+    environment:
+      POSTGRES_USER: ecmp
+      POSTGRES_PASSWORD: ecmp_local_only
+      POSTGRES_DB: ecmp
+    ports:
+      - "5432:5432"
+    volumes:
+      - ecmp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecmp -d ecmp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  ecmp_pgdata:

@@ -1,0 +1,98 @@
+site_name: ECMP Enterprise Architecture Portal
+site_description: EKR + AI Development Platform for ECMP
+site_author: ECMP Enterprise Architecture
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Lifecycle: lifecycle.md
+  - Contribution Guide: contribution.md
+  - Business:
+      - Blueprint: business/blueprint.md
+      - Glossary: business/glossary.md
+      - Traceability: business/traceability.md
+  - Architecture:
+      - Reference Patterns: architecture/reference-patterns.md
+      - Domain Overview: architecture/domain-overview.md
+      - ADR Index: architecture/adr-index.md
+      - Knowledge Graph: architecture/knowledge-graph.md
+      - Ontology: architecture/ontology.md
+  - Domain:
+      - CRM: domain/crm.md
+      - ECMF: domain/ecmf.md
+      - Notification: domain/notification.md
+      - Dashboard: domain/dashboard.md
+      - KPI: domain/kpi.md
+  - API: catalogs/api.md
+  - Events: catalogs/event.md
+  - Governance:
+      - Repository Index: governance/repository-index.md
+      - Dashboard: governance/dashboard.md
+      - Health Report: governance/health-report.md
+      - Doc Coverage: governance/doc-coverage.md
+      - Repo Metrics: governance/repo-metrics.md
+      - Repo Trends: governance/repo-trends.md
+      - Feedback Metrics: governance/feedback-metrics.md
+      - Decision Tree: governance/decision-tree.md
+      - Ownership Matrix: governance/ownership-matrix.md
+      - Standards: governance/repository-standards.md
+      - Engineering OS Roadmap: governance/engineering-os-roadmap.md
+  - Domain Navigator:
+      - Index: navigator/index.md
+      - CRM: navigator/crm.md
+      - ECMF: navigator/ecmf.md
+      - KPI: navigator/kpi.md
+      - Dashboard: navigator/dashboard.md
+      - Notification: navigator/notification.md
+      - Core Platform: navigator/core-platform.md
+  - AI Workflow:
+      - Overview: ai-workflow.md
+      - AI Platform: ai/ai-platform.md
+      - Rules: ai/rules.md
+      - Context Pack: ai/context-pack.md
+      - Sprint Context: ai/sprint.md
+      - Prompt Library: ai/prompts.md
+      - Cursor Integration: ai/cursor.md
+      - AI Memory: ai/memory.md
+      - Impact Analysis: ai/impact-analysis.md
+      - RAG Search: ai/rag.md
+      - AI Orchestrator: ai/orchestrator.md
+      - Evaluation: ai/evaluation.md
+      - Telemetry: ai/telemetry.md
+      - Governance: ai/ai-governance.md
+  - Implementation: implementation.md
+  - Developer Portal: developer-portal.md
+  - Portal Roadmap: portal-roadmap.md

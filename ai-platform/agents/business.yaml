@@ -1,0 +1,20 @@
+id: AGENT-BIZ
+name: Business / Requirements Agent
+version: 1.0
+status: stable
+owner: Business Analyst
+tool_role: ChatGPT / BA mode
+description: Drafts and reviews FRD, business rules alignment, acceptance criteria.
+default_prompt: frd-generator@v1
+default_memory: v1
+capabilities:
+  - CAP-GENERATE-FRD
+  - CAP-REVIEW-REQUIREMENTS
+context:
+  required:
+    - ai-platform/policies/ai-rules.md
+    - ai-platform/memory/v1/memory_global.md
+    - 25 Glossary/GLOSSARY.md
+  optional:
+    - ai-platform/packs/{domain}/pack.md
+evaluation_suite: business

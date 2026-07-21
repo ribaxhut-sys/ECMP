@@ -1,0 +1,56 @@
+---
+description: ECMP AI Platform rules for Cursor implementations
+alwaysApply: true
+---
+
+# ECMP AI Platform
+
+You are working in the ECMP Enterprise Knowledge Repository (EKR) with a separated AI Platform subsystem.
+
+## Canonical AI layer
+Prefer `ai-platform/` over legacy `ai/` for:
+- policies (`ai-platform/policies/ai-rules.md`)
+- versioned memory (`ai-platform/memory/v1/`)
+- versioned prompts (`ai-platform/prompts/<name>/vN/`)
+- domain packs (`ai-platform/packs/<domain>/pack.md`)
+- agents / capabilities / orchestrator / RAG / evaluation / telemetry
+
+Legacy `ai/` remains a compatibility context pack (project/sprint notes). Sprint briefs stay under `ai/sprint/`.
+
+## Lifecycle position
+Idea → Blueprint → Rules → Solution/Domain Architecture → FRD → AI Context sync → Implementation → Test → Deploy → Ops → Feedback.
+See `ai/09_workflow.md` and `ai-platform/README.md`.
+
+## Before implementing features
+1. Read `ai-platform/policies/ai-rules.md`
+2. Prefer `ai-platform/memory/v1/memory_global.md` + domain memory/pack
+3. Read active sprint in `ai/sprint/` (default Sprint-01 unless user specifies)
+4. Route via orchestrator when unsure: `python tools/eos.py orchestrate --task "<task>"`
+5. Read `ai/08_standards.md` for coding standards
+6. If API/Event/Data touched: read `ai/04_api.md`, `ai/06_events.md`, `ai/05_database.md`
+7. For rule/contract changes: run Impact Analysis on the ID first
+
+## Hard constraints
+- Do not invent Out of Scope features
+- Do not create APIs outside OpenAPI catalog
+- Do not add events outside `08 Event Catalog/events/events.yaml`
+- Do not change business rules without ADR
+- Keep docs/catalogs/traceability synchronized with design changes
+- ECMP is not Customer Master SoR
+- Prompt changes that affect agent behavior should pass evaluation threshold (`python tools/eos.py eval`)
+
+## Code location
+- Knowledge/docs: repository root numbered folders (`00`–`27`)
+- AI Platform: `ai-platform/`
+- Compatibility AI context: `ai/`
+- Application code: `implementation/`
+
+## After changes
+- Update OpenAPI/Event/Traceability when contracts change
+- Prefer enterprise IDs in summaries (FR/API/EVT/TC)
+- Prefer DX launcher: `python tools/eos.py` (or `python tools/eos.py --all`)
+- For impact: `python tools/eos.py impact --id <ID>`
+- For context: `python tools/eos.py rag --query "<task>"`
+- For packs: `python tools/eos.py packs --domain ECMF`
+- For routing: `python tools/eos.py orchestrate --task "<task>"`
+---

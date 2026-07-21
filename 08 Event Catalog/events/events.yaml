@@ -1,0 +1,133 @@
+# ECMP Event Catalog (SOURCE OF TRUTH — normative)
+# ID: EVT-CAT-001
+# Governance: per DEC-001/DEC-002; duplicate draft catalog retired 2026-07-21.
+# Naming: payload fields use camelCase (API/event standard, see 21 Technical Standards).
+version: 0.4
+owner: Integration Lead
+status: Approved
+delivery_guarantee: at-least-once (ADR-001); all consumers MUST be idempotent
+# Per-event lifecycle status vocabulary:
+#   Implemented = emitted by running code; Planned = approved, not yet produced; Proposed = pending approval.
+events:
+  - id: EVT-001
+    name: CaseCreated
+    status: Implemented
+    producer: ECMF
+    description: Emitted when a case is registered (FR-001b)
+    fr: FR-001
+    api: API-001
+    payload:
+      caseId: string
+      customerId: string
+      caseType: string
+      priority: string
+      subject: string
+      status: string
+      createdAt: datetime
+      createdBy: string
+    consumers:
+      - KPI            # initialize SLA clock / performance fact
+      - Dashboard
+      - Notification   # notify assignee pool / supervisor
+      - Core Platform  # audit projection
+    idempotency: idempotent by caseId; consumers ignore duplicates by caseId + createdAt
+  - id: EVT-002
+    name: CaseAssigned
+    status: Planned
+    producer: ECMF
+    description: Emitted when a case is assigned/reassigned
+    payload:
+      caseId: string
+      assigneeId: string
+      unitId: string
+      assignedBy: string
+      previousAssigneeId: string   # nullable
+      assignedAt: datetime
+    consumers:
+      - Notification
+      - Dashboard
+      - Core Platform
+    idempotency: ordered per caseId (sequence number) so latest assignment wins
+  - id: EVT-003
+    name: StatusChanged
+    status: Planned
+    producer: ECMF
+    description: Emitted on valid workflow status transition (BR-001)
+    payload:
+      caseId: string
+      fromStatus: string
+      toStatus: string
+      changedBy: string
+      changedAt: datetime
+      reason: string   # nullable; mandatory for override transitions
+    consumers:
+      - KPI            # SLA clock / status history
+      - Dashboard
+      - Notification
+      - Core Platform
+    idempotency: ordered per caseId; consumers validate transition against last known status
+  - id: EVT-004
+    name: SLABreached
+    status: Planned
+    producer: KPI
+    description: Emitted when SLA threshold is breached
+    payload:
+      caseId: string
+      slaId: string
+      breachedAt: datetime
+      dueAt: datetime
+      severity: string
+    consumers:
+      - Notification   # escalate to supervisor/manager
+      - Dashboard
+    idempotency: idempotent by caseId + slaId; emit once per breach (re-breach after reopen allowed)
+  - id: EVT-005
+    name: CaseClosed
+    status: Planned
+    producer: ECMF
+    description: Emitted when a case is closed
+    payload:
+      caseId: string
+      resolutionCode: string
+      closedBy: string
+      closedAt: datetime
+    consumers:
+      - KPI            # finalize performance fact (lead time)
+      - Dashboard
+      - Notification
+      - Core Platform
+    idempotency: idempotent by caseId; single active closure; reopen emits EVT-007
+  - id: EVT-006
+    name: ConfigChanged
+    status: Planned
+    producer: Administration
+    description: Emitted when effective configuration changes (BR-ADM-02)
+    payload:
+      configKey: string
+      version: string
+      oldValue: object
+      newValue: object
+      changedBy: string
+      changedAt: datetime
+      effectiveDate: datetime
+    consumers:
+      - Core Platform  # mandatory audit (BR-CP-04)
+      - ECMF           # reload active workflow/SLA config
+      - KPI            # reload active SLA rules
+    idempotency: idempotent by configKey + version; consumers reload latest version, no partial replay
+  - id: EVT-007
+    name: CaseReopened
+    producer: ECMF
+    description: Emitted when a closed case is reopened (BR-ECMF-07); proposed addition beyond Blueprint minimal set
+    status: Proposed
+    payload:
+      caseId: string
+      reopenedBy: string
+      reopenedAt: datetime
+      reason: string
+    consumers:
+      - KPI            # restart SLA clock
+      - Dashboard
+      - Notification
+      - Core Platform
+    idempotency: idempotent by caseId + reopenedAt

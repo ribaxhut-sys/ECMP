@@ -1,0 +1,16 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+  "N815", # camelCase fields are intentional: API contract uses camelCase (naming standard)
+  "B008", # Depends(...) in defaults is the canonical FastAPI dependency-injection idiom
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

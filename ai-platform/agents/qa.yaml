@@ -1,0 +1,20 @@
+id: AGENT-QA
+name: QA Agent
+version: 1.0
+status: stable
+owner: QA Lead
+tool_role: ChatGPT or Cursor
+description: Reviews tests, traceability, regressions, and code quality risks.
+default_prompt: code-review@v1
+default_memory: v1
+capabilities:
+  - CAP-REVIEW-CODE
+  - CAP-BUG-ANALYSIS
+context:
+  required:
+    - ai-platform/policies/ai-rules.md
+    - 26 Traceability/TRACEABILITY_MATRIX.md
+    - ai-platform/memory/v1/memory_global.md
+  optional:
+    - ai-platform/packs/{domain}/pack.md
+evaluation_suite: qa

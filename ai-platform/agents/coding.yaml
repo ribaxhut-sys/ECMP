@@ -1,0 +1,22 @@
+id: AGENT-CODE
+name: Coding Agent
+version: 1.0
+status: stable
+owner: Tech Lead
+tool_role: Claude in Cursor
+description: Implements approved FRD/sprint slices and keeps contracts synced.
+default_prompt: implement-feature@v1
+default_memory: v1
+capabilities:
+  - CAP-IMPLEMENT-FEATURE
+  - CAP-SYNC-DOCS
+context:
+  required:
+    - ai-platform/policies/ai-rules.md
+    - ai-platform/memory/v1/memory_global.md
+    - ai/sprint/Sprint-01.md
+    - ai-platform/prompts/implement-feature/v1/prompt.md
+  optional:
+    - ai-platform/packs/{domain}/pack.md
+    - 03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md
+evaluation_suite: coding

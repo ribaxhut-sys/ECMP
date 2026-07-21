@@ -1,0 +1,64 @@
+id: ONT-001
+version: 1.0
+name: ECMP Engineering Ontology
+description: >
+  Lightweight semantic layer for ECMP EKR artifacts.
+  Used by Knowledge Graph enrichment, Impact Analysis, RAG filters, and AI Orchestrator.
+
+node_types:
+  BusinessGoal:
+    prefix: BG
+    description: Strategic business outcome
+  Capability:
+    prefix: CAP
+    description: Business capability
+  Domain:
+    prefix: DOM
+    description: Bounded business/technical domain
+  BusinessRule:
+    prefix: BR
+    description: Binding business rule
+  FRD:
+    prefix: FR
+    description: Functional requirement item
+  API:
+    prefix: API
+    description: API operation/contract
+  Event:
+    prefix: EVT
+    description: Domain event contract
+  Test:
+    prefix: TC
+    description: Test case
+  Sprint:
+    prefix: Sprint
+    description: Delivery increment
+  ADR:
+    prefix: ADR
+    description: Architecture decision
+  Document:
+    prefix: DOC
+    description: Knowledge document chunk source
+
+relations:
+  enables: {from: [BusinessGoal], to: [Capability, Domain]}
+  realized_in: {from: [Capability], to: [Domain]}
+  constrains: {from: [BusinessRule], to: [FRD, API, Event]}
+  specified_by: {from: [Domain], to: [FRD]}
+  implemented_via: {from: [BusinessRule], to: [FRD]}
+  implemented_by: {from: [FRD], to: [API]}
+  emits: {from: [FRD, API], to: [Event]}
+  verified_by: {from: [FRD, API], to: [Test]}
+  delivers: {from: [Sprint], to: [FRD, API, Event]}
+  decided_by: {from: [ADR], to: [Domain, API, Event, FRD]}
+  documented_in: {from: [Document], to: [Domain, FRD, ADR, API, Event]}
+
+retrieval_collections:
+  - ai_context
+  - frd
+  - adr
+  - business_rules
+  - catalogs
+  - navigator
+  - sprint
+  - implementation

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Impact Analysis</h1>
+  <form method="get">
+    <label>Artifact ID</label>
+    <input type="text" name="id" value="{{ artifact_id }}" placeholder="BR-001 / API-001 / EVT-001" />
+    <button type="submit">Analyze</button>
+  </form>
+</div>
+{% if output %}
+<div class="card"><h2>Command Output</h2><pre>{{ output }}</pre></div>
+{% endif %}
+{% if report %}
+<div class="card"><h2>Report</h2><pre>{{ report }}</pre></div>
+{% endif %}
+{% endblock %}

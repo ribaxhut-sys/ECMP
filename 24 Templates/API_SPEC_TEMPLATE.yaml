@@ -1,0 +1,157 @@
+openapi: 3.0.3
+info:
+  title: ECMP <Service Name> API
+  version: 1.0.0
+  description: |
+    Template OpenAPI untuk service ECMP.
+    Versioning per ADR-006 (URL prefix /v1). Error envelope wajib untuk semua 4xx/5xx.
+  x-ear-id: API-XXX
+  x-frd: FRD-XXX
+servers:
+  - url: http://localhost:8000/v1
+    description: Local development
+  - url: https://api.example.local/ecmp/v1
+    description: Deployed base
+tags:
+  - name: Example
+paths:
+  /examples:
+    get:
+      summary: List examples (paginated per 21 Technical Standards)
+      operationId: listExamples
+      x-ear-id: API-XXX
+      tags: [Example]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PageMeta"
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Example"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      summary: Create example
+      operationId: createExample
+      x-ear-id: API-XXX
+      x-fr: FR-XXX
+      x-event: EVT-XXX
+      tags: [Example]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExampleCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Example"
+        "400":
+          description: Validation error (code=VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    Unauthenticated:
+      description: Missing or invalid token (code=UNAUTHENTICATED)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Authenticated but missing permission (code=FORBIDDEN)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ExampleCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+    Example:
+      type: object
+      required: [exampleId, name, createdAt, createdBy, updatedAt]
+      properties:
+        exampleId:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    PageMeta:
+      type: object
+      required: [page, pageSize, totalItems]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalItems:
+          type: integer
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: VALIDATION_ERROR | UNAUTHENTICATED | FORBIDDEN | NOT_FOUND | ...
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+security:
+  - bearerAuth: []

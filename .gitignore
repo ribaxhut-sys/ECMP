@@ -1,0 +1,13 @@
+site/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
+.idea/
+.vscode/
+.env
+*.db
+.ruff_cache/
+.coverage
+# keep metrics history tracked; ignore local venv only

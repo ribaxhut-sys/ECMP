@@ -1,0 +1,88 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "implementation/backend/**"
+      - "implementation/portal/**"
+      - "tools/**"
+      - "07 API Catalog/openapi/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "implementation/backend/**"
+      - "implementation/portal/**"
+      - "tools/**"
+      - "07 API Catalog/openapi/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ecmp
+          POSTGRES_PASSWORD: ecmp_ci
+          POSTGRES_DB: ecmp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecmp -d ecmp_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      ECMP_DATABASE_URL: postgresql+psycopg://ecmp:ecmp_ci@localhost:5432/ecmp_test
+    defaults:
+      run:
+        working-directory: implementation/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            implementation/backend/requirements.txt
+            implementation/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Lint backend (ruff)
+        run: ruff check app tests
+      - name: Lint tools and portal (ruff)
+        working-directory: .
+        run: ruff check tools implementation/portal
+      - name: Validate OpenAPI contracts (all specs incl. drafts)
+        working-directory: .
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          from openapi_spec_validator import validate
+          specs = sorted(Path("07 API Catalog/openapi").rglob("*.yaml"))
+          assert specs, "no OpenAPI specs found"
+          for spec in specs:
+              validate(yaml.safe_load(spec.read_text(encoding="utf-8")))
+              print(f"OK {spec}")
+          PY
+      - name: Run migrations (Alembic)
+        run: alembic upgrade head
+      - name: Run tests against PostgreSQL (coverage gate 90%)
+        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=90
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit runtime dependencies (pip-audit)
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r implementation/backend/requirements.txt

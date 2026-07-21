@@ -1,0 +1,27 @@
+%% ECMP — Deployment View: DEV lokal + CI (G0 floor per DEC-002)
+%% Sumber kebenaran pipeline: .github/workflows/backend-ci.yml
+%% Sumber kebenaran infra lokal: implementation/infrastructure/docker-compose.yml
+%% Platform SIT/UAT/produksi masih open (SA §9; ADR menyusul)
+%% Docs: 04 Solution Architecture/ECMP_Solution_Architecture_v1.0.md (§9), 14 Deployment Standards
+flowchart TB
+    subgraph dev["DEV lokal (developer workstation)"]
+        devx["Developer"]
+        uvicorn["case-service\nFastAPI + uvicorn (ADR-004)\nECMP_DATABASE_URL"]
+        compose[("docker-compose\npostgres:16-alpine\nvolume ecmp_pgdata")]
+        devx -- "uvicorn app.main:app" --> uvicorn
+        uvicorn --> compose
+    end
+
+    subgraph ci["CI — GitHub Actions (backend-ci.yml)"]
+        trigger["Trigger: push/PR menyentuh\nimplementation/backend, 07 API Catalog/openapi,\natau workflow file"]
+        s1["1. Lint: ruff check app tests"]
+        s2["2. Contract: openapi-spec-validator\ncase-service.v1.yaml"]
+        s3["3. Migration: alembic upgrade head"]
+        s4["4. Test: pytest -q"]
+        cidb[("Service container\npostgres:16-alpine\necmp_test")]
+        trigger --> s1 --> s2 --> s3 --> s4
+        s3 --> cidb
+        s4 --> cidb
+    end
+
+    devx -- "git push / PR" --> trigger

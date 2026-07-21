@@ -1,0 +1,14 @@
+{
+  "type": "orchestrator_route",
+  "timestamp": "2026-07-21T05:34:29.893494+00:00",
+  "task": "security review for case create permissions",
+  "capability_id": "CAP-REVIEW-SECURITY",
+  "agent_id": "AGENT-SEC",
+  "domain": "ecmf",
+  "memory_version": "v1",
+  "prompt_ref": "security-review@v1",
+  "rag_hit_count": 5,
+  "rag_top_score": 0.3145,
+  "context_count": 4,
+  "success": true
+}

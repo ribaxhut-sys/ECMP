@@ -1,0 +1,40 @@
+%% ECMP — System Context (C4-style, baseline DEC-001: Blueprint v2.1 + FRD-001)
+%% Docs: 20 Domain Architecture/README.md
+%% Event backbone: transactional outbox (ADR-009); broker deferred
+flowchart TB
+    users["Internal Users\n(CS, Supervisor, Reviewer,\nAdministrator, Management)"]
+
+    subgraph ecmp["ECMP — Enterprise Complaint Management Platform"]
+        cp["Core Platform\nAuthN/AuthZ, Org,\nAudit append-only (BR-008)\nSoT Role-Permission (ADR-008)"]
+        crm["CRM\nCustomer 360\ncache read-only (ADR-002)"]
+        ecmf["ECMF\nCase lifecycle\n(Aggregate Root: Case)"]
+        adm["Administration\nWorkflow/SLA Config (SoT, ADR-008)\nApproval BR-ADM-01"]
+        kpi["KPI\nSLA calculation,\nPerformance Facts"]
+        dash["Dashboard\nRead-only views\n(BR-DASH-03)"]
+        notif["Notification\nRules, templates,\ndelivery log"]
+        outbox[("Event backbone:\ntransactional outbox\n(ADR-009, at-least-once)")]
+    end
+
+    cm["Customer Master\n(external — SoR pelanggan)"]
+    email["Email Gateway\n(external — opsional)"]
+
+    users --> cp
+    users --> crm
+    users --> ecmf
+    users --> adm
+    users --> dash
+
+    cm -. "read-only\n(INT-001, ADR-002)" .-> crm
+    crm --> ecmf
+
+    ecmf -- "EVT-001/002/003/005/007" --> outbox
+    adm -- "EVT-006 ConfigChanged" --> outbox
+    kpi -- "EVT-004 SLABreached" --> outbox
+
+    outbox --> kpi
+    outbox --> dash
+    outbox --> notif
+    outbox -- "audit projection" --> cp
+    outbox -- "reload config (EVT-006)" --> ecmf
+
+    notif -. "opsional" .-> email

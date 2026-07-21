@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title or "ECMP Developer Portal" }}</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --ink: #142033;
+      --muted: #5b6b7c;
+      --line: #d7e0ea;
+      --accent: #0f4c81;
+      --accent-2: #1f7a6c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eaf1f8 0%, var(--bg) 220px);
+    }
+    header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.9);
+      position: sticky; top: 0; backdrop-filter: blur(6px);
+    }
+    header a { color: var(--accent); text-decoration: none; margin-right: 1rem; font-weight: 600; }
+    main { max-width: 1100px; margin: 0 auto; padding: 1.25rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 24px rgba(20,32,51,.04);
+    }
+    h1,h2 { margin-top: 0; }
+    .muted { color: var(--muted); }
+    input[type=text], select {
+      width: 100%; padding: .65rem .75rem; border: 1px solid var(--line);
+      border-radius: 8px; margin: .35rem 0 0.75rem;
+    }
+    button, .btn {
+      background: var(--accent); color: white; border: 0; border-radius: 8px;
+      padding: .6rem 1rem; cursor: pointer; font-weight: 600;
+    }
+    .btn.secondary { background: var(--accent-2); }
+    pre {
+      white-space: pre-wrap; background: #0f1722; color: #e7eef7;
+      padding: 1rem; border-radius: 10px; overflow: auto;
+      font-size: .85rem;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: .75rem; }
+    .tile { display:block; padding:1rem; border:1px solid var(--line); border-radius:10px; background:#fbfcfe; text-decoration:none; color:inherit; }
+    .hit { border-left: 4px solid var(--accent); padding-left: .75rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>ECMP Developer Portal</strong>
+    <nav style="margin-top:.5rem">
+      <a href="/">Home</a>
+      <a href="/search">Search</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/impact">Impact</a>
+      <a href="/orchestrate">Orchestrator</a>
+      <a href="/docs-link">Docs</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

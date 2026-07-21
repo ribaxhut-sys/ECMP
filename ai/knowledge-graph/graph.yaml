@@ -1,0 +1,123 @@
+# DEPRECATED — manually maintained snapshot, superseded by graph.generated.yaml
+# (produced by tools/generate_knowledge_graph.py from ontology + traceability + OpenAPI + FRD + ADR;
+# this file is NOT an input to the generator). Use graph.generated.yaml / graph.generated.md.
+version: 0.3
+id: AI-KG-001
+# CAP-0xx mengikuti SoT bisnis: `01 Business Blueprint/ECMP_Capability_Register_v0.1.md` (BP-CAP-001).
+nodes:
+  - id: BG-001
+    type: BusinessGoal
+    label: Orchestrate customer service with centralized customer data
+  - id: CAP-001
+    type: Capability
+    label: Case Registration & Retrieval
+  - id: CAP-002
+    type: Capability
+    label: Case Assignment
+  - id: CAP-003
+    type: Capability
+    label: Workflow Status Transition
+  - id: CAP-004
+    type: Capability
+    label: Customer 360 View
+  - id: CAP-006
+    type: Capability
+    label: SLA Measurement & Breach Detection
+  - id: DOM-CRM
+    type: Domain
+    label: CRM
+  - id: DOM-ECMF
+    type: Domain
+    label: ECMF
+  - id: DOM-KPI
+    type: Domain
+    label: KPI
+  - id: DOM-NOTIF
+    type: Domain
+    label: Notification
+  - id: FR-001
+    type: FRD
+    label: Create complaint case linked to customer
+  - id: API-001
+    type: API
+    label: POST /v1/cases
+  - id: API-002
+    type: API
+    label: GET /v1/cases/{caseId}
+  - id: EVT-001
+    type: Event
+    label: CaseCreated
+  - id: EVT-002
+    type: Event
+    label: CaseAssigned
+  - id: EVT-003
+    type: Event
+    label: StatusChanged
+  - id: EVT-004
+    type: Event
+    label: SLABreached
+  - id: TC-001
+    type: Test
+    label: Create complaint with valid customer succeeds
+
+edges:
+  - from: BG-001
+    to: CAP-001
+    relation: enables
+  - from: BG-001
+    to: CAP-002
+    relation: enables
+  - from: BG-001
+    to: CAP-003
+    relation: enables
+  - from: BG-001
+    to: CAP-004
+    relation: enables
+  - from: BG-001
+    to: CAP-006
+    relation: enables
+  - from: CAP-001
+    to: DOM-ECMF
+    relation: realized_by
+  - from: CAP-002
+    to: DOM-ECMF
+    relation: realized_by
+  - from: CAP-003
+    to: DOM-ECMF
+    relation: realized_by
+  - from: CAP-004
+    to: DOM-CRM
+    relation: realized_by
+  - from: CAP-006
+    to: DOM-KPI
+    relation: realized_by
+  - from: DOM-ECMF
+    to: FR-001
+    relation: specified_by
+  - from: DOM-CRM
+    to: FR-001
+    relation: supports
+  - from: FR-001
+    to: API-001
+    relation: implemented_by
+  - from: FR-001
+    to: API-002
+    relation: implemented_by
+  - from: FR-001
+    to: EVT-001
+    relation: emits
+  - from: API-001
+    to: EVT-001
+    relation: publishes
+  - from: EVT-001
+    to: DOM-NOTIF
+    relation: consumed_by
+  - from: DOM-KPI
+    to: EVT-004
+    relation: publishes
+  - from: FR-001
+    to: TC-001
+    relation: verified_by
+  - from: API-001
+    to: TC-001
+    relation: verified_by

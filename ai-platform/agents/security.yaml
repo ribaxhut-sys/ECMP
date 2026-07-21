@@ -1,0 +1,18 @@
+id: AGENT-SEC
+name: Security Agent
+version: 1.0
+status: stable
+owner: Security Architect
+tool_role: ChatGPT
+description: Reviews authn/authz, PII, audit, and privilege risks.
+default_prompt: security-review@v1
+default_memory: v1
+capabilities:
+  - CAP-REVIEW-SECURITY
+context:
+  required:
+    - ai-platform/policies/ai-rules.md
+    - ai/07_security.md
+  optional:
+    - ai-platform/packs/{domain}/pack.md
+evaluation_suite: security

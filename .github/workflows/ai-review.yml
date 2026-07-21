@@ -1,0 +1,43 @@
+name: AI Reviewer (Advisory)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install PyYAML
+
+      - name: Generate AI review pack
+        run: python tools/ai_reviewer.py
+
+      - name: Upload AI review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-review-report
+          path: metrics/AI_REVIEW.generated.md
+
+      - name: PR comment preview
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## AI Review Pack Generated" >> $GITHUB_STEP_SUMMARY
+          echo "Download artifact \`ai-review-report\` and complete lanes using prompts in \`ai/prompts/\`." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Suggested prompts:" >> $GITHUB_STEP_SUMMARY
+          echo "- architecture-review" >> $GITHUB_STEP_SUMMARY
+          echo "- security-review" >> $GITHUB_STEP_SUMMARY
+          echo "- code-review" >> $GITHUB_STEP_SUMMARY
+          echo "- sync-docs" >> $GITHUB_STEP_SUMMARY

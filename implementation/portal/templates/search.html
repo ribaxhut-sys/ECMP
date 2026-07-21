@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>RAG Search</h1>
+  <form method="get">
+    <label>Query</label>
+    <input type="text" name="q" value="{{ q }}" placeholder="e.g. create case customer reference" />
+    <label>Collection (optional)</label>
+    <input type="text" name="collection" value="{{ collection }}" placeholder="frd / adr / ai_context / catalogs ..." />
+    <button type="submit">Search</button>
+  </form>
+</div>
+<div class="card">
+  <h2>Results</h2>
+  {% if not q %}
+    <p class="muted">Masukkan query untuk mencari konteks.</p>
+  {% elif not hits %}
+    <p class="muted">Tidak ada hasil. Jalankan Build RAG Index dari Home.</p>
+  {% else %}
+    {% for hit in hits %}
+      <div class="hit">
+        <strong>{{ hit.path }}</strong>
+        <div class="muted">score={{ hit.score }} · {{ hit.collection }} · {{ hit.id }}</div>
+        <pre>{{ hit.text }}</pre>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

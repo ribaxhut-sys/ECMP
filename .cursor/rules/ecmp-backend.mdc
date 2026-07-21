@@ -1,0 +1,28 @@
+---
+description: G0 engineering constraints for the ECMP backend
+globs:
+  - "implementation/backend/**"
+alwaysApply: false
+---
+
+# ECMP Backend Engineering Constraints (G0 — DEC-002)
+
+## Hard constraints
+- Persistence MUST go through SQLAlchemy models + Alembic migrations. No in-memory dict stores, no schema changes without an Alembic revision.
+- Every significant write MUST persist an append-only `audit_log` row in the SAME transaction (BR-008 / FR-001c).
+- Every emitted domain event MUST be written to the `outbox` table in the same transaction (ADR-009). Events must exist in `08 Event Catalog/events/events.yaml`.
+- All 4xx/5xx responses MUST use the Error envelope `{code, message, details?}`. Never return FastAPI default `{"detail": ...}` — use `app/errors.py` exceptions.
+- 401 = authentication failure (`UNAUTHENTICATED`); 403 = missing permission (`FORBIDDEN`).
+- Product endpoints live under `/v1` (ADR-006) and MUST exist in `07 API Catalog/openapi/` before implementation.
+- No secrets or tokens hardcoded in source — read from environment via `app/settings.py`. `.env` is git-ignored; update `.env.example` for new vars.
+- Layering per ADR-005: routes in `main.py` delegate to `service.py`; `service.py` must not import FastAPI.
+- Reference delivery rule IDs (`BR-0xx`) in code comments/PRs, not enterprise `BR-<Domain>-NN` (DEC-003).
+
+## Out of scope (do NOT build — DEC-001/DEC-002 non-goals)
+Assign/status transition, notifications, SLA engine, Branch/HO escalation, Schedule Slot/Appointment/Work Order, idempotency keys, read-audit, message broker integration, SSO/IdP, generic audit/event frameworks, full 4-layer scaffold.
+
+## Definition of Done (backend PR)
+- `ruff check app tests` clean and `pytest -q` green locally (tests run on the Alembic-migrated schema)
+- Backend CI (`backend-ci.yml`) green: lint (backend + tools/portal) → OpenAPI validate (all specs) → alembic upgrade → pytest on PostgreSQL with coverage ≥90% → pip-audit
+- Contract conformance suite (`tests/test_contract_conformance.py`) must stay green — runtime schema vs `07 API Catalog` spec
+- OpenAPI/Event catalog/traceability updated when contracts change

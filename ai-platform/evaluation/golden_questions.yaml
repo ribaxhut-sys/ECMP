@@ -1,0 +1,45 @@
+id: EVAL-GOLD-001
+version: 1.0
+threshold: 0.80
+suites:
+  architecture:
+    - id: Q-ARCH-001
+      question: "Does ECMP own customer master data?"
+      expect_any: ["no", "not system of record", "read-only", "reuse existing"]
+    - id: Q-ARCH-002
+      question: "Where should architecture trade-offs be recorded?"
+      expect_any: ["adr", "architecture decision"]
+    - id: Q-ARCH-003
+      question: "What integration style is chosen between ECMF and KPI/Notification?"
+      expect_any: ["event-driven", "asynchronous", "event"]
+  business:
+    - id: Q-BIZ-001
+      question: "What is the initial status of a newly created case in Sprint-01?"
+      expect_any: ["registered"]
+    - id: Q-BIZ-002
+      question: "Which FR IDs cover create and get case?"
+      expect_any: ["fr-001", "fr-002"]
+  coding:
+    - id: Q-CODE-001
+      question: "Which stack is approved for Sprint-01 backend?"
+      expect_any: ["fastapi", "python"]
+    - id: Q-CODE-002
+      question: "Where should backend code live?"
+      expect_any: ["implementation/backend"]
+    - id: Q-CODE-003
+      question: "Which event must be emitted after create case?"
+      expect_any: ["casecreated", "evt-001"]
+  qa:
+    - id: Q-QA-001
+      question: "What file is the source of traceability links?"
+      expect_any: ["traceability.yaml"]
+    - id: Q-QA-002
+      question: "Name one acceptance test id for create case."
+      expect_any: ["tc-001"]
+  security:
+    - id: Q-SEC-001
+      question: "What permissions are required to create and read cases?"
+      expect_any: ["cases:create", "cases:read"]
+    - id: Q-SEC-002
+      question: "Can audit trail be deleted?"
+      expect_any: ["no", "cannot", "immutable"]

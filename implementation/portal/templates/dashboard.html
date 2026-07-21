@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Engineering Dashboard</h1>
+  <p class="muted">Coverage, metrics, trends, feedback, AI evaluation, and telemetry.</p>
+</div>
+<div class="card"><h2>Documentation Coverage</h2><pre>{{ coverage }}</pre></div>
+<div class="card"><h2>Feedback Metrics</h2><pre>{{ feedback }}</pre></div>
+<div class="card"><h2>AI Evaluation</h2><pre>{{ evaluation }}</pre></div>
+<div class="card"><h2>AI Telemetry</h2><pre>{{ telemetry }}</pre></div>
+<div class="card"><h2>Repository Metrics</h2><pre>{{ metrics }}</pre></div>
+<div class="card"><h2>Repository Trends</h2><pre>{{ trends }}</pre></div>
+{% endblock %}

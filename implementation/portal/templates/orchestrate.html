@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>AI Orchestrator</h1>
+  <p class="muted">Registry-driven routing via <code>ai-platform/</code> agents + capabilities.</p>
+  <form method="get">
+    <label>Task</label>
+    <input type="text" name="task" value="{{ task }}" placeholder="implement FR-001 create case endpoint" />
+    <button type="submit">Route</button>
+  </form>
+</div>
+{% if result %}
+<div class="card">
+  <h2>Capability: {{ result.capability.name or result.capability_id }}</h2>
+  <p class="muted">{{ result.capability_id }} · {{ result.capability.status or 'n/a' }}</p>
+  <ul>
+    <li>Input: {{ result.capability.input or 'n/a' }}</li>
+    <li>Output: {{ result.capability.output or 'n/a' }}</li>
+  </ul>
+  <h3>Agent: {{ result.agent.name or result.agent_id }}</h3>
+  <p class="muted">{{ result.agent.tool_role }}</p>
+  <h3>Prompt</h3>
+  <ul>
+    <li>Ref: <code>{{ result.prompt_ref }}</code></li>
+    <li>Path: <code>{{ result.prompt_path or 'n/a' }}</code></li>
+    <li>Memory: <code>{{ result.memory_version }}</code></li>
+    <li>Domain pack: <code>{{ result.domain or 'n/a' }}</code></li>
+  </ul>
+  <h3>Context Pack</h3>
+  <ul>
+    {% for c in result.context %}<li><code>{{ c }}</code></li>{% endfor %}
+  </ul>
+  <h3>RAG Top Hits</h3>
+  <ul>
+    {% for hit in result.rag_hits %}
+      <li><code>{{ hit.path }}</code> ({{ hit.score }})</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

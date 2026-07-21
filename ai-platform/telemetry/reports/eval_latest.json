@@ -1,0 +1,220 @@
+{
+  "timestamp": "2026-07-21T11:03:51.677946+00:00",
+  "threshold": 0.8,
+  "suites": {
+    "architecture": {
+      "pass": 3,
+      "total": 3,
+      "rate": 1.0,
+      "results": [
+        {
+          "id": "Q-ARCH-001",
+          "question": "Does ECMP own customer master data?",
+          "pass": true,
+          "matched": [
+            "no",
+            "not system of record",
+            "read-only"
+          ],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "ai/generated/memory_crm.md",
+            "ai-platform/memory/v1/memory_crm.md"
+          ],
+          "top_score": 0.2901
+        },
+        {
+          "id": "Q-ARCH-002",
+          "question": "Where should architecture trade-offs be recorded?",
+          "pass": true,
+          "matched": [
+            "adr",
+            "architecture decision"
+          ],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "ai/generated/memory_global.md",
+            "ai-platform/memory/v1/memory_global.md"
+          ],
+          "top_score": 0.1468
+        },
+        {
+          "id": "Q-ARCH-003",
+          "question": "What integration style is chosen between ECMF and KPI/Notification?",
+          "pass": true,
+          "matched": [
+            "event-driven",
+            "asynchronous",
+            "event"
+          ],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "08 Event Catalog/EVENT_CATALOG.generated.md",
+            "ai/README.md"
+          ],
+          "top_score": 0.2297
+        }
+      ]
+    },
+    "business": {
+      "pass": 2,
+      "total": 2,
+      "rate": 1.0,
+      "results": [
+        {
+          "id": "Q-BIZ-001",
+          "question": "What is the initial status of a newly created case in Sprint-01?",
+          "pass": true,
+          "matched": [
+            "registered"
+          ],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md",
+            "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md"
+          ],
+          "top_score": 0.3151
+        },
+        {
+          "id": "Q-BIZ-002",
+          "question": "Which FR IDs cover create and get case?",
+          "pass": true,
+          "matched": [
+            "fr-001",
+            "fr-002"
+          ],
+          "top_paths": [
+            "26 Traceability/TRACEABILITY_MATRIX.md",
+            "03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md",
+            "20 Domain Architecture/navigator/ecmf.md"
+          ],
+          "top_score": 0.2639
+        }
+      ]
+    },
+    "coding": {
+      "pass": 3,
+      "total": 3,
+      "rate": 1.0,
+      "results": [
+        {
+          "id": "Q-CODE-001",
+          "question": "Which stack is approved for Sprint-01 backend?",
+          "pass": true,
+          "matched": [
+            "fastapi",
+            "python"
+          ],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "05 Architecture Decision Records/ECMP_ADR_004_Implementation_Stack_Sprint01_v1.0.md",
+            "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md"
+          ],
+          "top_score": 0.2845
+        },
+        {
+          "id": "Q-CODE-002",
+          "question": "Where should backend code live?",
+          "pass": true,
+          "matched": [
+            "implementation/backend"
+          ],
+          "top_paths": [
+            "ai/rules.md",
+            "ai-platform/evaluation/facts.md",
+            "ai/04_api.md"
+          ],
+          "top_score": 0.1401
+        },
+        {
+          "id": "Q-CODE-003",
+          "question": "Which event must be emitted after create case?",
+          "pass": true,
+          "matched": [
+            "casecreated",
+            "evt-001"
+          ],
+          "top_paths": [
+            "08 Event Catalog/EVENT_CATALOG.generated.md",
+            "ai/06_events.md",
+            "03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md"
+          ],
+          "top_score": 0.2979
+        }
+      ]
+    },
+    "qa": {
+      "pass": 1,
+      "total": 2,
+      "rate": 0.5,
+      "results": [
+        {
+          "id": "Q-QA-001",
+          "question": "What file is the source of traceability links?",
+          "pass": false,
+          "matched": [],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md",
+            "20 Domain Architecture/navigator/crm.md"
+          ],
+          "top_score": 0.2167
+        },
+        {
+          "id": "Q-QA-002",
+          "question": "Name one acceptance test id for create case.",
+          "pass": true,
+          "matched": [
+            "tc-001"
+          ],
+          "top_paths": [
+            "03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md",
+            "ai-platform/evaluation/facts.md",
+            "03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md"
+          ],
+          "top_score": 0.1887
+        }
+      ]
+    },
+    "security": {
+      "pass": 2,
+      "total": 2,
+      "rate": 1.0,
+      "results": [
+        {
+          "id": "Q-SEC-001",
+          "question": "What permissions are required to create and read cases?",
+          "pass": true,
+          "matched": [
+            "cases:create",
+            "cases:read"
+          ],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "ai-platform/packs/core-platform/pack.md",
+            "03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md"
+          ],
+          "top_score": 0.4519
+        },
+        {
+          "id": "Q-SEC-002",
+          "question": "Can audit trail be deleted?",
+          "pass": true,
+          "matched": [
+            "no",
+            "cannot",
+            "immutable"
+          ],
+          "top_paths": [
+            "ai-platform/evaluation/facts.md",
+            "ai/07_security.md",
+            "26 Traceability/TRACEABILITY_MATRIX.md"
+          ],
+          "top_score": 0.4576
+        }
+      ]
+    }
+  },
+  "overall_pass_rate": 0.9166666666666666,
+  "overall_status": "PASS"
+}

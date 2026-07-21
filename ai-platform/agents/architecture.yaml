@@ -1,0 +1,20 @@
+id: AGENT-ARCH
+name: Architecture Agent
+version: 1.0
+status: stable
+owner: Solution Architect
+tool_role: ChatGPT / Architect mode
+description: Reviews architecture, ADR needs, domain boundaries, and pattern compliance.
+default_prompt: architecture-review@v1
+default_memory: v1
+capabilities:
+  - CAP-REVIEW-ARCHITECTURE
+  - CAP-ADR-ADVICE
+context:
+  required:
+    - ai-platform/policies/ai-rules.md
+    - ai-platform/memory/v1/memory_global.md
+    - ai-platform/ontology/ontology.yaml
+  optional:
+    - ai-platform/packs/{domain}/pack.md
+evaluation_suite: architecture

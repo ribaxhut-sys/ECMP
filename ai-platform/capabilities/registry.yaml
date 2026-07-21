@@ -1,0 +1,83 @@
+id: CAP-REG-001
+version: 1.0
+capabilities:
+  - id: CAP-REVIEW-ARCHITECTURE
+    name: Review Architecture
+    owner: Solution Architect
+    agent: AGENT-ARCH
+    prompt: architecture-review@v1
+    input: "Architecture proposal / diff / design notes"
+    output: "Findings, ADR/OQ needs, Go/No-Go"
+    status: stable
+
+  - id: CAP-ADR-ADVICE
+    name: Advise ADR Need
+    owner: Solution Architect
+    agent: AGENT-ARCH
+    prompt: architecture-review@v1
+    input: "Design trade-off description"
+    output: "Whether ADR is required + draft outline"
+    status: stable
+
+  - id: CAP-GENERATE-FRD
+    name: Generate FRD
+    owner: Business Analyst
+    agent: AGENT-BIZ
+    prompt: frd-generator@v1
+    input: "Domain + scope slice"
+    output: "FRD markdown draft with FR/BR/API/EVT IDs"
+    status: stable
+
+  - id: CAP-REVIEW-REQUIREMENTS
+    name: Review Requirements
+    owner: Business Analyst
+    agent: AGENT-BIZ
+    prompt: frd-generator@v1
+    input: "FRD draft"
+    output: "Gaps, acceptance criteria issues, scope risks"
+    status: experimental
+
+  - id: CAP-IMPLEMENT-FEATURE
+    name: Implement Feature
+    owner: Tech Lead
+    agent: AGENT-CODE
+    prompt: implement-feature@v1
+    input: "Sprint + FR IDs"
+    output: "Code changes + tests + docs sync notes"
+    status: stable
+
+  - id: CAP-SYNC-DOCS
+    name: Sync Docs After Code
+    owner: Tech Lead
+    agent: AGENT-CODE
+    prompt: sync-docs@v1
+    input: "Implementation diff summary"
+    output: "Required EKR/catalog/traceability updates"
+    status: stable
+
+  - id: CAP-REVIEW-CODE
+    name: Review Code
+    owner: QA Lead
+    agent: AGENT-QA
+    prompt: code-review@v1
+    input: "Diff / PR"
+    output: "Blocking/non-blocking findings"
+    status: stable
+
+  - id: CAP-BUG-ANALYSIS
+    name: Bug Analysis
+    owner: QA Lead
+    agent: AGENT-QA
+    prompt: bug-analysis@v1
+    input: "Defect report"
+    output: "Hypotheses, impact, fix options"
+    status: stable
+
+  - id: CAP-REVIEW-SECURITY
+    name: Review Security
+    owner: Security Architect
+    agent: AGENT-SEC
+    prompt: security-review@v1
+    input: "Change description / diff"
+    output: "Security findings by severity"
+    status: stable

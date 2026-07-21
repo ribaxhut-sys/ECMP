@@ -1,0 +1,43 @@
+%% ECMP — Container View (selaras SA-001 §4: 7 domain + event backbone)
+%% Event backbone: transactional outbox dulu (ADR-009); broker deferred
+%% Arah panah = "bergantung pada" sesuai tabel dependensi SA §4
+%% Docs: 04 Solution Architecture/ECMP_Solution_Architecture_v1.0.md (§4)
+flowchart TB
+    subgraph ecmp["ECMP — kandidat container/service per domain"]
+        cp["Core Platform\nIdentity, AuthN/AuthZ,\nOrganization, Config, Audit"]
+        crm["CRM\nCustomer 360,\ncache read-only Customer Master"]
+        ecmf["ECMF\nCase lifecycle:\ncreate - assign - process - review - close"]
+        kpi["KPI & Performance\nKalkulasi metrik\ndari event operasional"]
+        dash["Dashboard & Analytics\nVisualisasi\noperasional/eksekutif"]
+        notif["Notification\nRouting & delivery\nnotifikasi berbasis event"]
+        adm["Administration\nConfig, reference data,\nrole-permission"]
+        bus[("Event backbone:\ntransactional outbox (ADR-009)\nbroker deferred - dipilih sebelum multi-service")]
+    end
+
+    cm["Customer Master\n(eksternal, read-only - ADR-002)"]
+    gw["Email/Channel Gateway\n(eksternal, opsional)"]
+
+    %% Dependensi sesuai tabel SA §4 (X --> Y = X bergantung pada Y)
+    crm --> cp
+    crm -. "read-only (INT-001)" .-> cm
+    ecmf --> cp
+    ecmf -- "konteks pelanggan" --> crm
+    ecmf -- "workflow/SLA config" --> adm
+    kpi -- "event" --> ecmf
+    kpi -- "SLA config" --> adm
+    dash --> kpi
+    dash --> ecmf
+    dash --> crm
+    dash -- "authz" --> cp
+    notif -- "event source (semua domain)" --> bus
+    notif -- "recipient resolution" --> cp
+    adm --> cp
+
+    %% Tulang punggung event: ECMF -> KPI/Dashboard/Notification/Core Platform (SA §4)
+    ecmf -- "publish EVT via outbox" --> bus
+    bus --> kpi
+    bus --> dash
+    bus --> notif
+    bus --> cp
+
+    notif -. "opsional" .-> gw
