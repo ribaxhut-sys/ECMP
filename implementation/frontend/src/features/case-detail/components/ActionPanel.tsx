@@ -1,6 +1,7 @@
 import type { Case } from '../../../api/types'
 import { useAuth } from '../../../auth/AuthContext'
 import { getActionVisibility } from '../permissions'
+import { AssignActionForm } from './AssignActionForm'
 import styles from './ActionPanel.module.css'
 
 interface ActionPanelProps {
@@ -9,8 +10,7 @@ interface ActionPanelProps {
 }
 
 /**
- * Permission-aware action gate (Step 4).
- * Renders 0 or 1 action surface. Submit wiring lands in Steps 5–7.
+ * Permission-aware action gate — renders 0 or 1 action surface (Screen Spec §6).
  */
 export function ActionPanel({ caseData, isRefreshing = false }: ActionPanelProps) {
   const auth = useAuth()
@@ -42,9 +42,7 @@ export function ActionPanel({ caseData, isRefreshing = false }: ActionPanelProps
       </div>
 
       {visibility.kind === 'assign' ? (
-        <p className={styles.stub} data-testid="assign-gate">
-          Assign case (form wired in next step)
-        </p>
+        <AssignActionForm caseId={caseData.caseId} />
       ) : (
         <ul className={styles.stubList} data-testid="status-gate">
           {visibility.canStartHandling ? (
