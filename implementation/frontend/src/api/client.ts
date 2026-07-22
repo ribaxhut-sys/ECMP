@@ -8,6 +8,15 @@ export function setAuthTokenGetter(getter: () => string | null): void {
   authTokenGetter = getter
 }
 
+function resolveAuthToken(): string | null {
+  const fromGetter = authTokenGetter?.()
+  if (fromGetter) return fromGetter
+  // Dev-mode fallback (ADR-013 item 7): avoid race where first useQuery
+  // fires before AuthProvider's effect registers the getter.
+  const fromEnv = import.meta.env.VITE_DEV_TOKEN
+  return fromEnv ? String(fromEnv) : null
+}
+
 function baseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL ?? ''
   return raw.replace(/\/$/, '')
@@ -22,10 +31,12 @@ export async function apiRequest<T>(
   if (!headers.has('Content-Type') && init.body) {
     headers.set('Content-Type', 'application/json')
   }
-  const token = authTokenGetter?.() ?? null
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
+  const token = resolveAuthToken()
+  if (!token) {
+    throw new ApiError(401, 'UNAUTHENTICATED', 'Missing bearer token')
   }
+  headers.set('Authorization', `Bearer ${token}`)
+
 
   let response: Response
   try {

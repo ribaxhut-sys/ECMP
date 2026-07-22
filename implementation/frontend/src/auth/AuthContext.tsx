@@ -2,7 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   type ReactNode,
 } from 'react'
@@ -84,7 +84,10 @@ export function AuthProvider({ children, onUnauthenticated }: AuthProviderProps)
   const token = import.meta.env.VITE_DEV_TOKEN || 'dev-token'
   const claims = useMemo(() => resolveClaims(token), [token])
 
-  useEffect(() => {
+  // Register before paint so the first case query includes Authorization.
+  // (useEffect is too late — TanStack Query can fetch in the first commit.)
+  setAuthTokenGetter(() => claims.token)
+  useLayoutEffect(() => {
     setAuthTokenGetter(() => claims.token)
     return () => setAuthTokenGetter(() => null)
   }, [claims.token])
