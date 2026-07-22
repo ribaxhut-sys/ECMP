@@ -1,0 +1,39 @@
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.primary {
+  appearance: none;
+  border: 1px solid #1d4ed8;
+  border-radius: var(--radius-sm);
+  background: #2563eb;
+  color: #fff;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.panelError {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.9rem;
+}
+
+.retry {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--color-focus);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}

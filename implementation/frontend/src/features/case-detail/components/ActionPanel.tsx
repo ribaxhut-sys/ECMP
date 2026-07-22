@@ -2,6 +2,7 @@ import type { Case } from '../../../api/types'
 import { useAuth } from '../../../auth/AuthContext'
 import { getActionVisibility } from '../permissions'
 import { AssignActionForm } from './AssignActionForm'
+import { StatusActionControls } from './StatusActionControls'
 import styles from './ActionPanel.module.css'
 
 interface ActionPanelProps {
@@ -44,18 +45,10 @@ export function ActionPanel({ caseData, isRefreshing = false }: ActionPanelProps
       {visibility.kind === 'assign' ? (
         <AssignActionForm caseId={caseData.caseId} />
       ) : (
-        <ul className={styles.stubList} data-testid="status-gate">
-          {visibility.canStartHandling ? (
-            <li>Start Handling</li>
-          ) : null}
-          {visibility.canSubmitForReview ? (
-            <li>Submit for Review</li>
-          ) : null}
-          {visibility.canApproveClose ? (
-            <li>Approve &amp; Close</li>
-          ) : null}
-          {visibility.canReject ? <li>Reject</li> : null}
-        </ul>
+        <StatusActionControls
+          caseId={caseData.caseId}
+          visibility={visibility}
+        />
       )}
     </section>
   )
