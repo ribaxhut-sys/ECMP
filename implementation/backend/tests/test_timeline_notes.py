@@ -91,3 +91,45 @@ def test_notes_create_forbidden_without_permission(client):
     )
     assert res.status_code == 403
     assert res.json()["code"] == "FORBIDDEN"
+
+
+def test_timeline_empty_only_create_entry(client):
+    """Fresh case still has case.create audit — empty means no transitions beyond create."""
+    case_id = _create_case(client)
+    res = client.get(f"/v1/cases/{case_id}/timeline", headers=HEADERS)
+    assert res.status_code == 200
+    entries = res.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["actionCode"] == "case.create"
+
+
+def test_notes_404_unknown_case(client):
+    missing_list = client.get("/v1/cases/CASE-0000000000/notes", headers=HEADERS)
+    assert missing_list.status_code == 404
+    missing_create = client.post(
+        "/v1/cases/CASE-0000000000/notes",
+        json={"body": "x"},
+        headers=HEADERS,
+    )
+    assert missing_create.status_code == 404
+
+
+def test_notes_list_forbidden_without_read(client):
+    case_id = _create_case(client)
+    res = client.get(f"/v1/cases/{case_id}/notes", headers=NOPERM_HEADERS)
+    assert res.status_code == 403
+
+
+def test_notes_chronological_order(client):
+    case_id = _create_case(client)
+    for body in ("A", "B", "C"):
+        assert (
+            client.post(
+                f"/v1/cases/{case_id}/notes",
+                json={"body": body},
+                headers=HEADERS,
+            ).status_code
+            == 201
+        )
+    items = client.get(f"/v1/cases/{case_id}/notes", headers=HEADERS).json()["items"]
+    assert [n["body"] for n in items] == ["A", "B", "C"]

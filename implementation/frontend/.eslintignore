@@ -1,0 +1,8 @@
+# Keep ESLint scoped — mirrors .eslintrc.cjs ignorePatterns (Sprint-07 P0 hang fix).
+node_modules/
+dist/
+coverage/
+verification/
+*.config.js
+*.config.cjs
+*.config.ts

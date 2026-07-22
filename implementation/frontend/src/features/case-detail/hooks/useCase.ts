@@ -11,5 +11,6 @@ export function useCase(caseId: string) {
     queryFn: () => getCase(caseId),
     enabled: Boolean(caseId),
     staleTime: 0,
+    retry: false,
   })
 }

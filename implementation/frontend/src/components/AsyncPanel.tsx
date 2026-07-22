@@ -9,17 +9,23 @@ export interface AsyncPanelProps {
   isError: boolean
   errorTitle?: string
   errorMessage?: string
+  /** @deprecated Prefer errorAction when the label is not always "Retry". */
   onRetry?: () => void
+  /** Caller-chosen error action (Back to queue vs Retry, etc.). */
+  errorAction?: { label: string; onClick: () => void }
   isEmpty: boolean
   emptyTitle: string
   emptyMessage: string
   emptyAction?: { label: string; onClick: () => void }
+  /** Override default panel skeleton (e.g. table skeleton for Case Queue). */
+  loadingContent?: ReactNode
   children: ReactNode
 }
 
 /**
- * Shared loading / error / empty / content pattern for new panels (Sprint-06).
- * Do not retrofit shipped Case Detail / Case Queue screens onto this yet.
+ * Shared loading / error / empty / content pattern.
+ * Timeline / Audit / Notes already use this; Case Detail / Queue retrofit (Sprint-07)
+ * keeps dimmed-refetch / validation-recovery workspace-local.
  */
 export function AsyncPanel({
   isLoading,
@@ -27,29 +33,32 @@ export function AsyncPanel({
   errorTitle = 'Something went wrong',
   errorMessage = 'Something went wrong. Please try again.',
   onRetry,
+  errorAction,
   isEmpty,
   emptyTitle,
   emptyMessage,
   emptyAction,
+  loadingContent,
   children,
 }: AsyncPanelProps) {
   if (isLoading) {
     return (
       <div className={styles.body} aria-busy="true">
-        <LoadingSkeleton variant="panel" />
+        {loadingContent ?? <LoadingSkeleton variant="panel" />}
       </div>
     )
   }
 
   if (isError) {
+    const action =
+      errorAction ??
+      (onRetry ? { label: 'Retry', onClick: onRetry } : undefined)
     return (
       <div className={styles.body}>
         <ErrorBanner
           title={errorTitle}
           message={errorMessage}
-          action={
-            onRetry ? { label: 'Retry', onClick: onRetry } : undefined
-          }
+          action={action}
         />
       </div>
     )

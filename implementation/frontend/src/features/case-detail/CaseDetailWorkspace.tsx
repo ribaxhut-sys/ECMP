@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, getErrorCopy, isApiError } from '../../api/errors'
 import { useAuth } from '../../auth/AuthContext'
+import { AsyncPanel } from '../../components/AsyncPanel'
 import { ErrorBanner } from '../../components/ErrorBanner'
 import { LoadingSkeleton } from '../../components/LoadingSkeleton'
 import { useMediaQuery } from '../../lib/useMediaQuery'
@@ -27,6 +28,24 @@ function PanelFallback() {
   return <LoadingSkeleton variant="panel" />
 }
 
+function CaseDetailLoading() {
+  return (
+    <div className={styles.page} aria-busy="true" aria-label="Loading case">
+      <LoadingSkeleton variant="header" />
+      <div className={styles.layout}>
+        <div className={styles.main}>
+          <LoadingSkeleton variant="panel" />
+          <LoadingSkeleton variant="panel" />
+        </div>
+        <aside className={styles.side}>
+          <LoadingSkeleton variant="panel" />
+          <LoadingSkeleton variant="panel" />
+        </aside>
+      </div>
+    </div>
+  )
+}
+
 export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
   const navigate = useNavigate()
   const { onUnauthenticated } = useAuth()
@@ -38,21 +57,7 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
   const handleCaseGone = useCallback(() => setCaseGone(true), [])
 
   if (query.isLoading) {
-    return (
-      <div className={styles.page} aria-busy="true" aria-label="Loading case">
-        <LoadingSkeleton variant="header" />
-        <div className={styles.layout}>
-          <div className={styles.main}>
-            <LoadingSkeleton variant="panel" />
-            <LoadingSkeleton variant="panel" />
-          </div>
-          <aside className={styles.side}>
-            <LoadingSkeleton variant="panel" />
-            <LoadingSkeleton variant="panel" />
-          </aside>
-        </div>
-      </div>
-    )
+    return <CaseDetailLoading />
   }
 
   if (caseGone) {
@@ -67,10 +72,12 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
     )
   }
 
-  if (query.isError) {
+  if (query.isError || !query.data) {
     const error = isApiError(query.error)
       ? query.error
-      : new ApiError(500, 'INTERNAL_ERROR', 'Unexpected error')
+      : query.isError
+        ? new ApiError(500, 'INTERNAL_ERROR', 'Unexpected error')
+        : new ApiError(404, 'NOT_FOUND', 'Case not found')
 
     if (error.code === 'UNAUTHENTICATED') {
       onUnauthenticated?.()
@@ -79,26 +86,30 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
     const copy = getErrorCopy(error, 'load')
     const isNotFoundOrForbidden =
       error.code === 'NOT_FOUND' || error.code === 'FORBIDDEN'
+
     return (
       <main className={styles.page}>
-        <ErrorBanner
-          title={copy.title}
-          message={copy.message}
-          action={
+        <AsyncPanel
+          isLoading={false}
+          isError
+          errorTitle={copy.title}
+          errorMessage={copy.message}
+          errorAction={
             isNotFoundOrForbidden
               ? { label: 'Back to queue', onClick: () => navigate('/') }
               : { label: 'Retry', onClick: () => void query.refetch() }
           }
-        />
+          isEmpty={false}
+          emptyTitle=""
+          emptyMessage=""
+        >
+          {null}
+        </AsyncPanel>
       </main>
     )
   }
 
   const caseData = query.data
-  if (!caseData) {
-    return null
-  }
-
   const refreshing = query.isFetching && !query.isLoading
   const actionPanel = (
     <ActionPanel

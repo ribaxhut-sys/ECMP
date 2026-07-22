@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ApiError, isApiError } from '../../api/errors'
 import { useAuth } from '../../auth/AuthContext'
-import { EmptyState } from '../../components/EmptyState'
+import { AsyncPanel } from '../../components/AsyncPanel'
 import { ErrorBanner } from '../../components/ErrorBanner'
 import { LoadingSkeleton } from '../../components/LoadingSkeleton'
 import { CaseQueueTable } from './components/CaseQueueTable'
@@ -81,19 +81,27 @@ export function CaseQueueWorkspace() {
       onUnauthenticated?.()
     }
 
+    // Full-page 403 — filters are not useful without cases:read.
     if (error.code === 'FORBIDDEN') {
       return (
         <main className={styles.page}>
-          <ErrorBanner
-            title="You don't have access to view cases"
-            message="You don't have permission to view the case queue."
-          />
+          <AsyncPanel
+            isLoading={false}
+            isError
+            errorTitle="You don't have access to view cases"
+            errorMessage="You don't have permission to view the case queue."
+            isEmpty={false}
+            emptyTitle=""
+            emptyMessage=""
+          >
+            {null}
+          </AsyncPanel>
         </main>
       )
     }
 
+    // Validation recovery stays workspace-local (filters remain usable).
     if (error.code === 'VALIDATION_ERROR') {
-      // URL reset in effect; show filters + brief hint while recovering.
       return (
         <main className={styles.page}>
           <header className={styles.header}>
@@ -117,6 +125,10 @@ export function CaseQueueWorkspace() {
   const isFetching = query.isFetching
   const page = query.data
   const filtersActive = hasActiveFilters(filters)
+  const hardError =
+    query.isError &&
+    !(isApiError(query.error) && query.error.code === 'VALIDATION_ERROR') &&
+    !(isApiError(query.error) && query.error.code === 'FORBIDDEN')
 
   return (
     <main className={styles.page}>
@@ -147,48 +159,54 @@ export function CaseQueueWorkspace() {
         </div>
       ) : null}
 
-      {isInitialLoading ? (
-        <LoadingSkeleton variant="table" />
-      ) : query.isError ? (
-        <ErrorBanner
-          title="Something went wrong"
-          message={
-            isApiError(query.error) && query.error.code === 'NETWORK_ERROR'
-              ? 'Connection problem. Check your network and try again.'
-              : 'Something went wrong. Please try again.'
-          }
-          action={{
-            label: 'Retry',
-            onClick: () => {
-              void query.refetch()
-            },
-          }}
-        />
-      ) : page && page.totalItems === 0 ? (
-        filtersActive ? (
-          <EmptyState
-            title="No cases match your filters."
-            message="Try clearing filters or adjusting status, priority, type, or assignee."
-            action={{ label: 'Clear filters', onClick: clearFilters }}
-          />
-        ) : (
-          <EmptyState
-            title="No cases yet."
-            message="Cases will appear here when they are created."
-          />
-        )
-      ) : page ? (
-        <>
-          <CaseQueueTable items={page.items} dimmed={isFetching} />
-          <PaginationControls
-            page={filters.page}
-            pageSize={filters.pageSize}
-            totalItems={page.totalItems}
-            isFetching={isFetching}
-            onPageChange={(nextPage) => patchFilters({ page: nextPage })}
-          />
-        </>
-      ) : null}
+      {/*
+        Dimmed-refetch stays workspace-local (CaseQueueTable dimmed=isFetching).
+        AsyncPanel covers initial-load / hard-error / empty only (Sprint-07 §2a).
+      */}
+      <AsyncPanel
+        isLoading={isInitialLoading}
+        loadingContent={<LoadingSkeleton variant="table" />}
+        isError={hardError}
+        errorTitle="Something went wrong"
+        errorMessage={
+          isApiError(query.error) && query.error.code === 'NETWORK_ERROR'
+            ? 'Connection problem. Check your network and try again.'
+            : 'Something went wrong. Please try again.'
+        }
+        errorAction={{
+          label: 'Retry',
+          onClick: () => {
+            void query.refetch()
+          },
+        }}
+        isEmpty={Boolean(page && page.totalItems === 0)}
+        emptyTitle={
+          filtersActive ? 'No cases match your filters.' : 'No cases yet.'
+        }
+        emptyMessage={
+          filtersActive
+            ? 'Try clearing filters or adjusting status, priority, type, or assignee.'
+            : 'Cases will appear here when they are created.'
+        }
+        emptyAction={
+          filtersActive
+            ? { label: 'Clear filters', onClick: clearFilters }
+            : undefined
+        }
+      >
+        {page ? (
+          <>
+            <CaseQueueTable items={page.items} dimmed={isFetching} />
+            <PaginationControls
+              page={filters.page}
+              pageSize={filters.pageSize}
+              totalItems={page.totalItems}
+              isFetching={isFetching}
+              onPageChange={(nextPage) => patchFilters({ page: nextPage })}
+            />
+          </>
+        ) : null}
+      </AsyncPanel>
     </main>
   )
 }

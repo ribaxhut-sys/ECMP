@@ -143,3 +143,55 @@ def test_runtime_does_not_advertise_422(runtime):
             if method in HTTP_METHODS:
                 assert "422" not in op.get("responses", {}), f"{method.upper()} {path}"
     assert "HTTPValidationError" not in runtime.get("components", {}).get("schemas", {})
+
+
+def _find_op(catalog: dict, ear_id: str) -> tuple[str, str, dict]:
+    for path, item in catalog["paths"].items():
+        for method, op in item.items():
+            if method in HTTP_METHODS and op.get("x-ear-id") == ear_id:
+                return path, method, op
+    raise AssertionError(f"{ear_id} not found in catalog")
+
+
+def test_api_006_timeline_catalog_matches_runtime(case_service, runtime):
+    """API-006 GET /cases/{caseId}/timeline — Sprint-07 conformance gap close."""
+    path, method, cat_op = _find_op(case_service, "API-006")
+    assert method == "get"
+    assert path.endswith("/timeline")
+
+    full = f"/v1{path}"
+    key = (_normalize(full), method)
+    runtime_ops = _runtime_operations(runtime)
+    assert key in runtime_ops, f"API-006 missing from runtime: {key}"
+
+    cat_codes = set(cat_op["responses"].keys())
+    run_codes = set(runtime_ops[key]["responses"].keys())
+    assert cat_codes == run_codes
+
+    for name in ("CaseTimeline", "TimelineEntry"):
+        cat = case_service["components"]["schemas"][name]
+        run = runtime["components"]["schemas"][name]
+        assert set(cat["required"]) == set(run["required"]), name
+        assert set(cat["properties"]) == set(run["properties"]), name
+
+
+def test_api_007_notes_list_catalog_matches_runtime(case_service, runtime):
+    """API-007 GET /cases/{caseId}/notes — Sprint-07 conformance gap close."""
+    path, method, cat_op = _find_op(case_service, "API-007")
+    assert method == "get"
+    assert path.endswith("/notes")
+
+    full = f"/v1{path}"
+    key = (_normalize(full), method)
+    runtime_ops = _runtime_operations(runtime)
+    assert key in runtime_ops, f"API-007 missing from runtime: {key}"
+
+    cat_codes = set(cat_op["responses"].keys())
+    run_codes = set(runtime_ops[key]["responses"].keys())
+    assert cat_codes == run_codes
+
+    for name in ("CaseNoteList", "CaseNote"):
+        cat = case_service["components"]["schemas"][name]
+        run = runtime["components"]["schemas"][name]
+        assert set(cat["required"]) == set(run["required"]), name
+        assert set(cat["properties"]) == set(run["properties"]), name

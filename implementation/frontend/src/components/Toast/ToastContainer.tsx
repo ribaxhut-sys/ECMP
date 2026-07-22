@@ -52,21 +52,3 @@ export function useToast(): ToastContextValue {
   }
   return ctx
 }
-
-/** Portal host used inside CaseDetailWorkspace when not using ToastProvider. */
-export function ToastContainer({
-  toasts,
-  onDismiss,
-}: {
-  toasts: ToastItem[]
-  onDismiss: (id: string) => void
-}) {
-  return createPortal(
-    <div className={styles.container} aria-live="polite">
-      {toasts.map((toast) => (
-        <Toast key={toast.id} toast={toast} onDismiss={onDismiss} />
-      ))}
-    </div>,
-    document.body,
-  )
-}
