@@ -1,7 +1,7 @@
 import styles from './LoadingSkeleton.module.css'
 
 interface LoadingSkeletonProps {
-  variant: 'header' | 'panel'
+  variant: 'header' | 'panel' | 'table'
 }
 
 export function LoadingSkeleton({ variant }: LoadingSkeletonProps) {
@@ -18,6 +18,37 @@ export function LoadingSkeleton({ variant }: LoadingSkeletonProps) {
           <div className={`${styles.bar} ${styles.badge}`} />
           <div className={`${styles.bar} ${styles.badge}`} />
         </div>
+      </div>
+    )
+  }
+
+  if (variant === 'table') {
+    return (
+      <div
+        className={`${styles.skeleton} ${styles.table}`}
+        aria-hidden="true"
+        data-testid="skeleton-table"
+      >
+        <div className={styles.tableHeader}>
+          <div className={`${styles.bar} ${styles.colId}`} />
+          <div className={`${styles.bar} ${styles.colSubject}`} />
+          <div className={`${styles.bar} ${styles.colStatus}`} />
+          <div className={`${styles.bar} ${styles.colPriority}`} />
+          <div className={`${styles.bar} ${styles.colType}`} />
+          <div className={`${styles.bar} ${styles.colAssignee}`} />
+          <div className={`${styles.bar} ${styles.colDate}`} />
+        </div>
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className={styles.tableRow}>
+            <div className={`${styles.bar} ${styles.colId}`} />
+            <div className={`${styles.bar} ${styles.colSubject}`} />
+            <div className={`${styles.bar} ${styles.colStatus}`} />
+            <div className={`${styles.bar} ${styles.colPriority}`} />
+            <div className={`${styles.bar} ${styles.colType}`} />
+            <div className={`${styles.bar} ${styles.colAssignee}`} />
+            <div className={`${styles.bar} ${styles.colDate}`} />
+          </div>
+        ))}
       </div>
     )
   }

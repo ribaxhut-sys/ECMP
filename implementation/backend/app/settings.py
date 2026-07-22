@@ -28,6 +28,21 @@ def noperm_token() -> str:
     return os.getenv("ECMP_DEV_NOPERM_TOKEN", "dev-noperm-token")
 
 
+def supervisor_token() -> str:
+    """Supervisor principal — cases:assign on UNIT-01 (Sprint-02B / SEC-RAM-001)."""
+    return os.getenv("ECMP_DEV_SUPERVISOR_TOKEN", "dev-supervisor-token")
+
+
+def handler_token() -> str:
+    """Handler principal — cases:status as assignee USR-2001 (Sprint-02B)."""
+    return os.getenv("ECMP_DEV_HANDLER_TOKEN", "dev-handler-token")
+
+
+def foreign_supervisor_token() -> str:
+    """Supervisor of UNIT-99 — BR-002 cross-unit denial fixture."""
+    return os.getenv("ECMP_DEV_FOREIGN_SUPERVISOR_TOKEN", "dev-foreign-supervisor-token")
+
+
 def dev_endpoints_enabled() -> bool:
     return os.getenv("ECMP_ENABLE_DEV_ENDPOINTS", "false").lower() in {"1", "true", "yes"}
 

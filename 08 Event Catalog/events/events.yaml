@@ -2,7 +2,12 @@
 # ID: EVT-CAT-001
 # Governance: per DEC-001/DEC-002; duplicate draft catalog retired 2026-07-21.
 # Naming: payload fields use camelCase (API/event standard, see 21 Technical Standards).
-version: 0.4
+# 2026-07-22 (Sprint-03A governance sync): EVT-002/EVT-003/EVT-005 status corrected
+# Planned -> Implemented. Runtime already emits these (Sprint-02B, verified by
+# tests/test_service_unit.py::test_assign_and_status_payloads_match_event_catalog
+# and tests/test_lifecycle.py). Payloads unchanged (still frozen per DEC-006) —
+# this is a status-field correction only, not a contract change.
+version: 0.5
 owner: Integration Lead
 status: Approved
 delivery_guarantee: at-least-once (ADR-001); all consumers MUST be idempotent
@@ -33,9 +38,11 @@ events:
     idempotency: idempotent by caseId; consumers ignore duplicates by caseId + createdAt
   - id: EVT-002
     name: CaseAssigned
-    status: Planned
+    status: Implemented
     producer: ECMF
-    description: Emitted when a case is assigned/reassigned
+    description: Emitted when a case is assigned/reassigned (Sprint-02B). Payload FROZEN at gate G1 (DEC-006, 2026-07-21) — changes require a new freeze decision.
+    fr: FR-003
+    api: API-003
     payload:
       caseId: string
       assigneeId: string
@@ -50,16 +57,18 @@ events:
     idempotency: ordered per caseId (sequence number) so latest assignment wins
   - id: EVT-003
     name: StatusChanged
-    status: Planned
+    status: Implemented
     producer: ECMF
-    description: Emitted on valid workflow status transition (BR-001)
+    description: Emitted on valid workflow status transition (BR-001) (Sprint-02B). Payload FROZEN at gate G1 (DEC-006, 2026-07-21) — changes require a new freeze decision.
+    fr: FR-004
+    api: API-004   # also emitted by API-003 alongside EVT-002 (every valid transition, DOM-ECMF-003)
     payload:
       caseId: string
       fromStatus: string
       toStatus: string
       changedBy: string
       changedAt: datetime
-      reason: string   # nullable; mandatory for override transitions
+      reason: string   # nullable; mandatory for Administrator override transitions (BR-ECMF-03) and CLOSED->REOPENED (BR-ECMF-07)
     consumers:
       - KPI            # SLA clock / status history
       - Dashboard
@@ -83,9 +92,9 @@ events:
     idempotency: idempotent by caseId + slaId; emit once per breach (re-breach after reopen allowed)
   - id: EVT-005
     name: CaseClosed
-    status: Planned
+    status: Implemented
     producer: ECMF
-    description: Emitted when a case is closed
+    description: Emitted when a case is closed (Sprint-02B, PENDING_REVIEW→CLOSED only; other producing transitions remain out of scope)
     payload:
       caseId: string
       resolutionCode: string
@@ -131,3 +140,20 @@ events:
       - Notification
       - Core Platform
     idempotency: idempotent by caseId + reopenedAt
+  - id: EVT-008
+    name: ConfigChangeRequested
+    status: Proposed
+    producer: Administration
+    description: Emitted when a critical configuration change request is submitted for approval (BR-ADM-01, FRD-007 FR-063); proposed via ECMP_FRD_Administration_v0.1
+    fr: FR-063
+    payload:
+      changeRequestId: string
+      configKey: string
+      requestedBy: string
+      requestedAt: datetime
+      approverRole: string
+      summary: string
+    consumers:
+      - Notification   # notify approvers (opt-in, BR-NOTIF-01)
+      - Core Platform  # audit projection
+    idempotency: idempotent by changeRequestId; approval decision/rejection is audit-only (no enterprise event), activation emits EVT-006

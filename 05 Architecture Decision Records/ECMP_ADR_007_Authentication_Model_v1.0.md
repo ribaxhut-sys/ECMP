@@ -30,6 +30,8 @@ Runtime slice memakai token statis `dev-token` hardcoded dengan principal tetap.
 5. JWT ditandatangani IdP (OIDC): validasi signature, `exp`, `iss`, `aud`; claims `{sub, roles[], permissions[], orgUnitId}`.
 6. Pemilihan IdP/SSO = keputusan lanjutan (Blueprint: Future Enhancement); bukan blocker G0/G1.
 
+> **Elaborasi fase target (2026-07-21):** desain lengkap fase target diputuskan di **ADR-012** (`ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md`) dengan arsitektur normatif di `10 Security and Access Standards/ECMP_Target_Authentication_Architecture_v1.0.md` (SEC-AUTH-001). Catatan penyempurnaan butir 5: token membawa `{sub, roles[], orgUnitId}`; `permissions[]` **tidak** dimuat di token melainkan diresolusi Core Platform dari Role-Permission matrix (menjaga SoT tunggal per ADR-008). Fase slice (butir 1–4) tetap berlaku tanpa perubahan untuk DEV lokal/CI.
+
 ## Consequences
 - OpenAPI `bearerFormat: JWT` menjadi target-akurat; deskripsi slice mencantumkan mode dev-token.
 - Gate rilis: tidak ada environment bersama tanpa fase target diaktifkan.

@@ -18,8 +18,11 @@ alwaysApply: false
 - Layering per ADR-005: routes in `main.py` delegate to `service.py`; `service.py` must not import FastAPI.
 - Reference delivery rule IDs (`BR-0xx`) in code comments/PRs, not enterprise `BR-<Domain>-NN` (DEC-003).
 
-## Out of scope (do NOT build — DEC-001/DEC-002 non-goals)
-Assign/status transition, notifications, SLA engine, Branch/HO escalation, Schedule Slot/Appointment/Work Order, idempotency keys, read-audit, message broker integration, SSO/IdP, generic audit/event frameworks, full 4-layer scaffold.
+## Out of scope (do NOT build — DEC-001/DEC-002 non-goals; Sprint-03+)
+SLA engine, Branch/HO escalation, Schedule Slot/Appointment/Work Order, idempotency keys,
+read-audit, message broker integration, SSO/IdP, generic audit/event frameworks,
+full Clean Architecture package split beyond ADR-005 + domain workflow module,
+Customer 360 until ACR-002 (draft OpenAPI promotion).
 
 ## Definition of Done (backend PR)
 - `ruff check app tests` clean and `pytest -q` green locally (tests run on the Alembic-migrated schema)

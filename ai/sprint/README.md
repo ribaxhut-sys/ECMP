@@ -19,7 +19,7 @@ Before implementation in Cursor/Claude:
 4. Update sprint status/notes at end of work
 
 ## Active Sprint
-**Sprint-01** — Foundation & ECMF Case Core (**🟢 Approved — GO** for slice + G0 platform floor, per DEC-002; see `Sprint-01.md`)
+**Sprint-02B** — Assign/status/events/notification stub (**implementation** against DEC-006 frozen contracts; see `Sprint-02.md` + `IMPLEMENTATION_ROADMAP_v0.1.md`)
 
 ## Vocabulary Map
 | Term | Meaning |
@@ -29,6 +29,10 @@ Before implementation in Cursor/Claude:
 | G1 | Entry gate of Sprint-02 (lifecycle contract gate) |
 | B2 | Sprint-02 build (assign/status) |
 | B3 | Sprint-03 build (notification stub) |
+
+## Implementation Roadmap
+Forward roadmap (Sprint-02 → Sprint-03 → SIT/UAT, epics/stories/critical path):
+[`IMPLEMENTATION_ROADMAP_v0.1.md`](./IMPLEMENTATION_ROADMAP_v0.1.md)
 
 ## Implementation Readiness
 Before treating Sprint-01 as coding-authorized for a team, follow:

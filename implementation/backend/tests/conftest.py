@@ -27,11 +27,14 @@ from sqlalchemy import delete  # noqa: E402
 from alembic import command  # noqa: E402
 from app.db import get_engine, reset_engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import AuditLogModel, CaseModel, OutboxModel  # noqa: E402
+from app.models import AuditLogModel, CaseModel, NotificationLogModel, OutboxModel  # noqa: E402
 
 HEADERS = {"Authorization": "Bearer dev-token"}
 READONLY_HEADERS = {"Authorization": "Bearer dev-readonly-token"}
 NOPERM_HEADERS = {"Authorization": "Bearer dev-noperm-token"}
+SUPERVISOR_HEADERS = {"Authorization": "Bearer dev-supervisor-token"}
+HANDLER_HEADERS = {"Authorization": "Bearer dev-handler-token"}
+FOREIGN_SUPERVISOR_HEADERS = {"Authorization": "Bearer dev-foreign-supervisor-token"}
 
 VALID_PAYLOAD = {
     "customerId": "CUST-10001",
@@ -41,6 +44,9 @@ VALID_PAYLOAD = {
     "description": "Incorrect charge on invoice",
     "channel": "CALL",
 }
+
+ASSIGN_PAYLOAD = {"assigneeId": "USR-2001", "unitId": "UNIT-01"}
+
 
 
 def alembic_config() -> Config:
@@ -67,7 +73,12 @@ def migrated_schema():
 def clean_tables(migrated_schema):
     engine = get_engine()
     with engine.begin() as conn:
-        for table in (OutboxModel.__table__, AuditLogModel.__table__, CaseModel.__table__):
+        for table in (
+            NotificationLogModel.__table__,
+            OutboxModel.__table__,
+            AuditLogModel.__table__,
+            CaseModel.__table__,
+        ):
             conn.execute(delete(table))
     yield
 

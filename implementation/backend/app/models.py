@@ -1,13 +1,13 @@
 """Persistence models — snake_case columns per naming standard (21 Technical Standards).
 
-Tables match Alembic revision 0001: cases, audit_log, outbox.
+Tables match Alembic revisions 0001–0002: cases, audit_log, outbox, notification_log.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Index, String, Text, false
+from sqlalchemy import JSON, Boolean, DateTime, Index, String, Text, UniqueConstraint, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -15,7 +15,11 @@ from app.db import Base
 
 class CaseModel(Base):
     __tablename__ = "cases"
-    __table_args__ = (Index("ix_cases_customer_id", "customer_id"),)
+    __table_args__ = (
+        Index("ix_cases_customer_id", "customer_id"),
+        Index("ix_cases_assignee_id", "assignee_id"),
+        Index("ix_cases_unit_id", "unit_id"),
+    )
 
     case_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     customer_id: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -29,6 +33,8 @@ class CaseModel(Base):
     customer_verified: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    assignee_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    unit_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by: Mapped[str] = mapped_column(String(64), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -62,3 +68,22 @@ class OutboxModel(Base):
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class NotificationLogModel(Base):
+    """Notification stub sink (FR-020): idempotent per outbox row."""
+
+    __tablename__ = "notification_log"
+    __table_args__ = (
+        UniqueConstraint("outbox_id", name="uq_notification_log_outbox_id"),
+        Index("ix_notification_log_event_id", "event_id"),
+    )
+
+    notification_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    outbox_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    event_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    event_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

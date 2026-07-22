@@ -11,7 +11,7 @@
 | Last Review | auto |
 | Next Review | auto |
 
-> Task: implement FR-001 create case
+> Task: Sprint-05 Case Queue frontend implementation GET /v1/cases
 
 ## Capability: Implement Feature
 - ID: `CAP-IMPLEMENT-FEATURE`
@@ -42,11 +42,11 @@
 
 ## RAG Top Hits
 
-- `03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md` (score=0.2511)
-- `26 Traceability/TRACEABILITY_MATRIX.md` (score=0.1909)
-- `20 Domain Architecture/navigator/ecmf.md` (score=0.1769)
-- `ai-platform/evaluation/facts.md` (score=0.1726)
-- `03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md` (score=0.1559)
+- `26 Traceability/TRACEABILITY_MATRIX.md` (score=0.312)
+- `07 API Catalog/API_CATALOG.generated.md` (score=0.2155)
+- `20 Domain Architecture/navigator/dashboard.md` (score=0.2137)
+- `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md` (score=0.1728)
+- `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md` (score=0.1641)
 
 ## Next
 1. Load prompt + context in the selected tool role

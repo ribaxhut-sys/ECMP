@@ -10,9 +10,11 @@ info:
     Scope:
     - API-040 GET /v1/dashboard/queues (FR-040, FRD-006): operational queue view,
       role & org scoped (BR-006), strictly read-only (BR-DASH-03), Sprint-03.
-    - API-005 GET /v1/cases: paginated case list — closes the "no list endpoint"
-      debt contract-first for Sprint-02. Pagination follows 21 Technical Standards
-      §3 (page/pageSize + PageMeta, pageSize default 20 max 100).
+
+    **2026-07-22 (Sprint-03B):** API-005 GET /v1/cases (list, formerly drafted here)
+    has been merged into `case-service.v1.yaml` v1.5.0 as the normative contract
+    and implemented. Removed from this draft to avoid two sources for the same
+    operation.
     Versioning per ADR-006: URL prefix /v1. Error responses use the Error envelope
     {code, message, details?}. All timestamps ISO-8601 UTC; payload fields camelCase.
   x-frd: FRD-006
@@ -23,108 +25,9 @@ servers:
   - url: https://api.example.local/ecmp/v1
     description: Example deployed base
 tags:
-  - name: Cases
-    description: Case list (paginated)
   - name: Dashboard
     description: Operational queue dashboard (read-only)
 paths:
-  /cases:
-    get:
-      summary: List cases (paginated) (DRAFT)
-      operationId: listCases
-      x-ear-id: API-005
-      x-fr: FR-002
-      tags: [Cases]
-      description: |
-        DRAFT. Paginated case list per 21 Technical Standards §3:
-        page starts at 1 (default 1); pageSize default 20, max 100 —
-        pageSize > 100 returns 400 VALIDATION_ERROR.
-        Requires permission `cases:read`; results are scoped to what the caller
-        may read (org scoping follows SEC-RAM-001 revisions at G1).
-        Sort: createdAt descending (fixed baseline; additional sort keys need a
-        catalog revision).
-      parameters:
-        - name: page
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: pageSize
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/CaseStatus"
-        - name: priority
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/Priority"
-        - name: caseType
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/CaseType"
-        - name: assigneeId
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Page of cases sorted by createdAt descending
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CasePage"
-              examples:
-                firstPage:
-                  value:
-                    items:
-                      - caseId: "CASE-00AB12CD34"
-                        customerId: "CUST-10001"
-                        caseType: COMPLAINT
-                        priority: HIGH
-                        subject: "Billing discrepancy"
-                        description: "Customer reports incorrect charge on last invoice."
-                        status: ASSIGNED
-                        channel: CALL
-                        customerVerified: false
-                        assigneeId: "USR-2001"
-                        unitId: "UNIT-01"
-                        createdAt: "2026-07-21T08:15:00Z"
-                        createdBy: "cs.agent.1"
-                        updatedAt: "2026-07-21T09:00:00Z"
-                    page: 1
-                    pageSize: 20
-                    totalItems: 42
-        "400":
-          description: Invalid pagination/filter parameter, e.g. pageSize > 100 (code=VALIDATION_ERROR)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "401":
-          description: Missing or invalid token (code=UNAUTHENTICATED)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "403":
-          description: Authenticated but missing permission cases:read (code=FORBIDDEN)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /dashboard/queues:
     get:
       summary: Operational queue dashboard (DRAFT)
@@ -184,84 +87,10 @@ components:
         Slice phase (DEV/CI only): static env token; claims {userId, permissions[]}.
         401 = authentication failure; 403 = missing permission.
   schemas:
-    CaseType:
-      type: string
-      enum: [COMPLAINT, INQUIRY]
-    Priority:
-      type: string
-      enum: [LOW, MEDIUM, HIGH, CRITICAL]
     CaseStatus:
       type: string
       enum: [REGISTERED, ASSIGNED, IN_PROGRESS, PENDING_REVIEW, CLOSED, REOPENED]
       description: Full baseline status set per DOM-ECMF-003
-    Case:
-      type: object
-      description: |
-        Case representation, aligned with case-service.v1.yaml (self-contained
-        copy for the draft; consolidated on merge). The DB audit column
-        updated_by is intentionally NOT exposed (21 Technical Standards §4).
-      required:
-        [caseId, customerId, caseType, priority, subject, description, status, createdAt, createdBy, updatedAt]
-      properties:
-        caseId:
-          type: string
-          pattern: "^CASE-[0-9A-F]{10}$"
-          description: System generated, format CASE-<10-hex> (FRD-001 §7)
-        customerId:
-          type: string
-        caseType:
-          $ref: "#/components/schemas/CaseType"
-        priority:
-          $ref: "#/components/schemas/Priority"
-        subject:
-          type: string
-        description:
-          type: string
-        status:
-          $ref: "#/components/schemas/CaseStatus"
-        channel:
-          type: string
-          nullable: true
-        customerVerified:
-          type: boolean
-          default: false
-        assigneeId:
-          type: string
-          nullable: true
-          description: Current assignee (null until first assignment; Sprint-02 field)
-        unitId:
-          type: string
-          nullable: true
-          description: Current owning unit (null until first assignment; Sprint-02 field)
-        createdAt:
-          type: string
-          format: date-time
-          description: ISO-8601, always UTC (FRD-001 §7)
-        createdBy:
-          type: string
-        updatedAt:
-          type: string
-          format: date-time
-          description: ISO-8601, always UTC (FRD-001 §7)
-    CasePage:
-      type: object
-      description: Paginated list per PageMeta convention (21 Technical Standards §3)
-      required: [items, page, pageSize, totalItems]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Case"
-        page:
-          type: integer
-          minimum: 1
-        pageSize:
-          type: integer
-          minimum: 1
-          maximum: 100
-        totalItems:
-          type: integer
-          minimum: 0
     QueueEntry:
       type: object
       required: [unitId, status, count]

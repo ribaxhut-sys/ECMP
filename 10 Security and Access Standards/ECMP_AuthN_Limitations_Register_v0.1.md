@@ -18,9 +18,9 @@ Mendaftarkan batasan keamanan yang **diketahui dan diterima sementara** pada fas
 
 | # | Batasan | Risiko | Diterima untuk | Wajib ditutup sebelum | Penutupan |
 |---|---|---|---|---|---|
-| L-1 | Token Bearer statis dari env (`ECMP_DEV_TOKEN`), tanpa expiry/issuer | Token bocor = akses penuh CS Agent | DEV lokal + CI | Shared UAT | ADR-007 fase target (JWT/OIDC) |
-| L-2 | Principal tetap (`cs.agent.1`, `viewer.1`), tanpa user store | Tidak ada identitas individual | DEV lokal + CI | Shared UAT | User store / IdP claims |
-| L-3 | Tanpa org-unit scoping (BR-CP-02 belum ditegakkan) | Akses lintas unit tak terkontrol | Sprint-01 (single unit) | Gate G1 (assign/status) | Claims `orgUnitId` + enforcement |
+| L-1 | Token Bearer statis dari env (`ECMP_DEV_TOKEN`), tanpa expiry/issuer | Token bocor = akses penuh CS Agent | DEV lokal + CI | Shared UAT | ADR-012 / SEC-MIG-001 Phase 3 (JWT/OIDC, desain SEC-AUTH-001) |
+| L-2 | Principal tetap (`cs.agent.1`, `viewer.1`), tanpa user store | Tidak ada identitas individual | DEV lokal + CI | Shared UAT | ADR-012 / SEC-MIG-001 Phase 3 (user store IdP) |
+| L-3 | Tanpa org-unit scoping (BR-CP-02 belum ditegakkan) | Akses lintas unit tak terkontrol | Sprint-01 (single unit) | Gate G1 (assign/status) | Claims `orgUnitId` + enforcement (SEC-MIG-001 Phase 4) |
 | L-4 | Read-audit ditunda (FRD §9 / OQ-007) | Jejak baca tidak ada | Sampai multi-principal nyata | Review saat UAT | Keputusan BO ulang |
 | L-5 | Secrets via `.env` lokal (belum ada vault) | Salah commit = bocor | DEV lokal | PROD | Vault/CI secret store (lihat `14 Deployment Standards`) |
 
@@ -31,4 +31,5 @@ Mendaftarkan batasan keamanan yang **diketahui dan diterima sementara** pada fas
 - 401/403 semantik benar + Error envelope
 
 ## Related
-- ADR-007, `ECMP_Role_Access_Matrix_v0.1.md`, `14 Deployment Standards`
+- ADR-007, ADR-012, `ECMP_Role_Access_Matrix_v0.1.md`, `14 Deployment Standards`
+- `ECMP_Target_Authentication_Architecture_v1.0.md` (SEC-AUTH-001), `ECMP_AuthN_Migration_Rollout_Plan_v1.0.md` (SEC-MIG-001)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -18,7 +18,17 @@ from app import service, settings
 from app.auth import need
 from app.db import Base, get_engine, get_session
 from app.errors import ApiError, NotFoundError
-from app.schemas import Case, CaseCreateRequest, Error
+from app.schemas import (
+    AssignRequest,
+    Case,
+    CaseCreateRequest,
+    CasePage,
+    CaseStatus,
+    CaseType,
+    Error,
+    Priority,
+    StatusChangeRequest,
+)
 
 ERROR_RESPONSES = {
     401: {"model": Error, "description": "Not authenticated"},
@@ -43,8 +53,11 @@ _dev = settings.dev_endpoints_enabled()
 
 app = FastAPI(
     title="ECMP Case Service",
-    version="1.3.0",
-    description="Sprint-01 slice: create/get case (FR-001, FR-002) — PostgreSQL per ADR-004",
+    version="1.5.0",
+    description=(
+        "Sprint-03B: create/get + assign/status + list (FR-001/002/003/004/005) "
+        "— PostgreSQL per ADR-004"
+    ),
     lifespan=lifespan,
     docs_url="/_dev/docs" if _dev else None,
     redoc_url="/_dev/redoc" if _dev else None,
@@ -88,7 +101,33 @@ def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "ecmp-case-service", "sprint": "Sprint-01"}
+    return {"status": "ok", "service": "ecmp-case-service", "sprint": "Sprint-03B"}
+
+
+@app.get(
+    "/v1/cases",
+    response_model=CasePage,
+    responses={400: {"model": Error, "description": "Validation failed"}, **ERROR_RESPONSES},
+)
+def list_cases(
+    page: int = Query(default=1, ge=1),
+    pageSize: int = Query(default=20, ge=1, le=100),
+    status: CaseStatus | None = Query(default=None),
+    priority: Priority | None = Query(default=None),
+    caseType: CaseType | None = Query(default=None),
+    assigneeId: str | None = Query(default=None),
+    user: dict = Depends(need("cases:read")),
+    session: Session = Depends(get_session),
+):
+    return service.list_cases(
+        session,
+        page=page,
+        page_size=pageSize,
+        status=status,
+        priority=priority,
+        case_type=caseType,
+        assignee_id=assigneeId,
+    )
 
 
 @app.post(
@@ -119,6 +158,44 @@ def get_case(
     if case is None:
         raise NotFoundError(f"Case {case_id} not found")
     return case
+
+
+@app.post(
+    "/v1/cases/{case_id}/assign",
+    response_model=Case,
+    responses={
+        400: {"model": Error, "description": "Validation failed"},
+        404: {"model": Error, "description": "Case not found"},
+        409: {"model": Error, "description": "Case not in an assignable status"},
+        **ERROR_RESPONSES,
+    },
+)
+def assign_case(
+    case_id: str,
+    payload: AssignRequest,
+    user: dict = Depends(need("cases:assign")),
+    session: Session = Depends(get_session),
+):
+    return service.assign_case(session, case_id, payload.model_dump(), user)
+
+
+@app.post(
+    "/v1/cases/{case_id}/status",
+    response_model=Case,
+    responses={
+        400: {"model": Error, "description": "Validation failed"},
+        404: {"model": Error, "description": "Case not found"},
+        409: {"model": Error, "description": "Illegal transition"},
+        **ERROR_RESPONSES,
+    },
+)
+def change_case_status(
+    case_id: str,
+    payload: StatusChangeRequest,
+    user: dict = Depends(need("cases:status")),
+    session: Session = Depends(get_session),
+):
+    return service.change_status(session, case_id, payload.model_dump(), user)
 
 
 if _dev:

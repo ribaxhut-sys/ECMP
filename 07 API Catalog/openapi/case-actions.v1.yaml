@@ -1,0 +1,23 @@
+openapi: 3.0.3
+info:
+  title: ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED)
+  version: 1.0.0
+  description: |
+    **SUPERSEDED — 2026-07-22 (Sprint-03A governance sync, DEC-006 D6/U-6).**
+    This file is no longer a normative contract. API-003 (assign) and API-004
+    (status) are consolidated into `case-service.v1.yaml` (v1.4.0), which is now
+    the single normative OpenAPI spec for the ECMP Case Service.
+
+    This file is kept in place (not deleted) only so history/links that
+    reference it resolve to an explanation rather than a 404. No tooling
+    (`tools/generate_api_catalog.py`, `tests/test_contract_conformance.py`)
+    treats this file as a contract source anymore.
+
+    No API behavior, schema, or event payload changed as part of this merge —
+    see `case-service.v1.yaml` v1.4.0 changelog note and
+    `27 Project Decisions/DEC-006_Contract_Freeze_G1_Sprint02A_v1.0.md` U-6.
+  x-ear-id: API-101
+  x-status: superseded
+  x-superseded-by: case-service.v1.yaml v1.4.0
+paths: {}
+components: {}

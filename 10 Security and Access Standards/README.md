@@ -27,6 +27,8 @@ Approved — baseline Sprint-01 (diperluas per gate)
 - [`ECMP_Role_Access_Matrix_v0.1.md`](./ECMP_Role_Access_Matrix_v0.1.md) — v0.2: + bagian Planned Sprint-02
 - [`ECMP_AuthN_Limitations_Register_v0.1.md`](./ECMP_AuthN_Limitations_Register_v0.1.md)
 - [`ECMP_Threat_Model_v0.1.md`](./ECMP_Threat_Model_v0.1.md) — SEC-TM-001, 🟡 Draft (STRIDE scope slice)
+- [`ECMP_Target_Authentication_Architecture_v1.0.md`](./ECMP_Target_Authentication_Architecture_v1.0.md) — SEC-AUTH-001, 🟡 Proposed (desain fase target ADR-007, decision record ADR-012)
+- [`ECMP_AuthN_Migration_Rollout_Plan_v1.0.md`](./ECMP_AuthN_Migration_Rollout_Plan_v1.0.md) — SEC-MIG-001, 🟡 Proposed (migrasi, risk register, rollout)
 
 ## Minimum Contents (v1)
 - [x] Authentication standard — ADR-007 + Security Standards §2

@@ -22,12 +22,12 @@ Spesifikasi kebutuhan fungsional (FRD) per domain/modul ECMP.
 - [x] `ECMP_FRD_Notification_v0.1.md` (FRD-004 — 🟡 Draft; FR-020)
 - [x] `ECMP_FRD_KPI_SLA_v0.1.md` (FRD-005 — 🟡 Draft; FR-030)
 - [x] `ECMP_FRD_Dashboard_Queue_v0.1.md` (FRD-006 — 🟡 Draft; FR-040)
+- [x] `ECMP_FRD_Administration_v0.1.md` (FRD-007 — 🟡 Draft; FR-050..FR-063: user/role/permission process, workflow/SLA/calendar/escalation/template/master-data/audit-config/settings, versioning + approval)
 
-> Semua FRD Draft (FRD-002..006) **belum DoR**; implementasi menunggu gate per DEC-002 (Build-1 setelah G0 exit).
+> Semua FRD Draft (FRD-002..007) **belum DoR**; implementasi menunggu gate per DEC-002 (Build-1 setelah G0 exit).
 
 ## Planned
 - [ ] FRD Core Platform
-- [ ] FRD Administration
 
 ## Folder Status Note
 **ECMF slice Approved; multi-domain Draft** (2026-07-21).

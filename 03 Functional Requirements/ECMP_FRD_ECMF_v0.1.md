@@ -5,16 +5,19 @@
 | Field | Value |
 |---|---|
 | ID | FRD-001 |
-| Version | 0.3 |
+| Version | 0.4 |
 | Owner | Business Analyst |
 | Reviewer | ECMF PO / Solution Architect |
 | Approver | Business Owner |
 | Status | 🟢 Approved |
-| Last Review | 2026-07-21 |
+| Last Review | 2026-07-22 |
 | Next Review | 2026-10-21 |
 
+> **v0.4 (Sprint-03B, 2026-07-22):** menambahkan FR-005 (list case terpaginasi/filter), sebelumnya
+> tercatat "Out of Scope" di v0.3 §11. Tidak mengubah FR-001/FR-002/FR-001a/b/c yang sudah Approved.
+
 ## 1. Overview
-FRD minimum untuk Sprint-01: registrasi complaint/inquiry (create case) dan pengambilan detail case (get case), tertaut customer reference dari master (read-only).
+FRD minimum untuk Sprint-01: registrasi complaint/inquiry (create case) dan pengambilan detail case (get case), tertaut customer reference dari master (read-only). Sprint-03B menambahkan pengambilan case dalam bentuk daftar terpaginasi/terfilter (FR-005).
 
 Domain: **ECMF** (dengan dukungan konteks CRM untuk customer reference).
 
@@ -38,6 +41,7 @@ Domain: **ECMF** (dengan dukungan konteks CRM untuk customer reference).
 | FR-001a | On successful create, system shall set initial status `REGISTERED` and generate caseId | Must | BR-001 | API-001 | TC-001 |
 | FR-001b | On successful create, system shall emit `CaseCreated` (EVT-001) | Must | BR-004 | EVT-001 | TC-001 |
 | FR-001c | On successful create, system shall persist an immutable audit record (actor, action, entity, timestamp) in the same transaction | Must | BR-008 | API-001 | TC-005 |
+| FR-005 | System shall allow authorized user to retrieve a paginated, optionally filtered (status, priority, caseType, assigneeId) list of cases, sorted by createdAt descending | Must | BR-007 | API-005 | TC-006 |
 
 ## 5. Business Rules Reference
 - **BR-001** Status transitions follow configured workflow (initial status fixed to REGISTERED in this slice)
@@ -94,6 +98,14 @@ Out of Sprint-01 UI polish. API-first slice. Future screen refs in `12 UI UX Spe
 - **Idempotency (decided per DEC-002):** `Idempotency-Key` is **out of scope** for Sprint-01 AC. Revisit when a real multi-client integration exists.
 
 ## 10. Acceptance Criteria
+### FR-005 List Cases (Sprint-03B)
+- Given authorized user (`cases:read`), when GET `/v1/cases` with no query params, then 200 with the first page (default `page=1`, `pageSize=20`), items sorted by `createdAt` descending
+- Given `status`/`priority`/`caseType`/`assigneeId` query params (any combination), then only matching cases are returned; unmatched filters yield an empty `items` array (not an error)
+- Given `pageSize` > 100, then 400 `VALIDATION_ERROR`
+- Given `page` beyond the last page, then 200 with empty `items` and correct `totalItems`
+- Given unauthorized user, then 401/403
+- Sort key/direction is fixed (`createdAt` descending) in this version; configurable sort is out of scope (CTO decision, Sprint-03B design review)
+
 ### FR-001 Create Case
 - Given valid payload and authorized user, when POST `/v1/cases`, then 201 with caseId and status=REGISTERED
 - Given missing customerId/subject, then 400 validation error
@@ -108,6 +120,7 @@ Out of Sprint-01 UI polish. API-first slice. Future screen refs in `12 UI UX Spe
 - Given unauthorized user, then 401/403
 
 ## 11. Out of Scope (this FRD version)
-- Assignment, status transition matrix penuh, SLA clocks, approval, reopen
+- Assignment, status transition matrix penuh, SLA clocks, approval, reopen (delivered separately in FRD-002)
 - Customer master write-back
-- List/search cases (may exist in OpenAPI as future, not required for Sprint-01 DoD)
+- Full-text/keyword search over case content (FR-005 is structured filter only, not search)
+- Configurable sort (sortBy/sortDir) — fixed `createdAt` descending only (CTO decision, Sprint-03B)

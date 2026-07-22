@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom'
 import App from '../App'
 import { CaseDetailPage } from '../pages/CaseDetailPage'
+import { CaseQueuePage } from '../pages/CaseQueuePage'
 
 export const router = createBrowserRouter([
   {
@@ -9,12 +10,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: (
-          <p style={{ padding: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
-            Open a case from its URL (e.g. /cases/CASE-…). Queue screen is out of
-            scope for Sprint-04.
-          </p>
-        ),
+        element: <CaseQueuePage />,
       },
       {
         path: 'cases/:caseId',

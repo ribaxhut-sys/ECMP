@@ -1,5 +1,34 @@
 import { apiRequest } from './client'
-import type { AssignRequest, Case, StatusChangeRequest } from './types'
+import type {
+  AssignRequest,
+  Case,
+  CasePage,
+  CaseStatus,
+  CaseType,
+  Priority,
+  StatusChangeRequest,
+} from './types'
+
+export interface ListCasesParams {
+  page: number
+  pageSize: number
+  status?: CaseStatus
+  priority?: Priority
+  caseType?: CaseType
+  assigneeId?: string
+}
+
+/** GET /v1/cases — API-005 */
+export function listCases(params: ListCasesParams): Promise<CasePage> {
+  const qs = new URLSearchParams()
+  qs.set('page', String(params.page))
+  qs.set('pageSize', String(params.pageSize))
+  if (params.status) qs.set('status', params.status)
+  if (params.priority) qs.set('priority', params.priority)
+  if (params.caseType) qs.set('caseType', params.caseType)
+  if (params.assigneeId) qs.set('assigneeId', params.assigneeId)
+  return apiRequest<CasePage>(`/v1/cases?${qs.toString()}`)
+}
 
 /** GET /v1/cases/{caseId} — API-002 */
 export function getCase(caseId: string): Promise<Case> {

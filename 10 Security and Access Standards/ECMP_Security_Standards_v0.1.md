@@ -19,9 +19,10 @@
 5. Tidak ada secret di source/repo — semua via environment (`.env` di-ignore; `.env.example` non-secret).
 
 ## 2. Identity & Access Management
-- Fase slice & fase target ditetapkan di **ADR-007** (Bearer env-token → JWT/OIDC sebelum shared UAT).
-- Claims slice: `{userId, permissions[]}`; target: `{sub, roles[], permissions[], orgUnitId}`.
+- Fase slice & fase target ditetapkan di **ADR-007** (Bearer env-token → JWT/OIDC sebelum shared UAT); desain fase target dielaborasi di **ADR-012** + `ECMP_Target_Authentication_Architecture_v1.0.md` (SEC-AUTH-001).
+- Claims slice: `{userId, permissions[]}`; target: token membawa `{sub, roles[], orgUnitId, sid}` — permissions **tidak** di token, diresolusi Core Platform dari Role-Permission matrix (SoT per ADR-008, lihat SEC-AUTH-001 §4).
 - Semantik: 401 `UNAUTHENTICATED` (gagal autentikasi), 403 `FORBIDDEN` (tanpa permission).
+- Migrasi & rollout: `ECMP_AuthN_Migration_Rollout_Plan_v1.0.md` (SEC-MIG-001); dev-token tetap sah hanya untuk DEV lokal/CI.
 
 ## 3. Role Matrix
 Lihat `ECMP_Role_Access_Matrix_v0.1.md` (SoT = Core Platform per ADR-008).

@@ -1,5 +1,17 @@
-version: 0.6
+version: 0.9
 id: TRC-DATA-001
+# 2026-07-21 (DEC-006, Sprint-02A contract freeze): API-003/API-004 merged normative
+# (case-service.v1.yaml v1.4.0), EVT-002/EVT-003 payloads frozen. TRC-L-003/TRC-L-004
+# links unchanged structurally; status remained Planned until Sprint-02B implementation.
+# 2026-07-22 (Sprint-03A, governance sync): TRC-L-003/TRC-L-004/TRC-L-006 flipped
+# Planned -> Approved — Sprint-02B code (assign/status/events/notification stub)
+# verified passing in implementation/backend/tests (test_lifecycle.py,
+# test_notification_unit.py, test_contract_conformance.py). TRC-L-005/007/008
+# (CRM/KPI/Dashboard) left Planned — genuinely not implemented. Structural link
+# content (fr/api/events/tests) unchanged, status field only.
+# 2026-07-22 (Sprint-03B): added TRC-L-010 (FR-005 list cases, API-005). API-010
+# (TRC-L-005, CRM) deferred by CTO decision (design review) — left Planned;
+# see implementation/backend/ACR_SPRINT02B.md ACR-002.
 # Semantik kolom `events`: seluruh event yang menjadi kontrak FR tersebut,
 # baik yang di-produce maupun di-consume oleh FR itu (lihat producer/consumer
 # di `08 Event Catalog/events/events.yaml` untuk arah alirannya).
@@ -46,7 +58,7 @@ links:
     events: [EVT-002, EVT-003]
     tests: [TC-003]
     sprint: Sprint-02
-    status: Planned
+    status: Approved
     description: Assign case to handler/unit
   - id: TRC-L-004
     domain: ECMF
@@ -57,7 +69,7 @@ links:
     events: [EVT-003]
     tests: [TC-004]
     sprint: Sprint-02
-    status: Planned
+    status: Approved
     description: Validated status transition
   - id: TRC-L-005
     domain: CRM
@@ -79,7 +91,7 @@ links:
     events: [EVT-001, EVT-002]
     tests: [TC-020]
     sprint: Sprint-02
-    status: Planned
+    status: Approved
     description: Notify assignee on CaseAssigned/CaseCreated
   - id: TRC-L-007
     domain: KPI
@@ -103,6 +115,17 @@ links:
     sprint: Sprint-03
     status: Planned
     description: Operational queue dashboard for supervisors
+  - id: TRC-L-010
+    domain: ECMF
+    bp: BP-001
+    br: BR-007
+    fr: FR-005
+    api: [API-005]
+    events: []
+    tests: [TC-006]
+    sprint: Sprint-03B
+    status: Approved
+    description: Paginated, filterable list of cases (status/priority/caseType/assigneeId), fixed sort createdAt desc
 
 artifacts:
   bp:
@@ -131,12 +154,13 @@ artifacts:
     FR-020: Send notification on case assignment/creation
     FR-030: Detect and record SLA breach
     FR-040: Show operational case queue dashboard
+    FR-005: List cases, paginated and filtered (status/priority/caseType/assigneeId)
   api:
     API-001: POST /v1/cases
     API-002: GET /v1/cases/{caseId}
     API-003: POST /v1/cases/{caseId}/assign
     API-004: POST /v1/cases/{caseId}/status
-    API-005: GET /v1/cases (paginated list, draft — 07 API Catalog/openapi/drafts/dashboard-queues.v1.draft.yaml)
+    API-005: GET /v1/cases (paginated, filtered list — case-service.v1.yaml v1.5.0, Sprint-03B)
     API-010: GET /v1/customers/{customerId}
     API-040: GET /v1/dashboard/queues
   events:
@@ -157,3 +181,4 @@ artifacts:
     TC-020: Notification stub handles CaseAssigned
     TC-030: SLA breach event emitted when overdue
     TC-040: Dashboard queue view scoped by role/org
+    TC-006: List cases paginated and filtered by status/priority/caseType/assigneeId

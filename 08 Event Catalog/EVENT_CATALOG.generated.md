@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | EVT-CAT-001 |
-| Version | 0.4 |
+| Version | 0.5 |
 | Owner | Integration Lead |
 | Reviewer | Solution Architect |
 | Approver | Architecture Board |
@@ -16,12 +16,13 @@
 | Event ID | Name | Producer | Status | Description |
 |---|---|---|---|---|
 | EVT-001 | CaseCreated | ECMF | Implemented | Emitted when a case is registered (FR-001b) |
-| EVT-002 | CaseAssigned | ECMF | Planned | Emitted when a case is assigned/reassigned |
-| EVT-003 | StatusChanged | ECMF | Planned | Emitted on valid workflow status transition (BR-001) |
+| EVT-002 | CaseAssigned | ECMF | Implemented | Emitted when a case is assigned/reassigned (Sprint-02B). Payload FROZEN at gate G1 (DEC-006, 2026-07-21) — changes require a new freeze decision. |
+| EVT-003 | StatusChanged | ECMF | Implemented | Emitted on valid workflow status transition (BR-001) (Sprint-02B). Payload FROZEN at gate G1 (DEC-006, 2026-07-21) — changes require a new freeze decision. |
 | EVT-004 | SLABreached | KPI | Planned | Emitted when SLA threshold is breached |
-| EVT-005 | CaseClosed | ECMF | Planned | Emitted when a case is closed |
+| EVT-005 | CaseClosed | ECMF | Implemented | Emitted when a case is closed (Sprint-02B, PENDING_REVIEW→CLOSED only; other producing transitions remain out of scope) |
 | EVT-006 | ConfigChanged | Administration | Planned | Emitted when effective configuration changes (BR-ADM-02) |
 | EVT-007 | CaseReopened | ECMF | Proposed | Emitted when a closed case is reopened (BR-ECMF-07); proposed addition beyond Blueprint minimal set |
+| EVT-008 | ConfigChangeRequested | Administration | Proposed | Emitted when a critical configuration change request is submitted for approval (BR-ADM-01, FRD-007 FR-063); proposed via ECMP_FRD_Administration_v0.1 |
 
 ## Payload Summary
 
@@ -78,3 +79,11 @@
 - `reopenedBy`: string
 - `reopenedAt`: datetime
 - `reason`: string
+
+### EVT-008 — ConfigChangeRequested
+- `changeRequestId`: string
+- `configKey`: string
+- `requestedBy`: string
+- `requestedAt`: datetime
+- `approverRole`: string
+- `summary`: string

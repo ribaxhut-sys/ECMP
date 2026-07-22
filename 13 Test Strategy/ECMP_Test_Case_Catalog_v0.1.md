@@ -29,11 +29,12 @@ Konvensi umum:
 |---|---|---|---|
 | TC-001 | Create complaint with valid customer succeeds | Sprint-01 | ✅ Implemented |
 | TC-002 | Get case by id returns case | Sprint-01 | ✅ Implemented |
-| TC-003 | Assign case updates assignee and emits event | Sprint-02 | 🕓 Planned (gate G1) |
-| TC-004 | Invalid status transition rejected | Sprint-02 | 🕓 Planned (gate G1) |
+| TC-003 | Assign case updates assignee and emits event | Sprint-02 | ✅ Implemented |
+| TC-004 | Invalid status transition rejected | Sprint-02 | ✅ Implemented |
 | TC-005 | Audit record persisted on create (same transaction) | Sprint-01 | ✅ Implemented |
-| TC-010 | Customer 360 retrieval succeeds | Sprint-02 | 🕓 Planned (DoR FRD-003) |
-| TC-020 | Notification stub handles CaseAssigned | Sprint-02 | 🕓 Planned (DoR FRD-004) |
+| TC-006 | List cases paginated and filtered | Sprint-03B | ✅ Implemented |
+| TC-010 | Customer 360 retrieval succeeds | Sprint-02 | 🕓 Deferred (CTO decision, ACR-002) |
+| TC-020 | Notification stub handles CaseAssigned | Sprint-02 | ✅ Implemented |
 | TC-030 | SLA breach event emitted when overdue | Sprint-03 | 🕓 Planned (DoR FRD-005) |
 | TC-040 | Dashboard queue view scoped by role/org | Sprint-03 | 🕓 Planned (DoR FRD-006) |
 
@@ -143,11 +144,9 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 | BR | BR-002, BR-008 |
 | API | API-003 `POST /v1/cases/{caseId}/assign` |
 | EVT | EVT-002 CaseAssigned, EVT-003 StatusChanged |
-| Trace link | TRC-L-003 (Sprint-02, Planned) |
+| Trace link | TRC-L-003 (Sprint-02, Approved) |
 
-> **Draf, dibekukan saat gate G1/DoR.** Langkah diturunkan dari AC Gherkin FRD-002 §6 (FR-003); kontrak final menunggu OpenAPI API-003 + payload EVT-002/EVT-003 merged sebelum kode (Test Strategy §3, entry G1).
->
-> **Sumber field payload:** `assigneeId`/`unitId` kini punya sumber normatif-in-waiting — draft spec [`07 API Catalog/openapi/drafts/case-actions.v1.draft.yaml`](../07%20API%20Catalog/openapi/drafts/case-actions.v1.draft.yaml) (API-003, `AssignRequest`). Catatan: draft non-normatif sampai dibekukan/merged di gate G1.
+> **Implemented (Sprint-02B; katalog disinkronkan Sprint-03A).** Langkah diturunkan dari AC Gherkin FRD-002 §6 (FR-003, v0.2); kontrak normatif: [`07 API Catalog/openapi/case-service.v1.yaml`](../07%20API%20Catalog/openapi/case-service.v1.yaml) v1.4.0 (API-003, `AssignRequest` — konsolidasi dari eks-`case-actions.v1.yaml` per DEC-006 D6/U-6); payload EVT-002/EVT-003 beku di `events.yaml` (status Implemented). Entry G1 (Test Strategy §3) terpenuhi; lihat `tests/test_lifecycle.py::test_tc003_*`.
 
 **Precondition (draf)**
 - Case berstatus `REGISTERED`.
@@ -164,10 +163,11 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 - EVT-002 CaseAssigned dipublikasikan (caseId, assigneeId, unitId, assignedBy, assignedAt) **dan** EVT-003 StatusChanged (`REGISTERED→ASSIGNED`) — setiap transisi valid memicu EVT-003 per DOM-ECMF-003.
 - Audit record tercatat dalam transaksi yang sama (BR-008).
 - Negatif: assignment lintas unit oleh non-supervisor → **403** `FORBIDDEN` dengan Error envelope `{code, message}`.
+- Negatif: assign pada status non-assignable (mis. `IN_PROGRESS`) → **409** `INVALID_STATE`; state tidak berubah, tanpa event (DEC-006).
 
 **Data uji (draf)**: case dari payload TC-001; `assigneeId`/`unitId` sintetis mengikuti fixture Role Access Matrix revisi Sprint-02.
 
-**Status**: 🕓 **Planned** — Sprint-02; exit gate G1 mensyaratkan TC-003 implemented (Test Strategy §3), termasuk authz permission baru dan audit/outbox pola create.
+**Status**: ✅ **Implemented** — `tests/test_lifecycle.py::test_tc003_*`. Exit gate G1 terpenuhi, termasuk authz permission baru dan audit/outbox pola create.
 
 ---
 
@@ -179,15 +179,13 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 | BR | BR-001, BR-008 |
 | API | API-004 `POST /v1/cases/{caseId}/status` |
 | EVT | EVT-003 StatusChanged (hanya pada transisi valid) |
-| Trace link | TRC-L-004 (Sprint-02, Planned) |
+| Trace link | TRC-L-004 (Sprint-02, Approved) |
 
-> **Draf, dibekukan saat gate G1/DoR.** Langkah diturunkan dari AC Gherkin FRD-002 §6 (FR-004); matriks transisi mengikuti DOM-ECMF-003 (`20 Domain Architecture/ECMF/CASE_STATE_MACHINE.md`), disepakati sebelum kode.
->
-> **Sumber field payload:** `toStatus`/`reason` kini punya sumber normatif-in-waiting — draft spec [`07 API Catalog/openapi/drafts/case-actions.v1.draft.yaml`](../07%20API%20Catalog/openapi/drafts/case-actions.v1.draft.yaml) (API-004, `StatusChangeRequest`). Catatan: draft non-normatif sampai dibekukan/merged di gate G1; draft mengusulkan **409** untuk transisi ilegal (vs 400 di AC FRD-002) — direkonsiliasi saat review G1.
+> **Implemented (Sprint-02B; katalog disinkronkan Sprint-03A).** Langkah diturunkan dari AC Gherkin FRD-002 §6 (FR-004, v0.2); matriks transisi mengikuti DOM-ECMF-003. Kontrak normatif: [`07 API Catalog/openapi/case-service.v1.yaml`](../07%20API%20Catalog/openapi/case-service.v1.yaml) v1.4.0 (API-004, `StatusChangeRequest` — `toStatus`, `resolutionCode` wajib untuk →CLOSED, `reason` — konsolidasi dari eks-`case-actions.v1.yaml` per DEC-006 D6/U-6). **Rekonsiliasi 400-vs-409 selesai:** transisi ilegal = **409** `INVALID_TRANSITION`; 400 khusus validasi payload. Permission final: `cases:status` (DEC-006). Lihat `tests/test_lifecycle.py::test_tc004_*`.
 
 **Precondition (draf)**
 - Case berstatus `REGISTERED` (untuk jalur invalid) atau `ASSIGNED` (untuk jalur valid pembanding).
-- Principal dengan permission transisi status (`cases:transition` — kandidat, revisi SEC-RAM-001).
+- Principal dengan permission transisi status (`cases:status` — nama beku per DEC-006, SEC-RAM-001 v0.3).
 
 **Langkah (draf)**
 1. Setup: buat case via `POST /v1/cases` → status `REGISTERED`.
@@ -197,12 +195,13 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 5. Jalur valid pembanding: dari `ASSIGNED`, kirim `toStatus=IN_PROGRESS` → verifikasi 200 + EVT-003.
 
 **Expected Result (draf)**
-- Jalur invalid: status code **400** dengan Error envelope; status case **tidak berubah**; **tidak ada event** yang diemit (AC FRD-002: "Invalid transition ditolak").
+- Jalur invalid: status code **409** dengan Error envelope (`code=INVALID_TRANSITION`, DEC-006); status case **tidak berubah**; **tidak ada event** yang diemit (AC FRD-002 v0.2).
+- Jalur validasi payload (mis. `toStatus` bukan enum): **400** `VALIDATION_ERROR`.
 - Jalur valid: **200**, status berubah, EVT-003 StatusChanged (fromStatus, toStatus, changedBy, changedAt), audit record dalam transaksi yang sama.
 
 **Data uji (draf)**: case payload TC-001; pasangan transisi invalid `REGISTERED→CLOSED` dan valid `ASSIGNED→IN_PROGRESS` dari DOM-ECMF-003.
 
-**Status**: 🕓 **Planned** — Sprint-02; exit gate G1 mensyaratkan TC-004 implemented, termasuk tes transisi ilegal dengan state tidak berubah (Test Strategy §3).
+**Status**: ✅ **Implemented** — `tests/test_lifecycle.py::test_tc004_*`, termasuk tes transisi ilegal 409 dengan state tidak berubah.
 
 ---
 
@@ -236,6 +235,43 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 
 ---
 
+## TC-006 — List cases paginated and filtered
+
+| Field | Value |
+|---|---|
+| FR | FR-005 |
+| BR | BR-007 |
+| API | API-005 `GET /v1/cases` |
+| EVT | — |
+| Trace link | TRC-L-010 (Sprint-03B, Approved) |
+
+> **Implemented (Sprint-03B).** Diturunkan dari FRD-001 v0.4 §10 FR-005 AC. Kontrak normatif: `07 API Catalog/openapi/case-service.v1.yaml` v1.5.0 (API-005, `CasePage`). Sort dikunci `createdAt` descending (keputusan CTO, design review Sprint-03B) — parameter sort tidak tersedia di kontrak ini.
+
+**Precondition**
+- Beberapa case tersedia dengan kombinasi `status`/`priority`/`caseType`/`assigneeId` berbeda (fixture setup via `POST /v1/cases` + `assign`/`status` sesuai kebutuhan skenario).
+- Principal dengan `cases:read`.
+
+**Langkah**
+1. `GET /v1/cases` tanpa query param → verifikasi `page=1`, `pageSize=20` default, `items` terurut `createdAt` descending.
+2. `GET /v1/cases?status=ASSIGNED` → verifikasi hanya case berstatus `ASSIGNED` yang kembali.
+3. `GET /v1/cases?priority=HIGH&caseType=COMPLAINT` → verifikasi kombinasi filter AND.
+4. `GET /v1/cases?assigneeId=USR-2001` → verifikasi filter assignee.
+5. `GET /v1/cases?pageSize=101` → verifikasi 400 `VALIDATION_ERROR`.
+6. `GET /v1/cases?page=999` → verifikasi 200 dengan `items=[]` dan `totalItems` benar.
+7. Tanpa token / tanpa permission → verifikasi 401/403.
+
+**Expected Result**
+- Response mengikuti `CasePage{items,page,pageSize,totalItems}`.
+- Filter tidak cocok → `items=[]`, bukan error.
+- `pageSize>100` → 400 dengan Error envelope.
+- Auth mengikuti pola endpoint lain (401 token hilang/salah, 403 tanpa `cases:read`).
+
+**Data uji**: case sintetis dari payload TC-001, di-assign/status-ubah sesuai kebutuhan skenario filter.
+
+**Status**: ✅ **Implemented** — `tests/test_case_list.py`.
+
+---
+
 ## TC-010 — Customer 360 retrieval succeeds
 
 | Field | Value |
@@ -246,7 +282,7 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 | EVT | — |
 | Trace link | TRC-L-005 (Sprint-02, Planned) |
 
-> **Draf, dibekukan saat gate G1/DoR.** Langkah diturunkan dari AC Gherkin FRD-003 §5; kontrak API-010 belum ada di OpenAPI (contract-first berlaku). Dependensi: kontrak integrasi Customer Master (INT-001; requirement mode real di INT-001A).
+> **Ditunda (CTO decision, Sprint-03B design review, 2026-07-22).** Draft kontrak dan FRD-003 AC mengasumsikan stub mengembalikan profil pelanggan nyata (fullName, contactChannels) — bertentangan dengan larangan fabrikasi data pelanggan di INT-001 untuk mode stub. Lihat `implementation/backend/ACR_SPRINT02B.md` ACR-002. Tidak dikerjakan sampai akses sandbox INT-001A tersedia atau kontrak stub didefinisikan ulang. Langkah di bawah **tetap draf**, belum berubah.
 
 **Precondition (draf)**
 - Principal terautentikasi; ada dua varian role: CS Agent dan non-CS (mis. Viewer).
@@ -265,7 +301,7 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 
 **Data uji (draf)**: `CUST-10001` (sintetis); role fixture CS vs non-CS per Role Access Matrix revisi.
 
-**Status**: 🕓 **Planned** — Sprint-02 (menunggu DoR FRD-003 dan kontrak API-010 merged; implementasi menunggu gate per DEC-002).
+**Status**: 🕓 **Deferred** — ditunda oleh keputusan CTO (Sprint-03B); menunggu akses INT-001A atau redefinisi kontrak stub.
 
 ---
 
@@ -277,9 +313,9 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 | BR | BR-004 (BR-NOTIF-01), BR-NOTIF-02/03/04 |
 | API | — (konsumsi event) |
 | EVT | EVT-001 CaseCreated, EVT-002 CaseAssigned (consume) |
-| Trace link | TRC-L-006 (Sprint-02, Planned) |
+| Trace link | TRC-L-006 (Sprint-02, Approved) |
 
-> **Draf, dibekukan saat gate G1/DoR.** Langkah diturunkan dari AC Gherkin FRD-004 §6. Dependensi: outbox operasional (G0 ada); EVT-002 baru ada setelah FR-003/G1.
+> **Implemented (Sprint-02B; katalog disinkronkan Sprint-03A).** Langkah diturunkan dari AC Gherkin FRD-004 §6. Konsumen stub berjalan in-process terhadap outbox (ADR-009); lihat `app/notification.py`.
 
 **Precondition (draf)**
 - Rule notifikasi `CaseAssigned` aktif (opt-in per BR-004).
@@ -298,7 +334,7 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 
 **Data uji (draf)**: event EVT-002 sintetis dari case payload TC-001; rule notifikasi fixture opt-in.
 
-**Status**: 🕓 **Planned** — Sprint-02 (menunggu DoR FRD-004; EVT-002 tersedia setelah G1).
+**Status**: ✅ **Implemented** — `tests/test_notification_unit.py`, `tests/test_lifecycle.py::test_fr020_notification_stub_on_drain`.
 
 ---
 

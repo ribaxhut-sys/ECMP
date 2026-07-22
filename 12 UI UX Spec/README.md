@@ -24,10 +24,11 @@ Draft
 
 ## Current Artifacts
 - [x] `ECMP_Personas_And_Journeys_v0.1.md` (UX-001 — persona CS Agent/Supervisor/Administrator; journey Sprint-01 API-first + target G1)
+- [x] `ECMP_Screen_Spec_Case_Detail_Workspace_v0.1.md` (UX-SCR-001 — Sprint-04, first product screen spec per ADR-011 trigger; stack locked by ADR-013, Approved and ready for Cursor implementation)
 
 ## Minimum Contents (v1)
 - [x] Persona & key journeys (`ECMP_Personas_And_Journeys_v0.1.md`)
-- [ ] Screen inventory by role/module
+- [~] Screen inventory by role/module — first screen spec landed (Case Detail Workspace); inventory still incomplete (queue/list, create-case, dashboard screens not yet specified)
 - [ ] Wireframe / prototype links
 - [ ] UX writing guidelines (status labels, actions)
 - [ ] Accessibility baseline

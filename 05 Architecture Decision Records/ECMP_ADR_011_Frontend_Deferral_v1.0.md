@@ -36,6 +36,6 @@ Penundaan frontend selama ini hanya tersirat: DEC-002 mencantumkan "frontend pro
 - Tidak ada komponen frontend, build pipeline JS, atau design system yang boleh dibangun spekulatif sebelum trigger.
 
 ## Compliance / Follow-up
-- [ ] ADR stack frontend — saat trigger butir 2 tersentuh
-- [ ] Screen spec per persona di `../12 UI UX Spec` — sebelum kode UI pertama
-- [ ] Aktifkan TypeScript/React Standard di `21 Technical Standards` — setelah ADR stack frontend
+- [x] ADR stack frontend — **ADR-013** (Frontend Technology Stack, Accepted 2026-07-22, Sprint-04 CTO decision). Note: CTO referred to it as "ADR-012" at commissioning time, but that ID was already taken by `ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md` — filed as ADR-013 instead.
+- [x] Screen spec per persona di `../12 UI UX Spec` — `ECMP_Screen_Spec_Case_Detail_Workspace_v0.1.md` (UX-SCR-001), first of an incomplete inventory (queue/list, create-case, dashboard screens still pending)
+- [ ] Aktifkan TypeScript/React Standard di `21 Technical Standards` — masih tertunda (follow-up ADR-013)

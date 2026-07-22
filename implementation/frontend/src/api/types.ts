@@ -32,6 +32,14 @@ export interface Case {
   updatedAt: string
 }
 
+/** Paginated list per API-005 / CasePage schema (case-service.v1.yaml). */
+export interface CasePage {
+  items: Case[]
+  page: number
+  pageSize: number
+  totalItems: number
+}
+
 export interface AssignRequest {
   assigneeId: string
   unitId: string
