@@ -65,7 +65,7 @@ Aturan Planned: dump disimpan di storage terpisah dari VM aplikasi; retensi dan 
 
 ## 7. Trigger Review
 
-Dokumen ini **wajib direview dan dinaikkan dari Draft** saat baseline SIT/UAT ADR-010 diaktifkan (fase target auth ADR-007 aktif) — saat itu seluruh item Planned di §2, §3, §6 harus menjadi prosedur nyata yang teruji (restore drill minimal 1x sebelum UAT).
+Dokumen ini **wajib direview dan dinaikkan dari Draft** saat baseline SIT/UAT ADR-010 diaktifkan (fase target auth ADR-007 aktif) — saat itu seluruh item Planned di §2, §3, §6 harus menjadi prosedur nyata yang teruji (restore drill minimal 1x sebelum shared UAT). Sprint-09 recorded a **DEV scratch** restore drill PASS (`./ECMP_Restore_Verification_Procedure_v0.1.md` §6 / `./evidence/restore-drill-20260722/`); that does **not** replace the shared-env drill.
 
 ## 8. Pre-activation checklist (Sprint-08)
 

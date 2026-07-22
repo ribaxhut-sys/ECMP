@@ -34,7 +34,8 @@ Until then: DEV + CI only (DEP-001 §1).
 5. Set real `ECMP_ALLOWED_ORIGINS` for the frontend origin(s).
 6. `ECMP_ENV=sit|uat`, `ECMP_ENABLE_DEV_ENDPOINTS` unset/false, non-default tokens.
 7. PostgreSQL backup automation (`pg_dump` + WAL) — see Backup Strategy.
-8. First restore drill — see Restore Verification Procedure (required before UAT).
+8. First **shared-env** restore drill — see Restore Verification Procedure (required before shared UAT).
+   Sprint-09 DEV scratch drill PASS is recorded in OPS-RST-001 §6; it does not satisfy this gate.
 
 ## 3. Pre-merge / pre-release checklist (applies today)
 

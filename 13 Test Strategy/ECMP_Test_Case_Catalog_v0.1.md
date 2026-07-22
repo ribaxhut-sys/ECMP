@@ -406,4 +406,4 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 - `../26 Traceability/traceability.yaml` (TRC-DATA-001) — SoT definisi TC/FR/API/EVT
 - `../03 Functional Requirements/` — FRD-001 (Approved), FRD-002..005 (Draft, AC Gherkin sumber draf TC Planned)
 - `../implementation/backend/tests/test_cases.py` — tes pytest nyata
-- `ECMP_UAT_Plan_v0.1.md` (UAT-001) — subset TC untuk UAT
+- `ECMP_UAT_Plan_v0.2.md` (UAT-001) — subset TC untuk UAT (Close/Reject + §3.1 mapping)

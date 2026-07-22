@@ -1,4 +1,4 @@
-version: 0.9
+version: 0.10
 id: TRC-DATA-001
 # 2026-07-21 (DEC-006, Sprint-02A contract freeze): API-003/API-004 merged normative
 # (case-service.v1.yaml v1.4.0), EVT-002/EVT-003 payloads frozen. TRC-L-003/TRC-L-004
@@ -12,6 +12,8 @@ id: TRC-DATA-001
 # 2026-07-22 (Sprint-03B): added TRC-L-010 (FR-005 list cases, API-005). API-010
 # (TRC-L-005, CRM) deferred by CTO decision (design review) — left Planned;
 # see implementation/backend/ACR_SPRINT02B.md ACR-002.
+# 2026-07-22 (Sprint-09): TRC-L-004 events include EVT-005 (Close path); UAT scenario
+# mapping documented in UAT_SCENARIO_TRACEABILITY.md / UAT-001 v0.2 §3.1 (no new TC ids).
 # Semantik kolom `events`: seluruh event yang menjadi kontrak FR tersebut,
 # baik yang di-produce maupun di-consume oleh FR itu (lihat producer/consumer
 # di `08 Event Catalog/events/events.yaml` untuk arah alirannya).
@@ -66,11 +68,11 @@ links:
     br: BR-001
     fr: FR-004
     api: [API-004]
-    events: [EVT-003]
+    events: [EVT-003, EVT-005]
     tests: [TC-004]
     sprint: Sprint-02
     status: Approved
-    description: Validated status transition
+    description: Validated status transition (incl. Close→EVT-005; Reject PENDING_REVIEW→IN_PROGRESS)
   - id: TRC-L-005
     domain: CRM
     bp: BP-003
@@ -180,7 +182,7 @@ artifacts:
     TC-001: Create complaint with valid customer succeeds
     TC-002: Get case by id returns case
     TC-003: Assign case updates assignee and emits event
-    TC-004: Invalid status transition rejected
+    TC-004: Invalid status transition rejected; valid Close (EVT-005) and Reject (PENDING_REVIEW→IN_PROGRESS) covered by same TC suite
     TC-005: Audit record persisted on create (same transaction)
     TC-010: Customer 360 retrieval succeeds
     TC-020: Notification stub handles CaseAssigned

@@ -19,7 +19,7 @@
 | TRC-L-001 | ECMF | BP-001 | BR-001 | FR-001 | API-001 | EVT-001 | TC-001 | Sprint-01 | Approved |
 | TRC-L-002 | ECMF | BP-001 | BR-007 | FR-002 | API-002 | — | TC-002 | Sprint-01 | Approved |
 | TRC-L-003 | ECMF | BP-002 | BR-002 | FR-003 | API-003 | EVT-002, EVT-003 | TC-003 | Sprint-02 | Approved |
-| TRC-L-004 | ECMF | BP-002 | BR-001 | FR-004 | API-004 | EVT-003 | TC-004 | Sprint-02 | Approved |
+| TRC-L-004 | ECMF | BP-002 | BR-001 | FR-004 | API-004 | EVT-003, EVT-005 | TC-004 | Sprint-02 | Approved |
 | TRC-L-005 | CRM | BP-003 | BR-003 | FR-010 | API-010 | — | TC-010 | Sprint-02 | Planned |
 | TRC-L-006 | Notification | BP-004 | BR-004 | FR-020 | — | EVT-001, EVT-002 | TC-020 | Sprint-02 | Approved |
 | TRC-L-007 | KPI | BP-005 | BR-005 | FR-030 | — | EVT-004, EVT-001, EVT-003, EVT-005, EVT-007 | TC-030 | Sprint-03 | Planned |
@@ -57,6 +57,8 @@
 - `FR-030`: Detect and record SLA breach
 - `FR-040`: Show operational case queue dashboard
 - `FR-005`: List cases, paginated and filtered (status/priority/caseType/assigneeId)
+- `FR-006`: View case activity timeline / audit history
+- `FR-007`: Append-only internal case notes
 
 ### API
 - `API-001`: POST /v1/cases
@@ -64,6 +66,9 @@
 - `API-003`: POST /v1/cases/{caseId}/assign
 - `API-004`: POST /v1/cases/{caseId}/status
 - `API-005`: GET /v1/cases (paginated, filtered list — case-service.v1.yaml v1.5.0, Sprint-03B)
+- `API-006`: GET /v1/cases/{caseId}/timeline (audit_log projection — Timeline + Audit History)
+- `API-007`: GET /v1/cases/{caseId}/notes
+- `API-008`: POST /v1/cases/{caseId}/notes
 - `API-010`: GET /v1/customers/{customerId}
 - `API-040`: GET /v1/dashboard/queues
 
@@ -80,7 +85,7 @@
 - `TC-001`: Create complaint with valid customer succeeds
 - `TC-002`: Get case by id returns case
 - `TC-003`: Assign case updates assignee and emits event
-- `TC-004`: Invalid status transition rejected
+- `TC-004`: Invalid status transition rejected; valid Close (EVT-005) and Reject (PENDING_REVIEW→IN_PROGRESS) covered by same TC suite
 - `TC-005`: Audit record persisted on create (same transaction)
 - `TC-010`: Customer 360 retrieval succeeds
 - `TC-020`: Notification stub handles CaseAssigned

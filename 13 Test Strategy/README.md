@@ -25,7 +25,8 @@ Approved baseline — `ECMP_Test_Strategy_v0.1.md` (TST-001) berisi strategi akt
 ## Contents
 - `ECMP_Test_Strategy_v0.1.md` (TST-001) — 🟢 Approved (baseline Sprint-01)
 - `ECMP_Test_Case_Catalog_v0.1.md` (TC-CAT-001) — 🟡 Draft — spesifikasi formal per TC (Implemented + Planned) selaras traceability
-- `ECMP_UAT_Plan_v0.1.md` (UAT-001) — 🟡 Draft — rencana UAT ter-gate (prasyarat environment/auth, persona, skenario subset TC)
+- `ECMP_UAT_Plan_v0.2.md` (UAT-001) — 🟡 Draft — rencana UAT ter-gate v0.2 (Close/Reject + UAT↔TC traceability; Sprint-09)
+- `ECMP_UAT_Plan_v0.1.md` (UAT-001) — ⚫ Superseded by v0.2
 
 ## Minimum Contents (v1)
 - [x] Test objectives & scope (TST-001 §1)
@@ -35,7 +36,7 @@ Approved baseline — `ECMP_Test_Strategy_v0.1.md` (TST-001) berisi strategi akt
 - [x] Defect severity model — untuk konteks UAT (UAT-001 §5); untuk dev harian tetap: defect langsung jadi PR
 - [x] Test data strategy (TST-001 §5)
 - [x] Environment usage (TST-001 §5)
-- [x] UAT approach — rencana ter-gate di UAT-001 (eksekusi menunggu keputusan platform SIT/UAT + fase target ADR-007)
+- [x] UAT approach — rencana ter-gate di UAT-001 v0.2 (Close/Reject eksplisit; eksekusi menunggu platform SIT/UAT + fase target ADR-007)
 
 ## Template Sections
 1. Scope & Objectives

@@ -4,12 +4,12 @@
 | Field | Value |
 |---|---|
 | ID | TRC-000 |
-| Version | 0.1 |
+| Version | 0.2 |
 | Owner | BA Lead / QA Lead |
 | Reviewer | Compliance |
 | Approver | Architecture Board |
 | Status | 🟡 Draft |
-| Last Review | 2026-07-21 |
+| Last Review | 2026-07-22 |
 | Next Review | 2027-01-21 |
 
 ## Purpose
@@ -38,11 +38,13 @@ Draft
 
 ## Chain
 ```text
-BP → BR → FRD → API/Event → Test Case
+BP → BR → FRD → API/Event → Test Case → UAT scenario (acceptance subset)
 ```
 
 ## Related
-- `TRACEABILITY_MATRIX.md`
+- `TRACEABILITY_MATRIX.md` — FR/API/Event/TC matrix (synced from `traceability.yaml`)
+- `UAT_SCENARIO_TRACEABILITY.md` — UAT ↔ TC ↔ pytest (Sprint-09)
+- `../13 Test Strategy/ECMP_UAT_Plan_v0.2.md` — UAT-001 v0.2
 - `../02 Business Rules`
 - `../03 Functional Requirements`
 - `../07 API Catalog`

@@ -1,15 +1,18 @@
-# ECMP UAT Plan
+# ECMP UAT Plan (superseded)
 
 | Field | Value |
 |---|---|
 | ID | UAT-001 |
-| Version | 0.2 |
+| Version | 0.1 |
 | Owner | QA Lead |
 | Reviewer | BA / Business Owner delegate |
 | Approver | Business Owner |
-| Status | 🟡 Draft |
-| Last Review | 2026-07-21 |
-| Next Review | 2027-01-21 |
+| Status | ⚫ Superseded |
+| Last Review | 2026-07-22 |
+| Next Review | — |
+| Superseded by | [`ECMP_UAT_Plan_v0.2.md`](./ECMP_UAT_Plan_v0.2.md) |
+
+> **Sprint-09:** Use **v0.2** as the active UAT Plan (Close/Reject scenarios + UAT↔TC↔pytest traceability). This v0.1 file is retained for history only.
 
 ## Purpose
 Rencana User Acceptance Testing (UAT) ECMP. Dokumen ini **jujur ter-gate**: UAT belum bisa dieksekusi hari ini karena environment SIT/UAT dan fase target autentikasi belum aktif — rencana ini mendefinisikan prasyarat, peserta, skenario, dan kriteria agar UAT siap jalan begitu gate terpenuhi.

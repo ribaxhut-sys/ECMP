@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | OPS-RB-001 |
-| Version | 0.1 |
+| Version | 0.2 |
 | Owner | Operations Lead |
 | Reviewer | DevOps / Tech Lead Backend |
 | Approver | Operations Lead |
 | Status | 🟡 Draft |
-| Last Review | 2026-07-21 |
+| Last Review | 2026-07-22 |
 | Next Review | 2027-01-21 |
 
 Runbook jujur untuk scope slice: environment nyata hanya **DEV lokal + CI** (DEP-001, ADR-010). Prosedur yang membutuhkan shared environment ditandai **Planned** dan baru berlaku saat baseline SIT/UAT ADR-010 aktif.
@@ -123,8 +123,19 @@ WHERE published_at IS NULL;
 | P6 | Planned (domain belum dibangun) |
 | Prosedur shared env (probe, restore, alerting) | Planned — aktif bersama baseline SIT/UAT ADR-010 |
 
+## 6. Companion procedures (Sprint-09)
+
+| ID | Document | Use when |
+|---|---|---|
+| OPS-SHDN-001 | `./ECMP_Shutdown_Procedure_v0.1.md` | Orderly stop before restore/maintenance |
+| OPS-LOG-001 | `./ECMP_Log_Inspection_Procedure_v0.1.md` | Lookup by `request_id` / `correlation_id` in JSON logs |
+| OPS-RST-001 | `./ECMP_Restore_Verification_Procedure_v0.1.md` | Backup restore verification + drill evidence |
+
 ## Related
 - `../14 Deployment Standards/ECMP_Deployment_Standards_v0.1.md` (DEP-001)
 - `../05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md`, `ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md`
 - `./ECMP_DR_BCP_Plan_v0.1.md` (OPS-DR-001)
+- `./ECMP_Shutdown_Procedure_v0.1.md` (OPS-SHDN-001)
+- `./ECMP_Log_Inspection_Procedure_v0.1.md` (OPS-LOG-001)
+- `./ECMP_Restore_Verification_Procedure_v0.1.md` (OPS-RST-001)
 - `../11 SLA and KPI Matrix/`
