@@ -8,9 +8,10 @@ import styles from './ApproveCloseForm.module.css'
 
 interface ApproveCloseFormProps {
   caseId: string
+  onCaseGone?: () => void
 }
 
-export function ApproveCloseForm({ caseId }: ApproveCloseFormProps) {
+export function ApproveCloseForm({ caseId, onCaseGone }: ApproveCloseFormProps) {
   const { showToast } = useToast()
   const mutation = useChangeStatus(caseId)
   const [resolutionCode, setResolutionCode] = useState('')
@@ -49,6 +50,10 @@ export function ApproveCloseForm({ caseId }: ApproveCloseFormProps) {
         },
         onError: (error) => {
           setConfirmOpen(false)
+          if (isApiError(error) && error.code === 'NOT_FOUND') {
+            onCaseGone?.()
+            return
+          }
           if (isApiError(error)) {
             showToast('error', getErrorCopy(error, 'status').message)
           } else {

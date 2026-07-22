@@ -10,6 +10,8 @@ interface ActionPanelProps {
   isRefreshing?: boolean
   /** Mobile sticky bottom bar layout (Screen Spec §10). */
   stickyMobile?: boolean
+  /** Escalate action-time 404 to full-page handling (Screen Spec §5). */
+  onCaseGone?: () => void
 }
 
 function primaryLabel(visibility: ActionVisibility): string | null {
@@ -28,6 +30,7 @@ export function ActionPanel({
   caseData,
   isRefreshing = false,
   stickyMobile = false,
+  onCaseGone,
 }: ActionPanelProps) {
   const auth = useAuth()
   const visibility = getActionVisibility(caseData, {
@@ -61,12 +64,13 @@ export function ActionPanel({
       </div>
 
       {visibility.kind === 'assign' ? (
-        <AssignActionForm caseId={caseData.caseId} />
+        <AssignActionForm caseId={caseData.caseId} onCaseGone={onCaseGone} />
       ) : (
         <StatusActionControls
           caseId={caseData.caseId}
           visibility={visibility}
           mobileCompact={stickyMobile}
+          onCaseGone={onCaseGone}
         />
       )}
     </section>

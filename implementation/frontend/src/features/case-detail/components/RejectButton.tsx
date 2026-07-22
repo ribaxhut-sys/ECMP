@@ -7,9 +7,10 @@ import styles from './RejectButton.module.css'
 
 interface RejectButtonProps {
   caseId: string
+  onCaseGone?: () => void
 }
 
-export function RejectButton({ caseId }: RejectButtonProps) {
+export function RejectButton({ caseId, onCaseGone }: RejectButtonProps) {
   const { showToast } = useToast()
   const mutation = useChangeStatus(caseId)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -28,6 +29,10 @@ export function RejectButton({ caseId }: RejectButtonProps) {
           showToast('success', 'Case returned to in progress')
         },
         onError: (error) => {
+          if (isApiError(error) && error.code === 'NOT_FOUND') {
+            onCaseGone?.()
+            return
+          }
           if (isApiError(error)) {
             showToast('error', getErrorCopy(error, 'status').message)
           } else {

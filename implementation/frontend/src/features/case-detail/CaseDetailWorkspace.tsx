@@ -1,5 +1,7 @@
+import { useCallback, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, getErrorCopy, isApiError } from '../../api/errors'
+import { useAuth } from '../../auth/AuthContext'
 import { ErrorBanner } from '../../components/ErrorBanner'
 import { LoadingSkeleton } from '../../components/LoadingSkeleton'
 import { useMediaQuery } from '../../lib/useMediaQuery'
@@ -18,9 +20,13 @@ interface CaseDetailWorkspaceProps {
 
 export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
   const navigate = useNavigate()
+  const { onUnauthenticated } = useAuth()
   const query = useCase(caseId)
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const isMobile = useMediaQuery('(max-width: 767px)')
+  const [caseGone, setCaseGone] = useState(false)
+
+  const handleCaseGone = useCallback(() => setCaseGone(true), [])
 
   if (query.isLoading) {
     return (
@@ -40,15 +46,32 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
     )
   }
 
+  if (caseGone) {
+    return (
+      <main className={styles.page}>
+        <ErrorBanner
+          title="Case not found"
+          message="This case does not exist or is no longer available."
+          action={{ label: 'Back to queue', onClick: () => navigate('/') }}
+        />
+      </main>
+    )
+  }
+
   if (query.isError) {
     const error = isApiError(query.error)
       ? query.error
       : new ApiError(500, 'INTERNAL_ERROR', 'Unexpected error')
+
+    if (error.code === 'UNAUTHENTICATED') {
+      onUnauthenticated?.()
+    }
+
     const copy = getErrorCopy(error, 'load')
     const isNotFoundOrForbidden =
       error.code === 'NOT_FOUND' || error.code === 'FORBIDDEN'
     return (
-      <div className={styles.page}>
+      <main className={styles.page}>
         <ErrorBanner
           title={copy.title}
           message={copy.message}
@@ -58,7 +81,7 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
               : { label: 'Retry', onClick: () => void query.refetch() }
           }
         />
-      </div>
+      </main>
     )
   }
 
@@ -73,6 +96,7 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
       caseData={caseData}
       isRefreshing={refreshing}
       stickyMobile={isMobile}
+      onCaseGone={handleCaseGone}
     />
   )
 
@@ -86,7 +110,7 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
   return (
     <div className={`${styles.page} ${isMobile ? styles.pageMobile : ''}`}>
       <CaseHeader caseData={caseData} />
-      <div className={styles.layout}>
+      <main className={styles.layout}>
         <div className={styles.main}>
           <CaseInfoPanel caseData={caseData} />
           <ActivityTimelinePlaceholder />
@@ -94,14 +118,16 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
         </div>
 
         {isDesktop ? (
-          <aside className={styles.side}>{sidePanels}</aside>
+          <aside className={styles.side} aria-label="Case reference">
+            {sidePanels}
+          </aside>
         ) : (
           <details className={styles.detailsAccordion}>
             <summary className={styles.detailsSummary}>Details</summary>
             <div className={styles.side}>{sidePanels}</div>
           </details>
         )}
-      </div>
+      </main>
 
       {isMobile ? (
         <div className={styles.mobileActionSlot}>{actionPanel}</div>

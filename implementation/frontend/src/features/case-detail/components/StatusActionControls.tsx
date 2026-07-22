@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getErrorCopy, isApiError } from '../../../api/errors'
 import { useToast } from '../../../components/Toast/ToastContainer'
 import type { ActionVisibility } from '../permissions'
@@ -12,19 +12,33 @@ interface StatusActionControlsProps {
   visibility: ActionVisibility
   /** On mobile sticky bar: park Reject behind an overflow menu (Screen Spec §10). */
   mobileCompact?: boolean
+  onCaseGone?: () => void
 }
 
 export function StatusActionControls({
   caseId,
   visibility,
   mobileCompact = false,
+  onCaseGone,
 }: StatusActionControlsProps) {
   const { showToast } = useToast()
   const mutation = useChangeStatus(caseId)
   const [menuOpen, setMenuOpen] = useState(false)
 
+  useEffect(() => {
+    if (
+      mutation.isError &&
+      isApiError(mutation.error) &&
+      mutation.error.code === 'NOT_FOUND'
+    ) {
+      onCaseGone?.()
+    }
+  }, [mutation.isError, mutation.error, onCaseGone])
+
   const panelError =
-    mutation.isError && isApiError(mutation.error)
+    mutation.isError &&
+    isApiError(mutation.error) &&
+    mutation.error.code !== 'NOT_FOUND'
       ? getErrorCopy(mutation.error, 'status').message
       : null
 
@@ -37,6 +51,10 @@ export function StatusActionControls({
       {
         onSuccess: () => showToast('success', successMessage),
         onError: (error) => {
+          if (isApiError(error) && error.code === 'NOT_FOUND') {
+            onCaseGone?.()
+            return
+          }
           if (isApiError(error)) {
             showToast('error', getErrorCopy(error, 'status').message)
           } else {
@@ -87,11 +105,11 @@ export function StatusActionControls({
       ) : null}
 
       {visibility.canApproveClose ? (
-        <ApproveCloseForm caseId={caseId} />
+        <ApproveCloseForm caseId={caseId} onCaseGone={onCaseGone} />
       ) : null}
 
       {visibility.canReject && !rejectInOverflow ? (
-        <RejectButton caseId={caseId} />
+        <RejectButton caseId={caseId} onCaseGone={onCaseGone} />
       ) : null}
 
       {rejectInOverflow ? (
@@ -108,7 +126,7 @@ export function StatusActionControls({
           </button>
           {menuOpen ? (
             <div className={styles.menu} role="menu">
-              <RejectButton caseId={caseId} />
+              <RejectButton caseId={caseId} onCaseGone={onCaseGone} />
             </div>
           ) : null}
         </div>

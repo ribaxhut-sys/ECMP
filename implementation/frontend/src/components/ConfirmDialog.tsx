@@ -26,11 +26,16 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const titleId = useId()
   const descId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const previouslyFocused = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    if (open) {
-      confirmRef.current?.focus()
+    if (!open) return
+    previouslyFocused.current = document.activeElement as HTMLElement | null
+    confirmRef.current?.focus()
+    return () => {
+      previouslyFocused.current?.focus?.()
     }
   }, [open])
 
@@ -38,7 +43,23 @@ export function ConfirmDialog({
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !isPending) {
+        event.preventDefault()
         onCancel()
+        return
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -50,6 +71,7 @@ export function ConfirmDialog({
   return (
     <div className={styles.backdrop} role="presentation">
       <div
+        ref={dialogRef}
         className={styles.dialog}
         role="alertdialog"
         aria-modal="true"
