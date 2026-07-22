@@ -24,15 +24,19 @@ Approved baseline — `ECMP_Release_Management_v0.1.md` (REL-001): unit rilis = 
 
 ## Contents
 - `ECMP_Release_Management_v0.1.md` (REL-001)
+- `ECMP_Repository_Versioning_Policy_v0.1.md` (REL-VER-001) — SemVer app/repo
+- `ECMP_Git_Tag_Convention_v0.1.md` (REL-TAG-001) — annotated `vX.Y.Z[-rc.N]` tags
+- `ECMP_RC_Release_Checklist_v0.1.md` (REL-RC-001) — internal RC cut checklist
 
 ## Minimum Contents (v1)
 - [x] Release cadence & freeze policy — rilis per slice/gate, bukan kalender (REL-001 pembuka)
-- [x] Release checklist — Go/No-Go 5 butir (REL-001 §3)
+- [x] Release checklist — Go/No-Go 5 butir (REL-001 §3) + RC checklist (REL-RC-001)
 - [x] Go/No-Go criteria (REL-001 §3 — CI hijau, katalog sinkron, sign-off Tech Lead+SA per DEC-002)
 - [ ] Stakeholder communication template (belum ada konsumen eksternal; aktif saat environment bersama ada)
 - [x] Rollback decision criteria (REL-001 §5 → DEP-001 §4)
 - [ ] Post-release verification (menunggu environment bersama pertama)
-- [x] Release notes/changelog — changelog di deskripsi PR (REL-001 §4)
+- [x] Release notes/changelog — root `CHANGELOG.md` + PR contract-impact notes (REL-001 §4)
+- [x] Repository versioning + git tag convention (REL-VER-001, REL-TAG-001)
 
 ## Template Sections
 1. Release Objectives

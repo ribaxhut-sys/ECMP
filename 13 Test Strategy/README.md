@@ -20,10 +20,10 @@ Strategi pengujian ECMP: scope, jenis test, entry/exit criteria, environments, d
 - Reviewers: BA Lead, Tech Leads, Ops
 
 ## Status
-Approved baseline — `ECMP_Test_Strategy_v0.1.md` (TST-001) berisi strategi aktual fase slice (Sprint-01 → G1).
+Approved baseline — `ECMP_Test_Strategy_v0.1.md` (TST-001) v0.3 berisi strategi slice + **RC exit criteria** (Sprint-10).
 
 ## Contents
-- `ECMP_Test_Strategy_v0.1.md` (TST-001) — 🟢 Approved (baseline Sprint-01)
+- `ECMP_Test_Strategy_v0.1.md` (TST-001) — 🟢 Approved (v0.3 — Sprint-10 RC exit criteria)
 - `ECMP_Test_Case_Catalog_v0.1.md` (TC-CAT-001) — 🟡 Draft — spesifikasi formal per TC (Implemented + Planned) selaras traceability
 - `ECMP_UAT_Plan_v0.2.md` (UAT-001) — 🟡 Draft — rencana UAT ter-gate v0.2 (Close/Reject + UAT↔TC traceability; Sprint-09)
 - `ECMP_UAT_Plan_v0.1.md` (UAT-001) — ⚫ Superseded by v0.2
@@ -32,7 +32,7 @@ Approved baseline — `ECMP_Test_Strategy_v0.1.md` (TST-001) berisi strategi akt
 - [x] Test objectives & scope (TST-001 §1)
 - [x] Test types — unit/API/contract/migration aktif; UI/performance/security = backlog dengan trigger (TST-001 §1, §6)
 - [x] Traceability to FR/BR — mapping TC → tes nyata (TST-001 §2)
-- [x] Entry & exit criteria per gate G0/G1 (TST-001 §3)
+- [x] Entry & exit criteria per gate G0/G1 + **RC exit criteria** (TST-001 §3)
 - [x] Defect severity model — untuk konteks UAT (UAT-001 §5); untuk dev harian tetap: defect langsung jadi PR
 - [x] Test data strategy (TST-001 §5)
 - [x] Environment usage (TST-001 §5)

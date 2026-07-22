@@ -33,11 +33,20 @@ export default defineConfig(({ mode }) => ({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    // a11y suite is warning-mode only (CI continue-on-error via npm run test:a11y).
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*.a11y.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'html', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/test/**', 'src/main.tsx', 'src/vite-env.d.ts'],
+      exclude: ['src/test/**', 'src/main.tsx', 'src/vite-env.d.ts', '**/*.a11y.test.{ts,tsx}'],
+      // Sprint-10 RC1: enforce measured baseline (AC-1). Raise as suite grows.
+      thresholds: {
+        lines: 12,
+        statements: 12,
+        functions: 50,
+        branches: 50,
+      },
     },
   },
 }))

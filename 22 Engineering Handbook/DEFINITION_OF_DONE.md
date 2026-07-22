@@ -16,7 +16,7 @@ Sebuah perubahan `implementation/**` dianggap **Done** hanya jika SEMUA butir di
 ## Checklist
 
 1. **Kode selesai sesuai kontrak** — perilaku runtime sama dengan OpenAPI (`07 API Catalog/openapi/`) dan Event SoT (`08 Event Catalog/events/events.yaml`). Tidak ada endpoint yang hidup di runtime tapi tidak ada di katalog, dan sebaliknya.
-2. **Tes hijau di CI** — pipeline `backend-ci.yml` lulus penuh: ruff → OpenAPI validate → `alembic upgrade head` → pytest terhadap PostgreSQL service. Tes baru/terubah menyertai perubahan perilaku.
+2. **Tes hijau di CI** — pipeline `backend-ci.yml` lulus penuh: ruff → OpenAPI validate → `alembic upgrade head` → pytest terhadap PostgreSQL service (coverage ≥90%, termasuk response-body contract). Perubahan frontend: `frontend-ci.yml` lulus typecheck/lint/`test:coverage`/build. Tes baru/terubah menyertai perubahan perilaku.
 3. **Katalog & traceability sinkron** — jika kontrak API/event/skema berubah: `07 API Catalog`, `08 Event Catalog`, dan `26 Traceability/traceability.yaml` diperbarui dalam PR yang sama (atau contract-PR mendahului code-PR, sesuai aturan gate G1).
 4. **Tidak ada endpoint di luar OpenAPI** — catalog-first bersifat mutlak; endpoint eksperimen pun harus di belakang flag dev (contoh existing: `/_dev/events` di-gate `ECMP_ENABLE_DEV_ENDPOINTS`).
 5. **BR-0xx dirujuk di PR** — deskripsi PR mencantumkan ID business rule / FR / ADR yang menjadi dasar perubahan perilaku (contoh: BR-008 untuk jalur write-audit). Perubahan tanpa dasar ID = pertanda scope creep, tahan dan klarifikasi dulu.

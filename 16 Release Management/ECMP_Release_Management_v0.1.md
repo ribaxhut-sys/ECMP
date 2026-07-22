@@ -3,13 +3,13 @@
 | Field | Value |
 |---|---|
 | ID | REL-001 |
-| Version | 0.1 |
+| Version | 0.2 |
 | Owner | Release Manager |
 | Reviewer | QA / Ops |
 | Approver | PMO |
-| Status | 🟢 Approved (baseline Sprint-01) |
-| Last Review | 2026-07-21 |
-| Next Review | 2027-01-21 |
+| Status | 🟢 Approved (Sprint-10 release mechanics) |
+| Last Review | 2026-07-22 |
+| Next Review | 2027-01-22 |
 
 Proses rilis ECMP fase slice: unit rilis adalah **slice per gate** (G0 → B1 → G1 → B2 …), bukan release train berkala. Cadence kalender baru ditetapkan saat ada environment bersama.
 
@@ -40,16 +40,27 @@ No-Go → catat alasan di gate checklist, perbaiki, ulangi. Tidak ada "Go bersya
 
 ## 4. Changelog
 
-- Changelog hidup di **deskripsi PR** (bukan file CHANGELOG terpisah selama fase slice): apa yang berubah, BR/FR/ADR/API/EVT ID terkait, dan dampak kontrak (none / minor / breaking).
-- PR yang mengubah kontrak wajib menandai bagian "Contract impact" secara eksplisit — ini input langsung untuk keputusan versi (§1) dan deprecation (§2).
-- Saat rilis ke environment bersama dimulai, release notes per versi dibuat dari kumpulan PR (`ECMP_Release_Notes_<Version>.md` sesuai konvensi README folder ini).
+- **Repository release notes** hidup di root `CHANGELOG.md` (Keep a Changelog) per
+  `ECMP_Repository_Versioning_Policy_v0.1.md` — wajib diisi sebelum tag RC/release.
+- PR descriptions tetap mencatat BR/FR/ADR/API/EVT ID dan **Contract impact**
+  (none / minor / breaking) sebagai input ke keputusan versi API (§1) dan deprecation (§2).
+- Saat rilis ke environment bersama dimulai (masa depan), ringkasan per versi juga
+  boleh dipublikasikan sebagai `ECMP_Release_Notes_<Version>.md` dari CHANGELOG.
 
 ## 5. Rollback decision
 
 Kriteria dan mekanik rollback ada di `../14 Deployment Standards` (DEP-001 §4). Keputusan rollback pasca-rilis diambil oleh Tech Lead + Release Manager; rollback yang menyentuh skema DB membutuhkan konfirmasi Solution Architect.
+
+## 6. Repository versioning & RC (Sprint-10)
+
+- App/repo SemVer: `ECMP_Repository_Versioning_Policy_v0.1.md` (REL-VER-001)
+- Annotated git tags: `ECMP_Git_Tag_Convention_v0.1.md` (REL-TAG-001)
+- RC cut checklist: `ECMP_RC_Release_Checklist_v0.1.md` (REL-RC-001)
+- Shared-environment Go tetap mengikuti §3 + ADR-010/ADR-012; RC1 = internal DEV only.
 
 ## Related
 - ADR-006 (`../05 Architecture Decision Records`)
 - `../27 Project Decisions/DEC-002_Build_Authorization_G0_v1.0.md`
 - `../14 Deployment Standards/ECMP_Deployment_Standards_v0.1.md` (DEP-001)
 - `../13 Test Strategy/ECMP_Test_Strategy_v0.1.md` (TST-001)
+- `../CHANGELOG.md`
