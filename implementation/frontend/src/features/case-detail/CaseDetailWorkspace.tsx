@@ -7,6 +7,7 @@ import { CaseInfoPanel } from './components/CaseInfoPanel'
 import { CaseMetaPanel } from './components/CaseMetaPanel'
 import { CustomerReferencePanel } from './components/CustomerReferencePanel'
 import { ActivityTimelinePlaceholder } from './components/ActivityTimelinePlaceholder'
+import { ActionPanel } from './components/ActionPanel'
 import { useCase } from './hooks/useCase'
 import styles from './CaseDetailWorkspace.module.css'
 
@@ -70,7 +71,10 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
         <div className={styles.main}>
           <CaseInfoPanel caseData={caseData} />
           <ActivityTimelinePlaceholder />
-          {/* ActionPanel — Step 4+ */}
+          <ActionPanel
+            caseData={caseData}
+            isRefreshing={query.isFetching && !query.isLoading}
+          />
         </div>
         <aside className={styles.side}>
           <CustomerReferencePanel caseData={caseData} />
