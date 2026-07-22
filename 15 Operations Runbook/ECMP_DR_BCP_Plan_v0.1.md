@@ -67,8 +67,18 @@ Aturan Planned: dump disimpan di storage terpisah dari VM aplikasi; retensi dan 
 
 Dokumen ini **wajib direview dan dinaikkan dari Draft** saat baseline SIT/UAT ADR-010 diaktifkan (fase target auth ADR-007 aktif) — saat itu seluruh item Planned di §2, §3, §6 harus menjadi prosedur nyata yang teruji (restore drill minimal 1x sebelum UAT).
 
+## 8. Pre-activation checklist (Sprint-08)
+
+Checklist detail (tanpa otomasi sekarang):
+
+- Backup strategy: `./ECMP_Backup_Strategy_v0.1.md` (OPS-BAK-001)
+- Restore verification / drill: `./ECMP_Restore_Verification_Procedure_v0.1.md` (OPS-RST-001)
+- Deployment gate list: `../14 Deployment Standards/ECMP_Production_Deployment_Checklist_v0.1.md`
+
 ## Related
 - `./ECMP_Runbook_Slice_v0.1.md` (OPS-RB-001)
+- `./ECMP_Backup_Strategy_v0.1.md` (OPS-BAK-001)
+- `./ECMP_Restore_Verification_Procedure_v0.1.md` (OPS-RST-001)
 - `../14 Deployment Standards/ECMP_Deployment_Standards_v0.1.md` (DEP-001 §4 rollback)
 - `../05 Architecture Decision Records/ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md`
 - `../02 Business Rules/` (BR-CP-03), `../27 Project Decisions/DEC-004_BR_Baseline_Defaults_v1.0.md`

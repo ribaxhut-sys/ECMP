@@ -1,11 +1,12 @@
 openapi: 3.0.3
 info:
   title: ECMP Case Service API
-  version: 1.6.0
+  version: 1.7.0
   description: |
     ECMF case operations: create/get (Sprint-01, FRD-001), lifecycle actions
     assign/status (Sprint-02B, FRD-002), paginated/filtered list (Sprint-03B,
-    FRD-001 v0.4 FR-005), timeline/audit read + append-only notes (Sprint-06).
+    FRD-001 v0.4 FR-005), timeline/audit read + append-only notes (Sprint-06),
+    production readiness probes (Sprint-08: /health liveness + /health/ready).
     Consolidated from the formerly separate case-actions.v1.yaml
     (frozen at gate G1, DEC-006) into this single normative spec per DEC-006 D6/U-6 —
     Sprint-03A governance sync.
@@ -30,10 +31,13 @@ paths:
       - url: http://localhost:8000
         description: Health is served at root, outside the /v1 prefix (ADR-006)
     get:
-      summary: Service health check
+      summary: Service liveness check
       operationId: health
       tags: [Operations]
       security: []
+      description: |
+        Liveness probe — process is up. Does not verify database connectivity.
+        Use GET /health/ready for dependency readiness (Sprint-08).
       responses:
         "200":
           description: Service is up
@@ -49,6 +53,49 @@ paths:
                   sprint:
                     type: string
                     description: Active sprint label (informational)
+  /health/ready:
+    servers:
+      - url: http://localhost:8000
+        description: Readiness is served at root, outside the /v1 prefix (ADR-006)
+    get:
+      summary: Service readiness check
+      operationId: readiness
+      tags: [Operations]
+      security: []
+      description: |
+        Readiness probe — verifies database connectivity with SELECT 1.
+        Returns 503 when the database is unreachable (Sprint-08).
+      responses:
+        "200":
+          description: Service is ready (database reachable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: string
+        "503":
+          description: Service is not ready (database unreachable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: string
   /cases:
     get:
       summary: List cases (paginated, filtered)

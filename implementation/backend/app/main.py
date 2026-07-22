@@ -10,14 +10,17 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import service, settings
 from app.auth import need
-from app.db import Base, get_engine, get_session
+from app.db import Base, get_engine, get_session, ping_database
 from app.errors import ApiError, NotFoundError
+from app.logging_config import configure_logging, get_logger
+from app.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
 from app.schemas import (
     AssignRequest,
     Case,
@@ -34,6 +37,8 @@ from app.schemas import (
     StatusChangeRequest,
 )
 
+logger = get_logger("app.main")
+
 ERROR_RESPONSES = {
     401: {"model": Error, "description": "Not authenticated"},
     403: {"model": Error, "description": "Missing permission"},
@@ -43,11 +48,13 @@ ERROR_RESPONSES = {
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    configure_logging(settings.log_level())
     settings.validate_runtime_config()
     if settings.database_url().startswith("sqlite"):
         # SQLite fallback only; on PostgreSQL the schema comes from Alembic —
         # create_all there would mask a missing migration (ai/08_standards.md).
         Base.metadata.create_all(get_engine())
+    logger.info("application started", extra={"extra_fields": {"env": settings.env()}})
     yield
 
 
@@ -57,16 +64,37 @@ _dev = settings.dev_endpoints_enabled()
 
 app = FastAPI(
     title="ECMP Case Service",
-    version="1.6.0",
+    version="1.7.0",
     description=(
-        "Sprint-06: create/get + assign/status + list + timeline/audit + notes "
-        "(FR-001..007) — PostgreSQL per ADR-004"
+        "Sprint-08: create/get + assign/status + list + timeline/audit + notes "
+        "(FR-001..007) + production readiness (CORS, headers, logging, readiness) "
+        "— PostgreSQL per ADR-004"
     ),
     lifespan=lifespan,
     docs_url="/_dev/docs" if _dev else None,
     redoc_url="/_dev/redoc" if _dev else None,
     openapi_url="/_dev/openapi.json" if _dev else None,
 )
+
+# Middleware order: last add_middleware = outermost. CORS must be outermost for
+# preflight; request context next so IDs exist for access logs; security headers last.
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestContextMiddleware)
+_origins = settings.allowed_origins()
+if _origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "X-Correlation-ID",
+        ],
+        expose_headers=["X-Request-ID", "X-Correlation-ID"],
+    )
 
 
 def _envelope(status_code: int, code: str, message: str, details: dict | None = None):
@@ -105,7 +133,36 @@ def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "ecmp-case-service", "sprint": "Sprint-06"}
+    """Liveness probe — no dependency checks (Sprint-08 keeps shape stable)."""
+    return {"status": "ok", "service": "ecmp-case-service", "sprint": "Sprint-08"}
+
+
+@app.get(
+    "/health/ready",
+    responses={
+        200: {"description": "Service is ready (database reachable)"},
+        503: {"description": "Service is not ready (database unreachable)"},
+    },
+)
+def readiness():
+    """Readiness probe — verifies database connectivity (SELECT 1)."""
+    try:
+        ping_database()
+    except Exception:
+        logger.exception("readiness check failed")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not_ready",
+                "service": "ecmp-case-service",
+                "checks": {"database": "fail"},
+            },
+        )
+    return {
+        "status": "ready",
+        "service": "ecmp-case-service",
+        "checks": {"database": "ok"},
+    }
 
 
 @app.get(

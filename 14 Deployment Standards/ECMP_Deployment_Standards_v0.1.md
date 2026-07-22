@@ -54,10 +54,21 @@ Prinsip: satu artefak, banyak konfigurasi — perilaku environment dibedakan han
 - `audit_log` append-only tidak boleh hilang karena rollback — revision yang menyentuh `audit_log` direview ekstra ketat.
 
 ## 5. Observability
-- Baseline sekarang: endpoint `/health` (tanpa versi) untuk liveness.
-- Structured logging + correlation-id = backlog gate G1 (TS-001 §6). Metrics/tracing menunggu platform target — dilarang memasang stack observability spekulatif.
+- Liveness: `GET /health` (no DB check).
+- Readiness: `GET /health/ready` (database `SELECT 1`) — Sprint-08.
+- Structured JSON logging + `X-Request-ID` / `X-Correlation-ID` — Sprint-08 (TS-OBS-001 / TS-001 §6).
+- Metrics/tracing menunggu platform target — dilarang memasang stack observability spekulatif.
+
+## 6. SIT/UAT activation appendix (Sprint-08)
+
+See **Production Deployment Checklist**:
+`./ECMP_Production_Deployment_Checklist_v0.1.md` (DEP-CHK-001).
+
+Trigger: ADR-007 target auth (JWT/OIDC) live → then build Dockerfile / registry /
+prod compose / vault / backup automation per ADR-010 — **not before**.
 
 ## Related
+- `./ECMP_Production_Deployment_Checklist_v0.1.md` (DEP-CHK-001)
 - `../16 Release Management/ECMP_Release_Management_v0.1.md` (REL-001)
 - `../21 Technical Standards/ECMP_Technical_Standards_v0.1.md` (TS-001 §5, §7)
 - ADR-004 (stack), ADR-007 (auth gate untuk shared env)

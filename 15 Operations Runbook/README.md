@@ -25,6 +25,8 @@ Draft — konten inti terisi (OPS-RB-001, OPS-DR-001); tetap 🟡 Draft konserva
 ## Documents
 - [`ECMP_Runbook_Slice_v0.1.md`](./ECMP_Runbook_Slice_v0.1.md) (OPS-RB-001) — service inventory, health check, playbooks P1–P6, escalation matrix
 - [`ECMP_DR_BCP_Plan_v0.1.md`](./ECMP_DR_BCP_Plan_v0.1.md) (OPS-DR-001) — RTO/RPO baseline, backup/restore, perlindungan audit_log, BCP
+- [`ECMP_Backup_Strategy_v0.1.md`](./ECMP_Backup_Strategy_v0.1.md) (OPS-BAK-001) — Sprint-08 docs-only backup strategy
+- [`ECMP_Restore_Verification_Procedure_v0.1.md`](./ECMP_Restore_Verification_Procedure_v0.1.md) (OPS-RST-001) — Sprint-08 restore drill checklist
 
 ## Minimum Contents (v1)
 - [x] Service inventory & ownership (OPS-RB-001 §1)

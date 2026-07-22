@@ -48,3 +48,12 @@ def reset_engine() -> None:
         _engine.dispose()
     _engine = None
     _session_factory = None
+
+
+def ping_database() -> None:
+    """Readiness probe: execute SELECT 1. Raises on connectivity failure."""
+    from sqlalchemy import text
+
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))

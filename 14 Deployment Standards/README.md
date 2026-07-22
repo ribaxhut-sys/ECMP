@@ -24,6 +24,7 @@ Approved baseline — `ECMP_Deployment_Standards_v0.1.md` (DEP-001). SIT/UAT/PRO
 
 ## Contents
 - `ECMP_Deployment_Standards_v0.1.md` (DEP-001)
+- `ECMP_Production_Deployment_Checklist_v0.1.md` (DEP-CHK-001) — Sprint-08
 
 ## Minimum Contents (v1)
 - [x] Environment topology — DEV + CI aktual; SIT/UAT/PROD open decision (DEP-001 §1)
@@ -32,7 +33,7 @@ Approved baseline — `ECMP_Deployment_Standards_v0.1.md` (DEP-001). SIT/UAT/PRO
 - [x] Promotion / approval gates (DEP-001 §3, terhubung REL-001)
 - [x] Rollback strategy — alembic downgrade + redeploy (DEP-001 §4)
 - [ ] Infrastructure baseline (menunggu keputusan platform SIT/UAT/PROD)
-- [x] Observability requirements — baseline `/health`; logging = backlog G1 (DEP-001 §5)
+- [x] Observability requirements — `/health` + `/health/ready` + structured logging (Sprint-08)
 
 ## Template Sections
 1. Environment Standards

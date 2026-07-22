@@ -62,3 +62,18 @@ def validate_runtime_config() -> None:
         problems.append("ECMP_ENABLE_DEV_ENDPOINTS must be off outside dev (TS-001 §2)")
     if problems:
         raise RuntimeError(f"Unsafe configuration for ECMP_ENV={env()}: " + "; ".join(problems))
+
+
+def allowed_origins() -> list[str]:
+    """CORS allow-list from ECMP_ALLOWED_ORIGINS (comma-separated).
+
+    Empty/unset → no CORSMiddleware origins (same-origin only; fail closed).
+    """
+    raw = os.getenv("ECMP_ALLOWED_ORIGINS", "").strip()
+    if not raw:
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def log_level() -> str:
+    return os.getenv("ECMP_LOG_LEVEL", "INFO").upper()

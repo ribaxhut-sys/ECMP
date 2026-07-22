@@ -1,11 +1,25 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { visualizer } from 'rollup-plugin-visualizer'
 
-// CORS mitigation (IMPLEMENTATION_PLAN §13): proxy /v1 to the backend so the
-// browser talks same-origin to Vite; no backend CORSMiddleware required.
-export default defineConfig({
-  plugins: [react()],
+// Dev: Vite proxies /v1 → backend (same-origin). Production: set
+// ECMP_ALLOWED_ORIGINS on the API when FE/BE are on different origins (Sprint-08).
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    react(),
+    ...(mode === 'analyze'
+      ? [
+          visualizer({
+            filename: 'dist/stats.html',
+            open: false,
+            gzipSize: true,
+            brotliSize: true,
+            template: 'treemap',
+          }),
+        ]
+      : []),
+  ],
   server: {
     port: 5173,
     proxy: {
@@ -26,4 +40,4 @@ export default defineConfig({
       exclude: ['src/test/**', 'src/main.tsx', 'src/vite-env.d.ts'],
     },
   },
-})
+}))

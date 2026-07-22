@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: implementation/frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Dependency audit (high+)
+        run: npm audit --audit-level=high
       - name: Type check
         run: npm run typecheck
       - name: Lint

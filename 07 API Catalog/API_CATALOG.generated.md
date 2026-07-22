@@ -16,7 +16,7 @@
 | Spec | Title | Version | Operations |
 |---|---|---|---|
 | `case-actions.v1.yaml` | ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED) | 1.0.0 | 0 |
-| `case-service.v1.yaml` | ECMP Case Service API | 1.6.0 | 9 |
+| `case-service.v1.yaml` | ECMP Case Service API | 1.7.0 | 10 |
 
 ## `case-actions.v1.yaml`
 
@@ -27,7 +27,8 @@
 
 | ID | Operation | Summary |
 |---|---|---|
-| — | `GET /health` | Service health check |
+| — | `GET /health` | Service liveness check |
+| — | `GET /health/ready` | Service readiness check |
 | API-005 | `GET /v1/cases` | List cases (paginated, filtered) |
 | API-001 | `POST /v1/cases` | Create case |
 | API-002 | `GET /v1/cases/{caseId}` | Get case by id |

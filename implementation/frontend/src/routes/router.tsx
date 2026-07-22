@@ -1,7 +1,19 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 import App from '../App'
-import { CaseDetailPage } from '../pages/CaseDetailPage'
-import { CaseQueuePage } from '../pages/CaseQueuePage'
+
+const CaseQueuePage = lazy(() =>
+  import('../pages/CaseQueuePage').then((m) => ({ default: m.CaseQueuePage })),
+)
+const CaseDetailPage = lazy(() =>
+  import('../pages/CaseDetailPage').then((m) => ({ default: m.CaseDetailPage })),
+)
+
+const routeFallback = (
+  <p style={{ padding: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
+    Loading…
+  </p>
+)
 
 export const router = createBrowserRouter([
   {
@@ -10,11 +22,19 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <CaseQueuePage />,
+        element: (
+          <Suspense fallback={routeFallback}>
+            <CaseQueuePage />
+          </Suspense>
+        ),
       },
       {
         path: 'cases/:caseId',
-        element: <CaseDetailPage />,
+        element: (
+          <Suspense fallback={routeFallback}>
+            <CaseDetailPage />
+          </Suspense>
+        ),
       },
       {
         path: '*',

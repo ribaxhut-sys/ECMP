@@ -39,10 +39,10 @@ def _normalize(path: str) -> str:
 
 
 def _catalog_operations(catalog: dict) -> dict[tuple[str, str], dict]:
-    """Catalog paths are relative to the /v1 server (except /health at root)."""
+    """Catalog paths are relative to the /v1 server (except /health* at root)."""
     ops = {}
     for path, item in catalog["paths"].items():
-        full = path if path == "/health" else f"/v1{path}"
+        full = path if path.startswith("/health") else f"/v1{path}"
         for method, op in item.items():
             if method in HTTP_METHODS:
                 ops[(_normalize(full), method)] = op
