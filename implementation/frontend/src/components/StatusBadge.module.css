@@ -1,0 +1,36 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.registered {
+  background: var(--status-registered);
+}
+
+.assigned {
+  background: var(--status-assigned);
+}
+
+.inProgress {
+  background: var(--status-in-progress);
+}
+
+.pendingReview {
+  background: var(--status-pending-review);
+}
+
+.closed {
+  background: var(--status-closed);
+}
+
+.reopened {
+  background: var(--status-reopened);
+}

@@ -1,0 +1,67 @@
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.header {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.panel {
+  min-height: 8rem;
+}
+
+.bar {
+  height: 0.85rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 0%,
+    #f1f5f9 50%,
+    #e2e8f0 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.barSm {
+  width: 5rem;
+}
+
+.barMd {
+  width: 10rem;
+}
+
+.barLg {
+  width: 70%;
+}
+
+.barFull {
+  width: 100%;
+}
+
+.badgeRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.badge {
+  width: 4.5rem;
+  height: 1.25rem;
+  border-radius: 999px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
