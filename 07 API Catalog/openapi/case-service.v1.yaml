@@ -1,11 +1,12 @@
 openapi: 3.0.3
 info:
   title: ECMP Case Service API
-  version: 1.5.0
+  version: 1.6.0
   description: |
     ECMF case operations: create/get (Sprint-01, FRD-001), lifecycle actions
-    assign/status (Sprint-02B, FRD-002), and paginated/filtered list (Sprint-03B,
-    FRD-001 v0.4 FR-005). Consolidated from the formerly separate case-actions.v1.yaml
+    assign/status (Sprint-02B, FRD-002), paginated/filtered list (Sprint-03B,
+    FRD-001 v0.4 FR-005), timeline/audit read + append-only notes (Sprint-06).
+    Consolidated from the formerly separate case-actions.v1.yaml
     (frozen at gate G1, DEC-006) into this single normative spec per DEC-006 D6/U-6 —
     Sprint-03A governance sync.
     Versioning per ADR-006: URL prefix /v1; breaking changes bump the prefix.
@@ -454,6 +455,165 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /cases/{caseId}/timeline:
+    get:
+      summary: Get case timeline / audit trail
+      operationId: getCaseTimeline
+      x-ear-id: API-006
+      x-fr: FR-006
+      tags: [Cases]
+      description: |
+        Read-only projection of `audit_log` for a case (BR-008). Serves both the
+        curated Case Timeline (summary) and denser Audit History (detail) UIs —
+        one endpoint, two frontend renderings (Sprint-06). Chronological ascending
+        (oldest first). Requires `cases:read`. No write path.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Timeline entries (may be empty for a brand-new case)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseTimeline"
+        "401":
+          description: Missing or invalid token (code=UNAUTHENTICATED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Authenticated but missing permission cases:read (code=FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Case not found (code=NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Unexpected server error (code=INTERNAL_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /cases/{caseId}/notes:
+    get:
+      summary: List internal notes for a case
+      operationId: listCaseNotes
+      x-ear-id: API-007
+      x-fr: FR-007
+      tags: [Cases]
+      description: |
+        Append-only internal notes list (Sprint-06). Chronological ascending
+        (comment-thread order). Requires `cases:read`. Empty list is 200, not 404.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notes for the case (may be empty)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseNoteList"
+        "401":
+          description: Missing or invalid token (code=UNAUTHENTICATED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Authenticated but missing permission cases:read (code=FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Case not found (code=NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Unexpected server error (code=INTERNAL_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Add an internal note (append-only)
+      operationId: createCaseNote
+      x-ear-id: API-008
+      x-fr: FR-007
+      tags: [Cases]
+      description: |
+        Append a note to a case. Notes are immutable after create — no update or
+        delete endpoint exists (append-only, Sprint-06). Requires
+        `cases:notes:create`.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteCreateRequest"
+            examples:
+              simple:
+                value:
+                  body: "Customer confirmed refund preference by phone."
+      responses:
+        "201":
+          description: Note created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseNote"
+        "400":
+          description: Validation error (code=VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid token (code=UNAUTHENTICATED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Authenticated but missing permission cases:notes:create (code=FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Case not found (code=NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Unexpected server error (code=INTERNAL_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
     bearerAuth:
@@ -611,6 +771,66 @@ components:
         totalItems:
           type: integer
           minimum: 0
+    TimelineEntry:
+      type: object
+      required: [entryId, actionCode, actorUserId, occurredAt, summary, detail]
+      properties:
+        entryId:
+          type: string
+        actionCode:
+          type: string
+          description: Audit action code (e.g. case.create, case.assign, case.status_change)
+        actorUserId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        summary:
+          type: string
+          description: Curated narrative for Timeline UI
+        detail:
+          type: object
+          additionalProperties: true
+          description: Raw audit new_value for Audit History UI
+    CaseTimeline:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEntry"
+    NoteCreateRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+    CaseNote:
+      type: object
+      required: [noteId, caseId, authorUserId, body, createdAt]
+      properties:
+        noteId:
+          type: string
+        caseId:
+          type: string
+        authorUserId:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    CaseNoteList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseNote"
     Error:
       type: object
       required: [code, message]

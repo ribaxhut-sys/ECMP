@@ -1,5 +1,5 @@
 /**
- * Hand-written types mirroring case-service.v1.yaml v1.5.0.
+ * Hand-written types mirroring case-service.v1.yaml v1.6.0.
  * Source of truth: 07 API Catalog/openapi/case-service.v1.yaml
  * If the contract changes, update this file by hand in the same PR.
  * No codegen tool was decided in ADR-013.
@@ -38,6 +38,36 @@ export interface CasePage {
   page: number
   pageSize: number
   totalItems: number
+}
+
+export interface TimelineEntry {
+  entryId: string
+  actionCode: string
+  actorUserId: string
+  occurredAt: string
+  summary: string
+  detail: Record<string, unknown>
+}
+
+/** API-006 — shared by Timeline + Audit History. */
+export interface CaseTimeline {
+  entries: TimelineEntry[]
+}
+
+export interface CaseNote {
+  noteId: string
+  caseId: string
+  authorUserId: string
+  body: string
+  createdAt: string
+}
+
+export interface CaseNoteList {
+  items: CaseNote[]
+}
+
+export interface NoteCreateRequest {
+  body: string
 }
 
 export interface AssignRequest {

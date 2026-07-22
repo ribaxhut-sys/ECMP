@@ -23,7 +23,7 @@ from app.errors import (
     NotFoundError,
     ValidationAppError,
 )
-from app.models import AuditLogModel, CaseModel, OutboxModel
+from app.models import AuditLogModel, CaseModel, CaseNoteModel, OutboxModel
 from app.notification import deliver_pending_notifications
 
 
@@ -372,6 +372,96 @@ def list_outbox_events(session: Session, limit: int = 100) -> list[dict]:
         }
         for r in rows
     ]
+
+
+def _timeline_summary(action: str, new_value: dict) -> str:
+    """Curated narrative for Timeline UI; Audit History uses raw detail instead."""
+    if action == "case.create":
+        return "Case created"
+    if action == "case.assign":
+        assignee = new_value.get("assigneeId") or "unknown"
+        unit = new_value.get("unitId")
+        if unit:
+            return f"Assigned to {assignee} ({unit})"
+        return f"Assigned to {assignee}"
+    if action == "case.status_change":
+        to_status = new_value.get("toStatus") or "unknown"
+        from_status = new_value.get("fromStatus")
+        if from_status:
+            return f"Status changed from {from_status} to {to_status}"
+        return f"Status changed to {to_status}"
+    return action
+
+
+def get_case_timeline(session: Session, case_id: str) -> dict:
+    """API-006: read-only projection of audit_log for Timeline + Audit History."""
+    _get_case_or_404(session, case_id)
+    rows = (
+        session.query(AuditLogModel)
+        .filter(
+            AuditLogModel.entity_type == "Case",
+            AuditLogModel.entity_id == case_id,
+        )
+        .order_by(AuditLogModel.occurred_at.asc(), AuditLogModel.log_id.asc())
+        .all()
+    )
+    return {
+        "entries": [
+            {
+                "entryId": row.log_id,
+                "actionCode": row.action,
+                "actorUserId": row.actor_user_id,
+                "occurredAt": _as_utc(row.occurred_at),
+                "summary": _timeline_summary(row.action, row.new_value or {}),
+                "detail": row.new_value or {},
+            }
+            for row in rows
+        ]
+    }
+
+
+def _note_to_dict(note: CaseNoteModel) -> dict:
+    return {
+        "noteId": note.note_id,
+        "caseId": note.case_id,
+        "authorUserId": note.author_user_id,
+        "body": note.body,
+        "createdAt": _as_utc(note.created_at),
+    }
+
+
+def list_case_notes(session: Session, case_id: str) -> dict:
+    """API-007: append-only notes list, chronological ascending."""
+    _get_case_or_404(session, case_id)
+    rows = (
+        session.query(CaseNoteModel)
+        .filter(CaseNoteModel.case_id == case_id)
+        .order_by(CaseNoteModel.created_at.asc(), CaseNoteModel.note_id.asc())
+        .all()
+    )
+    return {"items": [_note_to_dict(r) for r in rows]}
+
+
+def add_case_note(session: Session, case_id: str, payload: dict, user: dict) -> dict:
+    """API-008: append-only note create (no update/delete path)."""
+    _get_case_or_404(session, case_id)
+    body = str(payload.get("body") or "").strip()
+    if not body:
+        raise ValidationAppError(
+            "body is required",
+            details={"body": "must not be empty"},
+        )
+    now = _utcnow()
+    note = CaseNoteModel(
+        note_id=str(uuid4()),
+        case_id=case_id,
+        author_user_id=user["userId"],
+        body=body,
+        created_at=now,
+    )
+    session.add(note)
+    session.commit()
+    return _note_to_dict(note)
 
 
 def drain_outbox(session: Session, limit: int = 100) -> list[dict]:

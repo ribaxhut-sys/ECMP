@@ -11,7 +11,7 @@
 | Last Review | auto |
 | Next Review | auto |
 
-> Task: Sprint-05 Case Queue frontend implementation GET /v1/cases
+> Task: Sprint-06 Timeline Audit History Internal Notes AsyncPanel
 
 ## Capability: Implement Feature
 - ID: `CAP-IMPLEMENT-FEATURE`
@@ -24,7 +24,7 @@
 - ID: `AGENT-CODE`
 - Tool role: Claude in Cursor
 - Memory: `v1`
-- Domain pack: `ecmf`
+- Domain pack: `n/a`
 
 ## Prompt
 - Ref: `implement-feature@v1`
@@ -37,16 +37,15 @@
 - `ai/sprint/Sprint-01.md`
 - `ai-platform/prompts/implement-feature/v1/prompt.md`
 - `ai-platform/packs/ecmf/pack.md`
-- `ai-platform/packs/ecmf/pack.md`
 - `03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md`
 
 ## RAG Top Hits
 
-- `26 Traceability/TRACEABILITY_MATRIX.md` (score=0.312)
-- `07 API Catalog/API_CATALOG.generated.md` (score=0.2155)
-- `20 Domain Architecture/navigator/dashboard.md` (score=0.2137)
-- `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md` (score=0.1728)
-- `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md` (score=0.1641)
+- `ai/generated/memory_crm.md` (score=0.1445)
+- `ai-platform/memory/v1/memory_crm.md` (score=0.1445)
+- `ai/05_database.md` (score=0.1311)
+- `ai-platform/prompts/sync-docs/v1/prompt.md` (score=0.1038)
+- `ai/domain/crm.md` (score=0.1016)
 
 ## Next
 1. Load prompt + context in the selected tool role

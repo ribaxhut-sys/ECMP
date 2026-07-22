@@ -32,7 +32,8 @@ Versi 0.3 (Sprint-02A contract freeze, **DEC-006** 2026-07-21): nama permission 
 | Permission | CS Agent | Viewer | Enforced di |
 |---|---|---|---|
 | `cases:create` | ✅ | ❌ | `app/auth.py` + `POST /v1/cases` |
-| `cases:read` | ✅ | ✅ | `app/auth.py` + `GET /v1/cases/{id}` |
+| `cases:read` | ✅ | ✅ | `app/auth.py` + `GET /v1/cases/{id}` (+ timeline/notes list Sprint-06) |
+| `cases:notes:create` | ✅ | ❌ | `app/auth.py` + `POST /v1/cases/{id}/notes` (Sprint-06) |
 
 ## Planned — Sprint-02 (menunggu DoR FRD-002/003, revisi ini prasyaratnya)
 

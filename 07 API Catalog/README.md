@@ -24,7 +24,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ## API Inventory
 
-### case-service v1 — [`openapi/case-service.v1.yaml`](./openapi/case-service.v1.yaml) v1.5.0 — **NORMATIF (satu-satunya spec)**
+### case-service v1 — [`openapi/case-service.v1.yaml`](./openapi/case-service.v1.yaml) v1.6.0 — **NORMATIF (satu-satunya spec)**
 | API ID | Method & Endpoint | Description | Auth | Status |
 |---|---|---|---|---|
 | API-001 | POST /v1/cases | Create case (FR-001, emit EVT-001 CaseCreated) | bearerAuth, permission `cases:create` | 🟢 Implemented (Sprint-01) |
@@ -32,6 +32,9 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-003 | POST /v1/cases/{caseId}/assign | Assign/reassign case (FR-003, emit EVT-002 + EVT-003; status non-assignable = 409 INVALID_STATE) | bearerAuth, permission `cases:assign` | 🟢 Implemented (Sprint-02B) |
 | API-004 | POST /v1/cases/{caseId}/status | Change case status via allowed transition (FR-004, emit EVT-003; transisi ilegal = 409 INVALID_TRANSITION) | bearerAuth, permission `cases:status` | 🟢 Implemented (Sprint-02B) |
 | API-005 | GET /v1/cases | List case terpaginasi/terfilter (FR-005; filter status/priority/caseType/assigneeId; sort tetap createdAt desc) | bearerAuth, permission `cases:read` | 🟢 Implemented (Sprint-03B) |
+| API-006 | GET /v1/cases/{caseId}/timeline | Timeline + Audit History (projection over `audit_log`) | bearerAuth, permission `cases:read` | 🟢 Implemented (Sprint-06) |
+| API-007 | GET /v1/cases/{caseId}/notes | List append-only internal notes | bearerAuth, permission `cases:read` | 🟢 Implemented (Sprint-06) |
+| API-008 | POST /v1/cases/{caseId}/notes | Create append-only internal note | bearerAuth, permission `cases:notes:create` | 🟢 Implemented (Sprint-06) |
 | — | GET /health | Health check (di luar prefix /v1) | None | 🟢 Implemented |
 
 > **2026-07-22 (Sprint-03A, DEC-006 D6/U-6):** `case-actions.v1.yaml` dikonsolidasikan ke `case-service.v1.yaml` — kini satu-satunya spec normatif untuk case-service. `case-actions.v1.yaml` masih ada di disk tetapi ditandai `x-status: superseded` (paths kosong) dan tidak lagi dibaca oleh tooling/test; dipertahankan hanya agar tautan lama tidak 404. Tidak ada perubahan perilaku API atau payload event — murni sinkronisasi katalog terhadap runtime yang sudah berjalan sejak Sprint-02B.

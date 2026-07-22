@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { lazy, Suspense, useCallback, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, getErrorCopy, isApiError } from '../../api/errors'
 import { useAuth } from '../../auth/AuthContext'
@@ -9,13 +9,22 @@ import { CaseHeader } from './components/CaseHeader'
 import { CaseInfoPanel } from './components/CaseInfoPanel'
 import { CaseMetaPanel } from './components/CaseMetaPanel'
 import { CustomerReferencePanel } from './components/CustomerReferencePanel'
-import { ActivityTimelinePlaceholder } from './components/ActivityTimelinePlaceholder'
 import { ActionPanel } from './components/ActionPanel'
 import { useCase } from './hooks/useCase'
 import styles from './CaseDetailWorkspace.module.css'
 
+const CaseActivityTimeline = lazy(
+  () => import('./components/CaseActivityTimeline'),
+)
+const AuditHistoryPanel = lazy(() => import('./components/AuditHistoryPanel'))
+const NotesPanel = lazy(() => import('../case-notes/NotesPanel'))
+
 interface CaseDetailWorkspaceProps {
   caseId: string
+}
+
+function PanelFallback() {
+  return <LoadingSkeleton variant="panel" />
 }
 
 export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
@@ -113,7 +122,15 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
       <main className={styles.layout}>
         <div className={styles.main}>
           <CaseInfoPanel caseData={caseData} />
-          <ActivityTimelinePlaceholder />
+          <Suspense fallback={<PanelFallback />}>
+            <CaseActivityTimeline caseId={caseId} />
+          </Suspense>
+          <Suspense fallback={<PanelFallback />}>
+            <AuditHistoryPanel caseId={caseId} />
+          </Suspense>
+          <Suspense fallback={<PanelFallback />}>
+            <NotesPanel caseId={caseId} />
+          </Suspense>
           {!isMobile ? actionPanel : null}
         </div>
 

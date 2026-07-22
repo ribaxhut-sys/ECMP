@@ -75,6 +75,41 @@ class CasePage(BaseModel):
     totalItems: int = Field(ge=0)
 
 
+class TimelineEntry(BaseModel):
+    """One audit_log row projected for Timeline (summary) and Audit History (detail)."""
+
+    entryId: str
+    actionCode: str
+    actorUserId: str
+    occurredAt: datetime
+    summary: str
+    detail: dict
+
+
+class CaseTimeline(BaseModel):
+    """API-006 — chronological ascending (oldest first)."""
+
+    entries: list[TimelineEntry]
+
+
+class NoteCreateRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class CaseNote(BaseModel):
+    noteId: str
+    caseId: str
+    authorUserId: str
+    body: str
+    createdAt: datetime
+
+
+class CaseNoteList(BaseModel):
+    """API-007 — chronological ascending (comment-thread order)."""
+
+    items: list[CaseNote]
+
+
 class Error(BaseModel):
     code: str
     message: str

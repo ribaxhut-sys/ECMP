@@ -25,7 +25,7 @@ def require_user(authorization: Annotated[str | None, Header()] = None) -> dict:
     if token == settings.dev_token():
         return {
             "userId": "cs.agent.1",
-            "permissions": {"cases:create", "cases:read"},
+            "permissions": {"cases:create", "cases:read", "cases:notes:create"},
             "orgUnitId": "UNIT-01",
             "supervisedUnitIds": set(),
         }
@@ -47,14 +47,19 @@ def require_user(authorization: Annotated[str | None, Header()] = None) -> dict:
     if token == settings.supervisor_token():
         return {
             "userId": "supervisor.1",
-            "permissions": {"cases:assign", "cases:read", "cases:create"},
+            "permissions": {
+                "cases:assign",
+                "cases:read",
+                "cases:create",
+                "cases:notes:create",
+            },
             "orgUnitId": "UNIT-01",
             "supervisedUnitIds": {"UNIT-01"},
         }
     if token == settings.handler_token():
         return {
             "userId": "USR-2001",
-            "permissions": {"cases:status", "cases:read"},
+            "permissions": {"cases:status", "cases:read", "cases:notes:create"},
             "orgUnitId": "UNIT-01",
             "supervisedUnitIds": set(),
         }
@@ -62,7 +67,7 @@ def require_user(authorization: Annotated[str | None, Header()] = None) -> dict:
         # Supervisor of a different unit — exercises BR-002 cross-unit 403.
         return {
             "userId": "supervisor.other",
-            "permissions": {"cases:assign", "cases:read"},
+            "permissions": {"cases:assign", "cases:read", "cases:notes:create"},
             "orgUnitId": "UNIT-99",
             "supervisedUnitIds": {"UNIT-99"},
         }

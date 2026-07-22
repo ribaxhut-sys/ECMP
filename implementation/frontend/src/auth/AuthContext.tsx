@@ -29,7 +29,7 @@ interface AuthContextValue extends AuthClaims {
 const DEV_FIXTURES: Record<string, Omit<AuthClaims, 'token'>> = {
   'dev-token': {
     userId: 'cs.agent.1',
-    permissions: ['cases:create', 'cases:read'],
+    permissions: ['cases:create', 'cases:read', 'cases:notes:create'],
     supervisedUnitIds: [],
   },
   'dev-readonly-token': {
@@ -39,12 +39,17 @@ const DEV_FIXTURES: Record<string, Omit<AuthClaims, 'token'>> = {
   },
   'dev-supervisor-token': {
     userId: 'supervisor.1',
-    permissions: ['cases:assign', 'cases:read', 'cases:create'],
+    permissions: [
+      'cases:assign',
+      'cases:read',
+      'cases:create',
+      'cases:notes:create',
+    ],
     supervisedUnitIds: ['UNIT-01'],
   },
   'dev-handler-token': {
     userId: 'USR-2001',
-    permissions: ['cases:status', 'cases:read'],
+    permissions: ['cases:status', 'cases:read', 'cases:notes:create'],
     supervisedUnitIds: [],
   },
   'dev-noperm-token': {
@@ -54,7 +59,7 @@ const DEV_FIXTURES: Record<string, Omit<AuthClaims, 'token'>> = {
   },
   'dev-foreign-supervisor-token': {
     userId: 'supervisor.other',
-    permissions: ['cases:assign', 'cases:read'],
+    permissions: ['cases:assign', 'cases:read', 'cases:notes:create'],
     supervisedUnitIds: ['UNIT-99'],
   },
 }

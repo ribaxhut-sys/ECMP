@@ -155,12 +155,17 @@ artifacts:
     FR-030: Detect and record SLA breach
     FR-040: Show operational case queue dashboard
     FR-005: List cases, paginated and filtered (status/priority/caseType/assigneeId)
+    FR-006: View case activity timeline / audit history
+    FR-007: Append-only internal case notes
   api:
     API-001: POST /v1/cases
     API-002: GET /v1/cases/{caseId}
     API-003: POST /v1/cases/{caseId}/assign
     API-004: POST /v1/cases/{caseId}/status
     API-005: GET /v1/cases (paginated, filtered list — case-service.v1.yaml v1.5.0, Sprint-03B)
+    API-006: GET /v1/cases/{caseId}/timeline (audit_log projection — Timeline + Audit History)
+    API-007: GET /v1/cases/{caseId}/notes
+    API-008: POST /v1/cases/{caseId}/notes
     API-010: GET /v1/customers/{customerId}
     API-040: GET /v1/dashboard/queues
   events:

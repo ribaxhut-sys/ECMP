@@ -16,7 +16,7 @@
 | Spec | Title | Version | Operations |
 |---|---|---|---|
 | `case-actions.v1.yaml` | ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED) | 1.0.0 | 0 |
-| `case-service.v1.yaml` | ECMP Case Service API | 1.5.0 | 6 |
+| `case-service.v1.yaml` | ECMP Case Service API | 1.6.0 | 9 |
 
 ## `case-actions.v1.yaml`
 
@@ -33,3 +33,6 @@
 | API-002 | `GET /v1/cases/{caseId}` | Get case by id |
 | API-003 | `POST /v1/cases/{caseId}/assign` | Assign or reassign case |
 | API-004 | `POST /v1/cases/{caseId}/status` | Change case status via allowed transition |
+| API-006 | `GET /v1/cases/{caseId}/timeline` | Get case timeline / audit trail |
+| API-007 | `GET /v1/cases/{caseId}/notes` | List internal notes for a case |
+| API-008 | `POST /v1/cases/{caseId}/notes` | Add an internal note (append-only) |

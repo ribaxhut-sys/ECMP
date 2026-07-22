@@ -27,7 +27,13 @@ from sqlalchemy import delete  # noqa: E402
 from alembic import command  # noqa: E402
 from app.db import get_engine, reset_engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import AuditLogModel, CaseModel, NotificationLogModel, OutboxModel  # noqa: E402
+from app.models import (  # noqa: E402
+    AuditLogModel,
+    CaseModel,
+    CaseNoteModel,
+    NotificationLogModel,
+    OutboxModel,
+)
 
 HEADERS = {"Authorization": "Bearer dev-token"}
 READONLY_HEADERS = {"Authorization": "Bearer dev-readonly-token"}
@@ -74,6 +80,7 @@ def clean_tables(migrated_schema):
     engine = get_engine()
     with engine.begin() as conn:
         for table in (
+            CaseNoteModel.__table__,
             NotificationLogModel.__table__,
             OutboxModel.__table__,
             AuditLogModel.__table__,

@@ -22,10 +22,14 @@ from app.schemas import (
     AssignRequest,
     Case,
     CaseCreateRequest,
+    CaseNote,
+    CaseNoteList,
     CasePage,
     CaseStatus,
+    CaseTimeline,
     CaseType,
     Error,
+    NoteCreateRequest,
     Priority,
     StatusChangeRequest,
 )
@@ -53,10 +57,10 @@ _dev = settings.dev_endpoints_enabled()
 
 app = FastAPI(
     title="ECMP Case Service",
-    version="1.5.0",
+    version="1.6.0",
     description=(
-        "Sprint-03B: create/get + assign/status + list (FR-001/002/003/004/005) "
-        "— PostgreSQL per ADR-004"
+        "Sprint-06: create/get + assign/status + list + timeline/audit + notes "
+        "(FR-001..007) — PostgreSQL per ADR-004"
     ),
     lifespan=lifespan,
     docs_url="/_dev/docs" if _dev else None,
@@ -101,7 +105,7 @@ def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "ecmp-case-service", "sprint": "Sprint-03B"}
+    return {"status": "ok", "service": "ecmp-case-service", "sprint": "Sprint-06"}
 
 
 @app.get(
@@ -196,6 +200,58 @@ def change_case_status(
     session: Session = Depends(get_session),
 ):
     return service.change_status(session, case_id, payload.model_dump(), user)
+
+
+@app.get(
+    "/v1/cases/{case_id}/timeline",
+    response_model=CaseTimeline,
+    responses={
+        404: {"model": Error, "description": "Case not found"},
+        **ERROR_RESPONSES,
+    },
+)
+def get_case_timeline(
+    case_id: str,
+    user: dict = Depends(need("cases:read")),
+    session: Session = Depends(get_session),
+):
+    """API-006: shared read for Timeline narrative + Audit History detail."""
+    return service.get_case_timeline(session, case_id)
+
+
+@app.get(
+    "/v1/cases/{case_id}/notes",
+    response_model=CaseNoteList,
+    responses={
+        404: {"model": Error, "description": "Case not found"},
+        **ERROR_RESPONSES,
+    },
+)
+def list_case_notes(
+    case_id: str,
+    user: dict = Depends(need("cases:read")),
+    session: Session = Depends(get_session),
+):
+    return service.list_case_notes(session, case_id)
+
+
+@app.post(
+    "/v1/cases/{case_id}/notes",
+    response_model=CaseNote,
+    status_code=201,
+    responses={
+        400: {"model": Error, "description": "Validation failed"},
+        404: {"model": Error, "description": "Case not found"},
+        **ERROR_RESPONSES,
+    },
+)
+def create_case_note(
+    case_id: str,
+    payload: NoteCreateRequest,
+    user: dict = Depends(need("cases:notes:create")),
+    session: Session = Depends(get_session),
+):
+    return service.add_case_note(session, case_id, payload.model_dump(), user)
 
 
 if _dev:

@@ -1,6 +1,7 @@
 """Persistence models — snake_case columns per naming standard (21 Technical Standards).
 
-Tables match Alembic revisions 0001–0002: cases, audit_log, outbox, notification_log.
+Tables match Alembic revisions 0001–0003: cases, audit_log, outbox, notification_log,
+case_notes.
 """
 
 from __future__ import annotations
@@ -86,4 +87,17 @@ class NotificationLogModel(Base):
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CaseNoteModel(Base):
+    """Append-only internal notes (Sprint-06). No update/delete path in the application."""
+
+    __tablename__ = "case_notes"
+    __table_args__ = (Index("ix_case_notes_case_id_created_at", "case_id", "created_at"),)
+
+    note_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    case_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    author_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
