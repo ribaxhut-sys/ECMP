@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import styles from './ConfirmDialog.module.css'
 
 interface ConfirmDialogProps {
@@ -10,6 +10,7 @@ interface ConfirmDialogProps {
   onCancel: () => void
   isPending?: boolean
   open: boolean
+  children?: ReactNode
 }
 
 export function ConfirmDialog({
@@ -21,6 +22,7 @@ export function ConfirmDialog({
   onCancel,
   isPending = false,
   open,
+  children,
 }: ConfirmDialogProps) {
   const titleId = useId()
   const descId = useId()
@@ -60,6 +62,7 @@ export function ConfirmDialog({
         <p id={descId} className={styles.message}>
           {message}
         </p>
+        {children}
         <div className={styles.actions}>
           <button
             type="button"

@@ -2,6 +2,8 @@ import { getErrorCopy, isApiError } from '../../../api/errors'
 import { useToast } from '../../../components/Toast/ToastContainer'
 import type { ActionVisibility } from '../permissions'
 import { useChangeStatus } from '../hooks/useChangeStatus'
+import { ApproveCloseForm } from './ApproveCloseForm'
+import { RejectButton } from './RejectButton'
 import styles from './StatusActionControls.module.css'
 
 interface StatusActionControlsProps {
@@ -9,7 +11,6 @@ interface StatusActionControlsProps {
   visibility: ActionVisibility
 }
 
-/** Simple status transitions — Start Handling / Submit for Review (Step 6). */
 export function StatusActionControls({
   caseId,
   visibility,
@@ -42,6 +43,9 @@ export function StatusActionControls({
   }
 
   const pending = mutation.isPending
+  const showSimpleError =
+    Boolean(panelError) &&
+    (visibility.canStartHandling || visibility.canSubmitForReview)
 
   return (
     <div className={styles.controls}>
@@ -73,15 +77,13 @@ export function StatusActionControls({
         </button>
       ) : null}
 
-      {/* ApproveCloseForm / RejectButton — Step 7 */}
-      {visibility.canApproveClose || visibility.canReject ? (
-        <p className={styles.panelError} data-testid="close-reject-stub">
-          Close / Reject controls land in the next step.
-        </p>
+      {visibility.canApproveClose ? (
+        <ApproveCloseForm caseId={caseId} />
       ) : null}
 
-      {panelError &&
-      (visibility.canStartHandling || visibility.canSubmitForReview) ? (
+      {visibility.canReject ? <RejectButton caseId={caseId} /> : null}
+
+      {showSimpleError ? (
         <p className={styles.panelError} role="alert">
           {panelError}
         </p>
