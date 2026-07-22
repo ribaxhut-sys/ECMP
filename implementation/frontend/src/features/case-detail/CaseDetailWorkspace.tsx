@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, getErrorCopy, isApiError } from '../../api/errors'
 import { ErrorBanner } from '../../components/ErrorBanner'
 import { LoadingSkeleton } from '../../components/LoadingSkeleton'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import { CaseHeader } from './components/CaseHeader'
 import { CaseInfoPanel } from './components/CaseInfoPanel'
 import { CaseMetaPanel } from './components/CaseMetaPanel'
@@ -18,6 +19,8 @@ interface CaseDetailWorkspaceProps {
 export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
   const navigate = useNavigate()
   const query = useCase(caseId)
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   if (query.isLoading) {
     return (
@@ -64,23 +67,45 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
     return null
   }
 
+  const refreshing = query.isFetching && !query.isLoading
+  const actionPanel = (
+    <ActionPanel
+      caseData={caseData}
+      isRefreshing={refreshing}
+      stickyMobile={isMobile}
+    />
+  )
+
+  const sidePanels = (
+    <>
+      <CustomerReferencePanel caseData={caseData} />
+      <CaseMetaPanel caseData={caseData} />
+    </>
+  )
+
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${isMobile ? styles.pageMobile : ''}`}>
       <CaseHeader caseData={caseData} />
       <div className={styles.layout}>
         <div className={styles.main}>
           <CaseInfoPanel caseData={caseData} />
           <ActivityTimelinePlaceholder />
-          <ActionPanel
-            caseData={caseData}
-            isRefreshing={query.isFetching && !query.isLoading}
-          />
+          {!isMobile ? actionPanel : null}
         </div>
-        <aside className={styles.side}>
-          <CustomerReferencePanel caseData={caseData} />
-          <CaseMetaPanel caseData={caseData} />
-        </aside>
+
+        {isDesktop ? (
+          <aside className={styles.side}>{sidePanels}</aside>
+        ) : (
+          <details className={styles.detailsAccordion}>
+            <summary className={styles.detailsSummary}>Details</summary>
+            <div className={styles.side}>{sidePanels}</div>
+          </details>
+        )}
       </div>
+
+      {isMobile ? (
+        <div className={styles.mobileActionSlot}>{actionPanel}</div>
+      ) : null}
     </div>
   )
 }

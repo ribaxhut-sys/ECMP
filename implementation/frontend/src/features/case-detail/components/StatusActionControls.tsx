@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { getErrorCopy, isApiError } from '../../../api/errors'
 import { useToast } from '../../../components/Toast/ToastContainer'
 import type { ActionVisibility } from '../permissions'
@@ -9,14 +10,18 @@ import styles from './StatusActionControls.module.css'
 interface StatusActionControlsProps {
   caseId: string
   visibility: ActionVisibility
+  /** On mobile sticky bar: park Reject behind an overflow menu (Screen Spec §10). */
+  mobileCompact?: boolean
 }
 
 export function StatusActionControls({
   caseId,
   visibility,
+  mobileCompact = false,
 }: StatusActionControlsProps) {
   const { showToast } = useToast()
   const mutation = useChangeStatus(caseId)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const panelError =
     mutation.isError && isApiError(mutation.error)
@@ -46,9 +51,13 @@ export function StatusActionControls({
   const showSimpleError =
     Boolean(panelError) &&
     (visibility.canStartHandling || visibility.canSubmitForReview)
+  const rejectInOverflow =
+    mobileCompact && visibility.canReject && visibility.canApproveClose
 
   return (
-    <div className={styles.controls}>
+    <div
+      className={`${styles.controls} ${mobileCompact ? styles.compact : ''}`}
+    >
       {visibility.canStartHandling ? (
         <button
           type="button"
@@ -81,7 +90,29 @@ export function StatusActionControls({
         <ApproveCloseForm caseId={caseId} />
       ) : null}
 
-      {visibility.canReject ? <RejectButton caseId={caseId} /> : null}
+      {visibility.canReject && !rejectInOverflow ? (
+        <RejectButton caseId={caseId} />
+      ) : null}
+
+      {rejectInOverflow ? (
+        <div className={styles.overflow}>
+          <button
+            type="button"
+            className={styles.kebab}
+            aria-label="More actions"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            ⋮
+          </button>
+          {menuOpen ? (
+            <div className={styles.menu} role="menu">
+              <RejectButton caseId={caseId} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {showSimpleError ? (
         <p className={styles.panelError} role="alert">
