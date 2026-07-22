@@ -1,10 +1,12 @@
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, getErrorCopy, isApiError } from '../../api/errors'
 import { ErrorBanner } from '../../components/ErrorBanner'
 import { LoadingSkeleton } from '../../components/LoadingSkeleton'
 import { CaseHeader } from './components/CaseHeader'
 import { CaseInfoPanel } from './components/CaseInfoPanel'
 import { CaseMetaPanel } from './components/CaseMetaPanel'
+import { CustomerReferencePanel } from './components/CustomerReferencePanel'
+import { ActivityTimelinePlaceholder } from './components/ActivityTimelinePlaceholder'
 import { useCase } from './hooks/useCase'
 import styles from './CaseDetailWorkspace.module.css'
 
@@ -67,11 +69,11 @@ export function CaseDetailWorkspace({ caseId }: CaseDetailWorkspaceProps) {
       <div className={styles.layout}>
         <div className={styles.main}>
           <CaseInfoPanel caseData={caseData} />
-          {/* ActivityTimelinePlaceholder — Step 3 */}
+          <ActivityTimelinePlaceholder />
           {/* ActionPanel — Step 4+ */}
         </div>
         <aside className={styles.side}>
-          {/* CustomerReferencePanel — Step 3 */}
+          <CustomerReferencePanel caseData={caseData} />
           <CaseMetaPanel caseData={caseData} />
         </aside>
       </div>
