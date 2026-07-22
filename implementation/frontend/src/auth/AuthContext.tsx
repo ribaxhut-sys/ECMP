@@ -6,7 +6,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react'
-import { setAuthTokenGetter } from '../api/client'
+import { setAuthToken } from '../api/client'
 
 /**
  * Dev-mode AuthContext (ADR-013 item 7 — token acquisition unresolved).
@@ -64,7 +64,6 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 function resolveClaims(token: string): AuthClaims {
   const fixture = DEV_FIXTURES[token]
   if (!fixture) {
-    // Unknown token — still send it; backend will 401 if invalid.
     return {
       token,
       userId: 'unknown',
@@ -84,12 +83,11 @@ export function AuthProvider({ children, onUnauthenticated }: AuthProviderProps)
   const token = import.meta.env.VITE_DEV_TOKEN || 'dev-token'
   const claims = useMemo(() => resolveClaims(token), [token])
 
-  // Register before paint so the first case query includes Authorization.
-  // (useEffect is too late — TanStack Query can fetch in the first commit.)
-  setAuthTokenGetter(() => claims.token)
+  // Synchronous write — must happen before children schedule fetches.
+  // Do not clear on effect cleanup (StrictMode would race the first query).
+  setAuthToken(claims.token)
   useLayoutEffect(() => {
-    setAuthTokenGetter(() => claims.token)
-    return () => setAuthTokenGetter(() => null)
+    setAuthToken(claims.token)
   }, [claims.token])
 
   const hasPermission = useCallback(

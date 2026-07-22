@@ -1,20 +1,26 @@
 import { ApiError, parseApiErrorBody } from './errors'
 import type { ApiErrorBody } from './types'
 
-let authTokenGetter: (() => string | null) | null = null
+/**
+ * Module-level bearer token for the fetch wrapper.
+ * Set synchronously by AuthProvider during render (not only in effects).
+ * Never cleared on effect cleanup — React StrictMode cleanup would otherwise
+ * race TanStack Query's first fetch and drop Authorization.
+ */
+let authToken: string | null = null
 
 /** Wire the AuthContext token into the fetch wrapper (called from AuthProvider). */
-export function setAuthTokenGetter(getter: () => string | null): void {
-  authTokenGetter = getter
+export function setAuthToken(token: string | null): void {
+  authToken = token
 }
 
-function resolveAuthToken(): string | null {
-  const fromGetter = authTokenGetter?.()
-  if (fromGetter) return fromGetter
-  // Dev-mode fallback (ADR-013 item 7): avoid race where first useQuery
-  // fires before AuthProvider's effect registers the getter.
-  const fromEnv = import.meta.env.VITE_DEV_TOKEN
-  return fromEnv ? String(fromEnv) : null
+function resolveAuthToken(): string {
+  const fromStore = authToken?.trim()
+  if (fromStore) return fromStore
+  const fromEnv = String(import.meta.env.VITE_DEV_TOKEN ?? '').trim()
+  if (fromEnv) return fromEnv
+  // Last-resort default matching backend .env.example / AuthContext
+  return 'dev-token'
 }
 
 function baseUrl(): string {
@@ -31,12 +37,9 @@ export async function apiRequest<T>(
   if (!headers.has('Content-Type') && init.body) {
     headers.set('Content-Type', 'application/json')
   }
-  const token = resolveAuthToken()
-  if (!token) {
-    throw new ApiError(401, 'UNAUTHENTICATED', 'Missing bearer token')
-  }
-  headers.set('Authorization', `Bearer ${token}`)
 
+  const token = resolveAuthToken()
+  headers.set('Authorization', `Bearer ${token}`)
 
   let response: Response
   try {
