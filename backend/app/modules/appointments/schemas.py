@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-AppointmentStatusLiteral = Literal["BOOKED"]
+AppointmentStatusLiteral = Literal["BOOKED", "CHECKED_IN"]
 
 
 def _parse_hhmm(value: str) -> time:
@@ -57,6 +57,22 @@ class AppointmentCreate(BaseModel):
         return self
 
 
+class AppointmentCheckInRequest(BaseModel):
+    """API-307 — customer check-in body."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("notes")
+    @classmethod
+    def strip_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class AppointmentSummary(BaseModel):
     """Slim appointment projection embedded on Escalation (API-302)."""
 
@@ -76,7 +92,18 @@ class AppointmentBookResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: uuid.UUID
-    status: AppointmentStatusLiteral
+    status: Literal["BOOKED"]
+
+
+class AppointmentCheckInResult(BaseModel):
+    """API-307 slim check-in response."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: uuid.UUID
+    status: Literal["CHECKED_IN"]
+    checked_in_at: datetime = Field(alias="checkedInAt")
+    checked_in_by: uuid.UUID = Field(alias="checkedInBy")
 
 
 class AppointmentResponse(BaseModel):
@@ -95,6 +122,9 @@ class AppointmentResponse(BaseModel):
         default=None, alias="assignedEngineerName"
     )
     notes: str | None = None
+    checked_in_at: datetime | None = Field(default=None, alias="checkedInAt")
+    checked_in_by: uuid.UUID | None = Field(default=None, alias="checkedInBy")
+    checkin_notes: str | None = Field(default=None, alias="checkinNotes")
     created_by: uuid.UUID | None = Field(default=None, alias="createdBy")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

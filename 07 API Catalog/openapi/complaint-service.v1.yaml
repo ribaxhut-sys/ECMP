@@ -796,6 +796,53 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/appointments/{id}/check-in:
+    post:
+      summary: Check in customer for booked appointment
+      operationId: checkInAppointment
+      x-ear-id: API-307
+      tags: [Appointments]
+      security:
+        - bearerAuth: []
+      description: |
+        Customer check-in for a `BOOKED` appointment (TASK-015 / DEC-008).
+        Sets status `CHECKED_IN` and stores `checkedInAt` / `checkedInBy` /
+        check-in notes. Check-in can only happen once. Complaint status
+        remains `IN_PROGRESS`; escalation remains `APPROVED`. Writes timeline
+        `complaint.appointment_checked_in`. Requires role Head Office
+        Scheduler or Admin and permission `escalations:review`.
+        Out of scope: completion, no-show, notification, SLA.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Appointment id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentCheckInRequest"
+            example:
+              notes: Customer arrived and identity verified.
+      responses:
+        "200":
+          description: Checked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentCheckInDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/timeline:
     get:
       summary: Get complaint timeline
@@ -812,7 +859,8 @@ paths:
         `complaint.assigned`, `complaint.reassigned`, `complaint.escalated`,
         `complaint.escalation_requested`, `complaint.escalation_approved`,
         `complaint.escalation_rejected`, `complaint.appointment_booked`,
-        `complaint.resolved`, `complaint.closed`.
+        `complaint.appointment_checked_in`, `complaint.resolved`,
+        `complaint.closed`.
         `actorName` is included for UI display (no actor UUID required in UI).
         Requires permission `complaints:read`.
       parameters:
@@ -1290,6 +1338,7 @@ components:
           complaint.escalation_approved,
           complaint.escalation_rejected,
           complaint.appointment_booked,
+          complaint.appointment_checked_in,
           complaint.resolved,
           complaint.closed,
         ]
@@ -1507,11 +1556,13 @@ components:
           allOf:
             - $ref: "#/components/schemas/AppointmentSummary"
           nullable: true
-          description: Active BOOKED appointment for this escalation (TASK-014)
+          description: Current BOOKED or CHECKED_IN appointment (TASK-014/015)
     AppointmentStatus:
       type: string
-      enum: [BOOKED]
-      description: Appointment status (booking slice only; completion out of scope)
+      enum: [BOOKED, CHECKED_IN]
+      description: |
+        Appointment status. BOOKED = booked slot; CHECKED_IN = customer
+        arrived (TASK-015). Completion / no-show out of scope.
     AppointmentCreate:
       type: object
       required: [appointmentDate, startTime, endTime, assignedEngineerId]
@@ -1556,6 +1607,23 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/AppointmentBookResult" }
+    AppointmentCheckInRequest:
+      type: object
+      properties:
+        notes: { type: string, maxLength: 5000, nullable: true }
+    AppointmentCheckInResult:
+      type: object
+      required: [id, status, checkedInAt, checkedInBy]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [CHECKED_IN] }
+        checkedInAt: { type: string, format: date-time }
+        checkedInBy: { type: string, format: uuid }
+    AppointmentCheckInDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AppointmentCheckInResult" }
     Appointment:
       type: object
       required:
@@ -1578,6 +1646,9 @@ components:
         assignedEngineerId: { type: string, format: uuid }
         assignedEngineerName: { type: string, nullable: true }
         notes: { type: string, nullable: true }
+        checkedInAt: { type: string, format: date-time, nullable: true }
+        checkedInBy: { type: string, format: uuid, nullable: true }
+        checkinNotes: { type: string, nullable: true }
         createdBy: { type: string, format: uuid, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }

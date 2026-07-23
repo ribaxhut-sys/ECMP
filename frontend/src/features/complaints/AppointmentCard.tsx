@@ -11,6 +11,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   bookAppointment,
+  checkInAppointment,
   fetchAppointment,
   fetchComplaintEscalations,
   fetchUsers,
@@ -25,6 +26,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  Modal,
   Select,
   Textarea,
   Toast,
@@ -36,6 +38,18 @@ function formatDate(value: string | null | undefined): string {
     return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
       new Date(`${value}T00:00:00`),
     );
+  } catch {
+    return value;
+  }
+}
+
+function formatWhen(value: string | null | undefined): string {
+  if (!value) return "—";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
   } catch {
     return value;
   }
@@ -81,7 +95,7 @@ export function AppointmentCard({
   onBooked?: () => void;
 }) {
   const { hasPermission } = useAuth();
-  const canBook = hasPermission("escalations:review");
+  const canManage = hasPermission("escalations:review");
 
   const [escalation, setEscalation] = useState<Escalation | null>(null);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -93,12 +107,21 @@ export function AppointmentCard({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
+  const [toastTitle, setToastTitle] = useState("Appointment booked");
+  const [toastDescription, setToastDescription] = useState(
+    "Timeline updated. Escalation remains APPROVED.",
+  );
 
   const [appointmentDate, setAppointmentDate] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [engineerId, setEngineerId] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [checkInOpen, setCheckInOpen] = useState(false);
+  const [checkInNotes, setCheckInNotes] = useState("");
+  const [checkInError, setCheckInError] = useState<string | null>(null);
+  const [checkingIn, setCheckingIn] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,7 +145,7 @@ export function AppointmentCard({
         setAppointment(null);
       }
 
-      if (canBook && !summary) {
+      if (canManage && !summary) {
         const usersRes = await fetchUsers({
           pageSize: 100,
           isActive: true,
@@ -149,7 +172,7 @@ export function AppointmentCard({
     } finally {
       setLoading(false);
     }
-  }, [canBook, complaintId]);
+  }, [canManage, complaintId]);
 
   useEffect(() => {
     void load();
@@ -191,6 +214,8 @@ export function AppointmentCard({
       });
       const detail = await fetchAppointment(created.data.id);
       setAppointment(detail.data);
+      setToastTitle("Appointment booked");
+      setToastDescription("Timeline updated. Escalation remains APPROVED.");
       setToastOpen(true);
       onBooked?.();
       await load();
@@ -207,9 +232,53 @@ export function AppointmentCard({
     }
   }
 
+  function openCheckIn() {
+    setCheckInNotes("");
+    setCheckInError(null);
+    setCheckInOpen(true);
+  }
+
+  function closeCheckIn() {
+    if (checkingIn) return;
+    setCheckInOpen(false);
+    setCheckInError(null);
+  }
+
+  async function confirmCheckIn() {
+    if (!appointment) return;
+    setCheckingIn(true);
+    setCheckInError(null);
+    try {
+      await checkInAppointment(appointment.id, {
+        notes: checkInNotes.trim() || null,
+      });
+      const detail = await fetchAppointment(appointment.id);
+      setAppointment(detail.data);
+      setCheckInOpen(false);
+      setToastTitle("Customer checked in");
+      setToastDescription("Status is CHECKED_IN. Complaint stays IN PROGRESS.");
+      setToastOpen(true);
+      onBooked?.();
+      await load();
+    } catch (err) {
+      setCheckInError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Unable to check in.",
+      );
+    } finally {
+      setCheckingIn(false);
+    }
+  }
+
   if (!loading && !escalation && !loadError) {
     return null;
   }
+
+  const canCheckIn =
+    canManage && appointment?.status === "BOOKED" && !appointment.checkedInAt;
 
   return (
     <>
@@ -231,33 +300,72 @@ export function AppointmentCard({
               onAction={() => void load()}
             />
           ) : appointment ? (
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <DetailField label="Status" value={appointment.status} />
-              <DetailField
-                label="Date"
-                value={formatDate(appointment.appointmentDate)}
-              />
-              <DetailField
-                label="Start"
-                value={formatTime(appointment.appointmentStartTime)}
-              />
-              <DetailField
-                label="End"
-                value={formatTime(appointment.appointmentEndTime)}
-              />
-              <DetailField
-                label="Engineer"
-                value={
-                  appointment.assignedEngineerName?.trim() ||
-                  appointment.assignedEngineerId
-                }
-              />
-              <DetailField
-                label="Notes"
-                value={appointment.notes?.trim() || "—"}
-              />
-            </dl>
-          ) : canBook ? (
+            <div className="space-y-4">
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <DetailField label="Status" value={appointment.status} />
+                <DetailField
+                  label="Date"
+                  value={formatDate(appointment.appointmentDate)}
+                />
+                <DetailField
+                  label="Start"
+                  value={formatTime(appointment.appointmentStartTime)}
+                />
+                <DetailField
+                  label="End"
+                  value={formatTime(appointment.appointmentEndTime)}
+                />
+                <DetailField
+                  label="Engineer"
+                  value={
+                    appointment.assignedEngineerName?.trim() ||
+                    appointment.assignedEngineerId
+                  }
+                />
+                <DetailField
+                  label="Notes"
+                  value={appointment.notes?.trim() || "—"}
+                />
+              </dl>
+
+              {appointment.status === "CHECKED_IN" ||
+              appointment.checkedInAt ? (
+                <div className="space-y-3 border-t border-ecmp-border pt-4">
+                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                    Check-In
+                  </p>
+                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <DetailField
+                      label="Checked In At"
+                      value={formatWhen(appointment.checkedInAt)}
+                    />
+                    <DetailField
+                      label="Checked In By"
+                      value={appointment.checkedInBy ?? "—"}
+                    />
+                    <DetailField
+                      label="Check-In Notes"
+                      value={appointment.checkinNotes?.trim() || "—"}
+                    />
+                  </dl>
+                </div>
+              ) : null}
+
+              {canCheckIn ? (
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                  <Button type="button" variant="primary" onClick={openCheckIn}>
+                    Check In
+                  </Button>
+                </div>
+              ) : null}
+
+              {appointment.status === "BOOKED" && !canManage ? (
+                <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                  Awaiting Head Office Scheduler check-in.
+                </p>
+              ) : null}
+            </div>
+          ) : canManage ? (
             <form className="space-y-4" onSubmit={onSubmit}>
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
                 Book a Head Office appointment for this approved escalation.
@@ -337,12 +445,60 @@ export function AppointmentCard({
         </CardBody>
       </Card>
 
+      <Modal
+        open={checkInOpen}
+        onClose={closeCheckIn}
+        title="Check in customer?"
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={checkingIn}
+              onClick={closeCheckIn}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={checkingIn}
+              onClick={() => void confirmCheckIn()}
+            >
+              {checkingIn ? "Checking in…" : "Confirm Check-In"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+            Confirm the customer has arrived. Appointment status becomes
+            CHECKED_IN. Complaint stays IN PROGRESS.
+          </p>
+          {checkInError ? (
+            <Alert
+              tone="danger"
+              title="Check-in failed"
+              description={checkInError}
+            />
+          ) : null}
+          <Textarea
+            label="Check-In Notes"
+            name="checkinNotes"
+            rows={3}
+            value={checkInNotes}
+            onChange={(event) => setCheckInNotes(event.target.value)}
+          />
+        </div>
+      </Modal>
+
       <Toast
         open={toastOpen}
         onClose={() => setToastOpen(false)}
         tone="success"
-        title="Appointment booked"
-        description="Timeline updated. Escalation remains APPROVED."
+        title={toastTitle}
+        description={toastDescription}
       />
     </>
   );

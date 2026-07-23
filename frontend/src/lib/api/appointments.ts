@@ -2,6 +2,8 @@ import { apiRequest } from "./client";
 import type {
   Appointment,
   AppointmentBookResult,
+  AppointmentCheckInRequest,
+  AppointmentCheckInResult,
   AppointmentCreate,
   DataResponse,
 } from "./types";
@@ -26,5 +28,19 @@ export function fetchAppointment(
 ): Promise<DataResponse<Appointment>> {
   return apiRequest<DataResponse<Appointment>>(
     `/api/v1/appointments/${encodeURIComponent(id)}`,
+  );
+}
+
+/** API-307 — POST /api/v1/appointments/{id}/check-in */
+export function checkInAppointment(
+  id: string,
+  body: AppointmentCheckInRequest = {},
+): Promise<DataResponse<AppointmentCheckInResult>> {
+  return apiRequest<DataResponse<AppointmentCheckInResult>>(
+    `/api/v1/appointments/${encodeURIComponent(id)}/check-in`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
   );
 }

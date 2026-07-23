@@ -11,6 +11,8 @@ from app.models import Appointment
 from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
     AppointmentBookResult,
+    AppointmentCheckInRequest,
+    AppointmentCheckInResult,
     AppointmentCreate,
     AppointmentResponse,
     AppointmentSummary,
@@ -20,6 +22,8 @@ NOT_APPROVED_MESSAGE = "Escalation must be APPROVED before booking an appointmen
 HAS_ACTIVE_APPOINTMENT_MESSAGE = "Escalation already has an active appointment."
 ENGINEER_NOT_FOUND_MESSAGE = "Assigned engineer not found or inactive."
 OVERLAP_MESSAGE = "Appointment overlaps an existing booking for this engineer."
+NOT_BOOKED_MESSAGE = "Only BOOKED appointments can be checked in."
+ALREADY_CHECKED_IN_MESSAGE = "Appointment has already been checked in."
 
 
 def _format_hhmm(value: object) -> str:
@@ -140,6 +144,77 @@ class AppointmentService:
         result = AppointmentBookResult(
             id=appointment.id,
             status=AppointmentStatus.BOOKED,
+        )
+        self._repo.commit()
+        return result
+
+    def check_in(
+        self,
+        appointment_id: uuid.UUID,
+        payload: AppointmentCheckInRequest,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> AppointmentCheckInResult:
+        """API-307 — customer check-in for BOOKED appointment."""
+        row = self._repo.get_by_id(appointment_id)
+        if row is None:
+            raise NotFoundError("Appointment not found")
+
+        if row.status == AppointmentStatus.CHECKED_IN or row.checked_in_at is not None:
+            raise ValidationAppError(
+                ALREADY_CHECKED_IN_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+        if row.status != AppointmentStatus.BOOKED:
+            raise ValidationAppError(
+                NOT_BOOKED_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+
+        escalation = self._repo.get_escalation(row.escalation_id)
+        if escalation is None:
+            raise NotFoundError("Escalation not found")
+
+        complaint = self._repo.get_complaint(escalation.complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        now = datetime.now(UTC)
+        row.status = AppointmentStatus.CHECKED_IN
+        row.checked_in_at = now
+        row.checked_in_by = actor_user_id
+        row.checkin_notes = payload.notes
+        row.updated_at = now
+        row.updated_by = actor_user_id
+
+        # Complaint remains IN_PROGRESS; escalation remains APPROVED.
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+        escalation.updated_at = now
+        escalation.updated_by = actor_user_id
+
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.APPOINTMENT_CHECKED_IN,
+            event_at=now,
+            from_status=complaint.status,
+            to_status=complaint.status,
+            summary="Customer checked in",
+            metadata={
+                "changeType": "APPOINTMENT_CHECKED_IN",
+                "appointmentId": str(row.id),
+                "escalationId": str(escalation.id),
+                "checkedInBy": str(actor_user_id),
+                "checkedInAt": now.isoformat(),
+            },
+        )
+
+        result = AppointmentCheckInResult(
+            id=row.id,
+            status=AppointmentStatus.CHECKED_IN,
+            checkedInAt=now,
+            checkedInBy=actor_user_id,
         )
         self._repo.commit()
         return result

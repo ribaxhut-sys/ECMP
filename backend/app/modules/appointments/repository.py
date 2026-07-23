@@ -18,6 +18,11 @@ from app.models import (
     User,
 )
 
+# Current appointment for an escalation (blocks re-book; shown on Escalation UI).
+CURRENT_APPOINTMENT_STATUSES = frozenset(
+    {AppointmentStatus.BOOKED, AppointmentStatus.CHECKED_IN}
+)
+
 
 class AppointmentRepository:
     def __init__(self, session: Session) -> None:
@@ -57,8 +62,9 @@ class AppointmentRepository:
             .where(
                 Appointment.escalation_id == escalation_id,
                 Appointment.deleted_at.is_(None),
-                Appointment.status == AppointmentStatus.BOOKED,
+                Appointment.status.in_(CURRENT_APPOINTMENT_STATUSES),
             )
+            .order_by(Appointment.created_at.desc())
         )
         return self._session.scalar(stmt)
 
@@ -84,7 +90,7 @@ class AppointmentRepository:
             Appointment.assigned_engineer_id == engineer_id,
             Appointment.appointment_date == on_date,
             Appointment.deleted_at.is_(None),
-            Appointment.status == AppointmentStatus.BOOKED,
+            Appointment.status.in_(CURRENT_APPOINTMENT_STATUSES),
             and_(
                 Appointment.appointment_start_time < end,
                 Appointment.appointment_end_time > start,

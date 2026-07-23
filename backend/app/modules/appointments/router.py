@@ -1,4 +1,4 @@
-"""Appointment HTTP routes (API-305 / API-306)."""
+"""Appointment HTTP routes (API-305 / API-306 / API-307)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ from app.db.session import get_db_session
 from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
     AppointmentBookResult,
+    AppointmentCheckInRequest,
+    AppointmentCheckInResult,
     AppointmentCreate,
     AppointmentResponse,
 )
@@ -28,7 +30,7 @@ escalation_appointments_router = APIRouter(
     prefix="/api/v1/escalations", tags=["Appointments"]
 )
 
-# Top-level appointments for API-306
+# Top-level appointments for API-306 / API-307
 appointments_router = APIRouter(prefix="/api/v1/appointments", tags=["Appointments"])
 
 
@@ -69,3 +71,20 @@ def get_appointment(
     """API-306 — get appointment detail."""
     _ = principal
     return DataResponse(data=service.get_appointment(id))
+
+
+@appointments_router.post(
+    "/{id}/check-in",
+    response_model=DataResponse[AppointmentCheckInResult],
+    status_code=status.HTTP_200_OK,
+    summary="Check in customer for booked appointment",
+)
+def check_in_appointment(
+    id: uuid.UUID,
+    payload: AppointmentCheckInRequest,
+    service: Annotated[AppointmentService, Depends(get_appointment_service)],
+    principal: Annotated[Principal, Depends(require_escalation_review)],
+) -> DataResponse[AppointmentCheckInResult]:
+    """API-307 — customer check-in (HO Scheduler / Admin)."""
+    result = service.check_in(id, payload, actor_user_id=principal.user_id)
+    return DataResponse(data=result)

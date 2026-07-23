@@ -210,7 +210,7 @@ export interface Escalation {
 /** API-305 / API-302 appointment summary. */
 export interface AppointmentSummary {
   id: string;
-  status: "BOOKED";
+  status: "BOOKED" | "CHECKED_IN" | string;
   appointmentDate: string;
   appointmentStartTime: string;
   appointmentEndTime: string;
@@ -232,6 +232,19 @@ export interface AppointmentBookResult {
   status: "BOOKED";
 }
 
+/** API-307 check-in request. */
+export interface AppointmentCheckInRequest {
+  notes?: string | null;
+}
+
+/** API-307 slim check-in response. */
+export interface AppointmentCheckInResult {
+  id: string;
+  status: "CHECKED_IN";
+  checkedInAt: string;
+  checkedInBy: string;
+}
+
 /** API-306 appointment detail. */
 export interface Appointment {
   id: string;
@@ -239,10 +252,13 @@ export interface Appointment {
   appointmentDate: string;
   appointmentStartTime: string;
   appointmentEndTime: string;
-  status: "BOOKED" | string;
+  status: "BOOKED" | "CHECKED_IN" | string;
   assignedEngineerId: string;
   assignedEngineerName: string | null;
   notes: string | null;
+  checkedInAt: string | null;
+  checkedInBy: string | null;
+  checkinNotes: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -264,6 +280,7 @@ export interface TimelineEntry {
     | "complaint.escalation_approved"
     | "complaint.escalation_rejected"
     | "complaint.appointment_booked"
+    | "complaint.appointment_checked_in"
     | "complaint.resolved"
     | "complaint.closed";
   eventAt: string;

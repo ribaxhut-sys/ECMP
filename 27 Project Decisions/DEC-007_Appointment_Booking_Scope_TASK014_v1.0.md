@@ -35,7 +35,7 @@ Remains **out of scope** (DEC-001 still binds):
 
 - Calendar View
 - Slot Generator
-- Customer Check-In
+- Customer Check-In — **authorized separately by DEC-008 / TASK-015**
 - Appointment Completion / Cancel workflow
 - Notification
 - SLA

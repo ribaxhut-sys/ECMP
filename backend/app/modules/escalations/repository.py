@@ -19,11 +19,15 @@ from app.models import (
     Role,
     User,
 )
+from app.core.enums import AppointmentStatus
 
 # Active = blocks a new Escalation Request. REQUESTED pending review;
 # APPROVED awaiting / with appointment; legacy OPEN.
 # REJECTED does not block a new request.
 ACTIVE_ESCALATION_STATUSES = frozenset({"REQUESTED", "OPEN", "APPROVED"})
+CURRENT_APPOINTMENT_STATUSES = frozenset(
+    {AppointmentStatus.BOOKED, AppointmentStatus.CHECKED_IN}
+)
 
 
 class EscalationRepository:
@@ -60,8 +64,9 @@ class EscalationRepository:
             .where(
                 Appointment.escalation_id == escalation_id,
                 Appointment.deleted_at.is_(None),
-                Appointment.status == "BOOKED",
+                Appointment.status.in_(CURRENT_APPOINTMENT_STATUSES),
             )
+            .order_by(Appointment.created_at.desc())
         )
         return self._session.scalar(stmt)
 
