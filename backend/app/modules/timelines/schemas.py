@@ -17,6 +17,7 @@ class TimelineEntryResponse(BaseModel):
     id: uuid.UUID
     complaint_id: uuid.UUID = Field(alias="complaintId")
     actor_user_id: uuid.UUID | None = Field(default=None, alias="actorUserId")
+    actor_name: str | None = Field(default=None, alias="actorName")
     event_type: TimelineEvent = Field(alias="eventType")
     event_at: datetime = Field(alias="eventAt")
     from_status: ComplaintStatus | None = Field(default=None, alias="fromStatus")

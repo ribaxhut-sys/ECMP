@@ -62,6 +62,23 @@ class ComplaintUpdateRequest(BaseModel):
         return self
 
 
+class ComplaintStatusChangeRequest(BaseModel):
+    """PATCH /status body — only validated lifecycle transitions."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    status: ComplaintStatus
+    reason: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class ComplaintResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 

@@ -131,6 +131,8 @@ class UserResponse(BaseModel):
     email: str
     full_name: str = Field(alias="fullName")
     role_id: uuid.UUID = Field(alias="roleId")
+    role_code: str | None = Field(default=None, alias="roleCode")
+    role_name: str | None = Field(default=None, alias="roleName")
     branch_id: uuid.UUID | None = Field(default=None, alias="branchId")
     is_active: bool = Field(alias="isActive")
     last_login_at: datetime | None = Field(default=None, alias="lastLoginAt")

@@ -1,5 +1,16 @@
 import type { Complaint } from "@/lib/api/types";
-import { EmptyBlock, LoadingBlock, Panel, PriorityBadge, StatusBadge } from "./ui";
+import {
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Empty,
+  Skeleton,
+  Table,
+  type BadgeTone,
+  type TableColumn,
+} from "@/shared/ui";
 
 function formatWhen(value: string): string {
   try {
@@ -12,6 +23,57 @@ function formatWhen(value: string): string {
   }
 }
 
+function priorityTone(priority: string): BadgeTone {
+  switch (priority) {
+    case "CRITICAL":
+      return "danger";
+    case "HIGH":
+      return "warning";
+    case "MEDIUM":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+const columns: TableColumn<Complaint>[] = [
+  {
+    key: "number",
+    header: "Number",
+    cell: (row) => (
+      <span className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary">
+        {row.complaintNumber}
+      </span>
+    ),
+  },
+  {
+    key: "subject",
+    header: "Subject",
+    cell: (row) => <span className="line-clamp-2">{row.subject}</span>,
+  },
+  {
+    key: "status",
+    header: "Status",
+    cell: (row) => (
+      <Badge tone="neutral">{row.status.replaceAll("_", " ")}</Badge>
+    ),
+  },
+  {
+    key: "priority",
+    header: "Priority",
+    cell: (row) => (
+      <Badge tone={priorityTone(row.priority)}>{row.priority}</Badge>
+    ),
+  },
+  {
+    key: "created",
+    header: "Created",
+    cell: (row) => (
+      <span className="text-ecmp-text-secondary">{formatWhen(row.createdAt)}</span>
+    ),
+  },
+];
+
 export function LatestComplaints({
   rows,
   loading,
@@ -21,56 +83,47 @@ export function LatestComplaints({
 }) {
   if (loading) {
     return (
-      <Panel title="Latest Complaints">
-        <LoadingBlock rows={5} />
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Latest Complaints</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <Skeleton rows={5} />
+        </CardBody>
+      </Card>
     );
   }
 
   if (!rows || rows.length === 0) {
     return (
-      <Panel title="Latest Complaints">
-        <EmptyBlock message="No complaints found." />
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Latest Complaints</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <Empty
+            title="No complaints"
+            description="No complaints found."
+          />
+        </CardBody>
+      </Card>
     );
   }
 
   return (
-    <Panel title="Latest Complaints">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-white/10 text-[var(--muted)]">
-            <tr>
-              <th className="py-2 pr-3 font-medium">Number</th>
-              <th className="py-2 pr-3 font-medium">Subject</th>
-              <th className="py-2 pr-3 font-medium">Status</th>
-              <th className="py-2 pr-3 font-medium">Priority</th>
-              <th className="py-2 font-medium">Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-white/5 align-top">
-                <td className="py-2.5 pr-3 font-mono text-xs text-[var(--accent)]">
-                  {row.complaintNumber}
-                </td>
-                <td className="max-w-[18rem] py-2.5 pr-3">
-                  <span className="line-clamp-2">{row.subject}</span>
-                </td>
-                <td className="py-2.5 pr-3">
-                  <StatusBadge status={row.status} />
-                </td>
-                <td className="py-2.5 pr-3">
-                  <PriorityBadge priority={row.priority} />
-                </td>
-                <td className="py-2.5 whitespace-nowrap text-[var(--muted)]">
-                  {formatWhen(row.createdAt)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
+    <Card>
+      <CardHeader>
+        <CardTitle>Latest Complaints</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <Table
+          columns={columns}
+          rows={rows}
+          getRowKey={(row) => row.id}
+          caption="Latest complaints"
+          emptyMessage="No complaints found."
+        />
+      </CardBody>
+    </Card>
   );
 }

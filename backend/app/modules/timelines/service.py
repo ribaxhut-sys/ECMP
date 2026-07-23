@@ -11,10 +11,13 @@ from app.modules.timelines.schemas import TimelineEntryResponse
 
 
 def _to_response(row: ComplaintTimeline) -> TimelineEntryResponse:
+    actor = row.__dict__.get("actor")
+    actor_name = getattr(actor, "full_name", None) if actor is not None else None
     return TimelineEntryResponse(
         id=row.id,
         complaintId=row.complaint_id,
         actorUserId=row.actor_user_id,
+        actorName=actor_name,
         eventType=row.event_type,
         eventAt=row.event_at,
         fromStatus=row.from_status,

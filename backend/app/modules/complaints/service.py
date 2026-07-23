@@ -6,13 +6,15 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from app.core.enums import INITIAL_COMPLAINT_STATUS
+from app.core.enums import INITIAL_COMPLAINT_STATUS, ComplaintStatus, TimelineEvent
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.status_transitions import can_transition
 from app.models import Complaint
 from app.modules.complaints.repository import ComplaintRepository
 from app.modules.complaints.schemas import (
     ComplaintCreateRequest,
     ComplaintResponse,
+    ComplaintStatusChangeRequest,
     ComplaintUpdateRequest,
 )
 
@@ -96,6 +98,16 @@ class ComplaintService:
             new_value=_snapshot(complaint),
             occurred_at=now,
         )
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.CREATED,
+            event_at=now,
+            from_status=None,
+            to_status=INITIAL_COMPLAINT_STATUS,
+            summary="Complaint created",
+            metadata={"complaintNumber": complaint.complaint_number},
+        )
         self._repo.commit()
         self._repo.refresh(complaint)
         return _to_response(complaint)
@@ -154,6 +166,7 @@ class ComplaintService:
                 )
 
         old_value = _snapshot(complaint)
+        old_priority = complaint.priority
         now = datetime.now(UTC)
 
         for field_name, value in changes.items():
@@ -169,6 +182,112 @@ class ComplaintService:
             old_value=old_value,
             new_value=_snapshot(complaint),
             occurred_at=now,
+        )
+
+        # Priority change is a first-class timeline activity (TASK-008).
+        if "priority" in changes and changes["priority"] != old_priority:
+            self._repo.add_timeline(
+                complaint_id=complaint.id,
+                actor_user_id=actor_user_id,
+                event_type=TimelineEvent.UPDATED,
+                event_at=now,
+                from_status=complaint.status,
+                to_status=complaint.status,
+                summary=f"Priority changed from {old_priority} to {complaint.priority}",
+                metadata={
+                    "changeType": "PRIORITY_CHANGED",
+                    "fromPriority": old_priority,
+                    "toPriority": complaint.priority,
+                },
+            )
+
+        self._repo.commit()
+        self._repo.refresh(complaint)
+        return _to_response(complaint)
+
+    def change_status(
+        self,
+        complaint_id: uuid.UUID,
+        payload: ComplaintStatusChangeRequest,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> ComplaintResponse:
+        """Validated lifecycle transition — sole path for non-assign status changes."""
+        complaint = self._repo.get_by_id(complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        try:
+            current = ComplaintStatus(complaint.status)
+        except ValueError as exc:
+            raise ValidationAppError(
+                "Complaint has an unsupported status",
+                details={"status": complaint.status},
+            ) from exc
+
+        target = payload.status
+        if current == target:
+            raise ValidationAppError(
+                "Invalid status transition.",
+                details={
+                    "fromStatus": current.value,
+                    "toStatus": target.value,
+                    "reason": "status unchanged",
+                },
+            )
+
+        if not can_transition(current, target):
+            raise ValidationAppError(
+                "Invalid status transition.",
+                details={
+                    "fromStatus": current.value,
+                    "toStatus": target.value,
+                },
+            )
+
+        old_value = _snapshot(complaint)
+        now = datetime.now(UTC)
+        complaint.status = target
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+
+        if target == ComplaintStatus.CLOSED:
+            complaint.closed_at = now
+        elif target != ComplaintStatus.CLOSED:
+            # Leaving RESOLVED/CLOSED (reopen) clears closure timestamp.
+            if current in {ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED}:
+                complaint.closed_at = None
+
+        if target == ComplaintStatus.RESOLVED:
+            event_type: TimelineEvent = TimelineEvent.RESOLVED
+        elif target == ComplaintStatus.CLOSED:
+            event_type = TimelineEvent.CLOSED
+        else:
+            event_type = TimelineEvent.UPDATED
+
+        summary = f"Status changed from {current.value} to {target.value}"
+        self._repo.add_audit_log(
+            actor_user_id=actor_user_id,
+            action="complaint.status_change",
+            entity_id=complaint.id,
+            old_value=old_value,
+            new_value=_snapshot(complaint),
+            occurred_at=now,
+        )
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=event_type,
+            event_at=now,
+            from_status=current.value,
+            to_status=target.value,
+            summary=summary,
+            metadata={
+                "changeType": "STATUS_CHANGED",
+                "fromStatus": current.value,
+                "toStatus": target.value,
+                "reason": payload.reason,
+            },
         )
         self._repo.commit()
         self._repo.refresh(complaint)

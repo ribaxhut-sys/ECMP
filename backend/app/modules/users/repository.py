@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import Select, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import Branch, Role, User
 
@@ -15,7 +15,11 @@ class UserRepository:
         self._session = session
 
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
-        stmt = select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        stmt = (
+            select(User)
+            .options(joinedload(User.role))
+            .where(User.id == user_id, User.deleted_at.is_(None))
+        )
         return self._session.scalar(stmt)
 
     def username_exists(
@@ -79,16 +83,22 @@ class UserRepository:
 
         stmt: Select[tuple[User]] = (
             select(User)
+            .options(joinedload(User.role))
             .where(*filters)
             .order_by(User.created_at.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
-        return list(self._session.scalars(stmt).all()), total
+        return list(self._session.scalars(stmt).unique().all()), total
 
     def commit(self) -> None:
         self._session.commit()
 
     def refresh(self, user: User) -> User:
         self._session.refresh(user)
+        # Load role for roleCode/roleName without relying on callers.
+        if "role" not in user.__dict__ or user.__dict__.get("role") is None:
+            role = self._session.get(Role, user.role_id)
+            if role is not None:
+                user.role = role
         return user

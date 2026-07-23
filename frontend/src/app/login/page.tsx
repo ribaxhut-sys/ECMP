@@ -4,6 +4,15 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError } from "@/lib/api";
+import { AuthLayout } from "@/shared/layouts";
+import {
+  Alert,
+  Button,
+  Card,
+  CardBody,
+  Input,
+  Loading,
+} from "@/shared/ui";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,67 +50,58 @@ export default function LoginPage() {
 
   if (status === "loading" || status === "authenticated") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <p className="text-sm text-[var(--muted)]">Checking session…</p>
-      </main>
+      <AuthLayout>
+        <Loading label="Checking session…" />
+      </AuthLayout>
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded-xl border border-white/10 bg-black/20 p-6"
-      >
-        <div>
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--accent)]">
-            ECMP
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Sign in</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Use your ECMP username or email.
-          </p>
-        </div>
+    <AuthLayout>
+      <Card>
+        <CardBody>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <p className="text-[length:var(--ecmp-font-caption-size)] font-semibold uppercase tracking-[0.2em] text-ecmp-primary">
+                ECMP
+              </p>
+              <h1 className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tracking-tight text-ecmp-text-primary">
+                Sign in
+              </h1>
+              <p className="mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                Use your ECMP username or email.
+              </p>
+            </div>
 
-        <label className="block space-y-1.5 text-sm">
-          <span className="text-[var(--muted)]">Username or email</span>
-          <input
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 outline-none focus:border-[var(--accent)]"
-          />
-        </label>
+            <Input
+              name="username"
+              label="Username or email"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
 
-        <label className="block space-y-1.5 text-sm">
-          <span className="text-[var(--muted)]">Password</span>
-          <input
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 outline-none focus:border-[var(--accent)]"
-          />
-        </label>
+            <Input
+              name="password"
+              type="password"
+              label="Password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
 
-        {error ? (
-          <p className="text-sm text-red-300" role="alert">
-            {error}
-          </p>
-        ) : null}
+            {error ? (
+              <Alert tone="danger" title="Sign in failed" description={error} />
+            ) : null}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium transition hover:bg-white/15 disabled:opacity-50"
-        >
-          {submitting ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-    </main>
+            <Button type="submit" fullWidth loading={submitting}>
+              {submitting ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+        </CardBody>
+      </Card>
+    </AuthLayout>
   );
 }

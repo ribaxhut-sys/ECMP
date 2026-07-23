@@ -6,8 +6,20 @@ export {
   refreshAccessToken,
 } from "./auth";
 export {
+  assignComplaint,
+  changeComplaintStatus,
+  createComplaint,
+  fetchComplaint,
+  fetchComplaintAssignments,
+  fetchComplaintTimeline,
   fetchLatestComplaints,
 } from "./complaints";
+export { fetchBranches } from "./branches";
+export type { Branch } from "./branches";
+export { fetchCustomers } from "./customers";
+export type { Customer } from "./customers";
+export { fetchUsers } from "./users";
+export type { UserRef } from "./users";
 export {
   fetchReportByBranch,
   fetchReportByStatus,

@@ -1,14 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
-import { EmptyBlock, Panel } from "./ui";
+import { Button, Card, CardBody, CardHeader, CardTitle, Empty } from "@/shared/ui";
 import { QUICK_ACTIONS } from "./quickActionConfig";
 
-function scrollToId(id: string): void {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
+  const router = useRouter();
   const { hasPermission } = useAuth();
   const actions = QUICK_ACTIONS.filter((action) =>
     hasPermission(action.permission),
@@ -19,15 +17,21 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
       case "refresh-reports":
         onRefresh();
         break;
-      case "view-complaints":
       case "create-complaint":
+        router.push("/complaints/new");
+        break;
+      case "view-complaints":
+        router.push("/complaints");
+        break;
       case "assign-complaint":
       case "escalate-complaint":
-        scrollToId("latest-complaints");
+        document
+          .getElementById("latest-complaints")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
         break;
       case "manage-users":
       case "create-user":
-        scrollToId("quick-actions");
+        router.push("/users");
         break;
       default:
         break;
@@ -35,30 +39,40 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
   }
 
   return (
-    <Panel title="Quick Actions">
-      <div id="quick-actions" />
-      {actions.length === 0 ? (
-        <EmptyBlock message="No actions available for your permissions." />
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {actions.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              onClick={() => handleAction(action.id)}
-              title={action.description}
-              className="rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:border-[var(--accent)]/50 hover:bg-black/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-            >
-              <span className="block text-sm font-semibold text-[var(--ink)]">
-                {action.label}
-              </span>
-              <span className="mt-1 block text-xs text-[var(--muted)]">
-                {action.description}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </Panel>
+    <Card>
+      <CardHeader>
+        <CardTitle>Quick Actions</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <div id="quick-actions" />
+        {actions.length === 0 ? (
+          <Empty
+            title="No actions"
+            description="No actions available for your permissions."
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {actions.map((action) => (
+              <Button
+                key={action.id}
+                type="button"
+                variant="outline"
+                fullWidth
+                onClick={() => handleAction(action.id)}
+                title={action.description}
+                className="h-auto !min-h-[44px] flex-col items-start gap-1 px-4 py-3 text-left whitespace-normal"
+              >
+                <span className="block text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
+                  {action.label}
+                </span>
+                <span className="block text-[length:var(--ecmp-font-caption-size)] font-normal text-ecmp-text-secondary">
+                  {action.description}
+                </span>
+              </Button>
+            ))}
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 }

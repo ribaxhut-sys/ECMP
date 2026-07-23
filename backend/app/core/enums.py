@@ -11,6 +11,7 @@ class ComplaintStatus(StrEnum):
     NEW = "NEW"
     ASSIGNED = "ASSIGNED"
     IN_PROGRESS = "IN_PROGRESS"
+    PENDING = "PENDING"
     ESCALATED = "ESCALATED"
     RESOLVED = "RESOLVED"
     CLOSED = "CLOSED"

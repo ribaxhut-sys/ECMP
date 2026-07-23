@@ -32,6 +32,7 @@ class AssignmentResponse(BaseModel):
     id: uuid.UUID
     complaint_id: uuid.UUID = Field(alias="complaintId")
     assignee_id: uuid.UUID = Field(alias="assigneeId")
+    assignee_name: str | None = Field(default=None, alias="assigneeName")
     assigned_by: uuid.UUID | None = Field(default=None, alias="assignedBy")
     assigned_at: datetime = Field(alias="assignedAt")
     unassigned_at: datetime | None = Field(default=None, alias="unassignedAt")

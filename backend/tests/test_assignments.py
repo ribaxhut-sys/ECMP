@@ -60,6 +60,7 @@ def test_assign_new_to_assigned() -> None:
     repo = MagicMock()
     repo.get_complaint.return_value = complaint
     repo.user_exists.return_value = True
+    repo.get_user_full_name.return_value = "Agent One"
     repo.get_current_assignment.return_value = None
     repo.add_assignment.side_effect = lambda a: setattr(a, "id", created_assignment.id) or a
 
@@ -76,6 +77,7 @@ def test_assign_new_to_assigned() -> None:
     repo.close_assignment.assert_not_called()
     repo.add_timeline.assert_called_once()
     assert repo.add_timeline.call_args.kwargs["event_type"] == "complaint.assigned"
+    assert "Agent One" in repo.add_timeline.call_args.kwargs["summary"]
     repo.commit.assert_called_once()
 
 
@@ -122,6 +124,7 @@ def test_reassignment_closes_previous_without_delete() -> None:
     repo = MagicMock()
     repo.get_complaint.return_value = complaint
     repo.user_exists.return_value = True
+    repo.get_user_full_name.return_value = "Agent Two"
     repo.get_current_assignment.return_value = current
     repo.add_assignment.side_effect = lambda a: setattr(a, "id", uuid.uuid4()) or a
 
@@ -136,6 +139,7 @@ def test_reassignment_closes_previous_without_delete() -> None:
     repo.close_assignment.assert_called_once()
     assert current is repo.close_assignment.call_args.args[0]
     assert repo.add_timeline.call_args.kwargs["event_type"] == "complaint.reassigned"
+    assert "Agent Two" in repo.add_timeline.call_args.kwargs["summary"]
     # ensure we never call a delete helper
     assert not hasattr(repo, "delete_assignment") or not repo.delete_assignment.called
 

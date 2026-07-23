@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import Complaint, ComplaintAssignment, ComplaintTimeline, User
 
@@ -31,26 +31,38 @@ class AssignmentRepository:
         )
         return self._session.scalar(stmt) is not None
 
+    def get_user_full_name(self, user_id: uuid.UUID) -> str | None:
+        stmt = select(User.full_name).where(
+            User.id == user_id,
+            User.deleted_at.is_(None),
+        )
+        return self._session.scalar(stmt)
+
     def get_current_assignment(
         self, complaint_id: uuid.UUID
     ) -> ComplaintAssignment | None:
-        stmt = select(ComplaintAssignment).where(
-            ComplaintAssignment.complaint_id == complaint_id,
-            ComplaintAssignment.is_current.is_(True),
-            ComplaintAssignment.deleted_at.is_(None),
+        stmt = (
+            select(ComplaintAssignment)
+            .options(joinedload(ComplaintAssignment.assignee))
+            .where(
+                ComplaintAssignment.complaint_id == complaint_id,
+                ComplaintAssignment.is_current.is_(True),
+                ComplaintAssignment.deleted_at.is_(None),
+            )
         )
         return self._session.scalar(stmt)
 
     def list_assignments(self, complaint_id: uuid.UUID) -> list[ComplaintAssignment]:
         stmt = (
             select(ComplaintAssignment)
+            .options(joinedload(ComplaintAssignment.assignee))
             .where(
                 ComplaintAssignment.complaint_id == complaint_id,
                 ComplaintAssignment.deleted_at.is_(None),
             )
             .order_by(ComplaintAssignment.assigned_at.desc())
         )
-        return list(self._session.scalars(stmt).all())
+        return list(self._session.scalars(stmt).unique().all())
 
     def add_assignment(self, assignment: ComplaintAssignment) -> ComplaintAssignment:
         self._session.add(assignment)
@@ -106,4 +118,9 @@ class AssignmentRepository:
 
     def refresh(self, obj: Any) -> Any:
         self._session.refresh(obj)
+        if isinstance(obj, ComplaintAssignment):
+            if "assignee" not in obj.__dict__ or obj.__dict__.get("assignee") is None:
+                assignee = self._session.get(User, obj.assignee_id)
+                if assignee is not None:
+                    obj.assignee = assignee
         return obj

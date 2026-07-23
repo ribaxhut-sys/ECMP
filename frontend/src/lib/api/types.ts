@@ -4,6 +4,7 @@ export type ComplaintStatus =
   | "NEW"
   | "ASSIGNED"
   | "IN_PROGRESS"
+  | "PENDING"
   | "ESCALATED"
   | "RESOLVED"
   | "CLOSED";
@@ -64,6 +65,69 @@ export interface Complaint {
   createdAt: string;
   createdBy: string | null;
   updatedAt: string;
+}
+
+/** API-201 create payload (complaint-service OpenAPI ComplaintCreateRequest). */
+export interface ComplaintCreateRequest {
+  customerId: string;
+  subject: string;
+  description: string;
+  priority: Priority;
+  branchId?: string | null;
+  channel?: string | null;
+  category?: string | null;
+  reportedAt?: string | null;
+}
+
+/** API-205 assign request. */
+export interface AssignComplaintRequest {
+  assigneeId: string;
+  reason?: string | null;
+  notes?: string | null;
+}
+
+/** API-206 assignment row. */
+export interface Assignment {
+  id: string;
+  complaintId: string;
+  assigneeId: string;
+  assigneeName: string | null;
+  assignedBy: string | null;
+  assignedAt: string;
+  unassignedAt: string | null;
+  isCurrent: boolean;
+  notes: string | null;
+  reason: string | null;
+}
+
+/** API-205 assign response data. */
+export interface AssignComplaintResult {
+  assignment: Assignment;
+  complaintId: string;
+  status: ComplaintStatus;
+  reassigned: boolean;
+}
+
+/** API-209 timeline entry (read-only activity log). */
+export interface TimelineEntry {
+  id: string;
+  complaintId: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  eventType:
+    | "complaint.created"
+    | "complaint.updated"
+    | "complaint.assigned"
+    | "complaint.reassigned"
+    | "complaint.escalated"
+    | "complaint.resolved"
+    | "complaint.closed";
+  eventAt: string;
+  fromStatus: ComplaintStatus | null;
+  toStatus: ComplaintStatus | null;
+  summary: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
 }
 
 export interface TokenResponse {

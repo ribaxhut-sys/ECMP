@@ -1,8 +1,21 @@
 import type { ReportSummary } from "@/lib/api/types";
-import { EmptyBlock, LoadingBlock, Panel } from "./ui";
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Empty,
+  Skeleton,
+} from "@/shared/ui";
 
 function openCount(summary: ReportSummary): number {
-  const open = new Set(["NEW", "ASSIGNED", "IN_PROGRESS", "ESCALATED"]);
+  const open = new Set([
+    "NEW",
+    "ASSIGNED",
+    "IN_PROGRESS",
+    "PENDING",
+    "ESCALATED",
+  ]);
   return summary.byStatus
     .filter((row) => open.has(row.status))
     .reduce((sum, row) => sum + row.count, 0);
@@ -21,17 +34,30 @@ export function SummaryCards({
 }) {
   if (loading) {
     return (
-      <Panel title="Summary">
-        <LoadingBlock rows={2} />
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Summary</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <Skeleton rows={2} />
+        </CardBody>
+      </Card>
     );
   }
 
   if (!summary || summary.total === 0) {
     return (
-      <Panel title="Summary">
-        <EmptyBlock message="No complaints yet. Summary will appear once cases are registered." />
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Summary</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <Empty
+            title="No summary yet"
+            description="No complaints yet. Summary will appear once cases are registered."
+          />
+        </CardBody>
+      </Card>
     );
   }
 
@@ -43,22 +69,28 @@ export function SummaryCards({
   ];
 
   return (
-    <Panel title="Summary">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-lg border border-white/10 bg-black/20 px-4 py-4"
-          >
-            <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-              {card.label}
-            </p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-[var(--ink)]">
-              {card.value}
-            </p>
-          </div>
-        ))}
-      </div>
-    </Panel>
+    <Card>
+      <CardHeader>
+        <CardTitle>Summary</CardTitle>
+      </CardHeader>
+      <CardBody>
+        {/* Mobile: 1 col · Tablet: 2 · Desktop: 4 */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {cards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-4 py-4"
+            >
+              <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                {card.label}
+              </p>
+              <p className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tabular-nums text-ecmp-text-primary">
+                {card.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </CardBody>
+    </Card>
   );
 }

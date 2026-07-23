@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app.models import AuditLog, Branch, Complaint, Customer
+from app.models import AuditLog, Branch, Complaint, ComplaintTimeline, Customer
 
 
 class ComplaintRepository:
@@ -66,6 +66,39 @@ class ComplaintRepository:
             old_value=old_value,
             new_value=new_value,
             occurred_at=when,
+        )
+        self._session.add(entry)
+        self._session.flush()
+        return entry
+
+    def add_timeline(
+        self,
+        *,
+        complaint_id: uuid.UUID,
+        actor_user_id: uuid.UUID,
+        event_type: str,
+        event_at: datetime,
+        from_status: str | None,
+        to_status: str | None,
+        summary: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> ComplaintTimeline:
+        from datetime import UTC
+
+        when = event_at if event_at.tzinfo else event_at.replace(tzinfo=UTC)
+        entry = ComplaintTimeline(
+            complaint_id=complaint_id,
+            actor_user_id=actor_user_id,
+            event_type=event_type,
+            event_at=when,
+            from_status=from_status,
+            to_status=to_status,
+            summary=summary,
+            metadata_json=metadata,
+            created_at=when,
+            updated_at=when,
+            created_by=actor_user_id,
+            updated_by=actor_user_id,
         )
         self._session.add(entry)
         self._session.flush()

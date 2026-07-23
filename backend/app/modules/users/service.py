@@ -18,7 +18,22 @@ from app.modules.users.schemas import (
 
 
 def _to_response(user: User) -> UserResponse:
-    return UserResponse.model_validate(user)
+    # Prefer already-loaded role; avoid lazy-load in unit tests / detached instances.
+    role = user.__dict__.get("role")
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        fullName=user.full_name,
+        roleId=user.role_id,
+        roleCode=getattr(role, "code", None) if role is not None else None,
+        roleName=getattr(role, "name", None) if role is not None else None,
+        branchId=user.branch_id,
+        isActive=user.is_active,
+        lastLoginAt=user.last_login_at,
+        createdAt=user.created_at,
+        updatedAt=user.updated_at,
+    )
 
 
 class UserService:

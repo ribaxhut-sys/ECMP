@@ -45,11 +45,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-202 | GET /api/v1/complaints | List complaints (paginated/filtered) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-203 | GET /api/v1/complaints/{id} | Get complaint by id | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-204 | PUT /api/v1/complaints/{id} | Update complaint fields (status immutable; audit `complaint.update`) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
+| API-224 | PATCH /api/v1/complaints/{id}/status | Validated status transition (TASK-009; invalid → 400; timeline + audit) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
 | API-205 | POST /api/v1/complaints/{id}/assign | Assign/reassign (NEW→ASSIGNED; history retained; timeline written; reason required on reassign) | bearerAuth, role `SUPERVISOR` + permission `complaints:assign` | 🟢 Implemented |
 | API-206 | GET /api/v1/complaints/{id}/assignments | List assignment history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-207 | POST /api/v1/complaints/{id}/escalate | Escalate (ASSIGNED/IN_PROGRESS→ESCALATED; rejects NEW/RESOLVED/CLOSED) | bearerAuth, role `SUPERVISOR` + permission `complaints:escalate` | 🟢 Implemented |
 | API-208 | GET /api/v1/complaints/{id}/escalations | List escalation history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
-| API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at ASC; empty list OK) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at DESC newest first; empty list OK; includes actorName) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-212 | GET /api/v1/reports/by-branch | Counts by branch (GROUP BY; total DESC) | bearerAuth, permission `reports:read` | 🟢 Implemented |
@@ -62,7 +63,27 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-219 | POST /api/v1/auth/refresh | Rotate refresh cookie; issue new access token (audit `auth.refresh`) | Refresh cookie | 🟢 Implemented |
 | API-220 | POST /api/v1/auth/logout | Revoke refresh token + clear cookie (audit `auth.logout`) | Refresh cookie | 🟢 Implemented |
 | API-221 | GET /api/v1/auth/me | Current user + roles/permissions | bearerAuth | 🟢 Implemented |
+| API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
+> **2026-07-23 (TASK-009):** complaint-service — API-224 status transition
+> (`PATCH /api/v1/complaints/{id}/status`) with validated matrix; `PENDING`
+> added to ComplaintStatus. NEW→ASSIGNED remains Assign (API-205).
+>
+> **2026-07-23 (TASK-008):** complaint-service — timeline UI uses API-209
+> (`GET /api/v1/complaints/{id}/timeline`) read-only. Sort is newest-first;
+> `actorName` added for display. Create writes `complaint.created`; priority
+> update writes `complaint.updated` with `changeType=PRIORITY_CHANGED`.
+>
+> **2026-07-23 (TASK-007):** complaint-service — assignee UI uses existing API-205
+> (`POST /api/v1/complaints/{id}/assign`) + API-214 user list (`isActive=true`) as
+> reference picker. User schema adds optional `roleCode`/`roleName` so assignee
+> select shows Name + Role without exposing UUIDs.
+>
+> **2026-07-23 (TASK-005):** complaint-service — added API-223 branch reference list for Create Complaint `branchId` selection (active `branches` rows; no UUID typing).
+>
+> **2026-07-23 (TASK-004):** complaint-service — added API-222 local customer reference list for Create Complaint selection (local `customers` cache; not Customer Master SoR / not API-010).
+>
 > **2026-07-23 (TASK-016 / Production Go-Live):** complaint-service OpenAPI `info.version` set to **1.0.0** (Production). No path/schema additions; go-live only.
 >
 > **2026-07-23 (TASK-014 / RC1):** complaint-service OpenAPI `info.version` set to **1.0.0-rc1** (application Release Candidate). No path/schema additions; code freeze active.
@@ -71,7 +92,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 >
 > **2026-07-23 (TASK-008):** complaint-service — added user management API-213..API-217.
 >
-> **2026-07-23 (TASK-007):** complaint-service v1.5.0 — added reporting foundation API-210..API-212.
+> **2026-07-23 (TASK-007 reporting slice):** complaint-service v1.5.0 — added reporting foundation API-210..API-212.
 >
 > **2026-07-23 (TASK-006):** complaint-service v1.4.0 — added API-209 Timeline read (`GET /api/v1/complaints/{id}/timeline`).
 >

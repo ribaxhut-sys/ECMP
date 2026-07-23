@@ -1,5 +1,36 @@
 import type { BranchCount } from "@/lib/api/types";
-import { EmptyBlock, LoadingBlock, Panel } from "./ui";
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Empty,
+  Skeleton,
+  Table,
+  type TableColumn,
+} from "@/shared/ui";
+
+const columns: TableColumn<BranchCount>[] = [
+  {
+    key: "branch",
+    header: "Branch",
+    cell: (row) => row.branchName ?? "Unassigned",
+  },
+  {
+    key: "code",
+    header: "Code",
+    cell: (row) => (
+      <span className="text-ecmp-text-secondary">{row.branchCode ?? "—"}</span>
+    ),
+  },
+  {
+    key: "total",
+    header: "Total",
+    headerClassName: "text-right",
+    className: "text-right tabular-nums font-medium",
+    cell: (row) => row.total,
+  },
+];
 
 export function ComplaintByBranch({
   rows,
@@ -10,51 +41,47 @@ export function ComplaintByBranch({
 }) {
   if (loading) {
     return (
-      <Panel title="Complaint by Branch">
-        <LoadingBlock rows={4} />
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Complaint by Branch</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <Skeleton rows={4} />
+        </CardBody>
+      </Card>
     );
   }
 
   if (!rows || rows.length === 0) {
     return (
-      <Panel title="Complaint by Branch">
-        <EmptyBlock message="No branch activity yet." />
-      </Panel>
+      <Card>
+        <CardHeader>
+          <CardTitle>Complaint by Branch</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <Empty
+            title="No branch data"
+            description="No branch activity yet."
+          />
+        </CardBody>
+      </Card>
     );
   }
 
   return (
-    <Panel title="Complaint by Branch">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-white/10 text-[var(--muted)]">
-            <tr>
-              <th className="py-2 pr-4 font-medium">Branch</th>
-              <th className="py-2 pr-4 font-medium">Code</th>
-              <th className="py-2 text-right font-medium">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr
-                key={row.branchId ?? `unassigned-${index}`}
-                className="border-b border-white/5"
-              >
-                <td className="py-2.5 pr-4">
-                  {row.branchName ?? "Unassigned"}
-                </td>
-                <td className="py-2.5 pr-4 text-[var(--muted)]">
-                  {row.branchCode ?? "—"}
-                </td>
-                <td className="py-2.5 text-right tabular-nums font-medium">
-                  {row.total}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
+    <Card>
+      <CardHeader>
+        <CardTitle>Complaint by Branch</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <Table
+          columns={columns}
+          rows={rows}
+          getRowKey={(row, index) => row.branchId ?? `unassigned-${index}`}
+          caption="Complaints by branch"
+          emptyMessage="No branch activity yet."
+        />
+      </CardBody>
+    </Card>
   );
 }

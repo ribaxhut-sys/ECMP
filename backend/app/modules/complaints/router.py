@@ -16,6 +16,7 @@ from app.modules.complaints.repository import ComplaintRepository
 from app.modules.complaints.schemas import (
     ComplaintCreateRequest,
     ComplaintResponse,
+    ComplaintStatusChangeRequest,
     ComplaintUpdateRequest,
 )
 from app.modules.complaints.service import ComplaintService
@@ -107,6 +108,27 @@ def update_complaint(
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[ComplaintResponse]:
     updated = service.update(
+        id,
+        payload,
+        actor_user_id=principal.user_id,
+    )
+    return DataResponse(data=updated)
+
+
+@router.patch(
+    "/{id}/status",
+    response_model=DataResponse[ComplaintResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Change complaint status",
+)
+def change_complaint_status(
+    id: uuid.UUID,
+    payload: ComplaintStatusChangeRequest,
+    service: Annotated[ComplaintService, Depends(get_complaint_service)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+) -> DataResponse[ComplaintResponse]:
+    """Validated status transition (TASK-009). Invalid transitions → 400."""
+    updated = service.change_status(
         id,
         payload,
         actor_user_id=principal.user_id,

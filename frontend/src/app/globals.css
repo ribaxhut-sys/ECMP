@@ -1,30 +1,174 @@
 @import "tailwindcss";
 
+/*
+ * ECMP Design Tokens
+ * Components must reference these variables / Tailwind theme keys.
+ * Do not hardcode colors or spacing in feature UI.
+ */
+
 :root {
-  --bg-start: #0b1f33;
-  --bg-mid: #12324d;
-  --bg-end: #1a4a6b;
-  --ink: #f4f7fb;
-  --muted: #b7c7d6;
-  --accent: #3db8a8;
+  /* Colors — enterprise teal / slate palette */
+  --ecmp-color-primary: #0f766e;
+  --ecmp-color-primary-foreground: #ffffff;
+  --ecmp-color-primary-muted: #ccfbf1;
+
+  --ecmp-color-secondary: #475569;
+  --ecmp-color-secondary-foreground: #ffffff;
+  --ecmp-color-secondary-muted: #e2e8f0;
+
+  --ecmp-color-success: #15803d;
+  --ecmp-color-success-foreground: #ffffff;
+  --ecmp-color-success-muted: #dcfce7;
+
+  --ecmp-color-warning: #b45309;
+  --ecmp-color-warning-foreground: #ffffff;
+  --ecmp-color-warning-muted: #ffedd5;
+
+  --ecmp-color-danger: #b91c1c;
+  --ecmp-color-danger-foreground: #ffffff;
+  --ecmp-color-danger-muted: #fee2e2;
+
+  --ecmp-color-info: #0369a1;
+  --ecmp-color-info-foreground: #ffffff;
+  --ecmp-color-info-muted: #e0f2fe;
+
+  --ecmp-color-surface: #ffffff;
+  --ecmp-color-background: #f1f5f9;
+  --ecmp-color-border: #cbd5e1;
+  --ecmp-color-text-primary: #0f172a;
+  --ecmp-color-text-secondary: #64748b;
+  --ecmp-color-focus: #0f766e;
+  --ecmp-color-overlay: rgb(15 23 42 / 0.45);
+
+  /* Spacing scale (px) */
+  --ecmp-space-4: 4px;
+  --ecmp-space-8: 8px;
+  --ecmp-space-12: 12px;
+  --ecmp-space-16: 16px;
+  --ecmp-space-24: 24px;
+  --ecmp-space-32: 32px;
+  --ecmp-space-40: 40px;
+  --ecmp-space-48: 48px;
+  --ecmp-space-64: 64px;
+
+  /* Radius */
+  --ecmp-radius-sm: 4px;
+  --ecmp-radius-md: 8px;
+  --ecmp-radius-lg: 12px;
+  --ecmp-radius-xl: 16px;
+  --ecmp-radius-full: 9999px;
+
+  /* Shadows */
+  --ecmp-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
+  --ecmp-shadow-md: 0 4px 12px rgb(15 23 42 / 0.08);
+  --ecmp-shadow-lg: 0 12px 32px rgb(15 23 42 / 0.12);
+
+  /* Typography */
+  --ecmp-font-family: var(--font-ecmp-sans), "Source Sans 3", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --ecmp-font-display-size: 2.25rem;
+  --ecmp-font-display-line: 1.2;
+  --ecmp-font-display-weight: 700;
+  --ecmp-font-heading-size: 1.875rem;
+  --ecmp-font-heading-line: 1.25;
+  --ecmp-font-heading-weight: 700;
+  --ecmp-font-title-size: 1.25rem;
+  --ecmp-font-title-line: 1.35;
+  --ecmp-font-title-weight: 600;
+  --ecmp-font-subtitle-size: 1.125rem;
+  --ecmp-font-subtitle-line: 1.4;
+  --ecmp-font-subtitle-weight: 600;
+  --ecmp-font-body-size: 1rem; /* 16px minimum */
+  --ecmp-font-body-line: 1.5;
+  --ecmp-font-body-weight: 400;
+  --ecmp-font-caption-size: 0.875rem;
+  --ecmp-font-caption-line: 1.4;
+  --ecmp-font-caption-weight: 400;
+
+  /* Layout */
+  --ecmp-sidebar-width: 16rem;
+  --ecmp-header-height: 4rem;
+  --ecmp-touch-min: 44px;
+}
+
+@theme inline {
+  --color-ecmp-primary: var(--ecmp-color-primary);
+  --color-ecmp-primary-foreground: var(--ecmp-color-primary-foreground);
+  --color-ecmp-primary-muted: var(--ecmp-color-primary-muted);
+  --color-ecmp-secondary: var(--ecmp-color-secondary);
+  --color-ecmp-secondary-foreground: var(--ecmp-color-secondary-foreground);
+  --color-ecmp-secondary-muted: var(--ecmp-color-secondary-muted);
+  --color-ecmp-success: var(--ecmp-color-success);
+  --color-ecmp-success-foreground: var(--ecmp-color-success-foreground);
+  --color-ecmp-success-muted: var(--ecmp-color-success-muted);
+  --color-ecmp-warning: var(--ecmp-color-warning);
+  --color-ecmp-warning-foreground: var(--ecmp-color-warning-foreground);
+  --color-ecmp-warning-muted: var(--ecmp-color-warning-muted);
+  --color-ecmp-danger: var(--ecmp-color-danger);
+  --color-ecmp-danger-foreground: var(--ecmp-color-danger-foreground);
+  --color-ecmp-danger-muted: var(--ecmp-color-danger-muted);
+  --color-ecmp-info: var(--ecmp-color-info);
+  --color-ecmp-info-foreground: var(--ecmp-color-info-foreground);
+  --color-ecmp-info-muted: var(--ecmp-color-info-muted);
+  --color-ecmp-surface: var(--ecmp-color-surface);
+  --color-ecmp-background: var(--ecmp-color-background);
+  --color-ecmp-border: var(--ecmp-color-border);
+  --color-ecmp-text-primary: var(--ecmp-color-text-primary);
+  --color-ecmp-text-secondary: var(--ecmp-color-text-secondary);
+  --color-ecmp-focus: var(--ecmp-color-focus);
+  --color-ecmp-overlay: var(--ecmp-color-overlay);
+
+  --radius-ecmp-sm: var(--ecmp-radius-sm);
+  --radius-ecmp-md: var(--ecmp-radius-md);
+  --radius-ecmp-lg: var(--ecmp-radius-lg);
+  --radius-ecmp-xl: var(--ecmp-radius-xl);
+
+  --shadow-ecmp-sm: var(--ecmp-shadow-sm);
+  --shadow-ecmp-md: var(--ecmp-shadow-md);
+  --shadow-ecmp-lg: var(--ecmp-shadow-lg);
+
+  --font-ecmp: var(--ecmp-font-family);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  color: var(--ink);
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(61, 184, 168, 0.22), transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, rgba(90, 140, 200, 0.18), transparent 50%),
-    linear-gradient(160deg, var(--bg-start), var(--bg-mid) 45%, var(--bg-end));
-  font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  color: var(--ecmp-color-text-primary);
+  background: var(--ecmp-color-background);
+  font-family: var(--ecmp-font-family);
+  font-size: var(--ecmp-font-body-size);
+  line-height: var(--ecmp-font-body-line);
 }
 
-button {
+button,
+input,
+textarea,
+select {
   font: inherit;
   color: inherit;
 }
 
 table {
   border-collapse: collapse;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ecmp-color-focus);
+  outline-offset: 2px;
+}
+
+/* Utility: min touch target */
+.ecmp-touch {
+  min-height: var(--ecmp-touch-min);
+  min-width: var(--ecmp-touch-min);
 }

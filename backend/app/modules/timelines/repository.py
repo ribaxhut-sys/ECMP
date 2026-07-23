@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.enums import TimelineEvent
 from app.models import Complaint, ComplaintTimeline
@@ -25,14 +25,18 @@ class TimelineRepository:
         return self._session.scalar(stmt)
 
     def list_by_complaint(self, complaint_id: uuid.UUID) -> list[ComplaintTimeline]:
-        """Return timeline rows oldest-first (created_at ASC). Immutable read."""
+        """Return timeline rows newest-first (created_at DESC). Immutable read."""
         stmt = (
             select(ComplaintTimeline)
+            .options(joinedload(ComplaintTimeline.actor))
             .where(
                 ComplaintTimeline.complaint_id == complaint_id,
                 ComplaintTimeline.deleted_at.is_(None),
                 ComplaintTimeline.event_type.in_(_SUPPORTED_EVENTS),
             )
-            .order_by(ComplaintTimeline.created_at.asc(), ComplaintTimeline.id.asc())
+            .order_by(
+                ComplaintTimeline.created_at.desc(),
+                ComplaintTimeline.id.desc(),
+            )
         )
-        return list(self._session.scalars(stmt).all())
+        return list(self._session.scalars(stmt).unique().all())

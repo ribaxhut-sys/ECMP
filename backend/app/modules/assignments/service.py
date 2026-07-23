@@ -27,10 +27,13 @@ def _to_response(assignment: ComplaintAssignment) -> AssignmentResponse:
     # Convention: reassignment reason stored as notes; expose both for API clarity.
     if notes and notes.startswith("REASSIGN:"):
         reason = notes.removeprefix("REASSIGN:").strip() or None
+    assignee = assignment.__dict__.get("assignee")
+    assignee_name = getattr(assignee, "full_name", None) if assignee is not None else None
     return AssignmentResponse(
         id=assignment.id,
         complaintId=assignment.complaint_id,
         assigneeId=assignment.assignee_id,
+        assigneeName=assignee_name,
         assignedBy=assignment.assigned_by,
         assignedAt=assignment.assigned_at,
         unassignedAt=assignment.unassigned_at,
@@ -126,10 +129,13 @@ class AssignmentService:
         event_type = (
             TimelineEvent.REASSIGNED if reassigned else TimelineEvent.ASSIGNED
         )
+        assignee_name = self._repo.get_user_full_name(payload.assignee_id) or str(
+            payload.assignee_id
+        )
         summary = (
-            f"Complaint reassigned to {payload.assignee_id}"
+            f"Reassigned to {assignee_name}"
             if reassigned
-            else f"Complaint assigned to {payload.assignee_id}"
+            else f"Assigned to {assignee_name}"
         )
         self._repo.add_timeline(
             complaint_id=complaint.id,
@@ -141,9 +147,11 @@ class AssignmentService:
             summary=summary,
             metadata={
                 "assigneeId": str(payload.assignee_id),
+                "assigneeName": assignee_name,
                 "assignedBy": str(actor_user_id),
                 "reassigned": reassigned,
                 "reason": payload.reason,
+                "changeType": "STATUS_CHANGED" if from_status != TARGET_STATUS else None,
             },
         )
 

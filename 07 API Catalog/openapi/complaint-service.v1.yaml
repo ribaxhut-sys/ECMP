@@ -29,6 +29,10 @@ tags:
     description: Complaint reporting aggregations (read-only)
   - name: Users
     description: User management (create, list, update, soft deactivate)
+  - name: Customers
+    description: Local customer reference cache (read-only; not Customer Master SoR)
+  - name: Branches
+    description: Branch reference list (read-only; for complaint FK selection)
 paths:
   /api/v1/auth/login:
     post:
@@ -244,8 +248,9 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        Partial update of mutable fields. Status is intentionally immutable here
-        (workflow transitions are out of scope for this module).
+        Partial update of mutable fields. Status is intentionally immutable here —
+        use `PATCH /api/v1/complaints/{id}/status` (API-224) for validated transitions,
+        or Assign (API-205) for `NEW` → `ASSIGNED`.
         Requires permission `complaints:update`.
         Writes audit log `complaint.update` in the same transaction.
       parameters:
@@ -259,6 +264,53 @@ paths:
       responses:
         "200":
           description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/status:
+    patch:
+      summary: Change complaint status
+      operationId: changeComplaintStatus
+      x-ear-id: API-224
+      tags: [Complaints]
+      security:
+        - bearerAuth: []
+      description: |
+        Validated lifecycle status transition (TASK-009). This is the sole write
+        path for status except Assign (`NEW`→`ASSIGNED`) and Escalation
+        (`→ESCALATED`). Invalid transitions return 400 VALIDATION_ERROR
+        ("Invalid status transition."). Writes timeline + audit in the same
+        transaction. Requires permission `complaints:update`.
+
+        Allowed matrix:
+        - ASSIGNED → IN_PROGRESS
+        - IN_PROGRESS → PENDING | RESOLVED
+        - PENDING → IN_PROGRESS | RESOLVED
+        - RESOLVED → CLOSED | IN_PROGRESS (reopen)
+        - CLOSED → (none)
+        - NEW → (none via this endpoint; use Assign)
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComplaintStatusChangeRequest"
+      responses:
+        "200":
+          description: Status updated
           content:
             application/json:
               schema:
@@ -423,11 +475,12 @@ paths:
         - bearerAuth: []
       description: |
         Read-only projection of `complaint_timelines` for a complaint.
-        Sorted by `created_at` ascending (oldest first). Empty list is 200.
+        Sorted by `created_at` descending (newest first). Empty list is 200.
         Timeline rows are immutable — this endpoint has no write path.
         Supported event types: `complaint.created`, `complaint.updated`,
         `complaint.assigned`, `complaint.reassigned`, `complaint.escalated`,
         `complaint.resolved`, `complaint.closed`.
+        `actorName` is included for UI display (no actor UUID required in UI).
         Requires permission `complaints:read`.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
@@ -531,6 +584,87 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BranchCountListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/customers:
+    get:
+      summary: List customer references
+      operationId: listCustomers
+      x-ear-id: API-222
+      tags: [Customers]
+      security:
+        - bearerAuth: []
+      description: |
+        Paginated list of local customer reference rows (page default 1,
+        pageSize default 20, max 100). Soft-deleted rows are excluded.
+        Optional `q` filters by externalCustomerId, fullName, or email
+        (case-insensitive contains). This is the local customers cache used
+        by complaint FKs — not Customer Master SoR (ADR-002).
+        Requires permission `complaints:read`.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+          description: Search externalCustomerId, fullName, or email
+      responses:
+        "200":
+          description: Page of customers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/branches:
+    get:
+      summary: List branch references
+      operationId: listBranches
+      x-ear-id: API-223
+      tags: [Branches]
+      security:
+        - bearerAuth: []
+      description: |
+        Paginated list of active branch reference rows (page default 1,
+        pageSize default 20, max 100). Soft-deleted and inactive rows are
+        excluded. Optional `q` filters by code or name (case-insensitive
+        contains). Used by Create Complaint to select `branchId` without
+        typing UUIDs. Requires permission `complaints:read`.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+          description: Search code or name
+      responses:
+        "200":
+          description: Page of branches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchListResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -801,13 +935,15 @@ components:
           NEW,
           ASSIGNED,
           IN_PROGRESS,
+          PENDING,
           ESCALATED,
           RESOLVED,
           CLOSED,
         ]
       description: |
         Single source of truth for complaint lifecycle status.
-        Initial status on create is NEW.
+        Initial status on create is NEW. PENDING added for TASK-009.
+        ESCALATED remains for escalation path (separate from status transition matrix).
     TimelineEvent:
       type: string
       enum:
@@ -860,6 +996,16 @@ components:
         category: { type: string, maxLength: 64, nullable: true }
         branchId: { type: string, format: uuid, nullable: true }
       description: At least one field must be provided. Status is not updatable here.
+    ComplaintStatusChangeRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+        reason:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Optional note recorded in timeline metadata
     Complaint:
       type: object
       required:
@@ -925,6 +1071,10 @@ components:
         id: { type: string, format: uuid }
         complaintId: { type: string, format: uuid }
         assigneeId: { type: string, format: uuid }
+        assigneeName:
+          type: string
+          nullable: true
+          description: Display name of assignee (UI must not show assigneeId UUID)
         assignedBy: { type: string, format: uuid, nullable: true }
         assignedAt: { type: string, format: date-time }
         unassignedAt: { type: string, format: date-time, nullable: true }
@@ -1012,6 +1162,10 @@ components:
         id: { type: string, format: uuid }
         complaintId: { type: string, format: uuid }
         actorUserId: { type: string, format: uuid, nullable: true }
+        actorName:
+          type: string
+          nullable: true
+          description: Display name of actor (UI must not show actorUserId UUID)
         eventType: { $ref: "#/components/schemas/TimelineEvent" }
         eventAt: { type: string, format: date-time }
         fromStatus:
@@ -1119,12 +1273,17 @@ components:
         email: { type: string }
         fullName: { type: string }
         roleId: { type: string, format: uuid }
+        roleCode: { type: string, nullable: true, description: Role code for display (e.g. AGENT) }
+        roleName: { type: string, nullable: true, description: Human-readable role name }
         branchId: { type: string, format: uuid, nullable: true }
         isActive: { type: boolean }
         lastLoginAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      description: Password hash is never included in responses.
+      description: |
+        Password hash is never included in responses. `roleCode`/`roleName` are
+        included for UI reference pickers (TASK-007 assignee select) so clients
+        never need to display `roleId` UUIDs.
     UserDataResponse:
       type: object
       required: [data]
@@ -1137,6 +1296,38 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/User" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
+    Customer:
+      type: object
+      required: [id, externalCustomerId, fullName]
+      properties:
+        id: { type: string, format: uuid }
+        externalCustomerId: { type: string }
+        fullName: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+    CustomerListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Customer" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
+    Branch:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+    BranchListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Branch" }
         meta: { $ref: "#/components/schemas/PageMeta" }
     LoginRequest:
       type: object

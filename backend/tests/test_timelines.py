@@ -48,24 +48,26 @@ def test_list_timeline_maps_entries_created_at_order() -> None:
             complaint_id=complaint_id,
             actor_user_id=actor_id,
             event_type=TimelineEvent.ASSIGNED,
-            event_at=t0,
+            event_at=t1,
             from_status="NEW",
             to_status="ASSIGNED",
             summary="Assigned",
             metadata_json={"assigneeId": str(actor_id)},
-            created_at=t0,
+            created_at=t1,
+            actor=SimpleNamespace(full_name="golive_supervisor"),
         ),
         SimpleNamespace(
             id=uuid.uuid4(),
             complaint_id=complaint_id,
             actor_user_id=actor_id,
-            event_type=TimelineEvent.ESCALATED,
-            event_at=t1,
-            from_status="ASSIGNED",
-            to_status="ESCALATED",
-            summary="Escalated",
+            event_type=TimelineEvent.CREATED,
+            event_at=t0,
+            from_status=None,
+            to_status="NEW",
+            summary="Complaint created",
             metadata_json=None,
-            created_at=t1,
+            created_at=t0,
+            actor=SimpleNamespace(full_name="golive_supervisor"),
         ),
     ]
 
@@ -77,7 +79,8 @@ def test_list_timeline_maps_entries_created_at_order() -> None:
 
     assert len(result) == 2
     assert result[0].event_type == TimelineEvent.ASSIGNED
-    assert result[0].created_at == t0
+    assert result[0].created_at == t1
+    assert result[0].actor_name == "golive_supervisor"
     assert result[0].metadata == {"assigneeId": str(actor_id)}
-    assert result[1].event_type == TimelineEvent.ESCALATED
+    assert result[1].event_type == TimelineEvent.CREATED
     assert result[1].metadata is None
