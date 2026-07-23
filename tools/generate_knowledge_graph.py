@@ -34,6 +34,23 @@ def add_edge(edges, seen, frm, to, relation):
     edges.append({"from": frm, "to": to, "relation": relation})
 
 
+def _as_id_list(value):
+    """Normalize OpenAPI extension ids (scalar or list) to a flat id list.
+
+    Specs may set ``x-event`` / ``x-fr`` as a string or a YAML list when an
+    operation emits/implements multiple artifacts (see case-service.v1.yaml).
+    """
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        out = []
+        for item in value:
+            out.extend(_as_id_list(item))
+        return out
+    text = str(value).strip()
+    return [text] if text else []
+
+
 def enrich_from_openapi(nodes, edges, seen):
     for key, spec in list_openapi_ops().items():
         path = spec.get("path")
@@ -49,12 +66,10 @@ def enrich_from_openapi(nodes, edges, seen):
                 api_id = op.get("x-ear-id") or f"API-{method.upper()}-{route}"
                 label = op.get("summary") or f"{method.upper()} {route}"
                 add_node(nodes, api_id, "API", label, path=route, method=method.upper())
-                fr = op.get("x-fr")
-                if fr:
+                for fr in _as_id_list(op.get("x-fr")):
                     add_node(nodes, fr, "FRD", fr)
                     add_edge(edges, seen, fr, api_id, "implemented_by")
-                evt = op.get("x-event")
-                if evt:
+                for evt in _as_id_list(op.get("x-event")):
                     add_node(nodes, evt, "Event", evt)
                     add_edge(edges, seen, api_id, evt, "emits")
 
