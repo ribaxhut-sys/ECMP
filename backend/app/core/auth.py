@@ -199,4 +199,23 @@ def require_complaint_close(
     return principal
 
 
+_ESCALATION_CLOSE_ROLES = (
+    "ADMIN",
+    "ADMINISTRATOR",
+)
+
+
+def require_escalation_close(
+    principal: Annotated[
+        Principal, Depends(require_permissions("escalations:close"))
+    ],
+) -> Principal:
+    """API-313 gate: escalations:close + Head Office Admin only."""
+    if not principal.has_any_role(*_ESCALATION_CLOSE_ROLES):
+        raise ForbiddenError(
+            "Only Head Office Admin can close escalations"
+        )
+    return principal
+
+
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]

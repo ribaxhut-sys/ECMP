@@ -1,4 +1,4 @@
-"""Escalation HTTP routes (API-207/208 + API-301..304)."""
+"""Escalation HTTP routes (API-207/208 + API-301..304 + API-313)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import (
     Principal,
+    require_escalation_close,
     require_escalation_review,
     require_permissions,
     require_supervisor_escalate,
@@ -18,6 +19,8 @@ from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.escalations.repository import EscalationRepository
 from app.modules.escalations.schemas import (
+    CloseEscalationRequest,
+    CloseEscalationResult,
     EscalateComplaintRequest,
     EscalateComplaintResult,
     EscalationRequestCreate,
@@ -31,7 +34,7 @@ from app.modules.escalations.service import EscalationService
 # Nested under /api/v1/complaints
 complaints_router = APIRouter(prefix="/api/v1/complaints", tags=["Escalations"])
 
-# Top-level /api/v1/escalations/{id} (API-302..304)
+# Top-level /api/v1/escalations/{id} (API-302..304, API-313)
 escalations_router = APIRouter(prefix="/api/v1/escalations", tags=["Escalations"])
 
 
@@ -100,7 +103,7 @@ def list_escalations(
 def get_escalation(
     id: uuid.UUID,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
-    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    principal: Annotated[Principal, Depends(require_permissions("escalations:read"))],
 ) -> DataResponse[EscalationResponse]:
     """API-302 — get escalation detail by id."""
     _ = principal
@@ -138,6 +141,23 @@ def reject_escalation(
 ) -> DataResponse[EscalationReviewResult]:
     """API-304 — reject REQUESTED escalation (HO Scheduler / Admin)."""
     result = service.reject(id, payload, actor_user_id=principal.user_id)
+    return DataResponse(data=result)
+
+
+@escalations_router.post(
+    "/{id}/close",
+    response_model=DataResponse[CloseEscalationResult],
+    status_code=status.HTTP_200_OK,
+    summary="Close escalation",
+)
+def close_escalation(
+    id: uuid.UUID,
+    payload: CloseEscalationRequest,
+    service: Annotated[EscalationService, Depends(get_escalation_service)],
+    principal: Annotated[Principal, Depends(require_escalation_close)],
+) -> DataResponse[CloseEscalationResult]:
+    """API-313 — explicit Escalation Closure after Complaint Closure (TASK-020)."""
+    result = service.close(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)
 
 

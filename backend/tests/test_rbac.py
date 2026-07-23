@@ -64,3 +64,22 @@ def test_branch_supervisor_can_close_complaint() -> None:
     assert "complaints:close" not in permissions_for_role("BRANCH_OFFICER")
     assert "complaints:close" not in permissions_for_role("HO_ENGINEER")
     assert "complaints:close" not in permissions_for_role("HO_SCHEDULER")
+
+
+def test_admin_can_close_escalation() -> None:
+    """API-313 write gate: escalations:close (Head Office Admin only)."""
+    assert "escalations:close" in permissions_for_role("ADMIN")
+    assert "escalations:close" not in permissions_for_role("BRANCH_SUPERVISOR")
+    assert "escalations:close" not in permissions_for_role("HO_SCHEDULER")
+    assert "escalations:close" not in permissions_for_role("HO_ENGINEER")
+    assert "escalations:close" not in permissions_for_role("BRANCH_OFFICER")
+
+
+def test_escalations_read_permission() -> None:
+    """Read gate for escalation detail / closure UI."""
+    assert "escalations:read" in permissions_for_role("BRANCH_OFFICER")
+    assert "escalations:read" in permissions_for_role("BRANCH_SUPERVISOR")
+    assert "escalations:read" in permissions_for_role("HO_SCHEDULER")
+    assert "escalations:read" in permissions_for_role("HO_ENGINEER")
+    assert "escalations:read" in permissions_for_role("ADMIN")
+    assert "escalations:read" in permissions_for_role("VIEWER")

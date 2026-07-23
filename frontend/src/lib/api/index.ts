@@ -21,6 +21,7 @@ export {
 } from "./complaints";
 export {
   approveEscalation,
+  closeEscalation,
   fetchComplaintEscalations,
   fetchEscalation,
   rejectEscalation,

@@ -1,5 +1,7 @@
 import { apiRequest } from "./client";
 import type {
+  CloseEscalationRequest,
+  CloseEscalationResult,
   DataResponse,
   Escalation,
   EscalationRequestCreate,
@@ -61,6 +63,20 @@ export function rejectEscalation(
 ): Promise<DataResponse<EscalationReviewResult>> {
   return apiRequest<DataResponse<EscalationReviewResult>>(
     `/api/v1/escalations/${encodeURIComponent(id)}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/** API-313 — POST /api/v1/escalations/{id}/close */
+export function closeEscalation(
+  id: string,
+  body: CloseEscalationRequest,
+): Promise<DataResponse<CloseEscalationResult>> {
+  return apiRequest<DataResponse<CloseEscalationResult>>(
+    `/api/v1/escalations/${encodeURIComponent(id)}/close`,
     {
       method: "POST",
       body: JSON.stringify(body),

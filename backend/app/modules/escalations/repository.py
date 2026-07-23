@@ -115,6 +115,21 @@ class EscalationRepository:
         )
         return self._session.scalar(stmt) is not None
 
+    def get_final_resolution(
+        self, complaint_id: uuid.UUID
+    ) -> ComplaintResolution | None:
+        """Return the resolution row that has Final Resolution submitted."""
+        stmt = (
+            select(ComplaintResolution)
+            .where(
+                ComplaintResolution.complaint_id == complaint_id,
+                ComplaintResolution.final_resolution_at.is_not(None),
+                ComplaintResolution.deleted_at.is_(None),
+            )
+            .order_by(ComplaintResolution.final_resolution_at.desc())
+        )
+        return self._session.scalar(stmt)
+
     def get_active_escalation(
         self, complaint_id: uuid.UUID
     ) -> ComplaintEscalation | None:

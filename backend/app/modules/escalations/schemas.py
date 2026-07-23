@@ -119,6 +119,9 @@ class EscalationResponse(BaseModel):
     reviewed_by_name: str | None = Field(default=None, alias="reviewedByName")
     reviewed_at: datetime | None = Field(default=None, alias="reviewedAt")
     review_notes: str | None = Field(default=None, alias="reviewNotes")
+    closed_at: datetime | None = Field(default=None, alias="closedAt")
+    closed_by: uuid.UUID | None = Field(default=None, alias="closedBy")
+    closure_notes: str | None = Field(default=None, alias="closureNotes")
     active_appointment: AppointmentSummary | None = Field(
         default=None, alias="activeAppointment"
     )
@@ -149,6 +152,33 @@ class EscalationReviewResult(BaseModel):
     status: str
     reviewed_by: uuid.UUID = Field(alias="reviewedBy")
     reviewed_at: datetime = Field(alias="reviewedAt")
+
+
+class CloseEscalationRequest(BaseModel):
+    """API-313 request body — explicit Escalation Closure after Complaint Closure."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    notes: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("notes")
+    @classmethod
+    def strip_notes(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("must not be blank")
+        return cleaned
+
+
+class CloseEscalationResult(BaseModel):
+    """API-313 close response."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    escalation_id: uuid.UUID = Field(alias="escalationId")
+    status: str
+    closed_at: datetime = Field(alias="closedAt")
+    closed_by: uuid.UUID = Field(alias="closedBy")
 
 
 class EscalationRequestResult(BaseModel):

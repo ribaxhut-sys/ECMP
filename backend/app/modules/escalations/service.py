@@ -16,6 +16,8 @@ from app.modules.appointments.schemas import AppointmentSummary
 from app.modules.appointments.service import to_summary
 from app.modules.escalations.repository import EscalationRepository
 from app.modules.escalations.schemas import (
+    CloseEscalationRequest,
+    CloseEscalationResult,
     EscalateComplaintRequest,
     EscalateComplaintResult,
     EscalationRequestCreate,
@@ -35,6 +37,7 @@ REJECTED_STATUSES: dict[str, str] = {
 }
 TARGET_STATUS = ComplaintStatus.ESCALATED
 ESCALATION_RECORD_STATUS = "OPEN"
+TARGET_CLOSED_STATUS = EscalationRequestStatus.CLOSED
 
 NOT_IN_PROGRESS_MESSAGE = (
     "Complaint must be IN_PROGRESS before requesting escalation."
@@ -45,6 +48,13 @@ HAS_RESOLUTION_MESSAGE = (
 HAS_ACTIVE_ESCALATION_MESSAGE = "Complaint already has an active escalation."
 NOT_REQUESTED_MESSAGE = "Only REQUESTED escalations can be reviewed."
 ALREADY_REVIEWED_MESSAGE = "Escalation has already been reviewed."
+ALREADY_CLOSED_MESSAGE = "Escalation is already CLOSED."
+COMPLAINT_NOT_CLOSED_MESSAGE = (
+    "Related Complaint must be CLOSED before closing the escalation."
+)
+FINAL_RESOLUTION_REQUIRED_MESSAGE = (
+    "Final Resolution must exist before closing the escalation."
+)
 
 
 def _to_response(
@@ -380,6 +390,95 @@ class EscalationService:
             summary="Escalation rejected",
             change_type="ESCALATION_REJECTED",
         )
+
+    def close(
+        self,
+        escalation_id: uuid.UUID,
+        payload: CloseEscalationRequest,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> CloseEscalationResult:
+        """API-313 — Explicit Escalation Closure after Complaint Closure (TASK-020)."""
+        row = self._repo.get_by_id(escalation_id)
+        if row is None:
+            raise NotFoundError("Escalation not found")
+
+        if (
+            row.status == EscalationRequestStatus.CLOSED
+            or row.closed_at is not None
+        ):
+            raise ValidationAppError(
+                ALREADY_CLOSED_MESSAGE,
+                details={"status": row.status},
+            )
+
+        complaint = self._repo.get_complaint(row.complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        if complaint.status != ComplaintStatus.CLOSED:
+            raise ValidationAppError(
+                COMPLAINT_NOT_CLOSED_MESSAGE,
+                details={"complaintStatus": complaint.status},
+            )
+
+        final_resolution = self._repo.get_final_resolution(complaint.id)
+        if final_resolution is None:
+            raise ValidationAppError(
+                FINAL_RESOLUTION_REQUIRED_MESSAGE,
+                details={"complaintId": str(complaint.id)},
+            )
+
+        closer = self._repo.get_user(actor_user_id)
+        if closer is None:
+            raise ValidationAppError(
+                "Closer not found or inactive",
+                details={"closedBy": str(actor_user_id)},
+            )
+
+        complaint_status_before = complaint.status
+        now = datetime.now(UTC)
+
+        row.status = TARGET_CLOSED_STATUS
+        row.closed_at = now
+        row.closed_by = actor_user_id
+        row.closure_notes = payload.notes
+        row.updated_at = now
+        row.updated_by = actor_user_id
+
+        # Complaint remains CLOSED — do NOT change complaint.
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.ESCALATION_CLOSED,
+            event_at=now,
+            from_status=complaint.status,
+            to_status=complaint.status,
+            summary="Escalation closed",
+            metadata={
+                "changeType": "ESCALATION_CLOSED",
+                "escalationId": str(row.id),
+                "complaintId": str(complaint.id),
+                "closedBy": str(actor_user_id),
+                "closedAt": now.isoformat(),
+            },
+        )
+
+        assert row.status == EscalationRequestStatus.CLOSED
+        assert complaint.status == ComplaintStatus.CLOSED
+        assert complaint.status == complaint_status_before
+
+        result = CloseEscalationResult(
+            escalationId=row.id,
+            status=TARGET_CLOSED_STATUS,
+            closedAt=now,
+            closedBy=actor_user_id,
+        )
+        self._repo.commit()
+        return result
 
     def get_escalation(self, escalation_id: uuid.UUID) -> EscalationResponse:
         """API-302 — get escalation by id."""

@@ -53,7 +53,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-207 | POST /api/v1/complaints/{id}/escalate | Escalate (ASSIGNED/IN_PROGRESS→ESCALATED; rejects NEW/RESOLVED/CLOSED) | bearerAuth, role `SUPERVISOR` + permission `complaints:escalate` | 🟢 Implemented |
 | API-208 | GET /api/v1/complaints/{id}/escalations | List escalation history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-301 | POST /api/v1/complaints/{id}/escalations | Escalation Request Branch→HO (status REQUESTED; IN_PROGRESS only; no Resolution; one active) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
-| API-302 | GET /api/v1/escalations/{id} | Get escalation detail by id | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-302 | GET /api/v1/escalations/{id} | Get escalation detail by id | bearerAuth, permission `escalations:read` | 🟢 Implemented |
 | API-303 | POST /api/v1/escalations/{id}/approve | Approve REQUESTED escalation (HO Scheduler/Admin; once only) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
 | API-304 | POST /api/v1/escalations/{id}/reject | Reject REQUESTED escalation (HO Scheduler/Admin; once only) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
 | API-305 | POST /api/v1/escalations/{id}/appointments | Book appointment on APPROVED escalation (one active; no engineer overlap) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
@@ -64,6 +64,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-310 | POST /api/v1/complaints/{id}/final-resolution | Submit Final Resolution after COMPLETED appointment (once only; complaint stays IN_PROGRESS) | bearerAuth, role HO Engineer/Admin + `appointments:complete` | 🟢 Implemented |
 | API-311 | GET /api/v1/complaints/{id}/final-resolution | Get submitted Final Resolution (404 if none) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-312 | POST /api/v1/complaints/{id}/close | Explicit Complaint Closure after Final Resolution (once; escalation stays open) | bearerAuth, role Branch Supervisor/Admin + `complaints:close` | 🟢 Implemented |
+| API-313 | POST /api/v1/escalations/{id}/close | Explicit Escalation Closure after Complaint Closure (once; complaint stays CLOSED) | bearerAuth, role Head Office Admin + `escalations:close` | 🟢 Implemented |
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at DESC newest first; empty list OK; includes actorName) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
@@ -80,10 +81,16 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
+> **2026-07-23 (TASK-020 Escalation Closure):** complaint-service —
+> API-313 `POST /api/v1/escalations/{id}/close` after Complaint Closure.
+> Timeline `escalation.closed`. Migration `0013_escalation_closure`.
+> Escalation → `CLOSED`; complaint remains `CLOSED`. Reopen / SLA /
+> notification / approval / auto-close out of scope.
+>
 > **2026-07-23 (TASK-019 Complaint Closure):** complaint-service —
 > API-312 `POST .../close` after Final Resolution. Timeline
 > `complaint.closed`. Migration `0012_complaint_closure`. Complaint →
-> `CLOSED`; escalation remains unchanged. Escalation closure / reopen /
+> `CLOSED`; escalation remains unchanged until API-313. Reopen /
 > notification / SLA / auto-close out of scope.
 >
 > **2026-07-23 (TASK-018 Final Resolution / DEC-011):** complaint-service —

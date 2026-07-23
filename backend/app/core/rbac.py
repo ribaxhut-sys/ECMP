@@ -11,6 +11,7 @@ _AGENT_PERMISSIONS: frozenset[str] = frozenset(
         "complaints:create",
         "complaints:read",
         "complaints:update",
+        "escalations:read",
         "reports:read",
     }
 )
@@ -32,6 +33,7 @@ _HO_SCHEDULER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "complaints:read",
         "complaints:update",
+        "escalations:read",
         "escalations:review",
         "reports:read",
         "users:read",
@@ -43,6 +45,7 @@ _HO_ENGINEER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "complaints:read",
         "complaints:update",
+        "escalations:read",
         "appointments:complete",
         "reports:read",
     }
@@ -52,6 +55,7 @@ _ADMIN_PERMISSIONS: frozenset[str] = frozenset(
     {
         *_SUPERVISOR_PERMISSIONS,
         "escalations:review",
+        "escalations:close",
         "appointments:complete",
         "*",
     }
@@ -60,6 +64,7 @@ _ADMIN_PERMISSIONS: frozenset[str] = frozenset(
 _VIEWER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "complaints:read",
+        "escalations:read",
         "reports:read",
     }
 )

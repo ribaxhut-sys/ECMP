@@ -246,7 +246,23 @@ export interface Escalation {
   reviewedByName: string | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  closureNotes?: string | null;
   activeAppointment?: AppointmentSummary | null;
+}
+
+/** API-313 close request. */
+export interface CloseEscalationRequest {
+  notes: string;
+}
+
+/** API-313 close response. */
+export interface CloseEscalationResult {
+  escalationId: string;
+  status: "CLOSED";
+  closedAt: string;
+  closedBy: string;
 }
 
 /** API-305 / API-302 appointment summary. */
@@ -367,7 +383,8 @@ export interface TimelineEntry {
     | "complaint.appointment_no_show"
     | "complaint.final_resolution_submitted"
     | "complaint.resolved"
-    | "complaint.closed";
+    | "complaint.closed"
+    | "escalation.closed";
   eventAt: string;
   fromStatus: ComplaintStatus | null;
   toStatus: ComplaintStatus | null;

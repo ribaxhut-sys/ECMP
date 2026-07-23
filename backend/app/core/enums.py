@@ -38,6 +38,7 @@ class TimelineEvent(StrEnum):
     FINAL_RESOLUTION_SUBMITTED = "complaint.final_resolution_submitted"
     RESOLVED = "complaint.resolved"
     CLOSED = "complaint.closed"
+    ESCALATION_CLOSED = "escalation.closed"
 
 
 class FinalResolutionStatus(StrEnum):
@@ -47,11 +48,12 @@ class FinalResolutionStatus(StrEnum):
 
 
 class EscalationRequestStatus(StrEnum):
-    """Escalation Request lifecycle (TASK-011/012)."""
+    """Escalation Request lifecycle (TASK-011/012/020)."""
 
     REQUESTED = "REQUESTED"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    CLOSED = "CLOSED"
 
 
 class AppointmentStatus(StrEnum):

@@ -503,8 +503,9 @@ paths:
         `closureNotes`. Does **not** close the Escalation. Writes timeline
         `complaint.closed` with summary "Complaint closed". Requires role
         Branch Supervisor or Head Office Admin and permission
-        `complaints:close`. Out of scope: escalation closure, reopen, SLA,
-        notification, approval workflow, auto-close.
+        `complaints:close`. Does **not** auto-close escalation (use
+        API-313). Out of scope: reopen, SLA, notification, approval
+        workflow, auto-close.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -726,7 +727,7 @@ paths:
         - bearerAuth: []
       description: |
         Returns a single escalation (including Escalation Request fields).
-        Requires permission `complaints:read`.
+        Requires permission `escalations:read`.
       parameters:
         - name: id
           in: path
@@ -740,6 +741,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EscalationDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/escalations/{id}/close:
+    post:
+      summary: Close escalation
+      operationId: closeEscalation
+      x-ear-id: API-313
+      tags: [Escalations]
+      security:
+        - bearerAuth: []
+      description: |
+        Explicit Escalation Closure after Complaint Closure (TASK-020 /
+        DEC-011). Extends the existing escalations module (does not create
+        a new module). Requires related complaint already `CLOSED`, an
+        existing Final Resolution, and escalation not already `CLOSED`.
+        Sets escalation status to `CLOSED` and persists `closedAt` /
+        `closedBy` / `closureNotes`. Complaint remains `CLOSED`. Writes
+        timeline `escalation.closed` with summary "Escalation closed".
+        Requires role Head Office Admin and permission `escalations:close`.
+        Out of scope: reopen escalation, SLA, notification, approval
+        workflow, auto-close, complaint changes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Escalation id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseEscalationRequest"
+            example:
+              notes: Escalation verified and officially closed.
+      responses:
+        "200":
+          description: Escalation closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloseEscalationDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -1089,7 +1140,7 @@ paths:
         `complaint.appointment_completed`,
         `complaint.appointment_no_show`,
         `complaint.final_resolution_submitted`, `complaint.resolved`,
-        `complaint.closed`.
+        `complaint.closed`, `escalation.closed`.
         `actorName` is included for UI display (no actor UUID required in UI).
         Requires permission `complaints:read`.
       parameters:
@@ -1573,6 +1624,7 @@ components:
           complaint.final_resolution_submitted,
           complaint.resolved,
           complaint.closed,
+          escalation.closed,
         ]
       description: Allowed complaint timeline event names.
     Error:
@@ -1786,11 +1838,32 @@ components:
           description: Display name of reviewer (HO Scheduler / Admin)
         reviewedAt: { type: string, format: date-time, nullable: true }
         reviewNotes: { type: string, nullable: true }
+        closedAt: { type: string, format: date-time, nullable: true }
+        closedBy: { type: string, format: uuid, nullable: true }
+        closureNotes: { type: string, nullable: true }
         activeAppointment:
           allOf:
             - $ref: "#/components/schemas/AppointmentSummary"
           nullable: true
           description: Current BOOKED, CHECKED_IN, COMPLETED, or NO_SHOW appointment
+    CloseEscalationRequest:
+      type: object
+      required: [notes]
+      properties:
+        notes: { type: string, minLength: 1, maxLength: 5000 }
+    CloseEscalationResult:
+      type: object
+      required: [escalationId, status, closedAt, closedBy]
+      properties:
+        escalationId: { type: string, format: uuid }
+        status: { type: string, enum: [CLOSED] }
+        closedAt: { type: string, format: date-time }
+        closedBy: { type: string, format: uuid }
+    CloseEscalationDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/CloseEscalationResult" }
     AppointmentStatus:
       type: string
       enum: [BOOKED, CHECKED_IN, COMPLETED, NO_SHOW]

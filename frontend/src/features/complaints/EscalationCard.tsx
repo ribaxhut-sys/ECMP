@@ -39,7 +39,12 @@ const REASON_OPTIONS: ReadonlyArray<{
   { value: "OTHER", label: "Other" },
 ];
 
-const REQUEST_FLOW_STATUSES = new Set(["REQUESTED", "APPROVED", "REJECTED"]);
+const REQUEST_FLOW_STATUSES = new Set([
+  "REQUESTED",
+  "APPROVED",
+  "REJECTED",
+  "CLOSED",
+]);
 
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
@@ -91,6 +96,7 @@ function pickDisplayEscalation(rows: Escalation[]): Escalation | null {
   const requestFlow = rows.filter(isRequestFlowEscalation);
   if (requestFlow.length > 0) {
     return (
+      requestFlow.find((row) => row.status === "CLOSED") ??
       requestFlow.find((row) => row.status === "REQUESTED") ??
       requestFlow.find((row) => row.status === "APPROVED") ??
       requestFlow[0] ??

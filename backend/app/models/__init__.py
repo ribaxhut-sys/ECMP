@@ -304,6 +304,8 @@ class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
         Index("ix_complaint_escalations_reason_code", "reason_code"),
         Index("ix_complaint_escalations_reviewed_by", "reviewed_by"),
         Index("ix_complaint_escalations_reviewed_at", "reviewed_at"),
+        Index("ix_complaint_escalations_closed_by", "closed_by"),
+        Index("ix_complaint_escalations_closed_at", "closed_at"),
     )
 
     complaint_id: Mapped[uuid.UUID] = mapped_column(
@@ -356,6 +358,16 @@ class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TASK-020 Escalation Closure fields (API-313)
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    closure_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     complaint: Mapped[Complaint] = relationship(back_populates="escalations")
     escalated_from_user: Mapped[User | None] = relationship(
@@ -369,6 +381,7 @@ class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
     )
     requester: Mapped[User | None] = relationship(foreign_keys=[requested_by])
     reviewer: Mapped[User | None] = relationship(foreign_keys=[reviewed_by])
+    closer: Mapped[User | None] = relationship(foreign_keys=[closed_by])
     appointments: Mapped[list[Appointment]] = relationship(
         back_populates="escalation"
     )
