@@ -1,0 +1,43 @@
+"""Report API contracts (camelCase, aligned with OpenAPI)."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.core.enums import ComplaintStatus
+
+
+class ReportFilters(BaseModel):
+    """Optional shared report filters (query params)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    branch_id: uuid.UUID | None = Field(default=None, alias="branchId")
+    date_from: datetime | None = Field(default=None, alias="dateFrom")
+    date_to: datetime | None = Field(default=None, alias="dateTo")
+
+
+class StatusCount(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    status: ComplaintStatus
+    count: int = Field(ge=0)
+
+
+class BranchCount(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    branch_id: uuid.UUID | None = Field(default=None, alias="branchId")
+    branch_code: str | None = Field(default=None, alias="branchCode")
+    branch_name: str | None = Field(default=None, alias="branchName")
+    total: int = Field(ge=0)
+
+
+class ReportSummaryData(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    total: int = Field(ge=0)
+    by_status: list[StatusCount] = Field(alias="byStatus")

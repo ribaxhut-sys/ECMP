@@ -38,9 +38,50 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | — | GET /health | Liveness check (di luar prefix /v1) | None | 🟢 Implemented |
 | — | GET /health/ready | Readiness check — DB `SELECT 1` (Sprint-08) | None | 🟢 Implemented |
 
+### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
+| API ID | Method & Endpoint | Description | Auth | Status |
+|---|---|---|---|---|
+| API-201 | POST /api/v1/complaints | Create complaint (status NEW; audit `complaint.create`) | bearerAuth, permission `complaints:create` | 🟢 Implemented |
+| API-202 | GET /api/v1/complaints | List complaints (paginated/filtered) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-203 | GET /api/v1/complaints/{id} | Get complaint by id | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-204 | PUT /api/v1/complaints/{id} | Update complaint fields (status immutable; audit `complaint.update`) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
+| API-205 | POST /api/v1/complaints/{id}/assign | Assign/reassign (NEW→ASSIGNED; history retained; timeline written; reason required on reassign) | bearerAuth, role `SUPERVISOR` + permission `complaints:assign` | 🟢 Implemented |
+| API-206 | GET /api/v1/complaints/{id}/assignments | List assignment history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-207 | POST /api/v1/complaints/{id}/escalate | Escalate (ASSIGNED/IN_PROGRESS→ESCALATED; rejects NEW/RESOLVED/CLOSED) | bearerAuth, role `SUPERVISOR` + permission `complaints:escalate` | 🟢 Implemented |
+| API-208 | GET /api/v1/complaints/{id}/escalations | List escalation history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at ASC; empty list OK) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-212 | GET /api/v1/reports/by-branch | Counts by branch (GROUP BY; total DESC) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-213 | POST /api/v1/users | Create user (unique username/email; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
+| API-214 | GET /api/v1/users | List users (paginated) | bearerAuth, permission `users:read` | 🟢 Implemented |
+| API-215 | GET /api/v1/users/{id} | Get user by id | bearerAuth, permission `users:read` | 🟢 Implemented |
+| API-216 | PUT /api/v1/users/{id} | Update user (password re-hashed when provided; hash never exposed) | bearerAuth, permission `users:update` | 🟢 Implemented |
+| API-217 | PATCH /api/v1/users/{id}/status | Soft activate/deactivate (`isActive`) | bearerAuth, permission `users:update` | 🟢 Implemented |
+| API-218 | POST /api/v1/auth/login | Login (bcrypt; JWT access 15m; HttpOnly refresh cookie 7d; audit `auth.login`) | None (public) | 🟢 Implemented |
+| API-219 | POST /api/v1/auth/refresh | Rotate refresh cookie; issue new access token (audit `auth.refresh`) | Refresh cookie | 🟢 Implemented |
+| API-220 | POST /api/v1/auth/logout | Revoke refresh token + clear cookie (audit `auth.logout`) | Refresh cookie | 🟢 Implemented |
+| API-221 | GET /api/v1/auth/me | Current user + roles/permissions | bearerAuth | 🟢 Implemented |
+
+> **2026-07-23 (TASK-016 / Production Go-Live):** complaint-service OpenAPI `info.version` set to **1.0.0** (Production). No path/schema additions; go-live only.
+>
+> **2026-07-23 (TASK-014 / RC1):** complaint-service OpenAPI `info.version` set to **1.0.0-rc1** (application Release Candidate). No path/schema additions; code freeze active.
+>
+> **2026-07-23 (TASK-010):** complaint-service contract baseline — production authentication API-218..API-221 (login/refresh/logout/me; refresh rotation; HttpOnly Secure SameSite=Lax cookie). Prior catalog label was v1.7.0.
+>
+> **2026-07-23 (TASK-008):** complaint-service — added user management API-213..API-217.
+>
+> **2026-07-23 (TASK-007):** complaint-service v1.5.0 — added reporting foundation API-210..API-212.
+>
+> **2026-07-23 (TASK-006):** complaint-service v1.4.0 — added API-209 Timeline read (`GET /api/v1/complaints/{id}/timeline`).
+>
+> **2026-07-23 (CR-001 stabilization):** complaint-service bumped to v1.3.0 — removed `REGISTERED`/`PENDING_REVIEW`/`REOPENED`; status SoT is `ComplaintStatus` (`NEW`, `ASSIGNED`, `IN_PROGRESS`, `ESCALATED`, `RESOLVED`, `CLOSED`); timeline events standardized; response/error envelopes aligned. No path or auth contract changes.
+>
 > **2026-07-22 (Sprint-03A, DEC-006 D6/U-6):** `case-actions.v1.yaml` dikonsolidasikan ke `case-service.v1.yaml` — kini satu-satunya spec normatif untuk case-service. `case-actions.v1.yaml` masih ada di disk tetapi ditandai `x-status: superseded` (paths kosong) dan tidak lagi dibaca oleh tooling/test; dipertahankan hanya agar tautan lama tidak 404. Tidak ada perubahan perilaku API atau payload event — murni sinkronisasi katalog terhadap runtime yang sudah berjalan sejak Sprint-02B.
 >
 > **2026-07-22 (Sprint-03B):** API-005 (list cases) di-freeze dan diimplementasikan; merged ke `case-service.v1.yaml` v1.5.0 dari draft `dashboard-queues.v1.draft.yaml`. Sort dikunci `createdAt` descending (keputusan CTO, design review Sprint-03B) — sort dapat dikonfigurasi eksplisit di luar scope versi ini. API-010 (Customer 360 read) **ditunda** — lihat `implementation/backend/ACR_SPRINT02B.md` ACR-002: draft/FRD-003 mengasumsikan profil pelanggan nyata, bertentangan dengan larangan fabrikasi data di INT-001 untuk mode stub.
+>
+> **2026-07-23 (foundation TASK-003):** complaint-service v1.0.0 added for the root `backend/` stack (`/api/v1/complaints`). Parallel to case-service; assignment/escalation/timeline remain out of scope.
 
 ### Planned
 | API ID | Method & Endpoint | Description | Draft spec | Status |

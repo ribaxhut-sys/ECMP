@@ -1,0 +1,1205 @@
+openapi: 3.0.3
+info:
+  title: ECMP Complaint Service API
+  version: 1.0.0
+  description: |
+    ECMP v1.0.0 Production contract. Complaint CRUD, assignment,
+    escalation, timeline, reporting, user management, and production
+    authentication. Paths use `/api/v1` prefix. Dashboard exports,
+    OAuth/SSO/LDAP/MFA, password reset, social login, notification, SLA, and
+    workflow-engine APIs are out of scope.
+    Error responses use the Error envelope {code, message, details} for ALL 4xx/5xx
+    (`details` may be null). Success responses use {data} or {data, meta} wrappers.
+  x-ear-id: API-200
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: Auth
+    description: Login, refresh, logout, and current-user profile
+  - name: Complaints
+    description: Complaint create, list, get, and update
+  - name: Assignments
+    description: Complaint assignment and reassignment (Supervisor only)
+  - name: Escalations
+    description: Complaint escalation (Supervisor only)
+  - name: Timeline
+    description: Immutable complaint timeline (read-only)
+  - name: Reports
+    description: Complaint reporting aggregations (read-only)
+  - name: Users
+    description: User management (create, list, update, soft deactivate)
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: Login
+      operationId: login
+      x-ear-id: API-218
+      tags: [Auth]
+      security: []
+      description: |
+        Authenticates with username (or email) and password via bcrypt.
+        Returns a JWT access token (15 minutes). Sets an HttpOnly Secure
+        SameSite=Lax refresh cookie (7 days). Emits audit event `auth.login`.
+        Tokens are never written to application logs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated
+          headers:
+            Set-Cookie:
+              description: |
+                Refresh token cookie (`ecmp_refresh_token`). HttpOnly; Secure
+                outside development; SameSite=Lax; Path=/api/v1/auth.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      operationId: refreshAccessToken
+      x-ear-id: API-219
+      tags: [Auth]
+      security: []
+      description: |
+        Rotates the refresh token from the HttpOnly cookie and returns a new
+        access token. Previous refresh token is revoked. Emits `auth.refresh`.
+      responses:
+        "200":
+          description: Tokens rotated
+          headers:
+            Set-Cookie:
+              description: Rotated refresh token cookie
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/logout:
+    post:
+      summary: Logout
+      operationId: logout
+      x-ear-id: API-220
+      tags: [Auth]
+      security: []
+      description: |
+        Revokes the refresh token from the cookie (if present) and clears the
+        cookie. Emits `auth.logout` when a token was revoked. Idempotent.
+      responses:
+        "204":
+          description: Logged out
+          headers:
+            Set-Cookie:
+              description: Cleared refresh token cookie
+              schema: { type: string }
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/me:
+    get:
+      summary: Current authenticated user
+      operationId: getCurrentUser
+      x-ear-id: API-221
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the caller profile plus roles and permissions derived from the
+        access token subject. Password hash is never returned.
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMeDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints:
+    post:
+      summary: Create complaint
+      operationId: createComplaint
+      x-ear-id: API-201
+      tags: [Complaints]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates a complaint in status `NEW`.
+        Requires permission `complaints:create`.
+        Writes audit log `complaint.create` in the same transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComplaintCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      summary: List complaints
+      operationId: listComplaints
+      x-ear-id: API-202
+      tags: [Complaints]
+      security:
+        - bearerAuth: []
+      description: |
+        Paginated list (page default 1, pageSize default 20, max 100).
+        Sort fixed: createdAt descending. Soft-deleted rows are excluded.
+        Requires permission `complaints:read`.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/ComplaintStatus" }
+        - name: priority
+          in: query
+          schema: { $ref: "#/components/schemas/Priority" }
+        - name: customerId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: branchId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Page of complaints
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}:
+    get:
+      summary: Get complaint by id
+      operationId: getComplaint
+      x-ear-id: API-203
+      tags: [Complaints]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: Complaint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Update complaint
+      operationId: updateComplaint
+      x-ear-id: API-204
+      tags: [Complaints]
+      security:
+        - bearerAuth: []
+      description: |
+        Partial update of mutable fields. Status is intentionally immutable here
+        (workflow transitions are out of scope for this module).
+        Requires permission `complaints:update`.
+        Writes audit log `complaint.update` in the same transaction.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComplaintUpdateRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/assign:
+    post:
+      summary: Assign or reassign complaint
+      operationId: assignComplaint
+      x-ear-id: API-205
+      tags: [Assignments]
+      security:
+        - bearerAuth: []
+      description: |
+        Assigns a complaint to a handler. Initial assign transitions status
+        `NEW` → `ASSIGNED`. Reassignment keeps prior rows in
+        `complaint_assignments` (sets `isCurrent=false`) and requires `reason`.
+        Writes `complaint_timelines` activity (`complaint.assigned` /
+        `complaint.reassigned`). Requires role `SUPERVISOR` and permission
+        `complaints:assign`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignComplaintRequest"
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/InvalidState"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/assignments:
+    get:
+      summary: List assignment history
+      operationId: listComplaintAssignments
+      x-ear-id: API-206
+      tags: [Assignments]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns assignment history for a complaint (newest first).
+        Previous assignments are retained; soft-deleted rows are excluded.
+        Requires permission `complaints:read`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: Assignment history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/escalate:
+    post:
+      summary: Escalate complaint
+      operationId: escalateComplaint
+      x-ear-id: API-207
+      tags: [Escalations]
+      security:
+        - bearerAuth: []
+      description: |
+        Escalates a complaint. Allowed statuses: `ASSIGNED`, `IN_PROGRESS`.
+        Rejects `NEW`, `RESOLVED`, and `CLOSED` with 409 INVALID_STATE.
+        Sets complaint status to `ESCALATED`, appends `complaint_escalations`
+        history, and writes `complaint.escalated` to `complaint_timelines`.
+        Requires role `SUPERVISOR` and permission `complaints:escalate`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalateComplaintRequest"
+      responses:
+        "200":
+          description: Escalated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalateComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/InvalidState"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/escalations:
+    get:
+      summary: List escalation history
+      operationId: listComplaintEscalations
+      x-ear-id: API-208
+      tags: [Escalations]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns escalation history for a complaint (highest level first).
+        Requires permission `complaints:read`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: Escalation history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/timeline:
+    get:
+      summary: Get complaint timeline
+      operationId: getComplaintTimeline
+      x-ear-id: API-209
+      tags: [Timeline]
+      security:
+        - bearerAuth: []
+      description: |
+        Read-only projection of `complaint_timelines` for a complaint.
+        Sorted by `created_at` ascending (oldest first). Empty list is 200.
+        Timeline rows are immutable — this endpoint has no write path.
+        Supported event types: `complaint.created`, `complaint.updated`,
+        `complaint.assigned`, `complaint.reassigned`, `complaint.escalated`,
+        `complaint.resolved`, `complaint.closed`.
+        Requires permission `complaints:read`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: Timeline entries (may be empty)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/summary:
+    get:
+      summary: Complaint report summary
+      operationId: getReportSummary
+      x-ear-id: API-210
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        Aggregate complaint totals with counts for every `ComplaintStatus`.
+        Soft-deleted complaints are excluded. Date filters apply to `reportedAt`.
+        Requires permission `reports:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Summary totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportSummaryDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/by-status:
+    get:
+      summary: Complaint counts by status
+      operationId: getReportByStatus
+      x-ear-id: API-211
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        SQL `COUNT` + `GROUP BY status`. Returns one row per `ComplaintStatus`
+        (zero when absent). Soft-deleted complaints are excluded.
+        Requires permission `reports:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Status breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusCountListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/by-branch:
+    get:
+      summary: Complaint counts by branch
+      operationId: getReportByBranch
+      x-ear-id: API-212
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        SQL `COUNT` + `GROUP BY branch`. Sorted by `total` descending.
+        Complaints without a branch appear with null branch fields.
+        Soft-deleted complaints are excluded. Requires permission `reports:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Branch breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchCountListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users:
+    post:
+      summary: Create user
+      operationId: createUser
+      x-ear-id: API-213
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates a user with bcrypt-hashed password. Username and email must be unique.
+        Role must exist and be active. Branch, when provided, must exist and be active.
+        Default `isActive` is true. Password hash is never returned.
+        Requires permission `users:create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      summary: List users
+      operationId: listUsers
+      x-ear-id: API-214
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      description: |
+        Paginated user list (page default 1, pageSize default 20, max 100).
+        Soft-deleted rows are excluded. Password hash is never returned.
+        Requires permission `users:read`.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+        - name: roleId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: branchId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Page of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users/{id}:
+    get:
+      summary: Get user by id
+      operationId: getUser
+      x-ear-id: API-215
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Update user
+      operationId: updateUser
+      x-ear-id: API-216
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      description: |
+        Partial update of mutable fields. Optional password is re-hashed when provided.
+        Username/email uniqueness enforced. Password hash is never returned.
+        Requires permission `users:update`.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdateRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users/{id}/status:
+    patch:
+      summary: Activate or deactivate user
+      operationId: updateUserStatus
+      x-ear-id: API-217
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      description: |
+        Soft activate/deactivate via `isActive`. Does not hard-delete the user.
+        Requires permission `users:update`.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserStatusUpdateRequest"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token (15 min). Claims: sub (user UUID), permissions[] (string),
+        roles[] (string). Issued by POST /api/v1/auth/login or /auth/refresh.
+        Refresh token is HttpOnly cookie only — never sent as Bearer.
+  parameters:
+    ComplaintId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ReportBranchId:
+      name: branchId
+      in: query
+      required: false
+      schema: { type: string, format: uuid }
+    ReportDateFrom:
+      name: dateFrom
+      in: query
+      required: false
+      description: Inclusive lower bound on complaint `reportedAt` (ISO-8601)
+      schema: { type: string, format: date-time }
+    ReportDateTo:
+      name: dateTo
+      in: query
+      required: false
+      description: Inclusive upper bound on complaint `reportedAt` (ISO-8601)
+      schema: { type: string, format: date-time }
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthenticated:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Missing permission
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InvalidState:
+      description: Action not allowed for current status
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Unique constraint or resource conflict
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    ComplaintStatus:
+      type: string
+      enum:
+        [
+          NEW,
+          ASSIGNED,
+          IN_PROGRESS,
+          ESCALATED,
+          RESOLVED,
+          CLOSED,
+        ]
+      description: |
+        Single source of truth for complaint lifecycle status.
+        Initial status on create is NEW.
+    TimelineEvent:
+      type: string
+      enum:
+        [
+          complaint.created,
+          complaint.updated,
+          complaint.assigned,
+          complaint.reassigned,
+          complaint.escalated,
+          complaint.resolved,
+          complaint.closed,
+        ]
+      description: Allowed complaint timeline event names.
+    Error:
+      type: object
+      required: [code, message, details]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+    PageMeta:
+      type: object
+      required: [page, pageSize, totalItems]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer }
+    ComplaintCreateRequest:
+      type: object
+      required: [customerId, subject, description, priority]
+      properties:
+        customerId: { type: string, format: uuid }
+        branchId: { type: string, format: uuid, nullable: true }
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, minLength: 1, maxLength: 5000 }
+        priority: { $ref: "#/components/schemas/Priority" }
+        channel: { type: string, maxLength: 32, nullable: true }
+        category: { type: string, maxLength: 64, nullable: true }
+        reportedAt: { type: string, format: date-time, nullable: true }
+    ComplaintUpdateRequest:
+      type: object
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, minLength: 1, maxLength: 5000 }
+        priority: { $ref: "#/components/schemas/Priority" }
+        channel: { type: string, maxLength: 32, nullable: true }
+        category: { type: string, maxLength: 64, nullable: true }
+        branchId: { type: string, format: uuid, nullable: true }
+      description: At least one field must be provided. Status is not updatable here.
+    Complaint:
+      type: object
+      required:
+        - id
+        - complaintNumber
+        - customerId
+        - subject
+        - description
+        - status
+        - priority
+        - reportedAt
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        complaintNumber: { type: string }
+        customerId: { type: string, format: uuid }
+        branchId: { type: string, format: uuid, nullable: true }
+        subject: { type: string }
+        description: { type: string }
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+        priority: { $ref: "#/components/schemas/Priority" }
+        channel: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        reportedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string, format: uuid, nullable: true }
+        updatedAt: { type: string, format: date-time }
+    ComplaintDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Complaint" }
+    ComplaintListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Complaint" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
+    AssignComplaintRequest:
+      type: object
+      required: [assigneeId]
+      properties:
+        assigneeId: { type: string, format: uuid }
+        reason:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Mandatory when reassigning an already-assigned complaint
+        notes: { type: string, maxLength: 2000, nullable: true }
+    Assignment:
+      type: object
+      required:
+        - id
+        - complaintId
+        - assigneeId
+        - assignedAt
+        - isCurrent
+      properties:
+        id: { type: string, format: uuid }
+        complaintId: { type: string, format: uuid }
+        assigneeId: { type: string, format: uuid }
+        assignedBy: { type: string, format: uuid, nullable: true }
+        assignedAt: { type: string, format: date-time }
+        unassignedAt: { type: string, format: date-time, nullable: true }
+        isCurrent: { type: boolean }
+        notes: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+    AssignComplaintResult:
+      type: object
+      required: [assignment, complaintId, status, reassigned]
+      properties:
+        assignment: { $ref: "#/components/schemas/Assignment" }
+        complaintId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+        reassigned: { type: boolean }
+    AssignComplaintDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AssignComplaintResult" }
+    AssignmentListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Assignment" }
+    EscalateComplaintRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        escalatedToUserId: { type: string, format: uuid, nullable: true }
+        escalatedToRoleId: { type: string, format: uuid, nullable: true }
+        escalatedFromUserId: { type: string, format: uuid, nullable: true }
+      description: At least one of escalatedToUserId or escalatedToRoleId is required.
+    Escalation:
+      type: object
+      required:
+        - id
+        - complaintId
+        - reason
+        - level
+        - status
+        - escalatedAt
+      properties:
+        id: { type: string, format: uuid }
+        complaintId: { type: string, format: uuid }
+        escalatedFromUserId: { type: string, format: uuid, nullable: true }
+        escalatedToUserId: { type: string, format: uuid, nullable: true }
+        escalatedToRoleId: { type: string, format: uuid, nullable: true }
+        reason: { type: string }
+        level: { type: integer }
+        status: { type: string }
+        escalatedAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+    EscalateComplaintResult:
+      type: object
+      required: [escalation, complaintId, status]
+      properties:
+        escalation: { $ref: "#/components/schemas/Escalation" }
+        complaintId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+    EscalateComplaintDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/EscalateComplaintResult" }
+    EscalationListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Escalation" }
+    TimelineEntry:
+      type: object
+      required:
+        - id
+        - complaintId
+        - eventType
+        - eventAt
+        - summary
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        complaintId: { type: string, format: uuid }
+        actorUserId: { type: string, format: uuid, nullable: true }
+        eventType: { $ref: "#/components/schemas/TimelineEvent" }
+        eventAt: { type: string, format: date-time }
+        fromStatus:
+          allOf:
+            - $ref: "#/components/schemas/ComplaintStatus"
+          nullable: true
+        toStatus:
+          allOf:
+            - $ref: "#/components/schemas/ComplaintStatus"
+          nullable: true
+        summary: { type: string }
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+    TimelineListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/TimelineEntry" }
+    StatusCount:
+      type: object
+      required: [status, count]
+      properties:
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+        count: { type: integer, minimum: 0 }
+    BranchCount:
+      type: object
+      required: [total]
+      properties:
+        branchId: { type: string, format: uuid, nullable: true }
+        branchCode: { type: string, nullable: true }
+        branchName: { type: string, nullable: true }
+        total: { type: integer, minimum: 0 }
+    ReportSummary:
+      type: object
+      required: [total, byStatus]
+      properties:
+        total: { type: integer, minimum: 0 }
+        byStatus:
+          type: array
+          items: { $ref: "#/components/schemas/StatusCount" }
+    ReportSummaryDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ReportSummary" }
+    StatusCountListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/StatusCount" }
+    BranchCountListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/BranchCount" }
+    UserCreateRequest:
+      type: object
+      required: [username, email, fullName, password, roleId]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64 }
+        email: { type: string, minLength: 3, maxLength: 320 }
+        fullName: { type: string, minLength: 1, maxLength: 200 }
+        password: { type: string, minLength: 8, maxLength: 72, format: password }
+        roleId: { type: string, format: uuid }
+        branchId: { type: string, format: uuid, nullable: true }
+        isActive: { type: boolean, default: true }
+    UserUpdateRequest:
+      type: object
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64 }
+        email: { type: string, minLength: 3, maxLength: 320 }
+        fullName: { type: string, minLength: 1, maxLength: 200 }
+        password: { type: string, minLength: 8, maxLength: 72, format: password }
+        roleId: { type: string, format: uuid }
+        branchId: { type: string, format: uuid, nullable: true }
+      description: At least one field must be provided.
+    UserStatusUpdateRequest:
+      type: object
+      required: [isActive]
+      properties:
+        isActive: { type: boolean }
+    User:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - fullName
+        - roleId
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        email: { type: string }
+        fullName: { type: string }
+        roleId: { type: string, format: uuid }
+        branchId: { type: string, format: uuid, nullable: true }
+        isActive: { type: boolean }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: Password hash is never included in responses.
+    UserDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/User" }
+    UserListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/User" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 320
+          description: Username or email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 72
+          format: password
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn:
+          type: integer
+          minimum: 1
+          description: Access token lifetime in seconds
+    TokenDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/TokenResponse" }
+    AuthMe:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - fullName
+        - roleId
+        - isActive
+        - createdAt
+        - updatedAt
+        - roles
+        - permissions
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        email: { type: string }
+        fullName: { type: string }
+        roleId: { type: string, format: uuid }
+        branchId: { type: string, format: uuid, nullable: true }
+        isActive: { type: boolean }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        roles:
+          type: array
+          items: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+      description: Password hash is never included.
+    AuthMeDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AuthMe" }

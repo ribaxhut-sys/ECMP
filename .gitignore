@@ -1,13 +1,49 @@
-site/
+# Dependencies / build
+node_modules/
+.next/
+out/
+dist/
+build/
+*.egg-info/
 .venv/
+venv/
+
+# Python
 __pycache__/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 *.pyc
+.coverage
+htmlcov/
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
 .DS_Store
 .idea/
 .vscode/
-.env
+*.swp
+
+# Databases / local artifacts
 *.db
-.ruff_cache/
-.coverage
+*.sqlite3
+
+# Docs site
+site/
+
+# Frontend coverage / telemetry noise
+implementation/frontend/coverage/
+implementation/frontend/dist/
+
 # keep metrics history tracked; ignore local venv only
+
+# Local go-live artifacts
+backups/
+.env
+.env.*
+!.env.example
+

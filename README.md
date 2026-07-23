@@ -16,6 +16,35 @@ Living knowledge hub and AI context platform for **Enterprise Complaint Manageme
 | Last Review | 2026-07-21 |
 | Next Review | 2027-01-21 |
 
+## Local stack foundation (v1.0.0)
+
+Application foundation Production release: authentication, complaints, assignments,
+escalations, timelines, reporting, user management, and dashboard.
+
+```text
+backend/     FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL
+frontend/    Next.js (App Router) + TypeScript + Tailwind CSS
+database/    Postgres init scripts
+docs/        MkDocs portal + stack notes + release artifacts
+```
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+| Service  | URL                          |
+|----------|------------------------------|
+| Frontend | http://localhost:3000        |
+| Login    | http://localhost:3000/login  |
+| Backend  | http://localhost:8000        |
+| Health   | http://localhost:8000/health |
+| Postgres | localhost:5433               |
+
+Release notes: [docs/releases/v1.0.0.md](./docs/releases/v1.0.0.md)  
+Deployment checklist: [docs/deployment-checklist.md](./docs/deployment-checklist.md)  
+Details: [docs/local-stack.md](./docs/local-stack.md)
+
 ## Two Layers (in one monorepo for now)
 
 ```text
@@ -26,7 +55,8 @@ EKR (source of truth)
 ├── docs/        ← MkDocs portal
 └── tools/       ← self-governance automation
 
-implementation/  ← ECMP code (backend/frontend/infra/portal/tests/deployment)
+backend/ frontend/ database/  ← ECMP foundation stack (this README § Local stack)
+implementation/               ← sprint product code (cases/portal) — parallel track
 ```
 
 > Layer AI kanonik = `ai-platform/` (lihat `.cursor/rules/ecmp-ai-platform.mdc`); `ai/` dipertahankan sebagai compatibility pack — sprint brief tetap di `ai/sprint/`.
@@ -35,7 +65,7 @@ implementation/  ← ECMP code (backend/frontend/infra/portal/tests/deployment)
 **Sprint-01 = GO untuk slice create/get + G0 platform floor (per DEC-002)** — Build-1 di luar slice menunggu G0 exit sign-off.  
 **Engineering Platform Wave A/B = live** (ontology, RAG, orchestrator, developer portal, feedback loop)
 
-### Start coding (Sprint-01)
+### Start coding (Sprint-01 product track)
 Jalur kanonik (Postgres + Alembic — lihat `implementation/backend/README.md`):
 
 ```bash
