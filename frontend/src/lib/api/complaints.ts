@@ -3,6 +3,8 @@ import type {
   AssignComplaintRequest,
   AssignComplaintResult,
   Assignment,
+  CloseComplaintRequest,
+  CloseComplaintResult,
   Complaint,
   ComplaintCreateRequest,
   ComplaintStatus,
@@ -137,5 +139,19 @@ export function fetchFinalResolution(
 ): Promise<DataResponse<FinalResolutionDetail>> {
   return apiRequest<DataResponse<FinalResolutionDetail>>(
     `/api/v1/complaints/${encodeURIComponent(id)}/final-resolution`,
+  );
+}
+
+/** API-312 — POST /api/v1/complaints/{id}/close */
+export function closeComplaint(
+  id: string,
+  body: CloseComplaintRequest,
+): Promise<DataResponse<CloseComplaintResult>> {
+  return apiRequest<DataResponse<CloseComplaintResult>>(
+    `/api/v1/complaints/${encodeURIComponent(id)}/close`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
   );
 }

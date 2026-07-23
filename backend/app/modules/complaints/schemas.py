@@ -94,6 +94,35 @@ class ComplaintResponse(BaseModel):
     category: str | None = None
     reported_at: datetime = Field(alias="reportedAt")
     closed_at: datetime | None = Field(default=None, alias="closedAt")
+    closed_by: uuid.UUID | None = Field(default=None, alias="closedBy")
+    closure_notes: str | None = Field(default=None, alias="closureNotes")
     created_at: datetime = Field(alias="createdAt")
     created_by: uuid.UUID | None = Field(default=None, alias="createdBy")
     updated_at: datetime = Field(alias="updatedAt")
+
+
+class CloseComplaintRequest(BaseModel):
+    """API-312 request body — explicit Complaint Closure after Final Resolution."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    notes: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("notes")
+    @classmethod
+    def strip_notes(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("must not be blank")
+        return cleaned
+
+
+class CloseComplaintResult(BaseModel):
+    """API-312 close response."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    complaint_id: uuid.UUID = Field(alias="complaintId")
+    status: ComplaintStatus
+    closed_at: datetime = Field(alias="closedAt")
+    closed_by: uuid.UUID = Field(alias="closedBy")

@@ -178,4 +178,25 @@ def require_final_resolution(
     return principal
 
 
+_COMPLAINT_CLOSE_ROLES = (
+    "SUPERVISOR",
+    "BRANCH_SUPERVISOR",
+    "ADMIN",
+    "ADMINISTRATOR",
+)
+
+
+def require_complaint_close(
+    principal: Annotated[
+        Principal, Depends(require_permissions("complaints:close"))
+    ],
+) -> Principal:
+    """API-312 gate: complaints:close + Branch Supervisor or Head Office Admin."""
+    if not principal.has_any_role(*_COMPLAINT_CLOSE_ROLES):
+        raise ForbiddenError(
+            "Only Branch Supervisor or Head Office Admin can close complaints"
+        )
+    return principal
+
+
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]

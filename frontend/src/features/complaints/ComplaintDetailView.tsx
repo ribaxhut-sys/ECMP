@@ -27,6 +27,7 @@ import {
 } from "@/shared/ui";
 import { AssignmentCard } from "./AssignmentCard";
 import { AppointmentCard } from "./AppointmentCard";
+import { CloseComplaintCard } from "./CloseComplaintCard";
 import { EscalationCard } from "./EscalationCard";
 import { FinalResolutionCard } from "./FinalResolutionCard";
 import { ResolutionCard } from "./ResolutionCard";
@@ -356,6 +357,14 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         complaintId={complaint.id}
         refreshKey={timelineKey}
         onSubmitted={() => {
+          setTimelineKey((key) => key + 1);
+          void load();
+        }}
+      />
+
+      <CloseComplaintCard
+        complaint={complaint}
+        onClosed={() => {
           setTimelineKey((key) => key + 1);
           void load();
         }}

@@ -56,6 +56,7 @@
 | API-226 | `GET /api/v1/complaints/{id}/resolution` | Get current complaint resolution |
 | API-310 | `POST /api/v1/complaints/{id}/final-resolution` | Submit final resolution |
 | API-311 | `GET /api/v1/complaints/{id}/final-resolution` | Get final resolution |
+| API-312 | `POST /api/v1/complaints/{id}/close` | Close complaint |
 | API-205 | `POST /api/v1/complaints/{id}/assign` | Assign or reassign complaint |
 | API-206 | `GET /api/v1/complaints/{id}/assignments` | List assignment history |
 | API-207 | `POST /api/v1/complaints/{id}/escalate` | Escalate complaint |

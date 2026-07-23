@@ -2,6 +2,7 @@ export { CreateComplaintView } from "./CreateComplaintView";
 export { ComplaintDetailView } from "./ComplaintDetailView";
 export { AssignmentCard } from "./AssignmentCard";
 export { AppointmentCard } from "./AppointmentCard";
+export { CloseComplaintCard } from "./CloseComplaintCard";
 export { EscalationCard } from "./EscalationCard";
 export { FinalResolutionCard } from "./FinalResolutionCard";
 export { ResolutionCard } from "./ResolutionCard";

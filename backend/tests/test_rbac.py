@@ -54,3 +54,13 @@ def test_ho_engineer_can_submit_final_resolution() -> None:
     assert "appointments:complete" in permissions_for_role("ADMIN")
     assert "appointments:complete" not in permissions_for_role("BRANCH_OFFICER")
     assert "appointments:complete" not in permissions_for_role("HO_SCHEDULER")
+
+
+def test_branch_supervisor_can_close_complaint() -> None:
+    """API-312 write gate: complaints:close (Branch Supervisor / Admin)."""
+    assert "complaints:close" in permissions_for_role("BRANCH_SUPERVISOR")
+    assert "complaints:close" in permissions_for_role("SUPERVISOR")
+    assert "complaints:close" in permissions_for_role("ADMIN")
+    assert "complaints:close" not in permissions_for_role("BRANCH_OFFICER")
+    assert "complaints:close" not in permissions_for_role("HO_ENGINEER")
+    assert "complaints:close" not in permissions_for_role("HO_SCHEDULER")

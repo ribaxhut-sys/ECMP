@@ -20,6 +20,7 @@ _SUPERVISOR_PERMISSIONS: frozenset[str] = frozenset(
         *_AGENT_PERMISSIONS,
         "complaints:assign",
         "complaints:escalate",
+        "complaints:close",
         "users:read",
         "users:create",
         "users:update",

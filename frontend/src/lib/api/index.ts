@@ -8,6 +8,7 @@ export {
 export {
   assignComplaint,
   changeComplaintStatus,
+  closeComplaint,
   createComplaint,
   fetchComplaint,
   fetchComplaintAssignments,

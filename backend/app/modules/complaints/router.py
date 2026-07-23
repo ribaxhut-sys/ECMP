@@ -8,12 +8,14 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions
+from app.core.auth import Principal, require_complaint_close, require_permissions
 from app.core.enums import ComplaintStatus
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.modules.complaints.repository import ComplaintRepository
 from app.modules.complaints.schemas import (
+    CloseComplaintRequest,
+    CloseComplaintResult,
     ComplaintCreateRequest,
     ComplaintResponse,
     ComplaintStatusChangeRequest,
@@ -134,3 +136,27 @@ def change_complaint_status(
         actor_user_id=principal.user_id,
     )
     return DataResponse(data=updated)
+
+
+@router.post(
+    "/{id}/close",
+    response_model=DataResponse[CloseComplaintResult],
+    status_code=status.HTTP_200_OK,
+    summary="Close complaint",
+)
+def close_complaint(
+    id: uuid.UUID,
+    payload: CloseComplaintRequest,
+    service: Annotated[ComplaintService, Depends(get_complaint_service)],
+    principal: Annotated[Principal, Depends(require_complaint_close)],
+) -> DataResponse[CloseComplaintResult]:
+    """Explicit Complaint Closure after Final Resolution (API-312 / TASK-019).
+
+    Does not close the escalation. Final Resolution must already exist.
+    """
+    closed = service.close(
+        id,
+        payload,
+        actor_user_id=principal.user_id,
+    )
+    return DataResponse(data=closed)

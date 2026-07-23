@@ -12,10 +12,25 @@ from app.core.status_transitions import can_transition
 from app.models import Complaint
 from app.modules.complaints.repository import ComplaintRepository
 from app.modules.complaints.schemas import (
+    CloseComplaintRequest,
+    CloseComplaintResult,
     ComplaintCreateRequest,
     ComplaintResponse,
     ComplaintStatusChangeRequest,
     ComplaintUpdateRequest,
+)
+
+CLOSABLE_STATUS = ComplaintStatus.IN_PROGRESS
+TARGET_CLOSED_STATUS = ComplaintStatus.CLOSED
+NOT_IN_PROGRESS_FOR_CLOSE_MESSAGE = (
+    "Complaint must be IN_PROGRESS before closing."
+)
+ALREADY_CLOSED_MESSAGE = "Complaint is already CLOSED."
+FINAL_RESOLUTION_REQUIRED_MESSAGE = (
+    "Final Resolution must exist before closing the complaint."
+)
+ESCALATION_REQUIRED_MESSAGE = (
+    "Escalation must exist before closing the complaint."
 )
 
 
@@ -41,6 +56,8 @@ def _snapshot(complaint: Complaint) -> dict[str, Any]:
         "category": complaint.category,
         "reportedAt": complaint.reported_at.isoformat(),
         "closedAt": complaint.closed_at.isoformat() if complaint.closed_at else None,
+        "closedBy": str(complaint.closed_by) if complaint.closed_by else None,
+        "closureNotes": complaint.closure_notes,
         "createdAt": complaint.created_at.isoformat() if complaint.created_at else None,
         "createdBy": str(complaint.created_by) if complaint.created_by else None,
         "updatedAt": complaint.updated_at.isoformat() if complaint.updated_at else None,
@@ -253,10 +270,13 @@ class ComplaintService:
 
         if target == ComplaintStatus.CLOSED:
             complaint.closed_at = now
+            complaint.closed_by = actor_user_id
         elif target != ComplaintStatus.CLOSED:
             # Leaving RESOLVED/CLOSED (reopen) clears closure timestamp.
             if current in {ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED}:
                 complaint.closed_at = None
+                complaint.closed_by = None
+                complaint.closure_notes = None
 
         if target == ComplaintStatus.RESOLVED:
             event_type: TimelineEvent = TimelineEvent.RESOLVED
@@ -292,3 +312,107 @@ class ComplaintService:
         self._repo.commit()
         self._repo.refresh(complaint)
         return _to_response(complaint)
+
+    def close(
+        self,
+        complaint_id: uuid.UUID,
+        payload: CloseComplaintRequest,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> CloseComplaintResult:
+        """API-312 — Explicit Complaint Closure after Final Resolution (TASK-019)."""
+        complaint = self._repo.get_by_id(complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        if complaint.status == ComplaintStatus.CLOSED or complaint.closed_at is not None:
+            raise ValidationAppError(
+                ALREADY_CLOSED_MESSAGE,
+                details={"status": complaint.status},
+            )
+
+        if complaint.status != CLOSABLE_STATUS:
+            raise ValidationAppError(
+                NOT_IN_PROGRESS_FOR_CLOSE_MESSAGE,
+                details={"status": complaint.status},
+            )
+
+        final_resolution = self._repo.get_final_resolution(complaint_id)
+        if final_resolution is None:
+            raise ValidationAppError(
+                FINAL_RESOLUTION_REQUIRED_MESSAGE,
+                details={"complaintId": str(complaint_id)},
+            )
+
+        escalation = self._repo.get_latest_escalation(complaint_id)
+        if escalation is None:
+            raise ValidationAppError(
+                ESCALATION_REQUIRED_MESSAGE,
+                details={"complaintId": str(complaint_id)},
+            )
+
+        closer = self._repo.get_user(actor_user_id)
+        if closer is None:
+            raise ValidationAppError(
+                "Closer not found or inactive",
+                details={"closedBy": str(actor_user_id)},
+            )
+
+        from_status = complaint.status
+        escalation_status_before = escalation.status
+        now = datetime.now(UTC)
+
+        complaint.status = TARGET_CLOSED_STATUS
+        complaint.closed_at = now
+        complaint.closed_by = actor_user_id
+        complaint.closure_notes = payload.notes
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+
+        # Escalation remains as-is — do NOT close escalation.
+        escalation.updated_at = now
+        escalation.updated_by = actor_user_id
+
+        self._repo.add_audit_log(
+            actor_user_id=actor_user_id,
+            action="complaint.close",
+            entity_id=complaint.id,
+            new_value={
+                "complaintId": str(complaint.id),
+                "status": TARGET_CLOSED_STATUS.value,
+                "closedAt": now.isoformat(),
+                "closedBy": str(actor_user_id),
+                "closureNotes": payload.notes,
+                "escalationId": str(escalation.id),
+                "escalationStatus": escalation.status,
+            },
+            occurred_at=now,
+        )
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.CLOSED,
+            event_at=now,
+            from_status=from_status,
+            to_status=TARGET_CLOSED_STATUS.value,
+            summary="Complaint closed",
+            metadata={
+                "changeType": "COMPLAINT_CLOSED",
+                "complaintId": str(complaint.id),
+                "escalationId": str(escalation.id),
+                "closedBy": str(actor_user_id),
+                "closedAt": now.isoformat(),
+            },
+        )
+
+        assert complaint.status == ComplaintStatus.CLOSED
+        assert escalation.status == escalation_status_before
+
+        result = CloseComplaintResult(
+            complaintId=complaint.id,
+            status=TARGET_CLOSED_STATUS,
+            closedAt=now,
+            closedBy=actor_user_id,
+        )
+        self._repo.commit()
+        return result

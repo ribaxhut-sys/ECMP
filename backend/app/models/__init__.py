@@ -165,8 +165,15 @@ class Complaint(TimestampAuditSoftDeleteMixin, Base):
     closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    closure_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer: Mapped[Customer] = relationship(back_populates="complaints")
+    closer: Mapped[User | None] = relationship(foreign_keys=[closed_by])
     branch: Mapped[Branch | None] = relationship(back_populates="complaints")
     assignments: Mapped[list[ComplaintAssignment]] = relationship(
         back_populates="complaint"

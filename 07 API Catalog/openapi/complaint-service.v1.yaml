@@ -486,6 +486,52 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/close:
+    post:
+      summary: Close complaint
+      operationId: closeComplaint
+      x-ear-id: API-312
+      tags: [Complaints]
+      security:
+        - bearerAuth: []
+      description: |
+        Explicit Complaint Closure after Final Resolution (TASK-019 / DEC-011).
+        Extends the existing complaints module (does not create a new module).
+        Requires complaint `IN_PROGRESS`, an existing Final Resolution, and an
+        existing Escalation. Rejects when already `CLOSED`. Sets complaint
+        status to `CLOSED` and persists `closedAt` / `closedBy` /
+        `closureNotes`. Does **not** close the Escalation. Writes timeline
+        `complaint.closed` with summary "Complaint closed". Requires role
+        Branch Supervisor or Head Office Admin and permission
+        `complaints:close`. Out of scope: escalation closure, reopen, SLA,
+        notification, approval workflow, auto-close.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseComplaintRequest"
+            example:
+              notes: Complaint verified and officially closed.
+      responses:
+        "200":
+          description: Complaint closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloseComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/assign:
     post:
       summary: Assign or reassign complaint
@@ -1604,6 +1650,8 @@ components:
         category: { type: string, nullable: true }
         reportedAt: { type: string, format: date-time }
         closedAt: { type: string, format: date-time, nullable: true }
+        closedBy: { type: string, format: uuid, nullable: true }
+        closureNotes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
         createdBy: { type: string, format: uuid, nullable: true }
         updatedAt: { type: string, format: date-time }
@@ -2061,6 +2109,24 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/FinalResolutionDetail" }
+    CloseComplaintRequest:
+      type: object
+      required: [notes]
+      properties:
+        notes: { type: string, minLength: 1, maxLength: 5000 }
+    CloseComplaintResult:
+      type: object
+      required: [complaintId, status, closedAt, closedBy]
+      properties:
+        complaintId: { type: string, format: uuid }
+        status: { type: string, enum: [CLOSED] }
+        closedAt: { type: string, format: date-time }
+        closedBy: { type: string, format: uuid }
+    CloseComplaintDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/CloseComplaintResult" }
     TimelineEntry:
       type: object
       required:

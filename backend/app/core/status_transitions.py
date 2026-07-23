@@ -2,6 +2,7 @@
 
 NEW → ASSIGNED is performed by the Assign endpoint (API-205), not this matrix.
 IN_PROGRESS → RESOLVED is performed by the Resolution endpoint (API-225).
+IN_PROGRESS → CLOSED after Final Resolution is performed by Close (API-312).
 Escalation to ESCALATED remains owned by the Escalation endpoint (out of TASK-009).
 """
 

@@ -9,7 +9,16 @@ from typing import Any
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app.models import AuditLog, Branch, Complaint, ComplaintTimeline, Customer
+from app.models import (
+    AuditLog,
+    Branch,
+    Complaint,
+    ComplaintEscalation,
+    ComplaintResolution,
+    ComplaintTimeline,
+    Customer,
+    User,
+)
 
 
 class ComplaintRepository:
@@ -36,6 +45,46 @@ class ComplaintRepository:
             Branch.deleted_at.is_(None),
         )
         return self._session.scalar(stmt) is not None
+
+    def get_user(self, user_id: uuid.UUID) -> User | None:
+        stmt = select(User).where(
+            User.id == user_id,
+            User.deleted_at.is_(None),
+            User.is_active.is_(True),
+        )
+        return self._session.scalar(stmt)
+
+    def get_final_resolution(
+        self, complaint_id: uuid.UUID
+    ) -> ComplaintResolution | None:
+        """Return the resolution row that has Final Resolution submitted."""
+        stmt = (
+            select(ComplaintResolution)
+            .where(
+                ComplaintResolution.complaint_id == complaint_id,
+                ComplaintResolution.final_resolution_at.is_not(None),
+                ComplaintResolution.deleted_at.is_(None),
+            )
+            .order_by(ComplaintResolution.final_resolution_at.desc())
+        )
+        return self._session.scalar(stmt)
+
+    def get_latest_escalation(
+        self, complaint_id: uuid.UUID
+    ) -> ComplaintEscalation | None:
+        """Latest non-deleted escalation for the complaint (must exist to close)."""
+        stmt = (
+            select(ComplaintEscalation)
+            .where(
+                ComplaintEscalation.complaint_id == complaint_id,
+                ComplaintEscalation.deleted_at.is_(None),
+            )
+            .order_by(
+                ComplaintEscalation.level.desc(),
+                ComplaintEscalation.escalated_at.desc(),
+            )
+        )
+        return self._session.scalar(stmt)
 
     def add(self, complaint: Complaint) -> Complaint:
         self._session.add(complaint)

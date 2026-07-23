@@ -77,6 +77,8 @@ export interface Complaint {
   category: string | null;
   reportedAt: string;
   closedAt: string | null;
+  closedBy: string | null;
+  closureNotes: string | null;
   createdAt: string;
   createdBy: string | null;
   updatedAt: string;
@@ -176,6 +178,19 @@ export interface FinalResolutionDetail {
   submittedAt: string;
   submittedBy: string;
   submittedByName: string | null;
+}
+
+/** API-312 close request. */
+export interface CloseComplaintRequest {
+  notes: string;
+}
+
+/** API-312 close response. */
+export interface CloseComplaintResult {
+  complaintId: string;
+  status: "CLOSED";
+  closedAt: string;
+  closedBy: string;
 }
 
 /** API-301 escalation request body. */

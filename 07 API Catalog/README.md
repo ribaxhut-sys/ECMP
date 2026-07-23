@@ -63,6 +63,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-309 | POST /api/v1/appointments/{id}/no-show | Mark BOOKED appointment as customer no-show (once only) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
 | API-310 | POST /api/v1/complaints/{id}/final-resolution | Submit Final Resolution after COMPLETED appointment (once only; complaint stays IN_PROGRESS) | bearerAuth, role HO Engineer/Admin + `appointments:complete` | 🟢 Implemented |
 | API-311 | GET /api/v1/complaints/{id}/final-resolution | Get submitted Final Resolution (404 if none) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-312 | POST /api/v1/complaints/{id}/close | Explicit Complaint Closure after Final Resolution (once; escalation stays open) | bearerAuth, role Branch Supervisor/Admin + `complaints:close` | 🟢 Implemented |
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at DESC newest first; empty list OK; includes actorName) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
@@ -79,6 +80,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
+> **2026-07-23 (TASK-019 Complaint Closure):** complaint-service —
+> API-312 `POST .../close` after Final Resolution. Timeline
+> `complaint.closed`. Migration `0012_complaint_closure`. Complaint →
+> `CLOSED`; escalation remains unchanged. Escalation closure / reopen /
+> notification / SLA / auto-close out of scope.
+>
 > **2026-07-23 (TASK-018 Final Resolution / DEC-011):** complaint-service —
 > API-310 submit Final Resolution after `COMPLETED` appointment; API-311 GET.
 > Timeline `complaint.final_resolution_submitted`. Migration

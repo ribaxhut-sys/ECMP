@@ -32,6 +32,8 @@ def _complaint(**overrides: object) -> SimpleNamespace:
         "category": None,
         "reported_at": now,
         "closed_at": None,
+        "closed_by": None,
+        "closure_notes": None,
         "created_at": now,
         "created_by": actor_id,
         "updated_at": now,
