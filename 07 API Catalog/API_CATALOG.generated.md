@@ -17,7 +17,7 @@
 |---|---|---|---|
 | `case-actions.v1.yaml` | ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED) | 1.0.0 | 0 |
 | `case-service.v1.yaml` | ECMP Case Service API | 1.7.0 | 10 |
-| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 35 |
+| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 37 |
 
 ## `case-actions.v1.yaml`
 
@@ -54,6 +54,8 @@
 | API-224 | `PATCH /api/v1/complaints/{id}/status` | Change complaint status |
 | API-225 | `POST /api/v1/complaints/{id}/resolution` | Resolve complaint |
 | API-226 | `GET /api/v1/complaints/{id}/resolution` | Get current complaint resolution |
+| API-310 | `POST /api/v1/complaints/{id}/final-resolution` | Submit final resolution |
+| API-311 | `GET /api/v1/complaints/{id}/final-resolution` | Get final resolution |
 | API-205 | `POST /api/v1/complaints/{id}/assign` | Assign or reassign complaint |
 | API-206 | `GET /api/v1/complaints/{id}/assignments` | List assignment history |
 | API-207 | `POST /api/v1/complaints/{id}/escalate` | Escalate complaint |

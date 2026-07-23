@@ -165,4 +165,17 @@ def require_appointment_complete(
     return principal
 
 
+def require_final_resolution(
+    principal: Annotated[
+        Principal, Depends(require_permissions("appointments:complete"))
+    ],
+) -> Principal:
+    """API-310 gate: appointments:complete + HO Engineer or Admin."""
+    if not principal.has_any_role(*_APPOINTMENT_COMPLETE_ROLES):
+        raise ForbiddenError(
+            "Only Head Office Engineer or Admin can submit final resolution"
+        )
+    return principal
+
+
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]

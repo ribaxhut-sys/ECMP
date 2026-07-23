@@ -28,6 +28,7 @@ import {
 import { AssignmentCard } from "./AssignmentCard";
 import { AppointmentCard } from "./AppointmentCard";
 import { EscalationCard } from "./EscalationCard";
+import { FinalResolutionCard } from "./FinalResolutionCard";
 import { ResolutionCard } from "./ResolutionCard";
 import { StatusActionsCard } from "./StatusActionsCard";
 import { TimelineCard } from "./TimelineCard";
@@ -346,6 +347,15 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         complaintId={complaint.id}
         refreshKey={timelineKey}
         onBooked={() => {
+          setTimelineKey((key) => key + 1);
+          void load();
+        }}
+      />
+
+      <FinalResolutionCard
+        complaintId={complaint.id}
+        refreshKey={timelineKey}
+        onSubmitted={() => {
           setTimelineKey((key) => key + 1);
           void load();
         }}

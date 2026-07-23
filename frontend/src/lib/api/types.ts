@@ -151,6 +151,33 @@ export interface ResolveComplaintResult {
   status: ComplaintStatus;
 }
 
+/** API-310 final resolution request. */
+export interface FinalResolutionRequest {
+  summary: string;
+  notes: string;
+  followUpRequired?: boolean;
+}
+
+/** API-310 submit response. */
+export interface FinalResolutionResult {
+  complaintId: string;
+  status: "FINAL_RESOLUTION_SUBMITTED";
+  submittedAt: string;
+  submittedBy: string;
+}
+
+/** API-311 final resolution detail. */
+export interface FinalResolutionDetail {
+  complaintId: string;
+  status: "FINAL_RESOLUTION_SUBMITTED";
+  summary: string;
+  notes: string;
+  followUpRequired: boolean;
+  submittedAt: string;
+  submittedBy: string;
+  submittedByName: string | null;
+}
+
 /** API-301 escalation request body. */
 export interface EscalationRequestCreate {
   reasonCode: EscalationReasonCode;
@@ -323,6 +350,7 @@ export interface TimelineEntry {
     | "complaint.appointment_checked_in"
     | "complaint.appointment_completed"
     | "complaint.appointment_no_show"
+    | "complaint.final_resolution_submitted"
     | "complaint.resolved"
     | "complaint.closed";
   eventAt: string;

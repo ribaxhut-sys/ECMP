@@ -13,8 +13,10 @@ export {
   fetchComplaintAssignments,
   fetchComplaintResolution,
   fetchComplaintTimeline,
+  fetchFinalResolution,
   fetchLatestComplaints,
   resolveComplaint,
+  submitFinalResolution,
 } from "./complaints";
 export {
   approveEscalation,

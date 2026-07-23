@@ -407,6 +407,85 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/final-resolution:
+    post:
+      summary: Submit final resolution
+      operationId: submitFinalResolution
+      x-ear-id: API-310
+      tags: [Resolutions]
+      security:
+        - bearerAuth: []
+      description: |
+        Final Resolution after appointment `COMPLETED` (TASK-018 / DEC-011).
+        Extends the existing resolutions module (does not create a new module).
+        Persists `finalResolutionSummary` / `finalResolutionNotes` /
+        `followUpRequired` / `finalResolutionAt` / `finalResolutionBy` on
+        `complaint_resolutions`. Submission can only happen once.
+        Requires complaint `IN_PROGRESS` and a `COMPLETED` appointment;
+        rejects when appointment is `NO_SHOW` or not completed.
+        Complaint status remains `IN_PROGRESS`; escalation remains `APPROVED`
+        — does not close complaint or escalation. Writes timeline
+        `complaint.final_resolution_submitted`. Requires role Head Office
+        Engineer or Admin and permission `appointments:complete`.
+        Out of scope: complaint close, escalation close, approval workflow,
+        SLA, notification, survey, auto-close.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinalResolutionRequest"
+            example:
+              summary: Root cause identified and corrective action completed.
+              notes: Replaced defective component and verified operation.
+              followUpRequired: false
+      responses:
+        "200":
+          description: Final resolution submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalResolutionDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      summary: Get final resolution
+      operationId: getFinalResolution
+      x-ear-id: API-311
+      tags: [Resolutions]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the submitted Final Resolution for a complaint (TASK-018).
+        404 when Final Resolution has not been submitted. Requires
+        permission `complaints:read`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: Submitted final resolution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalResolutionDetailDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/assign:
     post:
       summary: Assign or reassign complaint
@@ -962,7 +1041,8 @@ paths:
         `complaint.escalation_rejected`,         `complaint.appointment_booked`,
         `complaint.appointment_checked_in`,
         `complaint.appointment_completed`,
-        `complaint.appointment_no_show`, `complaint.resolved`,
+        `complaint.appointment_no_show`,
+        `complaint.final_resolution_submitted`, `complaint.resolved`,
         `complaint.closed`.
         `actorName` is included for UI display (no actor UUID required in UI).
         Requires permission `complaints:read`.
@@ -1444,6 +1524,7 @@ components:
           complaint.appointment_checked_in,
           complaint.appointment_completed,
           complaint.appointment_no_show,
+          complaint.final_resolution_submitted,
           complaint.resolved,
           complaint.closed,
         ]
@@ -1936,6 +2017,50 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/Resolution" }
+    FinalResolutionRequest:
+      type: object
+      required: [summary, notes]
+      properties:
+        summary: { type: string, minLength: 1, maxLength: 5000 }
+        notes: { type: string, minLength: 1, maxLength: 5000 }
+        followUpRequired: { type: boolean, default: false }
+    FinalResolutionResult:
+      type: object
+      required: [complaintId, status, submittedAt, submittedBy]
+      properties:
+        complaintId: { type: string, format: uuid }
+        status: { type: string, enum: [FINAL_RESOLUTION_SUBMITTED] }
+        submittedAt: { type: string, format: date-time }
+        submittedBy: { type: string, format: uuid }
+    FinalResolutionDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/FinalResolutionResult" }
+    FinalResolutionDetail:
+      type: object
+      required:
+        - complaintId
+        - status
+        - summary
+        - notes
+        - followUpRequired
+        - submittedAt
+        - submittedBy
+      properties:
+        complaintId: { type: string, format: uuid }
+        status: { type: string, enum: [FINAL_RESOLUTION_SUBMITTED] }
+        summary: { type: string }
+        notes: { type: string }
+        followUpRequired: { type: boolean }
+        submittedAt: { type: string, format: date-time }
+        submittedBy: { type: string, format: uuid }
+        submittedByName: { type: string, nullable: true }
+    FinalResolutionDetailDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/FinalResolutionDetail" }
     TimelineEntry:
       type: object
       required:

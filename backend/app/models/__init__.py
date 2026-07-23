@@ -19,6 +19,7 @@ from sqlalchemy import (
     Time,
     UniqueConstraint,
     func,
+    false,
     text,
     true,
 )
@@ -181,7 +182,11 @@ class Complaint(TimestampAuditSoftDeleteMixin, Base):
 
 
 class ComplaintResolution(TimestampAuditSoftDeleteMixin, Base):
-    """Resolution record required before CLOSED (TASK-010). One current row per complaint."""
+    """Resolution record required before CLOSED (TASK-010). One current row per complaint.
+
+    Final Resolution fields (TASK-018 / DEC-011) are nullable until submitted;
+    they do not close the complaint or escalation.
+    """
 
     __tablename__ = "complaint_resolutions"
     __table_args__ = (
@@ -193,6 +198,8 @@ class ComplaintResolution(TimestampAuditSoftDeleteMixin, Base):
             "complaint_id",
             "is_current",
         ),
+        Index("ix_complaint_resolutions_final_resolution_at", "final_resolution_at"),
+        Index("ix_complaint_resolutions_final_resolution_by", "final_resolution_by"),
     )
 
     complaint_id: Mapped[uuid.UUID] = mapped_column(
@@ -212,9 +219,25 @@ class ComplaintResolution(TimestampAuditSoftDeleteMixin, Base):
     is_current: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=true()
     )
+    final_resolution_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    final_resolution_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    final_resolution_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_resolution_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    follow_up_required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     complaint: Mapped[Complaint] = relationship(back_populates="resolutions")
     resolver: Mapped[User] = relationship(foreign_keys=[resolved_by])
+    final_resolver: Mapped[User | None] = relationship(
+        foreign_keys=[final_resolution_by]
+    )
 
 
 class ComplaintAssignment(TimestampAuditSoftDeleteMixin, Base):

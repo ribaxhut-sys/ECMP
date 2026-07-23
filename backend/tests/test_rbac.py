@@ -46,3 +46,11 @@ def test_ho_scheduler_can_review_for_no_show() -> None:
 def test_branch_officer_cannot_mark_no_show() -> None:
     assert "escalations:review" not in permissions_for_role("BRANCH_OFFICER")
     assert "escalations:review" not in permissions_for_role("HO_ENGINEER")
+
+
+def test_ho_engineer_can_submit_final_resolution() -> None:
+    """API-310 write gate reuses appointments:complete (HO Engineer / Admin)."""
+    assert "appointments:complete" in permissions_for_role("HO_ENGINEER")
+    assert "appointments:complete" in permissions_for_role("ADMIN")
+    assert "appointments:complete" not in permissions_for_role("BRANCH_OFFICER")
+    assert "appointments:complete" not in permissions_for_role("HO_SCHEDULER")

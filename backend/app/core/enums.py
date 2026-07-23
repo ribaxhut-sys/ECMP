@@ -35,8 +35,15 @@ class TimelineEvent(StrEnum):
     APPOINTMENT_CHECKED_IN = "complaint.appointment_checked_in"
     APPOINTMENT_COMPLETED = "complaint.appointment_completed"
     APPOINTMENT_NO_SHOW = "complaint.appointment_no_show"
+    FINAL_RESOLUTION_SUBMITTED = "complaint.final_resolution_submitted"
     RESOLVED = "complaint.resolved"
     CLOSED = "complaint.closed"
+
+
+class FinalResolutionStatus(StrEnum):
+    """Submission status for Final Resolution (TASK-018). Not a complaint status."""
+
+    FINAL_RESOLUTION_SUBMITTED = "FINAL_RESOLUTION_SUBMITTED"
 
 
 class EscalationRequestStatus(StrEnum):

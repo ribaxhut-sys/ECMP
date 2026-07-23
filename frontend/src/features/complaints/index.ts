@@ -3,6 +3,7 @@ export { ComplaintDetailView } from "./ComplaintDetailView";
 export { AssignmentCard } from "./AssignmentCard";
 export { AppointmentCard } from "./AppointmentCard";
 export { EscalationCard } from "./EscalationCard";
+export { FinalResolutionCard } from "./FinalResolutionCard";
 export { ResolutionCard } from "./ResolutionCard";
 export { StatusActionsCard } from "./StatusActionsCard";
 export { TimelineCard } from "./TimelineCard";

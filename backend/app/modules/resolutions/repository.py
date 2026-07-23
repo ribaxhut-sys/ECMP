@@ -10,8 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
+    Appointment,
     AuditLog,
     Complaint,
+    ComplaintEscalation,
     ComplaintResolution,
     ComplaintTimeline,
     User,
@@ -48,6 +50,50 @@ class ResolutionRepository:
                 ComplaintResolution.is_current.is_(True),
                 ComplaintResolution.deleted_at.is_(None),
             )
+        )
+        return self._session.scalar(stmt)
+
+    def get_final_resolution(
+        self, complaint_id: uuid.UUID
+    ) -> ComplaintResolution | None:
+        """Return the resolution row that has Final Resolution submitted."""
+        stmt = (
+            select(ComplaintResolution)
+            .options(joinedload(ComplaintResolution.final_resolver))
+            .where(
+                ComplaintResolution.complaint_id == complaint_id,
+                ComplaintResolution.final_resolution_at.is_not(None),
+                ComplaintResolution.deleted_at.is_(None),
+            )
+            .order_by(ComplaintResolution.final_resolution_at.desc())
+        )
+        return self._session.scalar(stmt)
+
+    def get_latest_appointment_for_complaint(
+        self, complaint_id: uuid.UUID
+    ) -> Appointment | None:
+        """Latest appointment linked via escalation for the complaint."""
+        stmt = (
+            select(Appointment)
+            .join(
+                ComplaintEscalation,
+                Appointment.escalation_id == ComplaintEscalation.id,
+            )
+            .where(
+                ComplaintEscalation.complaint_id == complaint_id,
+                ComplaintEscalation.deleted_at.is_(None),
+                Appointment.deleted_at.is_(None),
+            )
+            .order_by(Appointment.created_at.desc())
+        )
+        return self._session.scalar(stmt)
+
+    def get_escalation(
+        self, escalation_id: uuid.UUID
+    ) -> ComplaintEscalation | None:
+        stmt = select(ComplaintEscalation).where(
+            ComplaintEscalation.id == escalation_id,
+            ComplaintEscalation.deleted_at.is_(None),
         )
         return self._session.scalar(stmt)
 

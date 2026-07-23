@@ -1,4 +1,4 @@
-"""Resolution HTTP routes (TASK-010)."""
+"""Resolution HTTP routes (TASK-010 / TASK-018)."""
 
 from __future__ import annotations
 
@@ -8,12 +8,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions
+from app.core.auth import Principal, require_final_resolution, require_permissions
 from app.core.errors import NotFoundError
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.resolutions.repository import ResolutionRepository
 from app.modules.resolutions.schemas import (
+    FinalResolutionRequest,
+    FinalResolutionResponse,
+    FinalResolutionResult,
     ResolutionResponse,
     ResolveComplaintRequest,
     ResolveComplaintResult,
@@ -62,4 +65,45 @@ def get_complaint_resolution(
     current = service.get_current(id)
     if current is None:
         raise NotFoundError("Resolution not found")
+    return DataResponse(data=current)
+
+
+@router.post(
+    "/{id}/final-resolution",
+    response_model=DataResponse[FinalResolutionResult],
+    status_code=status.HTTP_200_OK,
+    summary="Submit final resolution",
+)
+def submit_final_resolution(
+    id: uuid.UUID,
+    payload: FinalResolutionRequest,
+    service: Annotated[ResolutionService, Depends(get_resolution_service)],
+    principal: Annotated[Principal, Depends(require_final_resolution)],
+) -> DataResponse[FinalResolutionResult]:
+    """Final Resolution after appointment COMPLETED (API-310 / DEC-011).
+
+    Complaint remains IN_PROGRESS; escalation remains APPROVED.
+    """
+    result = service.submit_final_resolution(
+        id, payload, actor_user_id=principal.user_id
+    )
+    return DataResponse(data=result)
+
+
+@router.get(
+    "/{id}/final-resolution",
+    response_model=DataResponse[FinalResolutionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get final resolution",
+)
+def get_final_resolution(
+    id: uuid.UUID,
+    service: Annotated[ResolutionService, Depends(get_resolution_service)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+) -> DataResponse[FinalResolutionResponse]:
+    """Submitted Final Resolution for Complaint Detail (read companion to API-310)."""
+    _ = principal
+    current = service.get_final_resolution(id)
+    if current is None:
+        raise NotFoundError("Final resolution not found")
     return DataResponse(data=current)

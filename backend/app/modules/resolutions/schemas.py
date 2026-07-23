@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.enums import ComplaintStatus
+from app.core.enums import ComplaintStatus, FinalResolutionStatus
 
 ResolutionCategory = Literal[
     "SOLVED",
@@ -57,3 +57,47 @@ class ResolveComplaintResult(BaseModel):
     resolution: ResolutionResponse
     complaint_id: uuid.UUID = Field(alias="complaintId")
     status: ComplaintStatus
+
+
+class FinalResolutionRequest(BaseModel):
+    """API-310 request body."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    summary: str = Field(min_length=1, max_length=5000)
+    notes: str = Field(min_length=1, max_length=5000)
+    follow_up_required: bool = Field(default=False, alias="followUpRequired")
+
+    @field_validator("summary", "notes")
+    @classmethod
+    def strip_final_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("must not be blank")
+        return cleaned
+
+
+class FinalResolutionResult(BaseModel):
+    """API-310 submit response (complaint remains IN_PROGRESS)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    complaint_id: uuid.UUID = Field(alias="complaintId")
+    status: FinalResolutionStatus
+    submitted_at: datetime = Field(alias="submittedAt")
+    submitted_by: uuid.UUID = Field(alias="submittedBy")
+
+
+class FinalResolutionResponse(BaseModel):
+    """GET final-resolution read model for Complaint Detail."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    complaint_id: uuid.UUID = Field(alias="complaintId")
+    status: FinalResolutionStatus
+    summary: str
+    notes: str
+    follow_up_required: bool = Field(alias="followUpRequired")
+    submitted_at: datetime = Field(alias="submittedAt")
+    submitted_by: uuid.UUID = Field(alias="submittedBy")
+    submitted_by_name: str | None = Field(default=None, alias="submittedByName")

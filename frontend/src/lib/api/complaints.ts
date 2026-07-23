@@ -7,6 +7,9 @@ import type {
   ComplaintCreateRequest,
   ComplaintStatus,
   DataResponse,
+  FinalResolutionDetail,
+  FinalResolutionRequest,
+  FinalResolutionResult,
   ListResponse,
   Resolution,
   ResolveComplaintRequest,
@@ -111,5 +114,28 @@ export function fetchComplaintResolution(
 ): Promise<DataResponse<Resolution>> {
   return apiRequest<DataResponse<Resolution>>(
     `/api/v1/complaints/${encodeURIComponent(id)}/resolution`,
+  );
+}
+
+/** API-310 — POST /api/v1/complaints/{id}/final-resolution */
+export function submitFinalResolution(
+  id: string,
+  body: FinalResolutionRequest,
+): Promise<DataResponse<FinalResolutionResult>> {
+  return apiRequest<DataResponse<FinalResolutionResult>>(
+    `/api/v1/complaints/${encodeURIComponent(id)}/final-resolution`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/** API-311 — GET /api/v1/complaints/{id}/final-resolution */
+export function fetchFinalResolution(
+  id: string,
+): Promise<DataResponse<FinalResolutionDetail>> {
+  return apiRequest<DataResponse<FinalResolutionDetail>>(
+    `/api/v1/complaints/${encodeURIComponent(id)}/final-resolution`,
   );
 }

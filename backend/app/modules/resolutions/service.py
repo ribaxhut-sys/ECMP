@@ -5,11 +5,20 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from app.core.enums import ComplaintStatus, TimelineEvent
+from app.core.enums import (
+    AppointmentStatus,
+    ComplaintStatus,
+    EscalationRequestStatus,
+    FinalResolutionStatus,
+    TimelineEvent,
+)
 from app.core.errors import NotFoundError, ValidationAppError
 from app.models import ComplaintResolution
 from app.modules.resolutions.repository import ResolutionRepository
 from app.modules.resolutions.schemas import (
+    FinalResolutionRequest,
+    FinalResolutionResponse,
+    FinalResolutionResult,
     ResolutionResponse,
     ResolveComplaintRequest,
     ResolveComplaintResult,
@@ -18,6 +27,23 @@ from app.modules.resolutions.schemas import (
 RESOLVABLE_STATUS = ComplaintStatus.IN_PROGRESS
 TARGET_STATUS = ComplaintStatus.RESOLVED
 NOT_IN_PROGRESS_MESSAGE = "Complaint must be IN_PROGRESS before resolving."
+
+FINAL_RESOLUTION_ELIGIBLE_STATUS = ComplaintStatus.IN_PROGRESS
+NOT_IN_PROGRESS_FOR_FINAL_MESSAGE = (
+    "Complaint must be IN_PROGRESS before submitting final resolution."
+)
+APPOINTMENT_NOT_COMPLETED_MESSAGE = (
+    "Appointment must be COMPLETED before submitting final resolution."
+)
+APPOINTMENT_NO_SHOW_MESSAGE = (
+    "Final resolution is not allowed when appointment is NO_SHOW."
+)
+APPOINTMENT_REQUIRED_MESSAGE = (
+    "An appointment is required before submitting final resolution."
+)
+ALREADY_FINAL_RESOLUTION_MESSAGE = "Final resolution has already been submitted."
+# Placeholder category for resolution-row scaffolding (complaint stays IN_PROGRESS).
+_FINAL_RESOLUTION_CATEGORY = "SOLVED"
 
 
 def _to_response(resolution: ComplaintResolution) -> ResolutionResponse:
@@ -38,6 +64,29 @@ def _to_response(resolution: ComplaintResolution) -> ResolutionResponse:
     )
 
 
+def _to_final_response(resolution: ComplaintResolution) -> FinalResolutionResponse:
+    final_resolver = resolution.__dict__.get("final_resolver")
+    submitted_by_name = (
+        getattr(final_resolver, "full_name", None)
+        if final_resolver is not None
+        else None
+    )
+    assert resolution.final_resolution_at is not None
+    assert resolution.final_resolution_by is not None
+    assert resolution.final_resolution_summary is not None
+    assert resolution.final_resolution_notes is not None
+    return FinalResolutionResponse(
+        complaintId=resolution.complaint_id,
+        status=FinalResolutionStatus.FINAL_RESOLUTION_SUBMITTED,
+        summary=resolution.final_resolution_summary,
+        notes=resolution.final_resolution_notes,
+        followUpRequired=resolution.follow_up_required,
+        submittedAt=resolution.final_resolution_at,
+        submittedBy=resolution.final_resolution_by,
+        submittedByName=submitted_by_name,
+    )
+
+
 class ResolutionService:
     def __init__(self, repository: ResolutionRepository) -> None:
         self._repo = repository
@@ -50,6 +99,17 @@ class ResolutionService:
         if current is None:
             return None
         return _to_response(current)
+
+    def get_final_resolution(
+        self, complaint_id: uuid.UUID
+    ) -> FinalResolutionResponse | None:
+        complaint = self._repo.get_complaint(complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+        row = self._repo.get_final_resolution(complaint_id)
+        if row is None:
+            return None
+        return _to_final_response(row)
 
     def resolve(
         self,
@@ -151,6 +211,167 @@ class ResolutionService:
             resolution=_to_response(resolution),
             complaintId=complaint.id,
             status=TARGET_STATUS,
+        )
+        self._repo.commit()
+        return result
+
+    def submit_final_resolution(
+        self,
+        complaint_id: uuid.UUID,
+        payload: FinalResolutionRequest,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> FinalResolutionResult:
+        """API-310 — Final Resolution after appointment COMPLETED (DEC-011)."""
+        complaint = self._repo.get_complaint(complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        if complaint.status != FINAL_RESOLUTION_ELIGIBLE_STATUS:
+            raise ValidationAppError(
+                NOT_IN_PROGRESS_FOR_FINAL_MESSAGE,
+                details={"status": complaint.status},
+            )
+
+        existing = self._repo.get_final_resolution(complaint_id)
+        if existing is not None:
+            raise ValidationAppError(
+                ALREADY_FINAL_RESOLUTION_MESSAGE,
+                details={"complaintId": str(complaint_id)},
+            )
+
+        appointment = self._repo.get_latest_appointment_for_complaint(complaint_id)
+        if appointment is None:
+            raise ValidationAppError(
+                APPOINTMENT_REQUIRED_MESSAGE,
+                details={"complaintId": str(complaint_id)},
+            )
+
+        if (
+            appointment.status == AppointmentStatus.NO_SHOW
+            or appointment.no_show_at is not None
+        ):
+            raise ValidationAppError(
+                APPOINTMENT_NO_SHOW_MESSAGE,
+                details={
+                    "appointmentId": str(appointment.id),
+                    "status": appointment.status,
+                },
+            )
+
+        if (
+            appointment.status != AppointmentStatus.COMPLETED
+            or appointment.completed_at is None
+        ):
+            raise ValidationAppError(
+                APPOINTMENT_NOT_COMPLETED_MESSAGE,
+                details={
+                    "appointmentId": str(appointment.id),
+                    "status": appointment.status,
+                },
+            )
+
+        escalation = self._repo.get_escalation(appointment.escalation_id)
+        if escalation is None:
+            raise NotFoundError("Escalation not found")
+
+        submitter = self._repo.get_user(actor_user_id)
+        if submitter is None:
+            raise ValidationAppError(
+                "Submitter not found or inactive",
+                details={"submittedBy": str(actor_user_id)},
+            )
+
+        now = datetime.now(UTC)
+        current = self._repo.get_current_resolution(complaint_id)
+
+        if current is not None:
+            current.final_resolution_at = now
+            current.final_resolution_by = actor_user_id
+            current.final_resolution_summary = payload.summary
+            current.final_resolution_notes = payload.notes
+            current.follow_up_required = payload.follow_up_required
+            current.updated_at = now
+            current.updated_by = actor_user_id
+            current.final_resolver = submitter
+            resolution = current
+        else:
+            # Scaffold row holds Final Resolution only; is_current=False so it does
+            # not appear as TASK-010 current resolution while complaint stays IN_PROGRESS.
+            resolution = ComplaintResolution(
+                complaint_id=complaint.id,
+                resolution_category=_FINAL_RESOLUTION_CATEGORY,
+                root_cause=payload.summary[:500],
+                resolution_notes=payload.notes,
+                resolved_by=actor_user_id,
+                resolved_at=now,
+                is_current=False,
+                final_resolution_at=now,
+                final_resolution_by=actor_user_id,
+                final_resolution_summary=payload.summary,
+                final_resolution_notes=payload.notes,
+                follow_up_required=payload.follow_up_required,
+                created_at=now,
+                updated_at=now,
+                created_by=actor_user_id,
+                updated_by=actor_user_id,
+            )
+            resolution.final_resolver = submitter
+            self._repo.add_resolution(resolution)
+
+        # Complaint remains IN_PROGRESS; escalation remains APPROVED.
+        # Do NOT close complaint or escalation.
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+        escalation.updated_at = now
+        escalation.updated_by = actor_user_id
+
+        self._repo.add_audit_log(
+            actor_user_id=actor_user_id,
+            action="complaint.final_resolution",
+            entity_id=complaint.id,
+            new_value={
+                "complaintId": str(complaint.id),
+                "status": FinalResolutionStatus.FINAL_RESOLUTION_SUBMITTED.value,
+                "complaintStatus": complaint.status,
+                "escalationStatus": escalation.status,
+                "appointmentId": str(appointment.id),
+                "escalationId": str(escalation.id),
+                "summary": payload.summary,
+                "notes": payload.notes,
+                "followUpRequired": payload.follow_up_required,
+                "submittedBy": str(actor_user_id),
+                "submittedAt": now.isoformat(),
+            },
+            occurred_at=now,
+        )
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.FINAL_RESOLUTION_SUBMITTED,
+            event_at=now,
+            from_status=complaint.status,
+            to_status=complaint.status,
+            summary="Final resolution submitted",
+            metadata={
+                "changeType": "FINAL_RESOLUTION_SUBMITTED",
+                "complaintId": str(complaint.id),
+                "appointmentId": str(appointment.id),
+                "escalationId": str(escalation.id),
+                "submittedBy": str(actor_user_id),
+                "submittedAt": now.isoformat(),
+                "followUpRequired": payload.follow_up_required,
+            },
+        )
+
+        assert complaint.status == ComplaintStatus.IN_PROGRESS
+        assert escalation.status == EscalationRequestStatus.APPROVED
+
+        result = FinalResolutionResult(
+            complaintId=complaint.id,
+            status=FinalResolutionStatus.FINAL_RESOLUTION_SUBMITTED,
+            submittedAt=now,
+            submittedBy=actor_user_id,
         )
         self._repo.commit()
         return result
