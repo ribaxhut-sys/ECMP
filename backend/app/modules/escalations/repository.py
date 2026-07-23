@@ -19,9 +19,10 @@ from app.models import (
     User,
 )
 
-# Active = not yet reviewed/closed. TASK-011 only creates REQUESTED;
-# legacy API-207 uses OPEN.
-ACTIVE_ESCALATION_STATUSES = frozenset({"REQUESTED", "OPEN"})
+# Active = blocks a new Escalation Request. REQUESTED pending review;
+# APPROVED awaiting appointment (out of scope); legacy OPEN.
+# REJECTED does not block a new request.
+ACTIVE_ESCALATION_STATUSES = frozenset({"REQUESTED", "OPEN", "APPROVED"})
 
 
 class EscalationRepository:
@@ -38,7 +39,10 @@ class EscalationRepository:
     def get_by_id(self, escalation_id: uuid.UUID) -> ComplaintEscalation | None:
         stmt = (
             select(ComplaintEscalation)
-            .options(joinedload(ComplaintEscalation.requester))
+            .options(
+                joinedload(ComplaintEscalation.requester),
+                joinedload(ComplaintEscalation.reviewer),
+            )
             .where(
                 ComplaintEscalation.id == escalation_id,
                 ComplaintEscalation.deleted_at.is_(None),
@@ -91,11 +95,33 @@ class EscalationRepository:
     ) -> ComplaintEscalation | None:
         stmt = (
             select(ComplaintEscalation)
-            .options(joinedload(ComplaintEscalation.requester))
+            .options(
+                joinedload(ComplaintEscalation.requester),
+                joinedload(ComplaintEscalation.reviewer),
+            )
             .where(
                 ComplaintEscalation.complaint_id == complaint_id,
                 ComplaintEscalation.deleted_at.is_(None),
                 ComplaintEscalation.status.in_(ACTIVE_ESCALATION_STATUSES),
+            )
+            .order_by(ComplaintEscalation.created_at.desc())
+        )
+        return self._session.scalar(stmt)
+
+    def get_latest_request_escalation(
+        self, complaint_id: uuid.UUID
+    ) -> ComplaintEscalation | None:
+        """Latest Branch→HO request row (REQUESTED / APPROVED / REJECTED)."""
+        stmt = (
+            select(ComplaintEscalation)
+            .options(
+                joinedload(ComplaintEscalation.requester),
+                joinedload(ComplaintEscalation.reviewer),
+            )
+            .where(
+                ComplaintEscalation.complaint_id == complaint_id,
+                ComplaintEscalation.deleted_at.is_(None),
+                ComplaintEscalation.reason_code.is_not(None),
             )
             .order_by(ComplaintEscalation.created_at.desc())
         )
@@ -112,7 +138,10 @@ class EscalationRepository:
     def list_escalations(self, complaint_id: uuid.UUID) -> list[ComplaintEscalation]:
         stmt = (
             select(ComplaintEscalation)
-            .options(joinedload(ComplaintEscalation.requester))
+            .options(
+                joinedload(ComplaintEscalation.requester),
+                joinedload(ComplaintEscalation.reviewer),
+            )
             .where(
                 ComplaintEscalation.complaint_id == complaint_id,
                 ComplaintEscalation.deleted_at.is_(None),

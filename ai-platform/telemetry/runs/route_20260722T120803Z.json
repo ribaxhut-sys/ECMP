@@ -1,0 +1,14 @@
+{
+  "type": "orchestrator_route",
+  "timestamp": "2026-07-22T12:08:03.277525+00:00",
+  "task": "Sprint-10 RC1: frontend Vitest coverage CI, API response-body contract tests, Test Strategy RC exit criteria, versioning policy, git tag convention, CHANGELOG, RC checklist, bundle-size budget warning, a11y CI warning",
+  "capability_id": "CAP-REVIEW-CODE",
+  "agent_id": "AGENT-QA",
+  "domain": null,
+  "memory_version": "v1",
+  "prompt_ref": "code-review@v1",
+  "rag_hit_count": 5,
+  "rag_top_score": 0.2454,
+  "context_count": 4,
+  "success": true
+}

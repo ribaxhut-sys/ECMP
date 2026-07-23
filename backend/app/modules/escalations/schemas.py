@@ -114,6 +114,37 @@ class EscalationResponse(BaseModel):
     requested_by: uuid.UUID | None = Field(default=None, alias="requestedBy")
     requested_by_name: str | None = Field(default=None, alias="requestedByName")
     requested_at: datetime | None = Field(default=None, alias="requestedAt")
+    reviewed_by: uuid.UUID | None = Field(default=None, alias="reviewedBy")
+    reviewed_by_name: str | None = Field(default=None, alias="reviewedByName")
+    reviewed_at: datetime | None = Field(default=None, alias="reviewedAt")
+    review_notes: str | None = Field(default=None, alias="reviewNotes")
+
+
+class EscalationReviewRequest(BaseModel):
+    """API-303 / API-304 review body."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    review_notes: str = Field(alias="reviewNotes", min_length=1, max_length=5000)
+
+    @field_validator("review_notes")
+    @classmethod
+    def strip_review_notes(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("must not be blank")
+        return cleaned
+
+
+class EscalationReviewResult(BaseModel):
+    """API-303 / API-304 slim review response."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: uuid.UUID
+    status: str
+    reviewed_by: uuid.UUID = Field(alias="reviewedBy")
+    reviewed_at: datetime = Field(alias="reviewedAt")
 
 
 class EscalationRequestResult(BaseModel):

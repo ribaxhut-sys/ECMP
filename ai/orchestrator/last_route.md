@@ -11,7 +11,7 @@
 | Last Review | auto |
 | Next Review | auto |
 
-> Task: Sprint-06 Timeline Audit History Internal Notes AsyncPanel
+> Task: TASK-009 Complaint Status Transition PATCH status validated matrix timeline
 
 ## Capability: Implement Feature
 - ID: `CAP-IMPLEMENT-FEATURE`
@@ -24,7 +24,7 @@
 - ID: `AGENT-CODE`
 - Tool role: Claude in Cursor
 - Memory: `v1`
-- Domain pack: `n/a`
+- Domain pack: `ecmf`
 
 ## Prompt
 - Ref: `implement-feature@v1`
@@ -37,15 +37,16 @@
 - `ai/sprint/Sprint-01.md`
 - `ai-platform/prompts/implement-feature/v1/prompt.md`
 - `ai-platform/packs/ecmf/pack.md`
+- `ai-platform/packs/ecmf/pack.md`
 - `03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md`
 
 ## RAG Top Hits
 
-- `ai/generated/memory_crm.md` (score=0.1445)
-- `ai-platform/memory/v1/memory_crm.md` (score=0.1445)
-- `ai/05_database.md` (score=0.1311)
-- `ai-platform/prompts/sync-docs/v1/prompt.md` (score=0.1038)
-- `ai/domain/crm.md` (score=0.1016)
+- `20 Domain Architecture/navigator/ecmf.md` (score=0.3714)
+- `ai/sprint/IMPLEMENTATION_READINESS_ROADMAP.md` (score=0.1954)
+- `03 Functional Requirements/ECMP_FRD_ECMF_Lifecycle_v0.1.md` (score=0.1657)
+- `ai/sprint/IMPLEMENTATION_READINESS_ROADMAP.md` (score=0.1292)
+- `ai/01_business.md` (score=0.1209)
 
 ## Next
 1. Load prompt + context in the selected tool role

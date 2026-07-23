@@ -168,6 +168,19 @@ export interface EscalationRequestResult {
   requestedAt: string;
 }
 
+/** API-303 / API-304 review body. */
+export interface EscalationReviewRequest {
+  reviewNotes: string;
+}
+
+/** API-303 / API-304 slim review response. */
+export interface EscalationReviewResult {
+  id: string;
+  status: "APPROVED" | "REJECTED";
+  reviewedBy: string;
+  reviewedAt: string;
+}
+
 /** API-208 / API-302 escalation row. */
 export interface Escalation {
   id: string;
@@ -187,6 +200,10 @@ export interface Escalation {
   requestedBy: string | null;
   requestedByName: string | null;
   requestedAt: string | null;
+  reviewedBy: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
 }
 
 /** API-209 timeline entry (read-only activity log). */
@@ -202,6 +219,8 @@ export interface TimelineEntry {
     | "complaint.reassigned"
     | "complaint.escalated"
     | "complaint.escalation_requested"
+    | "complaint.escalation_approved"
+    | "complaint.escalation_rejected"
     | "complaint.resolved"
     | "complaint.closed";
   eventAt: string;

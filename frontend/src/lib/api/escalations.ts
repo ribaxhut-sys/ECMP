@@ -4,6 +4,8 @@ import type {
   Escalation,
   EscalationRequestCreate,
   EscalationRequestResult,
+  EscalationReviewRequest,
+  EscalationReviewResult,
 } from "./types";
 
 /** API-301 — POST /api/v1/complaints/{id}/escalations */
@@ -35,5 +37,33 @@ export function fetchEscalation(
 ): Promise<DataResponse<Escalation>> {
   return apiRequest<DataResponse<Escalation>>(
     `/api/v1/escalations/${encodeURIComponent(id)}`,
+  );
+}
+
+/** API-303 — POST /api/v1/escalations/{id}/approve */
+export function approveEscalation(
+  id: string,
+  body: EscalationReviewRequest,
+): Promise<DataResponse<EscalationReviewResult>> {
+  return apiRequest<DataResponse<EscalationReviewResult>>(
+    `/api/v1/escalations/${encodeURIComponent(id)}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/** API-304 — POST /api/v1/escalations/{id}/reject */
+export function rejectEscalation(
+  id: string,
+  body: EscalationReviewRequest,
+): Promise<DataResponse<EscalationReviewResult>> {
+  return apiRequest<DataResponse<EscalationReviewResult>>(
+    `/api/v1/escalations/${encodeURIComponent(id)}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
   );
 }

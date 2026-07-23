@@ -335,6 +335,10 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           setTimelineKey((key) => key + 1);
           void load();
         }}
+        onReviewed={() => {
+          setTimelineKey((key) => key + 1);
+          void load();
+        }}
       />
 
       <TimelineCard complaintId={complaint.id} refreshKey={timelineKey} />

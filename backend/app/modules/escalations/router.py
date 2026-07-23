@@ -1,4 +1,4 @@
-"""Escalation HTTP routes (API-207/208 legacy + API-301/302 Escalation Request)."""
+"""Escalation HTTP routes (API-207/208 + API-301..304)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions, require_supervisor_escalate
+from app.core.auth import (
+    Principal,
+    require_escalation_review,
+    require_permissions,
+    require_supervisor_escalate,
+)
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.escalations.repository import EscalationRepository
@@ -18,13 +23,15 @@ from app.modules.escalations.schemas import (
     EscalationRequestCreate,
     EscalationRequestResult,
     EscalationResponse,
+    EscalationReviewRequest,
+    EscalationReviewResult,
 )
 from app.modules.escalations.service import EscalationService
 
 # Nested under /api/v1/complaints
 complaints_router = APIRouter(prefix="/api/v1/complaints", tags=["Escalations"])
 
-# Top-level /api/v1/escalations/{id} (API-302)
+# Top-level /api/v1/escalations/{id} (API-302..304)
 escalations_router = APIRouter(prefix="/api/v1/escalations", tags=["Escalations"])
 
 
@@ -98,6 +105,40 @@ def get_escalation(
     """API-302 — get escalation detail by id."""
     _ = principal
     return DataResponse(data=service.get_escalation(id))
+
+
+@escalations_router.post(
+    "/{id}/approve",
+    response_model=DataResponse[EscalationReviewResult],
+    status_code=status.HTTP_200_OK,
+    summary="Approve escalation request",
+)
+def approve_escalation(
+    id: uuid.UUID,
+    payload: EscalationReviewRequest,
+    service: Annotated[EscalationService, Depends(get_escalation_service)],
+    principal: Annotated[Principal, Depends(require_escalation_review)],
+) -> DataResponse[EscalationReviewResult]:
+    """API-303 — approve REQUESTED escalation (HO Scheduler / Admin)."""
+    result = service.approve(id, payload, actor_user_id=principal.user_id)
+    return DataResponse(data=result)
+
+
+@escalations_router.post(
+    "/{id}/reject",
+    response_model=DataResponse[EscalationReviewResult],
+    status_code=status.HTTP_200_OK,
+    summary="Reject escalation request",
+)
+def reject_escalation(
+    id: uuid.UUID,
+    payload: EscalationReviewRequest,
+    service: Annotated[EscalationService, Depends(get_escalation_service)],
+    principal: Annotated[Principal, Depends(require_escalation_review)],
+) -> DataResponse[EscalationReviewResult]:
+    """API-304 — reject REQUESTED escalation (HO Scheduler / Admin)."""
+    result = service.reject(id, payload, actor_user_id=principal.user_id)
+    return DataResponse(data=result)
 
 
 # Back-compat export used by api.router

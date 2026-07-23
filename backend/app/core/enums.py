@@ -29,14 +29,18 @@ class TimelineEvent(StrEnum):
     REASSIGNED = "complaint.reassigned"
     ESCALATED = "complaint.escalated"
     ESCALATION_REQUESTED = "complaint.escalation_requested"
+    ESCALATION_APPROVED = "complaint.escalation_approved"
+    ESCALATION_REJECTED = "complaint.escalation_rejected"
     RESOLVED = "complaint.resolved"
     CLOSED = "complaint.closed"
 
 
 class EscalationRequestStatus(StrEnum):
-    """Escalation Request lifecycle (TASK-011 — request only; no review yet)."""
+    """Escalation Request lifecycle (TASK-011/012)."""
 
     REQUESTED = "REQUESTED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class EscalationReasonCode(StrEnum):

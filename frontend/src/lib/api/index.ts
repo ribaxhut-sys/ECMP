@@ -17,8 +17,10 @@ export {
   resolveComplaint,
 } from "./complaints";
 export {
+  approveEscalation,
   fetchComplaintEscalations,
   fetchEscalation,
+  rejectEscalation,
   requestEscalation,
 } from "./escalations";
 export { fetchBranches } from "./branches";

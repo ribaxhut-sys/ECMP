@@ -117,8 +117,30 @@ def require_supervisor_escalate(
     ],
 ) -> Principal:
     """Escalate endpoint gate: permission complaints:escalate + SUPERVISOR role."""
-    if not principal.has_any_role("SUPERVISOR"):
+    if not principal.has_any_role("SUPERVISOR", "BRANCH_SUPERVISOR"):
         raise ForbiddenError("Only Supervisor can escalate complaints")
+    return principal
+
+
+_ESCALATION_REVIEW_ROLES = (
+    "HO_SCHEDULER",
+    "HEAD_OFFICE_SCHEDULER",
+    "SCHEDULER",
+    "ADMIN",
+    "ADMINISTRATOR",
+)
+
+
+def require_escalation_review(
+    principal: Annotated[
+        Principal, Depends(require_permissions("escalations:review"))
+    ],
+) -> Principal:
+    """API-303/304 gate: escalations:review + HO Scheduler or Admin."""
+    if not principal.has_any_role(*_ESCALATION_REVIEW_ROLES):
+        raise ForbiddenError(
+            "Only Head Office Scheduler or Admin can review escalations"
+        )
     return principal
 
 

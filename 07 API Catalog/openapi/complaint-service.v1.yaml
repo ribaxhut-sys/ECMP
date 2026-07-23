@@ -621,6 +621,95 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/escalations/{id}/approve:
+    post:
+      summary: Approve escalation request
+      operationId: approveEscalation
+      x-ear-id: API-303
+      tags: [Escalations]
+      security:
+        - bearerAuth: []
+      description: |
+        Approves a `REQUESTED` Escalation Request (TASK-012). Sets status
+        `APPROVED`, stores `reviewedBy` / `reviewedAt` / `reviewNotes`.
+        Review can only happen once. Complaint status remains `IN_PROGRESS`
+        (no Appointment). Writes timeline `complaint.escalation_approved`.
+        Requires role Head Office Scheduler or Admin and permission
+        `escalations:review`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalationReviewRequest"
+            example:
+              reviewNotes: Approved for Head Office handling.
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationReviewDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/escalations/{id}/reject:
+    post:
+      summary: Reject escalation request
+      operationId: rejectEscalation
+      x-ear-id: API-304
+      tags: [Escalations]
+      security:
+        - bearerAuth: []
+      description: |
+        Rejects a `REQUESTED` Escalation Request (TASK-012). Sets status
+        `REJECTED`, stores review fields. Review can only happen once.
+        Complaint status remains `IN_PROGRESS`. Writes timeline
+        `complaint.escalation_rejected`. Requires role Head Office Scheduler
+        or Admin and permission `escalations:review`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalationReviewRequest"
+            example:
+              reviewNotes: Issue can be resolved by Branch.
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationReviewDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/timeline:
     get:
       summary: Get complaint timeline
@@ -1110,6 +1199,8 @@ components:
           complaint.reassigned,
           complaint.escalated,
           complaint.escalation_requested,
+          complaint.escalation_approved,
+          complaint.escalation_rejected,
           complaint.resolved,
           complaint.closed,
         ]
@@ -1316,6 +1407,32 @@ components:
           nullable: true
           description: Display name of requester
         requestedAt: { type: string, format: date-time, nullable: true }
+        reviewedBy: { type: string, format: uuid, nullable: true }
+        reviewedByName:
+          type: string
+          nullable: true
+          description: Display name of reviewer (HO Scheduler / Admin)
+        reviewedAt: { type: string, format: date-time, nullable: true }
+        reviewNotes: { type: string, nullable: true }
+    EscalationReviewRequest:
+      type: object
+      required: [reviewNotes]
+      properties:
+        reviewNotes: { type: string, minLength: 1, maxLength: 5000 }
+    EscalationReviewResult:
+      type: object
+      required: [id, status, reviewedBy, reviewedAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [APPROVED, REJECTED] }
+        reviewedBy: { type: string, format: uuid }
+        reviewedAt: { type: string, format: date-time }
+        reviewNotes: { type: string, nullable: true }
+    EscalationReviewDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/EscalationReviewResult" }
     EscalationRequestResult:
       type: object
       required: [id, complaintId, status, requestedBy, requestedAt]

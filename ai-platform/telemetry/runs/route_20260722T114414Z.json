@@ -1,0 +1,14 @@
+{
+  "type": "orchestrator_route",
+  "timestamp": "2026-07-22T11:44:14.838779+00:00",
+  "task": "Sprint-09 User Acceptance Operational Readiness shutdown log-inspection backup restore drill UAT Close Reject",
+  "capability_id": "CAP-IMPLEMENT-FEATURE",
+  "agent_id": "AGENT-CODE",
+  "domain": null,
+  "memory_version": "v1",
+  "prompt_ref": "implement-feature@v1",
+  "rag_hit_count": 5,
+  "rag_top_score": 0.1318,
+  "context_count": 6,
+  "success": true
+}

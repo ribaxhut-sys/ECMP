@@ -54,6 +54,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-208 | GET /api/v1/complaints/{id}/escalations | List escalation history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-301 | POST /api/v1/complaints/{id}/escalations | Escalation Request Branch→HO (status REQUESTED; IN_PROGRESS only; no Resolution; one active) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
 | API-302 | GET /api/v1/escalations/{id} | Get escalation detail by id | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-303 | POST /api/v1/escalations/{id}/approve | Approve REQUESTED escalation (HO Scheduler/Admin; once only) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
+| API-304 | POST /api/v1/escalations/{id}/reject | Reject REQUESTED escalation (HO Scheduler/Admin; once only) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at DESC newest first; empty list OK; includes actorName) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
@@ -70,6 +72,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
+> **2026-07-23 (TASK-012 Escalation Review):** complaint-service — API-303
+> approve + API-304 reject for `REQUESTED` escalations. Permission
+> `escalations:review` for HO Scheduler / Admin. Timeline
+> `complaint.escalation_approved` / `complaint.escalation_rejected`.
+> Migration `0006_escalation_review`. Appointment out of scope.
+>
 > **2026-07-23 (TASK-011 Escalation Request):** complaint-service — API-301
 > (`POST /api/v1/complaints/{id}/escalations`) + API-302
 > (`GET /api/v1/escalations/{id}`). Branch → HO request with status

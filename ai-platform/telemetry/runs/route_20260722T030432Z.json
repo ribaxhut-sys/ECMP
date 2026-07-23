@@ -1,0 +1,14 @@
+{
+  "type": "orchestrator_route",
+  "timestamp": "2026-07-22T03:04:32.623670+00:00",
+  "task": "Sprint-06 Timeline Audit History Internal Notes AsyncPanel",
+  "capability_id": "CAP-IMPLEMENT-FEATURE",
+  "agent_id": "AGENT-CODE",
+  "domain": null,
+  "memory_version": "v1",
+  "prompt_ref": "implement-feature@v1",
+  "rag_hit_count": 5,
+  "rag_top_score": 0.1445,
+  "context_count": 6,
+  "success": true
+}
