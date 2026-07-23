@@ -7,16 +7,21 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
     Complaint,
     ComplaintAssignment,
     ComplaintEscalation,
+    ComplaintResolution,
     ComplaintTimeline,
     Role,
     User,
 )
+
+# Active = not yet reviewed/closed. TASK-011 only creates REQUESTED;
+# legacy API-207 uses OPEN.
+ACTIVE_ESCALATION_STATUSES = frozenset({"REQUESTED", "OPEN"})
 
 
 class EscalationRepository:
@@ -30,6 +35,17 @@ class EscalationRepository:
         )
         return self._session.scalar(stmt)
 
+    def get_by_id(self, escalation_id: uuid.UUID) -> ComplaintEscalation | None:
+        stmt = (
+            select(ComplaintEscalation)
+            .options(joinedload(ComplaintEscalation.requester))
+            .where(
+                ComplaintEscalation.id == escalation_id,
+                ComplaintEscalation.deleted_at.is_(None),
+            )
+        )
+        return self._session.scalar(stmt)
+
     def user_exists(self, user_id: uuid.UUID) -> bool:
         stmt = select(User.id).where(
             User.id == user_id,
@@ -37,6 +53,14 @@ class EscalationRepository:
             User.is_active.is_(True),
         )
         return self._session.scalar(stmt) is not None
+
+    def get_user(self, user_id: uuid.UUID) -> User | None:
+        stmt = select(User).where(
+            User.id == user_id,
+            User.deleted_at.is_(None),
+            User.is_active.is_(True),
+        )
+        return self._session.scalar(stmt)
 
     def role_exists(self, role_id: uuid.UUID) -> bool:
         stmt = select(Role.id).where(
@@ -54,6 +78,29 @@ class EscalationRepository:
         )
         return self._session.scalar(stmt)
 
+    def has_current_resolution(self, complaint_id: uuid.UUID) -> bool:
+        stmt = select(ComplaintResolution.id).where(
+            ComplaintResolution.complaint_id == complaint_id,
+            ComplaintResolution.is_current.is_(True),
+            ComplaintResolution.deleted_at.is_(None),
+        )
+        return self._session.scalar(stmt) is not None
+
+    def get_active_escalation(
+        self, complaint_id: uuid.UUID
+    ) -> ComplaintEscalation | None:
+        stmt = (
+            select(ComplaintEscalation)
+            .options(joinedload(ComplaintEscalation.requester))
+            .where(
+                ComplaintEscalation.complaint_id == complaint_id,
+                ComplaintEscalation.deleted_at.is_(None),
+                ComplaintEscalation.status.in_(ACTIVE_ESCALATION_STATUSES),
+            )
+            .order_by(ComplaintEscalation.created_at.desc())
+        )
+        return self._session.scalar(stmt)
+
     def next_level(self, complaint_id: uuid.UUID) -> int:
         stmt = select(func.coalesce(func.max(ComplaintEscalation.level), 0)).where(
             ComplaintEscalation.complaint_id == complaint_id,
@@ -65,6 +112,7 @@ class EscalationRepository:
     def list_escalations(self, complaint_id: uuid.UUID) -> list[ComplaintEscalation]:
         stmt = (
             select(ComplaintEscalation)
+            .options(joinedload(ComplaintEscalation.requester))
             .where(
                 ComplaintEscalation.complaint_id == complaint_id,
                 ComplaintEscalation.deleted_at.is_(None),
@@ -74,7 +122,7 @@ class EscalationRepository:
                 ComplaintEscalation.escalated_at.desc(),
             )
         )
-        return list(self._session.scalars(stmt).all())
+        return list(self._session.scalars(stmt).unique().all())
 
     def add_escalation(self, escalation: ComplaintEscalation) -> ComplaintEscalation:
         self._session.add(escalation)

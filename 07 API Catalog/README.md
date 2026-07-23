@@ -45,11 +45,15 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-202 | GET /api/v1/complaints | List complaints (paginated/filtered) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-203 | GET /api/v1/complaints/{id} | Get complaint by id | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-204 | PUT /api/v1/complaints/{id} | Update complaint fields (status immutable; audit `complaint.update`) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
-| API-224 | PATCH /api/v1/complaints/{id}/status | Validated status transition (TASK-009; invalid → 400; timeline + audit) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
+| API-224 | PATCH /api/v1/complaints/{id}/status | Validated status transition (TASK-009; RESOLVED only via API-225; invalid → 400; timeline + audit) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
+| API-225 | POST /api/v1/complaints/{id}/resolution | Resolve (IN_PROGRESS→RESOLVED; mandatory resolution record; timeline `complaint.resolved`) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
+| API-226 | GET /api/v1/complaints/{id}/resolution | Get current resolution (404 if none) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-205 | POST /api/v1/complaints/{id}/assign | Assign/reassign (NEW→ASSIGNED; history retained; timeline written; reason required on reassign) | bearerAuth, role `SUPERVISOR` + permission `complaints:assign` | 🟢 Implemented |
 | API-206 | GET /api/v1/complaints/{id}/assignments | List assignment history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-207 | POST /api/v1/complaints/{id}/escalate | Escalate (ASSIGNED/IN_PROGRESS→ESCALATED; rejects NEW/RESOLVED/CLOSED) | bearerAuth, role `SUPERVISOR` + permission `complaints:escalate` | 🟢 Implemented |
 | API-208 | GET /api/v1/complaints/{id}/escalations | List escalation history | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+| API-301 | POST /api/v1/complaints/{id}/escalations | Escalation Request Branch→HO (status REQUESTED; IN_PROGRESS only; no Resolution; one active) | bearerAuth, permission `complaints:update` | 🟢 Implemented |
+| API-302 | GET /api/v1/escalations/{id} | Get escalation detail by id | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at DESC newest first; empty list OK; includes actorName) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
@@ -66,6 +70,18 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
+> **2026-07-23 (TASK-011 Escalation Request):** complaint-service — API-301
+> (`POST /api/v1/complaints/{id}/escalations`) + API-302
+> (`GET /api/v1/escalations/{id}`). Branch → HO request with status
+> `REQUESTED`; timeline `complaint.escalation_requested`. Review/Approve
+> out of scope. Migration `0005_complaint_escalations` extends
+> `complaint_escalations` with request fields.
+>
+> **2026-07-23 (TASK-010 Complaint Resolution):** complaint-service — API-225
+> (`POST /api/v1/complaints/{id}/resolution`) + API-226 GET current resolution.
+> `IN_PROGRESS`→`RESOLVED` only via resolution form/endpoint; PATCH status
+> matrix no longer allows direct RESOLVED.
+>
 > **2026-07-23 (TASK-009):** complaint-service — API-224 status transition
 > (`PATCH /api/v1/complaints/{id}/status`) with validated matrix; `PENDING`
 > added to ComplaintStatus. NEW→ASSIGNED remains Assign (API-205).

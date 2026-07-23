@@ -5,13 +5,19 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from app.core.enums import ComplaintStatus, TimelineEvent
+from app.core.enums import (
+    ComplaintStatus,
+    EscalationRequestStatus,
+    TimelineEvent,
+)
 from app.core.errors import InvalidStateError, NotFoundError, ValidationAppError
 from app.models import ComplaintEscalation
 from app.modules.escalations.repository import EscalationRepository
 from app.modules.escalations.schemas import (
     EscalateComplaintRequest,
     EscalateComplaintResult,
+    EscalationRequestCreate,
+    EscalationRequestResult,
     EscalationResponse,
 )
 
@@ -26,9 +32,22 @@ REJECTED_STATUSES: dict[str, str] = {
 TARGET_STATUS = ComplaintStatus.ESCALATED
 ESCALATION_RECORD_STATUS = "OPEN"
 
+NOT_IN_PROGRESS_MESSAGE = (
+    "Complaint must be IN_PROGRESS before requesting escalation."
+)
+HAS_RESOLUTION_MESSAGE = (
+    "Complaint already has a resolution and cannot be escalated."
+)
+HAS_ACTIVE_ESCALATION_MESSAGE = "Complaint already has an active escalation."
+
 
 def _to_response(row: ComplaintEscalation) -> EscalationResponse:
-    return EscalationResponse.model_validate(row)
+    requester = row.__dict__.get("requester")
+    requested_by_name = (
+        getattr(requester, "full_name", None) if requester is not None else None
+    )
+    data = EscalationResponse.model_validate(row)
+    return data.model_copy(update={"requested_by_name": requested_by_name})
 
 
 class EscalationService:
@@ -142,6 +161,116 @@ class EscalationService:
             complaintId=complaint.id,
             status=ComplaintStatus(complaint.status),
         )
+
+    def request_escalation(
+        self,
+        complaint_id: uuid.UUID,
+        payload: EscalationRequestCreate,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> EscalationRequestResult:
+        """API-301 — create Escalation Request (status REQUESTED; no review)."""
+        complaint = self._repo.get_complaint(complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        if complaint.status != ComplaintStatus.IN_PROGRESS:
+            raise ValidationAppError(
+                NOT_IN_PROGRESS_MESSAGE,
+                details={"status": complaint.status},
+            )
+
+        if self._repo.has_current_resolution(complaint_id):
+            raise ValidationAppError(
+                HAS_RESOLUTION_MESSAGE,
+                details={"complaintId": str(complaint_id)},
+            )
+
+        active = self._repo.get_active_escalation(complaint_id)
+        if active is not None:
+            raise ValidationAppError(
+                HAS_ACTIVE_ESCALATION_MESSAGE,
+                details={
+                    "complaintId": str(complaint_id),
+                    "escalationId": str(active.id),
+                    "status": active.status,
+                },
+            )
+
+        now = datetime.now(UTC)
+        level = self._repo.next_level(complaint_id)
+
+        escalation = ComplaintEscalation(
+            complaint_id=complaint.id,
+            escalated_from_user_id=actor_user_id,
+            escalated_to_user_id=None,
+            escalated_to_role_id=None,
+            reason=payload.reason_description,
+            level=level,
+            status=EscalationRequestStatus.REQUESTED,
+            escalated_at=now,
+            resolved_at=None,
+            reason_code=payload.reason_code,
+            reason_description=payload.reason_description,
+            diagnosis=payload.diagnosis,
+            notes=payload.notes,
+            requested_by=actor_user_id,
+            requested_at=now,
+            created_at=now,
+            updated_at=now,
+            created_by=actor_user_id,
+            updated_by=actor_user_id,
+        )
+        self._repo.add_escalation(escalation)
+
+        # Complaint remains IN_PROGRESS — Review/Approve is out of scope (TASK-011).
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.ESCALATION_REQUESTED,
+            event_at=now,
+            from_status=complaint.status,
+            to_status=complaint.status,
+            summary="Escalation requested",
+            metadata={
+                "changeType": "ESCALATION_REQUESTED",
+                "escalationId": str(escalation.id),
+                "reasonCode": payload.reason_code,
+                "reasonDescription": payload.reason_description,
+                "requestedBy": str(actor_user_id),
+            },
+        )
+
+        result = EscalationRequestResult(
+            id=escalation.id,
+            complaintId=complaint.id,
+            status=EscalationRequestStatus.REQUESTED,
+            requestedBy=actor_user_id,
+            requestedAt=now,
+        )
+        self._repo.commit()
+        return result
+
+    def get_escalation(self, escalation_id: uuid.UUID) -> EscalationResponse:
+        """API-302 — get escalation by id."""
+        row = self._repo.get_by_id(escalation_id)
+        if row is None:
+            raise NotFoundError("Escalation not found")
+        return _to_response(row)
+
+    def get_active_for_complaint(
+        self, complaint_id: uuid.UUID
+    ) -> EscalationResponse | None:
+        complaint = self._repo.get_complaint(complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+        active = self._repo.get_active_escalation(complaint_id)
+        if active is None:
+            return None
+        return _to_response(active)
 
     def list_escalations(self, complaint_id: uuid.UUID) -> list[EscalationResponse]:
         complaint = self._repo.get_complaint(complaint_id)

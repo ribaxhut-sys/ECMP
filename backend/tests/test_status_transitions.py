@@ -44,9 +44,10 @@ def _complaint(**overrides: object) -> SimpleNamespace:
 def test_matrix_allowed_and_blocked() -> None:
     assert can_transition(ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS)
     assert can_transition(ComplaintStatus.IN_PROGRESS, ComplaintStatus.PENDING)
-    assert can_transition(ComplaintStatus.IN_PROGRESS, ComplaintStatus.RESOLVED)
+    # RESOLVED is owned by Resolution endpoint (API-225), not PATCH /status.
+    assert not can_transition(ComplaintStatus.IN_PROGRESS, ComplaintStatus.RESOLVED)
     assert can_transition(ComplaintStatus.PENDING, ComplaintStatus.IN_PROGRESS)
-    assert can_transition(ComplaintStatus.PENDING, ComplaintStatus.RESOLVED)
+    assert not can_transition(ComplaintStatus.PENDING, ComplaintStatus.RESOLVED)
     assert can_transition(ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED)
     assert can_transition(ComplaintStatus.RESOLVED, ComplaintStatus.IN_PROGRESS)
     assert not can_transition(ComplaintStatus.NEW, ComplaintStatus.RESOLVED)

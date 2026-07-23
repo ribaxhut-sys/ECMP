@@ -8,6 +8,9 @@ import type {
   ComplaintStatus,
   DataResponse,
   ListResponse,
+  Resolution,
+  ResolveComplaintRequest,
+  ResolveComplaintResult,
   TimelineEntry,
 } from "./types";
 
@@ -85,5 +88,28 @@ export function changeComplaintStatus(
       method: "PATCH",
       body: JSON.stringify(body),
     },
+  );
+}
+
+/** API-225 — POST /api/v1/complaints/{id}/resolution */
+export function resolveComplaint(
+  id: string,
+  body: ResolveComplaintRequest,
+): Promise<DataResponse<ResolveComplaintResult>> {
+  return apiRequest<DataResponse<ResolveComplaintResult>>(
+    `/api/v1/complaints/${encodeURIComponent(id)}/resolution`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/** API-226 — GET /api/v1/complaints/{id}/resolution */
+export function fetchComplaintResolution(
+  id: string,
+): Promise<DataResponse<Resolution>> {
+  return apiRequest<DataResponse<Resolution>>(
+    `/api/v1/complaints/${encodeURIComponent(id)}/resolution`,
   );
 }

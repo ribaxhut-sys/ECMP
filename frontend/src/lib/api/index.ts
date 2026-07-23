@@ -11,9 +11,16 @@ export {
   createComplaint,
   fetchComplaint,
   fetchComplaintAssignments,
+  fetchComplaintResolution,
   fetchComplaintTimeline,
   fetchLatestComplaints,
+  resolveComplaint,
 } from "./complaints";
+export {
+  fetchComplaintEscalations,
+  fetchEscalation,
+  requestEscalation,
+} from "./escalations";
 export { fetchBranches } from "./branches";
 export type { Branch } from "./branches";
 export { fetchCustomers } from "./customers";

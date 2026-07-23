@@ -1,14 +1,14 @@
 import type { ComplaintStatus } from "@/lib/api/types";
 
-/** Mirrors backend `app.core.status_transitions` (TASK-009). */
+/** Mirrors backend `app.core.status_transitions` (TASK-009 / TASK-010). */
 export const STATUS_TRANSITIONS: Record<
   ComplaintStatus,
   readonly ComplaintStatus[]
 > = {
   NEW: [],
   ASSIGNED: ["IN_PROGRESS"],
-  IN_PROGRESS: ["PENDING", "RESOLVED"],
-  PENDING: ["IN_PROGRESS", "RESOLVED"],
+  IN_PROGRESS: ["PENDING"],
+  PENDING: ["IN_PROGRESS"],
   RESOLVED: ["CLOSED", "IN_PROGRESS"],
   CLOSED: [],
   ESCALATED: [],
@@ -19,7 +19,10 @@ export interface StatusAction {
   target: ComplaintStatus;
 }
 
-/** UI action labels for allowed transitions (Assign stays on Assignment card). */
+/**
+ * UI action labels for allowed PATCH /status transitions.
+ * Assign stays on Assignment card; Resolve stays on Resolution form (API-225).
+ */
 export function statusActionsFor(
   status: ComplaintStatus,
 ): readonly StatusAction[] {
@@ -27,15 +30,9 @@ export function statusActionsFor(
     case "ASSIGNED":
       return [{ label: "Start Progress", target: "IN_PROGRESS" }];
     case "IN_PROGRESS":
-      return [
-        { label: "Mark Pending", target: "PENDING" },
-        { label: "Resolve", target: "RESOLVED" },
-      ];
+      return [{ label: "Mark Pending", target: "PENDING" }];
     case "PENDING":
-      return [
-        { label: "Resume", target: "IN_PROGRESS" },
-        { label: "Resolve", target: "RESOLVED" },
-      ];
+      return [{ label: "Resume", target: "IN_PROGRESS" }];
     case "RESOLVED":
       return [
         { label: "Close", target: "CLOSED" },

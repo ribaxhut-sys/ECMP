@@ -171,8 +171,48 @@ class Complaint(TimestampAuditSoftDeleteMixin, Base):
     escalations: Mapped[list[ComplaintEscalation]] = relationship(
         back_populates="complaint"
     )
+    resolutions: Mapped[list[ComplaintResolution]] = relationship(
+        back_populates="complaint"
+    )
     timelines: Mapped[list[ComplaintTimeline]] = relationship(back_populates="complaint")
     attachments: Mapped[list[Attachment]] = relationship(back_populates="complaint")
+
+
+class ComplaintResolution(TimestampAuditSoftDeleteMixin, Base):
+    """Resolution record required before CLOSED (TASK-010). One current row per complaint."""
+
+    __tablename__ = "complaint_resolutions"
+    __table_args__ = (
+        Index("ix_complaint_resolutions_complaint_id", "complaint_id"),
+        Index("ix_complaint_resolutions_resolved_by", "resolved_by"),
+        Index("ix_complaint_resolutions_resolved_at", "resolved_at"),
+        Index(
+            "ix_complaint_resolutions_complaint_current",
+            "complaint_id",
+            "is_current",
+        ),
+    )
+
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("complaints.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    resolution_category: Mapped[str] = mapped_column(String(32), nullable=False)
+    root_cause: Mapped[str] = mapped_column(String(500), nullable=False)
+    resolution_notes: Mapped[str] = mapped_column(Text, nullable=False)
+    resolved_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_current: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+
+    complaint: Mapped[Complaint] = relationship(back_populates="resolutions")
+    resolver: Mapped[User] = relationship(foreign_keys=[resolved_by])
 
 
 class ComplaintAssignment(TimestampAuditSoftDeleteMixin, Base):
@@ -218,6 +258,8 @@ class ComplaintAssignment(TimestampAuditSoftDeleteMixin, Base):
 
 
 class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
+    """Escalation history + Escalation Request (TASK-011 Branch → HO)."""
+
     __tablename__ = "complaint_escalations"
     __table_args__ = (
         Index("ix_complaint_escalations_complaint_id", "complaint_id"),
@@ -225,6 +267,9 @@ class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
         Index("ix_complaint_escalations_escalated_to_role_id", "escalated_to_role_id"),
         Index("ix_complaint_escalations_status", "status"),
         Index("ix_complaint_escalations_level", "level"),
+        Index("ix_complaint_escalations_requested_by", "requested_by"),
+        Index("ix_complaint_escalations_requested_at", "requested_at"),
+        Index("ix_complaint_escalations_reason_code", "reason_code"),
     )
 
     complaint_id: Mapped[uuid.UUID] = mapped_column(
@@ -254,6 +299,19 @@ class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
     resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # TASK-011 Escalation Request fields (API-301 / API-302)
+    reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reason_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    diagnosis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     complaint: Mapped[Complaint] = relationship(back_populates="escalations")
     escalated_from_user: Mapped[User | None] = relationship(
@@ -265,6 +323,7 @@ class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
     escalated_to_role: Mapped[Role | None] = relationship(
         foreign_keys=[escalated_to_role_id]
     )
+    requester: Mapped[User | None] = relationship(foreign_keys=[requested_by])
 
 
 class ComplaintTimeline(TimestampAuditSoftDeleteMixin, Base):
@@ -413,6 +472,7 @@ __all__ = [
     "Complaint",
     "ComplaintAssignment",
     "ComplaintEscalation",
+    "ComplaintResolution",
     "ComplaintTimeline",
     "Customer",
     "RefreshToken",

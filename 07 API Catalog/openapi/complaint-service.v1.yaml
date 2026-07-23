@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     ECMP v1.0.0 Production contract. Complaint CRUD, assignment,
-    escalation, timeline, reporting, user management, and production
+    escalation, resolution, timeline, reporting, user management, and production
     authentication. Paths use `/api/v1` prefix. Dashboard exports,
     OAuth/SSO/LDAP/MFA, password reset, social login, notification, SLA, and
     workflow-engine APIs are out of scope.
@@ -22,7 +22,9 @@ tags:
   - name: Assignments
     description: Complaint assignment and reassignment (Supervisor only)
   - name: Escalations
-    description: Complaint escalation (Supervisor only)
+    description: Complaint escalation and Escalation Request (Branch → HO)
+  - name: Resolutions
+    description: Complaint resolution (IN_PROGRESS → RESOLVED)
   - name: Timeline
     description: Immutable complaint timeline (read-only)
   - name: Reports
@@ -288,18 +290,20 @@ paths:
         - bearerAuth: []
       description: |
         Validated lifecycle status transition (TASK-009). This is the sole write
-        path for status except Assign (`NEW`→`ASSIGNED`) and Escalation
-        (`→ESCALATED`). Invalid transitions return 400 VALIDATION_ERROR
+        path for status except Assign (`NEW`→`ASSIGNED`), Resolution
+        (`IN_PROGRESS`→`RESOLVED` via API-225), and Escalation (`→ESCALATED`).
+        Invalid transitions return 400 VALIDATION_ERROR
         ("Invalid status transition."). Writes timeline + audit in the same
         transaction. Requires permission `complaints:update`.
 
         Allowed matrix:
         - ASSIGNED → IN_PROGRESS
-        - IN_PROGRESS → PENDING | RESOLVED
-        - PENDING → IN_PROGRESS | RESOLVED
+        - IN_PROGRESS → PENDING
+        - PENDING → IN_PROGRESS
         - RESOLVED → CLOSED | IN_PROGRESS (reopen)
         - CLOSED → (none)
         - NEW → (none via this endpoint; use Assign)
+        - RESOLVED via this endpoint is blocked — use POST .../resolution
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -317,6 +321,82 @@ paths:
                 $ref: "#/components/schemas/ComplaintDataResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/resolution:
+    post:
+      summary: Resolve complaint
+      operationId: resolveComplaint
+      x-ear-id: API-225
+      tags: [Resolutions]
+      security:
+        - bearerAuth: []
+      description: |
+        Records a mandatory resolution and transitions status
+        `IN_PROGRESS` → `RESOLVED` (TASK-010). Complaints must not be
+        CLOSED without a resolution first — CLOSED remains available only
+        from RESOLVED via API-224. Rejects any other status with 400
+        VALIDATION_ERROR ("Complaint must be IN_PROGRESS before resolving.").
+        Writes `complaint.resolved` timeline event and audit `complaint.resolve`
+        in the same transaction. Requires permission `complaints:update`.
+        `resolvedBy` is optional; when omitted, the authenticated user is used.
+        When provided, it must match the authenticated user.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveComplaintRequest"
+            example:
+              resolutionCategory: SOLVED
+              rootCause: Configuration Error
+              resolutionNotes: Restarted service and updated configuration.
+              resolvedBy: "00000000-0000-0000-0000-000000000001"
+      responses:
+        "200":
+          description: Resolved (status RESOLVED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      summary: Get current complaint resolution
+      operationId: getComplaintResolution
+      x-ear-id: API-226
+      tags: [Resolutions]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the current (isCurrent=true) resolution for a complaint.
+        404 when the complaint has no current resolution. Requires
+        permission `complaints:read`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: Current resolution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolutionDataResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -438,6 +518,50 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/escalations:
+    post:
+      summary: Request escalation (Branch → Head Office)
+      operationId: requestComplaintEscalation
+      x-ear-id: API-301
+      tags: [Escalations]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates an Escalation Request with status `REQUESTED` (TASK-011).
+        Complaint must be `IN_PROGRESS`, must not have a current Resolution,
+        and must not already have an active escalation (`REQUESTED` or `OPEN`).
+        Complaint status is **not** changed (Review/Approve out of scope).
+        Writes timeline event `complaint.escalation_requested`
+        ("Escalation requested"). Requires permission `complaints:update`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalationRequestCreate"
+            example:
+              reasonCode: SPECIALIST_REQUIRED
+              reasonDescription: Requires Head Office specialist.
+              diagnosis: Branch troubleshooting completed.
+              notes: Customer visited branch twice.
+      responses:
+        "200":
+          description: Escalation requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationRequestDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     get:
       summary: List escalation history
       operationId: listComplaintEscalations
@@ -457,6 +581,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EscalationListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/escalations/{id}:
+    get:
+      summary: Get escalation by id
+      operationId: getEscalation
+      x-ear-id: API-302
+      tags: [Escalations]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a single escalation (including Escalation Request fields).
+        Requires permission `complaints:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Escalation id
+      responses:
+        "200":
+          description: Escalation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationDataResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -953,6 +1109,7 @@ components:
           complaint.assigned,
           complaint.reassigned,
           complaint.escalated,
+          complaint.escalation_requested,
           complaint.resolved,
           complaint.closed,
         ]
@@ -1110,6 +1267,25 @@ components:
         escalatedToRoleId: { type: string, format: uuid, nullable: true }
         escalatedFromUserId: { type: string, format: uuid, nullable: true }
       description: At least one of escalatedToUserId or escalatedToRoleId is required.
+    EscalationReasonCode:
+      type: string
+      enum:
+        [
+          SPECIALIST_REQUIRED,
+          COMPLEX_CASE,
+          POLICY_EXCEPTION,
+          CUSTOMER_REQUEST,
+          OTHER,
+        ]
+      description: Minimum reason codes for Branch → HO Escalation Request (TASK-011).
+    EscalationRequestCreate:
+      type: object
+      required: [reasonCode, reasonDescription, diagnosis]
+      properties:
+        reasonCode: { $ref: "#/components/schemas/EscalationReasonCode" }
+        reasonDescription: { type: string, minLength: 1, maxLength: 2000 }
+        diagnosis: { type: string, minLength: 1, maxLength: 5000 }
+        notes: { type: string, maxLength: 5000, nullable: true }
     Escalation:
       type: object
       required:
@@ -1130,6 +1306,35 @@ components:
         status: { type: string }
         escalatedAt: { type: string, format: date-time }
         resolvedAt: { type: string, format: date-time, nullable: true }
+        reasonCode: { type: string, nullable: true }
+        reasonDescription: { type: string, nullable: true }
+        diagnosis: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        requestedBy: { type: string, format: uuid, nullable: true }
+        requestedByName:
+          type: string
+          nullable: true
+          description: Display name of requester
+        requestedAt: { type: string, format: date-time, nullable: true }
+    EscalationRequestResult:
+      type: object
+      required: [id, complaintId, status, requestedBy, requestedAt]
+      properties:
+        id: { type: string, format: uuid }
+        complaintId: { type: string, format: uuid }
+        status: { type: string, enum: [REQUESTED] }
+        requestedBy: { type: string, format: uuid }
+        requestedAt: { type: string, format: date-time }
+    EscalationRequestDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/EscalationRequestResult" }
+    EscalationDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Escalation" }
     EscalateComplaintResult:
       type: object
       required: [escalation, complaintId, status]
@@ -1149,6 +1354,73 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/Escalation" }
+    ResolutionCategory:
+      type: string
+      enum:
+        [
+          SOLVED,
+          WORKAROUND,
+          DUPLICATE,
+          INVALID_REQUEST,
+          USER_ERROR,
+          THIRD_PARTY,
+        ]
+      description: Minimum resolution category set (TASK-010).
+    ResolveComplaintRequest:
+      type: object
+      required: [resolutionCategory, rootCause, resolutionNotes]
+      properties:
+        resolutionCategory: { $ref: "#/components/schemas/ResolutionCategory" }
+        rootCause: { type: string, minLength: 1, maxLength: 500 }
+        resolutionNotes: { type: string, minLength: 1, maxLength: 5000 }
+        resolvedBy:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            Optional. Defaults to authenticated user. When provided must match
+            the authenticated user.
+    Resolution:
+      type: object
+      required:
+        - id
+        - complaintId
+        - resolutionCategory
+        - rootCause
+        - resolutionNotes
+        - resolvedBy
+        - resolvedAt
+        - isCurrent
+      properties:
+        id: { type: string, format: uuid }
+        complaintId: { type: string, format: uuid }
+        resolutionCategory: { $ref: "#/components/schemas/ResolutionCategory" }
+        rootCause: { type: string }
+        resolutionNotes: { type: string }
+        resolvedBy: { type: string, format: uuid }
+        resolvedByName:
+          type: string
+          nullable: true
+          description: Display name of resolver (UI must not show resolvedBy UUID)
+        resolvedAt: { type: string, format: date-time }
+        isCurrent: { type: boolean }
+    ResolveComplaintResult:
+      type: object
+      required: [resolution, complaintId, status]
+      properties:
+        resolution: { $ref: "#/components/schemas/Resolution" }
+        complaintId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+    ResolveComplaintDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ResolveComplaintResult" }
+    ResolutionDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Resolution" }
     TimelineEntry:
       type: object
       required:

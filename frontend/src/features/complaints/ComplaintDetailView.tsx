@@ -6,6 +6,7 @@ import {
   ApiError,
   fetchBranches,
   fetchComplaint,
+  fetchComplaintResolution,
   fetchCustomers,
   type Branch,
   type Customer,
@@ -25,6 +26,8 @@ import {
   type BadgeTone,
 } from "@/shared/ui";
 import { AssignmentCard } from "./AssignmentCard";
+import { EscalationCard } from "./EscalationCard";
+import { ResolutionCard } from "./ResolutionCard";
 import { StatusActionsCard } from "./StatusActionsCard";
 import { TimelineCard } from "./TimelineCard";
 
@@ -96,6 +99,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
   const [complaint, setComplaint] = useState<Complaint | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [branch, setBranch] = useState<Branch | null>(null);
+  const [hasResolution, setHasResolution] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,15 +112,20 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     setComplaint(null);
     setCustomer(null);
     setBranch(null);
+    setHasResolution(false);
 
     try {
       const res = await fetchComplaint(complaintId);
       const data = res.data;
       setComplaint(data);
 
-      const [customersRes, branchesRes] = await Promise.all([
+      const [customersRes, branchesRes, resolutionRes] = await Promise.all([
         fetchCustomers(100).catch(() => null),
         fetchBranches(100).catch(() => null),
+        fetchComplaintResolution(complaintId).catch((err) => {
+          if (err instanceof ApiError && err.status === 404) return null;
+          return null;
+        }),
       ]);
 
       if (customersRes) {
@@ -129,6 +138,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           branchesRes.data.find((b) => b.id === data.branchId) ?? null,
         );
       }
+      setHasResolution(resolutionRes !== null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setNotFound(true);
@@ -303,6 +313,25 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         complaintId={complaint.id}
         status={complaint.status}
         onStatusChanged={() => {
+          setTimelineKey((key) => key + 1);
+          void load();
+        }}
+      />
+
+      <ResolutionCard
+        complaintId={complaint.id}
+        status={complaint.status}
+        onResolved={() => {
+          setTimelineKey((key) => key + 1);
+          void load();
+        }}
+      />
+
+      <EscalationCard
+        complaintId={complaint.id}
+        status={complaint.status}
+        hasResolution={hasResolution}
+        onRequested={() => {
           setTimelineKey((key) => key + 1);
           void load();
         }}

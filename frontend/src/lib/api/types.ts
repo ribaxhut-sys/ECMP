@@ -11,6 +11,21 @@ export type ComplaintStatus =
 
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
+export type ResolutionCategory =
+  | "SOLVED"
+  | "WORKAROUND"
+  | "DUPLICATE"
+  | "INVALID_REQUEST"
+  | "USER_ERROR"
+  | "THIRD_PARTY";
+
+export type EscalationReasonCode =
+  | "SPECIALIST_REQUIRED"
+  | "COMPLEX_CASE"
+  | "POLICY_EXCEPTION"
+  | "CUSTOMER_REQUEST"
+  | "OTHER";
+
 export interface ApiErrorBody {
   code: string;
   message: string;
@@ -108,6 +123,72 @@ export interface AssignComplaintResult {
   reassigned: boolean;
 }
 
+/** API-225 resolve request. */
+export interface ResolveComplaintRequest {
+  resolutionCategory: ResolutionCategory;
+  rootCause: string;
+  resolutionNotes: string;
+  resolvedBy?: string | null;
+}
+
+/** API-226 resolution row. */
+export interface Resolution {
+  id: string;
+  complaintId: string;
+  resolutionCategory: ResolutionCategory;
+  rootCause: string;
+  resolutionNotes: string;
+  resolvedBy: string;
+  resolvedByName: string | null;
+  resolvedAt: string;
+  isCurrent: boolean;
+}
+
+/** API-225 resolve response data. */
+export interface ResolveComplaintResult {
+  resolution: Resolution;
+  complaintId: string;
+  status: ComplaintStatus;
+}
+
+/** API-301 escalation request body. */
+export interface EscalationRequestCreate {
+  reasonCode: EscalationReasonCode;
+  reasonDescription: string;
+  diagnosis: string;
+  notes?: string | null;
+}
+
+/** API-301 create response. */
+export interface EscalationRequestResult {
+  id: string;
+  complaintId: string;
+  status: "REQUESTED";
+  requestedBy: string;
+  requestedAt: string;
+}
+
+/** API-208 / API-302 escalation row. */
+export interface Escalation {
+  id: string;
+  complaintId: string;
+  escalatedFromUserId: string | null;
+  escalatedToUserId: string | null;
+  escalatedToRoleId: string | null;
+  reason: string;
+  level: number;
+  status: string;
+  escalatedAt: string;
+  resolvedAt: string | null;
+  reasonCode: string | null;
+  reasonDescription: string | null;
+  diagnosis: string | null;
+  notes: string | null;
+  requestedBy: string | null;
+  requestedByName: string | null;
+  requestedAt: string | null;
+}
+
 /** API-209 timeline entry (read-only activity log). */
 export interface TimelineEntry {
   id: string;
@@ -120,6 +201,7 @@ export interface TimelineEntry {
     | "complaint.assigned"
     | "complaint.reassigned"
     | "complaint.escalated"
+    | "complaint.escalation_requested"
     | "complaint.resolved"
     | "complaint.closed";
   eventAt: string;

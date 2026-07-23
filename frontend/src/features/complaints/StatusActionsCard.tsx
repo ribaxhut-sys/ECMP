@@ -106,11 +106,7 @@ export function StatusActionsCard({
             <Button
               key={action.target}
               type="button"
-              variant={
-                action.target === "RESOLVED" || action.target === "CLOSED"
-                  ? "primary"
-                  : "outline"
-              }
+              variant={action.target === "CLOSED" ? "primary" : "outline"}
               disabled={submitting !== null}
               onClick={() => void runTransition(action.target, action.label)}
             >
