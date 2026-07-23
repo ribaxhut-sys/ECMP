@@ -196,6 +196,13 @@ def _booked_appointment(**overrides: object) -> SimpleNamespace:
         "checked_in_at": None,
         "checked_in_by": None,
         "checkin_notes": None,
+        "completed_at": None,
+        "completed_by": None,
+        "completion_notes": None,
+        "completion_result": "COMPLETED",
+        "no_show_at": None,
+        "no_show_by": None,
+        "no_show_reason": None,
         "updated_at": now,
         "updated_by": None,
     }
@@ -309,6 +316,9 @@ def _checked_in_appointment(**overrides: object) -> SimpleNamespace:
         "completed_by": None,
         "completion_notes": None,
         "completion_result": "COMPLETED",
+        "no_show_at": None,
+        "no_show_by": None,
+        "no_show_reason": None,
         "updated_at": now,
         "updated_by": None,
     }
@@ -442,3 +452,148 @@ def test_complete_not_found() -> None:
             AppointmentCompleteRequest(),
             actor_user_id=uuid.uuid4(),
         )
+
+
+def test_no_show_success() -> None:
+    from app.modules.appointments.schemas import AppointmentNoShowRequest
+
+    actor = uuid.uuid4()
+    complaint = _complaint()
+    escalation = _escalation(complaint_id=complaint.id, status="APPROVED")
+    row = _booked_appointment(escalation_id=escalation.id)
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+    repo.get_escalation.return_value = escalation
+    repo.get_complaint.return_value = complaint
+
+    result = AppointmentService(repo).mark_no_show(
+        row.id,
+        AppointmentNoShowRequest(
+            reason="Customer did not arrive within the scheduled grace period."
+        ),
+        actor_user_id=actor,
+    )
+
+    assert result.status == "NO_SHOW"
+    assert result.no_show_by == actor
+    assert row.status == "NO_SHOW"
+    assert row.no_show_by == actor
+    assert (
+        row.no_show_reason
+        == "Customer did not arrive within the scheduled grace period."
+    )
+    assert complaint.status == "IN_PROGRESS"
+    assert escalation.status == "APPROVED"
+    repo.add_timeline.assert_called_once()
+    assert (
+        repo.add_timeline.call_args.kwargs["event_type"]
+        == "complaint.appointment_no_show"
+    )
+    assert (
+        repo.add_timeline.call_args.kwargs["summary"]
+        == "Customer marked as no-show"
+    )
+    meta = repo.add_timeline.call_args.kwargs["metadata"]
+    assert meta["appointmentId"] == str(row.id)
+    assert meta["escalationId"] == str(escalation.id)
+    assert meta["noShowBy"] == str(actor)
+    assert "noShowAt" in meta
+    assert meta["reason"] == row.no_show_reason
+    repo.commit.assert_called_once()
+
+
+def test_no_show_rejects_not_booked() -> None:
+    from app.modules.appointments.schemas import AppointmentNoShowRequest
+    from app.modules.appointments.service import NOT_BOOKED_FOR_NO_SHOW_MESSAGE
+
+    row = _booked_appointment(status="OPEN")
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+
+    with pytest.raises(ValidationAppError) as exc:
+        AppointmentService(repo).mark_no_show(
+            row.id,
+            AppointmentNoShowRequest(reason="Nope"),
+            actor_user_id=uuid.uuid4(),
+        )
+    assert exc.value.message == NOT_BOOKED_FOR_NO_SHOW_MESSAGE
+    repo.commit.assert_not_called()
+
+
+def test_no_show_rejects_duplicate() -> None:
+    from app.modules.appointments.schemas import AppointmentNoShowRequest
+    from app.modules.appointments.service import ALREADY_NO_SHOW_MESSAGE
+
+    now = datetime.now(UTC)
+    row = _booked_appointment(
+        status="NO_SHOW",
+        no_show_at=now,
+        no_show_by=uuid.uuid4(),
+        no_show_reason="Already marked",
+    )
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+
+    with pytest.raises(ValidationAppError) as exc:
+        AppointmentService(repo).mark_no_show(
+            row.id,
+            AppointmentNoShowRequest(reason="Again"),
+            actor_user_id=uuid.uuid4(),
+        )
+    assert exc.value.message == ALREADY_NO_SHOW_MESSAGE
+    repo.commit.assert_not_called()
+
+
+def test_no_show_rejects_checked_in() -> None:
+    from app.modules.appointments.schemas import AppointmentNoShowRequest
+    from app.modules.appointments.service import NO_SHOW_AFTER_CHECK_IN_MESSAGE
+
+    row = _checked_in_appointment()
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+
+    with pytest.raises(ValidationAppError) as exc:
+        AppointmentService(repo).mark_no_show(
+            row.id,
+            AppointmentNoShowRequest(reason="Too late"),
+            actor_user_id=uuid.uuid4(),
+        )
+    assert exc.value.message == NO_SHOW_AFTER_CHECK_IN_MESSAGE
+    repo.commit.assert_not_called()
+
+
+def test_no_show_rejects_completed() -> None:
+    from app.modules.appointments.schemas import AppointmentNoShowRequest
+    from app.modules.appointments.service import NO_SHOW_AFTER_COMPLETED_MESSAGE
+
+    now = datetime.now(UTC)
+    row = _checked_in_appointment(
+        status="COMPLETED",
+        completed_at=now,
+        completed_by=uuid.uuid4(),
+    )
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+
+    with pytest.raises(ValidationAppError) as exc:
+        AppointmentService(repo).mark_no_show(
+            row.id,
+            AppointmentNoShowRequest(reason="Too late"),
+            actor_user_id=uuid.uuid4(),
+        )
+    assert exc.value.message == NO_SHOW_AFTER_COMPLETED_MESSAGE
+    repo.commit.assert_not_called()
+
+
+def test_no_show_not_found() -> None:
+    from app.modules.appointments.schemas import AppointmentNoShowRequest
+
+    repo = MagicMock()
+    repo.get_by_id.return_value = None
+    with pytest.raises(NotFoundError):
+        AppointmentService(repo).mark_no_show(
+            uuid.uuid4(),
+            AppointmentNoShowRequest(),
+            actor_user_id=uuid.uuid4(),
+        )
+

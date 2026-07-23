@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.core.enums import AppointmentCompletionResult
 
-AppointmentStatusLiteral = Literal["BOOKED", "CHECKED_IN", "COMPLETED"]
+AppointmentStatusLiteral = Literal["BOOKED", "CHECKED_IN", "COMPLETED", "NO_SHOW"]
 CompletionResultLiteral = Literal["COMPLETED", "PARTIALLY_COMPLETED"]
 
 
@@ -101,6 +101,22 @@ class AppointmentCompleteRequest(BaseModel):
         return cleaned or None
 
 
+class AppointmentNoShowRequest(BaseModel):
+    """API-309 — customer no-show body."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    reason: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class AppointmentSummary(BaseModel):
     """Slim appointment projection embedded on Escalation (API-302)."""
 
@@ -146,6 +162,17 @@ class AppointmentCompleteResult(BaseModel):
     completed_by: uuid.UUID = Field(alias="completedBy")
 
 
+class AppointmentNoShowResult(BaseModel):
+    """API-309 slim no-show response."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: uuid.UUID
+    status: Literal["NO_SHOW"]
+    no_show_at: datetime = Field(alias="noShowAt")
+    no_show_by: uuid.UUID = Field(alias="noShowBy")
+
+
 class AppointmentResponse(BaseModel):
     """API-306 full appointment detail."""
 
@@ -169,6 +196,9 @@ class AppointmentResponse(BaseModel):
     completed_by: uuid.UUID | None = Field(default=None, alias="completedBy")
     completion_notes: str | None = Field(default=None, alias="completionNotes")
     completion_result: str | None = Field(default=None, alias="completionResult")
+    no_show_at: datetime | None = Field(default=None, alias="noShowAt")
+    no_show_by: uuid.UUID | None = Field(default=None, alias="noShowBy")
+    no_show_reason: str | None = Field(default=None, alias="noShowReason")
     created_by: uuid.UUID | None = Field(default=None, alias="createdBy")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

@@ -28,6 +28,7 @@ export {
   checkInAppointment,
   completeAppointment,
   fetchAppointment,
+  markAppointmentNoShow,
 } from "./appointments";
 export { fetchBranches } from "./branches";
 export type { Branch } from "./branches";

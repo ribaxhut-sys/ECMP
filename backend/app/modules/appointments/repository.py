@@ -24,6 +24,7 @@ CURRENT_APPOINTMENT_STATUSES = frozenset(
         AppointmentStatus.BOOKED,
         AppointmentStatus.CHECKED_IN,
         AppointmentStatus.COMPLETED,
+        AppointmentStatus.NO_SHOW,
     }
 )
 

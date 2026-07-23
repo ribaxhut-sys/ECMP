@@ -17,7 +17,7 @@
 |---|---|---|---|
 | `case-actions.v1.yaml` | ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED) | 1.0.0 | 0 |
 | `case-service.v1.yaml` | ECMP Case Service API | 1.7.0 | 10 |
-| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 34 |
+| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 35 |
 
 ## `case-actions.v1.yaml`
 
@@ -66,6 +66,7 @@
 | API-306 | `GET /api/v1/appointments/{id}` | Get appointment by id |
 | API-307 | `POST /api/v1/appointments/{id}/check-in` | Check in customer for booked appointment |
 | API-308 | `POST /api/v1/appointments/{id}/complete` | Complete checked-in appointment |
+| API-309 | `POST /api/v1/appointments/{id}/no-show` | Mark booked appointment as customer no-show |
 | API-209 | `GET /api/v1/complaints/{id}/timeline` | Get complaint timeline |
 | API-210 | `GET /api/v1/reports/summary` | Complaint report summary |
 | API-211 | `GET /api/v1/reports/by-status` | Complaint counts by status |

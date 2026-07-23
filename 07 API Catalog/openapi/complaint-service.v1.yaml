@@ -860,7 +860,7 @@ paths:
         auto-close complaint or escalation. Writes timeline
         `complaint.appointment_completed`. Requires role Head Office Engineer
         or Admin and permission `appointments:complete`.
-        Out of scope: complaint close, escalation close, no-show, SLA,
+        Out of scope: complaint close, escalation close, SLA,
         notification, survey, rating, calendar, auto-close.
       parameters:
         - name: id
@@ -894,6 +894,56 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/appointments/{id}/no-show:
+    post:
+      summary: Mark booked appointment as customer no-show
+      operationId: markAppointmentNoShow
+      x-ear-id: API-309
+      tags: [Appointments]
+      security:
+        - bearerAuth: []
+      description: |
+        Customer no-show for a `BOOKED` appointment (TASK-017 / DEC-010).
+        Sets status `NO_SHOW` and stores `noShowAt` / `noShowBy` / reason.
+        No-show can only happen once and is rejected if already
+        `CHECKED_IN` or `COMPLETED`. Complaint status remains `IN_PROGRESS`;
+        escalation remains `APPROVED` — does not auto-close complaint or
+        escalation. Writes timeline `complaint.appointment_no_show`.
+        Requires role Head Office Scheduler or Admin and permission
+        `escalations:review`.
+        Out of scope: complaint close, escalation close, reschedule,
+        automatic rebooking, SLA, notification, survey, calendar, auto-close.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Appointment id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentNoShowRequest"
+            example:
+              reason: Customer did not arrive within the scheduled grace period.
+      responses:
+        "200":
+          description: Marked no-show
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentNoShowDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/timeline:
     get:
       summary: Get complaint timeline
@@ -911,7 +961,8 @@ paths:
         `complaint.escalation_requested`, `complaint.escalation_approved`,
         `complaint.escalation_rejected`,         `complaint.appointment_booked`,
         `complaint.appointment_checked_in`,
-        `complaint.appointment_completed`, `complaint.resolved`,
+        `complaint.appointment_completed`,
+        `complaint.appointment_no_show`, `complaint.resolved`,
         `complaint.closed`.
         `actorName` is included for UI display (no actor UUID required in UI).
         Requires permission `complaints:read`.
@@ -1392,6 +1443,7 @@ components:
           complaint.appointment_booked,
           complaint.appointment_checked_in,
           complaint.appointment_completed,
+          complaint.appointment_no_show,
           complaint.resolved,
           complaint.closed,
         ]
@@ -1609,13 +1661,14 @@ components:
           allOf:
             - $ref: "#/components/schemas/AppointmentSummary"
           nullable: true
-          description: Current BOOKED, CHECKED_IN, or COMPLETED appointment
+          description: Current BOOKED, CHECKED_IN, COMPLETED, or NO_SHOW appointment
     AppointmentStatus:
       type: string
-      enum: [BOOKED, CHECKED_IN, COMPLETED]
+      enum: [BOOKED, CHECKED_IN, COMPLETED, NO_SHOW]
       description: |
         Appointment status. BOOKED = booked slot; CHECKED_IN = customer
-        arrived; COMPLETED = meeting finished (TASK-016). No-show out of scope.
+        arrived; COMPLETED = meeting finished; NO_SHOW = customer did not
+        arrive (TASK-017).
     AppointmentCompletionResult:
       type: string
       enum: [COMPLETED, PARTIALLY_COMPLETED]
@@ -1702,6 +1755,23 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/AppointmentCompleteResult" }
+    AppointmentNoShowRequest:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 5000, nullable: true }
+    AppointmentNoShowResult:
+      type: object
+      required: [id, status, noShowAt, noShowBy]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [NO_SHOW] }
+        noShowAt: { type: string, format: date-time }
+        noShowBy: { type: string, format: uuid }
+    AppointmentNoShowDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AppointmentNoShowResult" }
     Appointment:
       type: object
       required:
@@ -1731,6 +1801,9 @@ components:
         completedBy: { type: string, format: uuid, nullable: true }
         completionNotes: { type: string, nullable: true }
         completionResult: { type: string, nullable: true }
+        noShowAt: { type: string, format: date-time, nullable: true }
+        noShowBy: { type: string, format: uuid, nullable: true }
+        noShowReason: { type: string, nullable: true }
         createdBy: { type: string, format: uuid, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }

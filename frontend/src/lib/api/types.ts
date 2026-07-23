@@ -210,7 +210,7 @@ export interface Escalation {
 /** API-305 / API-302 appointment summary. */
 export interface AppointmentSummary {
   id: string;
-  status: "BOOKED" | "CHECKED_IN" | "COMPLETED" | string;
+  status: "BOOKED" | "CHECKED_IN" | "COMPLETED" | "NO_SHOW" | string;
   appointmentDate: string;
   appointmentStartTime: string;
   appointmentEndTime: string;
@@ -265,6 +265,19 @@ export interface AppointmentCompleteResult {
   completedBy: string;
 }
 
+/** API-309 no-show request. */
+export interface AppointmentNoShowRequest {
+  reason?: string | null;
+}
+
+/** API-309 slim no-show response. */
+export interface AppointmentNoShowResult {
+  id: string;
+  status: "NO_SHOW";
+  noShowAt: string;
+  noShowBy: string;
+}
+
 /** API-306 appointment detail. */
 export interface Appointment {
   id: string;
@@ -272,7 +285,7 @@ export interface Appointment {
   appointmentDate: string;
   appointmentStartTime: string;
   appointmentEndTime: string;
-  status: "BOOKED" | "CHECKED_IN" | "COMPLETED" | string;
+  status: "BOOKED" | "CHECKED_IN" | "COMPLETED" | "NO_SHOW" | string;
   assignedEngineerId: string;
   assignedEngineerName: string | null;
   notes: string | null;
@@ -283,6 +296,9 @@ export interface Appointment {
   completedBy: string | null;
   completionNotes: string | null;
   completionResult: string | null;
+  noShowAt: string | null;
+  noShowBy: string | null;
+  noShowReason: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -306,6 +322,7 @@ export interface TimelineEntry {
     | "complaint.appointment_booked"
     | "complaint.appointment_checked_in"
     | "complaint.appointment_completed"
+    | "complaint.appointment_no_show"
     | "complaint.resolved"
     | "complaint.closed";
   eventAt: string;

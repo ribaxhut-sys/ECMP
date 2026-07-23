@@ -34,6 +34,7 @@ class TimelineEvent(StrEnum):
     APPOINTMENT_BOOKED = "complaint.appointment_booked"
     APPOINTMENT_CHECKED_IN = "complaint.appointment_checked_in"
     APPOINTMENT_COMPLETED = "complaint.appointment_completed"
+    APPOINTMENT_NO_SHOW = "complaint.appointment_no_show"
     RESOLVED = "complaint.resolved"
     CLOSED = "complaint.closed"
 
@@ -47,11 +48,12 @@ class EscalationRequestStatus(StrEnum):
 
 
 class AppointmentStatus(StrEnum):
-    """Appointment lifecycle (book → check-in → complete)."""
+    """Appointment lifecycle (book → check-in / no-show → complete)."""
 
     BOOKED = "BOOKED"
     CHECKED_IN = "CHECKED_IN"
     COMPLETED = "COMPLETED"
+    NO_SHOW = "NO_SHOW"
 
 
 class AppointmentCompletionResult(StrEnum):

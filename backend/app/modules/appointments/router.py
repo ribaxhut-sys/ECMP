@@ -1,4 +1,4 @@
-"""Appointment HTTP routes (API-305 / API-306 / API-307 / API-308)."""
+"""Appointment HTTP routes (API-305 / API-306 / API-307 / API-308 / API-309)."""
 
 from __future__ import annotations
 
@@ -24,6 +24,8 @@ from app.modules.appointments.schemas import (
     AppointmentCompleteRequest,
     AppointmentCompleteResult,
     AppointmentCreate,
+    AppointmentNoShowRequest,
+    AppointmentNoShowResult,
     AppointmentResponse,
 )
 from app.modules.appointments.service import AppointmentService
@@ -33,7 +35,7 @@ escalation_appointments_router = APIRouter(
     prefix="/api/v1/escalations", tags=["Appointments"]
 )
 
-# Top-level appointments for API-306 / API-307 / API-308
+# Top-level appointments for API-306 / API-307 / API-308 / API-309
 appointments_router = APIRouter(prefix="/api/v1/appointments", tags=["Appointments"])
 
 
@@ -107,4 +109,21 @@ def complete_appointment(
 ) -> DataResponse[AppointmentCompleteResult]:
     """API-308 — appointment completion (HO Engineer / Admin)."""
     result = service.complete(id, payload, actor_user_id=principal.user_id)
+    return DataResponse(data=result)
+
+
+@appointments_router.post(
+    "/{id}/no-show",
+    response_model=DataResponse[AppointmentNoShowResult],
+    status_code=status.HTTP_200_OK,
+    summary="Mark booked appointment as customer no-show",
+)
+def mark_appointment_no_show(
+    id: uuid.UUID,
+    payload: AppointmentNoShowRequest,
+    service: Annotated[AppointmentService, Depends(get_appointment_service)],
+    principal: Annotated[Principal, Depends(require_escalation_review)],
+) -> DataResponse[AppointmentNoShowResult]:
+    """API-309 — customer no-show (HO Scheduler / Admin)."""
+    result = service.mark_no_show(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)

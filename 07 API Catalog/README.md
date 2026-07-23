@@ -60,6 +60,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-306 | GET /api/v1/appointments/{id} | Get appointment by id | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-307 | POST /api/v1/appointments/{id}/check-in | Customer check-in for BOOKED appointment (once only) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
 | API-308 | POST /api/v1/appointments/{id}/complete | Complete CHECKED_IN appointment (once only; result COMPLETED/PARTIALLY_COMPLETED) | bearerAuth, role HO Engineer/Admin + `appointments:complete` | 🟢 Implemented |
+| API-309 | POST /api/v1/appointments/{id}/no-show | Mark BOOKED appointment as customer no-show (once only) | bearerAuth, role HO Scheduler/Admin + `escalations:review` | 🟢 Implemented |
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (created_at DESC newest first; empty list OK; includes actorName) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
@@ -76,6 +77,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
+> **2026-07-23 (TASK-017 Customer No Show / DEC-010):** complaint-service —
+> API-309 no-show for `BOOKED` appointments → `NO_SHOW`. Timeline
+> `complaint.appointment_no_show`. Migration `0010_appointment_no_show`.
+> Does not auto-close complaint or escalation. Reschedule / rebooking /
+> notification / SLA out of scope.
+>
 > **2026-07-23 (TASK-016 Appointment Completion / DEC-009):** complaint-service —
 > API-308 complete for `CHECKED_IN` appointments → `COMPLETED`. Timeline
 > `complaint.appointment_completed`. Migration `0009_appointment_completion`.

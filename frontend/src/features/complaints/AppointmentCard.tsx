@@ -16,6 +16,7 @@ import {
   fetchAppointment,
   fetchComplaintEscalations,
   fetchUsers,
+  markAppointmentNoShow,
   type UserRef,
 } from "@/lib/api";
 import type {
@@ -140,6 +141,11 @@ export function AppointmentCard({
   const [completionNotes, setCompletionNotes] = useState("");
   const [completeError, setCompleteError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
+
+  const [noShowOpen, setNoShowOpen] = useState(false);
+  const [noShowReason, setNoShowReason] = useState("");
+  const [noShowError, setNoShowError] = useState<string | null>(null);
+  const [markingNoShow, setMarkingNoShow] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -336,18 +342,71 @@ export function AppointmentCard({
     }
   }
 
+  function openNoShow() {
+    setNoShowReason("");
+    setNoShowError(null);
+    setNoShowOpen(true);
+  }
+
+  function closeNoShow() {
+    if (markingNoShow) return;
+    setNoShowOpen(false);
+    setNoShowError(null);
+  }
+
+  async function confirmNoShow() {
+    if (!appointment) return;
+    setMarkingNoShow(true);
+    setNoShowError(null);
+    try {
+      await markAppointmentNoShow(appointment.id, {
+        reason: noShowReason.trim() || null,
+      });
+      const detail = await fetchAppointment(appointment.id);
+      setAppointment(detail.data);
+      setNoShowOpen(false);
+      setToastTitle("Customer marked as no-show");
+      setToastDescription(
+        "Status is NO_SHOW. Complaint and escalation stay open.",
+      );
+      setToastOpen(true);
+      onBooked?.();
+      await load();
+    } catch (err) {
+      setNoShowError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Unable to mark no-show.",
+      );
+    } finally {
+      setMarkingNoShow(false);
+    }
+  }
+
   if (!loading && !escalation && !loadError) {
     return null;
   }
 
   const canCheckIn =
-    canManage && appointment?.status === "BOOKED" && !appointment.checkedInAt;
+    canManage &&
+    appointment?.status === "BOOKED" &&
+    !appointment.checkedInAt &&
+    !appointment.noShowAt;
+  const canNoShow =
+    canManage &&
+    appointment?.status === "BOOKED" &&
+    !appointment.noShowAt &&
+    !appointment.checkedInAt;
   const canCompleteAction =
     canComplete &&
     appointment?.status === "CHECKED_IN" &&
     !appointment.completedAt;
   const isCompleted =
     appointment?.status === "COMPLETED" || Boolean(appointment?.completedAt);
+  const isNoShow =
+    appointment?.status === "NO_SHOW" || Boolean(appointment?.noShowAt);
 
   return (
     <>
@@ -447,11 +506,48 @@ export function AppointmentCard({
                 </div>
               ) : null}
 
-              {canCheckIn ? (
+              {isNoShow ? (
+                <div className="space-y-3 border-t border-ecmp-border pt-4">
+                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                    No Show
+                  </p>
+                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <DetailField
+                      label="No Show At"
+                      value={formatWhen(appointment.noShowAt)}
+                    />
+                    <DetailField
+                      label="No Show By"
+                      value={appointment.noShowBy ?? "—"}
+                    />
+                    <DetailField
+                      label="Reason"
+                      value={appointment.noShowReason?.trim() || "—"}
+                    />
+                  </dl>
+                </div>
+              ) : null}
+
+              {canCheckIn || canNoShow ? (
                 <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
-                  <Button type="button" variant="primary" onClick={openCheckIn}>
-                    Check In
-                  </Button>
+                  {canNoShow ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={openNoShow}
+                    >
+                      Mark No Show
+                    </Button>
+                  ) : null}
+                  {canCheckIn ? (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={openCheckIn}
+                    >
+                      Check In
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -471,6 +567,14 @@ export function AppointmentCard({
                 <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
                   <Button type="button" variant="primary" disabled>
                     Complete Appointment
+                  </Button>
+                </div>
+              ) : null}
+
+              {isNoShow ? (
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                  <Button type="button" variant="outline" disabled>
+                    Mark No Show
                   </Button>
                 </div>
               ) : null}
@@ -671,6 +775,54 @@ export function AppointmentCard({
             rows={3}
             value={completionNotes}
             onChange={(event) => setCompletionNotes(event.target.value)}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={noShowOpen}
+        onClose={closeNoShow}
+        title="Mark customer as no-show?"
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={markingNoShow}
+              onClick={closeNoShow}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={markingNoShow}
+              onClick={() => void confirmNoShow()}
+            >
+              {markingNoShow ? "Marking…" : "Confirm No Show"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+            Confirm the customer did not arrive. Appointment status becomes
+            NO_SHOW. Complaint and escalation stay open.
+          </p>
+          {noShowError ? (
+            <Alert
+              tone="danger"
+              title="No-show failed"
+              description={noShowError}
+            />
+          ) : null}
+          <Textarea
+            label="Reason"
+            name="noShowReason"
+            rows={3}
+            value={noShowReason}
+            onChange={(event) => setNoShowReason(event.target.value)}
           />
         </div>
       </Modal>

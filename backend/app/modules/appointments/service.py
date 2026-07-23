@@ -20,6 +20,8 @@ from app.modules.appointments.schemas import (
     AppointmentCompleteRequest,
     AppointmentCompleteResult,
     AppointmentCreate,
+    AppointmentNoShowRequest,
+    AppointmentNoShowResult,
     AppointmentResponse,
     AppointmentSummary,
 )
@@ -32,6 +34,14 @@ NOT_BOOKED_MESSAGE = "Only BOOKED appointments can be checked in."
 ALREADY_CHECKED_IN_MESSAGE = "Appointment has already been checked in."
 NOT_CHECKED_IN_MESSAGE = "Only CHECKED_IN appointments can be completed."
 ALREADY_COMPLETED_MESSAGE = "Appointment has already been completed."
+NOT_BOOKED_FOR_NO_SHOW_MESSAGE = "Only BOOKED appointments can be marked as no-show."
+ALREADY_NO_SHOW_MESSAGE = "Appointment has already been marked as no-show."
+NO_SHOW_AFTER_CHECK_IN_MESSAGE = (
+    "Cannot mark no-show: appointment is already checked in."
+)
+NO_SHOW_AFTER_COMPLETED_MESSAGE = (
+    "Cannot mark no-show: appointment is already completed."
+)
 
 
 def _format_hhmm(value: object) -> str:
@@ -298,6 +308,95 @@ class AppointmentService:
             completionResult=payload.result,
             completedAt=now,
             completedBy=actor_user_id,
+        )
+        self._repo.commit()
+        return result
+
+    def mark_no_show(
+        self,
+        appointment_id: uuid.UUID,
+        payload: AppointmentNoShowRequest,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> AppointmentNoShowResult:
+        """API-309 — mark BOOKED appointment as customer no-show."""
+        row = self._repo.get_by_id(appointment_id)
+        if row is None:
+            raise NotFoundError("Appointment not found")
+
+        if row.status == AppointmentStatus.NO_SHOW or row.no_show_at is not None:
+            raise ValidationAppError(
+                ALREADY_NO_SHOW_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+        if (
+            row.status == AppointmentStatus.COMPLETED
+            or row.completed_at is not None
+        ):
+            raise ValidationAppError(
+                NO_SHOW_AFTER_COMPLETED_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+        if (
+            row.status == AppointmentStatus.CHECKED_IN
+            or row.checked_in_at is not None
+        ):
+            raise ValidationAppError(
+                NO_SHOW_AFTER_CHECK_IN_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+        if row.status != AppointmentStatus.BOOKED:
+            raise ValidationAppError(
+                NOT_BOOKED_FOR_NO_SHOW_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+
+        escalation = self._repo.get_escalation(row.escalation_id)
+        if escalation is None:
+            raise NotFoundError("Escalation not found")
+
+        complaint = self._repo.get_complaint(escalation.complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        now = datetime.now(UTC)
+        row.status = AppointmentStatus.NO_SHOW
+        row.no_show_at = now
+        row.no_show_by = actor_user_id
+        row.no_show_reason = payload.reason
+        row.updated_at = now
+        row.updated_by = actor_user_id
+
+        # Complaint remains IN_PROGRESS; escalation remains APPROVED.
+        # Do NOT auto-close complaint or escalation.
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+        escalation.updated_at = now
+        escalation.updated_by = actor_user_id
+
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.APPOINTMENT_NO_SHOW,
+            event_at=now,
+            from_status=complaint.status,
+            to_status=complaint.status,
+            summary="Customer marked as no-show",
+            metadata={
+                "changeType": "APPOINTMENT_NO_SHOW",
+                "appointmentId": str(row.id),
+                "escalationId": str(escalation.id),
+                "noShowBy": str(actor_user_id),
+                "noShowAt": now.isoformat(),
+                "reason": payload.reason,
+            },
+        )
+
+        result = AppointmentNoShowResult(
+            id=row.id,
+            status=AppointmentStatus.NO_SHOW,
+            noShowAt=now,
+            noShowBy=actor_user_id,
         )
         self._repo.commit()
         return result

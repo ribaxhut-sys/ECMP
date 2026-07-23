@@ -7,6 +7,8 @@ import type {
   AppointmentCompleteRequest,
   AppointmentCompleteResult,
   AppointmentCreate,
+  AppointmentNoShowRequest,
+  AppointmentNoShowResult,
   DataResponse,
 } from "./types";
 
@@ -54,6 +56,20 @@ export function completeAppointment(
 ): Promise<DataResponse<AppointmentCompleteResult>> {
   return apiRequest<DataResponse<AppointmentCompleteResult>>(
     `/api/v1/appointments/${encodeURIComponent(id)}/complete`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/** API-309 — POST /api/v1/appointments/{id}/no-show */
+export function markAppointmentNoShow(
+  id: string,
+  body: AppointmentNoShowRequest = {},
+): Promise<DataResponse<AppointmentNoShowResult>> {
+  return apiRequest<DataResponse<AppointmentNoShowResult>>(
+    `/api/v1/appointments/${encodeURIComponent(id)}/no-show`,
     {
       method: "POST",
       body: JSON.stringify(body),
