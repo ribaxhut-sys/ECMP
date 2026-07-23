@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Any
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
+    Time,
     UniqueConstraint,
     func,
     text,
@@ -337,6 +339,49 @@ class ComplaintEscalation(TimestampAuditSoftDeleteMixin, Base):
     )
     requester: Mapped[User | None] = relationship(foreign_keys=[requested_by])
     reviewer: Mapped[User | None] = relationship(foreign_keys=[reviewed_by])
+    appointments: Mapped[list[Appointment]] = relationship(
+        back_populates="escalation"
+    )
+
+
+class Appointment(TimestampAuditSoftDeleteMixin, Base):
+    """Head Office appointment booked against an APPROVED escalation (TASK-014)."""
+
+    __tablename__ = "appointments"
+    __table_args__ = (
+        Index("ix_appointments_escalation_id", "escalation_id"),
+        Index("ix_appointments_assigned_engineer_id", "assigned_engineer_id"),
+        Index("ix_appointments_appointment_date", "appointment_date"),
+        Index("ix_appointments_status", "status"),
+        Index(
+            "ix_appointments_engineer_date",
+            "assigned_engineer_id",
+            "appointment_date",
+        ),
+    )
+
+    escalation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("complaint_escalations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    appointment_date: Mapped[date] = mapped_column(Date, nullable=False)
+    appointment_start_time: Mapped[time] = mapped_column(Time, nullable=False)
+    appointment_end_time: Mapped[time] = mapped_column(Time, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    assigned_engineer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    escalation: Mapped[ComplaintEscalation] = relationship(
+        back_populates="appointments"
+    )
+    assigned_engineer: Mapped[User] = relationship(
+        foreign_keys=[assigned_engineer_id]
+    )
 
 
 class ComplaintTimeline(TimestampAuditSoftDeleteMixin, Base):
@@ -479,6 +524,7 @@ class RefreshToken(Base):
 
 
 __all__ = [
+    "Appointment",
     "Attachment",
     "AuditLog",
     "Branch",

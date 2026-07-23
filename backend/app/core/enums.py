@@ -31,6 +31,7 @@ class TimelineEvent(StrEnum):
     ESCALATION_REQUESTED = "complaint.escalation_requested"
     ESCALATION_APPROVED = "complaint.escalation_approved"
     ESCALATION_REJECTED = "complaint.escalation_rejected"
+    APPOINTMENT_BOOKED = "complaint.appointment_booked"
     RESOLVED = "complaint.resolved"
     CLOSED = "complaint.closed"
 
@@ -41,6 +42,12 @@ class EscalationRequestStatus(StrEnum):
     REQUESTED = "REQUESTED"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+
+
+class AppointmentStatus(StrEnum):
+    """Appointment lifecycle (TASK-014 booking slice)."""
+
+    BOOKED = "BOOKED"
 
 
 class EscalationReasonCode(StrEnum):

@@ -12,6 +12,8 @@ from app.core.enums import (
 )
 from app.core.errors import InvalidStateError, NotFoundError, ValidationAppError
 from app.models import ComplaintEscalation
+from app.modules.appointments.schemas import AppointmentSummary
+from app.modules.appointments.service import to_summary
 from app.modules.escalations.repository import EscalationRepository
 from app.modules.escalations.schemas import (
     EscalateComplaintRequest,
@@ -45,7 +47,11 @@ NOT_REQUESTED_MESSAGE = "Only REQUESTED escalations can be reviewed."
 ALREADY_REVIEWED_MESSAGE = "Escalation has already been reviewed."
 
 
-def _to_response(row: ComplaintEscalation) -> EscalationResponse:
+def _to_response(
+    row: ComplaintEscalation,
+    *,
+    active_appointment: AppointmentSummary | None = None,
+) -> EscalationResponse:
     requester = row.__dict__.get("requester")
     requested_by_name = (
         getattr(requester, "full_name", None) if requester is not None else None
@@ -59,6 +65,7 @@ def _to_response(row: ComplaintEscalation) -> EscalationResponse:
         update={
             "requested_by_name": requested_by_name,
             "reviewed_by_name": reviewed_by_name,
+            "active_appointment": active_appointment,
         }
     )
 
@@ -308,7 +315,7 @@ class EscalationService:
         row.updated_at = now
         row.updated_by = actor_user_id
 
-        # Complaint remains IN_PROGRESS — no Appointment (TASK-012 STOP).
+        # Complaint remains IN_PROGRESS — Appointment booking is TASK-014.
         complaint.updated_at = now
         complaint.updated_by = actor_user_id
 
@@ -379,7 +386,9 @@ class EscalationService:
         row = self._repo.get_by_id(escalation_id)
         if row is None:
             raise NotFoundError("Escalation not found")
-        return _to_response(row)
+        active = self._repo.get_active_appointment(escalation_id)
+        summary = to_summary(active) if active is not None else None
+        return _to_response(row, active_appointment=summary)
 
     def get_active_for_complaint(
         self, complaint_id: uuid.UUID
@@ -390,7 +399,9 @@ class EscalationService:
         active = self._repo.get_active_escalation(complaint_id)
         if active is None:
             return None
-        return _to_response(active)
+        appt = self._repo.get_active_appointment(active.id)
+        summary = to_summary(appt) if appt is not None else None
+        return _to_response(active, active_appointment=summary)
 
     def get_latest_request_for_complaint(
         self, complaint_id: uuid.UUID
@@ -401,10 +412,18 @@ class EscalationService:
         latest = self._repo.get_latest_request_escalation(complaint_id)
         if latest is None:
             return None
-        return _to_response(latest)
+        appt = self._repo.get_active_appointment(latest.id)
+        summary = to_summary(appt) if appt is not None else None
+        return _to_response(latest, active_appointment=summary)
 
     def list_escalations(self, complaint_id: uuid.UUID) -> list[EscalationResponse]:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
             raise NotFoundError("Complaint not found")
-        return [_to_response(row) for row in self._repo.list_escalations(complaint_id)]
+        rows = self._repo.list_escalations(complaint_id)
+        result: list[EscalationResponse] = []
+        for row in rows:
+            appt = self._repo.get_active_appointment(row.id)
+            summary = to_summary(appt) if appt is not None else None
+            result.append(_to_response(row, active_appointment=summary))
+        return result

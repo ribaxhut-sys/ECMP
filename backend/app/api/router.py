@@ -5,6 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.health import router as health_router
+from app.modules.appointments.router import (
+    appointments_router,
+    escalation_appointments_router,
+)
 from app.modules.assignments.router import router as assignments_router
 from app.modules.auth.router import router as auth_router
 from app.modules.branches.router import router as branches_router
@@ -26,10 +30,12 @@ api_router.include_router(reports_router)
 api_router.include_router(customers_router)
 api_router.include_router(branches_router)
 api_router.include_router(users_router)
-# Specific sub-routes before generic /{id} complaint routes.
+# Specific sub-routes before generic /{id} complaint / escalation routes.
 api_router.include_router(assignments_router)
 api_router.include_router(complaint_escalations_router)
+api_router.include_router(escalation_appointments_router)
 api_router.include_router(escalations_router)
+api_router.include_router(appointments_router)
 api_router.include_router(resolutions_router)
 api_router.include_router(timelines_router)
 api_router.include_router(complaints_router)

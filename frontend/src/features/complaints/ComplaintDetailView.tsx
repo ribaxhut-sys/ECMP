@@ -26,6 +26,7 @@ import {
   type BadgeTone,
 } from "@/shared/ui";
 import { AssignmentCard } from "./AssignmentCard";
+import { AppointmentCard } from "./AppointmentCard";
 import { EscalationCard } from "./EscalationCard";
 import { ResolutionCard } from "./ResolutionCard";
 import { StatusActionsCard } from "./StatusActionsCard";
@@ -336,6 +337,15 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           void load();
         }}
         onReviewed={() => {
+          setTimelineKey((key) => key + 1);
+          void load();
+        }}
+      />
+
+      <AppointmentCard
+        complaintId={complaint.id}
+        refreshKey={timelineKey}
+        onBooked={() => {
           setTimelineKey((key) => key + 1);
           void load();
         }}

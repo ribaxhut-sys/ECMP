@@ -204,6 +204,48 @@ export interface Escalation {
   reviewedByName: string | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
+  activeAppointment?: AppointmentSummary | null;
+}
+
+/** API-305 / API-302 appointment summary. */
+export interface AppointmentSummary {
+  id: string;
+  status: "BOOKED";
+  appointmentDate: string;
+  appointmentStartTime: string;
+  appointmentEndTime: string;
+  assignedEngineerId: string;
+}
+
+/** API-305 book request. */
+export interface AppointmentCreate {
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  assignedEngineerId: string;
+  notes?: string | null;
+}
+
+/** API-305 slim create response. */
+export interface AppointmentBookResult {
+  id: string;
+  status: "BOOKED";
+}
+
+/** API-306 appointment detail. */
+export interface Appointment {
+  id: string;
+  escalationId: string;
+  appointmentDate: string;
+  appointmentStartTime: string;
+  appointmentEndTime: string;
+  status: "BOOKED" | string;
+  assignedEngineerId: string;
+  assignedEngineerName: string | null;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** API-209 timeline entry (read-only activity log). */
@@ -221,6 +263,7 @@ export interface TimelineEntry {
     | "complaint.escalation_requested"
     | "complaint.escalation_approved"
     | "complaint.escalation_rejected"
+    | "complaint.appointment_booked"
     | "complaint.resolved"
     | "complaint.closed";
   eventAt: string;

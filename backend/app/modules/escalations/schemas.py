@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import ComplaintStatus, EscalationReasonCode
+from app.modules.appointments.schemas import AppointmentSummary
 
 EscalationReasonCodeLiteral = Literal[
     "SPECIALIST_REQUIRED",
@@ -118,6 +119,9 @@ class EscalationResponse(BaseModel):
     reviewed_by_name: str | None = Field(default=None, alias="reviewedByName")
     reviewed_at: datetime | None = Field(default=None, alias="reviewedAt")
     review_notes: str | None = Field(default=None, alias="reviewNotes")
+    active_appointment: AppointmentSummary | None = Field(
+        default=None, alias="activeAppointment"
+    )
 
 
 class EscalationReviewRequest(BaseModel):

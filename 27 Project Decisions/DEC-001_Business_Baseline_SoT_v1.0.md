@@ -32,6 +32,7 @@ Sprint 0 discovery (`archive/ECMP_SPRINT0_DISCOVERY_REPORT.md`) menemukan dua ba
 **Opsi A.** Baseline bisnis resmi ECMP adalah **`01 Business Blueprint/ECMP_Business_Blueprint_v2.1.docx` + `03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md` (FRD-001)** beserta katalog turunannya (BR, API, Event, Data Dictionary).
 
 - Konsep **Branch Officer / Head Office escalation / Schedule Slot / Appointment / Work Order** dinyatakan **di luar lingkup** sampai ada revisi Blueprint yang di-approve Architecture Board.
+  - **Exception (DEC-007 / TASK-014):** Appointment **booking only** (API-305/306) is authorized; Calendar, Slots, Check-In, Completion, Notification, SLA, Auto Close, and Work Order remain out of scope.
 - Dokumen KAK yang dirujuk brief discovery dinyatakan **superseded** oleh Blueprint v2.1 untuk keperluan implementasi. Bila KAK ditemukan dan relevan, ia masuk lewat proses revisi Blueprint, bukan langsung ke implementasi.
 - Sprint 0/Build-1 berjalan pada slice Case create/get sesuai FRD-001 terlepas dari hasil penelusuran KAK.
 

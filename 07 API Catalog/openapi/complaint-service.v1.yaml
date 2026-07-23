@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: |
     ECMP v1.0.0 Production contract. Complaint CRUD, assignment,
-    escalation, resolution, timeline, reporting, user management, and production
-    authentication. Paths use `/api/v1` prefix. Dashboard exports,
+    escalation, appointment booking, resolution, timeline, reporting, user management,
+    and production authentication. Paths use `/api/v1` prefix. Dashboard exports,
     OAuth/SSO/LDAP/MFA, password reset, social login, notification, SLA, and
     workflow-engine APIs are out of scope.
     Error responses use the Error envelope {code, message, details} for ALL 4xx/5xx
@@ -23,6 +23,8 @@ tags:
     description: Complaint assignment and reassignment (Supervisor only)
   - name: Escalations
     description: Complaint escalation and Escalation Request (Branch → HO)
+  - name: Appointments
+    description: Head Office appointment booking for APPROVED escalations (TASK-014)
   - name: Resolutions
     description: Complaint resolution (IN_PROGRESS → RESOLVED)
   - name: Timeline
@@ -632,10 +634,10 @@ paths:
       description: |
         Approves a `REQUESTED` Escalation Request (TASK-012). Sets status
         `APPROVED`, stores `reviewedBy` / `reviewedAt` / `reviewNotes`.
-        Review can only happen once. Complaint status remains `IN_PROGRESS`
-        (no Appointment). Writes timeline `complaint.escalation_approved`.
-        Requires role Head Office Scheduler or Admin and permission
-        `escalations:review`.
+        Review can only happen once. Complaint status remains `IN_PROGRESS`.
+        Appointment booking is API-305 (TASK-014 / DEC-007). Writes timeline
+        `complaint.escalation_approved`. Requires role Head Office Scheduler or
+        Admin and permission `escalations:review`.
       parameters:
         - name: id
           in: path
@@ -710,6 +712,90 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/escalations/{id}/appointments:
+    post:
+      summary: Book appointment for approved escalation
+      operationId: bookEscalationAppointment
+      x-ear-id: API-305
+      tags: [Appointments]
+      security:
+        - bearerAuth: []
+      description: |
+        Books a Head Office appointment against an `APPROVED` escalation
+        (TASK-014 / DEC-007). Creates status `BOOKED`. One active appointment
+        per escalation. Engineer schedule must not overlap on the same date.
+        Complaint status remains `IN_PROGRESS`; escalation remains `APPROVED`.
+        Writes timeline `complaint.appointment_booked`. Requires role Head
+        Office Scheduler or Admin and permission `escalations:review`.
+        Out of scope: calendar, slots, check-in, completion, notification.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Escalation id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentCreate"
+            example:
+              appointmentDate: "2026-07-30"
+              startTime: "09:00"
+              endTime: "10:00"
+              assignedEngineerId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+              notes: Customer confirmed.
+      responses:
+        "200":
+          description: Appointment booked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentBookDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/appointments/{id}:
+    get:
+      summary: Get appointment by id
+      operationId: getAppointment
+      x-ear-id: API-306
+      tags: [Appointments]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns appointment detail. Requires permission `complaints:read`
+        (Branch Officer / Supervisor / HO Engineer read-only; Scheduler/Admin
+        also permitted).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Appointment id
+      responses:
+        "200":
+          description: Appointment detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/timeline:
     get:
       summary: Get complaint timeline
@@ -724,6 +810,8 @@ paths:
         Timeline rows are immutable — this endpoint has no write path.
         Supported event types: `complaint.created`, `complaint.updated`,
         `complaint.assigned`, `complaint.reassigned`, `complaint.escalated`,
+        `complaint.escalation_requested`, `complaint.escalation_approved`,
+        `complaint.escalation_rejected`, `complaint.appointment_booked`,
         `complaint.resolved`, `complaint.closed`.
         `actorName` is included for UI display (no actor UUID required in UI).
         Requires permission `complaints:read`.
@@ -1201,6 +1289,7 @@ components:
           complaint.escalation_requested,
           complaint.escalation_approved,
           complaint.escalation_rejected,
+          complaint.appointment_booked,
           complaint.resolved,
           complaint.closed,
         ]
@@ -1414,6 +1503,89 @@ components:
           description: Display name of reviewer (HO Scheduler / Admin)
         reviewedAt: { type: string, format: date-time, nullable: true }
         reviewNotes: { type: string, nullable: true }
+        activeAppointment:
+          allOf:
+            - $ref: "#/components/schemas/AppointmentSummary"
+          nullable: true
+          description: Active BOOKED appointment for this escalation (TASK-014)
+    AppointmentStatus:
+      type: string
+      enum: [BOOKED]
+      description: Appointment status (booking slice only; completion out of scope)
+    AppointmentCreate:
+      type: object
+      required: [appointmentDate, startTime, endTime, assignedEngineerId]
+      properties:
+        appointmentDate: { type: string, format: date }
+        startTime:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Local start time HH:MM
+          example: "09:00"
+        endTime:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Local end time HH:MM (must be after startTime)
+          example: "10:00"
+        assignedEngineerId: { type: string, format: uuid }
+        notes: { type: string, maxLength: 5000, nullable: true }
+    AppointmentSummary:
+      type: object
+      required:
+        - id
+        - status
+        - appointmentDate
+        - appointmentStartTime
+        - appointmentEndTime
+        - assignedEngineerId
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/AppointmentStatus" }
+        appointmentDate: { type: string, format: date }
+        appointmentStartTime: { type: string, description: "HH:MM[:SS]" }
+        appointmentEndTime: { type: string, description: "HH:MM[:SS]" }
+        assignedEngineerId: { type: string, format: uuid }
+    AppointmentBookResult:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/AppointmentStatus" }
+    AppointmentBookDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AppointmentBookResult" }
+    Appointment:
+      type: object
+      required:
+        - id
+        - escalationId
+        - appointmentDate
+        - appointmentStartTime
+        - appointmentEndTime
+        - status
+        - assignedEngineerId
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        escalationId: { type: string, format: uuid }
+        appointmentDate: { type: string, format: date }
+        appointmentStartTime: { type: string }
+        appointmentEndTime: { type: string }
+        status: { $ref: "#/components/schemas/AppointmentStatus" }
+        assignedEngineerId: { type: string, format: uuid }
+        assignedEngineerName: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdBy: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AppointmentDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Appointment" }
     EscalationReviewRequest:
       type: object
       required: [reviewNotes]

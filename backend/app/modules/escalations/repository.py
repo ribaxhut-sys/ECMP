@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
+    Appointment,
     Complaint,
     ComplaintAssignment,
     ComplaintEscalation,
@@ -20,7 +21,7 @@ from app.models import (
 )
 
 # Active = blocks a new Escalation Request. REQUESTED pending review;
-# APPROVED awaiting appointment (out of scope); legacy OPEN.
+# APPROVED awaiting / with appointment; legacy OPEN.
 # REJECTED does not block a new request.
 ACTIVE_ESCALATION_STATUSES = frozenset({"REQUESTED", "OPEN", "APPROVED"})
 
@@ -46,6 +47,20 @@ class EscalationRepository:
             .where(
                 ComplaintEscalation.id == escalation_id,
                 ComplaintEscalation.deleted_at.is_(None),
+            )
+        )
+        return self._session.scalar(stmt)
+
+    def get_active_appointment(
+        self, escalation_id: uuid.UUID
+    ) -> Appointment | None:
+        stmt = (
+            select(Appointment)
+            .options(joinedload(Appointment.assigned_engineer))
+            .where(
+                Appointment.escalation_id == escalation_id,
+                Appointment.deleted_at.is_(None),
+                Appointment.status == "BOOKED",
             )
         )
         return self._session.scalar(stmt)

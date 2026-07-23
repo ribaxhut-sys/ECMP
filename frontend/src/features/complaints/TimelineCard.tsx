@@ -62,6 +62,7 @@ function activityType(entry: TimelineEntry): TimelineActivityType {
     case "complaint.escalation_requested":
     case "complaint.escalation_approved":
     case "complaint.escalation_rejected":
+    case "complaint.appointment_booked":
       return "STATUS_CHANGED";
     default:
       return "OTHER";
