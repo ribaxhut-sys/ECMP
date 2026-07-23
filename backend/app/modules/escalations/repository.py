@@ -26,7 +26,11 @@ from app.core.enums import AppointmentStatus
 # REJECTED does not block a new request.
 ACTIVE_ESCALATION_STATUSES = frozenset({"REQUESTED", "OPEN", "APPROVED"})
 CURRENT_APPOINTMENT_STATUSES = frozenset(
-    {AppointmentStatus.BOOKED, AppointmentStatus.CHECKED_IN}
+    {
+        AppointmentStatus.BOOKED,
+        AppointmentStatus.CHECKED_IN,
+        AppointmentStatus.COMPLETED,
+    }
 )
 
 

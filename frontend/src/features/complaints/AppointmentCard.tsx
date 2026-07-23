@@ -12,12 +12,17 @@ import {
   ApiError,
   bookAppointment,
   checkInAppointment,
+  completeAppointment,
   fetchAppointment,
   fetchComplaintEscalations,
   fetchUsers,
   type UserRef,
 } from "@/lib/api";
-import type { Appointment, Escalation } from "@/lib/api/types";
+import type {
+  Appointment,
+  AppointmentCompletionResult,
+  Escalation,
+} from "@/lib/api/types";
 import {
   Alert,
   Button,
@@ -85,6 +90,11 @@ function pickApprovedEscalation(rows: Escalation[]): Escalation | null {
   return rows.find((row) => row.status === "APPROVED") ?? null;
 }
 
+const COMPLETION_RESULT_OPTIONS = [
+  { value: "COMPLETED", label: "Completed" },
+  { value: "PARTIALLY_COMPLETED", label: "Partially completed" },
+];
+
 export function AppointmentCard({
   complaintId,
   refreshKey = 0,
@@ -96,6 +106,7 @@ export function AppointmentCard({
 }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission("escalations:review");
+  const canComplete = hasPermission("appointments:complete");
 
   const [escalation, setEscalation] = useState<Escalation | null>(null);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -122,6 +133,13 @@ export function AppointmentCard({
   const [checkInNotes, setCheckInNotes] = useState("");
   const [checkInError, setCheckInError] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
+
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completionResult, setCompletionResult] =
+    useState<AppointmentCompletionResult>("COMPLETED");
+  const [completionNotes, setCompletionNotes] = useState("");
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -273,12 +291,63 @@ export function AppointmentCard({
     }
   }
 
+  function openComplete() {
+    setCompletionResult("COMPLETED");
+    setCompletionNotes("");
+    setCompleteError(null);
+    setCompleteOpen(true);
+  }
+
+  function closeComplete() {
+    if (completing) return;
+    setCompleteOpen(false);
+    setCompleteError(null);
+  }
+
+  async function confirmComplete() {
+    if (!appointment) return;
+    setCompleting(true);
+    setCompleteError(null);
+    try {
+      await completeAppointment(appointment.id, {
+        result: completionResult,
+        notes: completionNotes.trim() || null,
+      });
+      const detail = await fetchAppointment(appointment.id);
+      setAppointment(detail.data);
+      setCompleteOpen(false);
+      setToastTitle("Appointment completed");
+      setToastDescription(
+        "Status is COMPLETED. Complaint and escalation stay open.",
+      );
+      setToastOpen(true);
+      onBooked?.();
+      await load();
+    } catch (err) {
+      setCompleteError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Unable to complete appointment.",
+      );
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   if (!loading && !escalation && !loadError) {
     return null;
   }
 
   const canCheckIn =
     canManage && appointment?.status === "BOOKED" && !appointment.checkedInAt;
+  const canCompleteAction =
+    canComplete &&
+    appointment?.status === "CHECKED_IN" &&
+    !appointment.completedAt;
+  const isCompleted =
+    appointment?.status === "COMPLETED" || Boolean(appointment?.completedAt);
 
   return (
     <>
@@ -329,6 +398,7 @@ export function AppointmentCard({
               </dl>
 
               {appointment.status === "CHECKED_IN" ||
+              appointment.status === "COMPLETED" ||
               appointment.checkedInAt ? (
                 <div className="space-y-3 border-t border-ecmp-border pt-4">
                   <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
@@ -351,6 +421,32 @@ export function AppointmentCard({
                 </div>
               ) : null}
 
+              {isCompleted ? (
+                <div className="space-y-3 border-t border-ecmp-border pt-4">
+                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                    Completion
+                  </p>
+                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <DetailField
+                      label="Result"
+                      value={appointment.completionResult?.trim() || "—"}
+                    />
+                    <DetailField
+                      label="Completed At"
+                      value={formatWhen(appointment.completedAt)}
+                    />
+                    <DetailField
+                      label="Completed By"
+                      value={appointment.completedBy ?? "—"}
+                    />
+                    <DetailField
+                      label="Completion Notes"
+                      value={appointment.completionNotes?.trim() || "—"}
+                    />
+                  </dl>
+                </div>
+              ) : null}
+
               {canCheckIn ? (
                 <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
                   <Button type="button" variant="primary" onClick={openCheckIn}>
@@ -359,9 +455,35 @@ export function AppointmentCard({
                 </div>
               ) : null}
 
+              {canCompleteAction ? (
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={openComplete}
+                  >
+                    Complete Appointment
+                  </Button>
+                </div>
+              ) : null}
+
+              {isCompleted ? (
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                  <Button type="button" variant="primary" disabled>
+                    Complete Appointment
+                  </Button>
+                </div>
+              ) : null}
+
               {appointment.status === "BOOKED" && !canManage ? (
                 <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
                   Awaiting Head Office Scheduler check-in.
+                </p>
+              ) : null}
+
+              {appointment.status === "CHECKED_IN" && !canComplete ? (
+                <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                  Awaiting Head Office Engineer completion.
                 </p>
               ) : null}
             </div>
@@ -489,6 +611,66 @@ export function AppointmentCard({
             rows={3}
             value={checkInNotes}
             onChange={(event) => setCheckInNotes(event.target.value)}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={completeOpen}
+        onClose={closeComplete}
+        title="Complete appointment?"
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={completing}
+              onClick={closeComplete}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={completing}
+              onClick={() => void confirmComplete()}
+            >
+              {completing ? "Completing…" : "Confirm Completion"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+            Mark this meeting finished. Appointment status becomes COMPLETED.
+            Complaint and escalation stay open.
+          </p>
+          {completeError ? (
+            <Alert
+              tone="danger"
+              title="Completion failed"
+              description={completeError}
+            />
+          ) : null}
+          <Select
+            label="Completion Result"
+            name="completionResult"
+            required
+            options={COMPLETION_RESULT_OPTIONS}
+            value={completionResult}
+            onChange={(event) =>
+              setCompletionResult(
+                event.target.value as AppointmentCompletionResult,
+              )
+            }
+          />
+          <Textarea
+            label="Completion Notes"
+            name="completionNotes"
+            rows={3}
+            value={completionNotes}
+            onChange={(event) => setCompletionNotes(event.target.value)}
           />
         </div>
       </Modal>

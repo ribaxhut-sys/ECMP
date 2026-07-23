@@ -294,3 +294,151 @@ def test_check_in_not_found() -> None:
             AppointmentCheckInRequest(),
             actor_user_id=uuid.uuid4(),
         )
+
+
+def _checked_in_appointment(**overrides: object) -> SimpleNamespace:
+    now = datetime.now(UTC)
+    base = {
+        "id": uuid.uuid4(),
+        "escalation_id": uuid.uuid4(),
+        "status": "CHECKED_IN",
+        "checked_in_at": now,
+        "checked_in_by": uuid.uuid4(),
+        "checkin_notes": "Arrived",
+        "completed_at": None,
+        "completed_by": None,
+        "completion_notes": None,
+        "completion_result": "COMPLETED",
+        "updated_at": now,
+        "updated_by": None,
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def test_complete_success() -> None:
+    from app.modules.appointments.schemas import AppointmentCompleteRequest
+
+    actor = uuid.uuid4()
+    complaint = _complaint()
+    escalation = _escalation(complaint_id=complaint.id, status="APPROVED")
+    row = _checked_in_appointment(escalation_id=escalation.id)
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+    repo.get_escalation.return_value = escalation
+    repo.get_complaint.return_value = complaint
+
+    result = AppointmentService(repo).complete(
+        row.id,
+        AppointmentCompleteRequest(
+            result="COMPLETED",
+            notes="Customer meeting completed successfully.",
+        ),
+        actor_user_id=actor,
+    )
+
+    assert result.status == "COMPLETED"
+    assert result.completion_result == "COMPLETED"
+    assert result.completed_by == actor
+    assert row.status == "COMPLETED"
+    assert row.completed_by == actor
+    assert row.completion_notes == "Customer meeting completed successfully."
+    assert row.completion_result == "COMPLETED"
+    assert complaint.status == "IN_PROGRESS"
+    assert escalation.status == "APPROVED"
+    repo.add_timeline.assert_called_once()
+    assert (
+        repo.add_timeline.call_args.kwargs["event_type"]
+        == "complaint.appointment_completed"
+    )
+    assert repo.add_timeline.call_args.kwargs["summary"] == "Appointment completed"
+    meta = repo.add_timeline.call_args.kwargs["metadata"]
+    assert meta["appointmentId"] == str(row.id)
+    assert meta["escalationId"] == str(escalation.id)
+    assert meta["completedBy"] == str(actor)
+    assert meta["completionResult"] == "COMPLETED"
+    assert "completedAt" in meta
+    repo.commit.assert_called_once()
+
+
+def test_complete_rejects_not_checked_in() -> None:
+    from app.modules.appointments.schemas import AppointmentCompleteRequest
+    from app.modules.appointments.service import NOT_CHECKED_IN_MESSAGE
+
+    row = _checked_in_appointment(status="BOOKED", checked_in_at=None)
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+
+    with pytest.raises(ValidationAppError) as exc:
+        AppointmentService(repo).complete(
+            row.id,
+            AppointmentCompleteRequest(result="COMPLETED", notes="Nope"),
+            actor_user_id=uuid.uuid4(),
+        )
+    assert exc.value.message == NOT_CHECKED_IN_MESSAGE
+    repo.commit.assert_not_called()
+
+
+def test_complete_rejects_duplicate() -> None:
+    from app.modules.appointments.schemas import AppointmentCompleteRequest
+    from app.modules.appointments.service import ALREADY_COMPLETED_MESSAGE
+
+    now = datetime.now(UTC)
+    row = _checked_in_appointment(
+        status="COMPLETED",
+        completed_at=now,
+        completed_by=uuid.uuid4(),
+        completion_result="COMPLETED",
+    )
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+
+    with pytest.raises(ValidationAppError) as exc:
+        AppointmentService(repo).complete(
+            row.id,
+            AppointmentCompleteRequest(result="PARTIALLY_COMPLETED"),
+            actor_user_id=uuid.uuid4(),
+        )
+    assert exc.value.message == ALREADY_COMPLETED_MESSAGE
+    repo.commit.assert_not_called()
+
+
+def test_complete_persists_partial_result() -> None:
+    from app.modules.appointments.schemas import AppointmentCompleteRequest
+
+    actor = uuid.uuid4()
+    complaint = _complaint()
+    escalation = _escalation(complaint_id=complaint.id, status="APPROVED")
+    row = _checked_in_appointment(escalation_id=escalation.id)
+    repo = MagicMock()
+    repo.get_by_id.return_value = row
+    repo.get_escalation.return_value = escalation
+    repo.get_complaint.return_value = complaint
+
+    result = AppointmentService(repo).complete(
+        row.id,
+        AppointmentCompleteRequest(
+            result="PARTIALLY_COMPLETED",
+            notes="Follow-up needed.",
+        ),
+        actor_user_id=actor,
+    )
+
+    assert result.status == "COMPLETED"
+    assert result.completion_result == "PARTIALLY_COMPLETED"
+    assert row.completion_result == "PARTIALLY_COMPLETED"
+    assert complaint.status == "IN_PROGRESS"
+    assert escalation.status == "APPROVED"
+
+
+def test_complete_not_found() -> None:
+    from app.modules.appointments.schemas import AppointmentCompleteRequest
+
+    repo = MagicMock()
+    repo.get_by_id.return_value = None
+    with pytest.raises(NotFoundError):
+        AppointmentService(repo).complete(
+            uuid.uuid4(),
+            AppointmentCompleteRequest(),
+            actor_user_id=uuid.uuid4(),
+        )

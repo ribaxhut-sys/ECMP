@@ -23,7 +23,12 @@ export {
   rejectEscalation,
   requestEscalation,
 } from "./escalations";
-export { bookAppointment, checkInAppointment, fetchAppointment } from "./appointments";
+export {
+  bookAppointment,
+  checkInAppointment,
+  completeAppointment,
+  fetchAppointment,
+} from "./appointments";
 export { fetchBranches } from "./branches";
 export type { Branch } from "./branches";
 export { fetchCustomers } from "./customers";

@@ -383,6 +383,17 @@ class Appointment(TimestampAuditSoftDeleteMixin, Base):
         UUID(as_uuid=True), nullable=True
     )
     checkin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TASK-016 Appointment Completion
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    completion_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completion_result: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="COMPLETED", server_default="COMPLETED"
+    )
 
     escalation: Mapped[ComplaintEscalation] = relationship(
         back_populates="appointments"

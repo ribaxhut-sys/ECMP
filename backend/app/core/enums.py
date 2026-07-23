@@ -33,6 +33,7 @@ class TimelineEvent(StrEnum):
     ESCALATION_REJECTED = "complaint.escalation_rejected"
     APPOINTMENT_BOOKED = "complaint.appointment_booked"
     APPOINTMENT_CHECKED_IN = "complaint.appointment_checked_in"
+    APPOINTMENT_COMPLETED = "complaint.appointment_completed"
     RESOLVED = "complaint.resolved"
     CLOSED = "complaint.closed"
 
@@ -46,10 +47,18 @@ class EscalationRequestStatus(StrEnum):
 
 
 class AppointmentStatus(StrEnum):
-    """Appointment lifecycle (TASK-014 booking + TASK-015 check-in)."""
+    """Appointment lifecycle (book → check-in → complete)."""
 
     BOOKED = "BOOKED"
     CHECKED_IN = "CHECKED_IN"
+    COMPLETED = "COMPLETED"
+
+
+class AppointmentCompletionResult(StrEnum):
+    """Allowed completion results (TASK-016)."""
+
+    COMPLETED = "COMPLETED"
+    PARTIALLY_COMPLETED = "PARTIALLY_COMPLETED"
 
 
 class EscalationReasonCode(StrEnum):

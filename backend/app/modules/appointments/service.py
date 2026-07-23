@@ -5,7 +5,11 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from app.core.enums import AppointmentStatus, EscalationRequestStatus, TimelineEvent
+from app.core.enums import (
+    AppointmentStatus,
+    EscalationRequestStatus,
+    TimelineEvent,
+)
 from app.core.errors import NotFoundError, ValidationAppError
 from app.models import Appointment
 from app.modules.appointments.repository import AppointmentRepository
@@ -13,6 +17,8 @@ from app.modules.appointments.schemas import (
     AppointmentBookResult,
     AppointmentCheckInRequest,
     AppointmentCheckInResult,
+    AppointmentCompleteRequest,
+    AppointmentCompleteResult,
     AppointmentCreate,
     AppointmentResponse,
     AppointmentSummary,
@@ -24,6 +30,8 @@ ENGINEER_NOT_FOUND_MESSAGE = "Assigned engineer not found or inactive."
 OVERLAP_MESSAGE = "Appointment overlaps an existing booking for this engineer."
 NOT_BOOKED_MESSAGE = "Only BOOKED appointments can be checked in."
 ALREADY_CHECKED_IN_MESSAGE = "Appointment has already been checked in."
+NOT_CHECKED_IN_MESSAGE = "Only CHECKED_IN appointments can be completed."
+ALREADY_COMPLETED_MESSAGE = "Appointment has already been completed."
 
 
 def _format_hhmm(value: object) -> str:
@@ -215,6 +223,81 @@ class AppointmentService:
             status=AppointmentStatus.CHECKED_IN,
             checkedInAt=now,
             checkedInBy=actor_user_id,
+        )
+        self._repo.commit()
+        return result
+
+    def complete(
+        self,
+        appointment_id: uuid.UUID,
+        payload: AppointmentCompleteRequest,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> AppointmentCompleteResult:
+        """API-308 — complete CHECKED_IN appointment."""
+        row = self._repo.get_by_id(appointment_id)
+        if row is None:
+            raise NotFoundError("Appointment not found")
+
+        if row.status == AppointmentStatus.COMPLETED or row.completed_at is not None:
+            raise ValidationAppError(
+                ALREADY_COMPLETED_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+        if row.status != AppointmentStatus.CHECKED_IN:
+            raise ValidationAppError(
+                NOT_CHECKED_IN_MESSAGE,
+                details={"status": row.status, "appointmentId": str(row.id)},
+            )
+
+        escalation = self._repo.get_escalation(row.escalation_id)
+        if escalation is None:
+            raise NotFoundError("Escalation not found")
+
+        complaint = self._repo.get_complaint(escalation.complaint_id)
+        if complaint is None:
+            raise NotFoundError("Complaint not found")
+
+        now = datetime.now(UTC)
+        row.status = AppointmentStatus.COMPLETED
+        row.completed_at = now
+        row.completed_by = actor_user_id
+        row.completion_notes = payload.notes
+        row.completion_result = payload.result
+        row.updated_at = now
+        row.updated_by = actor_user_id
+
+        # Complaint remains IN_PROGRESS; escalation remains APPROVED.
+        # Do NOT auto-close complaint or escalation.
+        complaint.updated_at = now
+        complaint.updated_by = actor_user_id
+        escalation.updated_at = now
+        escalation.updated_by = actor_user_id
+
+        self._repo.add_timeline(
+            complaint_id=complaint.id,
+            actor_user_id=actor_user_id,
+            event_type=TimelineEvent.APPOINTMENT_COMPLETED,
+            event_at=now,
+            from_status=complaint.status,
+            to_status=complaint.status,
+            summary="Appointment completed",
+            metadata={
+                "changeType": "APPOINTMENT_COMPLETED",
+                "appointmentId": str(row.id),
+                "escalationId": str(escalation.id),
+                "completedBy": str(actor_user_id),
+                "completedAt": now.isoformat(),
+                "completionResult": payload.result,
+            },
+        )
+
+        result = AppointmentCompleteResult(
+            id=row.id,
+            status=AppointmentStatus.COMPLETED,
+            completionResult=payload.result,
+            completedAt=now,
+            completedBy=actor_user_id,
         )
         self._repo.commit()
         return result

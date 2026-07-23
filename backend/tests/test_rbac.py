@@ -19,3 +19,19 @@ def test_supervisor_permissions() -> None:
 def test_unknown_role_empty() -> None:
     assert permissions_for_role("UNKNOWN") == []
     assert permissions_for_role(None) == []
+
+
+def test_ho_engineer_can_complete_appointments() -> None:
+    perms = permissions_for_role("HO_ENGINEER")
+    assert "appointments:complete" in perms
+    assert "complaints:read" in perms
+
+
+def test_ho_scheduler_cannot_complete_appointments() -> None:
+    perms = permissions_for_role("HO_SCHEDULER")
+    assert "escalations:review" in perms
+    assert "appointments:complete" not in perms
+
+
+def test_admin_can_complete_appointments() -> None:
+    assert "appointments:complete" in permissions_for_role("ADMIN")

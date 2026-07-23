@@ -37,11 +37,12 @@ _HO_SCHEDULER_PERMISSIONS: frozenset[str] = frozenset(
     }
 )
 
-# Head Office Engineer — read-only for escalation review panel.
+# Head Office Engineer — can complete checked-in appointments (TASK-016).
 _HO_ENGINEER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "complaints:read",
         "complaints:update",
+        "appointments:complete",
         "reports:read",
     }
 )
@@ -50,6 +51,7 @@ _ADMIN_PERMISSIONS: frozenset[str] = frozenset(
     {
         *_SUPERVISOR_PERMISSIONS,
         "escalations:review",
+        "appointments:complete",
         "*",
     }
 )

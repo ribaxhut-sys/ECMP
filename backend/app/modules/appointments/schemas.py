@@ -8,7 +8,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-AppointmentStatusLiteral = Literal["BOOKED", "CHECKED_IN"]
+from app.core.enums import AppointmentCompletionResult
+
+AppointmentStatusLiteral = Literal["BOOKED", "CHECKED_IN", "COMPLETED"]
+CompletionResultLiteral = Literal["COMPLETED", "PARTIALLY_COMPLETED"]
 
 
 def _parse_hhmm(value: str) -> time:
@@ -73,6 +76,31 @@ class AppointmentCheckInRequest(BaseModel):
         return cleaned or None
 
 
+class AppointmentCompleteRequest(BaseModel):
+    """API-308 — appointment completion body."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    result: CompletionResultLiteral = Field(default="COMPLETED")
+    notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("result")
+    @classmethod
+    def validate_result(
+        cls, value: CompletionResultLiteral
+    ) -> CompletionResultLiteral:
+        _ = AppointmentCompletionResult(value)
+        return value
+
+    @field_validator("notes")
+    @classmethod
+    def strip_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class AppointmentSummary(BaseModel):
     """Slim appointment projection embedded on Escalation (API-302)."""
 
@@ -106,6 +134,18 @@ class AppointmentCheckInResult(BaseModel):
     checked_in_by: uuid.UUID = Field(alias="checkedInBy")
 
 
+class AppointmentCompleteResult(BaseModel):
+    """API-308 slim complete response."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: uuid.UUID
+    status: Literal["COMPLETED"]
+    completion_result: CompletionResultLiteral = Field(alias="completionResult")
+    completed_at: datetime = Field(alias="completedAt")
+    completed_by: uuid.UUID = Field(alias="completedBy")
+
+
 class AppointmentResponse(BaseModel):
     """API-306 full appointment detail."""
 
@@ -125,6 +165,10 @@ class AppointmentResponse(BaseModel):
     checked_in_at: datetime | None = Field(default=None, alias="checkedInAt")
     checked_in_by: uuid.UUID | None = Field(default=None, alias="checkedInBy")
     checkin_notes: str | None = Field(default=None, alias="checkinNotes")
+    completed_at: datetime | None = Field(default=None, alias="completedAt")
+    completed_by: uuid.UUID | None = Field(default=None, alias="completedBy")
+    completion_notes: str | None = Field(default=None, alias="completionNotes")
+    completion_result: str | None = Field(default=None, alias="completionResult")
     created_by: uuid.UUID | None = Field(default=None, alias="createdBy")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

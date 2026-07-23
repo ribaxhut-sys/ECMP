@@ -20,7 +20,11 @@ from app.models import (
 
 # Current appointment for an escalation (blocks re-book; shown on Escalation UI).
 CURRENT_APPOINTMENT_STATUSES = frozenset(
-    {AppointmentStatus.BOOKED, AppointmentStatus.CHECKED_IN}
+    {
+        AppointmentStatus.BOOKED,
+        AppointmentStatus.CHECKED_IN,
+        AppointmentStatus.COMPLETED,
+    }
 )
 
 

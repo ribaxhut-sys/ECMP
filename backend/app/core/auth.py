@@ -144,4 +144,25 @@ def require_escalation_review(
     return principal
 
 
+_APPOINTMENT_COMPLETE_ROLES = (
+    "HO_ENGINEER",
+    "HEAD_OFFICE_ENGINEER",
+    "ADMIN",
+    "ADMINISTRATOR",
+)
+
+
+def require_appointment_complete(
+    principal: Annotated[
+        Principal, Depends(require_permissions("appointments:complete"))
+    ],
+) -> Principal:
+    """API-308 gate: appointments:complete + HO Engineer or Admin."""
+    if not principal.has_any_role(*_APPOINTMENT_COMPLETE_ROLES):
+        raise ForbiddenError(
+            "Only Head Office Engineer or Admin can complete appointments"
+        )
+    return principal
+
+
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]

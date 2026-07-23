@@ -210,7 +210,7 @@ export interface Escalation {
 /** API-305 / API-302 appointment summary. */
 export interface AppointmentSummary {
   id: string;
-  status: "BOOKED" | "CHECKED_IN" | string;
+  status: "BOOKED" | "CHECKED_IN" | "COMPLETED" | string;
   appointmentDate: string;
   appointmentStartTime: string;
   appointmentEndTime: string;
@@ -245,6 +245,26 @@ export interface AppointmentCheckInResult {
   checkedInBy: string;
 }
 
+/** API-308 completion result values. */
+export type AppointmentCompletionResult =
+  | "COMPLETED"
+  | "PARTIALLY_COMPLETED";
+
+/** API-308 complete request. */
+export interface AppointmentCompleteRequest {
+  result?: AppointmentCompletionResult;
+  notes?: string | null;
+}
+
+/** API-308 slim complete response. */
+export interface AppointmentCompleteResult {
+  id: string;
+  status: "COMPLETED";
+  completionResult: AppointmentCompletionResult;
+  completedAt: string;
+  completedBy: string;
+}
+
 /** API-306 appointment detail. */
 export interface Appointment {
   id: string;
@@ -252,13 +272,17 @@ export interface Appointment {
   appointmentDate: string;
   appointmentStartTime: string;
   appointmentEndTime: string;
-  status: "BOOKED" | "CHECKED_IN" | string;
+  status: "BOOKED" | "CHECKED_IN" | "COMPLETED" | string;
   assignedEngineerId: string;
   assignedEngineerName: string | null;
   notes: string | null;
   checkedInAt: string | null;
   checkedInBy: string | null;
   checkinNotes: string | null;
+  completedAt: string | null;
+  completedBy: string | null;
+  completionNotes: string | null;
+  completionResult: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -281,6 +305,7 @@ export interface TimelineEntry {
     | "complaint.escalation_rejected"
     | "complaint.appointment_booked"
     | "complaint.appointment_checked_in"
+    | "complaint.appointment_completed"
     | "complaint.resolved"
     | "complaint.closed";
   eventAt: string;

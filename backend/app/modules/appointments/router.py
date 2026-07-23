@@ -1,4 +1,4 @@
-"""Appointment HTTP routes (API-305 / API-306 / API-307)."""
+"""Appointment HTTP routes (API-305 / API-306 / API-307 / API-308)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import (
     Principal,
+    require_appointment_complete,
     require_escalation_review,
     require_permissions,
 )
@@ -20,6 +21,8 @@ from app.modules.appointments.schemas import (
     AppointmentBookResult,
     AppointmentCheckInRequest,
     AppointmentCheckInResult,
+    AppointmentCompleteRequest,
+    AppointmentCompleteResult,
     AppointmentCreate,
     AppointmentResponse,
 )
@@ -30,7 +33,7 @@ escalation_appointments_router = APIRouter(
     prefix="/api/v1/escalations", tags=["Appointments"]
 )
 
-# Top-level appointments for API-306 / API-307
+# Top-level appointments for API-306 / API-307 / API-308
 appointments_router = APIRouter(prefix="/api/v1/appointments", tags=["Appointments"])
 
 
@@ -87,4 +90,21 @@ def check_in_appointment(
 ) -> DataResponse[AppointmentCheckInResult]:
     """API-307 — customer check-in (HO Scheduler / Admin)."""
     result = service.check_in(id, payload, actor_user_id=principal.user_id)
+    return DataResponse(data=result)
+
+
+@appointments_router.post(
+    "/{id}/complete",
+    response_model=DataResponse[AppointmentCompleteResult],
+    status_code=status.HTTP_200_OK,
+    summary="Complete checked-in appointment",
+)
+def complete_appointment(
+    id: uuid.UUID,
+    payload: AppointmentCompleteRequest,
+    service: Annotated[AppointmentService, Depends(get_appointment_service)],
+    principal: Annotated[Principal, Depends(require_appointment_complete)],
+) -> DataResponse[AppointmentCompleteResult]:
+    """API-308 — appointment completion (HO Engineer / Admin)."""
+    result = service.complete(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)

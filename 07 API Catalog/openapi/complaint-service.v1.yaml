@@ -727,7 +727,7 @@ paths:
         Complaint status remains `IN_PROGRESS`; escalation remains `APPROVED`.
         Writes timeline `complaint.appointment_booked`. Requires role Head
         Office Scheduler or Admin and permission `escalations:review`.
-        Out of scope: calendar, slots, check-in, completion, notification.
+        Out of scope: calendar, slots, notification.
       parameters:
         - name: id
           in: path
@@ -811,7 +811,7 @@ paths:
         remains `IN_PROGRESS`; escalation remains `APPROVED`. Writes timeline
         `complaint.appointment_checked_in`. Requires role Head Office
         Scheduler or Admin and permission `escalations:review`.
-        Out of scope: completion, no-show, notification, SLA.
+        Out of scope: no-show, notification, SLA.
       parameters:
         - name: id
           in: path
@@ -843,6 +843,57 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/appointments/{id}/complete:
+    post:
+      summary: Complete checked-in appointment
+      operationId: completeAppointment
+      x-ear-id: API-308
+      tags: [Appointments]
+      security:
+        - bearerAuth: []
+      description: |
+        Appointment completion for a `CHECKED_IN` appointment (TASK-016 / DEC-009).
+        Sets status `COMPLETED` and stores `completionResult` / `completedAt` /
+        `completedBy` / completion notes. Completion can only happen once.
+        Allowed results: `COMPLETED`, `PARTIALLY_COMPLETED`. Complaint status
+        remains `IN_PROGRESS`; escalation remains `APPROVED` — does not
+        auto-close complaint or escalation. Writes timeline
+        `complaint.appointment_completed`. Requires role Head Office Engineer
+        or Admin and permission `appointments:complete`.
+        Out of scope: complaint close, escalation close, no-show, SLA,
+        notification, survey, rating, calendar, auto-close.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Appointment id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentCompleteRequest"
+            example:
+              result: COMPLETED
+              notes: Customer meeting completed successfully.
+      responses:
+        "200":
+          description: Completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentCompleteDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/complaints/{id}/timeline:
     get:
       summary: Get complaint timeline
@@ -858,8 +909,9 @@ paths:
         Supported event types: `complaint.created`, `complaint.updated`,
         `complaint.assigned`, `complaint.reassigned`, `complaint.escalated`,
         `complaint.escalation_requested`, `complaint.escalation_approved`,
-        `complaint.escalation_rejected`, `complaint.appointment_booked`,
-        `complaint.appointment_checked_in`, `complaint.resolved`,
+        `complaint.escalation_rejected`,         `complaint.appointment_booked`,
+        `complaint.appointment_checked_in`,
+        `complaint.appointment_completed`, `complaint.resolved`,
         `complaint.closed`.
         `actorName` is included for UI display (no actor UUID required in UI).
         Requires permission `complaints:read`.
@@ -1339,6 +1391,7 @@ components:
           complaint.escalation_rejected,
           complaint.appointment_booked,
           complaint.appointment_checked_in,
+          complaint.appointment_completed,
           complaint.resolved,
           complaint.closed,
         ]
@@ -1556,13 +1609,17 @@ components:
           allOf:
             - $ref: "#/components/schemas/AppointmentSummary"
           nullable: true
-          description: Current BOOKED or CHECKED_IN appointment (TASK-014/015)
+          description: Current BOOKED, CHECKED_IN, or COMPLETED appointment
     AppointmentStatus:
       type: string
-      enum: [BOOKED, CHECKED_IN]
+      enum: [BOOKED, CHECKED_IN, COMPLETED]
       description: |
         Appointment status. BOOKED = booked slot; CHECKED_IN = customer
-        arrived (TASK-015). Completion / no-show out of scope.
+        arrived; COMPLETED = meeting finished (TASK-016). No-show out of scope.
+    AppointmentCompletionResult:
+      type: string
+      enum: [COMPLETED, PARTIALLY_COMPLETED]
+      description: Completion outcome (TASK-016).
     AppointmentCreate:
       type: object
       required: [appointmentDate, startTime, endTime, assignedEngineerId]
@@ -1624,6 +1681,27 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/AppointmentCheckInResult" }
+    AppointmentCompleteRequest:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/AppointmentCompletionResult"
+          default: COMPLETED
+        notes: { type: string, maxLength: 5000, nullable: true }
+    AppointmentCompleteResult:
+      type: object
+      required: [id, status, completionResult, completedAt, completedBy]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [COMPLETED] }
+        completionResult: { $ref: "#/components/schemas/AppointmentCompletionResult" }
+        completedAt: { type: string, format: date-time }
+        completedBy: { type: string, format: uuid }
+    AppointmentCompleteDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AppointmentCompleteResult" }
     Appointment:
       type: object
       required:
@@ -1649,6 +1727,10 @@ components:
         checkedInAt: { type: string, format: date-time, nullable: true }
         checkedInBy: { type: string, format: uuid, nullable: true }
         checkinNotes: { type: string, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        completedBy: { type: string, format: uuid, nullable: true }
+        completionNotes: { type: string, nullable: true }
+        completionResult: { type: string, nullable: true }
         createdBy: { type: string, format: uuid, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
