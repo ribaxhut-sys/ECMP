@@ -14,3 +14,6 @@ known-first-party = ["app"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Ensure project root is importable when invoking the `pytest` console script
+# (CI). `python -m pytest` already puts cwd on sys.path; the console script does not.
+pythonpath = ["."]
