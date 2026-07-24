@@ -33,6 +33,10 @@ Approved (baseline) — 2026-07-21
 | DOM-KPI-001 | KPI | `KPI/README.md` | Metrics & SLA measurement dari event; EVT-004 |
 | DOM-DASH-001 | Dashboard | `Dashboard/README.md` | Read-only operational/executive views |
 | DOM-NOTIF-001 | Notification | `Notification/README.md` | Event-driven notifications + delivery log |
+| DOM-WF-001 | Workflow | `Workflow/README.md` | Orchestration planning from Complaint events (TASK-052; no execution) |
+| DOM-EXEC-001 | Execution | `Execution/README.md` | Shared ExecutionPlan infrastructure (TASK-053; PLANNED only) |
+| DOM-DELIVERY-001 | Delivery | `Delivery/README.md` | Shared DeliveryEngine foundation (TASK-057; prepare only) |
+| DOM-QUEUE-001 | Queue | `Queue/README.md` | Queue domain + application foundation (TASK-061…062; no infra) |
 | DOM-CH-001 | Channel | `Channel/README.md` | Boundary-only; out of scope core build (OQ-001) |
 
 ## Minimum Contents (per domain)

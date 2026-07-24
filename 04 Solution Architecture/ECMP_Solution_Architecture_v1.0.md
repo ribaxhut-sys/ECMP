@@ -55,13 +55,49 @@ Tujuh domain dipetakan sebagai container/service kandidat (granularity final men
 |---|---|---|
 | Core Platform | Identity, AuthN/AuthZ, Organization, Config, Audit | — (fondasi, semua domain lain bergantung padanya) |
 | CRM | Customer 360 view, cache read-only Customer Master | Core Platform, Customer Master (eksternal) |
-| ECMF | Case lifecycle: create → assign → process → review → close | Core Platform, CRM (konteks), Administration (workflow/SLA config) |
-| KPI & Performance | Kalkulasi metrik dari event operasional | ECMF (event), Administration (SLA config) |
-| Dashboard & Analytics | Visualisasi operasional/eksekutif | KPI & Performance, ECMF, CRM, Core Platform (authz) |
-| Notification | Routing & delivery notifikasi berbasis event | Semua domain (event source), Core Platform (recipient resolution) |
+| ECMF | Case/Complaint lifecycle: create → **route** → assign → process → review → close; multi-source/target (DEC-018) + Routing (TASK-043) + **Complaint Context** (TASK-044) + **Complaint Events** factory (TASK-045) + **in-process Event Dispatcher** (TASK-046; not a bus) | Core Platform, CRM (konteks), Administration (workflow/SLA config) |
+| KPI & Performance | Kalkulasi metrik dari event operasional; **TASK-051:** in-memory `KpiProjection` from Complaint events (no HTTP projection API yet); TASK-026 summary API tetap terpisah | ECMF (event / context), Administration (SLA config) |
+| Dashboard & Analytics | Visualisasi operasional/eksekutif; **TASK-050:** in-memory `DashboardProjection` from Complaint events (no HTTP projection API yet) | KPI & Performance, ECMF, CRM, Core Platform (authz) |
+| Notification | Routing & delivery notifikasi berbasis event; **TASK-047/048/049:** `Notification` → `NotificationIntent` → `NotificationDelivery` (PLANNED only; no transport send yet) | Semua domain (event source), Core Platform (recipient resolution) |
 | Administration | Config, reference data, role-permission | Core Platform |
 
 Event bus (teknologi TBD) menjadi tulang punggung komunikasi ECMF → KPI/Dashboard/Notification/Core Platform, sesuai `08 Event Catalog`.
+
+**TASK-045 (Complaint Event Foundation):** runtime ECMF menstandarkan pembuatan `ComplaintEvent` immutable via `ComplaintEventFactory` (in-memory only). Belum ada bus/broker — selaras ADR-009 (broker deferred). Lihat `../20 Domain Architecture/ECMF/COMPLAINT_EVENTS.md`.
+
+**TASK-046 (In-Process Event Dispatcher):** `ComplaintService` → `ComplaintEventFactory` → `EventDispatcher.dispatch` → registered `EventHandler`s (sync, registration order, failure-isolated `DispatchResult`). Bukan Event Bus / Kafka / RabbitMQ / Event Store. Lihat `../20 Domain Architecture/ECMF/EVENT_DISPATCHER.md`.
+
+**TASK-047 (Notification Domain Foundation):** `NotificationEventHandler` adalah consumer pertama `EventDispatcher`. `NotificationFactory.from_event` membangun `Notification` immutable (in-memory). Transport-independent — **tanpa** email/WhatsApp/SMS/Push/WebSocket. `ComplaintService` tidak mengimpor Notification. Lihat `../20 Domain Architecture/Notification/EVENT_CONSUMER.md`.
+
+**TASK-048 (Notification Intent Foundation):** `NotificationIntentFactory.from_notification` membangun `NotificationIntent` immutable (what to deliver). Channel enum only (`EMAIL`/`WHATSAPP`/`PUSH`/`SMS`/`WEBSOCKET`). Tidak ada transport adapter / send / queue write. Lihat `../20 Domain Architecture/Notification/NOTIFICATION_INTENT.md`.
+
+**TASK-049 (Notification Delivery Foundation):** `NotificationDeliveryFactory.from_intent` membangun `NotificationDelivery` immutable (planned delivery action per preferred channel). Status **PLANNED** only. Bukan transport, bukan sending, bukan queue. Lihat `../20 Domain Architecture/Notification/DELIVERY_FOUNDATION.md`.
+
+**TASK-050 (Dashboard Projection Foundation):** `DashboardProjectionHandler` mengonsumsi Complaint events via `EventDispatcher` dan memperbarui `DashboardProjection` in-memory (read model). Tidak query Complaint aggregate / `ComplaintService` saat update. Belum ada HTTP endpoint projection. Lihat `../20 Domain Architecture/Dashboard/PROJECTION_GUIDE.md`.
+
+**TASK-051 (KPI Projection Foundation):** `KpiProjectionHandler` mengonsumsi Complaint events via `EventDispatcher` dan memperbarui `KpiProjection` in-memory (read model: received/closed/resolved/escalated, current open/in-progress, SLA breached flag, derived closure/resolution rates). Tidak query Complaint aggregate / `ComplaintService` saat update. Belum ada HTTP endpoint projection. Lihat `../20 Domain Architecture/KPI/PROJECTION_GUIDE.md`.
+
+**TASK-052 (Workflow Foundation):** Runtime orchestration **planner** (bukan domain Blueprint ke-8; bukan Administration Workflow Config ADR-008). `WorkflowEventHandler` mengonsumsi Complaint events via `EventDispatcher`. `WorkflowEngine` mencocokkan `WorkflowTrigger` → `WorkflowDefinition`, lalu merekam `WorkflowInstance` (status **CREATED** only) di `WorkflowInstanceStore` in-memory. **Tidak** mengeksekusi action, invoke Notification/Assignment, atau HTTP API. Lihat `../20 Domain Architecture/Workflow/WORKFLOW_ARCHITECTURE.md`.
+
+**TASK-053 (Execution Plan Foundation):** Shared infrastructure `ExecutionPlan` / `ExecutionTask` (status **PLANNED**, `executed=false`). `ExecutionPlanner` memetakan `WorkflowInstance` → `ExecutionPlan` (Workflow = producer pertama; future: Scheduled Jobs / SLA / AI / Manual / Integrations). `ExecutionRegistry` mendaftarkan handler untuk masa depan **tanpa** invoke. Tidak ada execution / send / schedule / HTTP / DB. Lihat `../20 Domain Architecture/Execution/EXECUTION_ARCHITECTURE.md`.
+
+**TASK-054 (Execution Runtime Foundation):** Shared infrastructure `ExecutionRuntime` mengonsumsi `ExecutionPlan` dan menyiapkan `ExecutionRun` / `ExecutionRunTask` (status **CREATED** only) + `ExecutionContext` + `ExecutionResult` (bentuk foundation). `ExecutionRunStore` in-memory. Runtime **tidak** mengetahui Complaint / Workflow / Notification; **tidak** invoke handler / registry / send. Tidak ada HTTP / DB / queue / scheduler. Lihat `../20 Domain Architecture/Execution/EXECUTION_RUNTIME_ARCHITECTURE.md`.
+
+**TASK-055 (Execution Engine Foundation):** Shared infrastructure `ExecutionEngine` mengelola lifecycle `ExecutionRun` via `ExecutionLifecycle` / `ExecutionStateMachine` (CREATED → READY → RUNNING → COMPLETED|FAILED|CANCELLED). Validasi transisi saja — **tidak** execute handler / registry / Notification / externals. `ExecutionEngineResult` (`success`, `previous_state`, `new_state`, `reason`). Tidak ada HTTP / DB / scheduler. Lihat `../20 Domain Architecture/Execution/EXECUTION_ENGINE_ARCHITECTURE.md`.
+
+**TASK-056 (Execution Dispatcher Foundation):** Shared infrastructure `ExecutionDispatcher` menghubungkan `ExecutionRun` + `ExecutionTask` ke `ExecutionRegistry` via `DispatchRequest` / `DispatchResult` + `DispatchValidator` + `DispatchPolicy` (**SEQUENTIAL** only). Validasi kesiapan (status READY|RUNNING, task ada, handler terdaftar) — **tidak** invoke handler. Tidak ada HTTP / DB / queue. Lihat `../20 Domain Architecture/Execution/EXECUTION_DISPATCHER_ARCHITECTURE.md`.
+
+**TASK-057 (Delivery Engine Foundation):** Shared infrastructure `DeliveryEngine` mengonversi `DispatchRequest` → `DeliveryRequest` / `DeliveryResult` + `DeliveryValidator` + `DeliveryPolicy` (**DIRECT** only) + `DeliveryContext`. Validasi recipient / channel / template / payload — **tidak** send, **tidak** call provider/transport (SMTP/WhatsApp/FCM/APNS/SMS/Webhook/AI). Tidak ada HTTP / DB / queue / retry. Lihat `../20 Domain Architecture/Delivery/DELIVERY_ENGINE_ARCHITECTURE.md`.
+
+**TASK-058 (Transport Adapter Foundation):** Shared infrastructure `TransportAdapter` (abstract) + `TransportRegistry` + `TransportSelector` + `TransportCapability` + `TransportResult`. Seleksi adapter by channel dari `DeliveryRequest` — **tidak** call `send()`, **tidak** implementasi provider (SMTP/Twilio/Meta/Firebase/APNS/Slack/Teams/Webhook), **tidak** network I/O. Tidak ada HTTP / DB / queue. Lihat `../20 Domain Architecture/Delivery/TRANSPORT_ARCHITECTURE.md`.
+
+**TASK-059 (Provider Executor Foundation):** Shared infrastructure `ProviderExecutor` + `ProviderExecutionRequest` / `ProviderExecutionResult` + `ProviderExecutionValidator` + `ProviderExecutionPolicy` (**SYNC_PREPARE** only). Menyiapkan execution contract dari `DeliveryRequest` + `TransportAdapter` — **tidak** invoke `send()` / `health()`, **tidak** network I/O (HTTP/SMTP/WhatsApp/Firebase/Webhook/Queue). Tidak ada DB / scheduler / retry / timeout. Lihat `../20 Domain Architecture/Delivery/PROVIDER_EXECUTOR_ARCHITECTURE.md`.
+
+**TASK-060 (Provider Contract Foundation):** Shared contracts `ProviderResponse` + `ProviderStatus` (READY/SUCCESS/FAILED/RETRYABLE/UNSUPPORTED) + `ProviderError` + `ProviderMetadata` + abstract `ProviderException`. Semua future provider harus mengembalikan envelope yang sama — **tidak** implementasi provider, **tidak** network I/O. Tidak ada DB / scheduler / queue. Lihat `../20 Domain Architecture/Delivery/PROVIDER_CONTRACT_ARCHITECTURE.md`.
+
+**TASK-061 (Queue Domain Foundation):** First-class domain `Queue` (aggregate root) + `QueueTicket` (immutable) + `QueueCounter` + `QueuePolicy` (FIFO / PRIORITY_QUEUE) + `QueueStatus` (OPEN/PAUSED/CLOSED) + `QueuePriority` (NORMAL/PRIORITY/VIP). Core model only — **tidak** REST / DB / repository / display / kiosk / calling. Lihat `../20 Domain Architecture/Queue/QUEUE_DOMAIN_ARCHITECTURE.md`.
+
+**TASK-062 (Queue Application Foundation):** Application CQRS layer — `QueueDomainService` + commands (Create/Open/Pause/Close/Issue/CallNext/Complete/Cancel) + queries (GetQueue/GetQueueTickets/GetWaitingTickets) + immutable DTOs + dedicated `QueueTicketStatus` (WAITING/CALLED/SERVING/COMPLETED/CANCELLED/SKIPPED). **Tidak** REST / DB / repository / Redis / display / kiosk / notification. Lihat `../20 Domain Architecture/Queue/QUEUE_APPLICATION_ARCHITECTURE.md`.
 
 Diagram source: `../23 Assets/mermaid/ecmp-container.mmd` (7 domain + event backbone outbox ADR-009 + Customer Master eksternal + gateway opsional; arah dependensi per tabel di atas).
 
@@ -91,6 +127,7 @@ Diagram source: `../23 Assets/mermaid/create-case-sequence.mmd` (create case Spr
 - Setiap domain memiliki data store sendiri (data ownership per domain, selaras prinsip #1); tidak ada shared database lintas domain — komunikasi data lintas domain melalui event atau API read, bukan akses database langsung.
 - Customer Reference (CRM) adalah cache read-only, disinkronkan dari Customer Master (ADR-002) — mekanisme sinkron (event vs scheduled pull) masih Open Decision.
 - Audit Log disarankan append-only store terpisah (mis. write-once log store) agar imutabilitas terjamin secara teknis, bukan hanya lewat permission aplikasi.
+- **Complaint Context (TASK-044):** operational read model (`ComplaintContext`) assembled in-process from Complaint + Assignment + SLA + Routing. **No dedicated table and no cache** — see `20 Domain Architecture/ECMF/COMPLAINT_CONTEXT.md`.
 
 ## 7. Integration Architecture
 - **Internal (antar domain ECMP)**: event-driven melalui message broker (ADR-001), skema di `08 Event Catalog`.
