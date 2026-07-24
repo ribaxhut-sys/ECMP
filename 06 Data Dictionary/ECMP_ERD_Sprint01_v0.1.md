@@ -85,4 +85,32 @@ Ringkasan relasi:
 - `../05 Architecture Decision Records/ECMP_ADR_002_ECMP_Not_System_Of_Record_v1.0.md`
 - `../05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md`
 - `../09 Integration Catalog/ECMP_INT_001_Customer_Master_Read_v0.1.md`
+- `../27 Project Decisions/DEC-018_Multi_Source_Multi_Target_Complaint_TASK042_v1.0.md`
 - `implementation/backend/alembic/versions/0001_initial_cases_audit_outbox.py` (skema fisik sumber)
+
+## 3. Complaint multi-source / multi-target (DEC-018 / TASK-042)
+
+Physical table `complaints` (backend migration `0026_complaint_source_target`)
+adds polymorphic origin/destination without subtype tables:
+
+```mermaid
+erDiagram
+    COMPLAINTS {
+        uuid id PK
+        string complaint_number UK
+        uuid customer_id FK "nullable when source != CUSTOMER"
+        uuid branch_id FK "nullable; set when target = BRANCH"
+        string source_type "CUSTOMER|BRANCH|HEAD_OFFICE|SYSTEM"
+        uuid source_id "polymorphic originator"
+        string target_type "BRANCH|HEAD_OFFICE"
+        uuid target_id "polymorphic destination; nullable legacy"
+        string status
+        string priority
+    }
+    CUSTOMERS ||--o{ COMPLAINTS : "customer_id when CUSTOMER"
+    BRANCHES ||--o{ COMPLAINTS : "branch_id when target BRANCH"
+```
+
+Enums are VARCHAR-backed so future values (VENDOR, REGIONAL, …) do not require
+schema changes. Lifecycle and related aggregates (Assignment, Timeline,
+Resolution, Appointment, Escalation) are unchanged.

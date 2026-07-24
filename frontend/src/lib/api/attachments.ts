@@ -1,0 +1,52 @@
+import { apiRequest, apiRequestBlob } from "./client";
+import type { Attachment, DataResponse } from "./types";
+
+/** API-324 — GET /api/v1/attachments/{id} (metadata only; no file bytes). */
+export function fetchAttachment(
+  attachmentId: string,
+): Promise<DataResponse<Attachment>> {
+  return apiRequest<DataResponse<Attachment>>(
+    `/api/v1/attachments/${encodeURIComponent(attachmentId)}`,
+  );
+}
+
+export interface AttachmentDownloadResult {
+  blob: Blob;
+  filename: string | null;
+  mimeType: string;
+  checksum: string | null;
+}
+
+/**
+ * API-325 — GET /api/v1/attachments/{id}/download
+ * Call only when the user opens Preview / Download / Open in new tab.
+ */
+export async function downloadAttachment(
+  attachmentId: string,
+): Promise<AttachmentDownloadResult> {
+  const result = await apiRequestBlob(
+    `/api/v1/attachments/${encodeURIComponent(attachmentId)}/download`,
+  );
+
+  let filename: string | null = null;
+  if (result.contentDisposition) {
+    const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(result.contentDisposition);
+    const plainMatch = /filename="([^"]+)"/i.exec(result.contentDisposition);
+    const raw = utfMatch?.[1] ?? plainMatch?.[1];
+    if (raw) {
+      try {
+        filename = decodeURIComponent(raw);
+      } catch {
+        filename = raw;
+      }
+    }
+  }
+
+  return {
+    blob: result.blob,
+    filename,
+    mimeType:
+      result.contentType || result.blob.type || "application/octet-stream",
+    checksum: result.checksumSha256,
+  };
+}

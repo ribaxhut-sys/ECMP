@@ -471,6 +471,11 @@ class EscalationService:
         assert complaint.status == ComplaintStatus.CLOSED
         assert complaint.status == complaint_status_before
 
+        # TASK-024 — evaluate escalation (and other) SLA statuses.
+        from app.modules.sla.hooks import evaluate_sla_for_complaint
+
+        evaluate_sla_for_complaint(self._repo.session, complaint.id, now=now)
+
         result = CloseEscalationResult(
             escalationId=row.id,
             status=TARGET_CLOSED_STATUS,

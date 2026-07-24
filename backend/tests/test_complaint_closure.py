@@ -24,11 +24,16 @@ from app.modules.complaints.service import (
 def _complaint(**overrides: object) -> SimpleNamespace:
     now = datetime.now(UTC)
     actor_id = uuid.uuid4()
+    customer_id = uuid.uuid4()
     base = {
         "id": uuid.uuid4(),
         "complaint_number": "CMP-TEST",
-        "customer_id": uuid.uuid4(),
+        "customer_id": customer_id,
         "branch_id": None,
+        "source_type": "CUSTOMER",
+        "source_id": customer_id,
+        "target_type": "BRANCH",
+        "target_id": None,
         "subject": "s",
         "description": "d",
         "status": "IN_PROGRESS",
@@ -64,7 +69,7 @@ def _payload() -> CloseComplaintRequest:
     return CloseComplaintRequest(notes="Complaint verified and officially closed.")
 
 
-def test_close_complaint_success() -> None:
+def test_close_complaint_success(monkeypatch: pytest.MonkeyPatch) -> None:
     actor_id = uuid.uuid4()
     complaint = _complaint(status="IN_PROGRESS")
     escalation = _escalation()
@@ -76,6 +81,10 @@ def test_close_complaint_success() -> None:
     repo.get_final_resolution.return_value = final
     repo.get_latest_escalation.return_value = escalation
     repo.get_user.return_value = closer
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     result = ComplaintService(repo).close(
         complaint.id,
@@ -139,7 +148,9 @@ def test_reject_duplicate_closure() -> None:
     repo.commit.assert_not_called()
 
 
-def test_timeline_created_and_escalation_remains_approved() -> None:
+def test_timeline_created_and_escalation_remains_approved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     actor_id = uuid.uuid4()
     complaint = _complaint(status="IN_PROGRESS")
     escalation = _escalation(status=EscalationRequestStatus.APPROVED)
@@ -150,8 +161,13 @@ def test_timeline_created_and_escalation_remains_approved() -> None:
     repo.get_final_resolution.return_value = final
     repo.get_latest_escalation.return_value = escalation
     repo.get_user.return_value = SimpleNamespace(id=actor_id)
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
-    ComplaintService(repo).close(
+    service = ComplaintService(repo)
+    service.close(
         complaint.id,
         _payload(),
         actor_user_id=actor_id,
@@ -160,6 +176,8 @@ def test_timeline_created_and_escalation_remains_approved() -> None:
     assert complaint.status == ComplaintStatus.CLOSED
     assert escalation.status == EscalationRequestStatus.APPROVED
     repo.add_timeline.assert_called_once()
+    assert len(service._recent_events) == 1
+    assert service._recent_events[0].event_type.value == "ComplaintClosed"
 
 
 def test_reject_non_in_progress_complaint() -> None:

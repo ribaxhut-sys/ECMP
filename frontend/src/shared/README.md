@@ -11,13 +11,14 @@ frontend/src/
   app/                      # Next.js App Router
     (app)/                  # Authenticated routes → AppLayout
       dashboard/
-      complaints/           # Placeholder shell pages
+      complaints/
+      attachments/          # Attachment Viewer (TASK-032)
       reports/
       users/
       settings/
     login/                  # AuthLayout
   auth/                     # AuthProvider (do not alter flow)
-  features/                 # Feature modules (dashboard, …)
+  features/                 # Feature modules (dashboard, attachments, …)
   lib/                      # API clients / types
   shared/
     theme/                  # Design tokens (TS mirrors of CSS vars)

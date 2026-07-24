@@ -1,4 +1,4 @@
-import type { ReportSummary } from "@/lib/api/types";
+import type { DashboardHeader } from "@/lib/api/types";
 import {
   Card,
   CardBody,
@@ -8,35 +8,18 @@ import {
   Skeleton,
 } from "@/shared/ui";
 
-function openCount(summary: ReportSummary): number {
-  const open = new Set([
-    "NEW",
-    "ASSIGNED",
-    "IN_PROGRESS",
-    "PENDING",
-    "ESCALATED",
-  ]);
-  return summary.byStatus
-    .filter((row) => open.has(row.status))
-    .reduce((sum, row) => sum + row.count, 0);
-}
-
-function statusCount(summary: ReportSummary, status: string): number {
-  return summary.byStatus.find((row) => row.status === status)?.count ?? 0;
-}
-
 export function SummaryCards({
-  summary,
+  header,
   loading,
 }: {
-  summary: ReportSummary | null;
+  header: DashboardHeader | null;
   loading: boolean;
 }) {
   if (loading) {
     return (
-      <Card>
+      <Card data-testid="dashboard-header-cards">
         <CardHeader>
-          <CardTitle>Summary</CardTitle>
+          <CardTitle>Dashboard Header</CardTitle>
         </CardHeader>
         <CardBody>
           <Skeleton rows={2} />
@@ -45,16 +28,16 @@ export function SummaryCards({
     );
   }
 
-  if (!summary || summary.total === 0) {
+  if (!header) {
     return (
-      <Card>
+      <Card data-testid="dashboard-header-cards">
         <CardHeader>
-          <CardTitle>Summary</CardTitle>
+          <CardTitle>Dashboard Header</CardTitle>
         </CardHeader>
         <CardBody>
           <Empty
             title="No summary yet"
-            description="No complaints yet. Summary will appear once cases are registered."
+            description="Header metrics will appear once complaints are registered."
           />
         </CardBody>
       </Card>
@@ -62,20 +45,18 @@ export function SummaryCards({
   }
 
   const cards = [
-    { label: "Total", value: summary.total },
-    { label: "Open", value: openCount(summary) },
-    { label: "Resolved", value: statusCount(summary, "RESOLVED") },
-    { label: "Closed", value: statusCount(summary, "CLOSED") },
+    { label: "Total Complaints", value: header.totalComplaints },
+    { label: "Open Complaints", value: header.openComplaints },
+    { label: "Closed Complaints", value: header.closedComplaints },
   ];
 
   return (
-    <Card>
+    <Card data-testid="dashboard-header-cards">
       <CardHeader>
-        <CardTitle>Summary</CardTitle>
+        <CardTitle>Dashboard Header</CardTitle>
       </CardHeader>
       <CardBody>
-        {/* Mobile: 1 col · Tablet: 2 · Desktop: 4 */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {cards.map((card) => (
             <div
               key={card.label}

@@ -111,10 +111,10 @@ _…truncated…_
 
 ## Catalog Counts
 
-- Traceability links: 9
-- OpenAPI specs: 1
-- Events: 7
-- FR artifacts referenced: 9
+- Traceability links: 10
+- OpenAPI specs: 3
+- Events: 8
+- FR artifacts referenced: 12
 - BR artifacts referenced: 8
 
 ## Active Implementation Focus

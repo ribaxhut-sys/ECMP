@@ -1,10 +1,19 @@
-"""Role → permission resolution for access-token claims.
+"""Authorization helpers — Dynamic Permission Resolver (TASK-038).
 
-Foundation mapping for complaint-service roles. Role/permission SoT remains
-Core Platform (ADR-008); this table bridges until API-062 persistence exists.
+Runtime authorization no longer uses a static ROLE_PERMISSIONS map.
+Permissions are resolved via IAM:
+
+    User → UserRole → Role → RolePermission → Permission
+
+Legacy ``permissions_for_role`` remains only as a thin compatibility shim
+for unit tests that still assert historical role matrices; it is not used
+by the Authorization Engine or login path.
 """
 
 from __future__ import annotations
+
+# Historical role → permission matrix (seed source for migration 0025).
+# NOT consulted by Authorization Engine at runtime.
 
 _AGENT_PERMISSIONS: frozenset[str] = frozenset(
     {
@@ -13,6 +22,11 @@ _AGENT_PERMISSIONS: frozenset[str] = frozenset(
         "complaints:update",
         "escalations:read",
         "reports:read",
+        "kpi:read",
+        "dashboard:read",
+        "attachment:create",
+        "attachment:read",
+        "attachment:delete",
     }
 )
 
@@ -28,7 +42,6 @@ _SUPERVISOR_PERMISSIONS: frozenset[str] = frozenset(
     }
 )
 
-# Head Office Scheduler — can review Escalation Requests (TASK-012).
 _HO_SCHEDULER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "complaints:read",
@@ -36,11 +49,15 @@ _HO_SCHEDULER_PERMISSIONS: frozenset[str] = frozenset(
         "escalations:read",
         "escalations:review",
         "reports:read",
+        "kpi:read",
+        "dashboard:read",
         "users:read",
+        "attachment:create",
+        "attachment:read",
+        "attachment:delete",
     }
 )
 
-# Head Office Engineer — can complete checked-in appointments (TASK-016).
 _HO_ENGINEER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "complaints:read",
@@ -48,6 +65,11 @@ _HO_ENGINEER_PERMISSIONS: frozenset[str] = frozenset(
         "escalations:read",
         "appointments:complete",
         "reports:read",
+        "kpi:read",
+        "dashboard:read",
+        "attachment:create",
+        "attachment:read",
+        "attachment:delete",
     }
 )
 
@@ -57,6 +79,29 @@ _ADMIN_PERMISSIONS: frozenset[str] = frozenset(
         "escalations:review",
         "escalations:close",
         "appointments:complete",
+        "sla:read",
+        "sla:manage",
+        "settings:read",
+        "settings:update",
+        "notification:read",
+        "notification:create",
+        "notification:update",
+        "notification:delete",
+        "audit:read",
+        "role:read",
+        "role:create",
+        "role:update",
+        "role:delete",
+        "permission:read",
+        "permission:create",
+        "permission:update",
+        "permission:delete",
+        "role_permission:read",
+        "role_permission:update",
+        "user_role:read",
+        "user_role:update",
+        "data_scope:read",
+        "data_scope:update",
         "*",
     }
 )
@@ -66,10 +111,22 @@ _VIEWER_PERMISSIONS: frozenset[str] = frozenset(
         "complaints:read",
         "escalations:read",
         "reports:read",
+        "kpi:read",
+        "dashboard:read",
+        "sla:read",
+        "attachment:read",
+        "notification:read",
+        "audit:read",
+        "role:read",
+        "permission:read",
+        "role_permission:read",
+        "user_role:read",
+        "data_scope:read",
     }
 )
 
-ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
+# Deprecated: seed/reference only. Authorization Engine must not use this map.
+_LEGACY_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "AGENT": _AGENT_PERMISSIONS,
     "CS_AGENT": _AGENT_PERMISSIONS,
     "HANDLER": _AGENT_PERMISSIONS,
@@ -83,14 +140,20 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "HEAD_OFFICE_ENGINEER": _HO_ENGINEER_PERMISSIONS,
     "ADMIN": _ADMIN_PERMISSIONS,
     "ADMINISTRATOR": _ADMIN_PERMISSIONS,
+    "SUPER_ADMIN": _ADMIN_PERMISSIONS,
     "VIEWER": _VIEWER_PERMISSIONS,
 }
 
 
 def permissions_for_role(role_code: str | None) -> list[str]:
+    """Deprecated compatibility helper — prefer PermissionResolver.
+
+    Returns the historical seed matrix for a role code. Not used by
+    Authorization Engine or AuthService at runtime.
+    """
     if not role_code:
         return []
-    perms = ROLE_PERMISSIONS.get(role_code.upper())
+    perms = _LEGACY_ROLE_PERMISSIONS.get(role_code.upper())
     if perms is None:
         return []
     return sorted(perms)

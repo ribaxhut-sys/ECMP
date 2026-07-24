@@ -19,9 +19,11 @@
 | `OpenQueue` | Set queue status → **OPEN** |
 | `PauseQueue` | Set queue status → **PAUSED** (not from CLOSED) |
 | `CloseQueue` | Set queue status → **CLOSED** |
-| `IssueTicket` | Issue WAITING ticket (queue must be OPEN) |
+| `IssueTicket` | Issue WAITING ticket (queue must be OPEN); number via Domain generator |
 | `CallNextTicket` | Select next WAITING → **CALLED** (queue must be OPEN) |
+| `RecallTicket` | Re-announce **CALLED** / **SERVING** (status unchanged) |
 | `CompleteTicket` | CALLED / SERVING → **COMPLETED** |
+| `SkipTicket` | WAITING / CALLED → **SKIPPED** |
 | `CancelTicket` | WAITING / CALLED / SERVING → **CANCELLED** |
 
 ## Rules enforced

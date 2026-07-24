@@ -1,0 +1,76 @@
+/** Attachment preview classification helpers (TASK-032). */
+
+const IMAGE_MIME = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+const PDF_EXT = new Set([".pdf"]);
+
+export type PreviewKind = "image" | "pdf" | "unsupported";
+
+export function normalizeExtension(extension: string | null | undefined, filename: string): string {
+  const fromMeta = (extension ?? "").trim().toLowerCase();
+  if (fromMeta) {
+    return fromMeta.startsWith(".") ? fromMeta : `.${fromMeta}`;
+  }
+  const name = filename.trim().toLowerCase();
+  const idx = name.lastIndexOf(".");
+  if (idx <= 0) return "";
+  return name.slice(idx);
+}
+
+export function getPreviewKind(
+  mimeType: string,
+  extension: string | null | undefined,
+  filename: string,
+): PreviewKind {
+  const mime = (mimeType || "").trim().toLowerCase();
+  const ext = normalizeExtension(extension, filename);
+
+  if (mime === "application/pdf" || PDF_EXT.has(ext)) {
+    return "pdf";
+  }
+  if (IMAGE_MIME.has(mime) || IMAGE_EXT.has(ext)) {
+    return "image";
+  }
+  return "unsupported";
+}
+
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
+  const mb = kb / 1024;
+  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+}
+
+export function formatUploadDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+export function fileTypeLabel(
+  mimeType: string,
+  extension: string | null | undefined,
+  filename: string,
+): string {
+  const ext = normalizeExtension(extension, filename).replace(".", "").toUpperCase();
+  if (ext) return ext;
+  const mime = mimeType.trim();
+  if (!mime) return "FILE";
+  const subtype = mime.split("/")[1];
+  return (subtype || mime).toUpperCase();
+}

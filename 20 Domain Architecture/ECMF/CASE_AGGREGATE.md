@@ -14,17 +14,53 @@
 ## Objective
 Mendefinisikan **Case sebagai Aggregate Root** domain ECMF: invariants, value objects, entitas anggota aggregate, dan katalog Business Actions yang menjadi satu-satunya jalur mutasi state.
 
-## Aggregate Root: Case
-Case (Case Header di `../../06 Data Dictionary`) adalah Aggregate Root. Semua mutasi terhadap Case dan anggota aggregate-nya masuk melalui business action pada root — tidak ada tulisan langsung ke entitas anak.
+## Aggregate Root: Complaint (Case)
+
+Complaint is the single aggregate for all complaint origins and destinations
+(DEC-018 / TASK-042). There is **one** `complaints` table — no
+`BranchComplaint` / `CustomerComplaint` / `HeadOfficeComplaint` subtypes.
+
+### Multi-source / multi-target (DEC-018)
+
+| Dimension | Values | Storage |
+|---|---|---|
+| `source_type` | CUSTOMER, BRANCH, HEAD_OFFICE, SYSTEM | VARCHAR (extensible without migration) |
+| `source_id` | UUID of originator | UUID (no typed FK — entity depends on type) |
+| `target_type` | BRANCH, HEAD_OFFICE | VARCHAR (extensible without migration) |
+| `target_id` | UUID of destination | UUID nullable for legacy null-branch rows |
+
+Legacy columns `customer_id` / `branch_id` remain as derived projections:
+
+- `source_type=CUSTOMER` → `customer_id = source_id`
+- `target_type=BRANCH` → `branch_id = target_id` (initial assignment context)
+- `target_type=HEAD_OFFICE` → `branch_id` cleared
+
+Lifecycle, Assignment engine, Timeline, Resolution, Appointment, Escalation,
+and Authorization are **unchanged**.
+
+Initial organizational destination is resolved by **Complaint Routing Foundation**
+(TASK-043 / `COMPLAINT_ROUTING.md`): `ComplaintRoutingService` → immutable
+`ComplaintRoute` (`receiver_type`, `receiver_id`, `assignment_context`,
+`routing_reason`). Complaint Service applies `assignment_context` to
+`branch_id` when the receiver is BRANCH; Assignment Engine remains
+user-assignment only (no routing matrix inside Assignment).
+
+**Complaint Context Foundation** (TASK-044 / `COMPLAINT_CONTEXT.md`) is a
+read-only assembled view (`ComplaintContext`) over Complaint + current
+Assignment + SLA + Routing. It is **not** part of the aggregate boundary and
+is **not** persisted.
 
 ### Invariants
 | # | Invariant | Sumber |
 |---|---|---|
 | INV-1 | Status hanya berubah melalui transisi valid sesuai Workflow Config aktif (lihat `CASE_STATE_MACHINE.md`, DOM-ECMF-003) | BR-001 / BR-ECMF-03, ADR-008 |
-| INV-2 | `customerId` **immutable** setelah create — case tidak dapat dipindahkan ke pelanggan lain | ADR-002, FRD-001 |
+| INV-2 | `source_type` / `source_id` immutable after create; when CUSTOMER, `customerId` matches `source_id` and remains immutable | ADR-002, FRD-001, DEC-018 |
 | INV-3 | Setiap write (create/assign/status change/close/reopen) menghasilkan audit record immutable dalam transaksi yang sama | BR-008 (delivery), BR-ECMF-01, FR-001c |
 | INV-4 | Case closed wajib memiliki Resolution (evidence sesuai kategori bila dipersyaratkan) | BR-ECMF-06 |
 | INV-5 | Event emit terjadi dalam transaksi yang sama via outbox (tidak ada event tanpa write yang tersimpan) | ADR-001, ADR-009 |
+| INV-6 | One Complaint aggregate only — no parallel complaint tables by source/target | DEC-018 |
+| INV-7 | Initial destination must resolve via ComplaintRoutingService default matrix only | TASK-043 |
+| INV-8 | Operational consumers should prefer ComplaintContext over ad-hoc joins across aggregates | TASK-044 |
 
 ## Value Objects
 | Value Object | Nilai | Catatan |
@@ -68,5 +104,7 @@ Catatan: API-003/API-004 tercatat di `../../26 Traceability/TRACEABILITY_MATRIX.
 ## Related
 - `README.md` (DOM-ECMF-001) — konteks domain ECMF
 - `CASE_STATE_MACHINE.md` (DOM-ECMF-003) — matriks transisi + guards
+- `../../27 Project Decisions/DEC-018_Multi_Source_Multi_Target_Complaint_TASK042_v1.0.md`
+- `COMPLAINT_ROUTING.md` (ARCH-ECMF-ROUTING-001) — Routing Foundation
 - `../../08 Event Catalog/events/events.yaml` — SoT event
 - `../../06 Data Dictionary/ECMP_Data_Dictionary_v1.0.md` — atribut Case Header

@@ -47,6 +47,14 @@ nodes:
   type: ADR
   label: ECMP_ADR_011_Frontend_Deferral_v1.0
   path: D:\ECMP\05 Architecture Decision Records\ECMP_ADR_011_Frontend_Deferral_v1.0.md
+- id: ADR-012
+  type: ADR
+  label: ECMP_ADR_012_Target_Authentication_Architecture_v1.0
+  path: D:\ECMP\05 Architecture Decision Records\ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md
+- id: ADR-013
+  type: ADR
+  label: ECMP_ADR_013_Frontend_Technology_Stack_v1.0
+  path: D:\ECMP\05 Architecture Decision Records\ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md
 - id: API-001
   type: API
   label: Create case
@@ -59,20 +67,199 @@ nodes:
   method: GET
 - id: API-003
   type: API
-  label: POST /v1/cases/{caseId}/assign
+  label: Assign or reassign case
+  path: /cases/{caseId}/assign
+  method: POST
 - id: API-004
   type: API
-  label: POST /v1/cases/{caseId}/status
+  label: Change case status via allowed transition
+  path: /cases/{caseId}/status
+  method: POST
+- id: API-005
+  type: API
+  label: List cases (paginated, filtered)
+  path: /cases
+  method: GET
+- id: API-006
+  type: API
+  label: Get case timeline / audit trail
+  path: /cases/{caseId}/timeline
+  method: GET
+- id: API-007
+  type: API
+  label: List internal notes for a case
+  path: /cases/{caseId}/notes
+  method: GET
+- id: API-008
+  type: API
+  label: Add an internal note (append-only)
+  path: /cases/{caseId}/notes
+  method: POST
 - id: API-010
   type: API
   label: GET /v1/customers/{customerId}
 - id: API-040
   type: API
   label: GET /v1/dashboard/queues
+- id: API-201
+  type: API
+  label: Create complaint
+  path: /api/v1/complaints
+  method: POST
+- id: API-202
+  type: API
+  label: List complaints
+  path: /api/v1/complaints
+  method: GET
+- id: API-203
+  type: API
+  label: Get complaint by id
+  path: /api/v1/complaints/{id}
+  method: GET
+- id: API-204
+  type: API
+  label: Update complaint
+  path: /api/v1/complaints/{id}
+  method: PUT
+- id: API-205
+  type: API
+  label: Assign or reassign complaint
+  path: /api/v1/complaints/{id}/assign
+  method: POST
+- id: API-206
+  type: API
+  label: List assignment history
+  path: /api/v1/complaints/{id}/assignments
+  method: GET
+- id: API-207
+  type: API
+  label: Escalate complaint
+  path: /api/v1/complaints/{id}/escalate
+  method: POST
+- id: API-208
+  type: API
+  label: List escalation history
+  path: /api/v1/complaints/{id}/escalations
+  method: GET
+- id: API-209
+  type: API
+  label: Get complaint timeline
+  path: /api/v1/complaints/{id}/timeline
+  method: GET
+- id: API-210
+  type: API
+  label: Complaint report summary
+  path: /api/v1/reports/summary
+  method: GET
+- id: API-211
+  type: API
+  label: Complaint counts by status
+  path: /api/v1/reports/by-status
+  method: GET
+- id: API-212
+  type: API
+  label: Complaint counts by branch
+  path: /api/v1/reports/by-branch
+  method: GET
+- id: API-213
+  type: API
+  label: Create user
+  path: /api/v1/users
+  method: POST
+- id: API-214
+  type: API
+  label: List users
+  path: /api/v1/users
+  method: GET
+- id: API-215
+  type: API
+  label: Get user by id
+  path: /api/v1/users/{id}
+  method: GET
+- id: API-216
+  type: API
+  label: Update user
+  path: /api/v1/users/{id}
+  method: PUT
+- id: API-217
+  type: API
+  label: Activate or deactivate user
+  path: /api/v1/users/{id}/status
+  method: PATCH
+- id: API-218
+  type: API
+  label: Login
+  path: /api/v1/auth/login
+  method: POST
+- id: API-219
+  type: API
+  label: Refresh access token
+  path: /api/v1/auth/refresh
+  method: POST
+- id: API-220
+  type: API
+  label: Logout
+  path: /api/v1/auth/logout
+  method: POST
+- id: API-221
+  type: API
+  label: Current authenticated user
+  path: /api/v1/auth/me
+  method: GET
+- id: API-222
+  type: API
+  label: List customer references
+  path: /api/v1/customers
+  method: GET
+- id: API-223
+  type: API
+  label: List branch references
+  path: /api/v1/branches
+  method: GET
+- id: API-224
+  type: API
+  label: Change complaint status
+  path: /api/v1/complaints/{id}/status
+  method: PATCH
+- id: API-225
+  type: API
+  label: Resolve complaint
+  path: /api/v1/complaints/{id}/resolution
+  method: POST
+- id: API-226
+  type: API
+  label: Get current complaint resolution
+  path: /api/v1/complaints/{id}/resolution
+  method: GET
+- id: API-301
+  type: API
+  label: Request escalation (Branch → Head Office)
+  path: /api/v1/complaints/{id}/escalations
+  method: POST
+- id: API-302
+  type: API
+  label: Get escalation by id
+  path: /api/v1/escalations/{id}
+  method: GET
+- id: API-303
+  type: API
+  label: Approve escalation request
+  path: /api/v1/escalations/{id}/approve
+  method: POST
+- id: API-304
+  type: API
+  label: Reject escalation request
+  path: /api/v1/escalations/{id}/reject
+  method: POST
 - id: API-GET-/health
   type: API
-  label: Service health check
+  label: Service liveness check
   path: /health
+  method: GET
+- id: API-GET-/health/ready
+  type: API
+  label: Service readiness check
+  path: /health/ready
   method: GET
 - id: BG-001
   type: BusinessGoal
@@ -119,12 +306,28 @@ nodes:
 - id: BR-008
   type: BusinessRule
   label: BR-008
+- id: BR-009
+  type: BusinessRule
+  label: BR-009
+- id: BR-010
+  type: BusinessRule
+  label: BR-010
+- id: BR-011
+  type: BusinessRule
+  label: BR-011
+- id: BR-012
+  type: BusinessRule
+  label: BR-012
 - id: CAP-001
   type: Capability
   label: Complaint Management
 - id: CAP-002
   type: Capability
   label: Customer Inquiry
+- id: DOC-ECMP_FRD_Administration_v0.1
+  type: Document
+  label: ECMP_FRD_Administration_v0.1.md
+  path: 03 Functional Requirements\ECMP_FRD_Administration_v0.1.md
 - id: DOC-ECMP_FRD_CRM_Customer360_v0.1
   type: Document
   label: ECMP_FRD_CRM_Customer360_v0.1.md
@@ -172,10 +375,10 @@ nodes:
   label: EVT-001
 - id: EVT-002
   type: Event
-  label: CaseAssigned
+  label: EVT-002
 - id: EVT-003
   type: Event
-  label: StatusChanged
+  label: EVT-003
 - id: EVT-004
   type: Event
   label: SLABreached
@@ -200,6 +403,15 @@ nodes:
 - id: FR-004
   type: FRD
   label: FR-004
+- id: FR-005
+  type: FRD
+  label: FR-005
+- id: FR-006
+  type: FRD
+  label: FR-006
+- id: FR-007
+  type: FRD
+  label: FR-007
 - id: FR-010
   type: FRD
   label: FR-010
@@ -212,6 +424,48 @@ nodes:
 - id: FR-040
   type: FRD
   label: FR-040
+- id: FR-050
+  type: FRD
+  label: FR-050
+- id: FR-051
+  type: FRD
+  label: FR-051
+- id: FR-052
+  type: FRD
+  label: FR-052
+- id: FR-053
+  type: FRD
+  label: FR-053
+- id: FR-054
+  type: FRD
+  label: FR-054
+- id: FR-055
+  type: FRD
+  label: FR-055
+- id: FR-056
+  type: FRD
+  label: FR-056
+- id: FR-057
+  type: FRD
+  label: FR-057
+- id: FR-058
+  type: FRD
+  label: FR-058
+- id: FR-059
+  type: FRD
+  label: FR-059
+- id: FR-060
+  type: FRD
+  label: FR-060
+- id: FR-061
+  type: FRD
+  label: FR-061
+- id: FR-062
+  type: FRD
+  label: FR-062
+- id: FR-063
+  type: FRD
+  label: FR-063
 - id: Sprint-01
   type: Sprint
   label: Sprint-01
@@ -221,6 +475,9 @@ nodes:
 - id: Sprint-03
   type: Sprint
   label: Sprint-03
+- id: Sprint-03B
+  type: Sprint
+  label: Sprint-03B
 - id: TC-001
   type: Test
   label: Create complaint with valid customer succeeds
@@ -232,10 +489,14 @@ nodes:
   label: Assign case updates assignee and emits event
 - id: TC-004
   type: Test
-  label: Invalid status transition rejected
+  label: Invalid status transition rejected; valid Close (EVT-005) and Reject (PENDING_REVIEW→IN_PROGRESS)
+    covered by same TC suite
 - id: TC-005
   type: Test
   label: Audit record persisted on create (same transaction)
+- id: TC-006
+  type: Test
+  label: List cases paginated and filtered by status/priority/caseType/assigneeId
 - id: TC-010
   type: Test
   label: Customer 360 retrieval succeeds
@@ -382,6 +643,12 @@ edges:
   to: EVT-003
   relation: emits
 - from: FR-004
+  to: EVT-005
+  relation: emits
+- from: API-004
+  to: EVT-005
+  relation: emits
+- from: FR-004
   to: TC-004
   relation: verified_by
 - from: Sprint-02
@@ -501,6 +768,33 @@ edges:
 - from: Sprint-03
   to: FR-040
   relation: delivers
+- from: DOM-ECMF
+  to: FR-005
+  relation: specified_by
+- from: BR-007
+  to: FR-005
+  relation: implemented_via
+- from: BR-007
+  to: FR-005
+  relation: constrains
+- from: FR-005
+  to: API-005
+  relation: implemented_by
+- from: FR-005
+  to: TC-006
+  relation: verified_by
+- from: Sprint-03B
+  to: FR-005
+  relation: delivers
+- from: FR-006
+  to: API-006
+  relation: implemented_by
+- from: FR-007
+  to: API-007
+  relation: implemented_by
+- from: FR-007
+  to: API-008
+  relation: implemented_by
 - from: ADR-001
   to: DOM-CORE-PLATFORM
   relation: decided_by
@@ -552,6 +846,471 @@ edges:
 - from: ADR-009
   to: DOM-KPI
   relation: decided_by
+- from: ADR-012
+  to: DOM-CORE-PLATFORM
+  relation: decided_by
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-057
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-056
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-051
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-063
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-053
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-059
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-060
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-052
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-054
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-055
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-058
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-062
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-061
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-050
+  relation: documented_in
+- from: BR-004
+  to: FR-057
+  relation: constrains
+- from: BR-004
+  to: FR-056
+  relation: constrains
+- from: BR-004
+  to: FR-051
+  relation: constrains
+- from: BR-004
+  to: FR-063
+  relation: constrains
+- from: BR-004
+  to: FR-053
+  relation: constrains
+- from: BR-004
+  to: FR-059
+  relation: constrains
+- from: BR-004
+  to: FR-060
+  relation: constrains
+- from: BR-004
+  to: FR-052
+  relation: constrains
+- from: BR-004
+  to: FR-054
+  relation: constrains
+- from: BR-004
+  to: FR-055
+  relation: constrains
+- from: BR-004
+  to: FR-058
+  relation: constrains
+- from: BR-004
+  to: FR-062
+  relation: constrains
+- from: BR-004
+  to: FR-061
+  relation: constrains
+- from: BR-004
+  to: FR-050
+  relation: constrains
+- from: BR-012
+  to: FR-057
+  relation: constrains
+- from: BR-012
+  to: FR-056
+  relation: constrains
+- from: BR-012
+  to: FR-051
+  relation: constrains
+- from: BR-012
+  to: FR-063
+  relation: constrains
+- from: BR-012
+  to: FR-053
+  relation: constrains
+- from: BR-012
+  to: FR-059
+  relation: constrains
+- from: BR-012
+  to: FR-060
+  relation: constrains
+- from: BR-012
+  to: FR-052
+  relation: constrains
+- from: BR-012
+  to: FR-054
+  relation: constrains
+- from: BR-012
+  to: FR-055
+  relation: constrains
+- from: BR-012
+  to: FR-058
+  relation: constrains
+- from: BR-012
+  to: FR-062
+  relation: constrains
+- from: BR-012
+  to: FR-061
+  relation: constrains
+- from: BR-012
+  to: FR-050
+  relation: constrains
+- from: BR-005
+  to: FR-057
+  relation: constrains
+- from: BR-005
+  to: FR-056
+  relation: constrains
+- from: BR-005
+  to: FR-051
+  relation: constrains
+- from: BR-005
+  to: FR-063
+  relation: constrains
+- from: BR-005
+  to: FR-053
+  relation: constrains
+- from: BR-005
+  to: FR-059
+  relation: constrains
+- from: BR-005
+  to: FR-060
+  relation: constrains
+- from: BR-005
+  to: FR-052
+  relation: constrains
+- from: BR-005
+  to: FR-054
+  relation: constrains
+- from: BR-005
+  to: FR-055
+  relation: constrains
+- from: BR-005
+  to: FR-058
+  relation: constrains
+- from: BR-005
+  to: FR-062
+  relation: constrains
+- from: BR-005
+  to: FR-061
+  relation: constrains
+- from: BR-005
+  to: FR-050
+  relation: constrains
+- from: BR-001
+  to: FR-057
+  relation: constrains
+- from: BR-001
+  to: FR-056
+  relation: constrains
+- from: BR-001
+  to: FR-051
+  relation: constrains
+- from: BR-001
+  to: FR-063
+  relation: constrains
+- from: BR-001
+  to: FR-053
+  relation: constrains
+- from: BR-001
+  to: FR-059
+  relation: constrains
+- from: BR-001
+  to: FR-060
+  relation: constrains
+- from: BR-001
+  to: FR-052
+  relation: constrains
+- from: BR-001
+  to: FR-054
+  relation: constrains
+- from: BR-001
+  to: FR-055
+  relation: constrains
+- from: BR-001
+  to: FR-058
+  relation: constrains
+- from: BR-001
+  to: FR-062
+  relation: constrains
+- from: BR-001
+  to: FR-061
+  relation: constrains
+- from: BR-001
+  to: FR-050
+  relation: constrains
+- from: BR-003
+  to: FR-057
+  relation: constrains
+- from: BR-003
+  to: FR-056
+  relation: constrains
+- from: BR-003
+  to: FR-051
+  relation: constrains
+- from: BR-003
+  to: FR-063
+  relation: constrains
+- from: BR-003
+  to: FR-053
+  relation: constrains
+- from: BR-003
+  to: FR-059
+  relation: constrains
+- from: BR-003
+  to: FR-060
+  relation: constrains
+- from: BR-003
+  to: FR-052
+  relation: constrains
+- from: BR-003
+  to: FR-054
+  relation: constrains
+- from: BR-003
+  to: FR-055
+  relation: constrains
+- from: BR-003
+  to: FR-058
+  relation: constrains
+- from: BR-003
+  to: FR-062
+  relation: constrains
+- from: BR-003
+  to: FR-061
+  relation: constrains
+- from: BR-003
+  to: FR-050
+  relation: constrains
+- from: BR-007
+  to: FR-057
+  relation: constrains
+- from: BR-007
+  to: FR-056
+  relation: constrains
+- from: BR-007
+  to: FR-051
+  relation: constrains
+- from: BR-007
+  to: FR-063
+  relation: constrains
+- from: BR-007
+  to: FR-053
+  relation: constrains
+- from: BR-007
+  to: FR-059
+  relation: constrains
+- from: BR-007
+  to: FR-060
+  relation: constrains
+- from: BR-007
+  to: FR-052
+  relation: constrains
+- from: BR-007
+  to: FR-054
+  relation: constrains
+- from: BR-007
+  to: FR-055
+  relation: constrains
+- from: BR-007
+  to: FR-058
+  relation: constrains
+- from: BR-007
+  to: FR-062
+  relation: constrains
+- from: BR-007
+  to: FR-061
+  relation: constrains
+- from: BR-007
+  to: FR-050
+  relation: constrains
+- from: BR-008
+  to: FR-057
+  relation: constrains
+- from: BR-008
+  to: FR-056
+  relation: constrains
+- from: BR-008
+  to: FR-051
+  relation: constrains
+- from: BR-008
+  to: FR-063
+  relation: constrains
+- from: BR-008
+  to: FR-053
+  relation: constrains
+- from: BR-008
+  to: FR-059
+  relation: constrains
+- from: BR-008
+  to: FR-060
+  relation: constrains
+- from: BR-008
+  to: FR-052
+  relation: constrains
+- from: BR-008
+  to: FR-054
+  relation: constrains
+- from: BR-008
+  to: FR-055
+  relation: constrains
+- from: BR-008
+  to: FR-058
+  relation: constrains
+- from: BR-008
+  to: FR-062
+  relation: constrains
+- from: BR-008
+  to: FR-061
+  relation: constrains
+- from: BR-008
+  to: FR-050
+  relation: constrains
+- from: BR-010
+  to: FR-057
+  relation: constrains
+- from: BR-010
+  to: FR-056
+  relation: constrains
+- from: BR-010
+  to: FR-051
+  relation: constrains
+- from: BR-010
+  to: FR-063
+  relation: constrains
+- from: BR-010
+  to: FR-053
+  relation: constrains
+- from: BR-010
+  to: FR-059
+  relation: constrains
+- from: BR-010
+  to: FR-060
+  relation: constrains
+- from: BR-010
+  to: FR-052
+  relation: constrains
+- from: BR-010
+  to: FR-054
+  relation: constrains
+- from: BR-010
+  to: FR-055
+  relation: constrains
+- from: BR-010
+  to: FR-058
+  relation: constrains
+- from: BR-010
+  to: FR-062
+  relation: constrains
+- from: BR-010
+  to: FR-061
+  relation: constrains
+- from: BR-010
+  to: FR-050
+  relation: constrains
+- from: BR-011
+  to: FR-057
+  relation: constrains
+- from: BR-011
+  to: FR-056
+  relation: constrains
+- from: BR-011
+  to: FR-051
+  relation: constrains
+- from: BR-011
+  to: FR-063
+  relation: constrains
+- from: BR-011
+  to: FR-053
+  relation: constrains
+- from: BR-011
+  to: FR-059
+  relation: constrains
+- from: BR-011
+  to: FR-060
+  relation: constrains
+- from: BR-011
+  to: FR-052
+  relation: constrains
+- from: BR-011
+  to: FR-054
+  relation: constrains
+- from: BR-011
+  to: FR-055
+  relation: constrains
+- from: BR-011
+  to: FR-058
+  relation: constrains
+- from: BR-011
+  to: FR-062
+  relation: constrains
+- from: BR-011
+  to: FR-061
+  relation: constrains
+- from: BR-011
+  to: FR-050
+  relation: constrains
+- from: BR-009
+  to: FR-057
+  relation: constrains
+- from: BR-009
+  to: FR-056
+  relation: constrains
+- from: BR-009
+  to: FR-051
+  relation: constrains
+- from: BR-009
+  to: FR-063
+  relation: constrains
+- from: BR-009
+  to: FR-053
+  relation: constrains
+- from: BR-009
+  to: FR-059
+  relation: constrains
+- from: BR-009
+  to: FR-060
+  relation: constrains
+- from: BR-009
+  to: FR-052
+  relation: constrains
+- from: BR-009
+  to: FR-054
+  relation: constrains
+- from: BR-009
+  to: FR-055
+  relation: constrains
+- from: BR-009
+  to: FR-058
+  relation: constrains
+- from: BR-009
+  to: FR-062
+  relation: constrains
+- from: BR-009
+  to: FR-061
+  relation: constrains
+- from: BR-009
+  to: FR-050
+  relation: constrains
 - from: DOC-ECMP_FRD_CRM_Customer360_v0.1
   to: FR-010
   relation: documented_in
@@ -559,46 +1318,46 @@ edges:
   to: FR-003
   relation: documented_in
 - from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
-  to: FR-030
-  relation: documented_in
-- from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
   to: FR-040
   relation: documented_in
 - from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
   to: FR-004
   relation: documented_in
+- from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
+  to: FR-030
+  relation: documented_in
 - from: BR-006
   to: FR-003
-  relation: constrains
-- from: BR-006
-  to: FR-030
   relation: constrains
 - from: BR-006
   to: FR-004
   relation: constrains
+- from: BR-006
+  to: FR-030
+  relation: constrains
 - from: DOC-ECMP_FRD_ECMF_Lifecycle_v0.1
   to: FR-003
-  relation: documented_in
-- from: DOC-ECMP_FRD_ECMF_Lifecycle_v0.1
-  to: FR-030
   relation: documented_in
 - from: DOC-ECMP_FRD_ECMF_Lifecycle_v0.1
   to: FR-004
   relation: documented_in
+- from: DOC-ECMP_FRD_ECMF_Lifecycle_v0.1
+  to: FR-030
+  relation: documented_in
 - from: BR-008
   to: FR-003
   relation: constrains
 - from: BR-008
-  to: FR-030
+  to: FR-004
   relation: constrains
 - from: BR-008
+  to: FR-030
+  relation: constrains
+- from: BR-002
   to: FR-004
   relation: constrains
 - from: BR-002
   to: FR-030
-  relation: constrains
-- from: BR-002
-  to: FR-004
   relation: constrains
 - from: BR-001
   to: FR-003
@@ -610,16 +1369,16 @@ edges:
   to: DOM-ECMF
   relation: documented_in
 - from: DOC-ECMP_FRD_ECMF_v0.1
+  to: FR-005
+  relation: documented_in
+- from: DOC-ECMP_FRD_ECMF_v0.1
   to: FR-001
   relation: documented_in
 - from: DOC-ECMP_FRD_ECMF_v0.1
   to: FR-002
   relation: documented_in
-- from: BR-003
-  to: FR-001
-  relation: constrains
-- from: BR-003
-  to: FR-002
+- from: BR-004
+  to: FR-005
   relation: constrains
 - from: BR-004
   to: FR-001
@@ -628,25 +1387,40 @@ edges:
   to: FR-002
   relation: constrains
 - from: BR-001
-  to: FR-002
+  to: FR-005
   relation: constrains
-- from: BR-008
-  to: FR-001
-  relation: constrains
-- from: BR-008
+- from: BR-001
   to: FR-002
   relation: constrains
 - from: BR-007
   to: FR-001
   relation: constrains
+- from: BR-008
+  to: FR-005
+  relation: constrains
+- from: BR-008
+  to: FR-001
+  relation: constrains
+- from: BR-008
+  to: FR-002
+  relation: constrains
+- from: BR-003
+  to: FR-005
+  relation: constrains
+- from: BR-003
+  to: FR-001
+  relation: constrains
+- from: BR-003
+  to: FR-002
+  relation: constrains
 - from: DOC-ECMP_FRD_ECMF_v0.1
   to: DOM-ECMF
   relation: documented_in
 - from: DOC-ECMP_FRD_KPI_SLA_v0.1
-  to: FR-030
+  to: FR-004
   relation: documented_in
 - from: DOC-ECMP_FRD_KPI_SLA_v0.1
-  to: FR-004
+  to: FR-030
   relation: documented_in
 - from: BR-005
   to: FR-004

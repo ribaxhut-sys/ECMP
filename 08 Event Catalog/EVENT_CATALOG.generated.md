@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | EVT-CAT-001 |
-| Version | 0.5 |
+| Version | 0.6 |
 | Owner | Integration Lead |
 | Reviewer | Solution Architect |
 | Approver | Architecture Board |
@@ -23,6 +23,13 @@
 | EVT-006 | ConfigChanged | Administration | Planned | Emitted when effective configuration changes (BR-ADM-02) |
 | EVT-007 | CaseReopened | ECMF | Proposed | Emitted when a closed case is reopened (BR-ECMF-07); proposed addition beyond Blueprint minimal set |
 | EVT-008 | ConfigChangeRequested | Administration | Proposed | Emitted when a critical configuration change request is submitted for approval (BR-ADM-01, FRD-007 FR-063); proposed via ECMP_FRD_Administration_v0.1 |
+| EVT-009 | ComplaintCreated | ECMF | Implemented | Emitted in-process when a Complaint is created (TASK-045 foundation; no bus yet) |
+| EVT-010 | ComplaintAssigned | ECMF | Implemented | Standardized ComplaintAssigned event shape (TASK-045 factory; Assignment module unchanged) |
+| EVT-011 | ComplaintAccepted | ECMF | Implemented | Emitted in-process when ASSIGNED transitions to IN_PROGRESS (assignee acceptance; TASK-045) |
+| EVT-012 | ComplaintInProgress | ECMF | Implemented | Emitted in-process when Complaint status becomes IN_PROGRESS (TASK-045) |
+| EVT-013 | ComplaintResolved | ECMF | Implemented | Standardized ComplaintResolved event shape (TASK-045 factory) |
+| EVT-014 | ComplaintClosed | ECMF | Implemented | Emitted in-process when a Complaint is closed (TASK-045; API-312 path) |
+| EVT-015 | ComplaintEscalated | ECMF | Implemented | Standardized ComplaintEscalated event shape (TASK-045 factory; Escalation module unchanged) |
 
 ## Payload Summary
 
@@ -87,3 +94,115 @@
 - `requestedAt`: datetime
 - `approverRole`: string
 - `summary`: string
+
+### EVT-009 — ComplaintCreated
+- `eventId`: string
+- `eventType`: string
+- `occurredAt`: datetime
+- `complaintId`: string
+- `complaintNumber`: string
+- `currentStatus`: string
+- `priority`: string
+- `sourceType`: string
+- `sourceId`: string
+- `targetType`: string
+- `targetId`: string
+- `routing`: object
+- `contextReference`: string
+- `payload`: object
+
+### EVT-010 — ComplaintAssigned
+- `eventId`: string
+- `eventType`: string
+- `occurredAt`: datetime
+- `complaintId`: string
+- `complaintNumber`: string
+- `currentStatus`: string
+- `priority`: string
+- `sourceType`: string
+- `sourceId`: string
+- `targetType`: string
+- `targetId`: string
+- `routing`: object
+- `contextReference`: string
+- `payload`: object
+
+### EVT-011 — ComplaintAccepted
+- `eventId`: string
+- `eventType`: string
+- `occurredAt`: datetime
+- `complaintId`: string
+- `complaintNumber`: string
+- `currentStatus`: string
+- `priority`: string
+- `sourceType`: string
+- `sourceId`: string
+- `targetType`: string
+- `targetId`: string
+- `routing`: object
+- `contextReference`: string
+- `payload`: object
+
+### EVT-012 — ComplaintInProgress
+- `eventId`: string
+- `eventType`: string
+- `occurredAt`: datetime
+- `complaintId`: string
+- `complaintNumber`: string
+- `currentStatus`: string
+- `priority`: string
+- `sourceType`: string
+- `sourceId`: string
+- `targetType`: string
+- `targetId`: string
+- `routing`: object
+- `contextReference`: string
+- `payload`: object
+
+### EVT-013 — ComplaintResolved
+- `eventId`: string
+- `eventType`: string
+- `occurredAt`: datetime
+- `complaintId`: string
+- `complaintNumber`: string
+- `currentStatus`: string
+- `priority`: string
+- `sourceType`: string
+- `sourceId`: string
+- `targetType`: string
+- `targetId`: string
+- `routing`: object
+- `contextReference`: string
+- `payload`: object
+
+### EVT-014 — ComplaintClosed
+- `eventId`: string
+- `eventType`: string
+- `occurredAt`: datetime
+- `complaintId`: string
+- `complaintNumber`: string
+- `currentStatus`: string
+- `priority`: string
+- `sourceType`: string
+- `sourceId`: string
+- `targetType`: string
+- `targetId`: string
+- `routing`: object
+- `contextReference`: string
+- `payload`: object
+
+### EVT-015 — ComplaintEscalated
+- `eventId`: string
+- `eventType`: string
+- `occurredAt`: datetime
+- `complaintId`: string
+- `complaintNumber`: string
+- `currentStatus`: string
+- `priority`: string
+- `sourceType`: string
+- `sourceId`: string
+- `targetType`: string
+- `targetId`: string
+- `routing`: object
+- `contextReference`: string
+- `payload`: object

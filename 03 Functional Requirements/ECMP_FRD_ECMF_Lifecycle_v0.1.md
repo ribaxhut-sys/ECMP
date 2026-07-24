@@ -90,3 +90,27 @@ Scenario: Invalid transition ditolak
 ## 8. Out of Scope (versi ini)
 - SLA clocks & escalation (FR-030, FRD-005), approval berjenjang, reopen flow penuh, bulk assignment.
 - Branch/HO escalation, Schedule Slot, Work Order — out of scope per DEC-001.
+
+## 9. Complaint Event Foundation (TASK-045)
+
+Runtime Complaint lifecycle (NEW → ASSIGNED → IN_PROGRESS → … → CLOSED)
+produces standardized **in-memory** `ComplaintEvent` instances via
+`ComplaintEventFactory` (see `20 Domain Architecture/ECMF/COMPLAINT_EVENTS.md`).
+
+| Lifecycle step | Domain event type |
+|---|---|
+| Create | `ComplaintCreated` |
+| Assign | `ComplaintAssigned` |
+| Accept (ASSIGNED → IN_PROGRESS) | `ComplaintAccepted` |
+| In progress | `ComplaintInProgress` |
+| Resolve | `ComplaintResolved` |
+| Close | `ComplaintClosed` |
+| Escalate | `ComplaintEscalated` |
+
+Notes:
+
+- No event bus / broker in TASK-045 (ADR-009 deferral stands).
+- No event-store persistence in TASK-045.
+- Enterprise Case* events (EVT-001…EVT-005) remain the catalog lineage for
+  `/v1/cases`; Complaint* events (EVT-009…EVT-015) are the Complaint runtime
+  foundation for future Dashboard / Notification / Workflow / KPI / AI.

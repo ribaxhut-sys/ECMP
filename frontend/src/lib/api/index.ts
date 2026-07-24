@@ -14,6 +14,7 @@ export {
   fetchComplaintAssignments,
   fetchComplaintResolution,
   fetchComplaintTimeline,
+  fetchComplaintSla,
   fetchFinalResolution,
   fetchLatestComplaints,
   resolveComplaint,
@@ -45,4 +46,19 @@ export {
   fetchReportByStatus,
   fetchReportSummary,
 } from "./reports";
+export { fetchKpiSummary } from "./kpi";
+export type { KpiSummaryFilters } from "./kpi";
+export { fetchDashboardSummary } from "./dashboard";
+export {
+  activateSlaPolicy,
+  createSlaPolicy,
+  fetchSlaPolicies,
+} from "./sla";
+export {
+  fetchPublicSettings,
+  fetchSettings,
+  updateSetting,
+} from "./settings";
+export { downloadAttachment, fetchAttachment } from "./attachments";
+export type { AttachmentDownloadResult } from "./attachments";
 export type * from "./types";

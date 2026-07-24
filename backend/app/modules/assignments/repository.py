@@ -16,6 +16,10 @@ class AssignmentRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    @property
+    def session(self) -> Session:
+        return self._session
+
     def get_complaint(self, complaint_id: uuid.UUID) -> Complaint | None:
         stmt = select(Complaint).where(
             Complaint.id == complaint_id,

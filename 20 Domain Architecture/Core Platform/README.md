@@ -33,16 +33,20 @@ Fondasi bersama seluruh domain ECMP: identity, access control, organisasi, konfi
 ## Key Components
 | Komponen | Tanggung jawab |
 |---|---|
-| Auth Service | Validasi token, resolve claims `{userId, permissions[]}` |
-| RBAC Store | SoT Role/Permission/User-Role (ADR-008) |
+| Auth Service | Validasi JWT (`sub` + `roles`); permissions **tidak** di-embed di token |
+| Permission Resolver (TASK-038) | Resolve `Set<permissionCode>` via User→UserRole→Role→RolePermission→Permission (+ IAM cache 5 menit) |
+| Data Scope Resolver (TASK-039) | Resolve `EffectiveScope` via User→UserRole→Role→DataScope (+ IAM cache 5 menit); helpers opt-in |
+| Authorization Middleware (TASK-040) | Satu pipeline: AuthN → Permission Resolver → Permission Check → (opsional) Data Scope Resolver/Check → Endpoint |
+| IAM Cache (TASK-041) | `IamCacheService` in-memory: permissions / data_scopes / principals; invalidate_iam_user / invalidate_iam_all; metrics |
+| RBAC Store | SoT Role/Permission/Role-Permission/User-Role/DataScope (ADR-008) |
 | Org Registry | Organization unit hierarchy untuk scoping otorisasi |
 | Audit Writer | Persist audit record append-only, satu transaksi dengan write bisnis (BR-008) |
 | Audit Projection | Konsumsi domain events untuk proyeksi audit lintas domain |
 
 ## Key Flows
-1. **AuthZ check:** Request → validasi token → resolve role + org unit → izinkan/tolak (BR-007).
+1. **AuthZ check (TASK-038/039/040):** Request → Authentication (JWT) → Permission Resolver → Permission Check → (opsional) Data Scope Resolver → Data Scope Check → Endpoint (BR-007). Helper publik: `require_permissions` / `require_roles` / `require_data_scope` / `resolve_effective_scope`. Filtering baris domain **belum** otomatis di semua endpoint.
 2. **Write audit (BR-008):** Domain melakukan significant write → audit record (actor, action, entity ref, timestamp UTC, old/new value bila relevan) dipersist dalam transaksi yang sama.
-3. **RBAC change:** Administration mengajukan perubahan role-permission → approval (BR-ADM-01) → tulis via API Core Platform → audit (BR-ADM-02).
+3. **RBAC change:** Administration mengajukan perubahan role-permission / data-scope → approval (BR-ADM-01) → tulis via API Core Platform → `invalidate_iam_user` / `invalidate_iam_all` → audit (BR-ADM-02). Design: `10 Security and Access Standards/ECMP_IAM_Cache_Design_v1.0.md`.
 
 ## Data Ownership
 | Entity | Ownership | Catatan |

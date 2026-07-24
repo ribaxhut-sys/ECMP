@@ -18,7 +18,12 @@ End-to-end complaint/inquiry management: registrasi, klasifikasi, assignment, pr
 - **Konteks:** Case Management. ECMF adalah domain transaksional inti ECMP; entitas pusatnya adalah **Case** sebagai Aggregate Root (lihat `CASE_AGGREGATE.md`, DOM-ECMF-002).
 - **ECMF = enforcer, bukan pemilik workflow config (ADR-008):** definisi status & transisi adalah konfigurasi bisnis milik Administration; ECMF memuat config aktif (via EVT-006) dan menolak transisi invalid. ECMF tidak mendefinisikan transisi sendiri (lihat `CASE_STATE_MACHINE.md`, DOM-ECMF-003).
 - **Baseline scope (DEC-001):** Blueprint v2.1 + FRD-001. Konsep Branch/HO/Schedule/WorkOrder **dilarang dimodelkan** di domain ini.
-- **Ubiquitous language:** Case, Case Type (COMPLAINT/INQUIRY), Priority, Status, Assignment, Resolution, Root Cause, SLA Clock, Reopen.
+- **Ubiquitous language:** Case/Complaint, Case Type (COMPLAINT/INQUIRY), Priority, Status, Assignment, Resolution, Root Cause, SLA Clock, Reopen, Source Type, Target Type.
+- **Multi-source / multi-target (DEC-018 / TASK-042):** One Complaint aggregate supports origins CUSTOMER | BRANCH | HEAD_OFFICE | SYSTEM and targets BRANCH | HEAD_OFFICE via polymorphic `source_*` / `target_*` fields. No subtype tables. Lifecycle unchanged.
+- **Routing Foundation (TASK-043):** Initial destination is resolved only by `ComplaintRoutingService` → immutable `ComplaintRoute`. Assignment Engine consumes `assignment_context`; it does not own routing rules. See `COMPLAINT_ROUTING.md`.
+- **Complaint Context (TASK-044):** Immutable operational read model `ComplaintContext` assembled on demand from Complaint + Assignment + SLA + Routing. No new table/cache. Future Dashboard/KPI/Notification/Workflow/AI consume this object. See `COMPLAINT_CONTEXT.md`.
+- **Complaint Events (TASK-045):** Immutable in-memory `ComplaintEvent` created via `ComplaintEventFactory` on significant lifecycle transitions. No bus, no event store. Future consumers share this contract. See `COMPLAINT_EVENTS.md`.
+- **Event Dispatcher (TASK-046):** In-process synchronous `EventDispatcher` delivers events to registered `EventHandler`s in registration order. Producer ≠ consumer. Not a bus/broker/store. See `EVENT_DISPATCHER.md`.
 
 ## In Scope
 - Registration (Sprint-01 — implemented), classification, assignment
@@ -84,6 +89,10 @@ End-to-end complaint/inquiry management: registrasi, klasifikasi, assignment, pr
 ## Detailed Docs
 - `CASE_AGGREGATE.md` (DOM-ECMF-002) — Case sebagai Aggregate Root + Business Actions catalog
 - `CASE_STATE_MACHINE.md` (DOM-ECMF-003) — enum status baseline + matriks transisi + guards
+- `COMPLAINT_ROUTING.md` (ARCH-ECMF-ROUTING-001) — Complaint Routing Foundation (TASK-043)
+- `COMPLAINT_CONTEXT.md` (ARCH-ECMF-CONTEXT-001) — Complaint Context Foundation (TASK-044)
+- `COMPLAINT_EVENTS.md` (ARCH-ECMF-EVENTS-001) — Complaint Event Foundation (TASK-045)
+- `EVENT_DISPATCHER.md` (ARCH-ECMF-DISPATCH-001) — In-Process Event Dispatcher (TASK-046)
 
 ## Open Questions
 Seluruh [TBD] rule ECMF telah ditutup dengan baseline per `27 Project Decisions/DEC-004_BR_Baseline_Defaults_v1.0.md` (dapat direvisi BO via DEC baru):

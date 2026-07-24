@@ -6,8 +6,24 @@ info:
     ECMP v1.0.0 Production contract. Complaint CRUD, assignment,
     escalation, appointment booking, resolution, timeline, reporting, user management,
     and production authentication. Paths use `/api/v1` prefix. Dashboard exports,
-    OAuth/SSO/LDAP/MFA, password reset, social login, notification, SLA, and
-    workflow-engine APIs are out of scope.
+    OAuth/SSO/LDAP/MFA, password reset, social login, provider delivery
+    (SMTP/WhatsApp/FCM), and workflow-engine APIs are out of scope.
+    SLA foundation read (API-314), SLA policy configuration (API-315–317),
+    SLA deadline calculation at complaint create (TASK-023 / DEC-012),
+    SLA status evaluation / breach detection (TASK-024 / DEC-013),
+    SLA timeline integration (TASK-025 / DEC-014), KPI Foundation
+    summary (TASK-026 / DEC-015 / API-318), Dashboard Summary
+    orchestration (TASK-027 / DEC-016 / API-319), System Settings
+    (TASK-028 / API-320–322), Attachment Management
+    (TASK-029 / API-323–326), Notification Foundation
+    (TASK-030 / API-327–335), Audit Log
+    (TASK-031 / API-336–337), Role Management
+    (TASK-033 / API-338–342), Permission Management
+    (TASK-034 / API-343–347), Role-Permission Matrix
+    (TASK-035 / API-348–350), User-Role Assignment
+    (TASK-036 / API-351–353), and Data Scope Foundation
+    (TASK-037 / API-354–355) are in scope. Countdown timers,
+    schedulers, and notification providers remain out of scope.
     Error responses use the Error envelope {code, message, details} for ALL 4xx/5xx
     (`details` may be null). Success responses use {data} or {data, meta} wrappers.
   x-ear-id: API-200
@@ -27,10 +43,75 @@ tags:
     description: Head Office appointment booking for APPROVED escalations (TASK-014)
   - name: Resolutions
     description: Complaint resolution (IN_PROGRESS → RESOLVED)
+  - name: SLA
+    description: |
+      SLA records (API-314) with immutable deadline snapshots (TASK-023) and
+      status evaluation PENDING / COMPLETED / BREACHED from stored due_at
+      (TASK-024 / DEC-013). Configurable policies (API-315–317). No countdown
+      timers or schedulers.
   - name: Timeline
     description: Immutable complaint timeline (read-only)
   - name: Reports
     description: Complaint reporting aggregations (read-only)
+  - name: KPI
+    description: |
+      KPI Foundation live aggregations over operational data (API-318 /
+      TASK-026). Read-only; no KPI tables, scheduler, or charts.
+  - name: Dashboard
+    description: |
+      Dashboard Summary orchestration (API-319 / TASK-027). Composes KPI,
+      Timeline, and Complaint modules. No business logic, no KPI calculation,
+      no persisted dashboard data, no charts.
+  - name: Settings
+    description: |
+      System Settings key/value configuration (API-320–322 / TASK-028).
+      Typed values (STRING/INTEGER/BOOLEAN/JSON/URL/EMAIL) with PUBLIC or
+      PROTECTED visibility. Public list requires no auth; full list and
+      updates require settings:read / settings:update.
+  - name: Attachments
+    description: |
+      Generic platform Attachment Management (API-323–326 / TASK-029).
+      Polymorphic object_type + object_id association; local StorageProvider
+      behind settings storage.*; soft delete only. Not owned by Complaint.
+  - name: Notifications
+    description: |
+      Notification Foundation (API-327–335 / TASK-030). Templates CRUD and
+      queue enqueue/cancel only. No SMTP, WhatsApp, FCM, scheduler, or
+      retry worker. Soft-delete templates via is_active=false.
+  - name: Audit
+    description: |
+      Platform Audit Log (API-336–337 / TASK-031). Append-only system
+      activity (not Complaint Timeline). Synchronous writes; secrets
+      redacted. No realtime bus / search engine / dashboard.
+  - name: Roles
+    description: |
+      Role Management master data (API-338–342 / TASK-033). CRUD for
+      roles table with is_system protection.
+  - name: Permissions
+    description: |
+      Permission Management master data (API-343–347 / TASK-034). CRUD
+      for permissions table with is_system protection and module:action
+      code format.
+  - name: Role Permissions
+    description: |
+      Role-Permission Matrix (API-348–350 / TASK-035). Assign / replace
+      permissions on a role. Matrix feeds Dynamic Permission Resolver
+      (TASK-038). Cache invalidated on matrix writes.
+  - name: User Roles
+    description: |
+      User-Role Assignment (API-351–353 / TASK-036). Many-to-many
+      user↔role junction (`user_roles`). Feeds Dynamic Permission
+      Resolver (TASK-038). Does not replace `users.role_id`. Data Scope
+      filtering remains out of scope.
+  - name: Data Scopes
+    description: |
+      Data Scope Foundation (API-354–355 / TASK-037) plus Enforcement
+      helpers (TASK-039) and Authorization Middleware pipeline (TASK-040).
+      Role-bound scope rules (GLOBAL / ORGANIZATION / BRANCH / SELF /
+      CUSTOM). Authorization Layer exposes `DataScopeResolver`,
+      `resolve_effective_scope`, and `require_data_scope` for opt-in use
+      on the shared AuthN → Permission → (optional) Data Scope pipeline.
+      Automatic filtering of all domain endpoints remains out of scope.
   - name: Users
     description: User management (create, list, update, soft deactivate)
   - name: Customers
@@ -47,9 +128,13 @@ paths:
       security: []
       description: |
         Authenticates with username (or email) and password via bcrypt.
-        Returns a JWT access token (15 minutes). Sets an HttpOnly Secure
-        SameSite=Lax refresh cookie (7 days). Emits audit event `auth.login`.
-        Tokens are never written to application logs.
+        Returns a JWT access token (15 minutes) with `sub` + `roles`
+        claims. Effective permissions are **not** embedded in the JWT —
+        they are resolved per request via Dynamic Permission Resolver
+        (TASK-038: User → UserRole → Role → RolePermission → Permission).
+        Sets an HttpOnly Secure SameSite=Lax refresh cookie (7 days).
+        Emits audit event `auth.login`. Tokens are never written to
+        application logs.
       requestBody:
         required: true
         content:
@@ -151,6 +236,10 @@ paths:
         - bearerAuth: []
       description: |
         Creates a complaint in status `NEW`.
+        Requires an active SLA policy (TASK-023 / DEC-012): evaluates the
+        active policy once and persists an immutable SLA deadline snapshot
+        on `sla_records` (statuses remain `PENDING`). Rejects with
+        `VALIDATION_ERROR` when no active policy exists.
         Requires permission `complaints:create`.
         Writes audit log `complaint.create` in the same transaction.
       requestBody:
@@ -478,6 +567,160 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FinalResolutionDetailDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/sla:
+    get:
+      summary: Get complaint SLA
+      operationId: getComplaintSla
+      x-ear-id: API-314
+      tags: [SLA]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the SLA record for a complaint (API-314 / TASK-024).
+        One SLA row per complaint. Deadlines are immutable snapshots computed
+        once at complaint create. Statuses are evaluated from stored `*DueAt`
+        values and business completion facts (`PENDING` / `COMPLETED` /
+        `BREACHED`) — policy is never re-read and deadlines are never
+        rewritten. Evaluation runs on lifecycle events and on this read
+        (idempotent; no scheduler). No create/update endpoints — SLA rows are
+        created internally on complaint create.
+        Requires permission `complaints:read`. 404 when complaint or SLA
+        row is missing.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: SLA record with deadline snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlaRecordDataResponse"
+              example:
+                data:
+                  id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  complaintId: 3fa85f64-5717-4562-b3fc-2c963f66afa7
+                  assignmentDueAt: "2026-07-23T06:00:00Z"
+                  appointmentDueAt: "2026-07-24T05:00:00Z"
+                  resolutionDueAt: "2026-07-25T05:00:00Z"
+                  escalationDueAt: "2026-07-23T13:00:00Z"
+                  overallDueAt: "2026-07-26T05:00:00Z"
+                  assignmentStatus: COMPLETED
+                  appointmentStatus: PENDING
+                  resolutionStatus: PENDING
+                  escalationStatus: PENDING
+                  overallStatus: PENDING
+                  createdAt: "2026-07-23T05:00:00Z"
+                  updatedAt: "2026-07-23T05:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sla/policies:
+    get:
+      summary: List SLA policies
+      operationId: listSlaPolicies
+      x-ear-id: API-315
+      tags: [SLA]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists configurable SLA policies (TASK-022). Each policy defines target
+        durations (minutes) for assignment, appointment, resolution, escalation,
+        and overall. Multiple policies may exist; at most one is active.
+        Policy changes affect future complaints only — existing complaint SLA
+        rows are not recalculated. No deadline calculation, countdown, or
+        breach detection. Requires permission `sla:read`.
+      responses:
+        "200":
+          description: SLA policy list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlaPolicyListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      summary: Create SLA policy
+      operationId: createSlaPolicy
+      x-ear-id: API-316
+      tags: [SLA]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates a new SLA policy (TASK-022). New policies are created inactive;
+        activate with API-317. Does not calculate deadlines or update existing
+        complaints. Requires permission `sla:manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlaPolicyCreateRequest"
+            example:
+              name: Standard SLA
+              description: Default enterprise targets
+              assignmentTargetMinutes: 60
+              appointmentTargetMinutes: 1440
+              resolutionTargetMinutes: 2880
+              escalationTargetMinutes: 480
+              overallTargetMinutes: 4320
+      responses:
+        "201":
+          description: SLA policy created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlaPolicyDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sla/policies/{id}/activate:
+    put:
+      summary: Activate SLA policy
+      operationId: activateSlaPolicy
+      x-ear-id: API-317
+      tags: [SLA]
+      security:
+        - bearerAuth: []
+      description: |
+        Activates the given SLA policy and deactivates any previously active
+        policy so that only one remains active (TASK-022). Existing complaint
+        SLA records are not recalculated — only future complaints use the
+        newly active policy. Requires permission `sla:manage`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: SLA policy id
+      responses:
+        "200":
+          description: SLA policy activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlaPolicyDataResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -1135,13 +1378,19 @@ paths:
         Supported event types: `complaint.created`, `complaint.updated`,
         `complaint.assigned`, `complaint.reassigned`, `complaint.escalated`,
         `complaint.escalation_requested`, `complaint.escalation_approved`,
-        `complaint.escalation_rejected`,         `complaint.appointment_booked`,
+        `complaint.escalation_rejected`, `complaint.appointment_booked`,
         `complaint.appointment_checked_in`,
         `complaint.appointment_completed`,
         `complaint.appointment_no_show`,
         `complaint.final_resolution_submitted`, `complaint.resolved`,
-        `complaint.closed`, `escalation.closed`.
-        `actorName` is included for UI display (no actor UUID required in UI).
+        `complaint.closed`, `escalation.closed`,
+        `sla.assignment.completed`, `sla.assignment.breached`,
+        `sla.appointment.completed`, `sla.appointment.breached`,
+        `sla.resolution.completed`, `sla.resolution.breached`,
+        `sla.escalation.completed`, `sla.escalation.breached`,
+        `sla.overall.completed`, `sla.overall.breached`
+        (SLA transitions use SYSTEM actor; TASK-025 / DEC-014).
+        `actorName` is included for UI display (null → System for SLA events).
         Requires permission `complaints:read`.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
@@ -1158,6 +1407,1323 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/kpi/summary:
+    get:
+      summary: KPI foundation summary
+      operationId: getKpiSummary
+      x-ear-id: API-318
+      tags: [KPI]
+      security:
+        - bearerAuth: []
+      description: |
+        Live KPI Foundation aggregates (TASK-026 / DEC-015). Computed from
+        complaints and `sla_records` — never persisted. Soft-deleted
+        complaints are excluded. Date filters apply to `reportedAt`.
+        Optional filters: branchId, category, priority.
+        Open = status not `CLOSED`; closed = status `CLOSED`.
+        SLA completed/breached counts use evaluated SLA statuses.
+        Requires permission `kpi:read`. No charts, caching, or scheduler.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+        - name: category
+          in: query
+          required: false
+          schema: { type: string, maxLength: 64 }
+          description: Filter by complaint category
+        - name: priority
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Filter by complaint priority
+      responses:
+        "200":
+          description: KPI summary aggregates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KpiSummaryDataResponse"
+              example:
+                data:
+                  complaints: { total: 40, open: 38, closed: 2 }
+                  assignment: { completed: 10, breached: 3 }
+                  appointment: { completed: 2, breached: 1 }
+                  resolution: { completed: 1, breached: 0 }
+                  escalation: { completed: 0, breached: 2 }
+                  overall: { completed: 1, breached: 4 }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/summary:
+    get:
+      summary: Dashboard summary
+      operationId: getDashboardSummary
+      x-ear-id: API-319
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        Dashboard Summary orchestration (TASK-027 / DEC-016). Composes
+        KPI Foundation (header + SLA completed/breached), Timeline
+        (latest ≤10 events), and Complaint (complaint numbers).
+        Dashboard owns no business logic, performs no KPI calculation,
+        and stores no data. Requires permission `dashboard:read`.
+        Out of scope: charts, analytics, websocket, caching, Redis,
+        notifications, scheduler, queue, export, reporting.
+      responses:
+        "200":
+          description: Dashboard summary composition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummaryDataResponse"
+              example:
+                data:
+                  header:
+                    totalComplaints: 40
+                    openComplaints: 38
+                    closedComplaints: 2
+                  sla:
+                    assignment: { completed: 10, breached: 3 }
+                    appointment: { completed: 2, breached: 1 }
+                    resolution: { completed: 1, breached: 0 }
+                    escalation: { completed: 0, breached: 2 }
+                    overall: { completed: 1, breached: 4 }
+                  recentActivity:
+                    - eventType: complaint.created
+                      complaintNumber: CMP-ABC1234567
+                      timestamp: "2026-07-23T10:00:00Z"
+                      actor: golive_admin
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/settings/public:
+    get:
+      summary: List public settings
+      operationId: listPublicSettings
+      x-ear-id: API-320
+      tags: [Settings]
+      security: []
+      description: |
+        Returns settings with visibility `PUBLIC` only (TASK-028).
+        No authentication required. PROTECTED keys are never included.
+      responses:
+        "200":
+          description: Public settings list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingListDataResponse"
+              example:
+                data:
+                  - id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    key: company.name
+                    value: ECMP
+                    valueType: STRING
+                    category: company
+                    visibility: PUBLIC
+                    description: Company / product display name
+                    createdAt: "2026-07-23T10:00:00Z"
+                    updatedAt: "2026-07-23T10:00:00Z"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/settings:
+    get:
+      summary: List all settings
+      operationId: listSettings
+      x-ear-id: API-321
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns all system settings (PUBLIC + PROTECTED). Requires
+        permission `settings:read` (TASK-028).
+      responses:
+        "200":
+          description: Full settings list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/settings/{key}:
+    put:
+      summary: Update setting value
+      operationId: updateSetting
+      x-ear-id: API-322
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Updates the value for an existing setting key. Server validates
+        against the setting's `valueType` (STRING/INTEGER/BOOLEAN/JSON/
+        URL/EMAIL). Does not create new keys. Requires `settings:update`.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+          description: Dot-notation setting key (e.g. company.name)
+          example: company.name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingUpdateRequest"
+      responses:
+        "200":
+          description: Updated setting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/attachments:
+    post:
+      summary: Upload attachment
+      operationId: uploadAttachment
+      x-ear-id: API-323
+      tags: [Attachments]
+      security:
+        - bearerAuth: []
+      description: |
+        Multipart upload of a file bound to any domain object via
+        `objectType` + `objectId` (TASK-029). Validates size (settings
+        `storage.max.upload.mb`), MIME (`storage.allowed.mime`),
+        extension, and rejects empty files. Computes SHA-256 checksum
+        and stores bytes through StorageProvider (`storage.provider` /
+        `storage.root.path`). Requires `attachment:create`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [objectType, objectId, file]
+              properties:
+                objectType:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  description: Domain object type (e.g. complaint, resolution)
+                  example: complaint
+                objectId:
+                  type: string
+                  format: uuid
+                  description: Domain object id
+                file:
+                  type: string
+                  format: binary
+                  description: File bytes
+      responses:
+        "201":
+          description: Attachment metadata created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentDataResponse"
+              example:
+                data:
+                  id: "8f14e45f-ceea-467f-9b6e-5d8c2a1b0c9d"
+                  objectType: complaint
+                  objectId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                  filename: evidence.pdf
+                  storedFilename: a1b2c3d4e5f6789012345678abcdef90.pdf
+                  mimeType: application/pdf
+                  extension: ".pdf"
+                  sizeBytes: 2048
+                  checksum: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+                  storageProvider: local
+                  uploadedBy: "11111111-1111-1111-1111-111111111111"
+                  createdAt: "2026-07-23T12:00:00Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/attachments/{id}:
+    get:
+      summary: Get attachment metadata
+      operationId: getAttachment
+      x-ear-id: API-324
+      tags: [Attachments]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns attachment metadata only (no file bytes). Soft-deleted
+        rows are not returned (404). Requires `attachment:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Attachment metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      summary: Soft-delete attachment
+      operationId: deleteAttachment
+      x-ear-id: API-326
+      tags: [Attachments]
+      security:
+        - bearerAuth: []
+      description: |
+        Soft-deletes the attachment by setting `deleted_at`. Database
+        row is retained; physical blob retention is deferred. Requires
+        `attachment:delete`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Soft-deleted
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/attachments/{id}/download:
+    get:
+      summary: Download attachment file
+      operationId: downloadAttachment
+      x-ear-id: API-325
+      tags: [Attachments]
+      security:
+        - bearerAuth: []
+      description: |
+        Streams file bytes with `Content-Disposition` using the original
+        filename and `X-Checksum-SHA256` header. Requires `attachment:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Raw file bytes
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              description: attachment; filename="<original>"
+            X-Checksum-SHA256:
+              schema: { type: string }
+              description: Hex SHA-256 of file contents
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/notification/templates:
+    get:
+      summary: List notification templates
+      operationId: listNotificationTemplates
+      x-ear-id: API-327
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists notification templates (TASK-030). Optional `activeOnly`
+        filter. Requires `notification:read`.
+      parameters:
+        - name: activeOnly
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+          description: When true, return only isActive=true templates
+      responses:
+        "200":
+          description: Template list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationTemplateListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      summary: Create notification template
+      operationId: createNotificationTemplate
+      x-ear-id: API-328
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates a notification template. Channel must be EMAIL, WHATSAPP,
+        or PUSH. Requires `notification:create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationTemplateCreateRequest"
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationTemplateDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/notification/templates/{id}:
+    get:
+      summary: Get notification template
+      operationId: getNotificationTemplate
+      x-ear-id: API-329
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a notification template by id. Requires `notification:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationTemplateDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Update notification template
+      operationId: updateNotificationTemplate
+      x-ear-id: API-330
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Partial update of template fields (code is immutable).
+        Requires `notification:update`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationTemplateUpdateRequest"
+      responses:
+        "200":
+          description: Updated template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationTemplateDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      summary: Soft-delete notification template
+      operationId: deleteNotificationTemplate
+      x-ear-id: API-331
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Soft-deletes by setting `isActive=false`. Table contract has no
+        `deleted_at`; queue rows keep historical `templateCode`.
+        Requires `notification:delete`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Soft-deleted (isActive=false)
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/notifications:
+    get:
+      summary: List notification queue
+      operationId: listNotificationQueue
+      x-ear-id: API-333
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists notification queue rows (TASK-030). Optional status filter.
+        No SEND endpoint. Requires `notification:read`.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/NotificationQueueStatus"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        "200":
+          description: Queue list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationQueueListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      summary: Enqueue notification
+      operationId: enqueueNotification
+      x-ear-id: API-332
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Validates active template, checks `notification.enabled`, renders
+        payload from template + variables, inserts queue row with status
+        PENDING. Does not send. Requires `notification:create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationCreateRequest"
+      responses:
+        "201":
+          description: Queue row created (PENDING)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationQueueDataResponse"
+              example:
+                data:
+                  id: "9a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d"
+                  templateCode: COMPLAINT_ASSIGNED
+                  recipient: agent@example.com
+                  payload:
+                    channel: EMAIL
+                    templateCode: COMPLAINT_ASSIGNED
+                    subject: "Assigned: CMP-1"
+                    content: "Hello Ada, case CMP-1."
+                    maxRetry: 3
+                  status: PENDING
+                  retryCount: 0
+                  scheduledAt: null
+                  sentAt: null
+                  lastError: null
+                  createdAt: "2026-07-24T00:00:00Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/notifications/{id}:
+    get:
+      summary: Get notification queue item
+      operationId: getNotificationQueueItem
+      x-ear-id: API-334
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a notification queue row by id. Requires `notification:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Queue item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationQueueDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/notifications/{id}/cancel:
+    post:
+      summary: Cancel pending notification
+      operationId: cancelNotificationQueueItem
+      x-ear-id: API-335
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Cancels a PENDING queue item (status → CANCELLED). Non-PENDING
+        rows are rejected. No SEND endpoint. Requires `notification:update`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Cancelled queue item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationQueueDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/audit:
+    get:
+      summary: List audit logs
+      operationId: listAuditLogs
+      x-ear-id: API-336
+      tags: [Audit]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists platform audit log rows (TASK-031). Not Complaint Timeline.
+        Supports filters entityType, entityId, actorId, action, dateFrom,
+        dateTo. Requires `audit:read`.
+      parameters:
+        - name: entityType
+          in: query
+          required: false
+          schema: { type: string, maxLength: 100 }
+        - name: entityId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: actorId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: action
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/AuditAction"
+        - name: dateFrom
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: dateTo
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Audit log list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/audit/{id}:
+    get:
+      summary: Get audit log
+      operationId: getAuditLog
+      x-ear-id: API-337
+      tags: [Audit]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns one platform audit log by id. Requires `audit:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Audit log detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles:
+    get:
+      summary: List roles
+      operationId: listRoles
+      x-ear-id: API-338
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists role master records (TASK-033). Soft-deleted rows are
+        excluded. Requires `role:read`.
+      parameters:
+        - name: activeOnly
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+          description: Return active roles only
+        - name: includeSystem
+          in: query
+          required: false
+          schema: { type: boolean, default: true }
+          description: Include seeded system roles (`isSystem=true`)
+      responses:
+        "200":
+          description: Role list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      summary: Create role
+      operationId: createRole
+      x-ear-id: API-339
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates a non-system role (`isSystem=false`). Code is normalized
+        to uppercase. Emits audit `role.created`. Requires `role:create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleCreateRequest"
+      responses:
+        "201":
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles/{id}:
+    get:
+      summary: Get role
+      operationId: getRole
+      x-ear-id: API-340
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns one role by id. Requires `role:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Role detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Update role
+      operationId: updateRole
+      x-ear-id: API-341
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Partial update of name / description / isActive. Code is immutable.
+        Emits audit `role.updated`. Requires `role:update`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleUpdateRequest"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      summary: Delete role
+      operationId: deleteRole
+      x-ear-id: API-342
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Soft-deletes a role (`deleted_at` + `isActive=false`). System roles
+        (`isSystem=true`) return 409 CONFLICT. Emits audit `role.deleted`.
+        Requires `role:delete`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Role soft-deleted
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/permissions:
+    get:
+      summary: List permissions
+      operationId: listPermissions
+      x-ear-id: API-343
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists permission master records (TASK-034). Soft-deleted rows are
+        excluded. Requires `permission:read`.
+      parameters:
+        - name: activeOnly
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+          description: Return active permissions only
+        - name: includeSystem
+          in: query
+          required: false
+          schema: { type: boolean, default: true }
+          description: Include seeded system permissions (`isSystem=true`)
+        - name: module
+          in: query
+          required: false
+          schema: { type: string, maxLength: 100 }
+          description: Filter by module (e.g. `complaint`)
+      responses:
+        "200":
+          description: Permission list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      summary: Create permission
+      operationId: createPermission
+      x-ear-id: API-344
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates a non-system permission (`isSystem=false`). Code is
+        normalized to lowercase `module:action` and must match the
+        `module` field. Emits audit `permission.created`.
+        Requires `permission:create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PermissionCreateRequest"
+      responses:
+        "201":
+          description: Permission created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/permissions/{id}:
+    get:
+      summary: Get permission
+      operationId: getPermission
+      x-ear-id: API-345
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns one permission by id. Requires `permission:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Permission detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Update permission
+      operationId: updatePermission
+      x-ear-id: API-346
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Partial update of name / description / isActive. Code and module
+        are immutable. Emits audit `permission.updated`.
+        Requires `permission:update`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PermissionUpdateRequest"
+      responses:
+        "200":
+          description: Permission updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      summary: Delete permission
+      operationId: deletePermission
+      x-ear-id: API-347
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Soft-deletes a permission (`deleted_at` + `isActive=false`).
+        System permissions (`isSystem=true`) return 409 CONFLICT.
+        Emits audit `permission.deleted`. Requires `permission:delete`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Permission soft-deleted
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles/{id}/permissions:
+    get:
+      summary: List role permissions
+      operationId: getRolePermissions
+      x-ear-id: API-348
+      tags: [Role Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists permissions currently assigned to a role (TASK-035).
+        Requires `role_permission:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Permission list for role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Replace role permissions
+      operationId: replaceRolePermissions
+      x-ear-id: API-349
+      tags: [Role Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Replaces the full permission set for a role (TASK-035). Empty
+        `permissionIds` clears all links. Duplicate ids rejected.
+        Missing role/permission → 404. System roles may be updated.
+        Emits audit `role.permissions.updated`.
+        Requires `role_permission:update`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RolePermissionsReplaceRequest"
+      responses:
+        "200":
+          description: Updated permission list for role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/permissions/{id}/roles:
+    get:
+      summary: List permission roles
+      operationId: getPermissionRoles
+      x-ear-id: API-350
+      tags: [Role Permissions]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists roles that currently have the permission assigned (TASK-035).
+        Requires `role_permission:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Role list for permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles/{id}/users:
+    get:
+      summary: List role users
+      operationId: getRoleUsers
+      x-ear-id: API-353
+      tags: [User Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists users assigned to a role via `user_roles` junction (TASK-036).
+        Does not use `users.role_id`. Requires `user_role:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: User list for role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles/{id}/data-scopes:
+    get:
+      summary: List role data scopes
+      operationId: getRoleDataScopes
+      x-ear-id: API-354
+      tags: [Data Scopes]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists data scopes bound to a role (TASK-037). Requires
+        `data_scope:read`. Enforcement helpers available via
+        `DataScopeResolver` / `require_data_scope` (TASK-039); domain
+        endpoints opt in (not auto-applied globally).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Data scope list for role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataScopeListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Replace role data scopes
+      operationId: replaceRoleDataScopes
+      x-ear-id: API-355
+      tags: [Data Scopes]
+      security:
+        - bearerAuth: []
+      description: |
+        Replaces the full data-scope set for a role (TASK-037). Empty
+        `scopes` clears all. GLOBAL/SELF must not include `scopeValue`;
+        ORGANIZATION/BRANCH/CUSTOM require non-empty `scopeValue`.
+        Duplicates rejected. Emits audit `role.data_scopes.updated`.
+        Requires `data_scope:update`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DataScopeReplaceRequest"
+      responses:
+        "200":
+          description: Updated data scope list for role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataScopeListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/reports/summary:
@@ -1475,6 +3041,80 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/users/{id}/roles:
+    get:
+      summary: List user roles
+      operationId: getUserRoles
+      x-ear-id: API-351
+      tags: [User Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists roles assigned to a user via `user_roles` junction (TASK-036).
+        Independent of primary `users.role_id`. Requires `user_role:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Role list for user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Replace user roles
+      operationId: replaceUserRoles
+      x-ear-id: API-352
+      tags: [User Roles]
+      security:
+        - bearerAuth: []
+      description: |
+        Replaces the full role set for a user (TASK-036). Empty `roleIds`
+        clears all junction links. Duplicate ids rejected. Missing
+        user/role → 404. System roles may be assigned. Does not mutate
+        `users.role_id`. Emits audit `user.roles.updated`.
+        Requires `user_role:update`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRolesReplaceRequest"
+      responses:
+        "200":
+          description: Updated role list for user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/users/{id}/status:
     patch:
       summary: Activate or deactivate user
@@ -1625,8 +3265,21 @@ components:
           complaint.resolved,
           complaint.closed,
           escalation.closed,
+          sla.assignment.completed,
+          sla.assignment.breached,
+          sla.appointment.completed,
+          sla.appointment.breached,
+          sla.resolution.completed,
+          sla.resolution.breached,
+          sla.escalation.completed,
+          sla.escalation.breached,
+          sla.overall.completed,
+          sla.overall.breached,
         ]
-      description: Allowed complaint timeline event names.
+      description: |
+        Allowed complaint timeline event names. SLA `sla.*.completed` /
+        `sla.*.breached` events are emitted only on status change
+        (TASK-025 / DEC-014); actor is SYSTEM.
     Error:
       type: object
       required: [code, message, details]
@@ -1646,10 +3299,25 @@ components:
         totalItems: { type: integer }
     ComplaintCreateRequest:
       type: object
-      required: [customerId, subject, description, priority]
+      description: |
+        Create complaint. Legacy payload (`customerId` + optional `branchId`)
+        remains supported and implies sourceType=CUSTOMER, targetType=BRANCH
+        (TASK-042 / DEC-018). Generalized payload requires sourceType, sourceId,
+        targetType, and targetId together.
+
+        Supported routes (TASK-043 Routing Foundation):
+        CUSTOMER→BRANCH, BRANCH→HEAD_OFFICE, HEAD_OFFICE→BRANCH,
+        SYSTEM→HEAD_OFFICE. Other combinations return 400 VALIDATION_ERROR.
+      required: [subject, description, priority]
       properties:
-        customerId: { type: string, format: uuid }
+        customerId: { type: string, format: uuid, nullable: true }
         branchId: { type: string, format: uuid, nullable: true }
+        sourceType:
+          $ref: "#/components/schemas/ComplaintSourceType"
+        sourceId: { type: string, format: uuid }
+        targetType:
+          $ref: "#/components/schemas/ComplaintTargetType"
+        targetId: { type: string, format: uuid, nullable: true }
         subject: { type: string, minLength: 1, maxLength: 200 }
         description: { type: string, minLength: 1, maxLength: 5000 }
         priority: { $ref: "#/components/schemas/Priority" }
@@ -1681,7 +3349,9 @@ components:
       required:
         - id
         - complaintNumber
-        - customerId
+        - sourceType
+        - sourceId
+        - targetType
         - subject
         - description
         - status
@@ -1692,8 +3362,12 @@ components:
       properties:
         id: { type: string, format: uuid }
         complaintNumber: { type: string }
-        customerId: { type: string, format: uuid }
+        customerId: { type: string, format: uuid, nullable: true }
         branchId: { type: string, format: uuid, nullable: true }
+        sourceType: { $ref: "#/components/schemas/ComplaintSourceType" }
+        sourceId: { type: string, format: uuid }
+        targetType: { $ref: "#/components/schemas/ComplaintTargetType" }
+        targetId: { type: string, format: uuid, nullable: true }
         subject: { type: string }
         description: { type: string }
         status: { $ref: "#/components/schemas/ComplaintStatus" }
@@ -1707,6 +3381,18 @@ components:
         createdAt: { type: string, format: date-time }
         createdBy: { type: string, format: uuid, nullable: true }
         updatedAt: { type: string, format: date-time }
+    ComplaintSourceType:
+      type: string
+      description: |
+        Complaint originator (TASK-042 / DEC-018). Stored as VARCHAR so future
+        values (e.g. VENDOR) can be added without schema changes.
+      enum: [CUSTOMER, BRANCH, HEAD_OFFICE, SYSTEM]
+    ComplaintTargetType:
+      type: string
+      description: |
+        Complaint destination (TASK-042 / DEC-018). Stored as VARCHAR so future
+        values (e.g. REGIONAL) can be added without schema changes.
+      enum: [BRANCH, HEAD_OFFICE]
     ComplaintDataResponse:
       type: object
       required: [data]
@@ -1864,6 +3550,127 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/CloseEscalationResult" }
+    SlaStatus:
+      type: string
+      enum: [PENDING, ON_TIME, BREACHED, COMPLETED]
+      description: |
+        SLA dimension status. TASK-024 evaluates PENDING / COMPLETED / BREACHED
+        from immutable due_at snapshots. ON_TIME is reserved / unused.
+    SlaRecord:
+      type: object
+      required:
+        - id
+        - complaintId
+        - assignmentDueAt
+        - resolutionDueAt
+        - appointmentDueAt
+        - escalationDueAt
+        - overallDueAt
+        - assignmentStatus
+        - resolutionStatus
+        - appointmentStatus
+        - escalationStatus
+        - overallStatus
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        complaintId: { type: string, format: uuid }
+        assignmentDueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Immutable snapshot — never rewritten by status evaluation.
+        resolutionDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        appointmentDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        escalationDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        overallDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        assignmentStatus: { $ref: "#/components/schemas/SlaStatus" }
+        resolutionStatus: { $ref: "#/components/schemas/SlaStatus" }
+        appointmentStatus: { $ref: "#/components/schemas/SlaStatus" }
+        escalationStatus: { $ref: "#/components/schemas/SlaStatus" }
+        overallStatus: { $ref: "#/components/schemas/SlaStatus" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: |
+        SLA deadline snapshot + evaluated statuses (API-314 / TASK-024 /
+        DEC-013). Deadlines are immutable. Statuses update from due_at and
+        completion facts only — policy is never re-read. No scheduler.
+    SlaRecordDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/SlaRecord" }
+    SlaPolicyCreateRequest:
+      type: object
+      required:
+        - name
+        - assignmentTargetMinutes
+        - appointmentTargetMinutes
+        - resolutionTargetMinutes
+        - escalationTargetMinutes
+        - overallTargetMinutes
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, nullable: true }
+        assignmentTargetMinutes: { type: integer, minimum: 1 }
+        appointmentTargetMinutes: { type: integer, minimum: 1 }
+        resolutionTargetMinutes: { type: integer, minimum: 1 }
+        escalationTargetMinutes: { type: integer, minimum: 1 }
+        overallTargetMinutes: { type: integer, minimum: 1 }
+    SlaPolicy:
+      type: object
+      required:
+        - id
+        - name
+        - assignmentTargetMinutes
+        - appointmentTargetMinutes
+        - resolutionTargetMinutes
+        - escalationTargetMinutes
+        - overallTargetMinutes
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 100 }
+        description: { type: string, nullable: true }
+        assignmentTargetMinutes: { type: integer, minimum: 1 }
+        appointmentTargetMinutes: { type: integer, minimum: 1 }
+        resolutionTargetMinutes: { type: integer, minimum: 1 }
+        escalationTargetMinutes: { type: integer, minimum: 1 }
+        overallTargetMinutes: { type: integer, minimum: 1 }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: |
+        Configurable SLA target durations (TASK-022). Policy definition only —
+        no deadline calculation, countdown, or breach detection.
+    SlaPolicyDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/SlaPolicy" }
+    SlaPolicyListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/SlaPolicy" }
     AppointmentStatus:
       type: string
       enum: [BOOKED, CHECKED_IN, COMPLETED, NO_SHOW]
@@ -2240,6 +4047,523 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/TimelineEntry" }
+    ComplaintKpiCounts:
+      type: object
+      required: [total, open, closed]
+      properties:
+        total: { type: integer, minimum: 0 }
+        open: { type: integer, minimum: 0 }
+        closed: { type: integer, minimum: 0 }
+    SlaStageKpiCounts:
+      type: object
+      required: [completed, breached]
+      properties:
+        completed: { type: integer, minimum: 0 }
+        breached: { type: integer, minimum: 0 }
+    KpiSummary:
+      type: object
+      required:
+        [complaints, assignment, appointment, resolution, escalation, overall]
+      properties:
+        complaints: { $ref: "#/components/schemas/ComplaintKpiCounts" }
+        assignment: { $ref: "#/components/schemas/SlaStageKpiCounts" }
+        appointment: { $ref: "#/components/schemas/SlaStageKpiCounts" }
+        resolution: { $ref: "#/components/schemas/SlaStageKpiCounts" }
+        escalation: { $ref: "#/components/schemas/SlaStageKpiCounts" }
+        overall: { $ref: "#/components/schemas/SlaStageKpiCounts" }
+      description: |
+        Live KPI Foundation summary (API-318 / TASK-026). Never persisted.
+    KpiSummaryDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/KpiSummary" }
+    DashboardHeader:
+      type: object
+      required: [totalComplaints, openComplaints, closedComplaints]
+      properties:
+        totalComplaints: { type: integer, minimum: 0 }
+        openComplaints: { type: integer, minimum: 0 }
+        closedComplaints: { type: integer, minimum: 0 }
+    DashboardSlaStage:
+      type: object
+      required: [completed, breached]
+      properties:
+        completed: { type: integer, minimum: 0 }
+        breached: { type: integer, minimum: 0 }
+    DashboardSlaSummary:
+      type: object
+      required: [assignment, appointment, resolution, escalation, overall]
+      properties:
+        assignment: { $ref: "#/components/schemas/DashboardSlaStage" }
+        appointment: { $ref: "#/components/schemas/DashboardSlaStage" }
+        resolution: { $ref: "#/components/schemas/DashboardSlaStage" }
+        escalation: { $ref: "#/components/schemas/DashboardSlaStage" }
+        overall: { $ref: "#/components/schemas/DashboardSlaStage" }
+    DashboardRecentActivityItem:
+      type: object
+      required: [eventType, complaintNumber, timestamp, actor]
+      properties:
+        eventType: { type: string }
+        complaintNumber: { type: string }
+        timestamp: { type: string, format: date-time }
+        actor: { type: string }
+      description: Latest timeline event (max 10 on dashboard summary).
+    DashboardSummary:
+      type: object
+      required: [header, sla, recentActivity]
+      properties:
+        header: { $ref: "#/components/schemas/DashboardHeader" }
+        sla: { $ref: "#/components/schemas/DashboardSlaSummary" }
+        recentActivity:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/DashboardRecentActivityItem" }
+      description: |
+        Dashboard Summary composition (API-319 / TASK-027). Never persisted.
+        Header and SLA are sourced from KPI Foundation; recentActivity from
+        Timeline + Complaint modules.
+    DashboardSummaryDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardSummary" }
+    SettingValueType:
+      type: string
+      enum: [STRING, INTEGER, BOOLEAN, JSON, URL, EMAIL]
+    SettingVisibility:
+      type: string
+      enum: [PUBLIC, PROTECTED]
+    Setting:
+      type: object
+      required:
+        - id
+        - key
+        - value
+        - valueType
+        - category
+        - visibility
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        key: { type: string, maxLength: 200 }
+        value: { type: string }
+        valueType: { $ref: "#/components/schemas/SettingValueType" }
+        category: { type: string, maxLength: 50 }
+        visibility: { $ref: "#/components/schemas/SettingVisibility" }
+        description: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: |
+        System setting row (TASK-028 / API-320–322). Value is always stored
+        as text; typed getters/setters validate against valueType.
+    SettingUpdateRequest:
+      type: object
+      required: [value]
+      properties:
+        value: { type: string, maxLength: 10000 }
+      description: New setting value (validated server-side by valueType).
+    SettingDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Setting" }
+    SettingListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Setting" }
+    Attachment:
+      type: object
+      required:
+        - id
+        - objectType
+        - objectId
+        - filename
+        - storedFilename
+        - mimeType
+        - sizeBytes
+        - checksum
+        - storageProvider
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        objectType: { type: string, maxLength: 50 }
+        objectId: { type: string, format: uuid }
+        filename: { type: string, maxLength: 255 }
+        storedFilename: { type: string, maxLength: 255 }
+        mimeType: { type: string, maxLength: 100 }
+        extension: { type: string, maxLength: 20, nullable: true }
+        sizeBytes: { type: integer, format: int64, minimum: 1 }
+        checksum:
+          type: string
+          minLength: 64
+          maxLength: 64
+          description: Hex SHA-256 of file contents
+        storageProvider: { type: string, maxLength: 50, example: local }
+        uploadedBy: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+      description: |
+        Platform attachment metadata (TASK-029 / API-323–326). Bytes are
+        stored behind StorageProvider; `storagePath` is never exposed.
+    AttachmentDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Attachment" }
+    NotificationChannel:
+      type: string
+      enum: [EMAIL, WHATSAPP, PUSH]
+    NotificationQueueStatus:
+      type: string
+      enum: [PENDING, PROCESSING, SENT, FAILED, CANCELLED]
+    NotificationTemplate:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - channel
+        - content
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, maxLength: 100 }
+        name: { type: string, maxLength: 200 }
+        channel: { $ref: "#/components/schemas/NotificationChannel" }
+        subject: { type: string, maxLength: 255, nullable: true }
+        content: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: |
+        Notification template (TASK-030 / API-327–331). Soft-delete via
+        isActive=false (no deleted_at column).
+    NotificationTemplateCreateRequest:
+      type: object
+      required: [code, name, channel, content]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 100 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        channel: { $ref: "#/components/schemas/NotificationChannel" }
+        subject: { type: string, maxLength: 255, nullable: true }
+        content: { type: string, minLength: 1 }
+        isActive: { type: boolean, default: true }
+    NotificationTemplateUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        channel: { $ref: "#/components/schemas/NotificationChannel" }
+        subject: { type: string, maxLength: 255, nullable: true }
+        content: { type: string, minLength: 1 }
+        isActive: { type: boolean }
+      description: Partial update; at least one field required. Code immutable.
+    NotificationTemplateDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/NotificationTemplate" }
+    NotificationTemplateListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/NotificationTemplate" }
+    NotificationCreateRequest:
+      type: object
+      required: [templateCode, recipient]
+      properties:
+        templateCode: { type: string, minLength: 1, maxLength: 100 }
+        recipient: { type: string, minLength: 1, maxLength: 255 }
+        variables:
+          type: object
+          additionalProperties: true
+          description: Placeholder values for {{key}} rendering
+        scheduledAt: { type: string, format: date-time, nullable: true }
+      description: |
+        Enqueue request (API-332). Creates PENDING queue row only; no send.
+    NotificationQueueItem:
+      type: object
+      required:
+        - id
+        - status
+        - retryCount
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        templateCode: { type: string, maxLength: 100, nullable: true }
+        recipient: { type: string, maxLength: 255, nullable: true }
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+        status: { $ref: "#/components/schemas/NotificationQueueStatus" }
+        retryCount: { type: integer, minimum: 0 }
+        scheduledAt: { type: string, format: date-time, nullable: true }
+        sentAt: { type: string, format: date-time, nullable: true }
+        lastError: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+      description: |
+        Notification queue row (TASK-030 / API-332–335). Foundation inserts
+        PENDING only; provider delivery is out of scope.
+    NotificationQueueDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/NotificationQueueItem" }
+    NotificationQueueListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/NotificationQueueItem" }
+    AuditAction:
+      type: string
+      enum: [CREATE, UPDATE, DELETE, LOGIN, LOGOUT, EXPORT, IMPORT]
+    AuditLog:
+      type: object
+      required:
+        - id
+        - eventType
+        - entityType
+        - action
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        eventType: { type: string, maxLength: 100 }
+        entityType: { type: string, maxLength: 100 }
+        entityId: { type: string, format: uuid, nullable: true }
+        action: { $ref: "#/components/schemas/AuditAction" }
+        actorId: { type: string, format: uuid, nullable: true }
+        actorName: { type: string, maxLength: 255, nullable: true }
+        ipAddress: { type: string, maxLength: 64, nullable: true }
+        userAgent: { type: string, nullable: true }
+        oldValues:
+          type: object
+          nullable: true
+          additionalProperties: true
+        newValues:
+          type: object
+          nullable: true
+          additionalProperties: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+      description: |
+        Platform audit log row (TASK-031 / API-336–337). Append-only system
+        activity — not Complaint Timeline. Sensitive fields are redacted.
+    AuditLogDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AuditLog" }
+    AuditLogListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/AuditLog" }
+    Role:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - isSystem
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, maxLength: 100 }
+        name: { type: string, maxLength: 200 }
+        description: { type: string, nullable: true }
+        isSystem: { type: boolean }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: |
+        Role master record (TASK-033 / API-338–342). System roles
+        (`isSystem=true`) cannot be deleted. Soft-delete via deleted_at.
+    RoleCreateRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 100 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, nullable: true }
+        isActive: { type: boolean, default: true }
+      description: |
+        Create role. Code normalized to uppercase A-Z / 0-9 / _.
+        Always created as non-system (`isSystem=false`).
+    RoleUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, nullable: true }
+        isActive: { type: boolean }
+      description: Partial update; at least one field required. Code immutable.
+    RoleDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Role" }
+    RoleListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Role" }
+    Permission:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - module
+        - isSystem
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, maxLength: 150 }
+        name: { type: string, maxLength: 200 }
+        module: { type: string, maxLength: 100 }
+        description: { type: string, nullable: true }
+        isSystem: { type: boolean }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: |
+        Permission master record (TASK-034 / API-343–347). System
+        permissions (`isSystem=true`) cannot be deleted. Soft-delete
+        via deleted_at. Code format: `module:action`.
+    PermissionCreateRequest:
+      type: object
+      required: [code, name, module]
+      properties:
+        code: { type: string, minLength: 3, maxLength: 150 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        module: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, nullable: true }
+        isActive: { type: boolean, default: true }
+      description: |
+        Create permission. Code normalized to lowercase `module:action`
+        and must match `module`. Always created as non-system
+        (`isSystem=false`).
+    PermissionUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, nullable: true }
+        isActive: { type: boolean }
+      description: |
+        Partial update; at least one field required. Code and module
+        are immutable.
+    PermissionDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Permission" }
+    PermissionListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+    RolePermissionsReplaceRequest:
+      type: object
+      required: [permissionIds]
+      properties:
+        permissionIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: |
+            Full replacement set. Empty array clears all assignments.
+            Duplicates are rejected.
+      description: |
+        Replace role permissions (API-349 / TASK-035). Put is replace,
+        not merge.
+    UserRolesReplaceRequest:
+      type: object
+      required: [roleIds]
+      properties:
+        roleIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: |
+            Full replacement set. Empty array clears all assignments.
+            Duplicates are rejected.
+      description: |
+        Replace user roles (API-352 / TASK-036). Put is replace, not merge.
+        Does not change `users.role_id`.
+    UserListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/User" }
+    ScopeType:
+      type: string
+      enum: [GLOBAL, ORGANIZATION, BRANCH, SELF, CUSTOM]
+    DataScope:
+      type: object
+      required:
+        - id
+        - roleId
+        - scopeType
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        roleId: { type: string, format: uuid }
+        scopeType: { $ref: "#/components/schemas/ScopeType" }
+        scopeValue: { type: string, maxLength: 255, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      description: |
+        Role data scope (TASK-037 / API-354–355). GLOBAL/SELF have null
+        scopeValue; ORGANIZATION/BRANCH/CUSTOM require scopeValue.
+    DataScopeItem:
+      type: object
+      required: [scopeType]
+      properties:
+        scopeType: { $ref: "#/components/schemas/ScopeType" }
+        scopeValue: { type: string, maxLength: 255, nullable: true }
+    DataScopeReplaceRequest:
+      type: object
+      required: [scopes]
+      properties:
+        scopes:
+          type: array
+          items: { $ref: "#/components/schemas/DataScopeItem" }
+          description: |
+            Full replacement set. Empty array clears all scopes.
+            Duplicates are rejected.
+      description: |
+        Replace role data scopes (API-355 / TASK-037). Put is replace,
+        not merge.
+    DataScopeListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/DataScope" }
     StatusCount:
       type: object
       required: [status, count]

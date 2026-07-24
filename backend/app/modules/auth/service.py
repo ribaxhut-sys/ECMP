@@ -6,9 +6,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import select
+
 from app.core.config import Settings
 from app.core.errors import UnauthenticatedError
-from app.core.rbac import permissions_for_role
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
@@ -18,6 +19,9 @@ from app.core.security import (
 from app.models import RefreshToken, User
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import AuthMeResponse, LoginRequest, TokenResponse
+from app.modules.iam.permission_resolver import PermissionResolver
+from app.modules.iam.role.models import Role
+from app.modules.iam.user_role.models import UserRole
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,30 +33,48 @@ class AuthSession:
     user_id: uuid.UUID
 
 
-def _role_code(user: User) -> str | None:
+def _legacy_role_code(user: User) -> str | None:
     role = getattr(user, "role", None)
     if role is None:
         return None
     return role.code
 
 
-def _claims_for_user(user: User) -> dict:
-    role_code = _role_code(user)
-    roles = [role_code] if role_code else []
+def _role_codes_for_user(repository: AuthRepository, user: User) -> list[str]:
+    """Prefer user_roles junction; fall back to legacy users.role_id."""
+    session = repository.session
+    stmt = (
+        select(Role.code)
+        .join(UserRole, UserRole.role_id == Role.id)
+        .where(
+            UserRole.user_id == user.id,
+            Role.deleted_at.is_(None),
+            Role.is_active.is_(True),
+        )
+        .order_by(Role.code.asc())
+    )
+    codes = [str(code) for code in session.scalars(stmt).all()]
+    if codes:
+        return codes
+    legacy = _legacy_role_code(user)
+    return [legacy] if legacy else []
+
+
+def _claims_for_user(repository: AuthRepository, user: User) -> dict:
+    # Permissions are resolved per-request via PermissionResolver — not embedded.
     return {
-        "roles": roles,
-        "permissions": permissions_for_role(role_code),
+        "roles": _role_codes_for_user(repository, user),
     }
 
 
-def _to_me(user: User) -> AuthMeResponse:
-    role_code = _role_code(user)
-    roles = [role_code] if role_code else []
+def _to_me(repository: AuthRepository, user: User) -> AuthMeResponse:
+    roles = _role_codes_for_user(repository, user)
+    permissions = PermissionResolver(repository.session).resolve_sorted(user.id)
     base = AuthMeResponse.model_validate(user)
     return base.model_copy(
         update={
             "roles": roles,
-            "permissions": permissions_for_role(role_code),
+            "permissions": permissions,
         }
     )
 
@@ -66,7 +88,7 @@ class AuthService:
         token = create_access_token(
             subject=str(user.id),
             settings=self._settings,
-            claims=_claims_for_user(user),
+            claims=_claims_for_user(self._repo, user),
         )
         return TokenResponse(
             accessToken=token,
@@ -190,4 +212,4 @@ class AuthService:
         user = self._repo.get_user_by_id(user_id)
         if user is None or not user.is_active:
             raise UnauthenticatedError("Authentication required")
-        return _to_me(user)
+        return _to_me(self._repo, user)

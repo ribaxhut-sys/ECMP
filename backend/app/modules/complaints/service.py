@@ -6,10 +6,24 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from app.core.enums import INITIAL_COMPLAINT_STATUS, ComplaintStatus, TimelineEvent
+from app.core.enums import (
+    INITIAL_COMPLAINT_STATUS,
+    ComplaintReceiverType,
+    ComplaintSourceType,
+    ComplaintStatus,
+    ComplaintTargetType,
+    TimelineEvent,
+)
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.status_transitions import can_transition
 from app.models import Complaint
+from app.modules.complaint_context import ComplaintContext, ComplaintContextService
+from app.modules.complaint_events import (
+    ComplaintEvent,
+    ComplaintEventFactory,
+    EventSourceRef,
+    EventTargetRef,
+)
 from app.modules.complaints.repository import ComplaintRepository
 from app.modules.complaints.schemas import (
     CloseComplaintRequest,
@@ -19,6 +33,10 @@ from app.modules.complaints.schemas import (
     ComplaintStatusChangeRequest,
     ComplaintUpdateRequest,
 )
+from app.modules.event_dispatcher import DispatchResult, EventDispatcher
+from app.modules.routing import ComplaintRoute, ComplaintRoutingService
+from app.modules.sla.repository import SlaRepository
+from app.modules.sla.service import SlaService
 
 CLOSABLE_STATUS = ComplaintStatus.IN_PROGRESS
 TARGET_CLOSED_STATUS = ComplaintStatus.CLOSED
@@ -46,8 +64,12 @@ def _snapshot(complaint: Complaint) -> dict[str, Any]:
     return {
         "id": str(complaint.id),
         "complaintNumber": complaint.complaint_number,
-        "customerId": str(complaint.customer_id),
+        "customerId": str(complaint.customer_id) if complaint.customer_id else None,
         "branchId": str(complaint.branch_id) if complaint.branch_id else None,
+        "sourceType": complaint.source_type,
+        "sourceId": str(complaint.source_id),
+        "targetType": complaint.target_type,
+        "targetId": str(complaint.target_id) if complaint.target_id else None,
         "subject": complaint.subject,
         "description": complaint.description,
         "status": complaint.status,
@@ -65,9 +87,177 @@ def _snapshot(complaint: Complaint) -> dict[str, Any]:
     }
 
 
+def _customer_id_from_source(
+    source_type: ComplaintSourceType,
+    source_id: uuid.UUID,
+) -> uuid.UUID | None:
+    """Project source onto legacy customer_id (not a routing decision)."""
+    if source_type == ComplaintSourceType.CUSTOMER:
+        return source_id
+    return None
+
+
+def _branch_id_from_route(route: ComplaintRoute) -> uuid.UUID | None:
+    """Apply routing assignment_context for Assignment Engine consumers."""
+    if route.receiver_type == ComplaintReceiverType.BRANCH:
+        return route.receiver_id
+    return None
+
+
+def _event_source(complaint: Complaint) -> EventSourceRef:
+    return EventSourceRef(
+        source_type=complaint.source_type,
+        source_id=complaint.source_id,
+    )
+
+
+def _event_target(complaint: Complaint) -> EventTargetRef:
+    return EventTargetRef(
+        target_type=complaint.target_type,
+        target_id=complaint.target_id,
+    )
+
+
+# Status → factory method for Complaint Service–owned transitions (TASK-045).
+_STATUS_EVENT_BUILDERS: dict[ComplaintStatus, Any] = {
+    ComplaintStatus.ASSIGNED: ComplaintEventFactory.create_assigned,
+    ComplaintStatus.IN_PROGRESS: ComplaintEventFactory.create_in_progress,
+    ComplaintStatus.RESOLVED: ComplaintEventFactory.create_resolved,
+    ComplaintStatus.CLOSED: ComplaintEventFactory.create_closed,
+    ComplaintStatus.ESCALATED: ComplaintEventFactory.create_escalated,
+}
+
+
 class ComplaintService:
-    def __init__(self, repository: ComplaintRepository) -> None:
+    def __init__(
+        self,
+        repository: ComplaintRepository,
+        sla_service: SlaService | None = None,
+        routing_service: ComplaintRoutingService | None = None,
+        context_service: ComplaintContextService | None = None,
+        event_dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repository
+        self._sla = sla_service or SlaService(SlaRepository(repository.session))
+        self._routing = routing_service or ComplaintRoutingService()
+        self._context = context_service or ComplaintContextService(
+            repository.session,
+            routing_service=self._routing,
+            complaint_repository=repository,
+        )
+        # TASK-046 — producer dispatches; never knows registered consumers.
+        self._dispatcher = event_dispatcher or EventDispatcher()
+        # TASK-045 — in-memory diagnostic buffer; no bus / no persistence.
+        self._recent_events: list[ComplaintEvent] = []
+        self._last_dispatch_results: list[DispatchResult] = []
+
+    def _route_for_event(self, complaint: Complaint) -> ComplaintRoute | None:
+        """Best-effort route snapshot for events (does not mutate complaint)."""
+        try:
+            return self._routing.resolve_route(
+                source_type=ComplaintSourceType(complaint.source_type),
+                source_id=complaint.source_id,
+                target_type=ComplaintTargetType(complaint.target_type),
+                target_id=complaint.target_id,
+            )
+        except (ValidationAppError, ValueError):
+            return None
+
+    def _record_event(self, event: ComplaintEvent) -> ComplaintEvent:
+        """Keep recent in-memory events for diagnostics; discard on process end."""
+        self._recent_events.append(event)
+        return event
+
+    def _emit_lifecycle_event(
+        self,
+        builder: Any,
+        complaint: Complaint,
+        *,
+        occurred_at: datetime,
+        payload: dict[str, Any] | None = None,
+        routing: ComplaintRoute | None = None,
+    ) -> ComplaintEvent:
+        """Create via factory, then dispatch in-process (producer ≠ consumer)."""
+        route = routing if routing is not None else self._route_for_event(complaint)
+        event = self._record_event(
+            builder(
+                complaint_id=complaint.id,
+                complaint_number=complaint.complaint_number,
+                current_status=complaint.status,
+                priority=complaint.priority,
+                source=_event_source(complaint),
+                target=_event_target(complaint),
+                routing=route,
+                payload=payload,
+                occurred_at=occurred_at,
+            )
+        )
+        # Handler failures must not fail the business write path.
+        result = self._dispatcher.dispatch(event)
+        self._last_dispatch_results.append(result)
+        return event
+
+    def _validate_entities(self, payload: ComplaintCreateRequest) -> None:
+        """Entity existence checks only — route rules live in RoutingService."""
+        assert payload.source_type is not None
+        assert payload.source_id is not None
+        assert payload.target_type is not None
+
+        if payload.source_type == ComplaintSourceType.CUSTOMER:
+            if not self._repo.customer_exists(payload.source_id):
+                raise ValidationAppError(
+                    "Customer not found",
+                    details={"sourceId": str(payload.source_id)},
+                )
+        elif payload.source_type == ComplaintSourceType.BRANCH:
+            if not self._repo.branch_exists(payload.source_id):
+                raise ValidationAppError(
+                    "Branch not found",
+                    details={"sourceId": str(payload.source_id)},
+                )
+        elif payload.source_type in {
+            ComplaintSourceType.HEAD_OFFICE,
+            ComplaintSourceType.SYSTEM,
+        }:
+            pass
+        else:
+            raise ValidationAppError(
+                "Unsupported sourceType",
+                details={"sourceType": payload.source_type},
+            )
+
+        if payload.target_type == ComplaintTargetType.BRANCH:
+            if payload.target_id is not None and not self._repo.branch_exists(
+                payload.target_id
+            ):
+                raise ValidationAppError(
+                    "Branch not found",
+                    details={"targetId": str(payload.target_id)},
+                )
+        elif payload.target_type == ComplaintTargetType.HEAD_OFFICE:
+            pass
+        else:
+            raise ValidationAppError(
+                "Unsupported targetType",
+                details={"targetType": payload.target_type},
+            )
+
+        if (
+            payload.customer_id is not None
+            and payload.source_type == ComplaintSourceType.CUSTOMER
+            and not self._repo.customer_exists(payload.customer_id)
+        ):
+            raise ValidationAppError(
+                "Customer not found",
+                details={"customerId": str(payload.customer_id)},
+            )
+        if payload.branch_id is not None and not self._repo.branch_exists(
+            payload.branch_id
+        ):
+            raise ValidationAppError(
+                "Branch not found",
+                details={"branchId": str(payload.branch_id)},
+            )
 
     def create(
         self,
@@ -75,16 +265,23 @@ class ComplaintService:
         *,
         actor_user_id: uuid.UUID,
     ) -> ComplaintResponse:
-        if not self._repo.customer_exists(payload.customer_id):
-            raise ValidationAppError(
-                "Customer not found",
-                details={"customerId": str(payload.customer_id)},
-            )
-        if payload.branch_id is not None and not self._repo.branch_exists(payload.branch_id):
-            raise ValidationAppError(
-                "Branch not found",
-                details={"branchId": str(payload.branch_id)},
-            )
+        self._validate_entities(payload)
+
+        assert payload.source_type is not None
+        assert payload.source_id is not None
+        assert payload.target_type is not None
+
+        # TASK-043 — all destination decisions via Routing Foundation only.
+        route = self._routing.resolve_route(
+            source_type=payload.source_type,
+            source_id=payload.source_id,
+            target_type=payload.target_type,
+            target_id=payload.target_id,
+        )
+        customer_id = _customer_id_from_source(
+            payload.source_type, payload.source_id
+        )
+        branch_id = _branch_id_from_route(route)
 
         now = datetime.now(UTC)
         reported_at = payload.reported_at or now
@@ -93,8 +290,12 @@ class ComplaintService:
 
         complaint = Complaint(
             complaint_number=_generate_complaint_number(),
-            customer_id=payload.customer_id,
-            branch_id=payload.branch_id,
+            customer_id=customer_id,
+            branch_id=branch_id,
+            source_type=payload.source_type.value,
+            source_id=payload.source_id,
+            target_type=payload.target_type.value,
+            target_id=payload.target_id,
             subject=payload.subject,
             description=payload.description,
             status=INITIAL_COMPLAINT_STATUS,
@@ -108,11 +309,24 @@ class ComplaintService:
             updated_by=actor_user_id,
         )
         self._repo.add(complaint)
+        # TASK-023 / DEC-012 — immutable deadline snapshot from active policy.
+        # TASK-024 / DEC-013 — evaluate statuses at create (typically PENDING).
+        self._sla.create_for_complaint(complaint.id, created_at=now, commit=False)
         self._repo.add_audit_log(
             actor_user_id=actor_user_id,
             action="complaint.create",
             entity_id=complaint.id,
-            new_value=_snapshot(complaint),
+            new_value={
+                **_snapshot(complaint),
+                "route": {
+                    "receiverType": route.receiver_type.value,
+                    "receiverId": (
+                        str(route.receiver_id) if route.receiver_id else None
+                    ),
+                    "assignmentContext": dict(route.assignment_context),
+                    "routingReason": route.routing_reason,
+                },
+            },
             occurred_at=now,
         )
         self._repo.add_timeline(
@@ -123,7 +337,27 @@ class ComplaintService:
             from_status=None,
             to_status=INITIAL_COMPLAINT_STATUS,
             summary="Complaint created",
-            metadata={"complaintNumber": complaint.complaint_number},
+            metadata={
+                "complaintNumber": complaint.complaint_number,
+                "sourceType": complaint.source_type,
+                "targetType": complaint.target_type,
+                "receiverType": route.receiver_type.value,
+                "receiverId": (
+                    str(route.receiver_id) if route.receiver_id else None
+                ),
+                "routingReason": route.routing_reason,
+            },
+        )
+        # TASK-045 — standardized in-memory domain event (no bus / no store).
+        self._emit_lifecycle_event(
+            ComplaintEventFactory.create_created,
+            complaint,
+            occurred_at=now,
+            routing=route,
+            payload={
+                "actorUserId": str(actor_user_id),
+                "changeType": "COMPLAINT_CREATED",
+            },
         )
         self._repo.commit()
         self._repo.refresh(complaint)
@@ -134,6 +368,14 @@ class ComplaintService:
         if complaint is None:
             raise NotFoundError("Complaint not found")
         return _to_response(complaint)
+
+    def get_context(self, complaint_id: uuid.UUID) -> ComplaintContext:
+        """Build ComplaintContext read model (TASK-044). No API surface yet."""
+        return self._context.build_context(complaint_id)
+
+    def refresh_context(self, complaint_id: uuid.UUID) -> ComplaintContext:
+        """Refresh ComplaintContext from live data (TASK-044)."""
+        return self._context.refresh_context(complaint_id)
 
     def list(
         self,
@@ -188,6 +430,11 @@ class ComplaintService:
 
         for field_name, value in changes.items():
             setattr(complaint, field_name, value)
+
+        # Keep target polymorphic fields aligned when branchId is updated and
+        # the complaint is still BRANCH-targeted (assignment context).
+        if "branch_id" in changes and complaint.target_type == ComplaintTargetType.BRANCH:
+            complaint.target_id = changes["branch_id"]
 
         complaint.updated_at = now
         complaint.updated_by = actor_user_id
@@ -309,6 +556,33 @@ class ComplaintService:
                 "reason": payload.reason,
             },
         )
+        # TASK-045 — emit lifecycle domain event for significant transitions.
+        transition_payload = {
+            "actorUserId": str(actor_user_id),
+            "changeType": "STATUS_CHANGED",
+            "fromStatus": current.value,
+            "toStatus": target.value,
+            "reason": payload.reason,
+        }
+        if (
+            current == ComplaintStatus.ASSIGNED
+            and target == ComplaintStatus.IN_PROGRESS
+        ):
+            # Assignee acceptance is modeled as Assigned → In Progress.
+            self._emit_lifecycle_event(
+                ComplaintEventFactory.create_accepted,
+                complaint,
+                occurred_at=now,
+                payload=transition_payload,
+            )
+        builder = _STATUS_EVENT_BUILDERS.get(target)
+        if builder is not None:
+            self._emit_lifecycle_event(
+                builder,
+                complaint,
+                occurred_at=now,
+                payload=transition_payload,
+            )
         self._repo.commit()
         self._repo.refresh(complaint)
         return _to_response(complaint)
@@ -407,6 +681,24 @@ class ComplaintService:
 
         assert complaint.status == ComplaintStatus.CLOSED
         assert escalation.status == escalation_status_before
+
+        # TASK-045 — in-memory ComplaintClosed (API-312 path).
+        self._emit_lifecycle_event(
+            ComplaintEventFactory.create_closed,
+            complaint,
+            occurred_at=now,
+            payload={
+                "actorUserId": str(actor_user_id),
+                "changeType": "COMPLAINT_CLOSED",
+                "escalationId": str(escalation.id),
+                "closureNotes": payload.notes,
+            },
+        )
+
+        # TASK-024 — evaluate overall (and other) SLA statuses after close.
+        from app.modules.sla.hooks import evaluate_sla_for_complaint
+
+        evaluate_sla_for_complaint(self._repo.session, complaint.id, now=now)
 
         result = CloseComplaintResult(
             complaintId=complaint.id,

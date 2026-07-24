@@ -7,7 +7,6 @@ from datetime import date, datetime, time
 from typing import Any
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     Date,
     DateTime,
@@ -26,24 +25,15 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampAuditSoftDeleteMixin
-
-
-class Role(TimestampAuditSoftDeleteMixin, Base):
-    __tablename__ = "roles"
-    __table_args__ = (
-        UniqueConstraint("code", name="uq_roles_code"),
-        Index("ix_roles_is_active", "is_active"),
-    )
-
-    code: Mapped[str] = mapped_column(String(64), nullable=False)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=true()
-    )
-
-    users: Mapped[list[User]] = relationship(back_populates="role")
+from app.db.base import Base, TimestampAuditSoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.modules.attachment.models import Attachment
+from app.modules.iam.data_scope.models import DataScope
+from app.modules.iam.permission.models import Permission
+from app.modules.iam.role.models import Role
+from app.modules.iam.role_permission.models import RolePermission
+from app.modules.iam.user_role.models import UserRole
+from app.modules.notification.models import NotificationQueue, NotificationTemplate
+from app.modules.settings.models import Setting
 
 
 class Branch(TimestampAuditSoftDeleteMixin, Base):
@@ -138,6 +128,10 @@ class Complaint(TimestampAuditSoftDeleteMixin, Base):
         UniqueConstraint("complaint_number", name="uq_complaints_complaint_number"),
         Index("ix_complaints_customer_id", "customer_id"),
         Index("ix_complaints_branch_id", "branch_id"),
+        Index("ix_complaints_source_type", "source_type"),
+        Index("ix_complaints_source_id", "source_id"),
+        Index("ix_complaints_target_type", "target_type"),
+        Index("ix_complaints_target_id", "target_id"),
         Index("ix_complaints_status", "status"),
         Index("ix_complaints_priority", "priority"),
         Index("ix_complaints_reported_at", "reported_at"),
@@ -145,15 +139,23 @@ class Complaint(TimestampAuditSoftDeleteMixin, Base):
     )
 
     complaint_number: Mapped[str] = mapped_column(String(32), nullable=False)
-    customer_id: Mapped[uuid.UUID] = mapped_column(
+    # Nullable when source_type is not CUSTOMER (TASK-042 / DEC-018).
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("customers.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("branches.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # Polymorphic origin / destination (no typed FK — entity depends on *_type).
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
     )
     subject: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -172,7 +174,7 @@ class Complaint(TimestampAuditSoftDeleteMixin, Base):
     )
     closure_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    customer: Mapped[Customer] = relationship(back_populates="complaints")
+    customer: Mapped[Customer | None] = relationship(back_populates="complaints")
     closer: Mapped[User | None] = relationship(foreign_keys=[closed_by])
     branch: Mapped[Branch | None] = relationship(back_populates="complaints")
     assignments: Mapped[list[ComplaintAssignment]] = relationship(
@@ -185,7 +187,78 @@ class Complaint(TimestampAuditSoftDeleteMixin, Base):
         back_populates="complaint"
     )
     timelines: Mapped[list[ComplaintTimeline]] = relationship(back_populates="complaint")
-    attachments: Mapped[list[Attachment]] = relationship(back_populates="complaint")
+    sla: Mapped[SlaRecord | None] = relationship(
+        back_populates="complaint", uselist=False
+    )
+
+
+class SlaRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """SLA deadline store for a complaint (TASK-021 foundation).
+
+    One row per complaint. Deadlines only — no timers or calculations.
+    Complaint hard-delete is RESTRICTed while this row exists.
+    """
+
+    __tablename__ = "sla_records"
+    __table_args__ = (
+        UniqueConstraint("complaint_id", name="uq_sla_records_complaint_id"),
+        Index("ix_sla_records_complaint_id", "complaint_id"),
+        Index("ix_sla_records_overall_status", "overall_status"),
+        Index("ix_sla_records_overall_due_at", "overall_due_at"),
+    )
+
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("complaints.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    assignment_due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    resolution_due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    appointment_due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    escalation_due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    overall_due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    assignment_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    resolution_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    appointment_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    escalation_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    overall_status: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    complaint: Mapped[Complaint] = relationship(back_populates="sla")
+
+
+class SlaPolicy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Configurable SLA target durations (TASK-022). Policy only — no calculations.
+
+    Multiple policies may exist; at most one may be active. Policy changes
+    affect future complaints only (no recalculation of existing SLA rows).
+    """
+
+    __tablename__ = "sla_policies"
+    __table_args__ = (
+        Index("ix_sla_policies_is_active", "is_active"),
+        Index("ix_sla_policies_name", "name"),
+    )
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assignment_target_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    appointment_target_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    resolution_target_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    escalation_target_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    overall_target_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
 
 
 class ComplaintResolution(TimestampAuditSoftDeleteMixin, Base):
@@ -492,43 +565,20 @@ class ComplaintTimeline(TimestampAuditSoftDeleteMixin, Base):
     actor: Mapped[User | None] = relationship(foreign_keys=[actor_user_id])
 
 
-class Attachment(TimestampAuditSoftDeleteMixin, Base):
-    __tablename__ = "attachments"
-    __table_args__ = (
-        Index("ix_attachments_complaint_id", "complaint_id"),
-        Index("ix_attachments_uploaded_by", "uploaded_by"),
-        Index("ix_attachments_storage_key", "storage_key"),
-    )
-
-    complaint_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("complaints.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
-    content_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    file_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    checksum_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
-
-    complaint: Mapped[Complaint] = relationship(back_populates="attachments")
-    uploader: Mapped[User | None] = relationship(foreign_keys=[uploaded_by])
-
-
 class AuditLog(Base):
-    """Append-only audit trail (BR-CP-03). No update/delete path in application code."""
+    """Legacy append-only audit trail for Complaint/Auth/Resolution writers.
 
-    __tablename__ = "audit_logs"
+    Physical table renamed to ``audit_logs_legacy`` in TASK-031 so the
+    platform ``audit_logs`` table can use the new schema. Writer call sites
+    are unchanged.
+    """
+
+    __tablename__ = "audit_logs_legacy"
     __table_args__ = (
-        Index("ix_audit_logs_action", "action"),
-        Index("ix_audit_logs_entity", "entity_type", "entity_id"),
-        Index("ix_audit_logs_occurred_at", "occurred_at"),
-        Index("ix_audit_logs_actor_user_id", "actor_user_id"),
+        Index("ix_audit_logs_legacy_action", "action"),
+        Index("ix_audit_logs_legacy_entity", "entity_type", "entity_id"),
+        Index("ix_audit_logs_legacy_occurred_at", "occurred_at"),
+        Index("ix_audit_logs_legacy_actor_user_id", "actor_user_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -604,7 +654,16 @@ __all__ = [
     "ComplaintResolution",
     "ComplaintTimeline",
     "Customer",
+    "DataScope",
+    "NotificationQueue",
+    "NotificationTemplate",
+    "Permission",
     "RefreshToken",
     "Role",
+    "RolePermission",
+    "Setting",
+    "SlaPolicy",
+    "SlaRecord",
     "User",
+    "UserRole",
 ]

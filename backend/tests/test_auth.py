@@ -18,6 +18,7 @@ from app.models import RefreshToken, Role, User
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import LoginRequest
 from app.modules.auth.service import AuthService
+from app.modules.iam.user_role.models import UserRole
 
 
 def _postgres_available() -> bool:
@@ -71,6 +72,9 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
 @pytest.fixture()
 def auth_user(db_session: Session) -> User:
+    from app.modules.iam.permission.models import Permission
+    from app.modules.iam.role_permission.models import RolePermission
+
     role = db_session.scalar(
         select(Role).where(Role.code == "AGENT", Role.deleted_at.is_(None))
     )
@@ -88,6 +92,54 @@ def auth_user(db_session: Session) -> User:
         is_active=True,
     )
     db_session.add(user)
+    db_session.flush()
+    # TASK-038: Authorization Engine resolves via user_roles junction.
+    if (
+        db_session.scalar(
+            select(UserRole).where(
+                UserRole.user_id == user.id,
+                UserRole.role_id == role.id,
+            )
+        )
+        is None
+    ):
+        db_session.add(UserRole(user_id=user.id, role_id=role.id))
+
+    # Ensure AGENT can read complaints (resolver path) even if seed matrix lagging.
+    read = db_session.scalar(
+        select(Permission).where(
+            Permission.code == "complaints:read",
+            Permission.deleted_at.is_(None),
+        )
+    )
+    if read is None:
+        table = db_session.execute(
+            text(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'permissions'"
+            )
+        ).scalar()
+        if table:
+            read = Permission(
+                code="complaints:read",
+                name="Complaints Read",
+                module="complaints",
+                is_system=True,
+                is_active=True,
+            )
+            db_session.add(read)
+            db_session.flush()
+    if read is not None and (
+        db_session.scalar(
+            select(RolePermission).where(
+                RolePermission.role_id == role.id,
+                RolePermission.permission_id == read.id,
+            )
+        )
+        is None
+    ):
+        db_session.add(RolePermission(role_id=role.id, permission_id=read.id))
+
     db_session.commit()
     db_session.refresh(user)
     return user

@@ -12,6 +12,7 @@ from app.core.auth import Principal, require_complaint_close, require_permission
 from app.core.enums import ComplaintStatus
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
+from app.dependencies.events import get_event_dispatcher
 from app.modules.complaints.repository import ComplaintRepository
 from app.modules.complaints.schemas import (
     CloseComplaintRequest,
@@ -22,6 +23,8 @@ from app.modules.complaints.schemas import (
     ComplaintUpdateRequest,
 )
 from app.modules.complaints.service import ComplaintService
+from app.modules.sla.repository import SlaRepository
+from app.modules.sla.service import SlaService
 
 router = APIRouter(prefix="/api/v1/complaints", tags=["Complaints"])
 
@@ -31,7 +34,13 @@ PriorityFilter = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 def get_complaint_service(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> ComplaintService:
-    return ComplaintService(ComplaintRepository(session))
+    # Dispatcher comes from composition root; Notification registers there —
+    # ComplaintService never imports Notification.
+    return ComplaintService(
+        ComplaintRepository(session),
+        SlaService(SlaRepository(session)),
+        event_dispatcher=get_event_dispatcher(),
+    )
 
 
 @router.post(

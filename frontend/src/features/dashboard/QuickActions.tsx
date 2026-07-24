@@ -26,7 +26,7 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
       case "assign-complaint":
       case "escalate-complaint":
         document
-          .getElementById("latest-complaints")
+          .getElementById("recent-activity")
           ?.scrollIntoView({ behavior: "smooth", block: "start" });
         break;
       case "manage-users":

@@ -40,3 +40,26 @@ class TimelineRepository:
             )
         )
         return list(self._session.scalars(stmt).unique().all())
+
+    def list_recent(self, *, limit: int = 10) -> list[ComplaintTimeline]:
+        """Return latest timeline rows across active complaints (newest-first)."""
+        stmt = (
+            select(ComplaintTimeline)
+            .join(Complaint, Complaint.id == ComplaintTimeline.complaint_id)
+            .options(
+                joinedload(ComplaintTimeline.actor),
+                joinedload(ComplaintTimeline.complaint),
+            )
+            .where(
+                ComplaintTimeline.deleted_at.is_(None),
+                Complaint.deleted_at.is_(None),
+                ComplaintTimeline.event_type.in_(_SUPPORTED_EVENTS),
+            )
+            .order_by(
+                ComplaintTimeline.event_at.desc(),
+                ComplaintTimeline.created_at.desc(),
+                ComplaintTimeline.id.desc(),
+            )
+            .limit(limit)
+        )
+        return list(self._session.scalars(stmt).unique().all())

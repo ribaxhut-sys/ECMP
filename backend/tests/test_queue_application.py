@@ -39,6 +39,10 @@ from app.modules.queue.application import (
     QueueDomainService,
     QueueDto,
     QueueTicketDto,
+    RecallTicketCommand,
+    RecallTicketHandler,
+    SkipTicketCommand,
+    SkipTicketHandler,
 )
 from app.modules.queue.models import (
     Queue,
@@ -71,6 +75,8 @@ def handlers(state: InMemoryQueueState, domain: QueueDomainService) -> dict:
         "call": CallNextTicketHandler(state=state, domain=domain),
         "complete": CompleteTicketHandler(state=state, domain=domain),
         "cancel": CancelTicketHandler(state=state, domain=domain),
+        "skip": SkipTicketHandler(state=state, domain=domain),
+        "recall": RecallTicketHandler(state=state, domain=domain),
         "get_queue": GetQueueHandler(state=state),
         "get_tickets": GetQueueTicketsHandler(state=state),
         "get_waiting": GetWaitingTicketsHandler(state=state, domain=domain),
@@ -99,8 +105,8 @@ def _open_queue(
 
 
 def test_domain_generate_ticket_number(domain: QueueDomainService) -> None:
-    assert domain.generate_ticket_number(1) == "Q0001"
-    assert domain.generate_ticket_number(42) == "Q0042"
+    assert domain.generate_ticket_number(1) == "A001"
+    assert domain.generate_ticket_number(42) == "A042"
     with pytest.raises(QueueApplicationError) as exc:
         domain.generate_ticket_number(0)
     assert exc.value.code == "INVALID_TICKET_SEQUENCE"
@@ -112,7 +118,7 @@ def test_domain_select_next_fifo(domain: QueueDomainService) -> None:
     t1 = QueueTicket(
         ticket_id=uuid.uuid4(),
         queue_id=qid,
-        ticket_number="Q0001",
+        ticket_number="A001",
         priority=QueuePriority.VIP,
         status=QueueTicketStatus.WAITING,
         created_at=base + timedelta(seconds=10),
@@ -120,7 +126,7 @@ def test_domain_select_next_fifo(domain: QueueDomainService) -> None:
     t2 = QueueTicket(
         ticket_id=uuid.uuid4(),
         queue_id=qid,
-        ticket_number="Q0002",
+        ticket_number="A002",
         priority=QueuePriority.NORMAL,
         status=QueueTicketStatus.WAITING,
         created_at=base,
@@ -135,7 +141,7 @@ def test_domain_select_next_fifo(domain: QueueDomainService) -> None:
     )
     selected = domain.select_next_ticket(queue, (t1, t2))
     assert selected is not None
-    assert selected.ticket_number == "Q0002"
+    assert selected.ticket_number == "A002"
 
 
 def test_domain_select_next_priority(domain: QueueDomainService) -> None:
@@ -144,7 +150,7 @@ def test_domain_select_next_priority(domain: QueueDomainService) -> None:
     normal = QueueTicket(
         ticket_id=uuid.uuid4(),
         queue_id=qid,
-        ticket_number="Q0001",
+        ticket_number="A001",
         priority=QueuePriority.NORMAL,
         status=QueueTicketStatus.WAITING,
         created_at=base,
@@ -152,7 +158,7 @@ def test_domain_select_next_priority(domain: QueueDomainService) -> None:
     vip = QueueTicket(
         ticket_id=uuid.uuid4(),
         queue_id=qid,
-        ticket_number="Q0002",
+        ticket_number="A002",
         priority=QueuePriority.VIP,
         status=QueueTicketStatus.WAITING,
         created_at=base + timedelta(seconds=30),
@@ -167,7 +173,7 @@ def test_domain_select_next_priority(domain: QueueDomainService) -> None:
     )
     selected = domain.select_next_ticket(queue, (normal, vip))
     assert selected is not None
-    assert selected.ticket_number == "Q0002"
+    assert selected.ticket_number == "A002"
     assert selected.priority is QueuePriority.VIP
 
 
@@ -175,7 +181,7 @@ def test_domain_cancelled_cannot_be_called(domain: QueueDomainService) -> None:
     ticket = QueueTicket(
         ticket_id=uuid.uuid4(),
         queue_id=uuid.uuid4(),
-        ticket_number="Q0001",
+        ticket_number="A001",
         priority=QueuePriority.NORMAL,
         status=QueueTicketStatus.CANCELLED,
         created_at=datetime.now(timezone.utc),
@@ -191,7 +197,7 @@ def test_domain_completed_cannot_return_to_waiting(
     ticket = QueueTicket(
         ticket_id=uuid.uuid4(),
         queue_id=uuid.uuid4(),
-        ticket_number="Q0001",
+        ticket_number="A001",
         priority=QueuePriority.NORMAL,
         status=QueueTicketStatus.COMPLETED,
         created_at=datetime.now(timezone.utc),
@@ -239,8 +245,8 @@ def test_issue_and_call_fifo(handlers: dict) -> None:
     queue = _open_queue(handlers, policy=QueuePolicy.FIFO)
     t1 = handlers["issue"].handle(IssueTicketCommand(queue_id=queue.queue_id))
     t2 = handlers["issue"].handle(IssueTicketCommand(queue_id=queue.queue_id))
-    assert t1.ticket_number == "Q0001"
-    assert t2.ticket_number == "Q0002"
+    assert t1.ticket_number == "A001"
+    assert t2.ticket_number == "A002"
     assert t1.status is QueueTicketStatus.WAITING
     called = handlers["call"].handle(CallNextTicketCommand(queue_id=queue.queue_id))
     assert called is not None
@@ -288,6 +294,41 @@ def test_complete_and_cancel(handlers: dict) -> None:
     assert next_called is not None
     assert next_called.ticket_id == waiting.ticket_id
     assert issued.ticket_id != waiting.ticket_id
+
+
+def test_skip_and_recall(handlers: dict) -> None:
+    queue = _open_queue(handlers)
+    waiting = handlers["issue"].handle(IssueTicketCommand(queue_id=queue.queue_id))
+    skipped = handlers["skip"].handle(SkipTicketCommand(ticket_id=waiting.ticket_id))
+    assert skipped.status is QueueTicketStatus.SKIPPED
+
+    other = handlers["issue"].handle(IssueTicketCommand(queue_id=queue.queue_id))
+    called = handlers["call"].handle(CallNextTicketCommand(queue_id=queue.queue_id))
+    assert called is not None
+    assert called.ticket_id == other.ticket_id
+    recalled = handlers["recall"].handle(RecallTicketCommand(ticket_id=called.ticket_id))
+    assert recalled.status is QueueTicketStatus.CALLED
+    assert recalled.ticket_id == called.ticket_id
+
+    with pytest.raises(QueueApplicationError) as exc:
+        handlers["recall"].handle(RecallTicketCommand(ticket_id=skipped.ticket_id))
+    assert exc.value.code == "INVALID_TICKET_TRANSITION"
+
+
+def test_invalid_transition_waiting_to_completed(
+    domain: QueueDomainService,
+) -> None:
+    ticket = QueueTicket(
+        ticket_id=uuid.uuid4(),
+        queue_id=uuid.uuid4(),
+        ticket_number="A001",
+        priority=QueuePriority.NORMAL,
+        status=QueueTicketStatus.WAITING,
+        created_at=datetime.now(timezone.utc),
+    )
+    with pytest.raises(QueueApplicationError) as exc:
+        domain.transition_ticket(ticket, QueueTicketStatus.COMPLETED)
+    assert exc.value.code == "INVALID_TICKET_TRANSITION"
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +433,7 @@ def test_no_duplicate_ticket_numbers(
     # Force sequence collision check via domain
     with pytest.raises(QueueApplicationError) as exc:
         domain.validate_no_duplicate_ticket_number(
-            "Q0001", state.ticket_numbers(queue.queue_id)
+            "A001", state.ticket_numbers(queue.queue_id)
         )
     assert exc.value.code == "DUPLICATE_TICKET_NUMBER"
 

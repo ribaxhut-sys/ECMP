@@ -64,6 +64,103 @@ export interface ReportSummary {
   byStatus: StatusCount[];
 }
 
+/** API-318 KPI Foundation summary (live aggregates; never persisted). */
+export interface ComplaintKpiCounts {
+  total: number;
+  open: number;
+  closed: number;
+}
+
+export interface SlaStageKpiCounts {
+  completed: number;
+  breached: number;
+}
+
+export interface KpiSummary {
+  complaints: ComplaintKpiCounts;
+  assignment: SlaStageKpiCounts;
+  appointment: SlaStageKpiCounts;
+  resolution: SlaStageKpiCounts;
+  escalation: SlaStageKpiCounts;
+  overall: SlaStageKpiCounts;
+}
+
+/** API-319 Dashboard Summary (orchestration; never persisted). */
+export interface DashboardHeader {
+  totalComplaints: number;
+  openComplaints: number;
+  closedComplaints: number;
+}
+
+export interface DashboardSlaStage {
+  completed: number;
+  breached: number;
+}
+
+export interface DashboardSlaSummary {
+  assignment: DashboardSlaStage;
+  appointment: DashboardSlaStage;
+  resolution: DashboardSlaStage;
+  escalation: DashboardSlaStage;
+  overall: DashboardSlaStage;
+}
+
+export interface DashboardRecentActivityItem {
+  eventType: string;
+  complaintNumber: string;
+  timestamp: string;
+  actor: string;
+}
+
+export interface DashboardSummary {
+  header: DashboardHeader;
+  sla: DashboardSlaSummary;
+  recentActivity: DashboardRecentActivityItem[];
+}
+
+/** API-320–322 System Settings (TASK-028). */
+export type SettingValueType =
+  | "STRING"
+  | "INTEGER"
+  | "BOOLEAN"
+  | "JSON"
+  | "URL"
+  | "EMAIL";
+
+export type SettingVisibility = "PUBLIC" | "PROTECTED";
+
+export interface Setting {
+  id: string;
+  key: string;
+  value: string;
+  valueType: SettingValueType;
+  category: string;
+  visibility: SettingVisibility;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SettingUpdateRequest {
+  value: string;
+}
+
+/** API-324 attachment metadata (TASK-029 / TASK-032 viewer). */
+export interface Attachment {
+  id: string;
+  objectType: string;
+  objectId: string;
+  filename: string;
+  storedFilename: string;
+  mimeType: string;
+  extension: string | null;
+  sizeBytes: number;
+  checksum: string;
+  storageProvider: string;
+  uploadedBy: string | null;
+  createdAt: string;
+}
+
 export interface Complaint {
   id: string;
   complaintNumber: string;
@@ -191,6 +288,53 @@ export interface CloseComplaintResult {
   status: "CLOSED";
   closedAt: string;
   closedBy: string;
+}
+
+/** API-314 SLA dimension status. */
+export type SlaStatus = "PENDING" | "ON_TIME" | "BREACHED" | "COMPLETED";
+
+/** API-314 SLA record (immutable deadline snapshot; statuses PENDING). */
+export interface SlaRecord {
+  id: string;
+  complaintId: string;
+  assignmentDueAt: string | null;
+  resolutionDueAt: string | null;
+  appointmentDueAt: string | null;
+  escalationDueAt: string | null;
+  overallDueAt: string | null;
+  assignmentStatus: SlaStatus;
+  resolutionStatus: SlaStatus;
+  appointmentStatus: SlaStatus;
+  escalationStatus: SlaStatus;
+  overallStatus: SlaStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** API-315 / API-316 / API-317 SLA policy (targets only). */
+export interface SlaPolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  assignmentTargetMinutes: number;
+  appointmentTargetMinutes: number;
+  resolutionTargetMinutes: number;
+  escalationTargetMinutes: number;
+  overallTargetMinutes: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** API-316 create payload. */
+export interface SlaPolicyCreateRequest {
+  name: string;
+  description?: string | null;
+  assignmentTargetMinutes: number;
+  appointmentTargetMinutes: number;
+  resolutionTargetMinutes: number;
+  escalationTargetMinutes: number;
+  overallTargetMinutes: number;
 }
 
 /** API-301 escalation request body. */
@@ -384,7 +528,17 @@ export interface TimelineEntry {
     | "complaint.final_resolution_submitted"
     | "complaint.resolved"
     | "complaint.closed"
-    | "escalation.closed";
+    | "escalation.closed"
+    | "sla.assignment.completed"
+    | "sla.assignment.breached"
+    | "sla.appointment.completed"
+    | "sla.appointment.breached"
+    | "sla.resolution.completed"
+    | "sla.resolution.breached"
+    | "sla.escalation.completed"
+    | "sla.escalation.breached"
+    | "sla.overall.completed"
+    | "sla.overall.breached";
   eventAt: string;
   fromStatus: ComplaintStatus | null;
   toStatus: ComplaintStatus | null;

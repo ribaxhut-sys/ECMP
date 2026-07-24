@@ -1,0 +1,14 @@
+{
+  "type": "orchestrator_route",
+  "timestamp": "2026-07-24T03:54:17.719304+00:00",
+  "task": "TASK-059 Provider Executor Foundation",
+  "capability_id": "CAP-IMPLEMENT-FEATURE",
+  "agent_id": "AGENT-CODE",
+  "domain": null,
+  "memory_version": "v1",
+  "prompt_ref": "implement-feature@v1",
+  "rag_hit_count": 5,
+  "rag_top_score": 0.2126,
+  "context_count": 6,
+  "success": true
+}

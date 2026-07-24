@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   IconComplaints,
   IconDashboard,
+  IconPaperclip,
   IconReports,
   IconSettings,
   IconUsers,
@@ -19,6 +20,7 @@ const iconMap = {
   reports: IconReports,
   users: IconUsers,
   settings: IconSettings,
+  attachments: IconPaperclip,
 } as const;
 
 function NavLink({

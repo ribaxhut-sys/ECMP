@@ -64,4 +64,6 @@ NORMAL · PRIORITY · VIP
 
 ## Out of scope
 
-REST, DB, repository, display, kiosk, notification, TASK-063+.
+REST, Redis, display, kiosk, notification, UnitOfWork, TASK-064+.
+Persistence foundation (TASK-063) is in scope under `interfaces/` / `orm/` /
+`mappers/` / `repositories/` / `infrastructure/`.

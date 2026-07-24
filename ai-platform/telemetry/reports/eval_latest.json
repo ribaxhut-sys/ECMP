@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-21T11:03:51.677946+00:00",
+  "timestamp": "2026-07-23T05:03:22.726615+00:00",
   "threshold": 0.8,
   "suites": {
     "architecture": {
@@ -21,7 +21,7 @@
             "ai/generated/memory_crm.md",
             "ai-platform/memory/v1/memory_crm.md"
           ],
-          "top_score": 0.2901
+          "top_score": 0.2872
         },
         {
           "id": "Q-ARCH-002",
@@ -36,7 +36,7 @@
             "ai/generated/memory_global.md",
             "ai-platform/memory/v1/memory_global.md"
           ],
-          "top_score": 0.1468
+          "top_score": 0.1502
         },
         {
           "id": "Q-ARCH-003",
@@ -49,10 +49,10 @@
           ],
           "top_paths": [
             "ai-platform/evaluation/facts.md",
-            "08 Event Catalog/EVENT_CATALOG.generated.md",
-            "ai/README.md"
+            "03 Functional Requirements/ECMP_FRD_Administration_v0.1.md",
+            "05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md"
           ],
-          "top_score": 0.2297
+          "top_score": 0.2122
         }
       ]
     },
@@ -73,7 +73,7 @@
             "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md",
             "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md"
           ],
-          "top_score": 0.3151
+          "top_score": 0.2995
         },
         {
           "id": "Q-BIZ-002",
@@ -85,10 +85,10 @@
           ],
           "top_paths": [
             "26 Traceability/TRACEABILITY_MATRIX.md",
-            "03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md",
-            "20 Domain Architecture/navigator/ecmf.md"
+            "07 API Catalog/API_CATALOG.generated.md",
+            "07 API Catalog/API_CATALOG.generated.md"
           ],
-          "top_score": 0.2639
+          "top_score": 0.2463
         }
       ]
     },
@@ -108,9 +108,9 @@
           "top_paths": [
             "ai-platform/evaluation/facts.md",
             "05 Architecture Decision Records/ECMP_ADR_004_Implementation_Stack_Sprint01_v1.0.md",
-            "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md"
+            "implementation/README.md"
           ],
-          "top_score": 0.2845
+          "top_score": 0.258
         },
         {
           "id": "Q-CODE-002",
@@ -120,11 +120,11 @@
             "implementation/backend"
           ],
           "top_paths": [
+            "03 Functional Requirements/ECMP_FRD_Administration_v0.1.md",
             "ai/rules.md",
-            "ai-platform/evaluation/facts.md",
-            "ai/04_api.md"
+            "ai/sprint/IMPLEMENTATION_ROADMAP_v0.1.md"
           ],
-          "top_score": 0.1401
+          "top_score": 0.1433
         },
         {
           "id": "Q-CODE-003",
@@ -137,9 +137,9 @@
           "top_paths": [
             "08 Event Catalog/EVENT_CATALOG.generated.md",
             "ai/06_events.md",
-            "03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md"
+            "05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md"
           ],
-          "top_score": 0.2979
+          "top_score": 0.2191
         }
       ]
     },
@@ -158,7 +158,7 @@
             "02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md",
             "20 Domain Architecture/navigator/crm.md"
           ],
-          "top_score": 0.2167
+          "top_score": 0.1946
         },
         {
           "id": "Q-QA-002",
@@ -168,11 +168,11 @@
             "tc-001"
           ],
           "top_paths": [
-            "03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md",
             "ai-platform/evaluation/facts.md",
-            "03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md"
+            "03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md",
+            "03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md"
           ],
-          "top_score": 0.1887
+          "top_score": 0.193
         }
       ]
     },
@@ -194,7 +194,7 @@
             "ai-platform/packs/core-platform/pack.md",
             "03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md"
           ],
-          "top_score": 0.4519
+          "top_score": 0.4688
         },
         {
           "id": "Q-SEC-002",
@@ -207,10 +207,10 @@
           ],
           "top_paths": [
             "ai-platform/evaluation/facts.md",
-            "ai/07_security.md",
-            "26 Traceability/TRACEABILITY_MATRIX.md"
+            "ai/domain/core-platform.md",
+            "ai/07_security.md"
           ],
-          "top_score": 0.4576
+          "top_score": 0.4492
         }
       ]
     }

@@ -302,6 +302,11 @@ class AppointmentService:
             },
         )
 
+        # TASK-024 — evaluate appointment (and other) SLA statuses.
+        from app.modules.sla.hooks import evaluate_sla_for_complaint
+
+        evaluate_sla_for_complaint(self._repo.session, complaint.id, now=now)
+
         result = AppointmentCompleteResult(
             id=row.id,
             status=AppointmentStatus.COMPLETED,

@@ -19,11 +19,17 @@ from app.modules.complaints.service import ComplaintService
 def _complaint(**overrides: object) -> SimpleNamespace:
     now = datetime.now(UTC)
     actor_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    target_id = uuid.uuid4()
     base = {
         "id": uuid.uuid4(),
         "complaint_number": "CMP-TEST",
-        "customer_id": uuid.uuid4(),
-        "branch_id": None,
+        "customer_id": source_id,
+        "branch_id": target_id,
+        "source_type": "CUSTOMER",
+        "source_id": source_id,
+        "target_type": "BRANCH",
+        "target_id": target_id,
         "subject": "s",
         "description": "d",
         "status": "ASSIGNED",

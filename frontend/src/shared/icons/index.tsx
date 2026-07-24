@@ -187,3 +187,79 @@ export function IconSpinner({ className, ...props }: IconProps) {
     </IconBase>
   );
 }
+
+export function IconDownload(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 3v12" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M5 21h14" />
+    </IconBase>
+  );
+}
+
+export function IconExternalLink(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M14 4h6v6" />
+      <path d="M10 14 20 4" />
+      <path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5" />
+    </IconBase>
+  );
+}
+
+export function IconEye(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </IconBase>
+  );
+}
+
+export function IconFile(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z" />
+      <path d="M14 3v6h6" />
+    </IconBase>
+  );
+}
+
+export function IconImage(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.5" />
+      <path d="m21 15-4.5-4.5L8 19" />
+    </IconBase>
+  );
+}
+
+export function IconZoomIn(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M11 8v6M8 11h6" />
+      <path d="m20 20-3.5-3.5" />
+    </IconBase>
+  );
+}
+
+export function IconZoomOut(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M8 11h6" />
+      <path d="m20 20-3.5-3.5" />
+    </IconBase>
+  );
+}
+
+export function IconPaperclip(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M21.4 11.6 12 21a5 5 0 0 1-7-7l9.9-9.9a3.2 3.2 0 0 1 4.5 4.5L9.7 18.3a1.4 1.4 0 0 1-2-2l8.5-8.5" />
+    </IconBase>
+  );
+}

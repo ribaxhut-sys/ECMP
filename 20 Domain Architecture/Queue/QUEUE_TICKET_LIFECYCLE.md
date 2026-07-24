@@ -36,12 +36,14 @@ CALLED  ──CancelTicket──► CANCELLED
 SERVING ──CancelTicket──► CANCELLED
 
 WAITING / CALLED ──skip (domain)──► SKIPPED
+CALLED / SERVING ──recall (domain)──► same status (re-announce)
 ```
 
 ## Forbidden transitions
 
 | From | To | Rule |
 |---|---|---|
+| WAITING | COMPLETED | Must call first (no direct complete) |
 | COMPLETED | WAITING | Completed ticket cannot return to WAITING |
 | CANCELLED | CALLED | Cancelled ticket cannot be called |
 | COMPLETED | CALLED | Terminal |

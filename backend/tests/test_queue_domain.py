@@ -173,10 +173,25 @@ def test_immutability_pass() -> None:
         counter.name = "X"  # type: ignore[misc]
 
 
+def _collect_imports(source: str) -> list[str]:
+    tree = ast.parse(source)
+    imports: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.extend(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module)
+    return imports
+
+
 def test_queue_modules_no_forbidden_imports() -> None:
+    """Domain stays infra-free; api/ may use FastAPI; persistence may use SQLAlchemy.
+
+    TASK-064 adds ``api/`` (HTTP) and ``application/services/crud_service.py``
+    (repository ports). Cross-domain imports remain forbidden everywhere.
+    """
     root = Path(__file__).resolve().parents[1] / "app" / "modules" / "queue"
-    forbidden = (
-        "sqlalchemy",
+    cross_domain = (
         "fastapi",
         "httpx",
         "requests",
@@ -195,31 +210,65 @@ def test_queue_modules_no_forbidden_imports() -> None:
         "app.modules.dashboard",
         "app.modules.kpi",
     )
+    domain_forbidden = cross_domain + ("sqlalchemy",)
+    persistence_dirs = {
+        "orm",
+        "mappers",
+        "repositories",
+        "infrastructure",
+        "interfaces",
+    }
+    api_allowed_fastapi = {"api"}
+    # Persistence-backed application services may import repository ports.
+    repository_allowed = {
+        Path("application") / "services" / "crud_service.py",
+        Path("application") / "services" / "operations_service.py",
+    }
+
     py_files = list(root.rglob("*.py"))
     assert py_files
     for path in py_files:
+        rel = path.relative_to(root)
+        parts = rel.parts
+        is_persistence = bool(parts) and parts[0] in persistence_dirs
+        is_api = bool(parts) and parts[0] in api_allowed_fastapi
         source = path.read_text(encoding="utf-8")
-        tree = ast.parse(source)
-        imports: list[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imports.extend(a.name for a in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imports.append(node.module)
+        imports = _collect_imports(source)
+        if is_api:
+            # API may import FastAPI + AsyncSession for DI; still forbid cross-domains.
+            forbidden = cross_domain
+            forbidden = tuple(f for f in forbidden if f != "fastapi")
+        elif is_persistence:
+            forbidden = cross_domain
+        else:
+            forbidden = domain_forbidden
         for mod in imports:
             assert not any(mod == f or mod.startswith(f + ".") for f in forbidden), (
-                f"{path.relative_to(root)} imports forbidden module {mod}"
+                f"{rel} imports forbidden module {mod}"
             )
-        assert "APIRouter" not in source
-        assert "Session" not in source
-        # Allow documentation that forbids repositories ("no repository" / "not a repository").
-        lowered = source.lower()
-        if "repository" in lowered:
-            assert (
-                "no repository" in lowered
-                or "not a repository" in lowered
-                or "not repository" in lowered
-            ), f"{path.relative_to(root)} references repository without negation"
+        if not is_api and not is_persistence:
+            assert "APIRouter" not in source
+        if not is_persistence and not is_api:
+            lowered = source.lower()
+            if "sqlalchemy" in lowered:
+                assert (
+                    "no sqlalchemy" in lowered or "not sqlalchemy" in lowered
+                ), f"{rel} mentions SQLAlchemy without negation"
+            assert "AsyncSession" not in source
+            # Domain/application may document that state is "not a repository".
+            if "repository" in lowered and rel not in repository_allowed:
+                assert (
+                    "no repository" in lowered
+                    or "not a repository" in lowered
+                    or "not repository" in lowered
+                ), f"{rel} references repository without negation"
+        elif is_persistence:
+            # Interfaces must not import SQLAlchemy; ORM/mappers/repos may.
+            if parts[0] == "interfaces":
+                assert not any(
+                    mod == "sqlalchemy" or mod.startswith("sqlalchemy.")
+                    for mod in imports
+                ), f"{rel} (interface) must not import SQLAlchemy"
 
 
 def test_regression_provider_contract_untouched() -> None:

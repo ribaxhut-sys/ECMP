@@ -1,4 +1,4 @@
-"""Queue CQRS commands (TASK-062)."""
+"""Queue CQRS commands (TASK-062 / CAPABILITY-003)."""
 
 from app.modules.queue.application.commands.call_next_ticket import (
     CallNextTicketCommand,
@@ -32,6 +32,14 @@ from app.modules.queue.application.commands.pause_queue import (
     PauseQueueCommand,
     PauseQueueHandler,
 )
+from app.modules.queue.application.commands.recall_ticket import (
+    RecallTicketCommand,
+    RecallTicketHandler,
+)
+from app.modules.queue.application.commands.skip_ticket import (
+    SkipTicketCommand,
+    SkipTicketHandler,
+)
 
 __all__ = [
     "CallNextTicketCommand",
@@ -50,4 +58,8 @@ __all__ = [
     "OpenQueueHandler",
     "PauseQueueCommand",
     "PauseQueueHandler",
+    "RecallTicketCommand",
+    "RecallTicketHandler",
+    "SkipTicketCommand",
+    "SkipTicketHandler",
 ]

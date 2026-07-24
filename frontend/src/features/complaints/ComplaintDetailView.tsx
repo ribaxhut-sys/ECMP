@@ -32,6 +32,7 @@ import { CloseEscalationCard } from "./CloseEscalationCard";
 import { EscalationCard } from "./EscalationCard";
 import { FinalResolutionCard } from "./FinalResolutionCard";
 import { ResolutionCard } from "./ResolutionCard";
+import { SlaCard } from "./SlaCard";
 import { StatusActionsCard } from "./StatusActionsCard";
 import { TimelineCard } from "./TimelineCard";
 
@@ -380,6 +381,8 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           void load();
         }}
       />
+
+      <SlaCard complaintId={complaint.id} refreshKey={timelineKey} />
 
       <TimelineCard complaintId={complaint.id} refreshKey={timelineKey} />
 

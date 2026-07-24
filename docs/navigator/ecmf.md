@@ -31,6 +31,7 @@
 - `FR-002`
 - `FR-003`
 - `FR-004`
+- `FR-005`
 
 ## API
 
@@ -38,12 +39,14 @@
 - `API-002`
 - `API-003`
 - `API-004`
+- `API-005`
 
 ## Events
 
 - `EVT-001`
 - `EVT-002`
 - `EVT-003`
+- `EVT-005`
 
 ## Tests
 
@@ -51,11 +54,13 @@
 - `TC-002`
 - `TC-003`
 - `TC-004`
+- `TC-006`
 
 ## Active / Related Sprints
 
 - `Sprint-01`
 - `Sprint-02`
+- `Sprint-03B`
 
 ## ADR
 
@@ -70,6 +75,8 @@
 - `ADR-009` — `05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md`
 - `ADR-010` — `05 Architecture Decision Records/ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md`
 - `ADR-011` — `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md`
+- `ADR-012` — `05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md`
+- `ADR-013` — `05 Architecture Decision Records/ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md`
 
 ## Coverage
 
@@ -82,4 +89,5 @@
 - `TRC-L-001` — Create complaint case linked to customer
 - `TRC-L-002` — Get case by id
 - `TRC-L-003` — Assign case to handler/unit
-- `TRC-L-004` — Validated status transition
+- `TRC-L-004` — Validated status transition (incl. Close→EVT-005; Reject PENDING_REVIEW→IN_PROGRESS)
+- `TRC-L-010` — Paginated, filterable list of cases (status/priority/caseType/assigneeId), fixed sort createdAt desc

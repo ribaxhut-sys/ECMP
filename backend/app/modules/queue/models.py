@@ -1,6 +1,8 @@
-"""Queue Domain Foundation value objects (TASK-061 / TASK-062).
+"""Queue Domain Foundation value objects (TASK-061 / TASK-062 / TASK-063).
 
-Core queue model + ticket lifecycle status. No REST. No DB. No display/kiosk.
+Core queue model + ticket lifecycle status.
+Persistence-independent — no SQLAlchemy, no ORM, no repository imports.
+No REST. No display/kiosk.
 """
 
 from __future__ import annotations

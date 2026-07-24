@@ -14,7 +14,7 @@ from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db.session import get_db_session
 from app.main import create_app
-from app.models import Customer
+from app.models import Customer, SlaPolicy, User
 
 
 def _postgres_available() -> bool:
@@ -67,8 +67,13 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture()
-def actor_id() -> uuid.UUID:
-    return uuid.uuid4()
+def actor_id(db_session: Session) -> uuid.UUID:
+    from sqlalchemy import select
+
+    row = db_session.scalar(select(User).where(User.deleted_at.is_(None)).limit(1))
+    if row is None:
+        pytest.skip("No seed user available")
+    return row.id
 
 
 @pytest.fixture()
@@ -101,6 +106,37 @@ def customer_id(db_session: Session) -> uuid.UUID:
     return customer.id
 
 
+@pytest.fixture()
+def active_sla_policy(db_session: Session) -> SlaPolicy:
+    """TASK-023: complaint create requires an active SLA policy."""
+    from datetime import UTC, datetime
+
+    now = datetime.now(UTC)
+    db_session.execute(
+        text(
+            "UPDATE sla_policies SET is_active = false, updated_at = :now "
+            "WHERE is_active = true"
+        ),
+        {"now": now},
+    )
+    policy = SlaPolicy(
+        name=f"Test-Policy-{uuid.uuid4().hex[:8]}",
+        description="Active policy for complaint API tests",
+        assignment_target_minutes=60,
+        appointment_target_minutes=1440,
+        resolution_target_minutes=2880,
+        escalation_target_minutes=480,
+        overall_target_minutes=4320,
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(policy)
+    db_session.commit()
+    db_session.refresh(policy)
+    return policy
+
+
 def test_unauthorized_without_token(client: TestClient) -> None:
     response = client.get("/api/v1/complaints")
     assert response.status_code == 401
@@ -127,7 +163,9 @@ def test_create_get_list_update_complaint(
     client: TestClient,
     auth_header: dict[str, str],
     customer_id: uuid.UUID,
+    active_sla_policy: SlaPolicy,
 ) -> None:
+    _ = active_sla_policy
     create_payload = {
         "customerId": str(customer_id),
         "subject": "Billing issue",
@@ -146,6 +184,11 @@ def test_create_get_list_update_complaint(
     assert data["status"] == "NEW"
     assert data["priority"] == "HIGH"
     assert data["complaintNumber"].startswith("CMP-")
+    # TASK-042 — legacy create defaults
+    assert data["sourceType"] == "CUSTOMER"
+    assert data["sourceId"] == str(customer_id)
+    assert data["targetType"] == "BRANCH"
+    assert data["targetId"] is None
     complaint_id = data["id"]
 
     fetched = client.get(f"/api/v1/complaints/{complaint_id}", headers=auth_header)
@@ -186,3 +229,164 @@ def test_create_rejects_unknown_customer(
     )
     assert response.status_code == 400
     assert response.json()["code"] == "VALIDATION_ERROR"
+
+
+@pytest.fixture()
+def branch_id(db_session: Session) -> uuid.UUID:
+    from app.models import Branch
+
+    branch = Branch(
+        code=f"BR-{uuid.uuid4().hex[:8].upper()}",
+        name="Test Branch",
+        is_active=True,
+    )
+    db_session.add(branch)
+    db_session.commit()
+    db_session.refresh(branch)
+    return branch.id
+
+
+def test_create_customer_complaint_generalized(
+    client: TestClient,
+    auth_header: dict[str, str],
+    customer_id: uuid.UUID,
+    branch_id: uuid.UUID,
+    active_sla_policy: SlaPolicy,
+) -> None:
+    _ = active_sla_policy
+    response = client.post(
+        "/api/v1/complaints",
+        json={
+            "sourceType": "CUSTOMER",
+            "sourceId": str(customer_id),
+            "targetType": "BRANCH",
+            "targetId": str(branch_id),
+            "subject": "Customer complaint",
+            "description": "Generalized customer → branch",
+            "priority": "HIGH",
+        },
+        headers=auth_header,
+    )
+    assert response.status_code == 201, response.text
+    data = response.json()["data"]
+    assert data["sourceType"] == "CUSTOMER"
+    assert data["sourceId"] == str(customer_id)
+    assert data["targetType"] == "BRANCH"
+    assert data["targetId"] == str(branch_id)
+    assert data["customerId"] == str(customer_id)
+    assert data["branchId"] == str(branch_id)
+    assert data["status"] == "NEW"
+
+
+def test_create_branch_complaint(
+    client: TestClient,
+    auth_header: dict[str, str],
+    branch_id: uuid.UUID,
+    active_sla_policy: SlaPolicy,
+) -> None:
+    _ = active_sla_policy
+    ho_id = str(uuid.uuid4())
+    response = client.post(
+        "/api/v1/complaints",
+        json={
+            "sourceType": "BRANCH",
+            "sourceId": str(branch_id),
+            "targetType": "HEAD_OFFICE",
+            "targetId": ho_id,
+            "subject": "Branch complaint",
+            "description": "Branch → Head Office",
+            "priority": "CRITICAL",
+        },
+        headers=auth_header,
+    )
+    assert response.status_code == 201, response.text
+    data = response.json()["data"]
+    assert data["sourceType"] == "BRANCH"
+    assert data["targetType"] == "HEAD_OFFICE"
+    assert data["targetId"] == ho_id
+    assert data["customerId"] is None
+    assert data["branchId"] is None
+    assert data["status"] == "NEW"
+
+
+def test_create_head_office_complaint(
+    client: TestClient,
+    auth_header: dict[str, str],
+    branch_id: uuid.UUID,
+    active_sla_policy: SlaPolicy,
+) -> None:
+    _ = active_sla_policy
+    ho_id = str(uuid.uuid4())
+    response = client.post(
+        "/api/v1/complaints",
+        json={
+            "sourceType": "HEAD_OFFICE",
+            "sourceId": ho_id,
+            "targetType": "BRANCH",
+            "targetId": str(branch_id),
+            "subject": "HO complaint",
+            "description": "Head Office → Branch",
+            "priority": "MEDIUM",
+        },
+        headers=auth_header,
+    )
+    assert response.status_code == 201, response.text
+    data = response.json()["data"]
+    assert data["sourceType"] == "HEAD_OFFICE"
+    assert data["targetType"] == "BRANCH"
+    assert data["branchId"] == str(branch_id)
+    assert data["customerId"] is None
+    assert data["status"] == "NEW"
+
+def test_create_system_complaint_to_head_office(
+    client: TestClient,
+    auth_header: dict[str, str],
+    active_sla_policy: SlaPolicy,
+) -> None:
+    _ = active_sla_policy
+    system_id = str(uuid.uuid4())
+    ho_id = str(uuid.uuid4())
+    response = client.post(
+        "/api/v1/complaints",
+        json={
+            "sourceType": "SYSTEM",
+            "sourceId": system_id,
+            "targetType": "HEAD_OFFICE",
+            "targetId": ho_id,
+            "subject": "System alert",
+            "description": "SYSTEM ? Head Office",
+            "priority": "HIGH",
+        },
+        headers=auth_header,
+    )
+    assert response.status_code == 201, response.text
+    data = response.json()["data"]
+    assert data["sourceType"] == "SYSTEM"
+    assert data["targetType"] == "HEAD_OFFICE"
+    assert data["branchId"] is None
+    assert data["customerId"] is None
+
+
+def test_create_rejects_invalid_route(
+    client: TestClient,
+    auth_header: dict[str, str],
+    customer_id: uuid.UUID,
+    active_sla_policy: SlaPolicy,
+) -> None:
+    _ = active_sla_policy
+    response = client.post(
+        "/api/v1/complaints",
+        json={
+            "sourceType": "CUSTOMER",
+            "sourceId": str(customer_id),
+            "targetType": "HEAD_OFFICE",
+            "targetId": str(uuid.uuid4()),
+            "subject": "Invalid",
+            "description": "CUSTOMER ? HEAD_OFFICE not supported",
+            "priority": "LOW",
+        },
+        headers=auth_header,
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION_ERROR"
+    assert "Invalid complaint route" in response.json()["message"]

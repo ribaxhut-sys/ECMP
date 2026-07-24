@@ -17,13 +17,19 @@ from app.models import (
     ComplaintResolution,
     ComplaintTimeline,
     Customer,
+    SlaRecord,
     User,
 )
+from app.core.enums import SlaStatus
 
 
 class ComplaintRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    @property
+    def session(self) -> Session:
+        return self._session
 
     def get_by_id(self, complaint_id: uuid.UUID) -> Complaint | None:
         stmt = select(Complaint).where(
@@ -90,6 +96,30 @@ class ComplaintRepository:
         self._session.add(complaint)
         self._session.flush()
         return complaint
+
+    def create_pending_sla(self, complaint_id: uuid.UUID) -> SlaRecord:
+        """Internal SLA foundation row (TASK-021). One per complaint."""
+        from datetime import UTC
+
+        now = datetime.now(UTC)
+        row = SlaRecord(
+            complaint_id=complaint_id,
+            assignment_due_at=None,
+            resolution_due_at=None,
+            appointment_due_at=None,
+            escalation_due_at=None,
+            overall_due_at=None,
+            assignment_status=SlaStatus.PENDING,
+            resolution_status=SlaStatus.PENDING,
+            appointment_status=SlaStatus.PENDING,
+            escalation_status=SlaStatus.PENDING,
+            overall_status=SlaStatus.PENDING,
+            created_at=now,
+            updated_at=now,
+        )
+        self._session.add(row)
+        self._session.flush()
+        return row
 
     def add_audit_log(
         self,

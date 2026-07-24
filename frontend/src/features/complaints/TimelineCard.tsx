@@ -20,6 +20,7 @@ export type TimelineActivityType =
   | "ASSIGNED"
   | "STATUS_CHANGED"
   | "PRIORITY_CHANGED"
+  | "SLA"
   | "OTHER";
 
 function formatWhen(value: string | null | undefined): string {
@@ -34,12 +35,19 @@ function formatWhen(value: string | null | undefined): string {
   }
 }
 
+function isSlaEvent(eventType: string): boolean {
+  return eventType.startsWith("sla.");
+}
+
 function activityType(entry: TimelineEntry): TimelineActivityType {
   const changeType =
     typeof entry.metadata?.changeType === "string"
       ? entry.metadata.changeType
       : null;
 
+  if (isSlaEvent(entry.eventType) || changeType === "SLA_STATUS_CHANGED") {
+    return "SLA";
+  }
   if (changeType === "PRIORITY_CHANGED") return "PRIORITY_CHANGED";
   if (changeType === "STATUS_CHANGED" && entry.eventType === "complaint.updated") {
     return "STATUS_CHANGED";
@@ -84,6 +92,8 @@ function activityIcon(type: TimelineActivityType): string {
       return "⇄";
     case "PRIORITY_CHANGED":
       return "!";
+    case "SLA":
+      return "⏱";
     default:
       return "•";
   }
@@ -101,6 +111,8 @@ function activityMessage(entry: TimelineEntry): string {
       return "Priority changed";
     case "STATUS_CHANGED":
       return "Status changed";
+    case "SLA":
+      return "SLA status changed";
     default:
       return "Activity";
   }

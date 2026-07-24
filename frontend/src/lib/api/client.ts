@@ -135,3 +135,72 @@ export async function apiRequest<T>(
     body?.details ?? null,
   );
 }
+
+export interface ApiBlobResult {
+  blob: Blob;
+  contentType: string | null;
+  contentDisposition: string | null;
+  checksumSha256: string | null;
+}
+
+/** Authenticated binary fetch (download/preview). Same auth/refresh as apiRequest. */
+export async function apiRequestBlob(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<ApiBlobResult> {
+  const { skipAuth = false, skipRefresh = false, ...fetchInit } = init;
+  const headers = new Headers(fetchInit.headers);
+
+  if (!skipAuth) {
+    const token = getAuthToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}${path}`, {
+      ...fetchInit,
+      headers,
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError(0, "NETWORK_ERROR", "Network request failed");
+  }
+
+  if (
+    response.status === 401 &&
+    !skipRefresh &&
+    !skipAuth &&
+    !path.startsWith("/api/v1/auth/")
+  ) {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      return apiRequestBlob(path, { ...init, skipRefresh: true });
+    }
+  }
+
+  if (!response.ok) {
+    let body: ApiErrorBody | null = null;
+    try {
+      body = (await response.json()) as ApiErrorBody;
+    } catch {
+      body = null;
+    }
+    throw new ApiError(
+      response.status,
+      body?.code ?? (response.status === 500 ? "INTERNAL_ERROR" : "HTTP_ERROR"),
+      body?.message || response.statusText || "Request failed",
+      body?.details ?? null,
+    );
+  }
+
+  const blob = await response.blob();
+  return {
+    blob,
+    contentType: response.headers.get("Content-Type"),
+    contentDisposition: response.headers.get("Content-Disposition"),
+    checksumSha256: response.headers.get("X-Checksum-SHA256"),
+  };
+}

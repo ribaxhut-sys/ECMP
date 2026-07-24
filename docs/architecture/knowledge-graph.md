@@ -14,8 +14,8 @@
 > Enriched from ontology + traceability + OpenAPI + FRD + ADR.
 
 - Ontology: `ai/ontology/ontology.yaml`
-- Nodes: 74
-- Edges: 135
+- Nodes: 135
+- Edges: 306
 
 Machine source: `ai/knowledge-graph/graph.generated.yaml`
 
@@ -39,6 +39,7 @@ flowchart TD
   ECMF[ECMF] --> FR-004[FR-004]
   FR-004 --> API-004[API-004]
   FR-004 --> EVT-003[EVT-003]
+  FR-004 --> EVT-005[EVT-005]
   FR-004 --> TC-004[TC-004]
   CRM[CRM] --> FR-010[FR-010]
   FR-010 --> API-010[API-010]

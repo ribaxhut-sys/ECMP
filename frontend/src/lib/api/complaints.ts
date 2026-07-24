@@ -16,6 +16,7 @@ import type {
   Resolution,
   ResolveComplaintRequest,
   ResolveComplaintResult,
+  SlaRecord,
   TimelineEntry,
 } from "./types";
 
@@ -153,5 +154,14 @@ export function closeComplaint(
       method: "POST",
       body: JSON.stringify(body),
     },
+  );
+}
+
+/** API-314 — GET /api/v1/complaints/{id}/sla */
+export function fetchComplaintSla(
+  id: string,
+): Promise<DataResponse<SlaRecord>> {
+  return apiRequest<DataResponse<SlaRecord>>(
+    `/api/v1/complaints/${encodeURIComponent(id)}/sla`,
   );
 }

@@ -1,0 +1,94 @@
+"""Async SQLAlchemy session helpers for ECMP persistence foundation (TASK-063).
+
+Reusable by Queue and future domains. Does not replace the sync session API.
+No UnitOfWork. Callers own commit / rollback boundaries.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from app.core.config import get_settings
+
+_async_engine: AsyncEngine | None = None
+_AsyncSessionLocal: async_sessionmaker[AsyncSession] | None = None
+
+
+def _to_async_url(url: str) -> str:
+    """Normalize sync psycopg URL to an async-capable SQLAlchemy URL."""
+    if "+psycopg_async" in url or "+asyncpg" in url:
+        return url
+    if url.startswith("postgresql+psycopg://"):
+        return url.replace("postgresql+psycopg://", "postgresql+psycopg_async://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg_async://", 1)
+    if url.startswith("sqlite+aiosqlite://") or url.startswith("sqlite+aiosqlite:"):
+        return url
+    if url.startswith("sqlite:///"):
+        return url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    return url
+
+
+def get_async_engine(url: str | None = None) -> AsyncEngine:
+    """Return a process-local AsyncEngine (created once unless ``url`` is given)."""
+    global _async_engine, _AsyncSessionLocal
+    if url is not None:
+        return create_async_engine(
+            _to_async_url(url),
+            pool_pre_ping=True,
+            future=True,
+        )
+    if _async_engine is None:
+        settings = get_settings()
+        _async_engine = create_async_engine(
+            _to_async_url(settings.database_url),
+            pool_pre_ping=True,
+            future=True,
+        )
+        _AsyncSessionLocal = async_sessionmaker(
+            bind=_async_engine,
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        )
+    return _async_engine
+
+
+def get_async_session_factory(
+    url: str | None = None,
+) -> async_sessionmaker[AsyncSession]:
+    """Return async_sessionmaker bound to the shared (or ad-hoc) engine."""
+    if url is not None:
+        engine = get_async_engine(url)
+        return async_sessionmaker(
+            bind=engine,
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        )
+    get_async_engine()
+    assert _AsyncSessionLocal is not None
+    return _AsyncSessionLocal
+
+
+async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield an AsyncSession; caller controls commit. Closes on exit."""
+    session = get_async_session_factory()()
+    try:
+        yield session
+    finally:
+        await session.close()
+
+
+__all__ = [
+    "get_async_db_session",
+    "get_async_engine",
+    "get_async_session_factory",
+]

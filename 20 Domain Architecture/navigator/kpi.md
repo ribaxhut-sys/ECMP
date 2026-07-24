@@ -16,6 +16,7 @@
 ## Quick Pack
 
 - Domain Architecture: `20 Domain Architecture/KPI/README.md`
+- Projection Guide: `20 Domain Architecture/KPI/PROJECTION_GUIDE.md` (TASK-051)
 - AI Domain Context: `ai/domain/kpi.md`
 - AI Memory: `ai/generated/memory_kpi.md`
 
@@ -60,6 +61,8 @@
 - `ADR-009` — `05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md`
 - `ADR-010` — `05 Architecture Decision Records/ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md`
 - `ADR-011` — `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md`
+- `ADR-012` — `05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md`
+- `ADR-013` — `05 Architecture Decision Records/ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md`
 
 ## Coverage
 

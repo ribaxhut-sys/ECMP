@@ -77,11 +77,11 @@ CaseCreated (EVT-001), CaseAssigned (EVT-002), StatusChanged (EVT-003), SLABreac
 ## Linked Artifacts
 
 - BR: `BR-001`, `BR-002`, `BR-007`
-- FR: `FR-001`, `FR-002`, `FR-003`, `FR-004`
-- API: `API-001`, `API-002`, `API-003`, `API-004`
-- Events: `EVT-001`, `EVT-002`, `EVT-003`
-- Tests: `TC-001`, `TC-002`, `TC-003`, `TC-004`
-- Sprints: `Sprint-01`, `Sprint-02`
+- FR: `FR-001`, `FR-002`, `FR-003`, `FR-004`, `FR-005`
+- API: `API-001`, `API-002`, `API-003`, `API-004`, `API-005`
+- Events: `EVT-001`, `EVT-002`, `EVT-003`, `EVT-005`
+- Tests: `TC-001`, `TC-002`, `TC-003`, `TC-004`, `TC-006`
+- Sprints: `Sprint-01`, `Sprint-02`, `Sprint-03B`
 
 ## Architecture Notes
 

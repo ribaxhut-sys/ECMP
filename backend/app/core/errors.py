@@ -21,13 +21,50 @@ class ApiError(Exception):
 
 
 class UnauthenticatedError(ApiError):
-    def __init__(self, message: str = "Authentication required") -> None:
+    """HTTP 401 — caller is not authenticated."""
+
+    def __init__(self, message: str = "Unauthenticated") -> None:
         super().__init__(401, "UNAUTHENTICATED", message)
 
 
 class ForbiddenError(ApiError):
-    def __init__(self, message: str = "Permission denied") -> None:
-        super().__init__(403, "FORBIDDEN", message)
+    """HTTP 403 — caller is authenticated but not allowed.
+
+    Prefer :class:`PermissionDeniedError` or :class:`DataScopeDeniedError`
+    for Authorization Middleware (TASK-040). ``FORBIDDEN`` remains the
+    permission-denial envelope code for backward compatibility.
+    """
+
+    def __init__(
+        self,
+        message: str = "Permission denied",
+        *,
+        code: str = "FORBIDDEN",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(403, code, message, details)
+
+
+class PermissionDeniedError(ForbiddenError):
+    """HTTP 403 — missing permission or role (Authorization pipeline)."""
+
+    def __init__(
+        self,
+        message: str = "Permission denied",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, code="FORBIDDEN", details=details)
+
+
+class DataScopeDeniedError(ForbiddenError):
+    """HTTP 403 — effective data scope does not satisfy the check."""
+
+    def __init__(
+        self,
+        message: str = "Data scope denied",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, code="DATA_SCOPE_DENIED", details=details)
 
 
 class NotFoundError(ApiError):

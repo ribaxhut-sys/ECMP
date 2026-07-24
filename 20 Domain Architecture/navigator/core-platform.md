@@ -53,9 +53,13 @@
 - `ADR-006` — `05 Architecture Decision Records/ECMP_ADR_006_API_Versioning_v1.0.md`
 - `ADR-007` — `05 Architecture Decision Records/ECMP_ADR_007_Authentication_Model_v1.0.md`
 - `ADR-008` — `05 Architecture Decision Records/ECMP_ADR_008_RBAC_SoT_Workflow_Ownership_v1.0.md`
+- RBAC Flow (TASK-038/039/040) — `10 Security and Access Standards/ECMP_RBAC_Flow_v1.0.md`
+- IAM Cache Design (TASK-041) — `10 Security and Access Standards/ECMP_IAM_Cache_Design_v1.0.md`
 - `ADR-009` — `05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md`
 - `ADR-010` — `05 Architecture Decision Records/ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md`
 - `ADR-011` — `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md`
+- `ADR-012` — `05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md`
+- `ADR-013` — `05 Architecture Decision Records/ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md`
 
 ## Coverage
 

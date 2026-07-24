@@ -155,6 +155,11 @@ class AssignmentService:
             },
         )
 
+        # TASK-024 — evaluate assignment (and other) SLA statuses.
+        from app.modules.sla.hooks import evaluate_sla_for_complaint
+
+        evaluate_sla_for_complaint(self._repo.session, complaint.id, now=now)
+
         self._repo.commit()
         self._repo.refresh(assignment)
         self._repo.refresh(complaint)

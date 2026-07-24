@@ -36,6 +36,13 @@ Approved — single Source of Truth ditetapkan (DEC-001 governance; ARB 2026-07-
 - [x] CaseClosed
 - [x] ConfigChanged
 - [x] CaseReopened — EVT-007, status Proposed (dibutuhkan BR-ECMF-07; tambahan di luar set minimal Blueprint)
+- [x] Complaint Event Foundation (TASK-045) — EVT-009…EVT-015 (`ComplaintCreated` … `ComplaintEscalated`); in-memory factory only, no bus
+- [x] In-Process Event Dispatcher (TASK-046) — same-process `EventDispatcher` / `EventHandler`; not a bus/broker/store
+- [x] Notification Domain Foundation (TASK-047) — first dispatcher consumer; builds in-memory `Notification`; no channel delivery
+- [x] Notification Intent Foundation (TASK-048) — `NotificationIntent` (what to deliver); channel enum only; no transport adapters
+- [x] Notification Delivery Foundation (TASK-049) — `NotificationDelivery` (PLANNED plans per channel); no send/queue/retry
+- [x] Dashboard Projection Foundation (TASK-050) — in-memory `DashboardProjection` from Complaint events; no HTTP projection API yet
+- [x] KPI Projection Foundation (TASK-051) — in-memory `KpiProjection` from Complaint events; no HTTP projection API yet
 
 ## Template Fields (per event)
 - Event Name

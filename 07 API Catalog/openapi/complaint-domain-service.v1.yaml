@@ -1,0 +1,1071 @@
+openapi: 3.0.3
+info:
+  title: ECMP Complaint Domain Service API
+  version: 1.4.0
+  description: |
+    Complaint Domain Foundation + Processing + Assignment + Escalation + SLA REST API
+    (CAPABILITY-004…008).
+    Complaint is the business reason for a visit; QueueTicket is visit context only.
+    One QueueTicket may link to many Complaints via queueTicketId.
+    Independent bounded context — no Queue domain imports, no Workflow,
+    Timeline, Comment, Attachment, Notification,
+    Dashboard, Display, AI, or Authentication.
+    Lifecycle: OPEN → IN_PROGRESS → RESOLVED → CLOSED; reopen RESOLVED → IN_PROGRESS.
+    Assignment determines responsibility only — it does not change lifecycle status.
+    At most one active Assignment per Complaint; history is append-only.
+    Escalation determines handling level only — it does not change Assignment or status.
+    At most one current Escalation per Complaint; history is append-only; level must increase.
+    SLA calculates due/remaining/breach only — no scheduler, notification, or auto-escalation.
+    At most one active ComplaintSLA per Complaint. Closing a Complaint completes active SLA.
+  x-ear-id: API-390
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: Complaint Domain
+    description: Complaint aggregate CRUD + processing + assignment + escalation + SLA
+paths:
+  /api/v1/complaints:
+    post:
+      summary: Create complaint
+      operationId: createComplaintDomain
+      x-ear-id: API-390
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Create a Complaint linked to queueTicketId. Initial status OPEN.
+        Does not invoke Queue operations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComplaintRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      summary: List complaints by organization
+      operationId: listComplaintDomain
+      x-ear-id: API-391
+      tags: [Complaint Domain]
+      security: []
+      parameters:
+        - name: organizationId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    get:
+      summary: Get complaint by id
+      operationId: getComplaintDomain
+      x-ear-id: API-392
+      tags: [Complaint Domain]
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      summary: Update complaint
+      operationId: updateComplaintDomain
+      x-ear-id: API-393
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Update mutable fields. Status transitions must follow
+        OPEN → IN_PROGRESS → RESOLVED → CLOSED (no OPEN → CLOSED).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateComplaintRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      summary: Delete complaint
+      operationId: deleteComplaintDomain
+      x-ear-id: API-394
+      tags: [Complaint Domain]
+      security: []
+      responses:
+        "204":
+          description: No Content
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/start:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Start complaint processing
+      operationId: startComplaintProcessing
+      x-ear-id: API-397
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        OPEN → IN_PROGRESS. Domain-validated lifecycle transition.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/resolve:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Resolve complaint
+      operationId: resolveComplaint
+      x-ear-id: API-398
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        IN_PROGRESS → RESOLVED. Requires summary and resolvedBy.
+        Creates a Resolution value object (immutable after CLOSED).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/close:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Close complaint
+      operationId: closeComplaintDomain
+      x-ear-id: API-399
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        RESOLVED → CLOSED. Resolution becomes immutable.
+        Request body is optional.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/reopen:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Reopen complaint
+      operationId: reopenComplaint
+      x-ear-id: API-400
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        RESOLVED → IN_PROGRESS. Optional reason (not persisted — Timeline out of scope).
+        Clears prior Resolution so a new resolve may be recorded.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReopenRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/assign:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Assign complaint
+      operationId: assignComplaintDomain
+      x-ear-id: API-401
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Create the first active Assignment for a Complaint.
+        Rejects when an active assignment already exists (use reassign).
+        Does not change Complaint lifecycle status.
+        CAPABILITY-006 supports assigneeType USER only (TEAM/QUEUE/SYSTEM design-ready).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/reassign:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Reassign complaint
+      operationId: reassignComplaintDomain
+      x-ear-id: API-402
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Release the active Assignment and append a new active Assignment.
+        History rows are not rewritten. Does not change Complaint status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReassignRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/unassign:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Unassign complaint
+      operationId: unassignComplaintDomain
+      x-ear-id: API-403
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Release the active Assignment. Complaint has no active assignee.
+        Does not change Complaint lifecycle status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnassignRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/assignment:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    get:
+      summary: Get current assignment
+      operationId: getComplaintAssignmentDomain
+      x-ear-id: API-404
+      tags: [Complaint Domain]
+      security: []
+      description: Return the single active Assignment for a Complaint, if any.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentDataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/assignments:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    get:
+      summary: List assignment history
+      operationId: listComplaintAssignmentsDomain
+      x-ear-id: API-405
+      tags: [Complaint Domain]
+      security: []
+      description: Append-only Assignment history for a Complaint (oldest first).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/escalate:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Escalate complaint
+      operationId: escalateComplaintDomain
+      x-ear-id: API-406
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Append a new current Escalation. Prior current becomes historical.
+        Level must strictly increase when a current escalation exists.
+        Does not change Assignment or Complaint lifecycle status.
+        No auto-escalation / scheduler / notification in CAPABILITY-007.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/escalation:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    get:
+      summary: Get current escalation
+      operationId: getComplaintEscalationDomain
+      x-ear-id: API-407
+      tags: [Complaint Domain]
+      security: []
+      description: Return the single current Escalation for a Complaint, if any.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationDataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/escalations:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    get:
+      summary: List escalation history
+      operationId: listComplaintEscalationsDomain
+      x-ear-id: API-408
+      tags: [Complaint Domain]
+      security: []
+      description: Append-only Escalation history for a Complaint (oldest first).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/sla/start:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Start complaint SLA
+      operationId: startComplaintSlaDomain
+      x-ear-id: API-409
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Start ComplaintSLA from SLAPolicy (default when policyId omitted).
+        At most one active SLA per complaint. Does not change Complaint status.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartSLARequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintSLADataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/sla/complete:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Complete complaint SLA
+      operationId: completeComplaintSlaDomain
+      x-ear-id: API-410
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Complete the active ComplaintSLA. Does not change Complaint status,
+        create Escalation, or send Notification.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintSLADataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/sla/recalculate:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    post:
+      summary: Recalculate complaint SLA
+      operationId: recalculateComplaintSlaDomain
+      x-ear-id: API-411
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Manual breach detection + remaining time against currentTime.
+        No scheduler. breachedAt is set once when due is exceeded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecalculateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintSLADataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{complaintId}/sla:
+    parameters:
+      - $ref: "#/components/parameters/ComplaintId"
+    get:
+      summary: Get complaint SLA
+      operationId: getComplaintSlaDomain
+      x-ear-id: API-412
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Return active ComplaintSLA when present, otherwise the latest
+        completed/historical SLA. May refresh breach detection on active rows.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintSLADataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tickets/{ticketId}/complaints:
+    parameters:
+      - $ref: "#/components/parameters/TicketId"
+    get:
+      summary: List complaints by queue ticket
+      operationId: listComplaintsByTicket
+      x-ear-id: API-395
+      tags: [Complaint Domain]
+      security: []
+      description: List Complaints for a visit-context ticket id. No Queue entity load.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintListResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      summary: Create complaint for queue ticket
+      operationId: createComplaintForTicket
+      x-ear-id: API-396
+      tags: [Complaint Domain]
+      security: []
+      description: |
+        Create a Complaint bound to the path ticket id.
+        Body queueTicketId is optional and overridden by the path.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComplaintRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintDataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  parameters:
+    ComplaintId:
+      name: complaintId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TicketId:
+      name: ticketId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    ComplaintStatus:
+      type: string
+      enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+    ComplaintPriority:
+      type: string
+      enum: [LOW, NORMAL, HIGH, URGENT]
+    CreateComplaintRequest:
+      type: object
+      required: [organizationId, branchId, category, title, description]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
+        queueTicketId:
+          type: string
+          format: uuid
+          description: Required on POST /api/v1/complaints; optional on ticket-nested create
+        category:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Free-form string (e.g. Billing, Internet, Sales)
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        priority:
+          $ref: "#/components/schemas/ComplaintPriority"
+          default: NORMAL
+    UpdateComplaintRequest:
+      type: object
+      properties:
+        category:
+          type: string
+          minLength: 1
+          maxLength: 100
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        priority:
+          $ref: "#/components/schemas/ComplaintPriority"
+        status:
+          $ref: "#/components/schemas/ComplaintStatus"
+    ResolveRequest:
+      type: object
+      required: [summary, resolvedBy]
+      properties:
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        resolvedBy:
+          type: string
+          minLength: 1
+          maxLength: 200
+    CloseRequest:
+      type: object
+      additionalProperties: false
+      description: Optional empty body for close.
+    ReopenRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 2000
+          description: Optional reopen reason (not persisted in CAPABILITY-005)
+    AssigneeType:
+      type: string
+      enum: [USER, TEAM, QUEUE, SYSTEM]
+      description: |
+        CAPABILITY-006 implements USER only.
+        TEAM / QUEUE / SYSTEM are design-ready reserved values.
+    AssignRequest:
+      type: object
+      required: [assigneeType, assigneeId, assignedBy]
+      properties:
+        assigneeType:
+          $ref: "#/components/schemas/AssigneeType"
+        assigneeId:
+          type: string
+          minLength: 1
+          maxLength: 200
+        assignedBy:
+          type: string
+          minLength: 1
+          maxLength: 200
+    ReassignRequest:
+      type: object
+      required: [assigneeType, assigneeId, assignedBy]
+      properties:
+        assigneeType:
+          $ref: "#/components/schemas/AssigneeType"
+        assigneeId:
+          type: string
+          minLength: 1
+          maxLength: 200
+        assignedBy:
+          type: string
+          minLength: 1
+          maxLength: 200
+    UnassignRequest:
+      type: object
+      required: [releasedBy]
+      properties:
+        releasedBy:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reason:
+          type: string
+          maxLength: 2000
+    EscalationLevel:
+      type: string
+      enum: [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4]
+      description: Handling level for Complaint Escalation (CAPABILITY-007).
+    EscalateRequest:
+      type: object
+      required: [level, reason, escalatedBy]
+      properties:
+        level:
+          $ref: "#/components/schemas/EscalationLevel"
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        escalatedBy:
+          type: string
+          minLength: 1
+          maxLength: 200
+    StartSLARequest:
+      type: object
+      properties:
+        policyId:
+          type: string
+          format: uuid
+          description: Optional; when omitted the default SLAPolicy is used
+    RecalculateRequest:
+      type: object
+      required: [currentTime]
+      properties:
+        currentTime:
+          type: string
+          format: date-time
+    ComplaintSLAResponse:
+      type: object
+      required:
+        - slaId
+        - policyId
+        - policyName
+        - targetMinutes
+        - startedAt
+        - dueAt
+        - remainingMinutes
+        - isActive
+        - isBreached
+      properties:
+        slaId:
+          type: string
+          format: uuid
+        policyId:
+          type: string
+          format: uuid
+        policyName:
+          type: string
+        targetMinutes:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        remainingMinutes:
+          type: integer
+          description: Minutes until due (negative when overdue); 0 when completed
+        isActive:
+          type: boolean
+        isBreached:
+          type: boolean
+        breachedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ComplaintSLADataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ComplaintSLAResponse"
+    EscalationResponse:
+      type: object
+      required:
+        - escalationId
+        - level
+        - reason
+        - escalatedBy
+        - escalatedAt
+        - isCurrent
+      properties:
+        escalationId:
+          type: string
+          format: uuid
+        level:
+          $ref: "#/components/schemas/EscalationLevel"
+        reason:
+          type: string
+        escalatedBy:
+          type: string
+        escalatedAt:
+          type: string
+          format: date-time
+        isCurrent:
+          type: boolean
+    EscalationDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/EscalationResponse"
+    EscalationListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EscalationResponse"
+    AssignmentResponse:
+      type: object
+      required:
+        - assignmentId
+        - complaintId
+        - assigneeType
+        - assigneeId
+        - assignedAt
+        - assignedBy
+        - isActive
+      properties:
+        assignmentId:
+          type: string
+          format: uuid
+        complaintId:
+          type: string
+          format: uuid
+        assigneeType:
+          $ref: "#/components/schemas/AssigneeType"
+        assigneeId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+        assignedBy:
+          type: string
+        releasedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+    AssignmentDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/AssignmentResponse"
+    AssignmentListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssignmentResponse"
+    ResolutionResponse:
+      type: object
+      required: [summary, resolvedBy, resolvedAt]
+      properties:
+        summary:
+          type: string
+        resolvedBy:
+          type: string
+        resolvedAt:
+          type: string
+          format: date-time
+    ComplaintResponse:
+      type: object
+      required:
+        - complaintId
+        - queueTicketId
+        - category
+        - title
+        - description
+        - priority
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        complaintId:
+          type: string
+          format: uuid
+        queueTicketId:
+          type: string
+          format: uuid
+        category:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          $ref: "#/components/schemas/ComplaintPriority"
+        status:
+          $ref: "#/components/schemas/ComplaintStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        resolution:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ResolutionResponse"
+    ComplaintDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ComplaintResponse"
+    ComplaintListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComplaintResponse"
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict / invalid state
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: Validation Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

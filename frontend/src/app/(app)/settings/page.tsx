@@ -1,5 +1,6 @@
+import { SystemSettingsManagement } from "@/features/settings";
+import { SlaPolicyManagement } from "@/features/sla";
 import {
-  Empty,
   PageContainer,
   PageHeader,
 } from "@/shared/ui";
@@ -13,12 +14,12 @@ export default function SettingsPage() {
           { label: "Home", href: "/dashboard" },
           { label: "Settings" },
         ]}
-        description="Application settings placeholder for future configuration screens."
+        description="Administration and configuration for ECMP complaint operations."
       />
-      <Empty
-        title="Settings"
-        description="Placeholder route. Theme and preference controls will land in a later sprint."
-      />
+      <div style={{ display: "grid", gap: "1.5rem" }}>
+        <SystemSettingsManagement />
+        <SlaPolicyManagement />
+      </div>
     </PageContainer>
   );
 }

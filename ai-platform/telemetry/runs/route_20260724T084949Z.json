@@ -1,0 +1,14 @@
+{
+  "type": "orchestrator_route",
+  "timestamp": "2026-07-24T08:49:49.764825+00:00",
+  "task": "TASK-064 Queue REST API Foundation",
+  "capability_id": "CAP-IMPLEMENT-FEATURE",
+  "agent_id": "AGENT-CODE",
+  "domain": null,
+  "memory_version": "v1",
+  "prompt_ref": "implement-feature@v1",
+  "rag_hit_count": 5,
+  "rag_top_score": 0.1642,
+  "context_count": 6,
+  "success": true
+}

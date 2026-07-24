@@ -47,3 +47,6 @@ backups/
 .env.*
 !.env.example
 
+# Local attachment blobs (TASK-029 LocalStorageProvider)
+backend/data/attachments/
+

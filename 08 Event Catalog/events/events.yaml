@@ -7,12 +7,13 @@
 # tests/test_service_unit.py::test_assign_and_status_payloads_match_event_catalog
 # and tests/test_lifecycle.py). Payloads unchanged (still frozen per DEC-006) —
 # this is a status-field correction only, not a contract change.
-version: 0.5
+version: 0.6
 owner: Integration Lead
 status: Approved
 delivery_guarantee: at-least-once (ADR-001); all consumers MUST be idempotent
 # Per-event lifecycle status vocabulary:
 #   Implemented = emitted by running code; Planned = approved, not yet produced; Proposed = pending approval.
+# 2026-07-24 (TASK-045): EVT-009..EVT-015 Complaint* foundation added (in-memory factory; no bus).
 events:
   - id: EVT-001
     name: CaseCreated
@@ -157,3 +158,203 @@ events:
       - Notification   # notify approvers (opt-in, BR-NOTIF-01)
       - Core Platform  # audit projection
     idempotency: idempotent by changeRequestId; approval decision/rejection is audit-only (no enterprise event), activation emits EVT-006
+
+  # --- Complaint Event Foundation (TASK-045) ---
+  # In-memory factory only; no bus / no event store in this task (ADR-009).
+  # Distinct from Case* EVT-001..005 (case-service catalog lineage).
+  - id: EVT-009
+    name: ComplaintCreated
+    status: Implemented
+    producer: ECMF
+    description: Emitted in-process when a Complaint is created (TASK-045 foundation; no bus yet)
+    fr: FR-001
+    payload:
+      eventId: string
+      eventType: string
+      occurredAt: datetime
+      complaintId: string
+      complaintNumber: string
+      currentStatus: string
+      priority: string
+      sourceType: string
+      sourceId: string
+      targetType: string
+      targetId: string   # nullable
+      routing: object    # nullable ComplaintRoute snapshot
+      contextReference: string
+      payload: object
+    consumers:
+      - Dashboard        # future
+      - Notification     # future
+      - KPI              # future
+      - Workflow         # future
+      - AI               # future
+    idempotency: idempotent by eventId; consumers ignore duplicates by eventId
+  - id: EVT-010
+    name: ComplaintAssigned
+    status: Implemented
+    producer: ECMF
+    description: Standardized ComplaintAssigned event shape (TASK-045 factory; Assignment module unchanged)
+    fr: FR-003
+    payload:
+      eventId: string
+      eventType: string
+      occurredAt: datetime
+      complaintId: string
+      complaintNumber: string
+      currentStatus: string
+      priority: string
+      sourceType: string
+      sourceId: string
+      targetType: string
+      targetId: string
+      routing: object
+      contextReference: string
+      payload: object
+    consumers:
+      - Dashboard
+      - Notification
+      - KPI
+      - Workflow
+      - AI
+    idempotency: idempotent by eventId
+  - id: EVT-011
+    name: ComplaintAccepted
+    status: Implemented
+    producer: ECMF
+    description: Emitted in-process when ASSIGNED transitions to IN_PROGRESS (assignee acceptance; TASK-045)
+    fr: FR-004
+    payload:
+      eventId: string
+      eventType: string
+      occurredAt: datetime
+      complaintId: string
+      complaintNumber: string
+      currentStatus: string
+      priority: string
+      sourceType: string
+      sourceId: string
+      targetType: string
+      targetId: string
+      routing: object
+      contextReference: string
+      payload: object
+    consumers:
+      - Dashboard
+      - Notification
+      - KPI
+      - Workflow
+      - AI
+    idempotency: idempotent by eventId
+  - id: EVT-012
+    name: ComplaintInProgress
+    status: Implemented
+    producer: ECMF
+    description: Emitted in-process when Complaint status becomes IN_PROGRESS (TASK-045)
+    fr: FR-004
+    payload:
+      eventId: string
+      eventType: string
+      occurredAt: datetime
+      complaintId: string
+      complaintNumber: string
+      currentStatus: string
+      priority: string
+      sourceType: string
+      sourceId: string
+      targetType: string
+      targetId: string
+      routing: object
+      contextReference: string
+      payload: object
+    consumers:
+      - Dashboard
+      - Notification
+      - KPI
+      - Workflow
+      - AI
+    idempotency: idempotent by eventId
+  - id: EVT-013
+    name: ComplaintResolved
+    status: Implemented
+    producer: ECMF
+    description: Standardized ComplaintResolved event shape (TASK-045 factory)
+    fr: FR-004
+    payload:
+      eventId: string
+      eventType: string
+      occurredAt: datetime
+      complaintId: string
+      complaintNumber: string
+      currentStatus: string
+      priority: string
+      sourceType: string
+      sourceId: string
+      targetType: string
+      targetId: string
+      routing: object
+      contextReference: string
+      payload: object
+    consumers:
+      - Dashboard
+      - Notification
+      - KPI
+      - Workflow
+      - AI
+    idempotency: idempotent by eventId
+  - id: EVT-014
+    name: ComplaintClosed
+    status: Implemented
+    producer: ECMF
+    description: Emitted in-process when a Complaint is closed (TASK-045; API-312 path)
+    fr: FR-004
+    payload:
+      eventId: string
+      eventType: string
+      occurredAt: datetime
+      complaintId: string
+      complaintNumber: string
+      currentStatus: string
+      priority: string
+      sourceType: string
+      sourceId: string
+      targetType: string
+      targetId: string
+      routing: object
+      contextReference: string
+      payload: object
+    consumers:
+      - Dashboard
+      - Notification
+      - KPI
+      - Workflow
+      - AI
+    idempotency: idempotent by eventId
+  - id: EVT-015
+    name: ComplaintEscalated
+    status: Implemented
+    producer: ECMF
+    description: Standardized ComplaintEscalated event shape (TASK-045 factory; Escalation module unchanged)
+    fr: FR-004
+    payload:
+      eventId: string
+      eventType: string
+      occurredAt: datetime
+      complaintId: string
+      complaintNumber: string
+      currentStatus: string
+      priority: string
+      sourceType: string
+      sourceId: string
+      targetType: string
+      targetId: string
+      routing: object
+      contextReference: string
+      payload: object
+    consumers:
+      - Dashboard
+      - Notification
+      - KPI
+      - Workflow
+      - AI
+    idempotency: idempotent by eventId

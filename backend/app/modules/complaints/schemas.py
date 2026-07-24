@@ -8,16 +8,29 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.enums import ComplaintStatus
+from app.core.enums import ComplaintSourceType, ComplaintStatus, ComplaintTargetType
 
 Priority = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
 class ComplaintCreateRequest(BaseModel):
+    """Create complaint — supports legacy and multi-source/target payloads.
+
+    Legacy (backward compatible): ``customerId`` (+ optional ``branchId``)
+    implies ``sourceType=CUSTOMER``, ``targetType=BRANCH``.
+
+    Generalized: provide ``sourceType``, ``sourceId``, ``targetType``,
+    ``targetId`` (all required together).
+    """
+
     model_config = ConfigDict(populate_by_name=True)
 
-    customer_id: uuid.UUID = Field(alias="customerId")
+    customer_id: uuid.UUID | None = Field(default=None, alias="customerId")
     branch_id: uuid.UUID | None = Field(default=None, alias="branchId")
+    source_type: ComplaintSourceType | None = Field(default=None, alias="sourceType")
+    source_id: uuid.UUID | None = Field(default=None, alias="sourceId")
+    target_type: ComplaintTargetType | None = Field(default=None, alias="targetType")
+    target_id: uuid.UUID | None = Field(default=None, alias="targetId")
     subject: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1, max_length=5000)
     priority: Priority
@@ -32,6 +45,68 @@ class ComplaintCreateRequest(BaseModel):
         if not cleaned:
             raise ValueError("must not be blank")
         return cleaned
+
+    @model_validator(mode="after")
+    def resolve_source_target(self) -> ComplaintCreateRequest:
+        generalized_fields = (
+            self.source_type,
+            self.source_id,
+            self.target_type,
+            self.target_id,
+        )
+        any_generalized = any(v is not None for v in generalized_fields)
+        all_generalized = all(v is not None for v in generalized_fields)
+
+        if any_generalized and not all_generalized:
+            missing: list[str] = []
+            if self.source_type is None:
+                missing.append("sourceType")
+            if self.source_id is None:
+                missing.append("sourceId")
+            if self.target_type is None:
+                missing.append("targetType")
+            if self.target_id is None:
+                missing.append("targetId")
+            raise ValueError(
+                "sourceType, sourceId, targetType, and targetId are all required "
+                f"when using generalized create (missing: {', '.join(missing)})"
+            )
+
+        if all_generalized:
+            # Sync legacy columns from polymorphic fields.
+            if self.source_type == ComplaintSourceType.CUSTOMER:
+                object.__setattr__(
+                    self,
+                    "customer_id",
+                    self.source_id if self.customer_id is None else self.customer_id,
+                )
+                if self.customer_id != self.source_id:
+                    raise ValueError(
+                        "customerId must match sourceId when sourceType is CUSTOMER"
+                    )
+            if self.target_type == ComplaintTargetType.BRANCH:
+                object.__setattr__(
+                    self,
+                    "branch_id",
+                    self.target_id if self.branch_id is None else self.branch_id,
+                )
+                if self.branch_id != self.target_id:
+                    raise ValueError(
+                        "branchId must match targetId when targetType is BRANCH"
+                    )
+            elif self.target_type == ComplaintTargetType.HEAD_OFFICE:
+                # HO target — branch context is not derived.
+                pass
+            return self
+
+        # Legacy payload: customer → branch (exact prior behavior).
+        if self.customer_id is None:
+            raise ValueError("customerId is required when source/target fields are omitted")
+        object.__setattr__(self, "source_type", ComplaintSourceType.CUSTOMER)
+        object.__setattr__(self, "source_id", self.customer_id)
+        object.__setattr__(self, "target_type", ComplaintTargetType.BRANCH)
+        object.__setattr__(self, "target_id", self.branch_id)
+        return self
 
 
 class ComplaintUpdateRequest(BaseModel):
@@ -84,8 +159,12 @@ class ComplaintResponse(BaseModel):
 
     id: uuid.UUID
     complaint_number: str = Field(alias="complaintNumber")
-    customer_id: uuid.UUID = Field(alias="customerId")
+    customer_id: uuid.UUID | None = Field(default=None, alias="customerId")
     branch_id: uuid.UUID | None = Field(default=None, alias="branchId")
+    source_type: ComplaintSourceType = Field(alias="sourceType")
+    source_id: uuid.UUID = Field(alias="sourceId")
+    target_type: ComplaintTargetType = Field(alias="targetType")
+    target_id: uuid.UUID | None = Field(default=None, alias="targetId")
     subject: str
     description: str
     status: ComplaintStatus

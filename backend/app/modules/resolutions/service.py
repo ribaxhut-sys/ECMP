@@ -207,6 +207,12 @@ class ResolutionService:
                 "resolvedBy": str(resolved_by),
             },
         )
+
+        # TASK-024 — evaluate resolution (and other) SLA statuses.
+        from app.modules.sla.hooks import evaluate_sla_for_complaint
+
+        evaluate_sla_for_complaint(self._repo.session, complaint.id, now=now)
+
         result = ResolveComplaintResult(
             resolution=_to_response(resolution),
             complaintId=complaint.id,
@@ -366,6 +372,11 @@ class ResolutionService:
 
         assert complaint.status == ComplaintStatus.IN_PROGRESS
         assert escalation.status == EscalationRequestStatus.APPROVED
+
+        # TASK-024 — evaluate resolution (and other) SLA statuses.
+        from app.modules.sla.hooks import evaluate_sla_for_complaint
+
+        evaluate_sla_for_complaint(self._repo.session, complaint.id, now=now)
 
         result = FinalResolutionResult(
             complaintId=complaint.id,

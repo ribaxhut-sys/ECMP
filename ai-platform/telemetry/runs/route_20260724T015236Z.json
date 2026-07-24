@@ -1,0 +1,14 @@
+{
+  "type": "orchestrator_route",
+  "timestamp": "2026-07-24T01:52:36.311021+00:00",
+  "task": "TASK-042 Complaint Domain Generalization DEC-018 Multi-Source Multi-Target",
+  "capability_id": "CAP-IMPLEMENT-FEATURE",
+  "agent_id": "AGENT-CODE",
+  "domain": "ecmf",
+  "memory_version": "v1",
+  "prompt_ref": "implement-feature@v1",
+  "rag_hit_count": 5,
+  "rag_top_score": 0.1807,
+  "context_count": 7,
+  "success": true
+}

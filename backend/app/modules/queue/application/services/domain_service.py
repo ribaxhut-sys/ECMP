@@ -1,6 +1,7 @@
-"""QueueDomainService — pure domain rules (TASK-062).
+"""QueueDomainService — pure domain rules (TASK-062 / CAPABILITY-003).
 
 No database. No repository. No infrastructure I/O.
+Lifecycle validation and ticket-number policy live here — not in controllers.
 """
 
 from __future__ import annotations
@@ -9,6 +10,10 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from app.modules.queue.application.services.errors import QueueApplicationError
+from app.modules.queue.domain.ticket_number import (
+    PrefixSequenceTicketNumberGenerator,
+    TicketNumberGenerator,
+)
 from app.modules.queue.models import (
     Queue,
     QueuePolicy,
@@ -32,19 +37,36 @@ _TERMINAL_TICKET = frozenset(
     }
 )
 
+_RECALLABLE = frozenset(
+    {
+        QueueTicketStatus.CALLED,
+        QueueTicketStatus.SERVING,
+    }
+)
+
 
 class QueueDomainService:
     """Domain service for queue / ticket business rules."""
 
+    def __init__(
+        self,
+        ticket_number_generator: TicketNumberGenerator | None = None,
+    ) -> None:
+        self._ticket_numbers: TicketNumberGenerator = (
+            ticket_number_generator
+            if ticket_number_generator is not None
+            else PrefixSequenceTicketNumberGenerator(prefix="A", width=3)
+        )
+
     def generate_ticket_number(self, sequence: int) -> str:
-        """Generate a display ticket number from a per-queue sequence."""
-        if not isinstance(sequence, int) or sequence < 1:
+        """Generate a display ticket number via the injected generator (default A001)."""
+        try:
+            return self._ticket_numbers.generate(sequence)
+        except ValueError as exc:
             raise QueueApplicationError(
                 "INVALID_TICKET_SEQUENCE",
-                "ticket sequence must be a positive integer",
-            )
-        return f"Q{sequence:04d}"
-
+                str(exc),
+            ) from exc
     def validate_queue_status(
         self,
         queue: Queue,
@@ -183,6 +205,15 @@ class QueueDomainService:
                 "INVALID_TICKET_TRANSITION",
                 f"ticket status {ticket.status.value} cannot return to WAITING",
             )
+
+    def recall_ticket(self, ticket: QueueTicket) -> QueueTicket:
+        """Re-announce a CALLED / SERVING ticket. Status unchanged (no Voice/Display)."""
+        if ticket.status not in _RECALLABLE:
+            raise QueueApplicationError(
+                "INVALID_TICKET_TRANSITION",
+                f"cannot recall ticket in status {ticket.status.value}",
+            )
+        return ticket
 
     def transition_ticket(
         self,

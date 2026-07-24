@@ -1,7 +1,8 @@
-"""Queue bounded context (TASK-061 domain + TASK-062 application).
+"""Queue bounded context (TASK-061…064 / CAPABILITY-003).
 
-First-class Queue BC — domain model + application CQRS foundation.
-No REST API. No database. No repository. No display/kiosk/notification.
+Domain + application CQRS + persistence + REST CRUD + operational lifecycle.
+Public package exports remain domain models only — ORM stays internal.
+No Redis. No display/kiosk/voice/notification. No Complaint coupling.
 """
 
 from app.modules.queue.models import (

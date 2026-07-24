@@ -12,6 +12,10 @@ from app.db.base import Base
 
 # Ensure all models are registered on Base.metadata before autogenerate/upgrade.
 from app import models  # noqa: E402, F401
+# Queue ORM lives under the Queue module (TASK-063) — register for Alembic only.
+from app.modules.queue import orm as _queue_orm  # noqa: E402, F401
+# Complaint Domain Foundation ORM (CAPABILITY-004) — register for Alembic only.
+from app.modules.complaint.infrastructure import orm as _complaint_orm  # noqa: E402, F401
 
 config = context.config
 

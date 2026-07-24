@@ -1,0 +1,76 @@
+{
+  "date": "2026-07-23",
+  "health": 98,
+  "markdown_files": 329,
+  "adr_count": 13,
+  "api_spec_count": 3,
+  "event_count": 8,
+  "business_rules_referenced": 8,
+  "fr_referenced": 12,
+  "domains_in_traceability": 6,
+  "traceability_links": 10,
+  "metadata_complete_pct": 92,
+  "reviewed_pct": 41,
+  "trends_generated": true,
+  "top_changed_files": [
+    {
+      "path": "07 API Catalog/README.md",
+      "count": 8
+    },
+    {
+      "path": "implementation/frontend/src/features/case-detail/CaseDetailWorkspace.tsx",
+      "count": 7
+    },
+    {
+      "path": "implementation/frontend/src/features/case-detail/components/ActionPanel.tsx",
+      "count": 5
+    },
+    {
+      "path": "07 API Catalog/openapi/complaint-service.v1.yaml",
+      "count": 4
+    },
+    {
+      "path": "ai-platform/orchestrator/last_route.md",
+      "count": 4
+    },
+    {
+      "path": "ai/orchestrator/last_route.md",
+      "count": 4
+    },
+    {
+      "path": "backend/app/core/enums.py",
+      "count": 4
+    },
+    {
+      "path": "frontend/src/lib/api/index.ts",
+      "count": 4
+    },
+    {
+      "path": "frontend/src/lib/api/types.ts",
+      "count": 4
+    },
+    {
+      "path": "implementation/frontend/package-lock.json",
+      "count": 4
+    }
+  ],
+  "active_areas": {
+    "Implementation": 242,
+    "Portal Docs": 79,
+    "AI Context": 58,
+    "API": 27,
+    "Tooling": 26,
+    "ADR": 19,
+    "Domain Architecture": 18,
+    "FRD": 12,
+    "Event": 5,
+    "Business": 5,
+    "Solution Architecture": 4,
+    "Business Rules": 3,
+    "Core Platform": 1,
+    "CRM": 1,
+    "Dashboard": 1
+  },
+  "coverage_overall": 68.75,
+  "docs_sync_signal": "n/a (no local git diff)"
+}

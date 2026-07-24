@@ -20,7 +20,7 @@ BR-001
    │
    ├─ FRD: FR-001, FR-004
    ├─ API: API-001, API-004
-   ├─ Event: EVT-001, EVT-003
+   ├─ Event: EVT-001, EVT-003, EVT-005
    ├─ Test Case: TC-001, TC-004
    └─ Sprint: Sprint-01, Sprint-02
 ```
@@ -48,11 +48,12 @@ BR-001
 
 - `EVT-001` — CaseCreated
 - `EVT-003` — StatusChanged
+- `EVT-005` — CaseClosed
 
 ## Tests
 
 - `TC-001` — Create complaint with valid customer succeeds
-- `TC-004` — Invalid status transition rejected
+- `TC-004` — Invalid status transition rejected; valid Close (EVT-005) and Reject (PENDING_REVIEW→IN_PROGRESS) covered by same TC suite
 
 ## Blueprint Items
 
@@ -67,4 +68,4 @@ BR-001
 ## Traceability Links
 
 - `TRC-L-001` [ECMF] Create complaint case linked to customer (status: Approved)
-- `TRC-L-004` [ECMF] Validated status transition (status: Planned)
+- `TRC-L-004` [ECMF] Validated status transition (incl. Close→EVT-005; Reject PENDING_REVIEW→IN_PROGRESS) (status: Approved)

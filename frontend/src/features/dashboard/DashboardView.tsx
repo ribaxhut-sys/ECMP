@@ -8,10 +8,9 @@ import {
   PageContainer,
   PageHeader,
 } from "@/shared/ui";
-import { ComplaintByBranch } from "./ComplaintByBranch";
-import { ComplaintByStatus } from "./ComplaintByStatus";
-import { LatestComplaints } from "./LatestComplaints";
 import { QuickActions } from "./QuickActions";
+import { RecentActivity } from "./RecentActivity";
+import { SlaCards } from "./SlaCards";
 import { SummaryCards } from "./SummaryCards";
 import { useDashboardData } from "./useDashboardData";
 
@@ -32,8 +31,8 @@ export function DashboardView() {
         breadcrumbs={[{ label: "Home", href: "/dashboard" }, { label: "Dashboard" }]}
         description={
           <>
-            Signed in as {user?.fullName ?? user?.username}. Live complaint
-            summary from report and complaint APIs.
+            Signed in as {user?.fullName ?? user?.username}. Live summary from
+            the Dashboard API.
           </>
         }
         actions={
@@ -56,26 +55,14 @@ export function DashboardView() {
         />
       ) : (
         <>
-          <SummaryCards summary={data?.summary ?? null} loading={loading} />
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ComplaintByStatus
-              rows={data?.byStatus ?? null}
-              loading={loading}
-            />
-            <ComplaintByBranch
-              rows={data?.byBranch ?? null}
+          <SummaryCards header={data?.header ?? null} loading={loading} />
+          <SlaCards sla={data?.sla ?? null} loading={loading} />
+          <div id="recent-activity">
+            <RecentActivity
+              rows={data?.recentActivity ?? null}
               loading={loading}
             />
           </div>
-
-          <div id="latest-complaints">
-            <LatestComplaints
-              rows={data?.latestComplaints ?? null}
-              loading={loading}
-            />
-          </div>
-
           <QuickActions onRefresh={() => void reload()} />
         </>
       )}

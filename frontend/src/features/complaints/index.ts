@@ -7,5 +7,6 @@ export { CloseEscalationCard } from "./CloseEscalationCard";
 export { EscalationCard } from "./EscalationCard";
 export { FinalResolutionCard } from "./FinalResolutionCard";
 export { ResolutionCard } from "./ResolutionCard";
+export { SlaCard } from "./SlaCard";
 export { StatusActionsCard } from "./StatusActionsCard";
 export { TimelineCard } from "./TimelineCard";

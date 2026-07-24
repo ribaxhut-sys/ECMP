@@ -18,11 +18,11 @@
 | Signal | Value |
 |---|---|
 | Domain coverage overall | 68.8% |
-| Coverage delta vs previous metrics snapshot | n/a |
+| Coverage delta vs previous metrics snapshot | +0.0 pts |
 | Docs-sync signal (from AI review) | n/a (no local git diff) |
 | Sprint lead/window signal | Sprint-01 status=Approved; planned window 2026-07-21 → 2026-08-21 |
-| Traceability links | 9 |
-| Reviewed docs % | 42 |
+| Traceability links | 10 |
+| Reviewed docs % | 41 |
 
 ## Coverage by Domain
 

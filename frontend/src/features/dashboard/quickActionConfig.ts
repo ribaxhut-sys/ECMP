@@ -45,8 +45,8 @@ export const QUICK_ACTIONS: readonly QuickAction[] = [
   },
   {
     id: "refresh-reports",
-    label: "Refresh Reports",
-    permission: "reports:read",
-    description: "Reload dashboard aggregations",
+    label: "Refresh Dashboard",
+    permission: "dashboard:read",
+    description: "Reload dashboard summary",
   },
 ] as const;

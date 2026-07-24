@@ -86,6 +86,21 @@ Catatan penyimpangan dari versi sebelumnya:
 - `assignee_id` belum ada di skema fisik Sprint-01 — masuk fase assignment (Sprint-02, API-003).
 - `sla_due_at` dipindah ke fase SLA (belum ada di skema fisik Sprint-01; dihitung dari SLA Config saat fase SLA dikerjakan).
 
+### Entity: Complaint Header (ECMF) — multi-source / multi-target (DEC-018 / TASK-042)
+
+Physical table `complaints` (backend). One aggregate; polymorphic source/target.
+
+| Attribute | Description | Data Type | Mandatory | Source System | PII | Sample Value | Notes |
+|---|---|---|---|---|---|---|---|
+| source_type | Originator kind | String(32) | Y | ECMP | N | CUSTOMER | ENUM VARCHAR: CUSTOMER, BRANCH, HEAD_OFFICE, SYSTEM; extensible without migration |
+| source_id | Originator id | UUID | Y | ECMP | N | … | Entity depends on source_type (no typed FK) |
+| target_type | Destination kind | String(32) | Y | ECMP | N | BRANCH | ENUM VARCHAR: BRANCH, HEAD_OFFICE; extensible without migration |
+| target_id | Destination id | UUID | N* | ECMP | N | … | Required on generalized create; nullable for legacy null-branch rows |
+| customer_id | Legacy/customer projection | UUID | N | ECMP | Y | … | Set when source_type=CUSTOMER; nullable otherwise |
+| branch_id | Legacy/branch projection | UUID | N | ECMP | N | … | Set when target_type=BRANCH (assignment context) |
+
+\*Mandatory when create uses generalized source/target fields.
+
 ### Entity: Customer Reference (CRM)
 | Attribute | Description | Data Type | Mandatory | Source System | PII | Sample Value | Notes |
 |---|---|---|---|---|---|---|---|

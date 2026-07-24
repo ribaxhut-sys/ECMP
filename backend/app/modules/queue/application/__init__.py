@@ -1,6 +1,9 @@
-"""Queue Application layer (TASK-062).
+"""Queue Application layer (TASK-062 / TASK-064 / CAPABILITY-003).
 
-CQRS commands / queries + domain service. No REST. No DB. No repository.
+CQRS commands / queries + domain service + persistence-backed CRUD / Operations.
+In-memory handlers remain for foundation workspace.
+REST CRUD → QueueCrudApplicationService.
+REST Operations → QueueOperationsApplicationService.
 """
 
 from app.modules.queue.application.commands import (
@@ -20,6 +23,10 @@ from app.modules.queue.application.commands import (
     OpenQueueHandler,
     PauseQueueCommand,
     PauseQueueHandler,
+    RecallTicketCommand,
+    RecallTicketHandler,
+    SkipTicketCommand,
+    SkipTicketHandler,
 )
 from app.modules.queue.application.dto import (
     QueueCounterDto,
@@ -35,9 +42,19 @@ from app.modules.queue.application.queries import (
     GetWaitingTicketsQuery,
 )
 from app.modules.queue.application.services import (
+    CreateCounterInput,
+    CreateQueueInput,
     InMemoryQueueState,
+    IssueTicketInput,
+    IssueTicketOperationInput,
     QueueApplicationError,
+    QueueCounterView,
+    QueueCrudApplicationService,
     QueueDomainService,
+    QueueOperationsApplicationService,
+    UpdateCounterInput,
+    UpdateQueueInput,
+    UpdateTicketInput,
     get_queue_domain_service,
     get_queue_state,
 )
@@ -51,8 +68,10 @@ __all__ = [
     "CloseQueueHandler",
     "CompleteTicketCommand",
     "CompleteTicketHandler",
+    "CreateCounterInput",
     "CreateQueueCommand",
     "CreateQueueHandler",
+    "CreateQueueInput",
     "GetQueueHandler",
     "GetQueueQuery",
     "GetQueueTicketsHandler",
@@ -62,15 +81,27 @@ __all__ = [
     "InMemoryQueueState",
     "IssueTicketCommand",
     "IssueTicketHandler",
+    "IssueTicketInput",
+    "IssueTicketOperationInput",
     "OpenQueueCommand",
     "OpenQueueHandler",
     "PauseQueueCommand",
     "PauseQueueHandler",
     "QueueApplicationError",
     "QueueCounterDto",
+    "QueueCounterView",
+    "QueueCrudApplicationService",
     "QueueDomainService",
     "QueueDto",
+    "QueueOperationsApplicationService",
     "QueueTicketDto",
+    "RecallTicketCommand",
+    "RecallTicketHandler",
+    "SkipTicketCommand",
+    "SkipTicketHandler",
+    "UpdateCounterInput",
+    "UpdateQueueInput",
+    "UpdateTicketInput",
     "get_queue_domain_service",
     "get_queue_state",
 ]

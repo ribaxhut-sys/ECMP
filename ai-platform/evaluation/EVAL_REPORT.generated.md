@@ -24,7 +24,7 @@
   - evidence: ai-platform/evaluation/facts.md, ai/generated/memory_global.md, ai-platform/memory/v1/memory_global.md
 - `Q-ARCH-003` **PASS** — What integration style is chosen between ECMF and KPI/Notification?
   - matched: event-driven, asynchronous, event
-  - evidence: ai-platform/evaluation/facts.md, 08 Event Catalog/EVENT_CATALOG.generated.md, ai/README.md
+  - evidence: ai-platform/evaluation/facts.md, 03 Functional Requirements/ECMP_FRD_Administration_v0.1.md, 05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md
 
 ## Suite `business` — PASS (2/2 = 100%)
 
@@ -33,19 +33,19 @@
   - evidence: ai-platform/evaluation/facts.md, 02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md, 02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md
 - `Q-BIZ-002` **PASS** — Which FR IDs cover create and get case?
   - matched: fr-001, fr-002
-  - evidence: 26 Traceability/TRACEABILITY_MATRIX.md, 03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md, 20 Domain Architecture/navigator/ecmf.md
+  - evidence: 26 Traceability/TRACEABILITY_MATRIX.md, 07 API Catalog/API_CATALOG.generated.md, 07 API Catalog/API_CATALOG.generated.md
 
 ## Suite `coding` — PASS (3/3 = 100%)
 
 - `Q-CODE-001` **PASS** — Which stack is approved for Sprint-01 backend?
   - matched: fastapi, python
-  - evidence: ai-platform/evaluation/facts.md, 05 Architecture Decision Records/ECMP_ADR_004_Implementation_Stack_Sprint01_v1.0.md, 02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md
+  - evidence: ai-platform/evaluation/facts.md, 05 Architecture Decision Records/ECMP_ADR_004_Implementation_Stack_Sprint01_v1.0.md, implementation/README.md
 - `Q-CODE-002` **PASS** — Where should backend code live?
   - matched: implementation/backend
-  - evidence: ai/rules.md, ai-platform/evaluation/facts.md, ai/04_api.md
+  - evidence: 03 Functional Requirements/ECMP_FRD_Administration_v0.1.md, ai/rules.md, ai/sprint/IMPLEMENTATION_ROADMAP_v0.1.md
 - `Q-CODE-003` **PASS** — Which event must be emitted after create case?
   - matched: casecreated, evt-001
-  - evidence: 08 Event Catalog/EVENT_CATALOG.generated.md, ai/06_events.md, 03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md
+  - evidence: 08 Event Catalog/EVENT_CATALOG.generated.md, ai/06_events.md, 05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md
 
 ## Suite `qa` — FAIL (1/2 = 50%)
 
@@ -53,7 +53,7 @@
   - evidence: ai-platform/evaluation/facts.md, 02 Business Rules/ECMP_Business_Rules_Sprint01_v0.1.md, 20 Domain Architecture/navigator/crm.md
 - `Q-QA-002` **PASS** — Name one acceptance test id for create case.
   - matched: tc-001
-  - evidence: 03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md, ai-platform/evaluation/facts.md, 03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md
+  - evidence: ai-platform/evaluation/facts.md, 03 Functional Requirements/ECMP_Use_Cases_ECMF_v0.1.md, 03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md
 
 ## Suite `security` — PASS (2/2 = 100%)
 
@@ -62,4 +62,4 @@
   - evidence: ai-platform/evaluation/facts.md, ai-platform/packs/core-platform/pack.md, 03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md
 - `Q-SEC-002` **PASS** — Can audit trail be deleted?
   - matched: no, cannot, immutable
-  - evidence: ai-platform/evaluation/facts.md, ai/07_security.md, 26 Traceability/TRACEABILITY_MATRIX.md
+  - evidence: ai-platform/evaluation/facts.md, ai/domain/core-platform.md, ai/07_security.md

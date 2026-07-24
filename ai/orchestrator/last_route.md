@@ -11,7 +11,7 @@
 | Last Review | auto |
 | Next Review | auto |
 
-> Task: TASK-009 Complaint Status Transition PATCH status validated matrix timeline
+> Task: CAPABILITY-008 Complaint SLA Foundation
 
 ## Capability: Implement Feature
 - ID: `CAP-IMPLEMENT-FEATURE`
@@ -42,11 +42,11 @@
 
 ## RAG Top Hits
 
-- `20 Domain Architecture/navigator/ecmf.md` (score=0.3714)
-- `ai/sprint/IMPLEMENTATION_READINESS_ROADMAP.md` (score=0.1954)
-- `03 Functional Requirements/ECMP_FRD_ECMF_Lifecycle_v0.1.md` (score=0.1657)
-- `ai/sprint/IMPLEMENTATION_READINESS_ROADMAP.md` (score=0.1292)
-- `ai/01_business.md` (score=0.1209)
+- `07 API Catalog/README.md` (score=0.2231)
+- `07 API Catalog/API_CATALOG.generated.md` (score=0.211)
+- `ai/sprint/Sprint-01.md` (score=0.1737)
+- `ai/01_business.md` (score=0.1605)
+- `ai/generated/memory_global.md` (score=0.1505)
 
 ## Next
 1. Load prompt + context in the selected tool role

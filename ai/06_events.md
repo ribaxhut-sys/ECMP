@@ -31,5 +31,7 @@
 - Consumers MUST be idempotent (delivery at-least-once, ADR-001).
 - Emisi event via transactional outbox (ADR-009) — dilarang emit di luar transaksi write.
 - Payload camelCase (naming standard `21 Technical Standards`).
+- In-process Complaint lifecycle events (EVT-009…EVT-015) use `ComplaintEventFactory` + `EventDispatcher` (TASK-045/046) — same-process only; not a broker.
+- Notification Domain Foundation (TASK-047) consumes those events via `NotificationEventHandler` and builds in-memory `Notification` objects (no channel delivery).
 - Regenerate catalog markdown after edits:
   `python tools/generate_event_catalog.py`

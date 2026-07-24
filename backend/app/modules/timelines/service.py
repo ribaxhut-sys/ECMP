@@ -38,3 +38,9 @@ class TimelineService:
             raise NotFoundError("Complaint not found")
         rows = self._repo.list_by_complaint(complaint_id)
         return [_to_response(row) for row in rows]
+
+    def list_recent(self, *, limit: int = 10) -> list[ComplaintTimeline]:
+        """Latest timeline rows for dashboard composition (max 10)."""
+        if limit < 1:
+            return []
+        return self._repo.list_recent(limit=min(limit, 10))
