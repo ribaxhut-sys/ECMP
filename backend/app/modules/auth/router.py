@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import CurrentPrincipal
 from app.core.config import Settings, get_settings
+from app.core.errors import UnauthenticatedError
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
+from app.modules.auth.login_protection import get_login_attempt_guard
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import AuthMeResponse, LoginRequest, TokenResponse
 from app.modules.auth.service import AuthService
@@ -23,6 +25,21 @@ def get_auth_service(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthService:
     return AuthService(AuthRepository(session), settings)
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",", 1)[0].strip()
+        if first:
+            return first
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
+def _login_guard_key(request: Request, username: str) -> str:
+    return f"{_client_ip(request)}:{username.strip().lower()}"
 
 
 def _set_refresh_cookie(
@@ -68,11 +85,27 @@ def _read_refresh_cookie(request: Request, settings: Settings) -> str | None:
 )
 def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     service: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[TokenResponse]:
-    session = service.login(payload)
+    guard_key = _login_guard_key(request, payload.username)
+    guard = None
+    if settings.login_rate_limit_enabled:
+        guard = get_login_attempt_guard(settings)
+        guard.check(guard_key)
+
+    try:
+        session = service.login(payload)
+    except UnauthenticatedError:
+        if guard is not None:
+            guard.record_failure(guard_key)
+        raise
+
+    if guard is not None:
+        guard.reset(guard_key)
+
     _set_refresh_cookie(response, raw_token=session.refresh_token, settings=settings)
     return DataResponse(data=session.tokens)
 

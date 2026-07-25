@@ -89,3 +89,14 @@ class ConflictError(ApiError):
 
     def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
         super().__init__(409, "CONFLICT", message, details)
+
+
+class RateLimitedError(ApiError):
+    """HTTP 429 — caller exceeded a temporary rate / lockout limit."""
+
+    def __init__(
+        self,
+        message: str = "Too many attempts; try again later",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(429, "RATE_LIMITED", message, details)
