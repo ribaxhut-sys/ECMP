@@ -9,6 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   fetchBranches,
@@ -92,6 +93,8 @@ export function ComplaintListView() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission("complaints:update");
 
   const filters = useMemo(
     () => filtersFromSearchParams(new URLSearchParams(searchParams.toString())),
@@ -245,19 +248,21 @@ export function ComplaintListView() {
             >
               View
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => router.push(`/complaints/${row.id}/edit`)}
-            >
-              Edit
-            </Button>
+            {canUpdate ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => router.push(`/complaints/${row.id}/edit`)}
+              >
+                Edit
+              </Button>
+            ) : null}
           </div>
         ),
       },
     ],
-    [router],
+    [canUpdate, router],
   );
 
   const rangeLabel =

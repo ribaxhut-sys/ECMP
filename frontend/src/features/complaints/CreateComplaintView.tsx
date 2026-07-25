@@ -190,15 +190,23 @@ export function CreateComplaintView() {
       const response = await createComplaint(toCreateComplaintRequest(values));
       const complaintId = response.data.id;
 
+      const failedUploads: string[] = [];
       for (const file of files) {
         try {
           await uploadAttachment("Complaint", complaintId, file);
         } catch {
           // Best-effort: complaint already exists; user can retry from detail.
+          failedUploads.push(file.name);
         }
       }
 
-      router.push(`/complaints/${complaintId}`);
+      if (failedUploads.length > 0) {
+        router.push(
+          `/complaints/${complaintId}?attachmentUploadFailed=${failedUploads.length}`,
+        );
+      } else {
+        router.push(`/complaints/${complaintId}`);
+      }
     } catch (err) {
       const message =
         err instanceof ApiError

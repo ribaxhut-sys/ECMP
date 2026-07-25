@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   fetchBranches,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/api";
 import type { Complaint, ComplaintStatus, Priority } from "@/lib/api/types";
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -102,6 +104,12 @@ function DetailField({
 
 export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission("complaints:update");
+  const failedAttachmentCount = Number(
+    searchParams.get("attachmentUploadFailed") ?? "0",
+  );
   const [complaint, setComplaint] = useState<Complaint | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [branch, setBranch] = useState<Branch | null>(null);
@@ -259,13 +267,15 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push(`/complaints/${complaint.id}/edit`)}
-            >
-              Edit
-            </Button>
+            {canUpdate ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push(`/complaints/${complaint.id}/edit`)}
+              >
+                Edit
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -276,6 +286,24 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           </div>
         }
       />
+
+      {failedAttachmentCount > 0 ? (
+        <Alert
+          tone="warning"
+          title="Complaint created successfully."
+          description={
+            <>
+              <p>
+                {failedAttachmentCount} attachment
+                {failedAttachmentCount === 1 ? "" : "s"} failed to upload.
+              </p>
+              <p className="mt-1">
+                You can upload them later from the Complaint Detail page.
+              </p>
+            </>
+          }
+        />
+      ) : null}
 
       <Card>
         <CardHeader>
