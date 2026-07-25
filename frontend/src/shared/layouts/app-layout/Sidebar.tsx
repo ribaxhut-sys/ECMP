@@ -9,6 +9,7 @@ import {
   IconPaperclip,
   IconQueue,
   IconReports,
+  IconResolutions,
   IconSettings,
   IconUsers,
 } from "@/shared/icons";
@@ -21,6 +22,7 @@ const iconMap = {
   complaints: IconComplaints,
   queue: IconQueue,
   assignments: IconAssignments,
+  resolutions: IconResolutions,
   reports: IconReports,
   users: IconUsers,
   settings: IconSettings,

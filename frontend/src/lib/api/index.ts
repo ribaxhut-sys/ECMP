@@ -78,6 +78,18 @@ export {
   reassignComplaintHandler,
 } from "./assignments";
 export {
+  closeComplaintFromResolution,
+  closeEscalationForComplaint,
+  fetchFinalResolutionDetail,
+  fetchResolution,
+  fetchResolutionAssignee,
+  fetchResolutionEscalations,
+  fetchResolutionsList,
+  requestEscalationForComplaint,
+  submitFinalResolutionForComplaint,
+  submitResolution,
+} from "./resolutions";
+export {
   activateSlaPolicy,
   createSlaPolicy,
   fetchSlaPolicies,

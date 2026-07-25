@@ -28,6 +28,10 @@ See **[SPRINT_F3.md](./SPRINT_F3.md)** for the complaint work-queue dashboard ag
 
 See **[SPRINT_F4.md](./SPRINT_F4.md)** for assignment list + assign/reassign/cancel against frozen APIs.
 
+## Sprint F5 — Resolutions
+
+See **[SPRINT_F5.md](./SPRINT_F5.md)** for resolution workflow list + supported close/escalate actions.
+
 | Area | Location |
 |---|---|
 | Auth session | `src/auth/AuthProvider.tsx` |
@@ -38,6 +42,7 @@ See **[SPRINT_F4.md](./SPRINT_F4.md)** for assignment list + assign/reassign/can
 | Complaints module | `src/features/complaints/`, `src/app/(app)/complaints/` |
 | Queue module | `src/features/queue/`, `src/app/(app)/queue/` |
 | Assignments module | `src/features/assignments/`, `src/app/(app)/assignments/` |
+| Resolutions module | `src/features/resolutions/`, `src/app/(app)/resolutions/` |
 | Design system | `src/shared/ui`, `src/shared/theme` |
 
 See **[src/shared/README.md](./src/shared/README.md)** for design tokens and layout rules.

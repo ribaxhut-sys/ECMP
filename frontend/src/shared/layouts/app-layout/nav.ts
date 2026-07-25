@@ -7,6 +7,7 @@ export interface NavItem {
     | "complaints"
     | "queue"
     | "assignments"
+    | "resolutions"
     | "reports"
     | "users"
     | "settings"
@@ -23,6 +24,12 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     label: "Assignments",
     href: "/assignments",
     icon: "assignments",
+  },
+  {
+    id: "resolutions",
+    label: "Resolutions",
+    href: "/resolutions",
+    icon: "resolutions",
   },
   {
     id: "attachments",
