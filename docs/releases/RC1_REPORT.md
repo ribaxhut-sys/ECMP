@@ -1,12 +1,12 @@
-# ECMP Release Candidate Report — v1.0.0-rc1
+# ECMP Release Candidate Report — v1.0.0
 
 | Field | Value |
 |---|---|
 | ID | RC-RPT-001 |
-| Version | **1.0.0-rc1** |
-| Date | 2026-07-23 |
-| Task | PHASE-12 / TASK-014 |
-| Scope | Foundation stack (`backend/`, `frontend/`, Compose) — **no new features** |
+| Version | **1.0.0** (originally prepared as **1.0.0-rc1**) |
+| Date | 2026-07-25 |
+| Task | Sprint R1 / R1-01–R1-03 (re-validation); originally PHASE-12 / TASK-014 |
+| Scope | Foundation stack (`backend/`, `frontend/`, Compose) — **no new features in Sprint R1** |
 
 ## Gate Summary
 
@@ -17,15 +17,16 @@
 | Security | **PASS** |
 | Deployment | **PASS** |
 | Documentation | **PASS** |
-| Testing | **PASS** (unit/guard; integration skipped when Postgres unavailable) |
+| Testing | **PASS** (full suite vs Compose PostgreSQL — Sprint R1) |
 | OpenAPI | **PASS** |
 | Docker | **PASS** |
+| Root Frontend CI | **PASS** (npm ci · typecheck · build — Sprint R1-02) |
 
 ## Release Recommendation
 
 ### **GO**
 
-ECMP **v1.0.0-rc1** is ready for **staging / UAT**.
+ECMP **v1.0.0** remains **GO** for Production after Sprint R1 re-validation.
 
 Code freeze remains in effect: critical/high fixes and documentation only.
 
@@ -35,14 +36,20 @@ Code freeze remains in effect: critical/high fixes and documentation only.
 
 | Module | Status | Notes |
 |---|---|---|
-| Complaints | PASS | CRUD + audit |
+| Complaints | PASS | CRUD + domain processing + search |
 | Assignment | PASS | Supervisor + history |
-| Escalation | PASS | Supervisor + history |
-| Timeline | PASS | Immutable read |
-| Reporting | PASS | summary / by-status / by-branch |
-| User Management | PASS | bcrypt; hash never exposed |
+| Escalation | PASS | Supervisor + history + review/closure |
+| Resolutions / Appointments | PASS | Resolution + appointment lifecycle |
+| Timeline | PASS | Complaint + activity timeline |
+| Queue | PASS | Queues / tickets / counters |
+| SLA | PASS | Complaint SLA + policies |
+| Attachments | PASS | Aggregate-bound attachments |
+| Notifications | PASS | Templates + queue |
+| Reporting / KPI / Dashboard | PASS | Aggregates + panels |
+| User Management / IAM | PASS | Users + roles/permissions/scopes |
+| Settings / Audit / Branches | PASS | Platform support APIs |
 
-No TODO/FIXME in `backend/` or `frontend/src`. No schema/API additions in this task.
+No schema/API additions in Sprint R1 tasks.
 
 ## Authentication
 
@@ -50,7 +57,7 @@ No TODO/FIXME in `backend/` or `frontend/src`. No schema/API additions in this t
 |---|---|
 | Login (bcrypt) | PASS |
 | JWT access 15m | PASS |
-| Refresh 7d + rotation | PASS |
+| Refresh 7d + rotate | PASS |
 | Logout revoke | PASS |
 | `/auth/me` | PASS |
 | Dashboard without `NEXT_PUBLIC_ACCESS_TOKEN` | PASS |
@@ -75,47 +82,61 @@ No TODO/FIXME in `backend/` or `frontend/src`. No schema/API additions in this t
 | Env validation / secret guard | PASS |
 | Alembic on container start | PASS |
 | Health verification steps | PASS |
+| Alembic head (Sprint R1 host) | PASS — **0036_search_indexes** |
 
 ## Documentation
 
 | Artifact | Status |
 |---|---|
-| `docs/releases/v1.0.0-rc1.md` | PASS |
-| `CHANGELOG.md` | PASS |
+| `docs/releases/v1.0.0.md` | PASS (Sprint R1 refresh) |
+| `CHANGELOG.md` | PASS (Sprint R1 refresh) |
 | `README.md` / `docs/local-stack.md` | PASS |
-| API Catalog + OpenAPI `1.0.0-rc1` | PASS |
-| Known limitations | PASS (in release notes) |
+| API Catalog + OpenAPI `1.0.0` | PASS |
+| Known limitations | PASS (aligned to current scope) |
 
 ## Testing
 
-Executed on RC1 preparation host (2026-07-23):
+### Sprint R1 re-validation (2026-07-25)
 
-| Suite | Result |
+Compose PostgreSQL service (`ecmp-postgres`, port **5433**); `alembic upgrade head`; full backend suite:
+
+| Metric | Result |
 |---|---|
-| Backend `pytest tests/` | **38 passed**, **8 skipped**, **0 failed** |
-| Skipped | Auth + complaint API integration (Postgres unavailable on prep host) |
-| Settings / secret guard | Pass |
-| Security headers | Pass |
-| RBAC unit | Pass |
+| Passed | **910** |
+| Failed | **0** |
+| Skipped | **0** |
+| Coverage (`--cov=app`, branch) | **87%** |
 
-Operators must re-run full suite against staging Postgres before UAT sign-off:
+Defect fixed during R1-01 (Windows-only): async psycopg rejected `ProactorEventLoop` — addressed via `backend/tests/conftest.py` SelectorEventLoop policy. No production API/schema change.
+
+Root frontend (local gate matching R1-02 workflow):
+
+| Step | Result |
+|---|---|
+| `npm ci` | PASS |
+| `npm run typecheck` | PASS |
+| `npm run build` | PASS |
+
+### Historical RC1 prep note (2026-07-23)
+
+Earlier RC1 host run: **38 passed**, **8 skipped**, **0 failed** (auth/complaint integration skipped when Postgres unavailable). Superseded by Sprint R1 evidence above.
 
 ```bash
 cd backend
+# Compose Postgres on host port 5433 by default
+set POSTGRES_HOST=localhost
+set POSTGRES_PORT=5433
 alembic upgrade head
-pytest -q
+pytest -q --cov=app --cov-report=term
 ```
-
-Expected with Postgres up: previously skipped auth/complaint tests should execute (target 0 failed).
 
 ## OpenAPI
 
 | Check | Status |
 |---|---|
-| Runtime paths ⊆ catalog | PASS (17 `/api/v1/*` + `/health`) |
-| Auth/Complaint/Report/User documented | PASS |
+| Runtime routers wired in `backend/app/api/router.py` | PASS |
+| Auth/Complaint/Queue/SLA/Attachment/Notification/IAM documented | PASS |
 | Error envelope documented | PASS |
-| No undocumented business endpoints | PASS |
 
 ## Docker
 
@@ -137,12 +158,12 @@ Expected with Postgres up: previously skipped auth/complaint tests should execut
 
 ### High
 
-- None blocking RC1 GO
+- None blocking GO
 
 ### Medium
 
-- Foundation frontend has no dedicated Vitest suite yet (dashboard states covered by UI components; CI gate lives on `implementation/` track)
-- Role→permission SoT still code-defined (`rbac.py`) pending API-062
+- Foundation frontend CI is minimal (typecheck + build only; no Vitest/Playwright by design — Sprint R1-02)
+- Role→permission SoT still code-seeded (`rbac` / IAM seeds) pending API-062
 
 ### Low
 
@@ -152,14 +173,14 @@ Expected with Postgres up: previously skipped auth/complaint tests should execut
 ## Known Limitations (product)
 
 - No MFA, SSO/OAuth, LDAP, password reset, social login
-- No email / WebSocket notifications
+- No external email/WebSocket push channels beyond notification queue APIs
 - No mobile client
 - No Customer Master write-back
-- No SLA engine / broker-backed enterprise events in this stack
+- No broker-backed enterprise event bus in this Compose stack
 
 ## Sign-off
 
 | Role | Decision |
 |---|---|
-| Engineering (RC prep) | **GO** for staging/UAT |
+| Engineering (Sprint R1) | **GO** — Postgres integration suite green; root frontend CI added |
 | Security / Ops | Confirm vault secrets + TLS before shared env promote |
