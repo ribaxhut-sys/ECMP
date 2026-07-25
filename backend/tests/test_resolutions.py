@@ -40,7 +40,9 @@ def test_matrix_blocks_direct_resolved_via_status() -> None:
     assert can_transition(ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED)
 
 
-def test_resolve_success_sets_resolved_and_timeline() -> None:
+def test_resolve_success_sets_resolved_and_timeline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     actor_id = uuid.uuid4()
     complaint = _complaint(status="IN_PROGRESS")
     resolver = SimpleNamespace(id=actor_id, full_name="Agent One")
@@ -50,6 +52,10 @@ def test_resolve_success_sets_resolved_and_timeline() -> None:
     repo.get_user.return_value = resolver
     repo.get_current_resolution.return_value = None
     repo.add_resolution.side_effect = lambda r: setattr(r, "id", uuid.uuid4()) or r
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     result = ResolutionService(repo).resolve(
         complaint.id,

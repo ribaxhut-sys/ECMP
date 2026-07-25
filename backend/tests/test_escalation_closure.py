@@ -53,7 +53,7 @@ def _payload() -> CloseEscalationRequest:
     return CloseEscalationRequest(notes="Escalation verified and officially closed.")
 
 
-def test_close_escalation_success() -> None:
+def test_close_escalation_success(monkeypatch: pytest.MonkeyPatch) -> None:
     actor_id = uuid.uuid4()
     escalation = _escalation()
     complaint = _complaint(id=escalation.complaint_id, status="CLOSED")
@@ -65,6 +65,10 @@ def test_close_escalation_success() -> None:
     repo.get_complaint.return_value = complaint
     repo.get_final_resolution.return_value = final
     repo.get_user.return_value = closer
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     result = EscalationService(repo).close(
         escalation.id,
@@ -129,7 +133,9 @@ def test_reject_duplicate_closure() -> None:
     repo.commit.assert_not_called()
 
 
-def test_timeline_created_and_complaint_remains_closed() -> None:
+def test_timeline_created_and_complaint_remains_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     actor_id = uuid.uuid4()
     escalation = _escalation()
     complaint = _complaint(id=escalation.complaint_id, status="CLOSED")
@@ -140,6 +146,10 @@ def test_timeline_created_and_complaint_remains_closed() -> None:
     repo.get_complaint.return_value = complaint
     repo.get_final_resolution.return_value = final
     repo.get_user.return_value = SimpleNamespace(id=actor_id)
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     EscalationService(repo).close(
         escalation.id,

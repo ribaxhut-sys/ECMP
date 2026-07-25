@@ -69,7 +69,7 @@ def _payload() -> FinalResolutionRequest:
     )
 
 
-def test_submit_final_resolution_success() -> None:
+def test_submit_final_resolution_success(monkeypatch: pytest.MonkeyPatch) -> None:
     actor_id = uuid.uuid4()
     complaint = _complaint(status="IN_PROGRESS")
     appointment = _appointment()
@@ -84,6 +84,10 @@ def test_submit_final_resolution_success() -> None:
     repo.get_user.return_value = submitter
     repo.get_current_resolution.return_value = None
     repo.add_resolution.side_effect = lambda r: setattr(r, "id", uuid.uuid4()) or r
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     result = ResolutionService(repo).submit_final_resolution(
         complaint.id,
@@ -175,7 +179,9 @@ def test_reject_when_appointment_no_show() -> None:
     repo.commit.assert_not_called()
 
 
-def test_timeline_created_and_statuses_unchanged() -> None:
+def test_timeline_created_and_statuses_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     actor_id = uuid.uuid4()
     complaint = _complaint(status="IN_PROGRESS")
     appointment = _appointment()
@@ -201,6 +207,10 @@ def test_timeline_created_and_statuses_unchanged() -> None:
     repo.get_escalation.return_value = escalation
     repo.get_user.return_value = submitter
     repo.get_current_resolution.return_value = current
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     ResolutionService(repo).submit_final_resolution(
         complaint.id,

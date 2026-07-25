@@ -34,7 +34,7 @@ def test_supervisor_gate_allows_supervisor() -> None:
     assert require_supervisor_assign(principal) is principal
 
 
-def test_assign_new_to_assigned() -> None:
+def test_assign_new_to_assigned(monkeypatch: pytest.MonkeyPatch) -> None:
     complaint_id = uuid.uuid4()
     assignee_id = uuid.uuid4()
     actor_id = uuid.uuid4()
@@ -63,6 +63,10 @@ def test_assign_new_to_assigned() -> None:
     repo.get_user_full_name.return_value = "Agent One"
     repo.get_current_assignment.return_value = None
     repo.add_assignment.side_effect = lambda a: setattr(a, "id", created_assignment.id) or a
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     service = AssignmentService(repo)
     result = service.assign(
@@ -102,7 +106,9 @@ def test_reassignment_requires_reason() -> None:
     repo.close_assignment.assert_not_called()
 
 
-def test_reassignment_closes_previous_without_delete() -> None:
+def test_reassignment_closes_previous_without_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     complaint_id = uuid.uuid4()
     assignee_id = uuid.uuid4()
     actor_id = uuid.uuid4()
@@ -127,6 +133,10 @@ def test_reassignment_closes_previous_without_delete() -> None:
     repo.get_user_full_name.return_value = "Agent Two"
     repo.get_current_assignment.return_value = current
     repo.add_assignment.side_effect = lambda a: setattr(a, "id", uuid.uuid4()) or a
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     service = AssignmentService(repo)
     result = service.assign(

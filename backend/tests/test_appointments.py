@@ -326,7 +326,7 @@ def _checked_in_appointment(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
-def test_complete_success() -> None:
+def test_complete_success(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.modules.appointments.schemas import AppointmentCompleteRequest
 
     actor = uuid.uuid4()
@@ -337,6 +337,10 @@ def test_complete_success() -> None:
     repo.get_by_id.return_value = row
     repo.get_escalation.return_value = escalation
     repo.get_complaint.return_value = complaint
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     result = AppointmentService(repo).complete(
         row.id,
@@ -413,7 +417,7 @@ def test_complete_rejects_duplicate() -> None:
     repo.commit.assert_not_called()
 
 
-def test_complete_persists_partial_result() -> None:
+def test_complete_persists_partial_result(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.modules.appointments.schemas import AppointmentCompleteRequest
 
     actor = uuid.uuid4()
@@ -424,6 +428,10 @@ def test_complete_persists_partial_result() -> None:
     repo.get_by_id.return_value = row
     repo.get_escalation.return_value = escalation
     repo.get_complaint.return_value = complaint
+    monkeypatch.setattr(
+        "app.modules.sla.hooks.evaluate_sla_for_complaint",
+        lambda *args, **kwargs: None,
+    )
 
     result = AppointmentService(repo).complete(
         row.id,
