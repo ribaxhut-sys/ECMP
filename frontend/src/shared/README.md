@@ -92,7 +92,7 @@ Barrel: `@/shared/ui`.
 
 - **Desktop (`lg+`)**: persistent sidebar
 - **Mobile / tablet**: drawer navigation (menu button in header)
-- Header includes: logo area, global search UI (not wired), notifications placeholder, current user, theme switch placeholder, logout
+- Header includes: logo area, complaint search (API-388 via `/complaints?keyword=`), notifications placeholder, current user, theme switch placeholder, logout
 
 ## Responsive strategy
 
@@ -153,9 +153,9 @@ export default function ExamplePage() {
 }
 ```
 
-## Out of scope (this sprint)
+## Out of scope (foundation sprint)
 
 - Backend / OpenAPI / database changes
 - Auth flow changes
-- Business features (complaint CRUD, reports logic, etc.)
-- Wired global search / notifications / theme persistence
+- Notifications / theme persistence
+- Dedicated global search API (header search uses complaint search via `/complaints?keyword=`)

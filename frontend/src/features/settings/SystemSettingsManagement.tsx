@@ -18,7 +18,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Empty,
+  ErrorState,
   Input,
+  Skeleton,
   Table,
   type TableColumn,
 } from "@/shared/ui";
@@ -101,15 +104,9 @@ export function SystemSettingsManagement() {
 
   if (!canRead) {
     return (
-      <Alert
-        tone="warning"
+      <Empty
         title="Access restricted"
-        description={
-          <>
-            You need the <code>settings:read</code> permission to view system
-            settings.
-          </>
-        }
+        description="You need the settings:read permission to view system settings."
       />
     );
   }
@@ -202,7 +199,11 @@ export function SystemSettingsManagement() {
       </CardHeader>
       <CardBody className="space-y-4">
         {loadError ? (
-          <Alert tone="danger" title="Load failed" description={loadError} />
+          <ErrorState
+            title="Unable to load settings"
+            message={loadError}
+            onRetry={() => void load()}
+          />
         ) : null}
         {actionError ? (
           <Alert tone="danger" title="Update failed" description={actionError} />
@@ -212,15 +213,15 @@ export function SystemSettingsManagement() {
         ) : null}
         <form onSubmit={onSave}>
           {loading ? (
-            <p className="text-ecmp-text-secondary">Loading settings…</p>
-          ) : (
+            <Skeleton rows={5} />
+          ) : !loadError ? (
             <Table
               columns={columns}
               rows={settings}
               getRowKey={(row) => row.key}
               emptyMessage="No settings found."
             />
-          )}
+          ) : null}
         </form>
       </CardBody>
     </Card>

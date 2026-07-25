@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
   Empty,
+  ErrorState,
   PageContainer,
   PageHeader,
   Skeleton,
@@ -229,14 +230,10 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
             { label: "Complaint Detail" },
           ]}
         />
-        <Empty
+        <ErrorState
           title="Could not load complaint"
-          description={error ?? "Unexpected error."}
-          action={
-            <Button type="button" variant="outline" onClick={() => void load()}>
-              Retry
-            </Button>
-          }
+          message={error ?? "Unexpected error."}
+          onRetry={() => void load()}
         />
       </PageContainer>
     );

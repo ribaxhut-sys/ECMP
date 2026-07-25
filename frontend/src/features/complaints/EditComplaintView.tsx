@@ -26,6 +26,7 @@ import {
   CardHeader,
   CardTitle,
   Empty,
+  ErrorState,
   Input,
   PageContainer,
   PageHeader,
@@ -228,18 +229,10 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
             { label: "Edit" },
           ]}
         />
-        <Empty
+        <ErrorState
           title="Could not load complaint"
-          description={loadError ?? "Unexpected error."}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push(`/complaints/${complaintId}`)}
-            >
-              Back to Detail
-            </Button>
-          }
+          message={loadError ?? "Unexpected error."}
+          onRetry={() => router.push(`/complaints/${complaintId}`)}
         />
       </PageContainer>
     );

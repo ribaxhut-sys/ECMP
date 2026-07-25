@@ -26,6 +26,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Empty,
   Input,
   PageContainer,
   PageHeader,
@@ -44,7 +45,8 @@ import {
 
 export function CreateComplaintView() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const canCreate = hasPermission("complaints:create");
   const agentBranchId = user?.branchId ?? null;
 
   const [values, setValues] = useState<CreateComplaintFormValues>(() =>
@@ -62,6 +64,10 @@ export function CreateComplaintView() {
   const [files, setFiles] = useState<File[]>([]);
 
   useEffect(() => {
+    if (!canCreate) {
+      setCustomersLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setCustomersLoading(true);
@@ -84,9 +90,13 @@ export function CreateComplaintView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canCreate]);
 
   useEffect(() => {
+    if (!canCreate) {
+      setBranchesLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setBranchesLoading(true);
@@ -119,7 +129,35 @@ export function CreateComplaintView() {
     return () => {
       cancelled = true;
     };
-  }, [agentBranchId]);
+  }, [agentBranchId, canCreate]);
+
+  if (!canCreate) {
+    return (
+      <PageContainer className="space-y-6">
+        <PageHeader
+          title="Create Complaint"
+          breadcrumbs={[
+            { label: "Home", href: "/dashboard" },
+            { label: "Complaints", href: "/complaints" },
+            { label: "Create" },
+          ]}
+        />
+        <Empty
+          title="Access restricted"
+          description="You need the complaints:create permission to register a complaint."
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/complaints")}
+            >
+              Back to Complaints
+            </Button>
+          }
+        />
+      </PageContainer>
+    );
+  }
 
   const updateField = useCallback(
     <K extends keyof CreateComplaintFormValues>(

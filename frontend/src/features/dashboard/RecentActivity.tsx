@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { DashboardRecentActivityItem } from "@/lib/api/types";
 import {
   Card,
@@ -35,9 +36,12 @@ const columns: TableColumn<DashboardRecentActivityItem>[] = [
     key: "complaintNumber",
     header: "Complaint Number",
     cell: (row) => (
-      <span className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary">
+      <Link
+        href={`/complaints?keyword=${encodeURIComponent(row.complaintNumber)}`}
+        className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+      >
         {row.complaintNumber}
-      </span>
+      </Link>
     ),
   },
   {

@@ -24,7 +24,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Empty,
+  ErrorState,
   Input,
+  Skeleton,
   Table,
   Textarea,
   type TableColumn,
@@ -143,14 +146,9 @@ export function SlaPolicyManagement() {
 
   if (!canRead) {
     return (
-      <Alert
-        tone="warning"
+      <Empty
         title="Access restricted"
-        description={
-          <>
-            You need the <code>sla:read</code> permission to view SLA policies.
-          </>
-        }
+        description="You need the sla:read permission to view SLA policies."
       />
     );
   }
@@ -344,18 +342,16 @@ export function SlaPolicyManagement() {
           ) : null}
 
           {loadError ? (
-            <Alert
-              tone="danger"
+            <ErrorState
               title="Unable to load policies"
-              description={loadError}
-              actionLabel="Retry"
-              onAction={() => void load()}
+              message={loadError}
+              onRetry={() => void load()}
             />
           ) : null}
 
           {loading ? (
-            <p className="text-ecmp-text-secondary">Loading policies…</p>
-          ) : (
+            <Skeleton rows={5} />
+          ) : !loadError ? (
             <Table
               columns={columns}
               rows={policies}
@@ -363,7 +359,7 @@ export function SlaPolicyManagement() {
               caption="SLA policies"
               emptyMessage="No SLA policies yet. Create one to define target durations."
             />
-          )}
+          ) : null}
         </CardBody>
       </Card>
     </div>

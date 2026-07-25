@@ -94,6 +94,8 @@ export function ComplaintListView() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { hasPermission } = useAuth();
+  const canRead = hasPermission("complaints:read");
+  const canCreate = hasPermission("complaints:create");
   const canUpdate = hasPermission("complaints:update");
 
   const filters = useMemo(
@@ -131,35 +133,46 @@ export function ComplaintListView() {
     };
   }, []);
 
-  const load = useCallback(async (next: ComplaintListFilters) => {
-    setLoading(true);
-    setError(null);
-    setErrorCode(undefined);
-    try {
-      const res = await searchComplaints(toSearchApiParams(next));
-      setRows(res.items);
-      setTotalItems(res.pagination.totalItems);
-      setTotalPages(res.pagination.totalPages);
-      setHasNext(res.pagination.hasNext);
-      setHasPrevious(res.pagination.hasPrevious);
-    } catch (err) {
-      setRows([]);
-      setTotalItems(0);
-      setTotalPages(0);
-      setHasNext(false);
-      setHasPrevious(false);
-      if (err instanceof ApiError) {
-        setError(err.message);
-        setErrorCode(err.code);
-      } else {
-        setError(
-          err instanceof Error ? err.message : "Unable to load complaints.",
-        );
+  const load = useCallback(
+    async (next: ComplaintListFilters) => {
+      if (!canRead) {
+        setLoading(false);
+        setError("You do not have permission to view complaints.");
+        setErrorCode("FORBIDDEN");
+        setRows([]);
+        return;
       }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
+      setLoading(true);
+      setError(null);
+      setErrorCode(undefined);
+      try {
+        const res = await searchComplaints(toSearchApiParams(next));
+        setRows(res.items);
+        setTotalItems(res.pagination.totalItems);
+        setTotalPages(res.pagination.totalPages);
+        setHasNext(res.pagination.hasNext);
+        setHasPrevious(res.pagination.hasPrevious);
+      } catch (err) {
+        setRows([]);
+        setTotalItems(0);
+        setTotalPages(0);
+        setHasNext(false);
+        setHasPrevious(false);
+        if (err instanceof ApiError) {
+          setError(err.message);
+          setErrorCode(err.code);
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Unable to load complaints.",
+          );
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [canRead],
+  );
 
   useEffect(() => {
     void load(filters);
@@ -240,14 +253,16 @@ export function ComplaintListView() {
         hideOnMobile: false,
         cell: (row) => (
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => router.push(`/complaints/${row.id}`)}
-            >
-              View
-            </Button>
+            {canRead ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/complaints/${row.id}`)}
+              >
+                View
+              </Button>
+            ) : null}
             {canUpdate ? (
               <Button
                 type="button"
@@ -262,7 +277,7 @@ export function ComplaintListView() {
         ),
       },
     ],
-    [canUpdate, router],
+    [canRead, canUpdate, router],
   );
 
   const rangeLabel =
@@ -280,9 +295,11 @@ export function ComplaintListView() {
         ]}
         description="Search, filter, and open customer complaints."
         actions={
-          <Button type="button" onClick={() => router.push("/complaints/new")}>
-            Create Complaint
-          </Button>
+          canCreate ? (
+            <Button type="button" onClick={() => router.push("/complaints/new")}>
+              Create Complaint
+            </Button>
+          ) : undefined
         }
       />
 
@@ -401,15 +418,21 @@ export function ComplaintListView() {
       {!loading && !error && rows.length === 0 ? (
         <Empty
           title="No complaints found"
-          description="Try adjusting filters, or create a new complaint."
+          description={
+            canCreate
+              ? "Try adjusting filters, or create a new complaint."
+              : "Try adjusting filters."
+          }
           action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints/new")}
-            >
-              Create Complaint
-            </Button>
+            canCreate ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/complaints/new")}
+              >
+                Create Complaint
+              </Button>
+            ) : undefined
           }
         />
       ) : null}

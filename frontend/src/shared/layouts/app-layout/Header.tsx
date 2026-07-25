@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -15,12 +16,26 @@ import { Button } from "@/shared/ui/button";
 
 export function Header() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const { toggle, open } = useSidebar();
   const displayName = user?.fullName ?? user?.username ?? "User";
+  const canSearch = hasPermission("complaints:read");
+  const [keyword, setKeyword] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  function submitSearch(event?: FormEvent): void {
+    event?.preventDefault();
+    if (!canSearch) return;
+    const trimmed = keyword.trim();
+    const query = trimmed
+      ? `?keyword=${encodeURIComponent(trimmed)}`
+      : "";
+    router.push(`/complaints${query}`);
+    setMobileSearchOpen(false);
+  }
 
   return (
-    <header className="sticky top-0 z-30 flex h-[var(--ecmp-header-height)] items-center gap-3 border-b border-ecmp-border bg-ecmp-surface px-3 sm:px-4 lg:px-6">
+    <header className="relative sticky top-0 z-30 flex h-[var(--ecmp-header-height)] items-center gap-3 border-b border-ecmp-border bg-ecmp-surface px-3 sm:px-4 lg:px-6">
       <Button
         variant="ghost"
         size="sm"
@@ -33,37 +48,48 @@ export function Header() {
         <IconMenu />
       </Button>
 
-      <div className="hidden min-w-0 flex-1 md:block md:max-w-md lg:max-w-lg">
-        <label className="sr-only" htmlFor="global-search">
-          Global search
-        </label>
-        <div className="relative">
-          <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-text-secondary" />
-          <input
-            id="global-search"
-            name="global-search"
-            type="search"
-            placeholder="Search complaints, users…"
-            aria-describedby="global-search-hint"
-            // UI-only placeholder — no backend integration this sprint
-            className="ecmp-touch w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary placeholder:text-ecmp-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-          />
-          <span id="global-search-hint" className="sr-only">
-            Search is a visual placeholder and is not connected to a backend yet.
-          </span>
-        </div>
-      </div>
+      {canSearch ? (
+        <form
+          onSubmit={submitSearch}
+          className="hidden min-w-0 flex-1 md:block md:max-w-md lg:max-w-lg"
+          role="search"
+        >
+          <label className="sr-only" htmlFor="global-search">
+            Search complaints
+          </label>
+          <div className="relative">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-text-secondary" />
+            <input
+              id="global-search"
+              name="keyword"
+              type="search"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Search complaints…"
+              maxLength={200}
+              className="ecmp-touch w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary placeholder:text-ecmp-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+            />
+          </div>
+        </form>
+      ) : (
+        <div className="hidden flex-1 md:block" />
+      )}
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="!min-h-[44px] !min-w-[44px] px-0 md:hidden"
-          aria-label="Search (coming soon)"
-          disabled
-        >
-          <IconSearch />
-        </Button>
+        {canSearch ? (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="!min-h-[44px] !min-w-[44px] px-0 md:hidden"
+              aria-label={mobileSearchOpen ? "Close search" : "Search complaints"}
+              aria-expanded={mobileSearchOpen}
+              onClick={() => setMobileSearchOpen((prev) => !prev)}
+            >
+              <IconSearch />
+            </Button>
+          </>
+        ) : null}
 
         <Button
           variant="ghost"
@@ -105,6 +131,32 @@ export function Header() {
           <span className="hidden sm:inline">Logout</span>
         </Button>
       </div>
+
+      {canSearch && mobileSearchOpen ? (
+        <form
+          onSubmit={submitSearch}
+          className="absolute inset-x-0 top-full border-b border-ecmp-border bg-ecmp-surface px-3 py-3 md:hidden"
+          role="search"
+        >
+          <label className="sr-only" htmlFor="global-search-mobile">
+            Search complaints
+          </label>
+          <div className="relative">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-text-secondary" />
+            <input
+              id="global-search-mobile"
+              name="keyword"
+              type="search"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Search complaints…"
+              maxLength={200}
+              autoFocus
+              className="ecmp-touch w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary placeholder:text-ecmp-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+            />
+          </div>
+        </form>
+      ) : null}
     </header>
   );
 }

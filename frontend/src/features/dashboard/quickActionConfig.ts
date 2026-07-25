@@ -5,7 +5,7 @@ export interface QuickAction {
   description: string;
 }
 
-/** RBAC-gated quick actions — UI only; no new backend endpoints. */
+/** RBAC-gated quick actions — routes to existing modules only. */
 export const QUICK_ACTIONS: readonly QuickAction[] = [
   {
     id: "create-complaint",
@@ -17,31 +17,31 @@ export const QUICK_ACTIONS: readonly QuickAction[] = [
     id: "view-complaints",
     label: "View Complaints",
     permission: "complaints:read",
-    description: "Browse the complaint queue",
+    description: "Browse and search complaints",
+  },
+  {
+    id: "view-queue",
+    label: "Open Queue",
+    permission: "complaints:read",
+    description: "Work the complaint queue",
   },
   {
     id: "assign-complaint",
-    label: "Assign Complaint",
+    label: "Assignments",
     permission: "complaints:assign",
-    description: "Assign or reassign a handler",
+    description: "Assign or reassign handlers",
   },
   {
     id: "escalate-complaint",
-    label: "Escalate Complaint",
-    permission: "complaints:escalate",
-    description: "Escalate to a higher authority",
+    label: "Resolutions",
+    permission: "complaints:read",
+    description: "Resolution and escalation actions",
   },
   {
     id: "manage-users",
     label: "Manage Users",
     permission: "users:read",
     description: "View and administer users",
-  },
-  {
-    id: "create-user",
-    label: "Create User",
-    permission: "users:create",
-    description: "Provision a new user account",
   },
   {
     id: "refresh-reports",

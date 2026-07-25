@@ -19,7 +19,7 @@ export function SummaryCards({
     return (
       <Card data-testid="dashboard-header-cards">
         <CardHeader>
-          <CardTitle>Dashboard Header</CardTitle>
+          <CardTitle>Summary</CardTitle>
         </CardHeader>
         <CardBody>
           <Skeleton rows={2} />
@@ -32,7 +32,7 @@ export function SummaryCards({
     return (
       <Card data-testid="dashboard-header-cards">
         <CardHeader>
-          <CardTitle>Dashboard Header</CardTitle>
+          <CardTitle>Summary</CardTitle>
         </CardHeader>
         <CardBody>
           <Empty
@@ -53,7 +53,7 @@ export function SummaryCards({
   return (
     <Card data-testid="dashboard-header-cards">
       <CardHeader>
-        <CardTitle>Dashboard Header</CardTitle>
+        <CardTitle>Summary</CardTitle>
       </CardHeader>
       <CardBody>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

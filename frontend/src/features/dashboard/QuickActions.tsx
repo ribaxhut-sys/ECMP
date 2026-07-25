@@ -23,14 +23,16 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
       case "view-complaints":
         router.push("/complaints");
         break;
+      case "view-queue":
+        router.push("/queue");
+        break;
       case "assign-complaint":
+        router.push("/assignments");
+        break;
       case "escalate-complaint":
-        document
-          .getElementById("recent-activity")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        router.push("/resolutions");
         break;
       case "manage-users":
-      case "create-user":
         router.push("/users");
         break;
       default:
