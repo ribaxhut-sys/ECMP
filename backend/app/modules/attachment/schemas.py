@@ -1,27 +1,32 @@
-"""Attachment API contracts (camelCase) — TASK-029."""
+"""CAPABILITY-011 Attachment API schemas (camelCase)."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+AggregateTypeLiteral = Literal["Complaint", "Queue", "Notification"]
+AttachmentStatusLiteral = Literal["UPLOADED", "AVAILABLE", "DELETED", "FAILED"]
+
 
 class AttachmentResponse(BaseModel):
-    """Attachment metadata payload (API-323 / API-324)."""
+    """Attachment metadata payload (bytes never included)."""
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
     id: uuid.UUID
-    object_type: str = Field(alias="objectType", max_length=50)
-    object_id: uuid.UUID = Field(alias="objectId")
-    filename: str
-    stored_filename: str = Field(alias="storedFilename")
+    aggregate_type: AggregateTypeLiteral = Field(alias="aggregateType")
+    aggregate_id: uuid.UUID = Field(alias="aggregateId")
+    file_name: str = Field(alias="fileName")
+    original_name: str = Field(alias="originalName")
     mime_type: str = Field(alias="mimeType")
     extension: str | None = None
     size_bytes: int = Field(alias="sizeBytes")
-    checksum: str
     storage_provider: str = Field(alias="storageProvider")
+    checksum_sha256: str = Field(alias="checksumSha256")
     uploaded_by: uuid.UUID | None = Field(default=None, alias="uploadedBy")
-    created_at: datetime = Field(alias="createdAt")
+    uploaded_at: datetime = Field(alias="uploadedAt")
+    status: AttachmentStatusLiteral

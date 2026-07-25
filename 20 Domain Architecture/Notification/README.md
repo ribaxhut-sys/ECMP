@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | DOM-NOTIF-001 |
-| Version | 1.3 |
+| Version | 1.4 |
 | Owner | Notification PO / Integration Lead |
 | Reviewer | Solution Architect |
 | Approver | Architecture Board |
-| Status | 🟢 Approved (baseline + TASK-047/048/049 foundation) |
-| Last Review | 2026-07-24 |
+| Status | 🟢 Approved (baseline + TASK-047/048/049 + CAPABILITY-009) |
+| Last Review | 2026-07-25 |
 | Next Review | 2027-01-21 |
 
 ## Objective
@@ -17,6 +17,12 @@ Notifikasi event-driven dengan template, routing, delivery log, dan retry. Opt-i
 **TASK-047 (Notification Domain Foundation):** first in-process consumer of
 `EventDispatcher`. Builds immutable `Notification` objects from Complaint
 lifecycle events. **No channel delivery** in this task.
+
+**CAPABILITY-009:** Persisted notification requests (`notification_queue`) with
+lifecycle Pending → Sending (`PROCESSING`) → Sent / Failed / Cancelled,
+stub `NotificationProvider`, REST retry/process (API-356/357), and
+`NotificationPersistenceHandler` (Complaint unchanged). Real SMTP / WhatsApp /
+SMS / Push / webhook remain out of scope.
 
 ## Bounded Context
 Konteks Messaging/Delivery: subscribe domain events → match rule/template → resolve recipients dinamis (role/assignment/organisasi, bukan daftar statis — BR-NOTIF-02) → deliver → log.

@@ -10,7 +10,10 @@ from app.modules.appointments.router import (
     escalation_appointments_router,
 )
 from app.modules.assignments.router import router as assignments_router
-from app.modules.attachment.router import router as attachment_router
+from app.modules.attachment.router import (
+    complaint_attachments_router,
+    router as attachment_router,
+)
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.branches.router import router as branches_router
@@ -45,6 +48,11 @@ from app.modules.settings.router import router as settings_router
 from app.modules.sla.router import policies_router as sla_policies_router
 from app.modules.sla.router import router as sla_router
 from app.modules.timelines.router import router as timelines_router
+from app.modules.timeline.router import (
+    complaint_activity_router as activity_timeline_complaint_router,
+)
+from app.modules.timeline.router import router as activity_timeline_router
+from app.modules.search.router import router as complaint_search_router
 from app.modules.users.router import router as users_router
 
 api_router = APIRouter()
@@ -70,6 +78,7 @@ api_router.include_router(branches_router)
 api_router.include_router(users_router)
 api_router.include_router(users_roles_router)
 # Specific sub-routes before generic /{id} complaint / escalation routes.
+api_router.include_router(complaint_search_router)
 api_router.include_router(assignments_router)
 api_router.include_router(complaint_escalations_router)
 api_router.include_router(escalation_appointments_router)
@@ -78,6 +87,9 @@ api_router.include_router(appointments_router)
 api_router.include_router(resolutions_router)
 api_router.include_router(sla_policies_router)
 api_router.include_router(sla_router)
+api_router.include_router(activity_timeline_router)
+api_router.include_router(activity_timeline_complaint_router)
+api_router.include_router(complaint_attachments_router)
 api_router.include_router(timelines_router)
 # Legacy ECMF complaints keeps /api/v1/complaints CRUD (auth/SLA).
 # CAPABILITY-004 mounts ticket-nested routes only (unique paths).

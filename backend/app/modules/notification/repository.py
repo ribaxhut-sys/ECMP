@@ -74,6 +74,9 @@ class NotificationRepository:
         self._session.flush()
         return row
 
+    def flush(self) -> None:
+        self._session.flush()
+
     def commit(self) -> None:
         self._session.commit()
 

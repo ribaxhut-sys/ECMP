@@ -1,7 +1,8 @@
-"""Dashboard repository — intentionally empty (TASK-027).
+"""Dashboard repository — intentionally empty.
 
-Dashboard stores no data and must never query the database.
-Composition lives in ``DashboardService`` via KPI / Timeline / Complaint modules.
+CAPABILITY-013 aggregates via providers (SQL on existing tables).
+API-319 overview composes via KPI / Timeline / Complaint services.
+Dashboard stores no data and owns no write repository.
 """
 
 from __future__ import annotations

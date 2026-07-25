@@ -156,18 +156,28 @@ class SettingValueType(StrEnum):
 
 
 class NotificationChannel(StrEnum):
-    """Notification delivery channel (TASK-030). Provider delivery is out of scope."""
+    """Notification delivery channel (CAPABILITY-009).
+
+    Real transport adapters remain stubbed; values are channel-independent
+    so Complaint never chooses EMAIL vs WhatsApp vs SMS.
+    """
 
     EMAIL = "EMAIL"
     WHATSAPP = "WHATSAPP"
+    SMS = "SMS"
     PUSH = "PUSH"
+    WEBHOOK = "WEBHOOK"
 
 
 class NotificationQueueStatus(StrEnum):
-    """Notification queue lifecycle (TASK-030). No send worker in this task."""
+    """Notification lifecycle (CAPABILITY-009).
+
+    ``PROCESSING`` is the persisted form of domain status *Sending*
+    (no scheduler / broker — transitions are explicit API/domain calls).
+    """
 
     PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
+    PROCESSING = "PROCESSING"  # Sending
     SENT = "SENT"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"

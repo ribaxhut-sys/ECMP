@@ -1,10 +1,81 @@
-"""Dashboard Summary contracts (API-319 / TASK-027). Composition only."""
+"""CAPABILITY-013 Dashboard HTTP / OpenAPI schemas (read-only)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class DashboardComplaintSummaryResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    total_complaints: int = Field(alias="totalComplaints")
+    open_complaints: int = Field(alias="openComplaints")
+    closed_complaints: int = Field(alias="closedComplaints")
+    pending_complaints: int = Field(alias="pendingComplaints")
+    overdue_complaints: int = Field(alias="overdueComplaints")
+    escalated_complaints: int = Field(alias="escalatedComplaints")
+    today_complaints: int = Field(alias="todayComplaints")
+    this_month_complaints: int = Field(alias="thisMonthComplaints")
+
+
+class DashboardQueueResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    waiting: int
+    serving: int
+    completed: int
+    cancelled: int
+    average_waiting_time: float = Field(alias="averageWaitingTime")
+
+
+class DashboardSlaResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    active: int
+    breached: int
+    resolved_within_sla: int = Field(alias="resolvedWithinSLA")
+    resolved_outside_sla: int = Field(alias="resolvedOutsideSLA")
+    compliance_percentage: float = Field(alias="compliancePercentage")
+
+
+class DashboardNotificationsResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    pending: int
+    sent: int
+    failed: int
+    cancelled: int
+
+
+class DashboardTrendItem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    date: date
+    count: int
+
+
+class DashboardTrendsResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    period: str
+    items: list[DashboardTrendItem]
+
+
+class DashboardKpiResponse(BaseModel):
+    """Numeric KPI rates only — no chart payloads."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    complaint_resolution_rate: float = Field(alias="complaintResolutionRate")
+    sla_compliance: float = Field(alias="slaCompliance")
+    escalation_rate: float = Field(alias="escalationRate")
+    average_resolution_time: float = Field(alias="averageResolutionTime")
+    average_queue_waiting_time: float = Field(alias="averageQueueWaitingTime")
+
+
+# --- API-319 composition (preserved at /dashboard/overview) ---
 
 
 class DashboardHeader(BaseModel):
@@ -41,8 +112,8 @@ class DashboardRecentActivityItem(BaseModel):
     actor: str
 
 
-class DashboardSummaryResponse(BaseModel):
-    """Aggregated dashboard payload — never persisted."""
+class DashboardOverviewResponse(BaseModel):
+    """API-319 composition payload — never persisted."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -51,3 +122,7 @@ class DashboardSummaryResponse(BaseModel):
     recent_activity: list[DashboardRecentActivityItem] = Field(
         default_factory=list, alias="recentActivity"
     )
+
+
+# Backward-compatible alias used by older imports / tests.
+DashboardSummaryResponse = DashboardOverviewResponse

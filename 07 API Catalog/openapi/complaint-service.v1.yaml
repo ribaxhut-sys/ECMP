@@ -15,15 +15,23 @@ info:
     summary (TASK-026 / DEC-015 / API-318), Dashboard Summary
     orchestration (TASK-027 / DEC-016 / API-319), System Settings
     (TASK-028 / API-320–322), Attachment Management
-    (TASK-029 / API-323–326), Notification Foundation
-    (TASK-030 / API-327–335), Audit Log
+    (CAPABILITY-011 / API-323–326, 386–387 generic aggregate attachments),
+    Notification Foundation
+    (TASK-030 / API-327–335), Notification Domain
+    (CAPABILITY-009 / API-356–357 retry + stub process), Activity Timeline
+    (CAPABILITY-010 / API-382–385 append-only timeline_entries), Search &
+    Filtering (CAPABILITY-012 / API-388 Complaint search — SQLAlchemy only),
+    Dashboard & KPI aggregation
+    (CAPABILITY-013 / API-389–394 widgets + API-319 overview),
+    Audit Log
     (TASK-031 / API-336–337), Role Management
     (TASK-033 / API-338–342), Permission Management
     (TASK-034 / API-343–347), Role-Permission Matrix
     (TASK-035 / API-348–350), User-Role Assignment
     (TASK-036 / API-351–353), and Data Scope Foundation
     (TASK-037 / API-354–355) are in scope. Countdown timers,
-    schedulers, and notification providers remain out of scope.
+    schedulers, and real notification providers (SMTP/Twilio/FCM)
+    remain out of scope; CAPABILITY-009 uses stub providers only.
     Error responses use the Error envelope {code, message, details} for ALL 4xx/5xx
     (`details` may be null). Success responses use {data} or {data, meta} wrappers.
   x-ear-id: API-200
@@ -50,7 +58,18 @@ tags:
       (TASK-024 / DEC-013). Configurable policies (API-315–317). No countdown
       timers or schedulers.
   - name: Timeline
-    description: Immutable complaint timeline (read-only)
+    description: |
+      Legacy immutable complaint_timelines read API (API-209). Distinct from
+      CAPABILITY-010 ActivityTimeline on timeline_entries.
+  - name: ActivityTimeline
+    description: |
+      CAPABILITY-010 reusable append-only activity history (timeline_entries).
+      Domains emit events; Timeline records. No update/delete.
+  - name: Search
+    description: |
+      CAPABILITY-012 reusable Search & Filtering (read-only). Combinable
+      filters, keyword, sort, and DB-side pagination. Initially Complaint
+      only (API-388). No Elasticsearch / OpenSearch / vector search.
   - name: Reports
     description: Complaint reporting aggregations (read-only)
   - name: KPI
@@ -59,9 +78,11 @@ tags:
       TASK-026). Read-only; no KPI tables, scheduler, or charts.
   - name: Dashboard
     description: |
-      Dashboard Summary orchestration (API-319 / TASK-027). Composes KPI,
-      Timeline, and Complaint modules. No business logic, no KPI calculation,
-      no persisted dashboard data, no charts.
+      CAPABILITY-013 Dashboard & KPI read-only aggregation (API-389–394):
+      complaint / queue / SLA / notification / trends / KPI rates via SQL
+      aggregates on existing tables. API-319 overview composition
+      (TASK-027 / DEC-016) remains at GET /dashboard/overview.
+      No dashboard tables, charts, caching, websocket, or domain writes.
   - name: Settings
     description: |
       System Settings key/value configuration (API-320–322 / TASK-028).
@@ -70,9 +91,11 @@ tags:
       updates require settings:read / settings:update.
   - name: Attachments
     description: |
-      Generic platform Attachment Management (API-323–326 / TASK-029).
-      Polymorphic object_type + object_id association; local StorageProvider
-      behind settings storage.*; soft delete only. Not owned by Complaint.
+      Generic platform Attachment Management (CAPABILITY-011 / API-323–326,
+      API-386–387). Aggregate-bound via aggregate_type + aggregate_id
+      (Complaint / Queue / Notification). Local StorageProvider behind
+      settings storage.*; logical delete via status=DELETED. Metadata only —
+      no Complaint/Queue/Notification business logic.
   - name: Notifications
     description: |
       Notification Foundation (API-327–335 / TASK-030). Templates CRUD and
@@ -300,6 +323,137 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ComplaintListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/search:
+    get:
+      summary: Search and filter complaints
+      operationId: searchComplaints
+      x-ear-id: API-388
+      tags: [Search]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-012 Complaint search (read-only). Combinable filters,
+        case-insensitive keyword over complaint number / subject /
+        description / reporter name (customer.full_name), sort, and
+        database-side pagination. Soft-deleted rows are excluded.
+        Requires permission `complaints:read`. No search engine —
+        SQLAlchemy / PostgreSQL only.
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          schema: { type: string, maxLength: 200 }
+          description: |
+            Case-insensitive match on complaintNumber, subject,
+            description, reporter name (customer.full_name). Reference
+            number maps to complaintNumber.
+          example: CMP-ABC
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/ComplaintStatus" }
+          example: NEW
+        - name: priority
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/Priority" }
+          example: HIGH
+        - name: category
+          in: query
+          required: false
+          schema: { type: string, maxLength: 64 }
+        - name: branchId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: assignedTo
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+          description: Current assignee (complaint_assignments.is_current)
+        - name: createdBy
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: createdFrom
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Inclusive lower bound on createdAt
+        - name: createdTo
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Inclusive upper bound on createdAt
+        - name: slaStatus
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/SlaStatus" }
+          description: Filter by sla_records.overall_status
+        - name: escalated
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: |
+            true = status ESCALATED or any non-deleted escalation row;
+            false = neither
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, priority, status, slaDueDate]
+            default: createdAt
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Search result page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintSearchResponse"
+              example:
+                items:
+                  - id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    complaintNumber: CMP-ABC1234567
+                    subject: Billing dispute
+                    status: NEW
+                    priority: HIGH
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  totalItems: 1
+                  totalPages: 1
+                  hasNext: false
+                  hasPrevious: false
+                filtersApplied:
+                  priority: HIGH
+                  keyword: Billing
+                sort:
+                  field: createdAt
+                  order: desc
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -1466,23 +1620,260 @@ paths:
           $ref: "#/components/responses/InternalError"
   /api/v1/dashboard/summary:
     get:
-      summary: Dashboard summary
-      operationId: getDashboardSummary
+      summary: Dashboard complaint summary
+      operationId: getDashboardComplaintSummary
+      x-ear-id: API-389
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-013 complaint KPI summary (read-only). Aggregates live
+        counts from complaints (+ SLA for overdue). Supports branchId,
+        dateFrom, dateTo (on reported_at). Requires `dashboard:read`.
+        Out of scope: charts, export, caching, websocket, materialized views.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Complaint summary counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardComplaintSummaryDataResponse"
+              example:
+                data:
+                  totalComplaints: 40
+                  openComplaints: 30
+                  closedComplaints: 8
+                  pendingComplaints: 2
+                  overdueComplaints: 5
+                  escalatedComplaints: 3
+                  todayComplaints: 4
+                  thisMonthComplaints: 22
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/queue:
+    get:
+      summary: Dashboard queue summary
+      operationId: getDashboardQueueSummary
+      x-ear-id: API-390
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-013 queue ticket aggregates (WAITING / SERVING /
+        COMPLETED / CANCELLED) plus averageWaitingTime in seconds for
+        current WAITING tickets (now − created_at). branchId filters
+        queues.organization_id. Requires `dashboard:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Queue summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardQueueDataResponse"
+              example:
+                data:
+                  waiting: 12
+                  serving: 3
+                  completed: 40
+                  cancelled: 2
+                  averageWaitingTime: 318.5
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/sla:
+    get:
+      summary: Dashboard SLA summary
+      operationId: getDashboardSlaSummary
+      x-ear-id: API-391
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-013 SLA compliance aggregates over sla_records joined to
+        complaints. compliancePercentage = resolvedWithinSLA /
+        (resolvedWithinSLA + resolvedOutsideSLA) × 100. Requires
+        `dashboard:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: SLA summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSlaWidgetDataResponse"
+              example:
+                data:
+                  active: 15
+                  breached: 4
+                  resolvedWithinSLA: 20
+                  resolvedOutsideSLA: 5
+                  compliancePercentage: 80.0
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/notifications:
+    get:
+      summary: Dashboard notification summary
+      operationId: getDashboardNotificationsSummary
+      x-ear-id: API-392
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-013 notification_queue status counts (pending / sent /
+        failed / cancelled). Date filters use created_at. branchId is not
+        applied (queue rows have no branch). Requires `dashboard:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Notification summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardNotificationsDataResponse"
+              example:
+                data:
+                  pending: 6
+                  sent: 50
+                  failed: 2
+                  cancelled: 1
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/trends:
+    get:
+      summary: Dashboard complaint trends
+      operationId: getDashboardTrends
+      x-ear-id: API-393
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-013 daily complaint counts for period=today|7d|30d
+        (inclusive day buckets on reported_at). Requires `dashboard:read`.
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, 7d, 30d]
+            default: 7d
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Daily trend buckets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardTrendsDataResponse"
+              example:
+                data:
+                  period: 7d
+                  items:
+                    - date: "2026-07-19"
+                      count: 3
+                    - date: "2026-07-20"
+                      count: 5
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/kpi:
+    get:
+      summary: Dashboard KPI rates
+      operationId: getDashboardKpiRates
+      x-ear-id: API-394
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-013 numeric KPI rates only (no charts):
+        complaintResolutionRate, slaCompliance, escalationRate,
+        averageResolutionTime (seconds), averageQueueWaitingTime (seconds).
+        Requires `dashboard:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: KPI numeric rates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardKpiRatesDataResponse"
+              example:
+                data:
+                  complaintResolutionRate: 40.0
+                  slaCompliance: 80.0
+                  escalationRate: 12.5
+                  averageResolutionTime: 86400.0
+                  averageQueueWaitingTime: 318.5
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/overview:
+    get:
+      summary: Dashboard overview composition
+      operationId: getDashboardOverview
       x-ear-id: API-319
       tags: [Dashboard]
       security:
         - bearerAuth: []
       description: |
-        Dashboard Summary orchestration (TASK-027 / DEC-016). Composes
-        KPI Foundation (header + SLA completed/breached), Timeline
+        Dashboard Overview composition (TASK-027 / DEC-016 / API-319).
+        Composes KPI Foundation (header + SLA completed/breached), Timeline
         (latest ≤10 events), and Complaint (complaint numbers).
-        Dashboard owns no business logic, performs no KPI calculation,
-        and stores no data. Requires permission `dashboard:read`.
-        Out of scope: charts, analytics, websocket, caching, Redis,
-        notifications, scheduler, queue, export, reporting.
+        Path moved from /dashboard/summary under CAPABILITY-013 so that
+        /summary hosts the complaint widget. Requires `dashboard:read`.
       responses:
         "200":
-          description: Dashboard summary composition
+          description: Dashboard overview composition
           content:
             application/json:
               schema:
@@ -1607,6 +1998,51 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/attachments:
+    get:
+      summary: List attachments
+      operationId: listAttachments
+      x-ear-id: API-386
+      tags: [Attachments]
+      security:
+        - bearerAuth: []
+      description: |
+        Paginated attachment metadata list filtered by optional
+        `aggregateType` + `aggregateId` (CAPABILITY-011). Soft-deleted
+        (`status=DELETED`) rows are excluded. Requires `attachment:read`.
+      parameters:
+        - name: aggregateType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Complaint, Queue, Notification]
+        - name: aggregateId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Attachment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       summary: Upload attachment
       operationId: uploadAttachment
@@ -1615,30 +2051,30 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        Multipart upload of a file bound to any domain object via
-        `objectType` + `objectId` (TASK-029). Validates size (settings
-        `storage.max.upload.mb`), MIME (`storage.allowed.mime`),
+        Multipart upload of a file bound to any aggregate via
+        `aggregateType` + `aggregateId` (CAPABILITY-011). Validates size
+        (settings `storage.max.upload.mb`), MIME (`storage.allowed.mime`),
         extension, and rejects empty files. Computes SHA-256 checksum
-        and stores bytes through StorageProvider (`storage.provider` /
-        `storage.root.path`). Requires `attachment:create`.
+        and stores bytes through StorageProvider under
+        `yyyy/mm/<uuid>.<ext>` (`storage.provider` / `storage.root.path`).
+        Requires `attachment:create`.
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required: [objectType, objectId, file]
+              required: [aggregateType, aggregateId, file]
               properties:
-                objectType:
+                aggregateType:
                   type: string
-                  minLength: 1
-                  maxLength: 50
-                  description: Domain object type (e.g. complaint, resolution)
-                  example: complaint
-                objectId:
+                  enum: [Complaint, Queue, Notification]
+                  description: Owning aggregate type
+                  example: Complaint
+                aggregateId:
                   type: string
                   format: uuid
-                  description: Domain object id
+                  description: Owning aggregate id
                 file:
                   type: string
                   format: binary
@@ -1653,17 +2089,18 @@ paths:
               example:
                 data:
                   id: "8f14e45f-ceea-467f-9b6e-5d8c2a1b0c9d"
-                  objectType: complaint
-                  objectId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
-                  filename: evidence.pdf
-                  storedFilename: a1b2c3d4e5f6789012345678abcdef90.pdf
+                  aggregateType: Complaint
+                  aggregateId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                  fileName: a1b2c3d4e5f6789012345678abcdef90.pdf
+                  originalName: evidence.pdf
                   mimeType: application/pdf
                   extension: ".pdf"
                   sizeBytes: 2048
-                  checksum: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+                  checksumSha256: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
                   storageProvider: local
                   uploadedBy: "11111111-1111-1111-1111-111111111111"
-                  createdAt: "2026-07-23T12:00:00Z"
+                  uploadedAt: "2026-07-25T12:00:00Z"
+                  status: AVAILABLE
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -1681,8 +2118,9 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        Returns attachment metadata only (no file bytes). Soft-deleted
-        rows are not returned (404). Requires `attachment:read`.
+        Returns attachment metadata only (no file bytes). Logically deleted
+        rows (`status=DELETED`) are not returned (404). Requires
+        `attachment:read`.
       parameters:
         - name: id
           in: path
@@ -1704,16 +2142,15 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     delete:
-      summary: Soft-delete attachment
+      summary: Logically delete attachment
       operationId: deleteAttachment
       x-ear-id: API-326
       tags: [Attachments]
       security:
         - bearerAuth: []
       description: |
-        Soft-deletes the attachment by setting `deleted_at`. Database
-        row is retained; physical blob retention is deferred. Requires
-        `attachment:delete`.
+        Logical delete by setting `status=DELETED`. Database row and
+        physical blob are retained. Requires `attachment:delete`.
       parameters:
         - name: id
           in: path
@@ -1721,7 +2158,7 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "204":
-          description: Soft-deleted
+          description: Logically deleted
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -1775,6 +2212,45 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/attachments:
+    get:
+      summary: List attachments for a complaint
+      operationId: listComplaintAttachments
+      x-ear-id: API-387
+      tags: [Attachments]
+      security:
+        - bearerAuth: []
+      description: |
+        Lists attachments bound to aggregate Complaint for the given id
+        (CAPABILITY-011). Equivalent to
+        `GET /attachments?aggregateType=Complaint&aggregateId={id}`.
+        Requires `attachment:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 100 }
+      responses:
+        "200":
+          description: Complaint attachment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/notification/templates:
@@ -2083,6 +2559,212 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/notifications/{id}/retry:
+    post:
+      summary: Retry failed notification
+      operationId: retryNotificationQueueItem
+      x-ear-id: API-356
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Re-queues a FAILED (or PENDING) notification: increments retryCount,
+        clears failure fields, status → PENDING. Rejects when retry limit
+        (settings `notification.max.retry`) is exceeded. Requires
+        `notification:update`. CAPABILITY-009 — no scheduler.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Notification re-queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationQueueDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/notifications/{id}/process:
+    post:
+      summary: Process notification via stub provider
+      operationId: processNotificationQueueItem
+      x-ear-id: API-357
+      tags: [Notifications]
+      security:
+        - bearerAuth: []
+      description: |
+        Attempts channel-independent delivery through the stub
+        NotificationProvider (no SMTP / WhatsApp / SMS / Push / webhook).
+        Lifecycle: PENDING|FAILED → PROCESSING (Sending) → SENT|FAILED.
+        Requires `notification:update`. CAPABILITY-009.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Notification processed (Sent or Failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationQueueDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/timeline:
+    get:
+      summary: List activity timeline entries
+      operationId: listActivityTimeline
+      x-ear-id: API-382
+      tags: [ActivityTimeline]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-010 — paginated chronological list from `timeline_entries`
+        (oldest first). Filter by aggregateType / aggregateId / eventType.
+        Append-only; no update/delete. Requires `timeline:read`.
+      parameters:
+        - name: aggregateType
+          in: query
+          schema: { type: string, enum: [Complaint, Queue, Notification] }
+        - name: aggregateId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: eventType
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Paginated timeline entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityTimelineListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      summary: Create timeline entry (internal/testing)
+      operationId: createActivityTimelineEntry
+      x-ear-id: API-384
+      tags: [ActivityTimeline]
+      security:
+        - bearerAuth: []
+      description: |
+        Manual append for internal/testing. Production flow records via
+        EventDispatcher → TimelineEventHandler. Requires `timeline:create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityTimelineCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityTimelineDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/timeline/{id}:
+    get:
+      summary: Get activity timeline entry
+      operationId: getActivityTimelineEntry
+      x-ear-id: API-383
+      tags: [ActivityTimeline]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-010 — immutable timeline entry by id. Requires `timeline:read`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Timeline entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityTimelineDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/complaints/{id}/activity-timeline:
+    get:
+      summary: List CAPABILITY-010 timeline for a complaint
+      operationId: listComplaintActivityTimeline
+      x-ear-id: API-385
+      tags: [ActivityTimeline]
+      security:
+        - bearerAuth: []
+      description: |
+        CAPABILITY-010 complaint activity from `timeline_entries`
+        (aggregateType=Complaint). Distinct from API-209
+        GET /api/v1/complaints/{id}/timeline (`complaint_timelines`).
+        Requires `timeline:read`.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 100 }
+      responses:
+        "200":
+          description: Paginated activity timeline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityTimelineListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/audit:
@@ -3406,6 +4088,47 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Complaint" }
         meta: { $ref: "#/components/schemas/PageMeta" }
+    SearchPagination:
+      type: object
+      required:
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+        - hasNext
+        - hasPrevious
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        totalItems: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+        hasNext: { type: boolean }
+        hasPrevious: { type: boolean }
+      description: CAPABILITY-012 search pagination (DB-side).
+    SearchSort:
+      type: object
+      required: [field, order]
+      properties:
+        field:
+          type: string
+          enum: [createdAt, updatedAt, priority, status, slaDueDate]
+        order:
+          type: string
+          enum: [asc, desc]
+    ComplaintSearchResponse:
+      type: object
+      required: [items, pagination, filtersApplied, sort]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Complaint" }
+        pagination: { $ref: "#/components/schemas/SearchPagination" }
+        filtersApplied:
+          type: object
+          additionalProperties: true
+          description: Echo of non-empty filters applied to the query
+        sort: { $ref: "#/components/schemas/SearchSort" }
+      description: CAPABILITY-012 Complaint search envelope (API-388).
     AssignComplaintRequest:
       type: object
       required: [assigneeId]
@@ -4047,6 +4770,79 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/TimelineEntry" }
+    ActivityTimelineAggregateType:
+      type: string
+      enum: [Complaint, Queue, Notification]
+    ActivityTimelineActorType:
+      type: string
+      enum: [USER, SYSTEM, SERVICE]
+    ActivityTimelineEntry:
+      type: object
+      required:
+        - id
+        - aggregateType
+        - aggregateId
+        - eventType
+        - title
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        aggregateType: { $ref: "#/components/schemas/ActivityTimelineAggregateType" }
+        aggregateId: { type: string, format: uuid }
+        eventType: { type: string, maxLength: 100 }
+        title: { type: string, maxLength: 255 }
+        description: { type: string, nullable: true }
+        actorType:
+          allOf:
+            - $ref: "#/components/schemas/ActivityTimelineActorType"
+          nullable: true
+        actorId: { type: string, maxLength: 100, nullable: true }
+        actorName: { type: string, maxLength: 200, nullable: true }
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+      description: |
+        CAPABILITY-010 append-only activity history row (`timeline_entries`).
+    ActivityTimelineCreateRequest:
+      type: object
+      required: [aggregateType, aggregateId, eventType, title]
+      properties:
+        aggregateType: { $ref: "#/components/schemas/ActivityTimelineAggregateType" }
+        aggregateId: { type: string, format: uuid }
+        eventType: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: string, nullable: true }
+        actorType:
+          allOf:
+            - $ref: "#/components/schemas/ActivityTimelineActorType"
+          default: SYSTEM
+        actorId: { type: string, maxLength: 100, nullable: true }
+        actorName: { type: string, maxLength: 200, nullable: true }
+        metadata:
+          type: object
+          additionalProperties: true
+      description: Internal/testing create (API-384); events are the normal path.
+    ActivityTimelineDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ActivityTimelineEntry" }
+    ActivityTimelineListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityTimelineEntry" }
+        meta:
+          type: object
+          required: [page, pageSize, totalItems]
+          properties:
+            page: { type: integer, minimum: 1 }
+            pageSize: { type: integer, minimum: 1 }
+            totalItems: { type: integer, minimum: 0 }
     ComplaintKpiCounts:
       type: object
       required: [total, open, closed]
@@ -4128,6 +4924,127 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/DashboardSummary" }
+    DashboardComplaintSummary:
+      type: object
+      required:
+        - totalComplaints
+        - openComplaints
+        - closedComplaints
+        - pendingComplaints
+        - overdueComplaints
+        - escalatedComplaints
+        - todayComplaints
+        - thisMonthComplaints
+      properties:
+        totalComplaints: { type: integer, minimum: 0 }
+        openComplaints: { type: integer, minimum: 0 }
+        closedComplaints: { type: integer, minimum: 0 }
+        pendingComplaints: { type: integer, minimum: 0 }
+        overdueComplaints: { type: integer, minimum: 0 }
+        escalatedComplaints: { type: integer, minimum: 0 }
+        todayComplaints: { type: integer, minimum: 0 }
+        thisMonthComplaints: { type: integer, minimum: 0 }
+      description: CAPABILITY-013 complaint summary widget (API-389).
+    DashboardComplaintSummaryDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardComplaintSummary" }
+    DashboardQueueSummary:
+      type: object
+      required: [waiting, serving, completed, cancelled, averageWaitingTime]
+      properties:
+        waiting: { type: integer, minimum: 0 }
+        serving: { type: integer, minimum: 0 }
+        completed: { type: integer, minimum: 0 }
+        cancelled: { type: integer, minimum: 0 }
+        averageWaitingTime:
+          type: number
+          description: Average WAITING ticket age in seconds
+      description: CAPABILITY-013 queue widget (API-390).
+    DashboardQueueDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardQueueSummary" }
+    DashboardSlaWidget:
+      type: object
+      required:
+        - active
+        - breached
+        - resolvedWithinSLA
+        - resolvedOutsideSLA
+        - compliancePercentage
+      properties:
+        active: { type: integer, minimum: 0 }
+        breached: { type: integer, minimum: 0 }
+        resolvedWithinSLA: { type: integer, minimum: 0 }
+        resolvedOutsideSLA: { type: integer, minimum: 0 }
+        compliancePercentage: { type: number }
+      description: CAPABILITY-013 SLA widget (API-391).
+    DashboardSlaWidgetDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardSlaWidget" }
+    DashboardNotificationsSummary:
+      type: object
+      required: [pending, sent, failed, cancelled]
+      properties:
+        pending: { type: integer, minimum: 0 }
+        sent: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        cancelled: { type: integer, minimum: 0 }
+      description: CAPABILITY-013 notification widget (API-392).
+    DashboardNotificationsDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardNotificationsSummary" }
+    DashboardTrendItem:
+      type: object
+      required: [date, count]
+      properties:
+        date: { type: string, format: date }
+        count: { type: integer, minimum: 0 }
+    DashboardTrends:
+      type: object
+      required: [period, items]
+      properties:
+        period: { type: string, enum: [today, 7d, 30d] }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DashboardTrendItem" }
+      description: CAPABILITY-013 trends widget (API-393).
+    DashboardTrendsDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardTrends" }
+    DashboardKpiRates:
+      type: object
+      required:
+        - complaintResolutionRate
+        - slaCompliance
+        - escalationRate
+        - averageResolutionTime
+        - averageQueueWaitingTime
+      properties:
+        complaintResolutionRate: { type: number }
+        slaCompliance: { type: number }
+        escalationRate: { type: number }
+        averageResolutionTime:
+          type: number
+          description: Average closed_at − reported_at in seconds
+        averageQueueWaitingTime:
+          type: number
+          description: Average WAITING ticket age in seconds
+      description: CAPABILITY-013 numeric KPI rates (API-394).
+    DashboardKpiRatesDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardKpiRates" }
     SettingValueType:
       type: string
       enum: [STRING, INTEGER, BOOLEAN, JSON, URL, EMAIL]
@@ -4180,46 +5097,71 @@ components:
       type: object
       required:
         - id
-        - objectType
-        - objectId
-        - filename
-        - storedFilename
+        - aggregateType
+        - aggregateId
+        - fileName
+        - originalName
         - mimeType
         - sizeBytes
-        - checksum
+        - checksumSha256
         - storageProvider
-        - createdAt
+        - uploadedAt
+        - status
       properties:
         id: { type: string, format: uuid }
-        objectType: { type: string, maxLength: 50 }
-        objectId: { type: string, format: uuid }
-        filename: { type: string, maxLength: 255 }
-        storedFilename: { type: string, maxLength: 255 }
+        aggregateType:
+          type: string
+          enum: [Complaint, Queue, Notification]
+        aggregateId: { type: string, format: uuid }
+        fileName:
+          type: string
+          maxLength: 255
+          description: Unique storage filename (uuid.ext)
+        originalName:
+          type: string
+          maxLength: 255
+          description: Sanitized client filename
         mimeType: { type: string, maxLength: 100 }
         extension: { type: string, maxLength: 20, nullable: true }
         sizeBytes: { type: integer, format: int64, minimum: 1 }
-        checksum:
+        checksumSha256:
           type: string
           minLength: 64
           maxLength: 64
           description: Hex SHA-256 of file contents
         storageProvider: { type: string, maxLength: 50, example: local }
         uploadedBy: { type: string, format: uuid, nullable: true }
-        createdAt: { type: string, format: date-time }
+        uploadedAt: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [UPLOADED, AVAILABLE, DELETED, FAILED]
       description: |
-        Platform attachment metadata (TASK-029 / API-323–326). Bytes are
-        stored behind StorageProvider; `storagePath` is never exposed.
+        Platform attachment metadata (CAPABILITY-011 / API-323–326, 386–387).
+        Bytes are stored behind StorageProvider; `storagePath` is never exposed.
     AttachmentDataResponse:
       type: object
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/Attachment" }
+    AttachmentListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Attachment" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
     NotificationChannel:
       type: string
-      enum: [EMAIL, WHATSAPP, PUSH]
+      enum: [EMAIL, WHATSAPP, SMS, PUSH, WEBHOOK]
+      description: |
+        Channel-independent delivery target (CAPABILITY-009). Real adapters
+        are stubbed; Complaint never selects a transport.
     NotificationQueueStatus:
       type: string
       enum: [PENDING, PROCESSING, SENT, FAILED, CANCELLED]
+      description: |
+        PROCESSING is domain status Sending (explicit process API; no worker).
     NotificationTemplate:
       type: object
       required:
@@ -4298,7 +5240,18 @@ components:
       properties:
         id: { type: string, format: uuid }
         templateCode: { type: string, maxLength: 100, nullable: true }
+        type:
+          type: string
+          maxLength: 80
+          nullable: true
+          description: Notification type (e.g. ComplaintCreated, TemplateEnqueue)
+        channel:
+          allOf:
+            - $ref: "#/components/schemas/NotificationChannel"
+          nullable: true
         recipient: { type: string, maxLength: 255, nullable: true }
+        subject: { type: string, maxLength: 255, nullable: true }
+        message: { type: string, nullable: true }
         payload:
           type: object
           nullable: true
@@ -4307,11 +5260,12 @@ components:
         retryCount: { type: integer, minimum: 0 }
         scheduledAt: { type: string, format: date-time, nullable: true }
         sentAt: { type: string, format: date-time, nullable: true }
+        failedAt: { type: string, format: date-time, nullable: true }
         lastError: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
       description: |
-        Notification queue row (TASK-030 / API-332–335). Foundation inserts
-        PENDING only; provider delivery is out of scope.
+        Notification request row (TASK-030 + CAPABILITY-009 / API-332–335,
+        API-356–357). Persisted on `notification_queue`. Stub providers only.
     NotificationQueueDataResponse:
       type: object
       required: [data]

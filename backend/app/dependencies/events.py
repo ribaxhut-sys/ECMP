@@ -75,6 +75,8 @@ from app.modules.notification.memory import InMemoryNotificationStore
 
 from app.modules.notification.registration import register_notification_handler
 
+from app.modules.timeline.registration import register_timeline_handler
+
 from app.modules.workflow.registration import register_workflow_handler
 
 from app.modules.workflow.registry import WorkflowRegistry
@@ -412,7 +414,11 @@ def get_event_dispatcher() -> EventDispatcher:
 
             delivery_store=get_notification_delivery_store(),
 
+            persist=True,
+
         )
+
+        register_timeline_handler(_dispatcher)
 
         register_dashboard_projection_handler(
 

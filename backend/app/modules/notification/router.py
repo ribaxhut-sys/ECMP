@@ -1,4 +1,4 @@
-"""Notification Foundation HTTP routes (API-327–335 / TASK-030)."""
+"""Notification Foundation HTTP routes (API-327–335, API-356–357 / CAPABILITY-009)."""
 
 from __future__ import annotations
 
@@ -260,6 +260,42 @@ def cancel_notification_queue_item(
         Principal, Depends(require_permissions(NOTIFICATION_UPDATE))
     ],
 ) -> DataResponse[NotificationQueueResponse]:
-    """API-335 — cancel a PENDING queue item (no send endpoint exists)."""
+    """API-335 — cancel a PENDING queue item."""
     _ = principal
     return DataResponse(data=service.cancel(queue_id))
+
+
+@queue_router.post(
+    "/{queue_id}/retry",
+    response_model=DataResponse[NotificationQueueResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Retry failed notification",
+)
+def retry_notification_queue_item(
+    queue_id: uuid.UUID,
+    service: Annotated[NotificationService, Depends(get_notification_service)],
+    principal: Annotated[
+        Principal, Depends(require_permissions(NOTIFICATION_UPDATE))
+    ],
+) -> DataResponse[NotificationQueueResponse]:
+    """API-356 — re-queue a FAILED notification (increments retryCount)."""
+    _ = principal
+    return DataResponse(data=service.retry(queue_id))
+
+
+@queue_router.post(
+    "/{queue_id}/process",
+    response_model=DataResponse[NotificationQueueResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Process notification via stub provider",
+)
+def process_notification_queue_item(
+    queue_id: uuid.UUID,
+    service: Annotated[NotificationService, Depends(get_notification_service)],
+    principal: Annotated[
+        Principal, Depends(require_permissions(NOTIFICATION_UPDATE))
+    ],
+) -> DataResponse[NotificationQueueResponse]:
+    """API-357 — stub delivery (Sending → Sent|Failed). No real transport."""
+    _ = principal
+    return DataResponse(data=service.process(queue_id))

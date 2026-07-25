@@ -1,0 +1,29 @@
+# EPIC-001 / DEC-019 — Backend tooling (production tree: backend/)
+# Python target matches production Docker image (python:3.13-slim).
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+  "N815", # camelCase fields are intentional: API contract uses camelCase
+  "B008", # Depends(...) in defaults is the canonical FastAPI DI idiom
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

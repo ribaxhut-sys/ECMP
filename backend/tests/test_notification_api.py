@@ -207,6 +207,10 @@ def test_queue_create_get_list_cancel(
     queue_body = created.json()["data"]
     queue_id = queue_body["id"]
     assert queue_body["status"] == "PENDING"
+    assert queue_body["channel"] == "EMAIL"
+    assert queue_body["type"] == "TemplateEnqueue"
+    assert queue_body["subject"] == "Case CMP-QUEUE-1"
+    assert queue_body["message"] == "Assigned to Budi"
     assert queue_body["payload"]["subject"] == "Case CMP-QUEUE-1"
     assert queue_body["payload"]["content"] == "Assigned to Budi"
     assert queue_body["payload"]["maxRetry"] == 3
@@ -239,6 +243,77 @@ def test_no_send_endpoint(client: TestClient, actor: User) -> None:
     fake_id = uuid.uuid4()
     response = client.post(f"/api/v1/notifications/{fake_id}/send", headers=headers)
     assert response.status_code == 404
+
+
+def test_process_and_retry_stub_provider(
+    client: TestClient,
+    actor: User,
+    db_session: Session,
+) -> None:
+    """CAPABILITY-009 — process via stub + retry FAILED (API-356/357)."""
+    # Ensure migration 0033 columns exist
+    try:
+        db_session.execute(text("SELECT channel, failed_at FROM notification_queue LIMIT 0"))
+    except Exception:
+        pytest.skip("notification domain columns missing (0033_notification_domain)")
+
+    headers = _auth(
+        actor,
+        NOTIFICATION_READ,
+        NOTIFICATION_CREATE,
+        NOTIFICATION_UPDATE,
+    )
+    code = _unique_code()
+    tpl = client.post(
+        "/api/v1/notification/templates",
+        headers=headers,
+        json={
+            "code": code,
+            "name": "Process Template",
+            "channel": "SMS",
+            "subject": None,
+            "content": "SMS body {{name}}",
+            "isActive": True,
+        },
+    )
+    assert tpl.status_code == 201, tpl.text
+
+    created = client.post(
+        "/api/v1/notifications",
+        headers=headers,
+        json={
+            "templateCode": code,
+            "recipient": "+62123456789",
+            "variables": {"name": "Ada"},
+        },
+    )
+    assert created.status_code == 201, created.text
+    queue_id = created.json()["data"]["id"]
+    assert created.json()["data"]["channel"] == "SMS"
+
+    processed = client.post(
+        f"/api/v1/notifications/{queue_id}/process", headers=headers
+    )
+    assert processed.status_code == 200, processed.text
+    assert processed.json()["data"]["status"] == "SENT"
+    assert processed.json()["data"]["sentAt"] is not None
+
+    # Force FAILED to exercise retry
+    row = db_session.get(NotificationQueue, uuid.UUID(queue_id))
+    assert row is not None
+    row.status = "FAILED"
+    row.failed_at = row.sent_at
+    row.sent_at = None
+    row.last_error = "forced"
+    db_session.commit()
+
+    retried = client.post(
+        f"/api/v1/notifications/{queue_id}/retry", headers=headers
+    )
+    assert retried.status_code == 200, retried.text
+    assert retried.json()["data"]["status"] == "PENDING"
+    assert retried.json()["data"]["retryCount"] == 1
+    assert retried.json()["data"]["failedAt"] is None
 
 
 def test_queue_forbidden_without_permission(

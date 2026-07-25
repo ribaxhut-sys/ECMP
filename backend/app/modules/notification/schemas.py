@@ -8,7 +8,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-NotificationChannelLiteral = Literal["EMAIL", "WHATSAPP", "PUSH"]
+NotificationChannelLiteral = Literal[
+    "EMAIL", "WHATSAPP", "SMS", "PUSH", "WEBHOOK"
+]
 NotificationStatusLiteral = Literal[
     "PENDING", "PROCESSING", "SENT", "FAILED", "CANCELLED"
 ]
@@ -109,17 +111,22 @@ class NotificationCreateRequest(BaseModel):
 
 
 class NotificationQueueResponse(BaseModel):
-    """Notification queue row (API-332–335)."""
+    """Notification row (API-332–335, API-356–357 / CAPABILITY-009)."""
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
     id: uuid.UUID
     template_code: str | None = Field(default=None, alias="templateCode")
+    notification_type: str | None = Field(default=None, alias="type")
+    channel: NotificationChannelLiteral | None = None
     recipient: str | None = None
+    subject: str | None = None
+    message: str | None = None
     payload: dict[str, Any] | None = None
     status: NotificationStatusLiteral
     retry_count: int = Field(alias="retryCount")
     scheduled_at: datetime | None = Field(default=None, alias="scheduledAt")
     sent_at: datetime | None = Field(default=None, alias="sentAt")
+    failed_at: datetime | None = Field(default=None, alias="failedAt")
     last_error: str | None = Field(default=None, alias="lastError")
     created_at: datetime = Field(alias="createdAt")

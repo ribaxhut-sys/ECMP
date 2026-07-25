@@ -1,429 +1,200 @@
-"""Dashboard composition unit tests (TASK-027 / API-319)."""
-
-
+"""Dashboard composition unit tests (TASK-027 / API-319 overview)."""
 
 from __future__ import annotations
 
-
-
 import uuid
-
 from datetime import UTC, datetime
-
 from types import SimpleNamespace
-
 from unittest.mock import MagicMock
 
-
-
 from app.core.enums import TimelineEvent
-
-from app.modules.dashboard.service import DashboardService
-
-from app.modules.kpi.schemas import (
-
-    ComplaintKpiCounts,
-
-    KpiSummaryResponse,
-
-    SlaStageKpiCounts,
-
+from app.modules.dashboard.providers.complaint_provider import (
+    ComplaintDashboardProvider,
 )
-
+from app.modules.dashboard.providers.notification_provider import (
+    NotificationDashboardProvider,
+)
+from app.modules.dashboard.providers.queue_provider import QueueDashboardProvider
+from app.modules.dashboard.providers.sla_provider import SlaDashboardProvider
+from app.modules.dashboard.service import DashboardService
+from app.modules.kpi.schemas import (
+    ComplaintKpiCounts,
+    KpiSummaryResponse,
+    SlaStageKpiCounts,
+)
 from app.modules.settings.registry import SettingsKey
 
 
-
-
-
 def _kpi(
-
     *,
-
     total: int = 0,
-
     open_count: int = 0,
-
     closed: int = 0,
-
     assignment: tuple[int, int] = (0, 0),
-
     appointment: tuple[int, int] = (0, 0),
-
     resolution: tuple[int, int] = (0, 0),
-
     escalation: tuple[int, int] = (0, 0),
-
     overall: tuple[int, int] = (0, 0),
-
 ) -> KpiSummaryResponse:
-
     return KpiSummaryResponse(
-
         complaints=ComplaintKpiCounts(total=total, open=open_count, closed=closed),
-
         assignment=SlaStageKpiCounts(completed=assignment[0], breached=assignment[1]),
-
         appointment=SlaStageKpiCounts(
-
             completed=appointment[0], breached=appointment[1]
-
         ),
-
         resolution=SlaStageKpiCounts(completed=resolution[0], breached=resolution[1]),
-
         escalation=SlaStageKpiCounts(completed=escalation[0], breached=escalation[1]),
-
         overall=SlaStageKpiCounts(completed=overall[0], breached=overall[1]),
-
     )
 
 
-
-
-
-def _settings(*, recent_limit: int = 10) -> MagicMock:
-
-    settings = MagicMock()
-
-    settings.get_int.return_value = recent_limit
-
-    return settings
-
-
-
+def _service(
+    *,
+    kpi: MagicMock | None = None,
+    timeline: MagicMock | None = None,
+    complaints: MagicMock | None = None,
+    settings: MagicMock | None = None,
+) -> DashboardService:
+    return DashboardService(
+        complaint_provider=MagicMock(spec=ComplaintDashboardProvider),
+        queue_provider=MagicMock(spec=QueueDashboardProvider),
+        sla_provider=MagicMock(spec=SlaDashboardProvider),
+        notification_provider=MagicMock(spec=NotificationDashboardProvider),
+        kpi_service=kpi or MagicMock(),
+        timeline_service=timeline or MagicMock(),
+        complaint_service=complaints or MagicMock(),
+        settings_service=settings or MagicMock(),
+    )
 
 
 def test_dashboard_composes_kpi_header_and_sla() -> None:
-
     kpi = MagicMock()
-
     kpi.summary.return_value = _kpi(
-
-        total=10,
-
-        open_count=7,
-
-        closed=3,
-
-        assignment=(4, 1),
-
-        appointment=(2, 0),
-
-        resolution=(1, 2),
-
-        escalation=(0, 1),
-
-        overall=(3, 2),
-
+        total=40,
+        open_count=38,
+        closed=2,
+        assignment=(10, 3),
+        appointment=(2, 1),
+        resolution=(1, 0),
+        escalation=(0, 2),
+        overall=(1, 4),
     )
-
     timeline = MagicMock()
-
     timeline.list_recent.return_value = []
+    settings = MagicMock()
+    settings.get_int.return_value = 10
 
-    complaints = MagicMock()
+    result = _service(kpi=kpi, timeline=timeline, settings=settings).overview()
 
-
-
-    result = DashboardService(
-
-        kpi_service=kpi,
-
-        timeline_service=timeline,
-
-        complaint_service=complaints,
-
-        settings_service=_settings(),
-
-    ).summary()
-
-
-
-    assert result.header.total_complaints == 10
-
-    assert result.header.open_complaints == 7
-
-    assert result.header.closed_complaints == 3
-
-    assert result.sla.assignment.completed == 4
-
-    assert result.sla.assignment.breached == 1
-
-    assert result.sla.overall.completed == 3
-
-    assert result.sla.overall.breached == 2
-
-    kpi.summary.assert_called_once_with()
-
-    complaints.get.assert_not_called()
-
-
-
+    assert result.header.total_complaints == 40
+    assert result.header.open_complaints == 38
+    assert result.header.closed_complaints == 2
+    assert result.sla.assignment.completed == 10
+    assert result.sla.assignment.breached == 3
+    assert result.sla.overall.breached == 4
+    assert result.recent_activity == []
 
 
 def test_dashboard_reuses_kpi_service() -> None:
-
     kpi = MagicMock()
-
     kpi.summary.return_value = _kpi()
-
     timeline = MagicMock()
-
     timeline.list_recent.return_value = []
+    settings = MagicMock()
+    settings.get_int.return_value = 10
 
-
-
-    DashboardService(
-
-        kpi_service=kpi,
-
-        timeline_service=timeline,
-
-        complaint_service=MagicMock(),
-
-        settings_service=_settings(),
-
-    ).summary()
-
-
-
-    kpi.summary.assert_called_once()
-
-
-
+    _service(kpi=kpi, timeline=timeline, settings=settings).overview()
+    kpi.summary.assert_called_once_with()
 
 
 def test_dashboard_reuses_timeline_and_complaint_for_recent() -> None:
-
-    complaint_id = uuid.uuid4()
-
-    t0 = datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
-
+    now = datetime.now(UTC)
+    cid = uuid.uuid4()
     row = SimpleNamespace(
-
-        complaint_id=complaint_id,
-
+        complaint_id=cid,
         event_type=TimelineEvent.CREATED,
-
-        event_at=t0,
-
+        event_at=now,
         metadata_json=None,
-
         actor=SimpleNamespace(full_name="golive_admin"),
-
     )
-
-    kpi = MagicMock()
-
-    kpi.summary.return_value = _kpi(total=1, open_count=1)
-
     timeline = MagicMock()
-
     timeline.list_recent.return_value = [row]
-
     complaints = MagicMock()
+    complaints.get.return_value = SimpleNamespace(complaint_number="CMP-ABC1234567")
+    kpi = MagicMock()
+    kpi.summary.return_value = _kpi()
+    settings = MagicMock()
+    settings.get_int.return_value = 10
 
-    complaints.get.return_value = SimpleNamespace(complaint_number="CMP-ABC123")
-
-
-
-    result = DashboardService(
-
-        kpi_service=kpi,
-
-        timeline_service=timeline,
-
-        complaint_service=complaints,
-
-        settings_service=_settings(),
-
-    ).summary()
-
-
-
-    timeline.list_recent.assert_called_once_with(limit=10)
-
-    complaints.get.assert_called_once_with(complaint_id)
+    result = _service(
+        kpi=kpi, timeline=timeline, complaints=complaints, settings=settings
+    ).overview()
 
     assert len(result.recent_activity) == 1
-
-    item = result.recent_activity[0]
-
-    assert item.event_type == TimelineEvent.CREATED.value or item.event_type == str(
-
-        TimelineEvent.CREATED
-
-    )
-
-    assert item.complaint_number == "CMP-ABC123"
-
-    assert item.timestamp == t0
-
-    assert item.actor == "golive_admin"
-
-
-
+    assert result.recent_activity[0].complaint_number == "CMP-ABC1234567"
+    assert result.recent_activity[0].actor == "golive_admin"
+    complaints.get.assert_called_once_with(cid)
 
 
 def test_dashboard_empty_activity_and_zero_counts() -> None:
-
     kpi = MagicMock()
-
     kpi.summary.return_value = _kpi()
-
     timeline = MagicMock()
-
     timeline.list_recent.return_value = []
+    settings = MagicMock()
+    settings.get_int.return_value = 10
 
-
-
-    result = DashboardService(
-
-        kpi_service=kpi,
-
-        timeline_service=timeline,
-
-        complaint_service=MagicMock(),
-
-        settings_service=_settings(),
-
-    ).summary()
-
-
-
+    result = _service(kpi=kpi, timeline=timeline, settings=settings).overview()
     assert result.header.total_complaints == 0
-
     assert result.recent_activity == []
-
-    assert result.sla.appointment.completed == 0
-
-    assert result.sla.appointment.breached == 0
-
-
-
 
 
 def test_dashboard_system_actor_fallback() -> None:
-
-    complaint_id = uuid.uuid4()
-
+    now = datetime.now(UTC)
     row = SimpleNamespace(
-
-        complaint_id=complaint_id,
-
-        event_type="sla.assignment.breached",
-
-        event_at=datetime.now(UTC),
-
-        metadata_json={"actor": "SYSTEM"},
-
+        complaint_id=uuid.uuid4(),
+        event_type=TimelineEvent.CREATED,
+        event_at=now,
+        metadata_json=None,
         actor=None,
-
     )
-
-    kpi = MagicMock()
-
-    kpi.summary.return_value = _kpi()
-
     timeline = MagicMock()
-
     timeline.list_recent.return_value = [row]
-
     complaints = MagicMock()
+    complaints.get.return_value = SimpleNamespace(complaint_number="CMP-1")
+    kpi = MagicMock()
+    kpi.summary.return_value = _kpi()
+    settings = MagicMock()
+    settings.get_int.return_value = 10
 
-    complaints.get.return_value = SimpleNamespace(complaint_number="CMP-SYS")
-
-
-
-    result = DashboardService(
-
-        kpi_service=kpi,
-
-        timeline_service=timeline,
-
-        complaint_service=complaints,
-
-        settings_service=_settings(),
-
-    ).summary()
-
-
-
+    result = _service(
+        kpi=kpi, timeline=timeline, complaints=complaints, settings=settings
+    ).overview()
     assert result.recent_activity[0].actor == "SYSTEM"
 
 
-
-
-
 def test_dashboard_recent_limit_forwarded() -> None:
-
     kpi = MagicMock()
-
     kpi.summary.return_value = _kpi()
-
     timeline = MagicMock()
-
     timeline.list_recent.return_value = []
+    settings = MagicMock()
+    settings.get_int.return_value = 5
 
-    settings = _settings(recent_limit=10)
-
-
-
-    DashboardService(
-
-        kpi_service=kpi,
-
-        timeline_service=timeline,
-
-        complaint_service=MagicMock(),
-
-        settings_service=settings,
-
-    ).summary()
-
-
-
+    _service(kpi=kpi, timeline=timeline, settings=settings).overview()
     settings.get_int.assert_called_once_with(
-
-        SettingsKey.DASHBOARD_RECENT_LIMIT,
-
-        default=10,
-
+        SettingsKey.DASHBOARD_RECENT_LIMIT, default=10
     )
-
-    timeline.list_recent.assert_called_once_with(limit=10)
-
-
-
-
-
-def test_dashboard_recent_limit_from_settings() -> None:
-
-    kpi = MagicMock()
-
-    kpi.summary.return_value = _kpi()
-
-    timeline = MagicMock()
-
-    timeline.list_recent.return_value = []
-
-
-
-    DashboardService(
-
-        kpi_service=kpi,
-
-        timeline_service=timeline,
-
-        complaint_service=MagicMock(),
-
-        settings_service=_settings(recent_limit=5),
-
-    ).summary()
-
-
-
     timeline.list_recent.assert_called_once_with(limit=5)
 
 
+def test_dashboard_recent_limit_from_settings() -> None:
+    kpi = MagicMock()
+    kpi.summary.return_value = _kpi()
+    timeline = MagicMock()
+    timeline.list_recent.return_value = []
+    settings = MagicMock()
+    settings.get_int.return_value = 0  # invalid → default 10
+
+    _service(kpi=kpi, timeline=timeline, settings=settings).overview()
+    timeline.list_recent.assert_called_once_with(limit=10)

@@ -142,7 +142,7 @@ def test_dashboard_summary_requires_permission(
         claims={"permissions": ["complaints:read"], "roles": ["AGENT"]},
     )
     resp = client.get(
-        "/api/v1/dashboard/summary",
+        "/api/v1/dashboard/overview",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
@@ -157,7 +157,7 @@ def test_dashboard_summary_end_to_end(
     _activate_policy(db_session)
     marker = f"DASH-{uuid.uuid4().hex[:8]}"
 
-    before = client.get("/api/v1/dashboard/summary", headers=auth_header)
+    before = client.get("/api/v1/dashboard/overview", headers=auth_header)
     assert before.status_code == 200
     before_body = before.json()["data"]
     assert "header" in before_body
@@ -182,7 +182,7 @@ def test_dashboard_summary_end_to_end(
         assert resp.status_code in (200, 201)
         created_numbers.append(resp.json()["data"]["complaintNumber"])
 
-    after = client.get("/api/v1/dashboard/summary", headers=auth_header)
+    after = client.get("/api/v1/dashboard/overview", headers=auth_header)
     assert after.status_code == 200
     body = after.json()["data"]
 

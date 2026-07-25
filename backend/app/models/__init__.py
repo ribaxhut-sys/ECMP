@@ -34,6 +34,7 @@ from app.modules.iam.role_permission.models import RolePermission
 from app.modules.iam.user_role.models import UserRole
 from app.modules.notification.models import NotificationQueue, NotificationTemplate
 from app.modules.settings.models import Setting
+from app.modules.timeline.models import TimelineEntryORM
 
 
 class Branch(TimestampAuditSoftDeleteMixin, Base):
@@ -664,6 +665,7 @@ __all__ = [
     "Setting",
     "SlaPolicy",
     "SlaRecord",
+    "TimelineEntryORM",
     "User",
     "UserRole",
 ]

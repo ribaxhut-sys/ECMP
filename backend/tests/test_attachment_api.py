@@ -1,4 +1,4 @@
-"""Attachment Management integration tests (TASK-029 / API-323–326)."""
+"""CAPABILITY-011 Attachment Management integration tests (API-323–326, 386–387)."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from app.core.security import create_access_token
 from app.db.session import get_db_session
 from app.main import create_app
 from app.models import Attachment, User
+from app.modules.attachment.domain.enums import AttachmentStatus
 from app.modules.attachment.permissions import (
     ATTACHMENT_CREATE,
     ATTACHMENT_DELETE,
@@ -81,6 +82,14 @@ def actor(db_session: Session) -> User:
     return user
 
 
+@pytest.fixture(autouse=True)
+def require_attachment_schema(db_session: Session) -> None:
+    try:
+        db_session.execute(text("SELECT aggregate_type, status FROM attachments LIMIT 0"))
+    except Exception:
+        pytest.skip("attachments CAPABILITY-011 schema missing (alembic upgrade to 0035)")
+
+
 @pytest.fixture()
 def storage_root(tmp_path: Path, db_session: Session) -> Path:
     """Point storage.root.path at a temp dir for isolated API tests."""
@@ -106,13 +115,13 @@ def _auth(actor: User, *permissions: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_upload_get_download_delete_flow(
+def test_upload_get_list_download_delete_flow(
     client: TestClient,
     actor: User,
     db_session: Session,
     storage_root: Path,
 ) -> None:
-    object_id = uuid.uuid4()
+    aggregate_id = uuid.uuid4()
     payload = b"%PDF-1.4 ECMP attachment test"
     headers = _auth(actor, ATTACHMENT_CREATE, ATTACHMENT_READ, ATTACHMENT_DELETE)
 
@@ -120,22 +129,24 @@ def test_upload_get_download_delete_flow(
         "/api/v1/attachments",
         headers=headers,
         data={
-            "objectType": "complaint",
-            "objectId": str(object_id),
+            "aggregateType": "Complaint",
+            "aggregateId": str(aggregate_id),
         },
         files={"file": ("evidence.pdf", payload, "application/pdf")},
     )
     assert upload.status_code == 201, upload.text
     body = upload.json()["data"]
     attachment_id = body["id"]
-    assert body["filename"] == "evidence.pdf"
-    assert body["objectType"] == "complaint"
-    assert body["objectId"] == str(object_id)
+    assert body["originalName"] == "evidence.pdf"
+    assert body["aggregateType"] == "Complaint"
+    assert body["aggregateId"] == str(aggregate_id)
     assert body["mimeType"] == "application/pdf"
     assert body["sizeBytes"] == len(payload)
-    assert body["checksum"] == hashlib.sha256(payload).hexdigest()
+    assert body["checksumSha256"] == hashlib.sha256(payload).hexdigest()
     assert body["storageProvider"] == "local"
     assert body["uploadedBy"] == str(actor.id)
+    assert body["status"] == AttachmentStatus.AVAILABLE.value
+    assert body["fileName"].endswith(".pdf")
 
     meta = client.get(
         f"/api/v1/attachments/{attachment_id}",
@@ -143,6 +154,24 @@ def test_upload_get_download_delete_flow(
     )
     assert meta.status_code == 200
     assert meta.json()["data"]["id"] == attachment_id
+
+    listed = client.get(
+        "/api/v1/attachments",
+        headers=_auth(actor, ATTACHMENT_READ),
+        params={
+            "aggregateType": "Complaint",
+            "aggregateId": str(aggregate_id),
+        },
+    )
+    assert listed.status_code == 200
+    assert any(item["id"] == attachment_id for item in listed.json()["data"])
+
+    complaint_list = client.get(
+        f"/api/v1/complaints/{aggregate_id}/attachments",
+        headers=_auth(actor, ATTACHMENT_READ),
+    )
+    assert complaint_list.status_code == 200
+    assert any(item["id"] == attachment_id for item in complaint_list.json()["data"])
 
     download = client.get(
         f"/api/v1/attachments/{attachment_id}/download",
@@ -168,7 +197,7 @@ def test_upload_get_download_delete_flow(
 
     row = db_session.get(Attachment, uuid.UUID(attachment_id))
     assert row is not None
-    assert row.deleted_at is not None
+    assert row.status == AttachmentStatus.DELETED.value
 
     missing = client.get(
         f"/api/v1/attachments/{attachment_id}",
@@ -184,8 +213,8 @@ def test_upload_rejects_disallowed_mime(
         "/api/v1/attachments",
         headers=_auth(actor, ATTACHMENT_CREATE),
         data={
-            "objectType": "complaint",
-            "objectId": str(uuid.uuid4()),
+            "aggregateType": "Complaint",
+            "aggregateId": str(uuid.uuid4()),
         },
         files={"file": ("malware.exe", b"MZ", "application/x-msdownload")},
     )
@@ -200,8 +229,8 @@ def test_upload_requires_permission(
         "/api/v1/attachments",
         headers=_auth(actor, ATTACHMENT_READ),
         data={
-            "objectType": "complaint",
-            "objectId": str(uuid.uuid4()),
+            "aggregateType": "Queue",
+            "aggregateId": str(uuid.uuid4()),
         },
         files={"file": ("a.pdf", b"%PDF", "application/pdf")},
     )

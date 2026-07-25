@@ -1,4 +1,4 @@
-"""Attachment Management unit/service tests (TASK-029)."""
+"""CAPABILITY-011 Attachment Management unit/service/storage tests."""
 
 from __future__ import annotations
 
@@ -7,12 +7,14 @@ import json
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.core.errors import NotFoundError, ValidationAppError
+from app.modules.attachment.domain.entity import Attachment
+from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
+from app.modules.attachment.infrastructure.local_storage import LocalStorageProvider
 from app.modules.attachment.service import (
     SETTING_ALLOWED_MIME,
     SETTING_MAX_UPLOAD_MB,
@@ -21,7 +23,6 @@ from app.modules.attachment.service import (
     AttachmentService,
     sanitize_filename,
 )
-from app.modules.attachment.storage.local import LocalStorageProvider
 
 
 def _settings(
@@ -36,7 +37,7 @@ def _settings(
     def get_string(key: str, *, default: str | None = None) -> str:
         values = {
             SETTING_STORAGE_PROVIDER: "local",
-            SETTING_STORAGE_ROOT_PATH: root or "data/attachments",
+            SETTING_STORAGE_ROOT_PATH: root or "storage/attachments",
         }
         return values.get(key, default if default is not None else "")
 
@@ -60,26 +61,25 @@ def _settings(
     return settings
 
 
-def _row(**overrides: object) -> SimpleNamespace:
-    now = datetime.now(UTC)
-    base = {
-        "id": uuid.uuid4(),
-        "object_type": "complaint",
-        "object_id": uuid.uuid4(),
-        "filename": "note.pdf",
-        "stored_filename": f"{uuid.uuid4().hex}.pdf",
-        "mime_type": "application/pdf",
-        "extension": ".pdf",
-        "size_bytes": 12,
-        "checksum": hashlib.sha256(b"hello-pdf!!").hexdigest(),
-        "storage_provider": "local",
-        "storage_path": "abc.pdf",
-        "uploaded_by": uuid.uuid4(),
-        "created_at": now,
-        "deleted_at": None,
-    }
+def _entity(**overrides: object) -> Attachment:
+    data = b"hello-pdf!!"
+    base = dict(
+        aggregate_type=AggregateType.COMPLAINT.value,
+        aggregate_id=uuid.uuid4(),
+        file_name=f"{uuid.uuid4().hex}.pdf",
+        original_name="note.pdf",
+        mime_type="application/pdf",
+        extension=".pdf",
+        size_bytes=len(data),
+        storage_provider="local",
+        storage_path="2026/07/abc.pdf",
+        checksum_sha256=hashlib.sha256(data).hexdigest(),
+        uploaded_by=uuid.uuid4(),
+        uploaded_at=datetime.now(UTC),
+        status=AttachmentStatus.AVAILABLE.value,
+    )
     base.update(overrides)
-    return SimpleNamespace(**base)
+    return Attachment.create(**base)  # type: ignore[arg-type]
 
 
 def test_sanitize_filename_strips_path_traversal() -> None:
@@ -91,25 +91,31 @@ def test_sanitize_filename_strips_path_traversal() -> None:
         sanitize_filename("")
 
 
-def test_local_storage_prevents_path_traversal(tmp_path: Path) -> None:
+def test_local_storage_yyyy_mm_layout_and_traversal(tmp_path: Path) -> None:
     storage = LocalStorageProvider(str(tmp_path))
     with pytest.raises(ValidationAppError):
-        storage.save(stored_filename="../escape.txt", data=b"x")
-    path = storage.save(stored_filename="ok.txt", data=b"payload")
+        storage.save(relative_path="../escape.txt", data=b"x")
+    with pytest.raises(ValidationAppError):
+        storage.save(relative_path="/abs.txt", data=b"x")
+    path = storage.save(relative_path="2026/07/ok.txt", data=b"payload")
+    assert path == "2026/07/ok.txt"
+    assert (tmp_path / "2026" / "07" / "ok.txt").is_file()
     assert storage.read(path) == b"payload"
     assert storage.exists(path) is True
+    storage.delete(path)
+    assert storage.exists(path) is False
 
 
 def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
     repo = MagicMock()
     storage = LocalStorageProvider(str(tmp_path))
     svc = AttachmentService(repo, _settings(root=str(tmp_path)), storage=storage)
-    object_id = uuid.uuid4()
+    aggregate_id = uuid.uuid4()
 
     with pytest.raises(ValidationAppError, match="empty"):
         svc.upload(
-            object_type="complaint",
-            object_id=object_id,
+            aggregate_type=AggregateType.COMPLAINT.value,
+            aggregate_id=aggregate_id,
             filename="a.pdf",
             content_type="application/pdf",
             data=b"",
@@ -118,8 +124,8 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationAppError, match="mime"):
         svc.upload(
-            object_type="complaint",
-            object_id=object_id,
+            aggregate_type=AggregateType.COMPLAINT.value,
+            aggregate_id=aggregate_id,
             filename="a.exe",
             content_type="application/x-msdownload",
             data=b"MZ",
@@ -128,9 +134,19 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationAppError, match="extension"):
         svc.upload(
-            object_type="complaint",
-            object_id=object_id,
+            aggregate_type=AggregateType.COMPLAINT.value,
+            aggregate_id=aggregate_id,
             filename="a.txt",
+            content_type="application/pdf",
+            data=b"%PDF",
+            uploaded_by=None,
+        )
+
+    with pytest.raises(ValidationAppError, match="aggregate"):
+        svc.upload(
+            aggregate_type="Invoice",
+            aggregate_id=aggregate_id,
+            filename="a.pdf",
             content_type="application/pdf",
             data=b"%PDF",
             uploaded_by=None,
@@ -141,8 +157,8 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
     )
     with pytest.raises(ValidationAppError, match="maximum"):
         svc_small.upload(
-            object_type="complaint",
-            object_id=object_id,
+            aggregate_type=AggregateType.COMPLAINT.value,
+            aggregate_id=aggregate_id,
             filename="big.pdf",
             content_type="application/pdf",
             data=b"x" * (1024 * 1024 + 1),
@@ -150,72 +166,78 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
         )
 
 
-def test_upload_persists_checksum_and_unique_stored_name(tmp_path: Path) -> None:
+def test_upload_persists_checksum_and_unique_file_name(tmp_path: Path) -> None:
     repo = MagicMock()
-    created: list[object] = []
+    created: list[Attachment] = []
 
-    def add(row: object) -> object:
-        created.append(row)
-        return row
+    def add(entity: Attachment) -> Attachment:
+        created.append(entity)
+        return entity
 
     repo.add.side_effect = add
     storage = LocalStorageProvider(str(tmp_path))
     svc = AttachmentService(repo, _settings(root=str(tmp_path)), storage=storage)
     data = b"%PDF-1.4 demo"
-    object_id = uuid.uuid4()
+    aggregate_id = uuid.uuid4()
     uploader = uuid.uuid4()
 
     result = svc.upload(
-        object_type="Complaint",
-        object_id=object_id,
+        aggregate_type=AggregateType.COMPLAINT.value,
+        aggregate_id=aggregate_id,
         filename="docs/report.pdf",
         content_type="application/pdf",
         data=data,
         uploaded_by=uploader,
     )
 
-    assert result.filename == "report.pdf"
-    assert result.object_type == "Complaint"
-    assert result.checksum == hashlib.sha256(data).hexdigest()
-    assert result.stored_filename.endswith(".pdf")
-    assert result.stored_filename != "report.pdf"
+    assert result.original_name == "report.pdf"
+    assert result.aggregate_type == AggregateType.COMPLAINT.value
+    assert result.checksum_sha256 == hashlib.sha256(data).hexdigest()
+    assert result.file_name.endswith(".pdf")
+    assert result.file_name != "report.pdf"
     assert result.size_bytes == len(data)
+    assert result.status == AttachmentStatus.AVAILABLE.value
+    assert "/" in created[0].storage_path  # yyyy/mm/...
     repo.add.assert_called_once()
     repo.commit.assert_called_once()
-    assert storage.exists(created[0].storage_path)  # type: ignore[index]
+    assert storage.exists(created[0].storage_path)
 
 
-def test_get_download_soft_delete(tmp_path: Path) -> None:
-    row = _row()
+def test_get_download_logical_delete(tmp_path: Path) -> None:
+    entity = _entity()
     repo = MagicMock()
-    repo.get_by_id.return_value = row
+    repo.get.return_value = entity
     storage = LocalStorageProvider(str(tmp_path))
-    storage.save(stored_filename=row.storage_path, data=b"file-bytes")
+    storage.save(relative_path=entity.storage_path, data=b"file-bytes")
     svc = AttachmentService(repo, _settings(root=str(tmp_path)), storage=storage)
 
-    meta = svc.get(row.id)
-    assert meta.id == row.id
-    assert meta.filename == "note.pdf"
+    meta = svc.get(entity.id)
+    assert meta.id == entity.id
+    assert meta.original_name == "note.pdf"
 
-    fetched, payload = svc.download(row.id)
-    assert fetched.id == row.id
+    fetched, payload = svc.download(entity.id)
+    assert fetched.id == entity.id
     assert payload == b"file-bytes"
 
-    svc.soft_delete(row.id)
-    repo.soft_delete.assert_called_once_with(row)
+    svc.soft_delete(entity.id)
+    repo.save.assert_called_once()
     repo.commit.assert_called()
-    # Soft delete retains physical blob.
-    assert storage.exists(row.storage_path) is True
+    assert entity.status == AttachmentStatus.DELETED.value
+    assert storage.exists(entity.storage_path) is True
 
 
-def test_get_missing_raises_not_found(tmp_path: Path) -> None:
+def test_list_and_missing(tmp_path: Path) -> None:
     repo = MagicMock()
-    repo.get_by_id.return_value = None
+    repo.get.return_value = None
+    repo.list.return_value = ([], 0)
     svc = AttachmentService(
         repo, _settings(root=str(tmp_path)), storage=LocalStorageProvider(str(tmp_path))
     )
     with pytest.raises(NotFoundError):
         svc.get(uuid.uuid4())
+    data, meta = svc.list(page=1, page_size=10)
+    assert data == []
+    assert meta.total_items == 0
 
 
 def test_allowed_mime_setting_must_be_list(tmp_path: Path) -> None:
@@ -226,8 +248,8 @@ def test_allowed_mime_setting_must_be_list(tmp_path: Path) -> None:
     )
     with pytest.raises(ValidationAppError, match="JSON array"):
         svc.upload(
-            object_type="complaint",
-            object_id=uuid.uuid4(),
+            aggregate_type=AggregateType.COMPLAINT.value,
+            aggregate_id=uuid.uuid4(),
             filename="a.pdf",
             content_type="application/pdf",
             data=b"%PDF",
@@ -236,7 +258,6 @@ def test_allowed_mime_setting_must_be_list(tmp_path: Path) -> None:
 
 
 def test_settings_defaults_json_roundtrip() -> None:
-    """Guard: seed MIME list must remain valid JSON for SettingsService."""
     raw = json.dumps(
         ["application/pdf", "image/png"],
         separators=(",", ":"),

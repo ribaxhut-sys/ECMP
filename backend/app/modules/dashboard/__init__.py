@@ -1,6 +1,11 @@
-"""Dashboard orchestration + projection foundation.
+"""Dashboard aggregation (CAPABILITY-013) + projection foundation (TASK-050).
 
-TASK-027 / API-319: composes KPI + Timeline + Complaint responses.
+CAPABILITY-013: read-only SQL aggregation providers (complaint / queue / SLA /
+notification) + KPI rates. No dashboard tables. No domain writes.
+
+API-319 (TASK-027): ``GET /dashboard/overview`` composition via KPI / Timeline /
+Complaint services.
+
 TASK-050: in-memory DashboardProjection updated from Complaint events.
 """
 

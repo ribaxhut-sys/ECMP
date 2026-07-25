@@ -1,7 +1,8 @@
-"""Notification Foundation service (TASK-030).
+"""Notification Foundation service (TASK-030 + CAPABILITY-009).
 
-Creates queue rows only. No SMTP / WhatsApp / FCM / worker / retry.
-Uses SettingsService for notification.enabled / default.channel / max.retry.
+Creates / queues / lifecycle-transitions notification rows.
+Transport goes through NotificationProvider stubs only — no SMTP / Twilio.
+Complaint must never import this module for delivery decisions.
 """
 
 from __future__ import annotations
@@ -13,6 +14,12 @@ from typing import Any
 
 from app.core.enums import NotificationChannel, NotificationQueueStatus
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.modules.notification.domain.entity import NotificationRecord
+from app.modules.notification.infrastructure.providers import (
+    NotificationProvider,
+    StubNotificationProvider,
+)
+from app.modules.notification.mappers import apply_record, new_queue_row, to_record
 from app.modules.notification.models import NotificationQueue, NotificationTemplate
 from app.modules.notification.repository import NotificationRepository
 from app.modules.notification.schemas import (
@@ -59,15 +66,17 @@ def _render_text(template: str, variables: dict[str, Any]) -> str:
 
 
 class NotificationService:
-    """Template CRUD + notification queue foundation (no provider delivery)."""
+    """Template CRUD + notification domain lifecycle (stub providers only)."""
 
     def __init__(
         self,
         repository: NotificationRepository,
         settings: SettingsService,
+        provider: NotificationProvider | None = None,
     ) -> None:
         self._repo = repository
         self._settings = settings
+        self._provider: NotificationProvider = provider or StubNotificationProvider()
 
     # --- settings helpers --------------------------------------------------
 
@@ -149,7 +158,7 @@ class NotificationService:
         self._repo.soft_delete_template(row)
         self._repo.commit()
 
-    # --- queue API ---------------------------------------------------------
+    # --- queue / domain API ------------------------------------------------
 
     def create(
         self, payload: NotificationCreateRequest
@@ -167,7 +176,6 @@ class NotificationService:
                 f"Active notification template not found: {payload.template_code}"
             )
 
-        # Ensure channel is known; default.channel is available for future overrides.
         self._validate_channel(template.channel)
         _ = self.default_channel()
         max_retry = self.max_retry()
@@ -187,44 +195,137 @@ class NotificationService:
             template_code=template.code,
             recipient=payload.recipient,
             payload=rendered_payload,
+            channel=template.channel,
+            subject=rendered_payload.get("subject"),
+            message=rendered_payload.get("content"),
+            notification_type="TemplateEnqueue",
             scheduled_at=payload.scheduled_at,
         )
 
     def queue(
         self,
         *,
-        template_code: str,
+        template_code: str | None,
         recipient: str,
         payload: dict[str, Any],
+        channel: str | None = None,
+        subject: str | None = None,
+        message: str | None = None,
+        notification_type: str | None = None,
         scheduled_at: datetime | None = None,
+        notification_id: uuid.UUID | None = None,
+        commit: bool = True,
     ) -> NotificationQueueResponse:
-        """Insert a PENDING queue row. Does not send."""
-        row = NotificationQueue(
-            id=uuid.uuid4(),
+        """Insert a PENDING notification row. Does not send."""
+        resolved_channel = (
+            channel
+            or (payload.get("channel") if isinstance(payload.get("channel"), str) else None)
+            or self.default_channel()
+        )
+        record = NotificationRecord.create(
+            channel=resolved_channel,
+            recipient=recipient,
+            notification_type=notification_type,
+            subject=subject if subject is not None else payload.get("subject"),
+            message=message if message is not None else payload.get("content"),
+            template=template_code,
+            payload=payload,
+            notification_id=notification_id,
+            scheduled_at=scheduled_at,
+        )
+        row = new_queue_row(record)
+        self._repo.add_queue(row)
+        if commit:
+            self._repo.commit()
+        return _to_queue_response(row)
+
+    def enqueue_domain_notification(
+        self,
+        *,
+        notification_type: str,
+        recipient: str,
+        subject: str,
+        message: str,
+        payload: dict[str, Any],
+        channel: str | None = None,
+        template_code: str | None = None,
+        notification_id: uuid.UUID | None = None,
+        commit: bool = True,
+    ) -> NotificationQueueResponse:
+        """Persist a domain Notification request (event-driven path)."""
+        if not self.is_enabled():
+            raise ValidationAppError(
+                "notifications are disabled",
+                details={"key": SETTING_ENABLED, "value": False},
+            )
+        return self.queue(
             template_code=template_code,
             recipient=recipient,
             payload=payload,
-            status=NotificationQueueStatus.PENDING.value,
-            retry_count=0,
-            scheduled_at=scheduled_at,
-            sent_at=None,
-            last_error=None,
-            created_at=datetime.now(UTC),
+            channel=channel or self.default_channel(),
+            subject=subject,
+            message=message,
+            notification_type=notification_type,
+            notification_id=notification_id,
+            commit=commit,
         )
-        self._repo.add_queue(row)
-        self._repo.commit()
-        return _to_queue_response(row)
 
     def cancel(self, queue_id: uuid.UUID) -> NotificationQueueResponse:
         row = self._require_queue(queue_id)
-        if row.status == NotificationQueueStatus.CANCELLED.value:
-            return _to_queue_response(row)
-        if row.status != NotificationQueueStatus.PENDING.value:
-            raise ValidationAppError(
-                "only PENDING notifications can be cancelled",
-                details={"id": str(queue_id), "status": row.status},
+        record = to_record(row)
+        record.cancel()
+        apply_record(row, record)
+        self._repo.commit()
+        return _to_queue_response(row)
+
+    def mark_sent(self, queue_id: uuid.UUID) -> NotificationQueueResponse:
+        row = self._require_queue(queue_id)
+        record = to_record(row)
+        record.mark_sent()
+        apply_record(row, record)
+        self._repo.commit()
+        return _to_queue_response(row)
+
+    def mark_failed(
+        self, queue_id: uuid.UUID, *, error: str
+    ) -> NotificationQueueResponse:
+        row = self._require_queue(queue_id)
+        record = to_record(row)
+        record.mark_failed(error=error)
+        apply_record(row, record)
+        self._repo.commit()
+        return _to_queue_response(row)
+
+    def retry(self, queue_id: uuid.UUID) -> NotificationQueueResponse:
+        row = self._require_queue(queue_id)
+        record = to_record(row)
+        record.retry(max_retry=self.max_retry())
+        apply_record(row, record)
+        self._repo.commit()
+        return _to_queue_response(row)
+
+    def process(self, queue_id: uuid.UUID) -> NotificationQueueResponse:
+        """Attempt stub delivery: Pending/Failed → Sending → Sent|Failed.
+
+        No real email / WhatsApp / SMS / Push / webhook.
+        """
+        row = self._require_queue(queue_id)
+        record = to_record(row)
+        if record.status == NotificationQueueStatus.FAILED.value:
+            # Re-enter sending without consuming a retry slot here.
+            record.status = NotificationQueueStatus.PENDING.value
+        record.mark_sending()
+        apply_record(row, record)
+        self._repo.flush()
+
+        result = self._provider.send(record)
+        if result.success:
+            record.mark_sent()
+        else:
+            record.mark_failed(
+                error=result.detail or f"{result.provider} delivery failed"
             )
-        row.status = NotificationQueueStatus.CANCELLED.value
+        apply_record(row, record)
         self._repo.commit()
         return _to_queue_response(row)
 

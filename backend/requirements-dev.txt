@@ -1,0 +1,16 @@
+# Backend CI / developer tooling — not installed in runtime images.
+# Pins: avoid floating upgrades breaking CI (EPIC-001 / DEC-019).
+-r requirements.txt
+
+# Test
+pytest-cov==6.2.1
+
+# Lint
+ruff==0.12.5
+
+# OpenAPI contract validation (CI)
+openapi-spec-validator==0.7.2
+PyYAML==6.0.2
+
+# Dependency audit (CI security-audit job)
+pip-audit==2.9.0

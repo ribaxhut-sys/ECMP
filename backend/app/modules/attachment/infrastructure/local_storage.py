@@ -1,16 +1,21 @@
-"""Local filesystem StorageProvider implementation (TASK-029)."""
+"""Local filesystem StorageProvider (CAPABILITY-011).
+
+Layout under configured root (default ``storage/attachments``)::
+
+    yyyy/mm/<uuid>.<ext>
+"""
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import BinaryIO
 
 from app.core.errors import NotFoundError, ValidationAppError
-from app.modules.attachment.storage.base import StorageProvider
+from app.modules.attachment.infrastructure.storage_provider import StorageProvider
 
 
 class LocalStorageProvider(StorageProvider):
-    """Store blobs under a configured root directory with path-traversal guards."""
+    """Store blobs under a configured root with path-traversal guards."""
 
     def __init__(self, root_path: str) -> None:
         root = Path(root_path).expanduser()
@@ -25,13 +30,12 @@ class LocalStorageProvider(StorageProvider):
     def provider_name(self) -> str:
         return "local"
 
-    def save(self, *, stored_filename: str, data: bytes) -> str:
-        safe_name = self._require_safe_filename(stored_filename)
-        target = self._resolve_under_root(safe_name)
+    def save(self, *, relative_path: str, data: bytes) -> str:
+        safe = self._require_safe_relative(relative_path)
+        target = self._resolve_under_root(safe)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
-        # Persist relative path so relocating root still resolves.
-        return safe_name
+        return safe
 
     def open(self, storage_path: str) -> BinaryIO:
         path = self._resolved_existing(storage_path)
@@ -55,24 +59,27 @@ class LocalStorageProvider(StorageProvider):
             return
         path.unlink(missing_ok=True)
 
-    def _require_safe_filename(self, stored_filename: str) -> str:
-        name = stored_filename.strip()
-        if not name:
+    def _require_safe_relative(self, relative_path: str) -> str:
+        raw = (relative_path or "").strip().replace("\\", "/")
+        if not raw:
             raise ValidationAppError(
-                "stored filename is required",
-                details={"storedFilename": stored_filename},
+                "storage path is required",
+                details={"storagePath": relative_path},
             )
-        if name in {".", ".."} or "/" in name or "\\" in name:
+        posix = PurePosixPath(raw)
+        if posix.is_absolute() or raw.startswith("/"):
             raise ValidationAppError(
-                "stored filename must not contain path separators",
-                details={"storedFilename": stored_filename},
+                "storage path must be relative",
+                details={"storagePath": relative_path},
             )
-        if Path(name).name != name:
+        parts = posix.parts
+        if not parts or any(p in {"", ".", ".."} for p in parts):
             raise ValidationAppError(
-                "stored filename must be a basename",
-                details={"storedFilename": stored_filename},
+                "storage path must not contain path traversal",
+                details={"storagePath": relative_path},
             )
-        return name
+        # Normalize to posix relative (yyyy/mm/uuid.ext).
+        return "/".join(parts)
 
     def _resolve_under_root(self, relative: str) -> Path:
         candidate = (self._root / relative).resolve()
@@ -86,13 +93,13 @@ class LocalStorageProvider(StorageProvider):
         return candidate
 
     def _resolved_existing(self, storage_path: str) -> Path:
-        # Accept both basename handles and legacy absolute paths under root.
-        raw = storage_path.strip()
+        raw = (storage_path or "").strip()
         if not raw:
             raise ValidationAppError(
                 "storage path is required",
                 details={"storagePath": storage_path},
             )
+        # Accept legacy absolute paths that still live under root.
         if Path(raw).is_absolute():
             candidate = Path(raw).resolve()
             try:
@@ -103,7 +110,7 @@ class LocalStorageProvider(StorageProvider):
                     details={"storagePath": storage_path},
                 ) from exc
         else:
-            safe = self._require_safe_filename(raw)
+            safe = self._require_safe_relative(raw)
             candidate = self._resolve_under_root(safe)
         if not candidate.is_file():
             raise NotFoundError("Attachment file not found in storage")

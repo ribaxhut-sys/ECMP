@@ -1,4 +1,4 @@
-"""Attachment permission constants (TASK-029)."""
+"""CAPABILITY-011 Attachment permission constants."""
 
 from __future__ import annotations
 

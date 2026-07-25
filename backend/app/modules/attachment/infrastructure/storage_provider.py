@@ -1,4 +1,4 @@
-"""Storage provider interface — business logic must not know file locations."""
+"""Storage provider interface — physical storage is replaceable."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ from typing import BinaryIO
 
 
 class StorageProvider(ABC):
-    """Opaque blob storage contract for attachment bytes."""
+    """Opaque blob storage contract for attachment bytes.
+
+    Business / domain code must not know absolute file locations.
+    """
 
     @property
     @abstractmethod
@@ -15,11 +18,11 @@ class StorageProvider(ABC):
         """Stable provider identifier persisted on attachment rows."""
 
     @abstractmethod
-    def save(self, *, stored_filename: str, data: bytes) -> str:
-        """Persist bytes under a unique stored filename.
+    def save(self, *, relative_path: str, data: bytes) -> str:
+        """Persist bytes under a relative path (e.g. ``yyyy/mm/uuid.ext``).
 
-        Returns an opaque ``storage_path`` handle for later read/delete.
-        ``stored_filename`` must already be unique and path-safe (no separators).
+        Returns the opaque ``storage_path`` handle for later read/delete.
+        ``relative_path`` must be path-safe (no traversal).
         """
 
     @abstractmethod
@@ -36,4 +39,4 @@ class StorageProvider(ABC):
 
     @abstractmethod
     def delete(self, storage_path: str) -> None:
-        """Best-effort physical delete (optional for soft-deleted records)."""
+        """Best-effort physical delete (optional for logically deleted rows)."""

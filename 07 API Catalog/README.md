@@ -70,14 +70,23 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-316 | POST /api/v1/sla/policies | Create SLA policy (inactive until activated) | bearerAuth, permission `sla:manage` | 🟢 Implemented |
 | API-317 | PUT /api/v1/sla/policies/{id}/activate | Activate SLA policy (sole active; future complaints only) | bearerAuth, permission `sla:manage` | 🟢 Implemented |
 | API-318 | GET /api/v1/kpi/summary | KPI Foundation live aggregates (complaints + SLA completed/breached; filters) | bearerAuth, permission `kpi:read` | 🟢 Implemented |
-| API-319 | GET /api/v1/dashboard/summary | Dashboard Summary orchestration (header + SLA + recent timeline ≤10) | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
+| API-319 | GET /api/v1/dashboard/overview | Dashboard Overview composition (header + SLA + recent timeline ≤10) | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
+| API-389 | GET /api/v1/dashboard/summary | CAPABILITY-013 complaint summary counts | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
+| API-390 | GET /api/v1/dashboard/queue | CAPABILITY-013 queue aggregates + avg wait | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
+| API-391 | GET /api/v1/dashboard/sla | CAPABILITY-013 SLA compliance aggregates | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
+| API-392 | GET /api/v1/dashboard/notifications | CAPABILITY-013 notification status counts | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
+| API-393 | GET /api/v1/dashboard/trends | CAPABILITY-013 daily complaint trends (today/7d/30d) | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
+| API-394 | GET /api/v1/dashboard/kpi | CAPABILITY-013 numeric KPI rates | bearerAuth, permission `dashboard:read` | 🟢 Implemented |
 | API-320 | GET /api/v1/settings/public | List PUBLIC system settings | None (public) | 🟢 Implemented |
 | API-321 | GET /api/v1/settings | List all system settings (PUBLIC + PROTECTED) | bearerAuth, permission `settings:read` | 🟢 Implemented |
 | API-322 | PUT /api/v1/settings/{key} | Update setting value (typed validation) | bearerAuth, permission `settings:update` | 🟢 Implemented |
-| API-323 | POST /api/v1/attachments | Multipart upload (objectType+objectId; SHA-256; StorageProvider) | bearerAuth, permission `attachment:create` | 🟢 Implemented |
+| API-323 | POST /api/v1/attachments | Multipart upload (aggregateType+aggregateId; SHA-256; StorageProvider) | bearerAuth, permission `attachment:create` | 🟢 Implemented |
 | API-324 | GET /api/v1/attachments/{id} | Attachment metadata | bearerAuth, permission `attachment:read` | 🟢 Implemented |
 | API-325 | GET /api/v1/attachments/{id}/download | Download file bytes | bearerAuth, permission `attachment:read` | 🟢 Implemented |
-| API-326 | DELETE /api/v1/attachments/{id} | Soft-delete attachment | bearerAuth, permission `attachment:delete` | 🟢 Implemented |
+| API-326 | DELETE /api/v1/attachments/{id} | Logical delete attachment (status=DELETED) | bearerAuth, permission `attachment:delete` | 🟢 Implemented |
+| API-386 | GET /api/v1/attachments | List attachments (optional aggregateType/aggregateId) | bearerAuth, permission `attachment:read` | 🟢 Implemented |
+| API-387 | GET /api/v1/complaints/{id}/attachments | List attachments for a complaint | bearerAuth, permission `attachment:read` | 🟢 Implemented |
+| API-388 | GET /api/v1/complaints/search | Search & filter complaints (CAPABILITY-012) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-327 | GET /api/v1/notification/templates | List notification templates (optional activeOnly) | bearerAuth, permission `notification:read` | 🟢 Implemented |
 | API-328 | POST /api/v1/notification/templates | Create notification template | bearerAuth, permission `notification:create` | 🟢 Implemented |
 | API-329 | GET /api/v1/notification/templates/{id} | Get notification template | bearerAuth, permission `notification:read` | 🟢 Implemented |
@@ -87,6 +96,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-333 | GET /api/v1/notifications | List notification queue | bearerAuth, permission `notification:read` | 🟢 Implemented |
 | API-334 | GET /api/v1/notifications/{id} | Get notification queue item | bearerAuth, permission `notification:read` | 🟢 Implemented |
 | API-335 | POST /api/v1/notifications/{id}/cancel | Cancel PENDING queue item | bearerAuth, permission `notification:update` | 🟢 Implemented |
+| API-356 | POST /api/v1/notifications/{id}/retry | Retry FAILED notification (CAPABILITY-009) | bearerAuth, permission `notification:update` | 🟢 Implemented |
+| API-357 | POST /api/v1/notifications/{id}/process | Stub provider process → Sent/Failed (CAPABILITY-009) | bearerAuth, permission `notification:update` | 🟢 Implemented |
+| API-382 | GET /api/v1/timeline | List activity timeline entries (CAPABILITY-010) | bearerAuth, permission `timeline:read` | 🟢 Implemented |
+| API-383 | GET /api/v1/timeline/{id} | Get activity timeline entry | bearerAuth, permission `timeline:read` | 🟢 Implemented |
+| API-384 | POST /api/v1/timeline | Create timeline entry (internal/testing) | bearerAuth, permission `timeline:create` | 🟢 Implemented |
+| API-385 | GET /api/v1/complaints/{id}/activity-timeline | List CAPABILITY-010 timeline for complaint | bearerAuth, permission `timeline:read` | 🟢 Implemented |
 | API-336 | GET /api/v1/audit | List platform audit logs (filters: entityType/entityId/actorId/action/dateFrom/dateTo) | bearerAuth, permission `audit:read` | 🟢 Implemented |
 | API-337 | GET /api/v1/audit/{id} | Get platform audit log by id | bearerAuth, permission `audit:read` | 🟢 Implemented |
 | API-338 | GET /api/v1/roles | List roles (optional activeOnly / includeSystem) | bearerAuth, permission `role:read` | 🟢 Implemented |
@@ -317,6 +332,33 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > Permissions `notification:read|create|update|delete`. Out of scope:
 > SMTP, WhatsApp, FCM, scheduler, retry worker, SEND endpoint.
 >
+> **2026-07-25 (CAPABILITY-013 Dashboard & KPI API):** complaint-service —
+> API-389–394 widget endpoints (`/dashboard/summary|queue|sla|notifications|
+> trends|kpi`) plus API-319 relocated to `GET /dashboard/overview`.
+> Module `app/modules/dashboard` providers aggregate existing tables in SQL
+> (no dashboard tables / charts / cache / websocket). Permission
+> `dashboard:read`. Filters: branchId, dateFrom, dateTo.
+>
+> **2026-07-25 (CAPABILITY-012 Search & Filtering):** complaint-service —
+> API-388 `GET /api/v1/complaints/search`. Module `app/modules/search` with
+> provider-based architecture (Complaint provider first). Combinable filters
+> (status/priority/category/branch/assignee/createdBy/date range/SLA/
+> escalated), keyword (number/subject/description/reporter), sort, DB-side
+> pagination (`totalPages`/`hasNext`/`hasPrevious`). Migration
+> `0036_search_indexes` adds filter/sort indexes only — no search tables.
+> Out of scope: Elasticsearch, OpenSearch, Meilisearch, vector/AI/fuzzy search.
+>
+> **2026-07-25 (CAPABILITY-011 Attachment Management):** complaint-service —
+> API-323 upload / API-324 metadata / API-325 download / API-326 logical delete /
+> API-386 list / API-387 complaint attachments. Module `app/modules/attachment`
+> with domain entity + StorageProvider abstraction + LocalStorageProvider
+> (`storage/attachments/yyyy/mm/uuid.ext`). Aggregate-bound `attachments`
+> table (`aggregate_type` + `aggregate_id` + `status`). Migration
+> `0035_attachment_domain` (evolves `0017_attachments`). Permissions
+> `attachment:create` / `attachment:read` / `attachment:delete`.
+> Out of scope: virus scan, S3/MinIO, CDN, image resize, OCR, thumbnail,
+> versioning, multi-part, encryption, signed URL.
+>
 > **2026-07-23 (TASK-029 Attachment Management):** complaint-service —
 > API-323 upload / API-324 metadata / API-325 download / API-326 soft-delete.
 > Module `app/modules/attachment`. Polymorphic `attachments` table
@@ -325,6 +367,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > `storage.allowed.mime` (migration `0017_attachments`). Permissions
 > `attachment:create` / `attachment:read` / `attachment:delete`.
 > Out of scope: virus scan, S3/MinIO, hard delete, Complaint domain coupling.
+> Superseded by CAPABILITY-011 (aggregate model + status delete).
 >
 > **2026-07-24 (TASK-043 Complaint Routing Foundation):**
 > Central `ComplaintRoutingService` resolves immutable `ComplaintRoute`
@@ -349,10 +392,10 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > Out of scope: Attachment, Notification, Audit Log UI.
 >
 > **2026-07-23 (TASK-027 Dashboard API / DEC-016):** complaint-service —
-> API-319 `GET /api/v1/dashboard/summary`. Module `app/modules/dashboard`.
-> Orchestration only — composes KPI (header + SLA), Timeline (≤10 recent
-> events), and Complaint (numbers). No DB queries in dashboard, no KPI
-> calculation, no charts/caching/websocket. Permission `dashboard:read`.
+> API-319 `GET /api/v1/dashboard/overview` (path updated under CAPABILITY-013).
+> Module `app/modules/dashboard`. Orchestration only — composes KPI
+> (header + SLA), Timeline (≤10 recent events), and Complaint (numbers).
+> No charts/caching/websocket. Permission `dashboard:read`.
 >
 > **2026-07-23 (TASK-026 KPI Foundation / DEC-015):** complaint-service —
 > API-318 `GET /api/v1/kpi/summary`. Module `app/modules/kpi`. Live

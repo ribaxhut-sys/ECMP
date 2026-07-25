@@ -50,7 +50,11 @@ class NotificationTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class NotificationQueue(UUIDPrimaryKeyMixin, Base):
-    """Outbound notification queue row. Foundation stores PENDING only; no send."""
+    """Persisted Notification request (CAPABILITY-009 / TASK-030 table).
+
+    Channel-independent queue row. Transport adapters are stubbed —
+    no SMTP / WhatsApp / SMS / Push / webhook network calls here.
+    """
 
     __tablename__ = "notification_queue"
     __table_args__ = (
@@ -58,10 +62,16 @@ class NotificationQueue(UUIDPrimaryKeyMixin, Base):
         Index("ix_notification_queue_status", "status"),
         Index("ix_notification_queue_scheduled_at", "scheduled_at"),
         Index("ix_notification_queue_created_at", "created_at"),
+        Index("ix_notification_queue_channel", "channel"),
+        Index("ix_notification_queue_recipient", "recipient"),
     )
 
     template_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    notification_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    channel: Mapped[str | None] = mapped_column(String(30), nullable=True)
     recipient: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     retry_count: Mapped[int] = mapped_column(
@@ -71,6 +81,9 @@ class NotificationQueue(UUIDPrimaryKeyMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    failed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

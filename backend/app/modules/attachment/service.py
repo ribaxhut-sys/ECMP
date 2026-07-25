@@ -1,7 +1,8 @@
-"""Attachment Management service (TASK-029).
+"""CAPABILITY-011 Attachment Management service.
 
-Generic platform upload/download/soft-delete. Domain-agnostic via
-object_type + object_id. All file I/O goes through StorageProvider.
+Generic platform upload / metadata / download / logical delete.
+Aggregate-agnostic via aggregate_type + aggregate_id.
+All file I/O goes through StorageProvider.
 """
 
 from __future__ import annotations
@@ -13,21 +14,23 @@ from datetime import UTC, datetime
 from pathlib import PurePosixPath
 
 from app.core.errors import NotFoundError, ValidationAppError
-from app.modules.attachment.models import Attachment
+from app.core.schemas import PageMeta
+from app.modules.attachment.domain.entity import Attachment
+from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
+from app.modules.attachment.infrastructure.local_storage import LocalStorageProvider
+from app.modules.attachment.infrastructure.storage_provider import StorageProvider
 from app.modules.attachment.repository import AttachmentRepository
 from app.modules.attachment.schemas import AttachmentResponse
-from app.modules.attachment.storage.base import StorageProvider
-from app.modules.attachment.storage.local import LocalStorageProvider
 from app.modules.settings.service import SettingsService
 
-# Setting keys (seeded by migration 0017; not hardcoded operational values).
+# Setting keys (seeded by migration 0017; root path updated in 0035).
 SETTING_STORAGE_PROVIDER = "storage.provider"
 SETTING_STORAGE_ROOT_PATH = "storage.root.path"
 SETTING_MAX_UPLOAD_MB = "storage.max.upload.mb"
 SETTING_ALLOWED_MIME = "storage.allowed.mime"
 
 _DEFAULT_PROVIDER = "local"
-_DEFAULT_ROOT_PATH = "data/attachments"
+_DEFAULT_ROOT_PATH = "storage/attachments"
 _DEFAULT_MAX_UPLOAD_MB = 10
 _DEFAULT_ALLOWED_MIME: list[str] = [
     "application/pdf",
@@ -59,7 +62,6 @@ _MIME_EXTENSIONS: dict[str, frozenset[str]] = {
     ),
 }
 
-_OBJECT_TYPE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,49}$")
 _UNSAFE_FILENAME_RE = re.compile(r"[\x00-\x1f\x7f<>:\"|?*]")
 
 
@@ -91,7 +93,6 @@ def sanitize_filename(raw_name: str | None) -> str:
             "filename is required",
             details={"filename": raw_name},
         )
-    # Collapse path traversal / separators to basename only.
     name = PurePosixPath(raw_name.replace("\\", "/")).name
     name = name.strip().strip(".")
     name = _UNSAFE_FILENAME_RE.sub("_", name)
@@ -120,12 +121,31 @@ def _extension_of(filename: str) -> str | None:
     return suffix
 
 
-def _to_response(row: Attachment) -> AttachmentResponse:
-    return AttachmentResponse.model_validate(row)
+def _storage_relative_path(*, file_name: str, uploaded_at: datetime) -> str:
+    """Build ``yyyy/mm/<uuid.ext>`` relative path under storage root."""
+    return f"{uploaded_at.year:04d}/{uploaded_at.month:02d}/{file_name}"
+
+
+def _to_response(entity: Attachment) -> AttachmentResponse:
+    return AttachmentResponse(
+        id=entity.id,
+        aggregateType=entity.aggregate_type,  # type: ignore[arg-type]
+        aggregateId=entity.aggregate_id,
+        fileName=entity.file_name,
+        originalName=entity.original_name,
+        mimeType=entity.mime_type,
+        extension=entity.extension,
+        sizeBytes=entity.size_bytes,
+        storageProvider=entity.storage_provider,
+        checksumSha256=entity.checksum_sha256,
+        uploadedBy=entity.uploaded_by,
+        uploadedAt=entity.uploaded_at,
+        status=entity.status,  # type: ignore[arg-type]
+    )
 
 
 class AttachmentService:
-    """Upload / metadata / download / soft-delete for platform attachments."""
+    """Upload / metadata / download / logical delete for platform attachments."""
 
     def __init__(
         self,
@@ -140,14 +160,24 @@ class AttachmentService:
     def upload(
         self,
         *,
-        object_type: str,
-        object_id: uuid.UUID,
+        aggregate_type: str,
+        aggregate_id: uuid.UUID,
         filename: str | None,
         content_type: str | None,
         data: bytes,
         uploaded_by: uuid.UUID | None,
     ) -> AttachmentResponse:
-        normalized_type = self._validate_object_type(object_type)
+        try:
+            AggregateType(aggregate_type)
+        except ValueError as exc:
+            raise ValidationAppError(
+                f"unsupported aggregate type: {aggregate_type}",
+                details={
+                    "aggregateType": aggregate_type,
+                    "allowed": [a.value for a in AggregateType],
+                },
+            ) from exc
+
         safe_name = sanitize_filename(filename)
         extension = _extension_of(safe_name)
         mime_type = (content_type or "").strip().lower() or "application/octet-stream"
@@ -198,36 +228,37 @@ class AttachmentService:
                 )
 
         checksum = hashlib.sha256(data).hexdigest()
-        stored_filename = f"{uuid.uuid4().hex}{extension or ''}"
+        file_name = f"{uuid.uuid4().hex}{extension or ''}"
+        uploaded_at = datetime.now(UTC)
+        relative_path = _storage_relative_path(
+            file_name=file_name, uploaded_at=uploaded_at
+        )
 
         try:
-            storage_path = self._storage.save(
-                stored_filename=stored_filename, data=data
-            )
+            storage_path = self._storage.save(relative_path=relative_path, data=data)
         except Exception:
             self._repo.rollback()
             raise
 
-        row = Attachment(
-            id=uuid.uuid4(),
-            object_type=normalized_type,
-            object_id=object_id,
-            filename=safe_name,
-            stored_filename=stored_filename,
+        entity = Attachment.create(
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            file_name=file_name,
+            original_name=safe_name,
             mime_type=mime_type,
             extension=extension,
             size_bytes=size_bytes,
-            checksum=checksum,
             storage_provider=self._storage.provider_name,
             storage_path=storage_path,
+            checksum_sha256=checksum,
             uploaded_by=uploaded_by,
-            created_at=datetime.now(UTC),
+            uploaded_at=uploaded_at,
+            status=AttachmentStatus.AVAILABLE.value,
         )
         try:
-            self._repo.add(row)
+            self._repo.add(entity)
             self._repo.commit()
         except Exception:
-            # Best-effort cleanup of orphaned blob if DB write fails.
             try:
                 self._storage.delete(storage_path)
             except Exception:
@@ -235,27 +266,72 @@ class AttachmentService:
             self._repo.rollback()
             raise
 
-        return _to_response(row)
+        return _to_response(entity)
 
     def get(self, attachment_id: uuid.UUID) -> AttachmentResponse:
         return _to_response(self._require(attachment_id))
 
+    def list(
+        self,
+        *,
+        aggregate_type: str | None = None,
+        aggregate_id: uuid.UUID | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[AttachmentResponse], PageMeta]:
+        if aggregate_type is not None:
+            try:
+                AggregateType(aggregate_type)
+            except ValueError as exc:
+                raise ValidationAppError(
+                    f"unsupported aggregate type: {aggregate_type}",
+                    details={
+                        "aggregateType": aggregate_type,
+                        "allowed": [a.value for a in AggregateType],
+                    },
+                ) from exc
+        rows, total = self._repo.list(
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            page=page,
+            page_size=page_size,
+        )
+        return (
+            [_to_response(r) for r in rows],
+            PageMeta(page=page, pageSize=page_size, totalItems=total),
+        )
+
+    def list_for_complaint(
+        self,
+        complaint_id: uuid.UUID,
+        *,
+        page: int = 1,
+        page_size: int = 100,
+    ) -> tuple[list[AttachmentResponse], PageMeta]:
+        return self.list(
+            aggregate_type=AggregateType.COMPLAINT.value,
+            aggregate_id=complaint_id,
+            page=page,
+            page_size=page_size,
+        )
+
     def download(self, attachment_id: uuid.UUID) -> tuple[Attachment, bytes]:
-        row = self._require(attachment_id)
-        data = self._storage.read(row.storage_path)
-        return row, data
+        entity = self._require(attachment_id)
+        data = self._storage.read(entity.storage_path)
+        return entity, data
 
     def soft_delete(self, attachment_id: uuid.UUID) -> None:
-        row = self._require(attachment_id)
-        self._repo.soft_delete(row)
+        """Logical delete (status=DELETED). Physical blob retained."""
+        entity = self._require(attachment_id)
+        entity.mark_deleted()
+        self._repo.save(entity)
         self._repo.commit()
-        # Physical blob retained for retention / audit; soft delete only.
 
     def _require(self, attachment_id: uuid.UUID) -> Attachment:
-        row = self._repo.get_by_id(attachment_id)
-        if row is None:
+        entity = self._repo.get(attachment_id)
+        if entity is None:
             raise NotFoundError("Attachment not found")
-        return row
+        return entity
 
     def _allowed_mime_types(self) -> set[str]:
         raw = self._settings.get_json(
@@ -275,14 +351,3 @@ class AttachmentService:
                 )
             allowed.add(item.strip().lower())
         return allowed
-
-    @staticmethod
-    def _validate_object_type(object_type: str) -> str:
-        cleaned = object_type.strip()
-        if not _OBJECT_TYPE_RE.match(cleaned):
-            raise ValidationAppError(
-                "objectType must be 1–50 chars starting with a letter "
-                "(letters, digits, underscore)",
-                details={"objectType": object_type},
-            )
-        return cleaned

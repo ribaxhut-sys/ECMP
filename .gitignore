@@ -4,6 +4,7 @@ node_modules/
 out/
 dist/
 build/
+tmp/
 *.egg-info/
 .venv/
 venv/
@@ -15,6 +16,7 @@ __pycache__/
 .ruff_cache/
 *.pyc
 .coverage
+coverage/
 htmlcov/
 
 # Env & secrets
