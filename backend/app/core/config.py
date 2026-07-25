@@ -20,6 +20,23 @@ _INSECURE_JWT_SECRETS = frozenset(
     }
 )
 
+# Shared weak/default credential denylist (R2-01).
+_INSECURE_PASSWORDS = frozenset(
+    {
+        "",
+        "ecmp",
+        "admin",
+        "password",
+        "postgres",
+        "changeme",
+        "change-me",
+        "secret",
+        "root",
+        "test",
+        "dev",
+    }
+)
+
 
 class Settings(BaseSettings):
     """Runtime configuration for the ECMP foundation API."""
@@ -56,6 +73,14 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
     refresh_cookie_name: str = "ecmp_refresh_token"
     refresh_cookie_path: str = "/api/v1/auth"
+
+    # Optional: validated outside development when present (compose / tools profile).
+    pgadmin_default_password: str | None = None
+
+    # Login brute-force protection (R2-03) — in-memory, no Redis.
+    login_rate_limit_enabled: bool = True
+    login_max_failed_attempts: int = 5
+    login_lockout_seconds: int = 300
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -98,8 +123,13 @@ class Settings(BaseSettings):
         return self.jwt_refresh_token_expire_days * 24 * 60 * 60
 
 
+def _is_weak_password(value: str, *, min_length: int = 8) -> bool:
+    cleaned = (value or "").strip()
+    return cleaned.lower() in _INSECURE_PASSWORDS or len(cleaned) < min_length
+
+
 def validate_runtime_config(settings: Settings | None = None) -> None:
-    """Fail fast on unsafe non-development configuration (RC1 secret guard)."""
+    """Fail fast on unsafe non-development configuration (RC1 / R2 secret guard)."""
     cfg = settings or get_settings()
     if cfg.is_development:
         return
@@ -108,6 +138,20 @@ def validate_runtime_config(settings: Settings | None = None) -> None:
     if secret.lower() in _INSECURE_JWT_SECRETS or len(secret) < 32:
         raise RuntimeError(
             "JWT_SECRET_KEY must be a strong secret (>=32 chars) outside development"
+        )
+
+    if _is_weak_password(cfg.postgres_password):
+        raise RuntimeError(
+            "POSTGRES_PASSWORD must be a strong secret (>=8 chars, not a default) "
+            "outside development"
+        )
+
+    if cfg.pgadmin_default_password is not None and _is_weak_password(
+        cfg.pgadmin_default_password
+    ):
+        raise RuntimeError(
+            "PGADMIN_DEFAULT_PASSWORD must be a strong secret (>=8 chars, not a default) "
+            "outside development"
         )
 
     if not cfg.cors_origins:
