@@ -98,11 +98,11 @@ def upgrade() -> None:
                     id, code, name, module, description,
                     is_system, is_active, created_at, updated_at
                 )
-                SELECT gen_random_uuid(), :code, :name, :module, :description,
-                       true, true, now(), now()
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM permissions p WHERE p.code = :code
+                VALUES (
+                    gen_random_uuid(), :code, :name, :module, :description,
+                    true, true, now(), now()
                 )
+                ON CONFLICT (code) DO NOTHING
                 """
             ),
             {
