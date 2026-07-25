@@ -80,8 +80,17 @@ function notifyGlobalError(error: ApiError): void {
 }
 
 function baseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-  return raw.replace(/\/$/, "");
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (raw) {
+    return raw.replace(/\/$/, "");
+  }
+  // R2-04: localhost fallback only for local `next dev` — never silent in builds.
+  if (process.env.NODE_ENV === "development") {
+    return "http://localhost:8000";
+  }
+  throw new Error(
+    "NEXT_PUBLIC_API_BASE_URL must be set for non-development builds",
+  );
 }
 
 /** Custom flags carried on Axios configs through interceptors. */

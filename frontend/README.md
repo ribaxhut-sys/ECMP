@@ -10,7 +10,9 @@ npm install
 npm run dev
 ```
 
-Requires the backend at `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`).
+Requires the backend at `NEXT_PUBLIC_API_BASE_URL`.
+For local `next dev`, if unset, the client falls back to `http://localhost:8000`.
+Production / Docker builds **require** an explicit `NEXT_PUBLIC_API_BASE_URL` (no silent default).
 
 ## Sprint F1 — Foundation
 
