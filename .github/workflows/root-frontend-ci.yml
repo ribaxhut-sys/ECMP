@@ -1,0 +1,38 @@
+name: Root Frontend CI
+
+# Sprint R1-02 — minimal CI for foundation frontend/ (not implementation/frontend).
+# Intentionally excludes tests, coverage, Playwright, and Cypress.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/root-frontend-ci.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/root-frontend-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Production build
+        env:
+          # R2-04: explicit URL required — no silent localhost fallback in app/Dockerfile.
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        run: npm run build
