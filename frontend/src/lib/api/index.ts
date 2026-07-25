@@ -1,4 +1,14 @@
-export { ApiError, apiRequest, getAuthToken, setAuthToken } from "./client";
+export {
+  ApiError,
+  apiRequest,
+  apiRequestBlob,
+  axiosClient,
+  getAuthToken,
+  setAuthToken,
+  subscribeApiErrors,
+  subscribeLoading,
+} from "./client";
+export type { ApiBlobResult, ApiRequestInit } from "./client";
 export {
   fetchCurrentUser,
   login,

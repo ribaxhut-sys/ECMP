@@ -10,6 +10,7 @@ export async function login(
     body: JSON.stringify({ username, password }),
     skipAuth: true,
     skipRefresh: true,
+    skipGlobalError: true,
   });
   setAuthToken(body.data.accessToken);
   return body.data;
@@ -23,6 +24,8 @@ export async function refreshAccessToken(): Promise<TokenResponse | null> {
         method: "POST",
         skipAuth: true,
         skipRefresh: true,
+        skipGlobalError: true,
+        skipLoading: true,
       },
     );
     setAuthToken(body.data.accessToken);
@@ -39,6 +42,7 @@ export async function logout(): Promise<void> {
       method: "POST",
       skipAuth: true,
       skipRefresh: true,
+      skipGlobalError: true,
     });
   } finally {
     setAuthToken(null);
@@ -48,6 +52,7 @@ export async function logout(): Promise<void> {
 export async function fetchCurrentUser(): Promise<AuthMe> {
   const body = await apiRequest<DataResponse<AuthMe>>("/api/v1/auth/me", {
     skipRefresh: false,
+    skipGlobalError: true,
   });
   return body.data;
 }

@@ -17,12 +17,13 @@ frontend/src/
       users/
       settings/
     login/                  # AuthLayout
-  auth/                     # AuthProvider (do not alter flow)
+  auth/                     # AuthProvider (session / permissions)
   features/                 # Feature modules (dashboard, attachments, …)
-  lib/                      # API clients / types
+  lib/api/                  # Axios client + domain API modules
   shared/
+    providers/              # AppProviders, ToastProvider (global errors)
     theme/                  # Design tokens (TS mirrors of CSS vars)
-    ui/                     # Design-system components
+    ui/                     # Design-system components + GlobalLoadingBar
     layouts/                # AppLayout, AuthLayout
     icons/                  # Shared SVG icons
     hooks/                  # useMediaQuery, useSidebar
@@ -69,6 +70,7 @@ Tailwind theme keys use the `ecmp-` prefix, e.g. `bg-ecmp-primary`, `text-ecmp-t
 | `Modal` | Dialogs (Escape + overlay close) |
 | `Table` | Desktop table → mobile stacked cards |
 | `Loading` / `Skeleton` | Async placeholders |
+| `GlobalLoadingBar` | Top bar while Axios requests are in flight |
 | `Empty` / `ErrorState` | Empty & error UX |
 | `Breadcrumb` / `PageHeader` / `PageContainer` | Page chrome |
 | `Toast` | Transient success / status notifications |

@@ -172,3 +172,17 @@ table {
   min-height: var(--ecmp-touch-min);
   min-width: var(--ecmp-touch-min);
 }
+
+/* Global Axios loading indicator */
+@keyframes ecmp-loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.ecmp-global-loading-bar {
+  animation: ecmp-loading-slide 1.1s ease-in-out infinite;
+}

@@ -33,6 +33,7 @@ export type { TableProps, TableColumn } from "./table";
 
 export { Loading, Skeleton } from "./loading";
 export type { LoadingProps, SkeletonProps } from "./loading";
+export { GlobalLoadingBar } from "./loading";
 
 export { Empty } from "./empty";
 export type { EmptyProps } from "./empty";
