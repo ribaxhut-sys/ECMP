@@ -12,7 +12,37 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 
 ### Notes
 
-- Post-v1.0.0: only hotfixes and approved change requests.
+- Post-`v1.0.0-rc2`: only hotfixes and approved change requests until final `v1.0.0` promotion gate.
+
+## [1.0.0-rc2] - 2026-07-25
+
+### Added
+
+- Sprint R1-02: minimal root frontend CI (`.github/workflows/root-frontend-ci.yml`) — `npm ci`, typecheck, build only.
+- Sprint R2-03: configurable in-memory login brute-force protection (`LOGIN_RATE_LIMIT_ENABLED`, `LOGIN_MAX_FAILED_ATTEMPTS`, `LOGIN_LOCKOUT_SECONDS`) — HTTP `429 RATE_LIMITED` without Redis.
+- Sprint R3: Release Candidate packaging — `docs/releases/v1.0.0-rc2.md`, smoke report, UAT accounts guide.
+
+### Security
+
+- Sprint R2-01: runtime secret guard rejects weak/default `POSTGRES_PASSWORD` and (when set) `PGADMIN_DEFAULT_PASSWORD` outside development (same fail-fast model as `JWT_SECRET_KEY`).
+- Sprint R2-02: Compose requires credentials via `.env` — no silent `ecmp` / `admin` / `change-me-in-production` password fallbacks.
+- Sprint R2-03: login lockout keyed by client IP + username.
+- Sprint R2-04: production frontend builds fail if `NEXT_PUBLIC_API_BASE_URL` is missing (no silent `http://localhost:8000` embed).
+
+### Fixed
+
+- Sprint R1-01: Windows async Postgres integration tests — SelectorEventLoop policy in `backend/tests/conftest.py` (psycopg rejects ProactorEventLoop).
+
+### Changed
+
+- Sprint R1-03: refreshed `docs/releases/v1.0.0.md`, `docs/releases/RC1_REPORT.md` for current v1.0.0 scope + Postgres test evidence (910 passed / 0 failed / 0 skipped / 87% coverage).
+- `.env.example` documents local DEVELOPMENT convenience credentials and R2/R3 required production overrides.
+- Root frontend `package.json` adds `typecheck` script for CI.
+
+### Known Limitations
+
+- In-memory login lockout is per-process (multi-replica deployments do not share counters).
+- Local Compose still embeds browser-reachable `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` when explicitly set in `.env` (required for local stack; not a silent default).
 
 ## [1.0.0] - 2026-07-23
 
@@ -23,6 +53,7 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 - Production deployment report: `docs/releases/PRODUCTION_DEPLOYMENT_REPORT.md`.
 - Production rollback runbook: `docs/releases/ROLLBACK_v1.0.0.md`.
 - Production deployment checklist: `docs/deployment-checklist.md` (v1.0.0).
+- Capability surface (current): Auth, Complaints, Assignment, Escalation, Resolutions, Appointments, Timeline, Queue, SLA, Attachments, Notifications, Search, Reporting/KPI/Dashboard, Users/IAM, Branches/Customers, Settings, Audit.
 
 ### Changed
 
@@ -43,10 +74,10 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 ### Known Limitations
 
 - No MFA, SSO/OAuth, LDAP, password reset, social login.
-- No email/WebSocket notifications; no mobile client.
-- Role→permission map is code-defined until Core Platform SoT (API-062).
+- No external email/WebSocket push channels beyond notification queue APIs; no mobile client.
+- Role→permission map is code-seeded until Core Platform SoT (API-062).
 - Foundation health probe is combined `GET /health` (not separate `/health/live` + `/health/ready` paths).
-- Resolve/Close complaint transition APIs are not in foundation OpenAPI (status changes via assign/escalate only).
+- No broker-backed enterprise event bus in the Compose foundation stack.
 
 ## [1.0.0-rc1] - 2026-07-23
 
@@ -97,7 +128,8 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
   (ADR-012 Phase 3) is accepted and active (ADR-010 / DEP-CHK-001).
 - This RC is for internal DEV/CI validation only.
 
-[Unreleased]: https://github.com/nandeshut/ECMP/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/nandeshut/ECMP/compare/v1.0.0-rc2...HEAD
+[1.0.0-rc2]: https://github.com/nandeshut/ECMP/releases/tag/v1.0.0-rc2
 [1.0.0]: https://github.com/nandeshut/ECMP/releases/tag/v1.0.0
 [1.0.0-rc1]: https://github.com/nandeshut/ECMP/releases/tag/v1.0.0-rc1
 [0.8.0-rc.1]: https://github.com/nandeshut/ECMP/releases/tag/v0.8.0-rc.1
