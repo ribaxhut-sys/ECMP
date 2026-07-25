@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.auth import Principal, get_current_principal
 from app.core.config import get_settings
 from app.core.errors import ApiError, InvalidStateError, NotFoundError, ValidationAppError
 from app.core.request_context import RequestContext, get_request_context
@@ -82,6 +83,16 @@ def _ctx() -> RequestContext:
     return RequestContext(
         request_id="test-request-id",
         correlation_id="test-correlation-id",
+    )
+
+
+def _principal() -> Principal:
+    return Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset(
+            {"complaints:create", "complaints:read", "complaints:update"}
+        ),
     )
 
 
@@ -288,6 +299,7 @@ def _foundation_app(
     app.dependency_overrides[get_complaint_escalation_service] = lambda: escalation
     app.dependency_overrides[get_complaint_sla_service] = lambda: MagicMock()
     app.dependency_overrides[get_request_context] = _ctx
+    app.dependency_overrides[get_current_principal] = _principal
     return app
 
 

@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
+from app.core.auth import Principal, require_permissions
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import DataResponse, ErrorResponse
 from app.modules.queue.api.controllers import CounterController
@@ -46,8 +47,10 @@ async def create_counter(
     payload: CreateCounterRequest,
     controller: Annotated[CounterController, Depends(get_counter_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
 ) -> DataResponse[QueueCounterResponse]:
     """API-370 — Create Counter."""
+    _ = principal
     return await controller.create(queue_id, payload, ctx)
 
 
@@ -63,8 +66,10 @@ async def list_counters(
     queue_id: uuid.UUID,
     controller: Annotated[CounterController, Depends(get_counter_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
 ) -> DataResponse[list[QueueCounterResponse]]:
     """API-371 — List Counters."""
+    _ = principal
     return await controller.list(queue_id, ctx)
 
 
@@ -81,8 +86,10 @@ async def update_counter(
     payload: UpdateCounterRequest,
     controller: Annotated[CounterController, Depends(get_counter_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueCounterResponse]:
     """API-372 — Update Counter."""
+    _ = principal
     return await controller.update(counter_id, payload, ctx)
 
 
@@ -101,8 +108,10 @@ async def delete_counter(
     counter_id: uuid.UUID,
     controller: Annotated[CounterController, Depends(get_counter_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> Response:
     """API-373 — Delete Counter."""
+    _ = principal
     return await controller.delete(counter_id, ctx)
 
 

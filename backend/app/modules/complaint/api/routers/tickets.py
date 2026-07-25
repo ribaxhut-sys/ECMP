@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
+from app.core.auth import Principal, require_permissions
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import DataResponse, ErrorResponse
 from app.modules.complaint.api.controllers import ComplaintController
@@ -41,8 +42,10 @@ async def list_complaints_by_ticket(
     ticket_id: uuid.UUID,
     controller: Annotated[ComplaintController, Depends(get_complaint_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
 ) -> DataResponse[list[ComplaintResponse]]:
     """API-395 — List Complaints by Ticket."""
+    _ = principal
     return await controller.list_by_ticket(ticket_id, ctx)
 
 
@@ -63,8 +66,10 @@ async def create_complaint_for_ticket(
     payload: CreateComplaintRequest,
     controller: Annotated[ComplaintController, Depends(get_complaint_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
 ) -> DataResponse[ComplaintResponse]:
     """API-396 — Create Complaint for Ticket."""
+    _ = principal
     return await controller.create(payload, ctx, queue_ticket_id=ticket_id)
 
 

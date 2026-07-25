@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.auth import Principal, get_current_principal
 from app.core.config import get_settings
 from app.core.errors import ConflictError, InvalidStateError, NotFoundError, ValidationAppError
 from app.core.request_context import RequestContext, get_request_context
@@ -95,6 +96,16 @@ def _ctx() -> RequestContext:
     return RequestContext(
         request_id="test-request-id",
         correlation_id="test-correlation-id",
+    )
+
+
+def _principal() -> Principal:
+    return Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset(
+            {"complaints:create", "complaints:read", "complaints:update"}
+        ),
     )
 
 
@@ -534,6 +545,7 @@ def api_client() -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_queue_crud_service] = lambda: crud
     app.dependency_overrides[get_queue_operations_service] = lambda: ops
+    app.dependency_overrides[get_current_principal] = _principal
     with TestClient(app) as client:
         client.svc = crud  # type: ignore[attr-defined]
         yield client

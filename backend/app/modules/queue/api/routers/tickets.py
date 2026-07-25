@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
+from app.core.auth import Principal, require_permissions
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import DataResponse, ErrorResponse
 from app.modules.queue.api.controllers import TicketController
@@ -60,8 +61,10 @@ async def create_ticket(
     payload: CreateTicketRequest,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-365 — Issue Ticket (CRUD path)."""
+    _ = principal
     return await controller.create(queue_id, payload, ctx)
 
 
@@ -77,8 +80,10 @@ async def list_tickets(
     queue_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
 ) -> DataResponse[list[QueueTicketResponse]]:
     """API-366 — List Tickets."""
+    _ = principal
     return await controller.list(queue_id, ctx)
 
 
@@ -94,8 +99,10 @@ async def get_ticket(
     ticket_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-367 — Get Ticket."""
+    _ = principal
     return await controller.get(ticket_id, ctx)
 
 
@@ -115,8 +122,10 @@ async def update_ticket(
     payload: UpdateTicketRequest,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-368 — Update Ticket."""
+    _ = principal
     return await controller.update(ticket_id, payload, ctx)
 
 
@@ -135,8 +144,10 @@ async def delete_ticket(
     ticket_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> Response:
     """API-369 — Delete Ticket."""
+    _ = principal
     return await controller.delete(ticket_id, ctx)
 
 
@@ -156,8 +167,10 @@ async def issue_ticket_operation(
     payload: CreateTicketRequest,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-376 — Issue Ticket (operation)."""
+    _ = principal
     return await controller.issue_ticket(queue_id, payload, ctx)
 
 
@@ -179,8 +192,10 @@ async def call_next_ticket(
     queue_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueTicketResponse] | Response:
     """API-377 — Call Next."""
+    _ = principal
     return await controller.call_next(queue_id, ctx)
 
 
@@ -196,8 +211,10 @@ async def recall_ticket(
     ticket_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-378 — Recall Ticket."""
+    _ = principal
     return await controller.recall(ticket_id, ctx)
 
 
@@ -213,8 +230,10 @@ async def complete_ticket(
     ticket_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-379 — Complete Ticket."""
+    _ = principal
     return await controller.complete(ticket_id, ctx)
 
 
@@ -230,8 +249,10 @@ async def skip_ticket(
     ticket_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-380 — Skip Ticket."""
+    _ = principal
     return await controller.skip(ticket_id, ctx)
 
 
@@ -247,8 +268,10 @@ async def cancel_ticket(
     ticket_id: uuid.UUID,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-381 — Cancel Ticket."""
+    _ = principal
     return await controller.cancel(ticket_id, ctx)
 
 

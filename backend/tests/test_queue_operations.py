@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.auth import get_current_principal
 from app.main import create_app
 from app.modules.queue.api.dependencies import (
     get_queue_crud_service,
@@ -37,6 +38,7 @@ from tests.test_queue_api import (
     InMemoryQueueRepository,
     InMemoryTicketRepository,
     _ctx,
+    _principal,
     _qid,
     _run,
 )
@@ -232,6 +234,7 @@ def ops_client() -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_queue_crud_service] = lambda: crud
     app.dependency_overrides[get_queue_operations_service] = lambda: ops
+    app.dependency_overrides[get_current_principal] = _principal
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()

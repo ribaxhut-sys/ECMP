@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
+from app.core.auth import Principal, require_permissions
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import DataResponse, ErrorResponse
 from app.modules.queue.api.controllers import QueueController
@@ -56,8 +57,10 @@ async def create_queue(
     payload: CreateQueueRequest,
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
 ) -> DataResponse[QueueResponse]:
     """API-360 — Create Queue."""
+    _ = principal
     return await controller.create(payload, ctx)
 
 
@@ -73,8 +76,10 @@ async def list_queues(
     organization_id: Annotated[uuid.UUID, Query(alias="organizationId")],
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
 ) -> DataResponse[list[QueueResponse]]:
     """API-361 — List Queues."""
+    _ = principal
     return await controller.list(organization_id, ctx)
 
 
@@ -90,8 +95,10 @@ async def get_queue(
     queue_id: uuid.UUID,
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
 ) -> DataResponse[QueueResponse]:
     """API-362 — Get Queue."""
+    _ = principal
     return await controller.get(queue_id, ctx)
 
 
@@ -111,8 +118,10 @@ async def update_queue(
     payload: UpdateQueueRequest,
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueResponse]:
     """API-363 — Update Queue."""
+    _ = principal
     return await controller.update(queue_id, payload, ctx)
 
 
@@ -131,8 +140,10 @@ async def delete_queue(
     queue_id: uuid.UUID,
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> Response:
     """API-364 — Delete Queue."""
+    _ = principal
     return await controller.delete(queue_id, ctx)
 
 
@@ -148,8 +159,10 @@ async def open_queue(
     queue_id: uuid.UUID,
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueResponse]:
     """API-374 — Open Queue."""
+    _ = principal
     return await controller.open(queue_id, ctx)
 
 
@@ -165,8 +178,10 @@ async def close_queue(
     queue_id: uuid.UUID,
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
 ) -> DataResponse[QueueResponse]:
     """API-375 — Close Queue."""
+    _ = principal
     return await controller.close(queue_id, ctx)
 
 
