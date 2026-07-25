@@ -7,7 +7,8 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 
 from app.core.config import Settings
@@ -50,7 +51,7 @@ def decode_access_token(token: str, settings: Settings) -> dict[str, Any]:
             settings.jwt_secret_key,
             algorithms=[settings.jwt_algorithm],
         )
-    except JWTError as exc:
+    except PyJWTError as exc:
         raise ValueError("Invalid or expired token") from exc
     if payload.get("type") not in (None, "access"):
         raise ValueError("Invalid or expired token")

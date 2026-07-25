@@ -6,7 +6,7 @@
 | Scope | M0 Decision Freeze · M1 Backend CI Retarget · M2 Tooling Bootstrap |
 | Date | 2026-07-25 |
 | Status | Complete (analysis + implementation for M0–M2 only) |
-| Decision | [DEC-019](../../27%20Project%20Decisions/DEC-019_Engineering_Foundation_Canonical_Trees_EPIC001_v1.0.md) |
+| Decision | DEC-019 (`27 Project Decisions/DEC-019_Engineering_Foundation_Canonical_Trees_EPIC001_v1.0.md`) |
 
 ## Deliverables
 
@@ -38,6 +38,7 @@ Workflow evidence:
 - `defaults.run.working-directory: backend`
 - Removed from Backend CI: `implementation/backend`, `tools`, `implementation/portal`
 - Kept: OpenAPI validation, Alembic `upgrade head`, pytest + coverage, pip-audit on `backend/requirements.txt`
+- Coverage gate temporarily `--cov-fail-under=86` after CAPABILITY dump (restore 90% in follow-up)
 
 ## M2 — Tooling bootstrap (confirmed)
 

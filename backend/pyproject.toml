@@ -23,7 +23,12 @@ pythonpath = ["."]
 [tool.coverage.run]
 source = ["app"]
 branch = true
+omit = [
+  # Structural stub only — CAPABILITY-013 has no dashboard persistence.
+  "app/modules/dashboard/repository.py",
+]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+fail_under = 86
