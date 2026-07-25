@@ -24,6 +24,10 @@ See **[SPRINT_F2.md](./SPRINT_F2.md)** for list / detail / create / edit against
 
 See **[SPRINT_F3.md](./SPRINT_F3.md)** for the complaint work-queue dashboard against frozen APIs.
 
+## Sprint F4 — Assignments
+
+See **[SPRINT_F4.md](./SPRINT_F4.md)** for assignment list + assign/reassign/cancel against frozen APIs.
+
 | Area | Location |
 |---|---|
 | Auth session | `src/auth/AuthProvider.tsx` |
@@ -33,6 +37,7 @@ See **[SPRINT_F3.md](./SPRINT_F3.md)** for the complaint work-queue dashboard ag
 | Global loading / errors | `src/shared/providers/` + `GlobalLoadingBar` |
 | Complaints module | `src/features/complaints/`, `src/app/(app)/complaints/` |
 | Queue module | `src/features/queue/`, `src/app/(app)/queue/` |
+| Assignments module | `src/features/assignments/`, `src/app/(app)/assignments/` |
 | Design system | `src/shared/ui`, `src/shared/theme` |
 
 See **[src/shared/README.md](./src/shared/README.md)** for design tokens and layout rules.

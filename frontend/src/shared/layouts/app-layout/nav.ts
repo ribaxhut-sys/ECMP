@@ -6,6 +6,7 @@ export interface NavItem {
     | "dashboard"
     | "complaints"
     | "queue"
+    | "assignments"
     | "reports"
     | "users"
     | "settings"
@@ -17,6 +18,12 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "dashboard" },
   { id: "complaints", label: "Complaints", href: "/complaints", icon: "complaints" },
   { id: "queue", label: "Queue", href: "/queue", icon: "queue" },
+  {
+    id: "assignments",
+    label: "Assignments",
+    href: "/assignments",
+    icon: "assignments",
+  },
   {
     id: "attachments",
     label: "Attachments",

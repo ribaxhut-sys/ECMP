@@ -71,6 +71,13 @@ export {
   updateQueueStatus,
 } from "./queue";
 export {
+  assignComplaintHandler,
+  cancelAssignment,
+  fetchAssignmentHistory,
+  fetchAssignmentsList,
+  reassignComplaintHandler,
+} from "./assignments";
+export {
   activateSlaPolicy,
   createSlaPolicy,
   fetchSlaPolicies,

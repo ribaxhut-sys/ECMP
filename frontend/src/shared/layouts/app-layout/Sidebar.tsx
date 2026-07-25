@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  IconAssignments,
   IconComplaints,
   IconDashboard,
   IconPaperclip,
@@ -19,6 +20,7 @@ const iconMap = {
   dashboard: IconDashboard,
   complaints: IconComplaints,
   queue: IconQueue,
+  assignments: IconAssignments,
   reports: IconReports,
   users: IconUsers,
   settings: IconSettings,

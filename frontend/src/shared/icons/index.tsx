@@ -116,6 +116,17 @@ export function IconQueue(props: IconProps) {
   );
 }
 
+export function IconAssignments(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 19c0-3 2.5-5 6-5" />
+      <path d="M15 11h6" />
+      <path d="M18 8v6" />
+    </IconBase>
+  );
+}
+
 export function IconReports(props: IconProps) {
   return (
     <IconBase {...props}>
