@@ -85,6 +85,24 @@ export interface KpiSummary {
   overall: SlaStageKpiCounts;
 }
 
+/** API-389 Dashboard complaint summary widget (CAPABILITY-013). */
+export interface DashboardComplaintSummary {
+  totalComplaints: number;
+  openComplaints: number;
+  closedComplaints: number;
+  pendingComplaints: number;
+  overdueComplaints: number;
+  escalatedComplaints: number;
+  todayComplaints: number;
+  thisMonthComplaints: number;
+}
+
+/** API-403 unassign request (complaint domain). */
+export interface UnassignComplaintRequest {
+  releasedBy: string;
+  reason?: string | null;
+}
+
 /** API-319 Dashboard Summary (orchestration; never persisted). */
 export interface DashboardHeader {
   totalComplaints: number;

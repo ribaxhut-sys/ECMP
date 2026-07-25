@@ -62,6 +62,15 @@ export { fetchKpiSummary } from "./kpi";
 export type { KpiSummaryFilters } from "./kpi";
 export { fetchDashboardSummary } from "./dashboard";
 export {
+  fetchQueueAssignments,
+  fetchQueueList,
+  fetchQueueSla,
+  fetchQueueSummary,
+  releaseQueue,
+  takeQueue,
+  updateQueueStatus,
+} from "./queue";
+export {
   activateSlaPolicy,
   createSlaPolicy,
   fetchSlaPolicies,

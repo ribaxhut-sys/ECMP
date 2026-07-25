@@ -20,6 +20,10 @@ See **[SPRINT_F1.md](./SPRINT_F1.md)** for auth, routing, Axios client, and shel
 
 See **[SPRINT_F2.md](./SPRINT_F2.md)** for list / detail / create / edit against frozen complaint APIs.
 
+## Sprint F3 — Queue
+
+See **[SPRINT_F3.md](./SPRINT_F3.md)** for the complaint work-queue dashboard against frozen APIs.
+
 | Area | Location |
 |---|---|
 | Auth session | `src/auth/AuthProvider.tsx` |
@@ -28,6 +32,7 @@ See **[SPRINT_F2.md](./SPRINT_F2.md)** for list / detail / create / edit against
 | Login shell | `src/shared/layouts/auth-layout/` + `src/app/login/` |
 | Global loading / errors | `src/shared/providers/` + `GlobalLoadingBar` |
 | Complaints module | `src/features/complaints/`, `src/app/(app)/complaints/` |
+| Queue module | `src/features/queue/`, `src/app/(app)/queue/` |
 | Design system | `src/shared/ui`, `src/shared/theme` |
 
 See **[src/shared/README.md](./src/shared/README.md)** for design tokens and layout rules.

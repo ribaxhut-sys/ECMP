@@ -6,6 +6,7 @@ import {
   IconComplaints,
   IconDashboard,
   IconPaperclip,
+  IconQueue,
   IconReports,
   IconSettings,
   IconUsers,
@@ -17,6 +18,7 @@ import { APP_NAV_ITEMS, type NavItem } from "./nav";
 const iconMap = {
   dashboard: IconDashboard,
   complaints: IconComplaints,
+  queue: IconQueue,
   reports: IconReports,
   users: IconUsers,
   settings: IconSettings,

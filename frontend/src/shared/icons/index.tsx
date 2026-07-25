@@ -104,6 +104,18 @@ export function IconComplaints(props: IconProps) {
   );
 }
 
+export function IconQueue(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h10" />
+      <path d="M18 16v4" />
+      <path d="M16 18h4" />
+    </IconBase>
+  );
+}
+
 export function IconReports(props: IconProps) {
   return (
     <IconBase {...props}>

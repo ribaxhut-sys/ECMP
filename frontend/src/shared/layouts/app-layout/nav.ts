@@ -5,6 +5,7 @@ export interface NavItem {
   icon:
     | "dashboard"
     | "complaints"
+    | "queue"
     | "reports"
     | "users"
     | "settings"
@@ -15,6 +16,7 @@ export interface NavItem {
 export const APP_NAV_ITEMS: readonly NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "dashboard" },
   { id: "complaints", label: "Complaints", href: "/complaints", icon: "complaints" },
+  { id: "queue", label: "Queue", href: "/queue", icon: "queue" },
   {
     id: "attachments",
     label: "Attachments",
