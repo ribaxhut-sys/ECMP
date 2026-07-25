@@ -34,7 +34,7 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      ECMP_DATABASE_URL: postgresql+psycopg://ecmp:ecmp_ci@localhost:5432/ecmp_test
+      DATABASE_URL: postgresql+psycopg://ecmp:ecmp_ci@localhost:5432/ecmp_test
     defaults:
       run:
         working-directory: backend
