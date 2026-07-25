@@ -1,5 +1,10 @@
 import { apiRequest, apiRequestBlob } from "./client";
-import type { Attachment, DataResponse } from "./types";
+import type {
+  Attachment,
+  AttachmentAggregateType,
+  DataResponse,
+  ListResponse,
+} from "./types";
 
 /** API-324 — GET /api/v1/attachments/{id} (metadata only; no file bytes). */
 export function fetchAttachment(
@@ -8,6 +13,36 @@ export function fetchAttachment(
   return apiRequest<DataResponse<Attachment>>(
     `/api/v1/attachments/${encodeURIComponent(attachmentId)}`,
   );
+}
+
+/** API-387 — GET /api/v1/complaints/{id}/attachments */
+export function fetchComplaintAttachments(
+  complaintId: string,
+  pageSize = 100,
+): Promise<ListResponse<Attachment>> {
+  const params = new URLSearchParams({
+    page: "1",
+    pageSize: String(pageSize),
+  });
+  return apiRequest<ListResponse<Attachment>>(
+    `/api/v1/complaints/${encodeURIComponent(complaintId)}/attachments?${params.toString()}`,
+  );
+}
+
+/** API-323 — POST /api/v1/attachments (multipart). */
+export function uploadAttachment(
+  aggregateType: AttachmentAggregateType,
+  aggregateId: string,
+  file: File,
+): Promise<DataResponse<Attachment>> {
+  const form = new FormData();
+  form.append("aggregateType", aggregateType);
+  form.append("aggregateId", aggregateId);
+  form.append("file", file);
+  return apiRequest<DataResponse<Attachment>>("/api/v1/attachments", {
+    method: "POST",
+    body: form,
+  });
 }
 
 export interface AttachmentDownloadResult {

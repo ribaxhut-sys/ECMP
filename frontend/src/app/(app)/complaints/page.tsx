@@ -1,16 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import {
-  Button,
-  Empty,
-  PageContainer,
-  PageHeader,
-} from "@/shared/ui";
+import { Suspense } from "react";
+import { ComplaintListView } from "@/features/complaints";
+import { PageContainer, PageHeader, Skeleton } from "@/shared/ui";
 
-export default function ComplaintsPage() {
-  const router = useRouter();
-
+function ListFallback() {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
@@ -19,26 +13,16 @@ export default function ComplaintsPage() {
           { label: "Home", href: "/dashboard" },
           { label: "Complaints" },
         ]}
-        description="Browse and register customer complaints."
-        actions={
-          <Button type="button" onClick={() => router.push("/complaints/new")}>
-            Create Complaint
-          </Button>
-        }
       />
-      <Empty
-        title="Complaint queue"
-        description="Use Create Complaint to register a new case. Queue listing ships in a later task."
-        action={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/complaints/new")}
-          >
-            Create Complaint
-          </Button>
-        }
-      />
+      <Skeleton rows={6} />
     </PageContainer>
+  );
+}
+
+export default function ComplaintsPage() {
+  return (
+    <Suspense fallback={<ListFallback />}>
+      <ComplaintListView />
+    </Suspense>
   );
 }

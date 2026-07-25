@@ -45,7 +45,7 @@ export function AttachmentViewer({
   const kind: PreviewKind = getPreviewKind(
     attachment.mimeType,
     attachment.extension,
-    attachment.filename,
+    attachment.originalName,
   );
 
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -117,7 +117,7 @@ export function AttachmentViewer({
       const url = URL.createObjectURL(result.blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = result.filename || attachment.filename;
+      anchor.download = result.filename || attachment.originalName;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -125,7 +125,7 @@ export function AttachmentViewer({
     } catch (err) {
       setError(mapLoadError(err));
     }
-  }, [attachment.filename, attachment.id]);
+  }, [attachment.originalName, attachment.id]);
 
   const handleOpenTab = useCallback(async () => {
     try {
@@ -151,7 +151,7 @@ export function AttachmentViewer({
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
-      aria-label={`Preview ${attachment.filename}`}
+      aria-label={`Preview ${attachment.originalName}`}
       data-testid="attachment-viewer"
     >
       <button
@@ -164,7 +164,7 @@ export function AttachmentViewer({
         <header className="flex items-center justify-between gap-3 border-b border-ecmp-border px-3 py-3 sm:px-5">
           <div className="min-w-0">
             <h2 className="truncate text-[length:var(--ecmp-font-title-size)] font-semibold text-ecmp-text-primary">
-              {attachment.filename}
+              {attachment.originalName}
             </h2>
             <p className="truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
               {attachment.mimeType}
@@ -258,7 +258,7 @@ export function AttachmentViewer({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={objectUrl}
-                alt={attachment.filename}
+                alt={attachment.originalName}
                 className="max-h-none origin-center transition-transform duration-150"
                 style={{ transform: `scale(${zoom})` }}
                 data-testid="attachment-image-preview"
@@ -268,7 +268,7 @@ export function AttachmentViewer({
 
           {!loading && !error && kind === "pdf" && objectUrl ? (
             <iframe
-              title={`PDF preview — ${attachment.filename}`}
+              title={`PDF preview — ${attachment.originalName}`}
               src={objectUrl}
               className="h-[70vh] w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-white"
               data-testid="attachment-pdf-preview"

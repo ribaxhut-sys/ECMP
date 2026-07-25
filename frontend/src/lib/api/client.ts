@@ -273,7 +273,14 @@ function toAxiosConfig(
   } = init;
 
   const axiosHeaders = headersFromInit(headers);
-  if (body != null && !("Content-Type" in axiosHeaders) && !("content-type" in axiosHeaders)) {
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
+  if (
+    body != null &&
+    !isFormData &&
+    !("Content-Type" in axiosHeaders) &&
+    !("content-type" in axiosHeaders)
+  ) {
     axiosHeaders["Content-Type"] = "application/json";
   }
 

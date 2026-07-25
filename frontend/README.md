@@ -16,6 +16,10 @@ Requires the backend at `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:80
 
 See **[SPRINT_F1.md](./SPRINT_F1.md)** for auth, routing, Axios client, and shell deliverables.
 
+## Sprint F2 — Complaints
+
+See **[SPRINT_F2.md](./SPRINT_F2.md)** for list / detail / create / edit against frozen complaint APIs.
+
 | Area | Location |
 |---|---|
 | Auth session | `src/auth/AuthProvider.tsx` |
@@ -23,6 +27,7 @@ See **[SPRINT_F1.md](./SPRINT_F1.md)** for auth, routing, Axios client, and shel
 | Protected shell | `src/shared/layouts/app-layout/` |
 | Login shell | `src/shared/layouts/auth-layout/` + `src/app/login/` |
 | Global loading / errors | `src/shared/providers/` + `GlobalLoadingBar` |
+| Complaints module | `src/features/complaints/`, `src/app/(app)/complaints/` |
 | Design system | `src/shared/ui`, `src/shared/theme` |
 
 See **[src/shared/README.md](./src/shared/README.md)** for design tokens and layout rules.

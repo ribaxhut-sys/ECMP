@@ -29,6 +29,7 @@ import { AssignmentCard } from "./AssignmentCard";
 import { AppointmentCard } from "./AppointmentCard";
 import { CloseComplaintCard } from "./CloseComplaintCard";
 import { CloseEscalationCard } from "./CloseEscalationCard";
+import { ComplaintAttachmentsCard } from "./ComplaintAttachmentsCard";
 import { EscalationCard } from "./EscalationCard";
 import { FinalResolutionCard } from "./FinalResolutionCard";
 import { ResolutionCard } from "./ResolutionCard";
@@ -257,15 +258,43 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           </div>
         }
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/complaints")}
-          >
-            Back to Complaints
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push(`/complaints/${complaint.id}/edit`)}
+            >
+              Edit
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/complaints")}
+            >
+              Back to Complaints
+            </Button>
+          </div>
         }
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Current status</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <DetailField
+              label="Status"
+              value={complaint.status.replaceAll("_", " ")}
+            />
+            <DetailField label="Priority" value={complaint.priority} />
+            <DetailField
+              label="Reported at"
+              value={formatWhen(complaint.reportedAt)}
+            />
+          </dl>
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -275,6 +304,14 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           <dl className="grid grid-cols-1 gap-4">
             <DetailField label="Subject" value={complaint.subject} />
             <DetailField label="Description" value={complaint.description} />
+            <DetailField
+              label="Channel"
+              value={complaint.channel?.trim() || "—"}
+            />
+            <DetailField
+              label="Category"
+              value={complaint.category?.trim() || "—"}
+            />
           </dl>
         </CardBody>
       </Card>
@@ -383,6 +420,12 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
       />
 
       <SlaCard complaintId={complaint.id} refreshKey={timelineKey} />
+
+      <ComplaintAttachmentsCard
+        complaintId={complaint.id}
+        refreshKey={timelineKey}
+        allowUpload
+      />
 
       <TimelineCard complaintId={complaint.id} refreshKey={timelineKey} />
 

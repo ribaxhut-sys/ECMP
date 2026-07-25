@@ -146,26 +146,39 @@ export interface SettingUpdateRequest {
 }
 
 /** API-324 attachment metadata (TASK-029 / TASK-032 viewer). */
+export type AttachmentAggregateType = "Complaint" | "Queue" | "Notification";
+export type AttachmentStatus =
+  | "UPLOADED"
+  | "AVAILABLE"
+  | "DELETED"
+  | "FAILED";
+
+/** CAPABILITY-011 Attachment metadata (API-323–326, 386–387). */
 export interface Attachment {
   id: string;
-  objectType: string;
-  objectId: string;
-  filename: string;
-  storedFilename: string;
+  aggregateType: AttachmentAggregateType;
+  aggregateId: string;
+  fileName: string;
+  originalName: string;
   mimeType: string;
   extension: string | null;
   sizeBytes: number;
-  checksum: string;
+  checksumSha256: string;
   storageProvider: string;
   uploadedBy: string | null;
-  createdAt: string;
+  uploadedAt: string;
+  status: AttachmentStatus;
 }
 
 export interface Complaint {
   id: string;
   complaintNumber: string;
-  customerId: string;
+  customerId: string | null;
   branchId: string | null;
+  sourceType?: string;
+  sourceId?: string;
+  targetType?: string;
+  targetId?: string | null;
   subject: string;
   description: string;
   status: ComplaintStatus;
@@ -191,6 +204,66 @@ export interface ComplaintCreateRequest {
   channel?: string | null;
   category?: string | null;
   reportedAt?: string | null;
+}
+
+/** API-204 update payload — status is not mutable here. */
+export interface ComplaintUpdateRequest {
+  subject?: string;
+  description?: string;
+  priority?: Priority;
+  channel?: string | null;
+  category?: string | null;
+  branchId?: string | null;
+}
+
+export type ComplaintSortField =
+  | "createdAt"
+  | "updatedAt"
+  | "priority"
+  | "status"
+  | "slaDueDate";
+
+export type SortOrder = "asc" | "desc";
+
+export interface SearchPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface SearchSort {
+  field: ComplaintSortField;
+  order: SortOrder;
+}
+
+/** API-388 search filters (all optional / combinable). */
+export interface ComplaintSearchParams {
+  keyword?: string;
+  status?: ComplaintStatus;
+  priority?: Priority;
+  category?: string;
+  branchId?: string;
+  assignedTo?: string;
+  createdBy?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  slaStatus?: SlaStatus;
+  escalated?: boolean;
+  page?: number;
+  pageSize?: number;
+  sort?: ComplaintSortField;
+  order?: SortOrder;
+}
+
+/** API-388 Complaint search envelope. */
+export interface ComplaintSearchResponse {
+  items: Complaint[];
+  pagination: SearchPagination;
+  filtersApplied: Record<string, unknown>;
+  sort: SearchSort;
 }
 
 /** API-205 assign request. */

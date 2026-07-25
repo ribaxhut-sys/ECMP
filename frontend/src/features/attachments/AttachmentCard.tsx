@@ -45,7 +45,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
   const kind = getPreviewKind(
     attachment.mimeType,
     attachment.extension,
-    attachment.filename,
+    attachment.originalName,
   );
   const [viewerOpen, setViewerOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
       const url = URL.createObjectURL(result.blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = result.filename || attachment.filename;
+      anchor.download = result.filename || attachment.originalName;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -79,7 +79,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
     } finally {
       setBusy(false);
     }
-  }, [attachment.filename, attachment.id]);
+  }, [attachment.originalName, attachment.id]);
 
   const handleOpenTab = useCallback(async () => {
     setBusy(true);
@@ -110,19 +110,19 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
               <TypeIcon
                 mimeType={attachment.mimeType}
                 extension={attachment.extension}
-                filename={attachment.filename}
+                filename={attachment.originalName}
               />
             </div>
             <div className="min-w-0 flex-1 space-y-1">
               <p className="truncate text-[length:var(--ecmp-font-subtitle-size)] font-semibold text-ecmp-text-primary">
-                {attachment.filename}
+                {attachment.originalName}
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="neutral">
                   {fileTypeLabel(
                     attachment.mimeType,
                     attachment.extension,
-                    attachment.filename,
+                    attachment.originalName,
                   )}
                 </Badge>
                 {kind === "unsupported" ? (
@@ -156,7 +156,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
                 Upload date
               </dt>
               <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                {formatUploadDate(attachment.createdAt)}
+                {formatUploadDate(attachment.uploadedAt)}
               </dd>
             </div>
           </dl>

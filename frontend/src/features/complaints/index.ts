@@ -1,5 +1,8 @@
 export { CreateComplaintView } from "./CreateComplaintView";
 export { ComplaintDetailView } from "./ComplaintDetailView";
+export { ComplaintListView } from "./ComplaintListView";
+export { EditComplaintView } from "./EditComplaintView";
+export { ComplaintAttachmentsCard } from "./ComplaintAttachmentsCard";
 export { AssignmentCard } from "./AssignmentCard";
 export { AppointmentCard } from "./AppointmentCard";
 export { CloseComplaintCard } from "./CloseComplaintCard";

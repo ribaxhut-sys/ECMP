@@ -14,6 +14,7 @@ import {
   createComplaint,
   fetchBranches,
   fetchCustomers,
+  uploadAttachment,
   type Branch,
   type Customer,
 } from "@/lib/api";
@@ -58,6 +59,7 @@ export function CreateComplaintView() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(true);
   const [branchesError, setBranchesError] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,7 +188,17 @@ export function CreateComplaintView() {
     setSubmitting(true);
     try {
       const response = await createComplaint(toCreateComplaintRequest(values));
-      router.push(`/complaints/${response.data.id}`);
+      const complaintId = response.data.id;
+
+      for (const file of files) {
+        try {
+          await uploadAttachment("Complaint", complaintId, file);
+        } catch {
+          // Best-effort: complaint already exists; user can retry from detail.
+        }
+      }
+
+      router.push(`/complaints/${complaintId}`);
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -445,6 +457,36 @@ export function CreateComplaintView() {
                 hint="Defaults to today; change if reported at another time"
               />
             </fieldset>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle id="section-attachments">Attachments</CardTitle>
+            <CardDescription>
+              Optional files are uploaded after the complaint is created
+              (API-323).
+            </CardDescription>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            <Input
+              type="file"
+              name="attachments"
+              id="attachments"
+              label="Attach files"
+              multiple
+              onChange={(event) => {
+                const list = event.target.files
+                  ? Array.from(event.target.files)
+                  : [];
+                setFiles(list);
+              }}
+              hint={
+                files.length === 0
+                  ? "You can add more files later from the complaint detail page."
+                  : `${files.length} file(s) selected`
+              }
+            />
           </CardBody>
         </Card>
 

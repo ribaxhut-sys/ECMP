@@ -28,7 +28,9 @@ export {
   fetchFinalResolution,
   fetchLatestComplaints,
   resolveComplaint,
+  searchComplaints,
   submitFinalResolution,
+  updateComplaint,
 } from "./complaints";
 export {
   approveEscalation,
@@ -69,6 +71,11 @@ export {
   fetchSettings,
   updateSetting,
 } from "./settings";
-export { downloadAttachment, fetchAttachment } from "./attachments";
+export {
+  downloadAttachment,
+  fetchAttachment,
+  fetchComplaintAttachments,
+  uploadAttachment,
+} from "./attachments";
 export type { AttachmentDownloadResult } from "./attachments";
 export type * from "./types";

@@ -7,7 +7,10 @@ import type {
   CloseComplaintResult,
   Complaint,
   ComplaintCreateRequest,
+  ComplaintSearchParams,
+  ComplaintSearchResponse,
   ComplaintStatus,
+  ComplaintUpdateRequest,
   DataResponse,
   FinalResolutionDetail,
   FinalResolutionRequest,
@@ -19,6 +22,55 @@ import type {
   SlaRecord,
   TimelineEntry,
 } from "./types";
+
+function appendSearchParams(
+  params: URLSearchParams,
+  filters: ComplaintSearchParams,
+): void {
+  const entries: [string, string | number | boolean | undefined][] = [
+    ["keyword", filters.keyword],
+    ["status", filters.status],
+    ["priority", filters.priority],
+    ["category", filters.category],
+    ["branchId", filters.branchId],
+    ["assignedTo", filters.assignedTo],
+    ["createdBy", filters.createdBy],
+    ["createdFrom", filters.createdFrom],
+    ["createdTo", filters.createdTo],
+    ["slaStatus", filters.slaStatus],
+    [
+      "escalated",
+      filters.escalated === undefined ? undefined : String(filters.escalated),
+    ],
+    ["page", filters.page],
+    ["pageSize", filters.pageSize],
+    ["sort", filters.sort],
+    ["order", filters.order],
+  ];
+
+  for (const [key, value] of entries) {
+    if (value === undefined || value === null || value === "") continue;
+    params.set(key, String(value));
+  }
+}
+
+/** API-388 — GET /api/v1/complaints/search */
+export function searchComplaints(
+  filters: ComplaintSearchParams = {},
+): Promise<ComplaintSearchResponse> {
+  const params = new URLSearchParams();
+  appendSearchParams(params, {
+    page: 1,
+    pageSize: 20,
+    sort: "createdAt",
+    order: "desc",
+    ...filters,
+  });
+  const query = params.toString();
+  return apiRequest<ComplaintSearchResponse>(
+    `/api/v1/complaints/search${query ? `?${query}` : ""}`,
+  );
+}
 
 export function fetchLatestComplaints(
   pageSize = 10,
@@ -49,6 +101,20 @@ export function createComplaint(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** API-204 — PUT /api/v1/complaints/{id} */
+export function updateComplaint(
+  id: string,
+  body: ComplaintUpdateRequest,
+): Promise<DataResponse<Complaint>> {
+  return apiRequest<DataResponse<Complaint>>(
+    `/api/v1/complaints/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 /** API-205 — POST /api/v1/complaints/{id}/assign */
