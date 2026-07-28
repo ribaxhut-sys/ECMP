@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
 import { ApiError } from "@/lib/api";
 import { AuthLayout } from "@/shared/layouts";
 import {
@@ -30,7 +31,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (status === "authenticated") {
       if (user?.forcePasswordChange) {
-        router.replace("/profile/security/change-password");
+        router.replace(PASSWORD_CHANGE_ROUTE);
       } else {
         router.replace("/dashboard");
       }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
 import {
   Card,
   CardBody,
@@ -65,7 +66,7 @@ export default function ProfilePage() {
           </Link>
           <span className="mx-2 text-ecmp-text-secondary">·</span>
           <Link
-            href="/profile/security/change-password"
+            href={PASSWORD_CHANGE_ROUTE}
             className="text-ecmp-primary underline-offset-2 hover:underline"
           >
             {t("changePassword")}

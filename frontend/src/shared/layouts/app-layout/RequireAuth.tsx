@@ -4,9 +4,8 @@ import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
 import { Loading } from "@/shared/ui";
-
-const CHANGE_PASSWORD_PATH = "/profile/security/change-password";
 
 /**
  * Client-side session gate. Preserves existing auth redirect behavior;
@@ -30,9 +29,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     if (
       status === "authenticated" &&
       forcePasswordChange &&
-      pathname !== CHANGE_PASSWORD_PATH
+      pathname !== PASSWORD_CHANGE_ROUTE
     ) {
-      router.replace(CHANGE_PASSWORD_PATH);
+      router.replace(PASSWORD_CHANGE_ROUTE);
     }
   }, [status, forcePasswordChange, pathname, router]);
 
@@ -40,7 +39,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Loading label={t("loading")} />;
   }
 
-  if (forcePasswordChange && pathname !== CHANGE_PASSWORD_PATH) {
+  if (forcePasswordChange && pathname !== PASSWORD_CHANGE_ROUTE) {
     return <Loading label={t("passwordChangeRequired")} />;
   }
 

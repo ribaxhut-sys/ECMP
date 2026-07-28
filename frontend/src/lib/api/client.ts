@@ -4,6 +4,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from "axios";
+import { PASSWORD_CHANGE_ROUTE } from "@/features/auth/routes";
 import type { ApiErrorBody } from "./types";
 
 export class ApiError extends Error {
@@ -247,9 +248,9 @@ axiosClient.interceptors.response.use(
     if (
       typeof window !== "undefined" &&
       apiError.code === "PASSWORD_CHANGE_REQUIRED" &&
-      !window.location.pathname.startsWith("/change-password")
+      !window.location.pathname.startsWith(PASSWORD_CHANGE_ROUTE)
     ) {
-      window.location.replace("/change-password");
+      window.location.replace(PASSWORD_CHANGE_ROUTE);
     }
 
     const shouldNotify =

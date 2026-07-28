@@ -4,6 +4,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import {
+  PASSWORD_CHANGE_ROUTE,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@/features/auth";
 import { ApiError, changePassword } from "@/lib/api";
 import {
   Alert,
@@ -17,9 +22,6 @@ import {
   PageContainer,
   PageHeader,
 } from "@/shared/ui";
-
-const MIN_LENGTH = 8;
-const CHANGE_PASSWORD_PATH = "/profile/security/change-password";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -39,8 +41,8 @@ export default function ChangePasswordPage() {
   useEffect(() => {
     // Keep forced users on this page (RequireAuth also enforces).
     if (forced && typeof window !== "undefined") {
-      if (window.location.pathname !== CHANGE_PASSWORD_PATH) {
-        router.replace(CHANGE_PASSWORD_PATH);
+      if (window.location.pathname !== PASSWORD_CHANGE_ROUTE) {
+        router.replace(PASSWORD_CHANGE_ROUTE);
       }
     }
   }, [forced, router]);
@@ -50,8 +52,8 @@ export default function ChangePasswordPage() {
     setError(null);
     setSuccess(null);
 
-    if (newPassword.length < MIN_LENGTH) {
-      setError(t("newPasswordMin", { min: MIN_LENGTH }));
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      setError(t("newPasswordMin", { min: PASSWORD_MIN_LENGTH }));
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -114,7 +116,7 @@ export default function ChangePasswordPage() {
         <CardHeader>
           <CardTitle>{t("securityTitle")}</CardTitle>
           <CardDescription>
-            {t("chooseStrongPassword", { min: MIN_LENGTH })}
+            {t("chooseStrongPassword", { min: PASSWORD_MIN_LENGTH })}
           </CardDescription>
         </CardHeader>
         <CardBody>
@@ -136,8 +138,8 @@ export default function ChangePasswordPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              minLength={MIN_LENGTH}
-              maxLength={72}
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
             />
             <Input
               name="confirmPassword"
@@ -147,8 +149,8 @@ export default function ChangePasswordPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={MIN_LENGTH}
-              maxLength={72}
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
             />
 
             {error ? (

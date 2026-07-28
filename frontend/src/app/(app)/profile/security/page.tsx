@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
 import {
   Card,
   CardBody,
@@ -35,7 +36,7 @@ export default function ProfileSecurityPage() {
         </CardHeader>
         <CardBody>
           <Link
-            href="/profile/security/change-password"
+            href={PASSWORD_CHANGE_ROUTE}
             className="text-ecmp-primary underline-offset-2 hover:underline"
           >
             {t("changePassword")}

@@ -6,6 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@/features/auth";
 import { ApiError, resetPassword } from "@/lib/api";
 import { AuthLayout } from "@/shared/layouts";
 import {
@@ -17,8 +21,6 @@ import {
   Loading,
 } from "@/shared/ui";
 import { LanguageSwitcher } from "@/shared/i18n";
-
-const MIN_LENGTH = 8;
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -49,8 +51,8 @@ function ResetPasswordForm() {
       setError(t("tokenMissing"));
       return;
     }
-    if (password.length < MIN_LENGTH) {
-      setError(t("passwordMinLength", { min: MIN_LENGTH }));
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(t("passwordMinLength", { min: PASSWORD_MIN_LENGTH }));
       return;
     }
     if (password !== confirmPassword) {
@@ -117,8 +119,8 @@ function ResetPasswordForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
-        minLength={MIN_LENGTH}
-        maxLength={72}
+        minLength={PASSWORD_MIN_LENGTH}
+        maxLength={PASSWORD_MAX_LENGTH}
       />
       <Input
         name="confirmPassword"
@@ -128,9 +130,10 @@ function ResetPasswordForm() {
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
         required
-        minLength={MIN_LENGTH}
-        maxLength={72}
+        minLength={PASSWORD_MIN_LENGTH}
+        maxLength={PASSWORD_MAX_LENGTH}
       />
+
 
       {error ? (
         <Alert tone="danger" title={t("resetFailed")} description={error} />
