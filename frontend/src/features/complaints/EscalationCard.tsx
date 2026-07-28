@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -15,6 +16,7 @@ import type {
   Escalation,
   EscalationReasonCode,
 } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -28,15 +30,12 @@ import {
   Toast,
 } from "@/shared/ui";
 
-const REASON_OPTIONS: ReadonlyArray<{
-  value: EscalationReasonCode;
-  label: string;
-}> = [
-  { value: "SPECIALIST_REQUIRED", label: "Specialist Required" },
-  { value: "COMPLEX_CASE", label: "Complex Case" },
-  { value: "POLICY_EXCEPTION", label: "Policy Exception" },
-  { value: "CUSTOMER_REQUEST", label: "Customer Request" },
-  { value: "OTHER", label: "Other" },
+const REASON_VALUES: readonly EscalationReasonCode[] = [
+  "SPECIALIST_REQUIRED",
+  "COMPLEX_CASE",
+  "POLICY_EXCEPTION",
+  "CUSTOMER_REQUEST",
+  "OTHER",
 ];
 
 const REQUEST_FLOW_STATUSES = new Set([
@@ -45,26 +44,6 @@ const REQUEST_FLOW_STATUSES = new Set([
   "REJECTED",
   "CLOSED",
 ]);
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-function reasonLabel(value: string | null | undefined): string {
-  if (!value) return "—";
-  return (
-    REASON_OPTIONS.find((option) => option.value === value)?.label ??
-    value.replaceAll("_", " ")
-  );
-}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -122,8 +101,24 @@ export function EscalationCard({
   onReviewed?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tReason = useTranslations("escalationReason");
+  const locale = useLocale();
   const canUpdate = hasPermission("complaints:update");
   const canReview = hasPermission("escalations:review");
+
+  const reasonOptions = REASON_VALUES.map((value) => ({
+    value,
+    label: tReason(value),
+  }));
+
+  function reasonLabel(value: string | null | undefined): string {
+    if (!value) return tCommon("emDash");
+    return (REASON_VALUES as readonly string[]).includes(value)
+      ? tReason(value)
+      : value.replaceAll("_", " ");
+  }
 
   const [escalation, setEscalation] = useState<Escalation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,10 +137,8 @@ export function EscalationCard({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
-  const [toastTitle, setToastTitle] = useState("Escalation requested");
-  const [toastDescription, setToastDescription] = useState(
-    "Status is REQUESTED. Awaiting Head Office review.",
-  );
+  const [toastTitle, setToastTitle] = useState("");
+  const [toastDescription, setToastDescription] = useState("");
 
   const [reviewAction, setReviewAction] = useState<ReviewAction | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
@@ -176,12 +169,12 @@ export function EscalationCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to load escalation.",
+            : t("unableToLoadEscalation"),
       );
     } finally {
       setLoading(false);
     }
-  }, [complaintId]);
+  }, [complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -205,11 +198,11 @@ export function EscalationCard({
     setSubmitError(null);
 
     const nextErrors: typeof fieldErrors = {};
-    if (!reasonCode) nextErrors.reasonCode = "Reason code is required.";
+    if (!reasonCode) nextErrors.reasonCode = t("reasonCodeRequired");
     if (!reasonDescription.trim()) {
-      nextErrors.reasonDescription = "Reason description is required.";
+      nextErrors.reasonDescription = t("reasonDescriptionRequired");
     }
-    if (!diagnosis.trim()) nextErrors.diagnosis = "Diagnosis is required.";
+    if (!diagnosis.trim()) nextErrors.diagnosis = t("diagnosisRequired");
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -228,10 +221,8 @@ export function EscalationCard({
       setReasonDescription("");
       setDiagnosis("");
       setNotes("");
-      setToastTitle("Escalation requested");
-      setToastDescription(
-        "Status is REQUESTED. Awaiting Head Office review.",
-      );
+      setToastTitle(t("escalationRequested"));
+      setToastDescription(t("awaitingHeadOfficeReview"));
       setToastOpen(true);
       onRequested?.();
     } catch (err) {
@@ -240,7 +231,7 @@ export function EscalationCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Escalation request failed.",
+            : t("escalationRequestFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -266,7 +257,7 @@ export function EscalationCard({
     if (!escalation || !reviewAction) return;
     const notesTrimmed = reviewNotes.trim();
     if (!notesTrimmed) {
-      setReviewNotesError("Review notes are required.");
+      setReviewNotesError(t("reviewNotesRequired"));
       return;
     }
     setReviewNotesError(undefined);
@@ -276,12 +267,12 @@ export function EscalationCard({
       const body = { reviewNotes: notesTrimmed };
       if (reviewAction === "approve") {
         await approveEscalation(escalation.id, body);
-        setToastTitle("Escalation approved");
-        setToastDescription("Head Office will handle this escalation.");
+        setToastTitle(t("escalationApproved"));
+        setToastDescription(t("headOfficeWillHandle"));
       } else {
         await rejectEscalation(escalation.id, body);
-        setToastTitle("Escalation rejected");
-        setToastDescription("Issue remains with the Branch.");
+        setToastTitle(t("escalationRejected"));
+        setToastDescription(t("issueRemainsWithBranch"));
       }
       const detail = await fetchEscalation(escalation.id);
       setEscalation(detail.data);
@@ -295,7 +286,7 @@ export function EscalationCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Review failed.",
+            : t("reviewFailed"),
       );
     } finally {
       setReviewing(false);
@@ -309,40 +300,40 @@ export function EscalationCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Escalation</CardTitle>
+          <CardTitle>{t("escalationCard")}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Loading escalation…
+              {t("loadingEscalation")}
             </p>
           ) : loadError ? (
             <Alert
               tone="danger"
-              title="Could not load escalation"
+              title={t("couldNotLoadEscalation")}
               description={loadError}
-              actionLabel="Retry"
+              actionLabel={tCommon("retry")}
               onAction={() => void load()}
             />
           ) : escalation ? (
             <div className="space-y-4">
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <DetailField label="Status" value={escalation.status} />
+                <DetailField label={t("status")} value={escalation.status} />
                 <DetailField
-                  label="Requested By"
-                  value={escalation.requestedByName?.trim() || "—"}
+                  label={t("requestedBy")}
+                  value={escalation.requestedByName?.trim() || tCommon("emDash")}
                 />
                 <DetailField
-                  label="Reason Code"
+                  label={t("reasonCode")}
                   value={reasonLabel(escalation.reasonCode)}
                 />
                 <DetailField
-                  label="Requested At"
-                  value={formatWhen(escalation.requestedAt)}
+                  label={t("requestedAt")}
+                  value={formatDateTime(escalation.requestedAt, locale)}
                 />
                 <div className="sm:col-span-2">
                   <DetailField
-                    label="Reason Description"
+                    label={t("reasonDescription")}
                     value={
                       escalation.reasonDescription?.trim() || escalation.reason
                     }
@@ -350,13 +341,13 @@ export function EscalationCard({
                 </div>
                 <div className="sm:col-span-2">
                   <DetailField
-                    label="Diagnosis"
-                    value={escalation.diagnosis?.trim() || "—"}
+                    label={t("diagnosis")}
+                    value={escalation.diagnosis?.trim() || tCommon("emDash")}
                   />
                 </div>
                 {escalation.notes?.trim() ? (
                   <div className="sm:col-span-2">
-                    <DetailField label="Notes" value={escalation.notes} />
+                    <DetailField label={t("notes")} value={escalation.notes} />
                   </div>
                 ) : null}
               </dl>
@@ -364,21 +355,21 @@ export function EscalationCard({
               {reviewed ? (
                 <div className="space-y-3 border-t border-ecmp-border pt-4">
                   <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                    Review Decision
+                    {t("reviewDecision")}
                   </p>
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <DetailField
-                      label="Reviewed By"
-                      value={escalation.reviewedByName?.trim() || "—"}
+                      label={t("reviewedBy")}
+                      value={escalation.reviewedByName?.trim() || tCommon("emDash")}
                     />
                     <DetailField
-                      label="Reviewed At"
-                      value={formatWhen(escalation.reviewedAt)}
+                      label={t("reviewedAt")}
+                      value={formatDateTime(escalation.reviewedAt, locale)}
                     />
                     <div className="sm:col-span-2">
                       <DetailField
-                        label="Review Notes"
-                        value={escalation.reviewNotes?.trim() || "—"}
+                        label={t("reviewNotes")}
+                        value={escalation.reviewNotes?.trim() || tCommon("emDash")}
                       />
                     </div>
                   </dl>
@@ -388,8 +379,7 @@ export function EscalationCard({
               {canShowReviewActions ? (
                 <div className="space-y-3 border-t border-ecmp-border pt-4">
                   <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                    Head Office review — approve or reject this escalation
-                    request. Complaint remains IN PROGRESS.
+                    {t("headOfficeReviewHint")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -397,44 +387,43 @@ export function EscalationCard({
                       variant="primary"
                       onClick={() => openReview("approve")}
                     >
-                      Approve
+                      {t("approve")}
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => openReview("reject")}
                     >
-                      Reject
+                      {t("reject")}
                     </Button>
                   </div>
                 </div>
               ) : escalation.status === "REQUESTED" && !canReview ? (
                 <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                  Awaiting Head Office Scheduler review.
+                  {t("awaitingHeadOfficeSchedulerReview")}
                 </p>
               ) : null}
             </div>
           ) : canRequest && !formOpen ? (
             <div className="space-y-3">
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                Request Head Office escalation when branch troubleshooting is
-                complete. Review and approval are handled separately.
+                {t("requestEscalationHint")}
               </p>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setFormOpen(true)}
               >
-                Request Escalation
+                {t("requestEscalation")}
               </Button>
             </div>
           ) : !canRequest ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               {hasResolution
-                ? "Escalation is not available after resolution."
+                ? t("escalationNotAvailableAfterResolution")
                 : status !== "IN_PROGRESS"
-                  ? "Escalation can be requested only while the complaint is IN PROGRESS."
-                  : "No escalation requested."}
+                  ? t("escalationOnlyWhileInProgress")
+                  : t("noEscalationRequested")}
             </p>
           ) : null}
 
@@ -444,21 +433,21 @@ export function EscalationCard({
               onSubmit={onSubmit}
             >
               <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                Escalation Request form — Branch to Head Office.
+                {t("escalationRequestFormHint")}
               </p>
               {submitError ? (
                 <Alert
                   tone="danger"
-                  title="Escalation request failed"
+                  title={t("escalationRequestFailed")}
                   description={submitError}
                 />
               ) : null}
               <Select
-                label="Reason Code"
+                label={t("reasonCode")}
                 name="reasonCode"
                 required
-                placeholder="Select reason"
-                options={REASON_OPTIONS}
+                placeholder={t("selectReasonPlaceholder")}
+                options={reasonOptions}
                 value={reasonCode}
                 error={fieldErrors.reasonCode}
                 onChange={(event) =>
@@ -466,7 +455,7 @@ export function EscalationCard({
                 }
               />
               <Textarea
-                label="Reason Description"
+                label={t("reasonDescription")}
                 name="reasonDescription"
                 required
                 rows={2}
@@ -475,7 +464,7 @@ export function EscalationCard({
                 onChange={(event) => setReasonDescription(event.target.value)}
               />
               <Textarea
-                label="Diagnosis"
+                label={t("diagnosis")}
                 name="diagnosis"
                 required
                 rows={3}
@@ -484,7 +473,7 @@ export function EscalationCard({
                 onChange={(event) => setDiagnosis(event.target.value)}
               />
               <Textarea
-                label="Notes"
+                label={t("notes")}
                 name="notes"
                 rows={2}
                 value={notes}
@@ -501,10 +490,10 @@ export function EscalationCard({
                     setFieldErrors({});
                   }}
                 >
-                  Cancel
+                  {tCommon("cancel")}
                 </Button>
                 <Button type="submit" variant="primary" disabled={submitting}>
-                  {submitting ? "Submitting…" : "Submit Request"}
+                  {submitting ? tCommon("submitting") : t("submitRequest")}
                 </Button>
               </div>
             </form>
@@ -517,8 +506,8 @@ export function EscalationCard({
         onClose={closeReview}
         title={
           reviewAction === "approve"
-            ? "Approve escalation?"
-            : "Reject escalation?"
+            ? t("approveEscalationConfirm")
+            : t("rejectEscalationConfirm")
         }
         size="sm"
         footer={
@@ -529,7 +518,7 @@ export function EscalationCard({
               disabled={reviewing}
               onClick={closeReview}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
@@ -538,10 +527,10 @@ export function EscalationCard({
               onClick={() => void confirmReview()}
             >
               {reviewing
-                ? "Saving…"
+                ? tCommon("saving")
                 : reviewAction === "approve"
-                  ? "Confirm Approve"
-                  : "Confirm Reject"}
+                  ? t("confirmApprove")
+                  : t("confirmReject")}
             </Button>
           </>
         }
@@ -549,18 +538,18 @@ export function EscalationCard({
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {reviewAction === "approve"
-              ? "Confirm approval for Head Office handling. Complaint status stays IN PROGRESS."
-              : "Confirm rejection. The Branch retains ownership. Complaint status stays IN PROGRESS."}
+              ? t("confirmApprovalHint")
+              : t("confirmRejectionHint")}
           </p>
           {reviewError ? (
             <Alert
               tone="danger"
-              title="Review failed"
+              title={t("reviewFailed")}
               description={reviewError}
             />
           ) : null}
           <Textarea
-            label="Review Notes"
+            label={t("reviewNotes")}
             name="reviewNotes"
             required
             rows={3}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -8,6 +9,7 @@ import {
   fetchComplaintEscalations,
 } from "@/lib/api";
 import type { ComplaintStatus, Escalation } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -19,18 +21,6 @@ import {
   Textarea,
   Toast,
 } from "@/shared/ui";
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -68,6 +58,10 @@ export function CloseEscalationCard({
   onClosed?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tStatus = useTranslations("status");
+  const locale = useLocale();
   const canClose = hasPermission("escalations:close");
   const canRead = hasPermission("escalations:read");
 
@@ -91,14 +85,12 @@ export function CloseEscalationCard({
     } catch (err) {
       setEscalation(null);
       setLoadError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to load escalation.",
+        err instanceof ApiError ? err.message : t("unableToLoadEscalation"),
       );
     } finally {
       setLoading(false);
     }
-  }, [complaintId]);
+  }, [complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -126,7 +118,7 @@ export function CloseEscalationCard({
     if (!canAttemptClose || !escalation) return;
     const trimmed = notes.trim();
     if (!trimmed) {
-      setNotesError("Closure notes are required.");
+      setNotesError(t("closureNotesRequired"));
       return;
     }
     setNotesError(null);
@@ -140,9 +132,7 @@ export function CloseEscalationCard({
       await load();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to close escalation.",
+        err instanceof ApiError ? err.message : t("unableToCloseEscalation"),
       );
     } finally {
       setSubmitting(false);
@@ -161,54 +151,53 @@ export function CloseEscalationCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Close Escalation</CardTitle>
+          <CardTitle>{t("closeEscalationCard")}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Loading escalation…
+              {t("loadingEscalation")}
             </p>
           ) : loadError ? (
             <Alert
               tone="danger"
-              title="Could not load escalation"
+              title={t("couldNotLoadEscalation")}
               description={loadError}
-              actionLabel="Retry"
+              actionLabel={tCommon("retry")}
               onAction={() => void load()}
             />
           ) : isClosed && escalation ? (
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <DetailField label="Status" value="CLOSED" />
+              <DetailField label={t("status")} value={tStatus("CLOSED")} />
               <DetailField
-                label="Closed at"
-                value={formatWhen(escalation.closedAt)}
+                label={t("closedAt")}
+                value={formatDateTime(escalation.closedAt, locale)}
               />
               <DetailField
-                label="Closure notes"
-                value={escalation.closureNotes?.trim() || "—"}
+                label={t("closureNotes")}
+                value={escalation.closureNotes?.trim() || tCommon("emDash")}
               />
               <DetailField
-                label="Closed by"
-                value={escalation.closedBy?.trim() || "—"}
+                label={t("closedBy")}
+                value={escalation.closedBy?.trim() || tCommon("emDash")}
               />
             </dl>
           ) : canAttemptClose ? (
             <>
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                Officially close this escalation after Complaint Closure.
-                Complaint remains CLOSED.
+                {t("closeEscalationHint")}
               </p>
               <div className="flex justify-end">
                 <Button type="button" onClick={openDialog}>
-                  Close Escalation
+                  {t("closeEscalationCard")}
                 </Button>
               </div>
             </>
           ) : (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               {!complaintClosed
-                ? "Close the complaint first. Escalation closure requires a CLOSED complaint."
-                : "Escalation is not closed. Only Head Office Admin can close."}
+                ? t("closeComplaintFirstHint")
+                : t("notClosedEscalationPermissionHint")}
             </p>
           )}
         </CardBody>
@@ -217,7 +206,7 @@ export function CloseEscalationCard({
       <Modal
         open={dialogOpen}
         onClose={closeDialog}
-        title="Close escalation?"
+        title={t("closeEscalationConfirm")}
         size="sm"
         footer={
           <>
@@ -227,7 +216,7 @@ export function CloseEscalationCard({
               disabled={submitting}
               onClick={closeDialog}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
@@ -235,18 +224,17 @@ export function CloseEscalationCard({
               disabled={submitting}
               onClick={() => void confirmClose()}
             >
-              {submitting ? "Closing…" : "Confirm Close"}
+              {submitting ? t("closing") : t("confirmClose")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            Confirm official closure. Escalation status becomes CLOSED.
-            Complaint remains CLOSED.
+            {t("confirmEscalationClosureHint")}
           </p>
           {submitError ? (
-            <Alert tone="danger" title="Close failed">
+            <Alert tone="danger" title={t("closeFailed")}>
               {submitError}
             </Alert>
           ) : null}
@@ -255,7 +243,7 @@ export function CloseEscalationCard({
               htmlFor="escalation-closure-notes"
               className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
             >
-              Closure notes
+              {t("closureNotes")}
             </label>
             <Textarea
               id="escalation-closure-notes"
@@ -278,8 +266,8 @@ export function CloseEscalationCard({
         open={toastOpen}
         onClose={() => setToastOpen(false)}
         tone="success"
-        title="Escalation closed"
-        description="Status is CLOSED. Complaint remains CLOSED."
+        title={t("escalationClosed")}
+        description={t("escalationClosedHint")}
       />
     </>
   );

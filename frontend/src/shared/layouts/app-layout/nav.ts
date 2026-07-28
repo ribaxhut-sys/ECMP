@@ -1,6 +1,7 @@
 export interface NavItem {
   id: string;
-  label: string;
+  /** Key within the "nav" message namespace, e.g. "dashboard" -> t("dashboard") */
+  labelKey: string;
   href: string;
   icon:
     | "dashboard"
@@ -16,28 +17,28 @@ export interface NavItem {
 
 /** Primary app navigation — UI routes for future modules. */
 export const APP_NAV_ITEMS: readonly NavItem[] = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "dashboard" },
-  { id: "complaints", label: "Complaints", href: "/complaints", icon: "complaints" },
-  { id: "queue", label: "Queue", href: "/queue", icon: "queue" },
+  { id: "dashboard", labelKey: "dashboard", href: "/dashboard", icon: "dashboard" },
+  { id: "complaints", labelKey: "complaints", href: "/complaints", icon: "complaints" },
+  { id: "queue", labelKey: "queue", href: "/queue", icon: "queue" },
   {
     id: "assignments",
-    label: "Assignments",
+    labelKey: "assignments",
     href: "/assignments",
     icon: "assignments",
   },
   {
     id: "resolutions",
-    label: "Resolutions",
+    labelKey: "resolutions",
     href: "/resolutions",
     icon: "resolutions",
   },
   {
     id: "attachments",
-    label: "Attachments",
+    labelKey: "attachments",
     href: "/attachments",
     icon: "attachments",
   },
-  { id: "reports", label: "Reports", href: "/reports", icon: "reports" },
-  { id: "users", label: "Users", href: "/users", icon: "users" },
-  { id: "settings", label: "Settings", href: "/settings", icon: "settings" },
+  { id: "reports", labelKey: "reports", href: "/reports", icon: "reports" },
+  { id: "users", labelKey: "users", href: "/users", icon: "users" },
+  { id: "settings", labelKey: "settings", href: "/settings", icon: "settings" },
 ] as const;

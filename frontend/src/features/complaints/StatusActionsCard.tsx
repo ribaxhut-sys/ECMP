@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, changeComplaintStatus } from "@/lib/api";
 import type { ComplaintStatus } from "@/lib/api/types";
@@ -24,6 +25,8 @@ export function StatusActionsCard({
   onStatusChanged?: (next: ComplaintStatus) => void;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tStatus = useTranslations("status");
   const canUpdate = hasPermission("complaints:update");
   const actions = statusActionsFor(status);
 
@@ -38,12 +41,11 @@ export function StatusActionsCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Status</CardTitle>
+          <CardTitle>{t("statusCard")}</CardTitle>
         </CardHeader>
         <CardBody>
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            Assign this complaint to start the lifecycle. Status changes after
-            assignment use the actions below.
+            {t("assignToStartLifecycle")}
           </p>
         </CardBody>
       </Card>
@@ -54,22 +56,22 @@ export function StatusActionsCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Status</CardTitle>
+          <CardTitle>{t("statusCard")}</CardTitle>
         </CardHeader>
         <CardBody>
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {status === "CLOSED"
-              ? "No further status actions. This complaint is closed."
-              : "No status actions available."}
+              ? t("noFurtherStatusActions")
+              : t("noStatusActionsAvailable")}
           </p>
         </CardBody>
       </Card>
     );
   }
 
-  async function runTransition(target: ComplaintStatus, label: string) {
+  async function runTransition(target: ComplaintStatus, labelKey: string) {
     setError(null);
-    setSubmitting(label);
+    setSubmitting(labelKey);
     try {
       const res = await changeComplaintStatus(complaintId, { status: target });
       onStatusChanged?.(res.data.status);
@@ -79,7 +81,7 @@ export function StatusActionsCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Status change failed.",
+            : t("statusChangeFailed"),
       );
     } finally {
       setSubmitting(null);
@@ -89,17 +91,17 @@ export function StatusActionsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Status</CardTitle>
+        <CardTitle>{t("statusCard")}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-4">
         <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-          Available actions for{" "}
+          {t("availableActionsFor")}{" "}
           <span className="font-medium text-ecmp-text-primary">
-            {status.replaceAll("_", " ")}
+            {tStatus(status)}
           </span>
         </p>
         {error ? (
-          <Alert tone="danger" title="Status change failed" description={error} />
+          <Alert tone="danger" title={t("statusChangeFailed")} description={error} />
         ) : null}
         <div className="flex flex-wrap gap-2">
           {actions.map((action) => (
@@ -108,9 +110,9 @@ export function StatusActionsCard({
               type="button"
               variant={action.target === "CLOSED" ? "primary" : "outline"}
               disabled={submitting !== null}
-              onClick={() => void runTransition(action.target, action.label)}
+              onClick={() => void runTransition(action.target, action.labelKey)}
             >
-              {submitting === action.label ? "Updating…" : action.label}
+              {submitting === action.labelKey ? t("updating") : t(action.labelKey)}
             </Button>
           ))}
         </div>

@@ -50,5 +50,7 @@ export type { PageHeaderProps } from "./page-header";
 export { PageContainer } from "./page-container";
 export type { PageContainerProps } from "./page-container";
 
+export { PageFallback } from "./page-fallback";
+
 export { Toast } from "./toast";
 export type { ToastProps, ToastTone } from "./toast";

@@ -32,6 +32,8 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
   refreshUser: () => Promise<boolean>;
+  /** Merge fields into the in-memory AuthMe (e.g. preferredLanguage). */
+  patchUser: (partial: Partial<AuthMe>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -105,6 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyUser(null);
   }, [applyUser]);
 
+  const patchUser = useCallback((partial: Partial<AuthMe>) => {
+    setUser((prev) => (prev ? { ...prev, ...partial } : prev));
+  }, []);
+
   const permissions = user?.permissions ?? [];
   const roles = user?.roles ?? [];
   const forcePasswordChange = Boolean(user?.forcePasswordChange);
@@ -128,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refreshSession,
       refreshUser,
+      patchUser,
     }),
     [
       status,
@@ -140,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refreshSession,
       refreshUser,
+      patchUser,
     ],
   );
 

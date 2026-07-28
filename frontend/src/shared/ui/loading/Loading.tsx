@@ -1,4 +1,7 @@
+"use client";
+
 import type { HTMLAttributes } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 import { IconSpinner } from "@/shared/icons";
 
@@ -8,9 +11,11 @@ export interface LoadingProps extends HTMLAttributes<HTMLDivElement> {
 
 export function Loading({
   className,
-  label = "Loading",
+  label,
   ...props
 }: LoadingProps) {
+  const tCommon = useTranslations("common");
+
   return (
     <div
       role="status"
@@ -23,7 +28,9 @@ export function Loading({
       {...props}
     >
       <IconSpinner className="size-5" />
-      <span className="text-[length:var(--ecmp-font-body-size)]">{label}</span>
+      <span className="text-[length:var(--ecmp-font-body-size)]">
+        {label ?? tCommon("loading")}
+      </span>
     </div>
   );
 }
@@ -37,10 +44,12 @@ export function Skeleton({
   rows = 3,
   ...props
 }: SkeletonProps) {
+  const tCommon = useTranslations("common");
+
   return (
     <div
       aria-busy="true"
-      aria-label="Loading content"
+      aria-label={tCommon("loadingContent")}
       className={cn("space-y-3", className)}
       {...props}
     >

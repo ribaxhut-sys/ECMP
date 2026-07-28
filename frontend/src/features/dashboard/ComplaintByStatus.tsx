@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import type { StatusCount } from "@/lib/api/types";
 import {
   Card,
@@ -15,11 +18,14 @@ export function ComplaintByStatus({
   rows: StatusCount[] | null;
   loading: boolean;
 }) {
+  const t = useTranslations("dashboard");
+  const tStatus = useTranslations("status");
+
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Complaint by Status</CardTitle>
+          <CardTitle>{t("byStatus")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Skeleton rows={4} />
@@ -33,12 +39,12 @@ export function ComplaintByStatus({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Complaint by Status</CardTitle>
+          <CardTitle>{t("byStatus")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Empty
-            title="No status data"
-            description="No status breakdown available."
+            title={t("noStatusData")}
+            description={t("noStatusDataDescription")}
           />
         </CardBody>
       </Card>
@@ -50,14 +56,14 @@ export function ComplaintByStatus({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Complaint by Status</CardTitle>
+        <CardTitle>{t("byStatus")}</CardTitle>
       </CardHeader>
       <CardBody>
         <ul className="space-y-3">
           {visible.map((row) => (
             <li key={row.status}>
               <div className="mb-1 flex items-center justify-between text-[length:var(--ecmp-font-body-size)]">
-                <span>{row.status.replaceAll("_", " ")}</span>
+                <span>{tStatus(row.status)}</span>
                 <span className="tabular-nums text-ecmp-text-secondary">
                   {row.count}
                 </span>

@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import {
   Empty,
   PageContainer,
@@ -5,19 +8,22 @@ import {
 } from "@/shared/ui";
 
 export default function ReportsPage() {
+  const t = useTranslations("reports");
+  const tCommon = useTranslations("common");
+
   return (
     <PageContainer>
       <PageHeader
-        title="Reports"
+        title={t("title")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Reports" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title") },
         ]}
-        description="Reporting views will use the shared design system and App Layout."
+        description={t("description")}
       />
       <Empty
-        title="Reports module"
-        description="Placeholder route for future report screens. No business features in this sprint."
+        title={t("moduleTitle")}
+        description={t("placeholder")}
       />
     </PageContainer>
   );

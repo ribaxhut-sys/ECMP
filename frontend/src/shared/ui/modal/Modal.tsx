@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 import { IconClose } from "@/shared/icons";
 import { Button } from "@/shared/ui/button";
@@ -35,6 +36,7 @@ export function Modal({
   footer,
   size = "md",
 }: ModalProps) {
+  const t = useTranslations("common");
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -64,7 +66,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       <button
         type="button"
-        aria-label="Close dialog overlay"
+        aria-label={t("closeDialogOverlay")}
         className="absolute inset-0 bg-ecmp-overlay"
         onClick={onClose}
       />
@@ -89,7 +91,7 @@ export function Modal({
           <Button
             variant="ghost"
             size="sm"
-            aria-label="Close dialog"
+            aria-label={t("closeDialog")}
             onClick={onClose}
             className="!min-h-[44px] !min-w-[44px] px-0"
           >

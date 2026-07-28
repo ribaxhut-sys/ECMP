@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -36,6 +37,9 @@ export function QueueRowActions({
   onChanged?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const t = useTranslations("queue");
+  const tCommon = useTranslations("common");
+  const tComplaints = useTranslations("complaints");
   const canAssign = hasPermission("complaints:assign");
   const canUpdate = hasPermission("complaints:update");
   const statusActions = useMemo(
@@ -72,7 +76,7 @@ export function QueueRowActions({
 
   async function confirmAction() {
     if (!userId) {
-      setError("You must be signed in to perform this action.");
+      setError(t("mustBeSignedIn"));
       return;
     }
 
@@ -81,20 +85,20 @@ export function QueueRowActions({
     try {
       if (action === "take") {
         await takeQueue(row.id, { assigneeId: userId });
-        setToastTitle("Queue item taken");
+        setToastTitle(t("queueItemTaken"));
       } else if (action === "release") {
         await releaseQueue(row.id, { releasedBy: userId });
-        setToastTitle("Queue item released");
+        setToastTitle(t("queueItemReleased"));
       } else if (action === "status") {
         if (!statusTarget) {
-          setError("Select a status.");
+          setError(t("selectStatusError"));
           setSubmitting(false);
           return;
         }
         await updateQueueStatus(row.id, {
           status: statusTarget as ComplaintStatus,
         });
-        setToastTitle("Status updated");
+        setToastTitle(t("statusUpdatedToast"));
       }
       setAction(null);
       setToastOpen(true);
@@ -105,7 +109,7 @@ export function QueueRowActions({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Action failed.",
+            : t("actionFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -114,11 +118,11 @@ export function QueueRowActions({
 
   const modalTitle =
     action === "take"
-      ? "Take queue item?"
+      ? t("takeConfirmTitle")
       : action === "release"
-        ? "Release queue item?"
+        ? t("releaseConfirmTitle")
         : action === "status"
-          ? "Update queue status?"
+          ? t("statusConfirmTitle")
           : "";
 
   return (
@@ -131,7 +135,7 @@ export function QueueRowActions({
             variant="outline"
             onClick={() => openAction("take")}
           >
-            Take
+            {t("take")}
           </Button>
         ) : null}
         {canRelease ? (
@@ -141,7 +145,7 @@ export function QueueRowActions({
             variant="outline"
             onClick={() => openAction("release")}
           >
-            Release
+            {t("release")}
           </Button>
         ) : null}
         {canChangeStatus ? (
@@ -151,7 +155,7 @@ export function QueueRowActions({
             variant="ghost"
             onClick={() => openAction("status")}
           >
-            Status
+            {tCommon("status")}
           </Button>
         ) : null}
       </div>
@@ -169,14 +173,14 @@ export function QueueRowActions({
               disabled={submitting}
               onClick={closeAction}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
               disabled={submitting || (action === "status" && !statusTarget)}
               onClick={() => void confirmAction()}
             >
-              {submitting ? "Working…" : "Confirm"}
+              {submitting ? t("working") : tCommon("confirm")}
             </Button>
           </>
         }
@@ -184,26 +188,26 @@ export function QueueRowActions({
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {action === "take"
-              ? `Assign ${row.complaintNumber} to you and start handling it.`
+              ? t("assignToYouHint", { number: row.complaintNumber })
               : action === "release"
-                ? `Release the active assignee from ${row.complaintNumber}.`
-                : `Change status for ${row.complaintNumber}.`}
+                ? t("releaseAssigneeHint", { number: row.complaintNumber })
+                : t("changeStatusHint", { number: row.complaintNumber })}
           </p>
           {action === "status" ? (
             <Select
-              label="New status"
+              label={t("newStatusLabel")}
               name="status"
               value={statusTarget}
               options={statusActions.map((a) => ({
                 value: a.target,
-                label: a.label,
+                label: tComplaints(a.labelKey),
               }))}
               onChange={(e) => setStatusTarget(e.target.value)}
               disabled={submitting}
             />
           ) : null}
           {error ? (
-            <Alert tone="danger" title="Action failed" description={error} />
+            <Alert tone="danger" title={t("actionFailed")} description={error} />
           ) : null}
         </div>
       </Modal>
@@ -211,7 +215,7 @@ export function QueueRowActions({
       <Toast
         open={toastOpen}
         title={toastTitle}
-        description="Queue refreshed after the action."
+        description={t("queueRefreshedDescription")}
         onClose={() => setToastOpen(false)}
       />
     </>

@@ -2,6 +2,7 @@
 
 import { useEffect, type HTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 import { IconCheck, IconClose } from "@/shared/icons";
 import { Button } from "@/shared/ui/button";
@@ -39,6 +40,8 @@ export function Toast({
   className,
   ...props
 }: ToastProps) {
+  const t = useTranslations("common");
+
   useEffect(() => {
     if (!open || durationMs <= 0) return;
     const timer = window.setTimeout(onClose, durationMs);
@@ -63,7 +66,7 @@ export function Toast({
         {...props}
       >
         {tone === "success" ? (
-          <IconCheck className="mt-0.5 size-5 shrink-0" title="Success" />
+          <IconCheck className="mt-0.5 size-5 shrink-0" title={t("success")} />
         ) : null}
         <div className="min-w-0 flex-1">
           <p className="text-[length:var(--ecmp-font-subtitle-size)] font-semibold text-ecmp-text-primary">
@@ -79,7 +82,7 @@ export function Toast({
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Dismiss notification"
+          aria-label={t("dismissNotification")}
           onClick={onClose}
           className="!min-h-[44px] !min-w-[44px] shrink-0 px-2"
         >

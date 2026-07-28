@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -29,6 +30,9 @@ export function ComplaintAttachmentsCard({
   allowUpload?: boolean;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tAttachments = useTranslations("attachments");
+  const tCommon = useTranslations("common");
   const canRead = hasPermission("attachment:read") || hasPermission("*");
   const canCreate =
     allowUpload &&
@@ -55,14 +59,12 @@ export function ComplaintAttachmentsCard({
     } catch (err) {
       setAttachments([]);
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to load attachments.",
+        err instanceof ApiError ? err.message : tAttachments("unableToLoad"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId]);
+  }, [canRead, complaintId, tAttachments]);
 
   useEffect(() => {
     void load();
@@ -82,9 +84,7 @@ export function ComplaintAttachmentsCard({
       await load();
     } catch (err) {
       setUploadError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to upload attachment.",
+        err instanceof ApiError ? err.message : t("unableToUploadAttachment"),
       );
     } finally {
       setUploading(false);
@@ -94,21 +94,21 @@ export function ComplaintAttachmentsCard({
   return (
     <Card>
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <CardTitle>Attachments</CardTitle>
+        <CardTitle>{t("attachmentsCard")}</CardTitle>
         {canCreate ? (
           <div className="flex flex-col gap-1 sm:items-end">
             <Input
               type="file"
               name="attachment"
-              label="Upload file"
-              aria-label="Upload attachment"
+              label={t("uploadFile")}
+              aria-label={t("uploadAttachmentAriaLabel")}
               disabled={uploading}
               onChange={(e) => void onUpload(e)}
               className="max-w-xs"
             />
             {uploading ? (
               <span className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                Uploading…
+                {t("uploading")}
               </span>
             ) : null}
           </div>
@@ -118,15 +118,15 @@ export function ComplaintAttachmentsCard({
         {!canRead ? (
           <Alert
             tone="warning"
-            title="Attachments unavailable"
-            description="Your account does not have attachment:read permission."
+            title={t("attachmentsUnavailable")}
+            description={t("noAttachmentReadPermission")}
           />
         ) : null}
 
         {uploadError ? (
           <Alert
             tone="danger"
-            title="Upload failed"
+            title={t("uploadFailed")}
             description={uploadError}
           />
         ) : null}
@@ -134,9 +134,9 @@ export function ComplaintAttachmentsCard({
         {error ? (
           <Alert
             tone="danger"
-            title="Could not load attachments"
+            title={t("couldNotLoadAttachments")}
             description={error}
-            actionLabel="Retry"
+            actionLabel={tCommon("retry")}
             onAction={() => void load()}
           />
         ) : null}
@@ -146,8 +146,8 @@ export function ComplaintAttachmentsCard({
         {canRead && !error && !loading ? (
           <AttachmentList
             attachments={attachments}
-            emptyTitle="No attachments"
-            emptyDescription="No files are linked to this complaint yet."
+            emptyTitle={tAttachments("noItems")}
+            emptyDescription={t("noFilesLinkedYet")}
           />
         ) : null}
       </CardBody>

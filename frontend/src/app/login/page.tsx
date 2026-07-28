@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError } from "@/lib/api";
 import { AuthLayout } from "@/shared/layouts";
@@ -14,14 +15,13 @@ import {
   Input,
   Loading,
 } from "@/shared/ui";
-
-function postLoginPath(forcePasswordChange: boolean): string {
-  return forcePasswordChange ? "/change-password" : "/dashboard";
-}
+import { LanguageSwitcher } from "@/shared/i18n";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { status, forcePasswordChange, login } = useAuth();
+  const { status, login, user } = useAuth();
+  const t = useTranslations("auth");
+  const tCommon = useTranslations("common");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,24 +29,29 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace(postLoginPath(forcePasswordChange));
+      if (user?.forcePasswordChange) {
+        router.replace("/profile/security/change-password");
+      } else {
+        router.replace("/dashboard");
+      }
     }
-  }, [status, forcePasswordChange, router]);
+  }, [status, router, user?.forcePasswordChange]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      const me = await login(username, password);
-      router.replace(postLoginPath(Boolean(me.forcePasswordChange)));
+      await login(username, password);
+      // AuthProvider updates user asynchronously via loadMe inside login.
+      // Redirect is handled by the authenticated effect above after me loads.
     } catch (err) {
       const message =
         err instanceof ApiError
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Login failed";
+            : t("loginFailed");
       setError(message);
     } finally {
       setSubmitting(false);
@@ -56,31 +61,34 @@ export default function LoginPage() {
   if (status === "loading" || status === "authenticated") {
     return (
       <AuthLayout>
-        <Loading label="Checking session…" />
+        <Loading label={t("checkingSession")} />
       </AuthLayout>
     );
   }
 
   return (
     <AuthLayout>
+      <div className="mb-3 flex justify-end">
+        <LanguageSwitcher variant="compact" />
+      </div>
       <Card>
         <CardBody>
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <p className="text-[length:var(--ecmp-font-caption-size)] font-semibold uppercase tracking-[0.2em] text-ecmp-primary">
-                ECMP
+                {tCommon("appName")}
               </p>
               <h1 className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tracking-tight text-ecmp-text-primary">
-                Sign in
+                {t("signIn")}
               </h1>
               <p className="mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                Use your ECMP username or email.
+                {t("signInSubtitle")}
               </p>
             </div>
 
             <Input
               name="username"
-              label="Username or email"
+              label={t("usernameOrEmail")}
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -90,7 +98,7 @@ export default function LoginPage() {
             <Input
               name="password"
               type="password"
-              label="Password"
+              label={t("password")}
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -98,19 +106,19 @@ export default function LoginPage() {
             />
 
             {error ? (
-              <Alert tone="danger" title="Sign in failed" description={error} />
+              <Alert tone="danger" title={t("signInFailed")} description={error} />
             ) : null}
 
             <Button type="submit" fullWidth loading={submitting}>
-              {submitting ? "Signing in…" : "Sign in"}
+              {submitting ? t("signingIn") : t("signIn")}
             </Button>
 
-            <p className="text-center text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+            <p className="text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               <Link
                 href="/forgot-password"
-                className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+                className="text-ecmp-primary underline-offset-2 hover:underline"
               >
-                Forgot password?
+                {t("forgotPassword")}
               </Link>
             </p>
           </form>

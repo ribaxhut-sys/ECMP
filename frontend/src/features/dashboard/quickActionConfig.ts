@@ -1,52 +1,52 @@
 export interface QuickAction {
   id: string;
-  label: string;
+  labelKey: string;
   permission: string;
-  description: string;
+  descriptionKey: string;
 }
 
-/** RBAC-gated quick actions — routes to existing modules only. */
+/** RBAC-gated quick actions — routes to existing modules only. Labels/descriptions are translated via the "dashboard" namespace. */
 export const QUICK_ACTIONS: readonly QuickAction[] = [
   {
     id: "create-complaint",
-    label: "Create Complaint",
+    labelKey: "createComplaint",
     permission: "complaints:create",
-    description: "Register a new complaint",
+    descriptionKey: "createComplaintDesc",
   },
   {
     id: "view-complaints",
-    label: "View Complaints",
+    labelKey: "viewComplaints",
     permission: "complaints:read",
-    description: "Browse and search complaints",
+    descriptionKey: "viewComplaintsDesc",
   },
   {
     id: "view-queue",
-    label: "Open Queue",
+    labelKey: "openQueue",
     permission: "complaints:read",
-    description: "Work the complaint queue",
+    descriptionKey: "openQueueDesc",
   },
   {
     id: "assign-complaint",
-    label: "Assignments",
+    labelKey: "assignments",
     permission: "complaints:assign",
-    description: "Assign or reassign handlers",
+    descriptionKey: "assignmentsDesc",
   },
   {
     id: "escalate-complaint",
-    label: "Resolutions",
+    labelKey: "resolutions",
     permission: "complaints:read",
-    description: "Resolution and escalation actions",
+    descriptionKey: "resolutionsDesc",
   },
   {
     id: "manage-users",
-    label: "Manage Users",
+    labelKey: "manageUsers",
     permission: "users:read",
-    description: "View and administer users",
+    descriptionKey: "manageUsersDesc",
   },
   {
     id: "refresh-reports",
-    label: "Refresh Dashboard",
+    labelKey: "refreshDashboard",
     permission: "dashboard:read",
-    description: "Reload dashboard summary",
+    descriptionKey: "refreshDashboardDesc",
   },
 ] as const;

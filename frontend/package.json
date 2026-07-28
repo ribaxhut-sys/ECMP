@@ -10,8 +10,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@swc/helpers": "^0.5.23",
     "axios": "^1.18.1",
     "next": "^15.4.2",
+    "next-intl": "^4.13.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

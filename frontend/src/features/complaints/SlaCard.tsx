@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchComplaintSla } from "@/lib/api";
 import type { SlaRecord, SlaStatus } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Badge,
@@ -14,27 +16,10 @@ import {
 } from "@/shared/ui";
 import type { BadgeTone } from "@/shared/ui";
 
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
 function statusTone(status: SlaStatus | undefined): BadgeTone {
   if (status === "COMPLETED") return "success";
   if (status === "BREACHED") return "danger";
   return "neutral";
-}
-
-function StatusBadge({ status }: { status: SlaStatus | undefined }) {
-  const value = status ?? "PENDING";
-  return <Badge tone={statusTone(status)}>{value}</Badge>;
 }
 
 function DetailField({
@@ -64,7 +49,16 @@ export function SlaCard({
   refreshKey?: number;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tStatus = useTranslations("status");
+  const locale = useLocale();
   const canRead = hasPermission("complaints:read");
+
+  function StatusBadge({ status }: { status: SlaStatus | undefined }) {
+    const value = status ?? "PENDING";
+    return <Badge tone={statusTone(status)}>{tStatus(value)}</Badge>;
+  }
 
   const [sla, setSla] = useState<SlaRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,15 +82,13 @@ export function SlaCard({
       } else {
         setSla(null);
         setLoadError(
-          err instanceof ApiError
-            ? err.message
-            : "Unable to load SLA.",
+          err instanceof ApiError ? err.message : t("unableToLoadSla"),
         );
       }
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId]);
+  }, [canRead, complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -109,65 +101,65 @@ export function SlaCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>SLA</CardTitle>
+        <CardTitle>{t("slaCard")}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-4">
         {loading ? (
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            Loading SLA…
+            {t("loadingSla")}
           </p>
         ) : loadError ? (
           <Alert
             tone="danger"
-            title="Could not load SLA"
+            title={t("couldNotLoadSla")}
             description={loadError}
-            actionLabel="Retry"
+            actionLabel={tCommon("retry")}
             onAction={() => void load()}
           />
         ) : !sla ? (
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            No SLA record for this complaint.
+            {t("noSlaRecord")}
           </p>
         ) : (
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <DetailField
-              label="Assignment Due"
-              value={formatWhen(sla.assignmentDueAt)}
+              label={t("assignmentDue")}
+              value={formatDateTime(sla.assignmentDueAt, locale)}
             />
             <DetailField
-              label="Assignment Status"
+              label={t("assignmentStatus")}
               value={<StatusBadge status={sla.assignmentStatus} />}
             />
             <DetailField
-              label="Appointment Due"
-              value={formatWhen(sla.appointmentDueAt)}
+              label={t("appointmentDue")}
+              value={formatDateTime(sla.appointmentDueAt, locale)}
             />
             <DetailField
-              label="Appointment Status"
+              label={t("appointmentStatus")}
               value={<StatusBadge status={sla.appointmentStatus} />}
             />
             <DetailField
-              label="Resolution Due"
-              value={formatWhen(sla.resolutionDueAt)}
+              label={t("resolutionDue")}
+              value={formatDateTime(sla.resolutionDueAt, locale)}
             />
             <DetailField
-              label="Resolution Status"
+              label={t("resolutionStatus")}
               value={<StatusBadge status={sla.resolutionStatus} />}
             />
             <DetailField
-              label="Escalation Due"
-              value={formatWhen(sla.escalationDueAt)}
+              label={t("escalationDue")}
+              value={formatDateTime(sla.escalationDueAt, locale)}
             />
             <DetailField
-              label="Escalation Status"
+              label={t("escalationStatus")}
               value={<StatusBadge status={sla.escalationStatus} />}
             />
             <DetailField
-              label="Overall Due"
-              value={formatWhen(sla.overallDueAt)}
+              label={t("overallDue")}
+              value={formatDateTime(sla.overallDueAt, locale)}
             />
             <DetailField
-              label="Overall Status"
+              label={t("overallStatus")}
               value={<StatusBadge status={sla.overallStatus} />}
             />
           </dl>

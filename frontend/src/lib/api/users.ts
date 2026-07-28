@@ -70,3 +70,23 @@ export async function adminResetPassword(
   );
   return body.data;
 }
+
+export interface PreferredLanguageUpdateRequest {
+  preferredLanguage: string;
+}
+
+/** PATCH /api/v1/users/me/preferred-language — persist UI locale preference. */
+export function updatePreferredLanguage(
+  preferredLanguage: string,
+): Promise<DataResponse<{ preferredLanguage: string }>> {
+  return apiRequest<DataResponse<{ preferredLanguage: string }>>(
+    "/api/v1/users/me/preferred-language",
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        preferredLanguage,
+      } satisfies PreferredLanguageUpdateRequest),
+      skipGlobalError: true,
+    },
+  );
+}

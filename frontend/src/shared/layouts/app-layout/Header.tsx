@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   IconBell,
@@ -13,12 +14,15 @@ import {
 } from "@/shared/icons";
 import { useSidebar } from "@/shared/hooks";
 import { Button } from "@/shared/ui/button";
+import { LanguageSwitcher } from "@/shared/i18n";
 
 export function Header() {
   const router = useRouter();
   const { user, logout, hasPermission } = useAuth();
   const { toggle, open } = useSidebar();
-  const displayName = user?.fullName ?? user?.username ?? "User";
+  const t = useTranslations("header");
+  const tCommon = useTranslations("common");
+  const displayName = user?.fullName ?? user?.username ?? tCommon("user");
   const canSearch = hasPermission("complaints:read");
   const [keyword, setKeyword] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -40,7 +44,7 @@ export function Header() {
         variant="ghost"
         size="sm"
         className="!min-h-[44px] !min-w-[44px] px-0 lg:hidden"
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? tCommon("closeMenu") : tCommon("openMenu")}
         aria-expanded={open}
         aria-controls="mobile-sidebar"
         onClick={toggle}
@@ -55,7 +59,7 @@ export function Header() {
           role="search"
         >
           <label className="sr-only" htmlFor="global-search">
-            Search complaints
+            {t("searchComplaints")}
           </label>
           <div className="relative">
             <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-text-secondary" />
@@ -65,7 +69,7 @@ export function Header() {
               type="search"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Search complaints…"
+              placeholder={t("searchPlaceholder")}
               maxLength={200}
               className="ecmp-touch w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary placeholder:text-ecmp-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
             />
@@ -82,7 +86,7 @@ export function Header() {
               variant="ghost"
               size="sm"
               className="!min-h-[44px] !min-w-[44px] px-0 md:hidden"
-              aria-label={mobileSearchOpen ? "Close search" : "Search complaints"}
+              aria-label={mobileSearchOpen ? t("closeSearch") : t("searchComplaints")}
               aria-expanded={mobileSearchOpen}
               onClick={() => setMobileSearchOpen((prev) => !prev)}
             >
@@ -95,7 +99,7 @@ export function Header() {
           variant="ghost"
           size="sm"
           className="!min-h-[44px] !min-w-[44px] px-0"
-          aria-label="Notifications (coming soon)"
+          aria-label={t("notificationsSoon")}
           disabled
         >
           <IconBell />
@@ -105,40 +109,37 @@ export function Header() {
           variant="ghost"
           size="sm"
           className="!min-h-[44px] !min-w-[44px] px-0"
-          aria-label="Theme switch (placeholder)"
+          aria-label={t("themeSoon")}
           disabled
-          title="Theme switch coming soon"
+          title={t("themeSoonTitle")}
         >
           <IconTheme />
         </Button>
 
+        <LanguageSwitcher variant="compact" className="hidden sm:inline-flex" />
+
         <div className="hidden items-center gap-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border px-3 py-2 sm:flex">
           <IconUser className="size-4 text-ecmp-text-secondary" />
-          <span className="max-w-[10rem] truncate text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-primary">
+          <button
+            type="button"
+            className="max-w-[10rem] truncate text-left text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-primary hover:underline"
+            onClick={() => router.push("/profile")}
+            title={t("openProfile")}
+          >
             {displayName}
-          </span>
+          </button>
         </div>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          className="hidden sm:inline-flex"
-          aria-label="Change password"
-          onClick={() => router.push("/change-password")}
-        >
-          Password
-        </Button>
 
         <Button
           variant="outline"
           size="sm"
           leftIcon={<IconLogout className="size-4" />}
-          aria-label="Sign out"
+          aria-label={t("signOut")}
           onClick={() => {
             void logout().then(() => router.replace("/login"));
           }}
         >
-          <span className="hidden sm:inline">Logout</span>
+          <span className="hidden sm:inline">{t("logout")}</span>
         </Button>
       </div>
 
@@ -149,7 +150,7 @@ export function Header() {
           role="search"
         >
           <label className="sr-only" htmlFor="global-search-mobile">
-            Search complaints
+            {t("searchComplaints")}
           </label>
           <div className="relative">
             <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-text-secondary" />
@@ -159,7 +160,7 @@ export function Header() {
               type="search"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Search complaints…"
+              placeholder={t("searchPlaceholder")}
               maxLength={200}
               autoFocus
               className="ecmp-touch w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary placeholder:text-ecmp-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"

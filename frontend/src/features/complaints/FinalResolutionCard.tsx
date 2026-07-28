@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -13,6 +14,7 @@ import {
   submitFinalResolution,
 } from "@/lib/api";
 import type { FinalResolutionDetail } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -23,18 +25,6 @@ import {
   Textarea,
   Toast,
 } from "@/shared/ui";
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -59,6 +49,9 @@ export function FinalResolutionCard({
   onSubmitted?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const canSubmit = hasPermission("appointments:complete");
   const canRead = hasPermission("complaints:read");
 
@@ -95,15 +88,13 @@ export function FinalResolutionCard({
       } else {
         setDetail(null);
         setLoadError(
-          err instanceof ApiError
-            ? err.message
-            : "Unable to load final resolution.",
+          err instanceof ApiError ? err.message : t("unableToLoadFinalResolution"),
         );
       }
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId]);
+  }, [canRead, complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -114,8 +105,8 @@ export function FinalResolutionCard({
     if (!canSubmit || detail) return;
 
     const nextErrors: { summary?: string; notes?: string } = {};
-    if (!summary.trim()) nextErrors.summary = "Summary is required.";
-    if (!notes.trim()) nextErrors.notes = "Notes are required.";
+    if (!summary.trim()) nextErrors.summary = t("summaryRequired");
+    if (!notes.trim()) nextErrors.notes = t("notesRequired");
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -132,9 +123,7 @@ export function FinalResolutionCard({
       onSubmitted?.();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to submit final resolution.",
+        err instanceof ApiError ? err.message : t("unableToSubmitFinalResolution"),
       );
     } finally {
       setSubmitting(false);
@@ -149,47 +138,46 @@ export function FinalResolutionCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Final Resolution</CardTitle>
+          <CardTitle>{t("finalResolutionCard")}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Loading final resolution…
+              {t("loadingFinalResolution")}
             </p>
           ) : loadError ? (
-            <Alert tone="danger" title="Could not load final resolution">
+            <Alert tone="danger" title={t("couldNotLoadFinalResolution")}>
               {loadError}
             </Alert>
           ) : detail ? (
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <DetailField label="Summary" value={detail.summary} />
+              <DetailField label={t("summary")} value={detail.summary} />
               <DetailField
-                label="Follow-up required"
-                value={detail.followUpRequired ? "Yes" : "No"}
+                label={t("followUpRequired")}
+                value={detail.followUpRequired ? tCommon("yes") : tCommon("no")}
               />
-              <DetailField label="Notes" value={detail.notes} />
+              <DetailField label={t("notes")} value={detail.notes} />
               <DetailField
-                label="Submitted by"
-                value={detail.submittedByName?.trim() || "—"}
+                label={t("submittedBy")}
+                value={detail.submittedByName?.trim() || tCommon("emDash")}
               />
               <DetailField
-                label="Submitted at"
-                value={formatWhen(detail.submittedAt)}
+                label={t("submittedAt")}
+                value={formatDateTime(detail.submittedAt, locale)}
               />
-              <DetailField label="Status" value={detail.status} />
+              <DetailField label={t("status")} value={detail.status} />
             </dl>
           ) : canSubmit ? (
             <form className="space-y-4" onSubmit={onSubmit}>
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                Submit Final Resolution after the appointment is COMPLETED.
-                Complaint stays IN_PROGRESS until later closure approval.
+                {t("submitFinalResolutionHint")}
               </p>
               <div className="space-y-1">
                 <label
                   htmlFor="final-resolution-summary"
                   className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
                 >
-                  Summary
+                  {t("summary")}
                 </label>
                 <Textarea
                   id="final-resolution-summary"
@@ -210,7 +198,7 @@ export function FinalResolutionCard({
                   htmlFor="final-resolution-notes"
                   className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
                 >
-                  Notes
+                  {t("notes")}
                 </label>
                 <Textarea
                   id="final-resolution-notes"
@@ -233,22 +221,22 @@ export function FinalResolutionCard({
                   onChange={(e) => setFollowUpRequired(e.target.checked)}
                   className="size-4 accent-[var(--ecmp-color-primary)]"
                 />
-                Follow-up required
+                {t("followUpRequired")}
               </label>
               {submitError ? (
-                <Alert tone="danger" title="Submit failed">
+                <Alert tone="danger" title={t("submitFailed")}>
                   {submitError}
                 </Alert>
               ) : null}
               <div className="flex justify-end">
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? "Submitting…" : "Submit Final Resolution"}
+                  {submitting ? tCommon("submitting") : t("submitFinalResolution")}
                 </Button>
               </div>
             </form>
           ) : (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              No final resolution submitted yet.
+              {t("noFinalResolutionYet")}
             </p>
           )}
         </CardBody>
@@ -257,8 +245,8 @@ export function FinalResolutionCard({
         open={toastOpen}
         onClose={() => setToastOpen(false)}
         tone="success"
-        title="Final resolution submitted"
-        description="Complaint remains IN_PROGRESS. Escalation remains APPROVED."
+        title={t("finalResolutionSubmitted")}
+        description={t("finalResolutionSubmittedHint")}
       />
     </>
   );

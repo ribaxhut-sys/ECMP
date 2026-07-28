@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslations } from "next-intl";
 import { ApiError, subscribeApiErrors } from "@/lib/api/client";
 import { Toast, type ToastTone } from "@/shared/ui/toast";
 
@@ -28,27 +29,34 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 
 let toastSeq = 0;
 
-function describeError(error: unknown): { title: string; description: string } {
-  if (error instanceof ApiError) {
-    if (error.status === 0) {
-      return {
-        title: "Network error",
-        description: error.message || "Unable to reach the API.",
-      };
-    }
-    return {
-      title: "Request failed",
-      description: error.message || `HTTP ${error.status}`,
-    };
-  }
-  if (error instanceof Error) {
-    return { title: "Unexpected error", description: error.message };
-  }
-  return { title: "Unexpected error", description: "Something went wrong." };
-}
-
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<ToastItem | null>(null);
+  const t = useTranslations("common");
+
+  const describeError = useCallback(
+    (error: unknown): { title: string; description: string } => {
+      if (error instanceof ApiError) {
+        if (error.status === 0) {
+          return {
+            title: t("networkError"),
+            description: error.message || t("networkErrorDescription"),
+          };
+        }
+        return {
+          title: t("requestFailed"),
+          description: error.message || t("httpError", { status: error.status }),
+        };
+      }
+      if (error instanceof Error) {
+        return { title: t("unexpectedError"), description: error.message };
+      }
+      return {
+        title: t("unexpectedError"),
+        description: t("unexpectedErrorDescription"),
+      };
+    },
+    [t],
+  );
 
   const push = useCallback((toast: Omit<ToastItem, "id">) => {
     toastSeq += 1;
@@ -64,7 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         tone: "danger",
       });
     },
-    [push],
+    [push, describeError],
   );
 
   useEffect(() => {
