@@ -1,5 +1,10 @@
 import { apiRequest } from "./client";
-import type { ListResponse } from "./types";
+import type {
+  AdminResetPasswordResponse,
+  ChangePasswordResponse,
+  DataResponse,
+  ListResponse,
+} from "./types";
 
 /** API-214 user row (roleCode/roleName for picker display). */
 export interface UserRef {
@@ -19,11 +24,12 @@ export interface UserRef {
 
 /** API-214 — GET /api/v1/users (user reference for assignee picker). */
 export function fetchUsers(options?: {
+  page?: number;
   pageSize?: number;
   isActive?: boolean;
 }): Promise<ListResponse<UserRef>> {
   const params = new URLSearchParams({
-    page: "1",
+    page: String(options?.page ?? 1),
     pageSize: String(options?.pageSize ?? 100),
   });
   if (options?.isActive !== undefined) {
@@ -32,4 +38,35 @@ export function fetchUsers(options?: {
   return apiRequest<ListResponse<UserRef>>(
     `/api/v1/users?${params.toString()}`,
   );
+}
+
+/** API-412 — self-service change password (also clears forcePasswordChange). */
+export async function changePassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<ChangePasswordResponse> {
+  const body = await apiRequest<DataResponse<ChangePasswordResponse>>(
+    "/api/v1/users/me/change-password",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      skipGlobalError: true,
+    },
+  );
+  return body.data;
+}
+
+/** API-413 — admin/supervisor reset; temporary password returned once. */
+export async function adminResetPassword(
+  userId: string,
+): Promise<AdminResetPasswordResponse> {
+  const body = await apiRequest<DataResponse<AdminResetPasswordResponse>>(
+    `/api/v1/users/${userId}/reset-password`,
+    {
+      method: "POST",
+      skipGlobalError: true,
+    },
+  );
+  return body.data;
 }

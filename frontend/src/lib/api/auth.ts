@@ -1,5 +1,11 @@
 import { apiRequest, setAuthToken } from "./client";
-import type { AuthMe, DataResponse, TokenResponse } from "./types";
+import type {
+  AuthMe,
+  DataResponse,
+  ForgotPasswordResponse,
+  ResetPasswordResponse,
+  TokenResponse,
+} from "./types";
 
 export async function login(
   username: string,
@@ -13,6 +19,42 @@ export async function login(
     skipGlobalError: true,
   });
   setAuthToken(body.data.accessToken);
+  return body.data;
+}
+
+/** API-410 — always returns a generic message (no account enumeration). */
+export async function forgotPassword(
+  email: string,
+): Promise<ForgotPasswordResponse> {
+  const body = await apiRequest<DataResponse<ForgotPasswordResponse>>(
+    "/api/v1/auth/forgot-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+      skipAuth: true,
+      skipRefresh: true,
+      skipGlobalError: true,
+    },
+  );
+  return body.data;
+}
+
+/** API-411 — reset with single-use token from email link. */
+export async function resetPassword(payload: {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}): Promise<ResetPasswordResponse> {
+  const body = await apiRequest<DataResponse<ResetPasswordResponse>>(
+    "/api/v1/auth/reset-password",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      skipAuth: true,
+      skipRefresh: true,
+      skipGlobalError: true,
+    },
+  );
   return body.data;
 }
 

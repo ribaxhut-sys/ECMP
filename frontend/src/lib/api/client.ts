@@ -243,9 +243,19 @@ axiosClient.interceptors.response.use(
 
     const apiError = toApiError(error);
 
+    // Safety net: force-password gate — avoid looping on the change-password call itself.
+    if (
+      typeof window !== "undefined" &&
+      apiError.code === "PASSWORD_CHANGE_REQUIRED" &&
+      !window.location.pathname.startsWith("/change-password")
+    ) {
+      window.location.replace("/change-password");
+    }
+
     const shouldNotify =
       !config.skipGlobalError &&
       !isAuthPath(url) &&
+      apiError.code !== "PASSWORD_CHANGE_REQUIRED" &&
       (apiError.status === 0 || apiError.status >= 500);
 
     if (shouldNotify) {

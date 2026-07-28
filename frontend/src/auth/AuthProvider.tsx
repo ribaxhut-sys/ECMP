@@ -26,10 +26,12 @@ interface AuthContextValue {
   userId: string | null;
   permissions: readonly string[];
   roles: readonly string[];
+  forcePasswordChange: boolean;
   hasPermission: (permission: string) => boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<AuthMe>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
+  refreshUser: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -43,15 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus(next ? "authenticated" : "unauthenticated");
   }, []);
 
-  const loadMe = useCallback(async (): Promise<boolean> => {
+  const loadMe = useCallback(async (): Promise<AuthMe | null> => {
     try {
       const me = await fetchCurrentUser();
       applyUser(me);
-      return true;
+      return me;
     } catch {
       setAuthToken(null);
       applyUser(null);
-      return false;
+      return null;
     }
   }, [applyUser]);
 
@@ -61,8 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       applyUser(null);
       return false;
     }
-    return loadMe();
+    const me = await loadMe();
+    return me != null;
   }, [applyUser, loadMe]);
+
+  const refreshUser = useCallback(async (): Promise<boolean> => {
+    const me = await loadMe();
+    return me != null;
+  }, [loadMe]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,10 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (username: string, password: string) => {
       await apiLogin(username, password);
-      const ok = await loadMe();
-      if (!ok) {
+      const me = await loadMe();
+      if (!me) {
         throw new Error("Failed to load user profile");
       }
+      return me;
     },
     [loadMe],
   );
@@ -98,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const permissions = user?.permissions ?? [];
   const roles = user?.roles ?? [];
+  const forcePasswordChange = Boolean(user?.forcePasswordChange);
 
   const hasPermission = useCallback(
     (permission: string) =>
@@ -112,20 +122,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: user?.id ?? null,
       permissions,
       roles,
+      forcePasswordChange,
       hasPermission,
       login,
       logout,
       refreshSession,
+      refreshUser,
     }),
     [
       status,
       user,
       permissions,
       roles,
+      forcePasswordChange,
       hasPermission,
       login,
       logout,
       refreshSession,
+      refreshUser,
     ],
   );
 

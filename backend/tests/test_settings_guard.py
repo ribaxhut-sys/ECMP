@@ -25,6 +25,8 @@ def test_production_rejects_default_secret() -> None:
         jwt_secret_key="change-me-in-production",
         postgres_password=_STRONG_DB_PASSWORD,
         allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="noop",
         debug=False,
     )
     with pytest.raises(RuntimeError, match="JWT_SECRET_KEY"):
@@ -37,6 +39,8 @@ def test_production_rejects_short_secret() -> None:
         jwt_secret_key="too-short-secret-value",
         postgres_password=_STRONG_DB_PASSWORD,
         allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="noop",
         debug=False,
     )
     with pytest.raises(RuntimeError, match="JWT_SECRET_KEY"):
@@ -49,6 +53,8 @@ def test_production_rejects_weak_postgres_password() -> None:
         jwt_secret_key=_STRONG_JWT,
         postgres_password="ecmp",
         allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="noop",
         debug=False,
     )
     with pytest.raises(RuntimeError, match="POSTGRES_PASSWORD"):
@@ -62,6 +68,8 @@ def test_production_rejects_weak_pgadmin_password_when_set() -> None:
         postgres_password=_STRONG_DB_PASSWORD,
         pgadmin_default_password="admin",
         allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="noop",
         debug=False,
     )
     with pytest.raises(RuntimeError, match="PGADMIN_DEFAULT_PASSWORD"):
@@ -75,6 +83,8 @@ def test_production_allows_unset_pgadmin_password() -> None:
         postgres_password=_STRONG_DB_PASSWORD,
         pgadmin_default_password=None,
         allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="noop",
         debug=False,
     )
     validate_runtime_config(settings)
@@ -86,6 +96,8 @@ def test_production_rejects_wildcard_cors() -> None:
         jwt_secret_key=_STRONG_JWT,
         postgres_password=_STRONG_DB_PASSWORD,
         allowed_origins="*",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="noop",
         debug=False,
     )
     with pytest.raises(RuntimeError, match="Wildcard"):
@@ -98,7 +110,48 @@ def test_production_accepts_strong_secret() -> None:
         jwt_secret_key=_STRONG_JWT,
         postgres_password=_STRONG_DB_PASSWORD,
         allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="noop",
         debug=False,
+    )
+    validate_runtime_config(settings)
+
+
+def test_production_rejects_localhost_password_reset_url() -> None:
+    settings = Settings(
+        environment="production",
+        jwt_secret_key=_STRONG_JWT,
+        postgres_password=_STRONG_DB_PASSWORD,
+        allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="http://localhost:3000",
+        email_provider="noop",
+        debug=False,
+    )
+    with pytest.raises(RuntimeError, match="PASSWORD_RESET_FRONTEND_BASE_URL"):
+        validate_runtime_config(settings)
+
+
+def test_production_rejects_logging_email_provider() -> None:
+    settings = Settings(
+        environment="production",
+        jwt_secret_key=_STRONG_JWT,
+        postgres_password=_STRONG_DB_PASSWORD,
+        allowed_origins="https://app.example.com",
+        password_reset_frontend_base_url="https://app.example.com",
+        email_provider="logging",
+        debug=False,
+    )
+    with pytest.raises(RuntimeError, match="EMAIL_PROVIDER"):
+        validate_runtime_config(settings)
+
+
+def test_development_allows_logging_email_and_localhost_reset_url() -> None:
+    settings = Settings(
+        environment="development",
+        jwt_secret_key="change-me-in-production",
+        postgres_password="ecmp",
+        password_reset_frontend_base_url="http://localhost:3000",
+        email_provider="logging",
     )
     validate_runtime_config(settings)
 

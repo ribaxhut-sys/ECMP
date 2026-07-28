@@ -80,5 +80,26 @@ Boolean, default `false`.
 |---|---|
 | `PASSWORD_MIN_LENGTH` | 8 |
 | `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` | 15 |
-| `PASSWORD_RESET_FRONTEND_BASE_URL` | `http://localhost:3000` |
-| `EMAIL_PROVIDER` | `logging` |
+| `PASSWORD_RESET_FRONTEND_BASE_URL` | `http://localhost:3000` (dev only) |
+| `EMAIL_PROVIDER` | `logging` (dev only) |
+
+Outside `ENVIRONMENT=development`, runtime fail-fast rejects:
+
+- `PASSWORD_RESET_FRONTEND_BASE_URL` containing `localhost` / `127.0.0.1` (or empty)
+- `EMAIL_PROVIDER=logging` (use a real provider, or `noop` until SMTP is wired)
+
+## Frontend routes (R6-02B / R6-02C)
+
+| Route | Auth | Purpose |
+|---|---|---|
+| `/forgot-password` | Public | Request reset email (opaque success) |
+| `/reset-password?token=` | Public | Set new password from email link |
+| `/change-password` | Authenticated | Self-service / forced change |
+| `/users` | Authenticated + `users:read` | User list; Reset password requires `users:reset_password` (API-413) |
+
+When `/auth/me` reports `forcePasswordChange: true`, the UI redirects to
+`/change-password` and blocks other app routes until the password is changed.
+
+Admin reset (API-413) returns a **temporary password once** in the API response.
+The Users UI shows it in a single dialog (copy / print); closing the dialog
+discards it from UI state. Audit event: `password.admin_reset`.

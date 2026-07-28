@@ -1,5 +1,5 @@
+import { UserManagement } from "@/features/users";
 import {
-  Empty,
   PageContainer,
   PageHeader,
 } from "@/shared/ui";
@@ -13,12 +13,9 @@ export default function UsersPage() {
           { label: "Home", href: "/dashboard" },
           { label: "Users" },
         ]}
-        description="User administration UI will be built on this foundation."
+        description="Administer ECMP users, including one-time password reset (API-413)."
       />
-      <Empty
-        title="Users module"
-        description="Placeholder route for future user management screens."
-      />
+      <UserManagement />
     </PageContainer>
   );
 }

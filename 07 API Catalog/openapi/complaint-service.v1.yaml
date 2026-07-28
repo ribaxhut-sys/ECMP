@@ -293,6 +293,9 @@ paths:
         updates the password (bcrypt), marks the token used, revokes refresh
         tokens, and clears `forcePasswordChange`. Emits `password.reset_completed`
         (or expired/reused failure audits).
+        Failure responses use a generic message; `details.reason` may be
+        `invalid`, `expired`, `reused`, or `inactive_user` for UI handling
+        without revealing account existence beyond the token outcome.
       requestBody:
         required: true
         content:

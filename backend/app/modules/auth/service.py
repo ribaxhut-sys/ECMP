@@ -337,7 +337,7 @@ class AuthService:
             )
             raise ValidationAppError(
                 "Invalid or expired reset token",
-                details={"field": "token"},
+                details={"field": "token", "reason": "invalid"},
             )
 
         if row.used_at is not None:
@@ -352,7 +352,7 @@ class AuthService:
             )
             raise ValidationAppError(
                 "Invalid or expired reset token",
-                details={"field": "token"},
+                details={"field": "token", "reason": "reused"},
             )
 
         expires = row.expires_at
@@ -370,14 +370,14 @@ class AuthService:
             )
             raise ValidationAppError(
                 "Invalid or expired reset token",
-                details={"field": "token"},
+                details={"field": "token", "reason": "expired"},
             )
 
         user = self._repo.get_user_by_id(row.user_id)
         if user is None or not user.is_active:
             raise ValidationAppError(
                 "Invalid or expired reset token",
-                details={"field": "token"},
+                details={"field": "token", "reason": "inactive_user"},
             )
 
         self._policy().validate(payload.password, current_hash=user.password_hash)

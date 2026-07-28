@@ -46,6 +46,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
     app_name: str = "ECMP"
@@ -182,6 +183,26 @@ def validate_runtime_config(settings: Settings | None = None) -> None:
 
     if cfg.debug:
         raise RuntimeError("DEBUG must be false outside development")
+
+    # Password reset links must not point at localhost in staging/production.
+    reset_base = (cfg.password_reset_frontend_base_url or "").strip().lower()
+    if not reset_base:
+        raise RuntimeError(
+            "PASSWORD_RESET_FRONTEND_BASE_URL must be set outside development"
+        )
+    if "localhost" in reset_base or "127.0.0.1" in reset_base:
+        raise RuntimeError(
+            "PASSWORD_RESET_FRONTEND_BASE_URL must not use localhost/127.0.0.1 "
+            "outside development"
+        )
+
+    # Logging email provider is for local/dev only — production must use a real provider
+    # (or explicit noop until SMTP is wired).
+    email_provider = (cfg.email_provider or "").strip().lower()
+    if email_provider == "logging":
+        raise RuntimeError(
+            "EMAIL_PROVIDER=logging is not allowed outside development"
+        )
 
 
 @lru_cache

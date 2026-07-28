@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError } from "@/lib/api";
@@ -14,9 +15,13 @@ import {
   Loading,
 } from "@/shared/ui";
 
+function postLoginPath(forcePasswordChange: boolean): string {
+  return forcePasswordChange ? "/change-password" : "/dashboard";
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const { status, login } = useAuth();
+  const { status, forcePasswordChange, login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,17 +29,17 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/dashboard");
+      router.replace(postLoginPath(forcePasswordChange));
     }
-  }, [status, router]);
+  }, [status, forcePasswordChange, router]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await login(username, password);
-      router.replace("/dashboard");
+      const me = await login(username, password);
+      router.replace(postLoginPath(Boolean(me.forcePasswordChange)));
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -99,6 +104,15 @@ export default function LoginPage() {
             <Button type="submit" fullWidth loading={submitting}>
               {submitting ? "Signing in…" : "Sign in"}
             </Button>
+
+            <p className="text-center text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+              <Link
+                href="/forgot-password"
+                className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </p>
           </form>
         </CardBody>
       </Card>

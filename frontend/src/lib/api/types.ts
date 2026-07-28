@@ -652,9 +652,34 @@ export interface AuthMe {
   roleId: string;
   branchId: string | null;
   isActive: boolean;
+  forcePasswordChange: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
+  preferredLanguage?: string;
   roles: string[];
   permissions: string[];
+}
+
+/** API-410 */
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+/** API-411 */
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+/** API-412 */
+export interface ChangePasswordResponse {
+  message: string;
+}
+
+/** API-413 — temporary password is returned once to the caller. */
+export interface AdminResetPasswordResponse {
+  userId: string;
+  temporaryPassword: string;
+  forcePasswordChange: boolean;
+  message: string;
 }

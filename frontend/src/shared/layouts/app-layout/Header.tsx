@@ -120,6 +120,16 @@ export function Header() {
         </div>
 
         <Button
+          variant="ghost"
+          size="sm"
+          className="hidden sm:inline-flex"
+          aria-label="Change password"
+          onClick={() => router.push("/change-password")}
+        >
+          Password
+        </Button>
+
+        <Button
           variant="outline"
           size="sm"
           leftIcon={<IconLogout className="size-4" />}

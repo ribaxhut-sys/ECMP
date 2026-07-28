@@ -363,6 +363,7 @@ def test_reset_password_expired(client: TestClient, db_session: Session) -> None
         },
     )
     assert resp.status_code == 400
+    assert resp.json()["details"]["reason"] == "expired"
 
 
 def test_reset_password_used_token(client: TestClient, db_session: Session) -> None:
@@ -386,6 +387,7 @@ def test_reset_password_used_token(client: TestClient, db_session: Session) -> N
         },
     )
     assert resp.status_code == 400
+    assert resp.json()["details"]["reason"] == "reused"
 
 
 def test_reset_password_invalid_token(client: TestClient) -> None:
@@ -398,6 +400,7 @@ def test_reset_password_invalid_token(client: TestClient) -> None:
         },
     )
     assert resp.status_code == 400
+    assert resp.json()["details"]["reason"] == "invalid"
 
 
 # ---------------------------------------------------------------------------

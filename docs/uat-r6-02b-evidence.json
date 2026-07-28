@@ -1,0 +1,25 @@
+{
+  "sprint": "R6-02B",
+  "git_commit": "ca01a682bd7599a2d02221de9aff79b102904804",
+  "scenarios": {
+    "A_user_created": "9e54140f-313b-4781-87fc-d1ff9c348707",
+    "A": "PASS",
+    "B": "PASS",
+    "B_token": "0DqJdHmR\u2026",
+    "E": "PASS",
+    "D": "PASS",
+    "C": "PASS"
+  },
+  "frontend_routes": {
+    "/login": 200,
+    "/forgot-password": 200,
+    "/reset-password": 200,
+    "/change-password": 200
+  },
+  "config_guards": {
+    "localhost_reset_url": "PASS: PASSWORD_RESET_FRONTEND_BASE_URL must not use localhost/127.0.0.1 outside development",
+    "logging_email": "PASS: EMAIL_PROVIDER=logging is not allowed outside development",
+    "dev_logging_ok": "PASS"
+  },
+  "admin_login": "PASS (golive_admin)"
+}

@@ -11,9 +11,11 @@ export {
 export type { ApiBlobResult, ApiRequestInit } from "./client";
 export {
   fetchCurrentUser,
+  forgotPassword,
   login,
   logout,
   refreshAccessToken,
+  resetPassword,
 } from "./auth";
 export {
   assignComplaint,
@@ -51,7 +53,7 @@ export { fetchBranches } from "./branches";
 export type { Branch } from "./branches";
 export { fetchCustomers } from "./customers";
 export type { Customer } from "./customers";
-export { fetchUsers } from "./users";
+export { adminResetPassword, changePassword, fetchUsers } from "./users";
 export type { UserRef } from "./users";
 export {
   fetchReportByBranch,
