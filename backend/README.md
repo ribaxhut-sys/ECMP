@@ -15,7 +15,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Health: `GET http://localhost:8000/health`
+Liveness: `GET http://localhost:8000/live`  
+Readiness: `GET http://localhost:8000/ready` (Docker healthcheck)  
+Legacy informational: `GET http://localhost:8000/health`
 
 ## Structure
 

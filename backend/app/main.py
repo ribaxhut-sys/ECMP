@@ -18,6 +18,7 @@ from app.core.config import get_settings, validate_runtime_config
 from app.core.errors import ApiError
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
+from app.core.runtime_state import mark_startup_complete, mark_startup_incomplete
 from app.core.schemas import ErrorResponse
 
 logger = get_logger("app.main")
@@ -31,14 +32,18 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
     validate_runtime_config(settings)
+    mark_startup_complete()
     logger.info(
         "application started name=%s version=%s env=%s",
         settings.app_name,
         settings.app_version,
         settings.environment,
     )
-    yield
-    logger.info("application stopped")
+    try:
+        yield
+    finally:
+        mark_startup_incomplete()
+        logger.info("application stopped")
 
 
 def _error_body(
@@ -136,6 +141,8 @@ def create_app() -> FastAPI:
         payload = {
             "name": settings.app_name,
             "version": __version__,
+            "live": "/live",
+            "ready": "/ready",
             "health": "/health",
             "version_info": "/version",
         }

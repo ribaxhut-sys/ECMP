@@ -72,13 +72,13 @@ if (-not $SkipUp) {
   & docker compose up -d --force-recreate --no-deps backend frontend
   if ($LASTEXITCODE -ne 0) { throw "docker compose up failed ($LASTEXITCODE)" }
 
-  Write-Host "Waiting for backend health..."
+  Write-Host "Waiting for backend readiness (/ready)..."
   $deadline = (Get-Date).AddMinutes(3)
   do {
     Start-Sleep -Seconds 3
     try {
-      $health = Invoke-RestMethod "http://127.0.0.1:8000/health" -TimeoutSec 5
-      if ($health.status -eq "ok") { break }
+      $ready = Invoke-WebRequest "http://127.0.0.1:8000/ready" -TimeoutSec 5 -UseBasicParsing
+      if ($ready.StatusCode -eq 200) { break }
     } catch { }
   } while ((Get-Date) -lt $deadline)
 

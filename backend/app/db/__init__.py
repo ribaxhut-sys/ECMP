@@ -4,6 +4,8 @@ from app.db.async_session import (
     get_async_db_session,
     get_async_engine,
     get_async_session_factory,
+    ping_database_async,
+    reset_async_engine,
 )
 from app.db.base import Base
 from app.db.session import get_db_session, get_engine, ping_database
@@ -16,4 +18,6 @@ __all__ = [
     "get_db_session",
     "get_engine",
     "ping_database",
+    "ping_database_async",
+    "reset_async_engine",
 ]

@@ -17,10 +17,13 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 ### Added
 
 - Sprint R6-03: production configuration hardening — structured startup validation (`ConfigValidationError`), `ENVIRONMENT=test`, config CLI (`scripts/validate-production-config.py`), deployment docs under `docs/deployment/`, report `docs/releases/R6-03_PRODUCTION_CONFIGURATION_REPORT.md`.
+- Release blocker B2: separate `GET /live` (liveness) and `GET /ready` (readiness with startup + DB `SELECT 1`, HTTP 503 when not ready). Docker healthchecks call `/ready`.
+- Release blocker B3: production reverse proxy + TLS reference — Caddy (`docker-compose.prod.yml`, automatic HTTPS), Nginx alternative (`docker-compose.prod.nginx.yml`), proxy configs under `deploy/proxy/`, guide `docs/deployment/TLS_REVERSE_PROXY.md`, `.env.production.example`.
 
 ### Security
 
 - Sprint R6-03: fail-fast rejects localhost/non-HTTPS CORS origins in production, misaligned password-reset base URL vs `ALLOWED_ORIGINS`, unknown `EMAIL_PROVIDER` / `JWT_ALGORITHM`, and `DEBUG=true` outside development/test.
+- Release blocker B3: production compose publishes only proxy ports 80/443; HSTS at edge; `FORWARDED_ALLOW_IPS` + uvicorn `--proxy-headers` / `--forwarded-allow-ips` for trusted `X-Forwarded-*`.
 
 ## [1.0.0-rc2] - 2026-07-25
 
@@ -84,7 +87,6 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 - No MFA, SSO/OAuth, LDAP, password reset, social login.
 - No external email/WebSocket push channels beyond notification queue APIs; no mobile client.
 - Role→permission map is code-seeded until Core Platform SoT (API-062).
-- Foundation health probe is combined `GET /health` (not separate `/health/live` + `/health/ready` paths).
 - No broker-backed enterprise event bus in the Compose foundation stack.
 
 ## [1.0.0-rc1] - 2026-07-23

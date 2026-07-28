@@ -15,9 +15,12 @@
 
 ## Upgrade steps
 
+Production TLS stack uses `docker-compose.prod.yml` (see [`TLS_REVERSE_PROXY.md`](./TLS_REVERSE_PROXY.md)).
+Substitute `docker compose` below with `docker compose -f docker-compose.prod.yml` in production.
+
 ```powershell
-# 1. Backup
-docker compose exec -T postgres pg_dump -U $env:POSTGRES_USER $env:POSTGRES_DB `
+# 1. Backup Postgres (+ optionally Caddy data volume ecmp_prod_caddy_data)
+docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U $env:POSTGRES_USER $env:POSTGRES_DB `
   > "backups/ecmp_pre_upgrade_$(Get-Date -Format yyyyMMdd_HHmmss).sql"
 
 # 2. Fetch release
@@ -26,22 +29,30 @@ git checkout <target-tag>
 
 # 3. Validate configuration
 python scripts\validate-production-config.py --env-file .env --require-production
+docker compose -f docker-compose.prod.yml config
 
 # 4. Build / pull images
 $env:IMAGE_TAG = "<target-tag>"
 $env:APP_VERSION = "<semver>"
-docker compose build backend frontend
+docker compose -f docker-compose.prod.yml build backend frontend
 
-# 5. Rolling restart (migrations run in backend entrypoint)
-docker compose up -d postgres
-docker compose up -d --no-deps backend
-# wait for healthy /health
-docker compose up -d --no-deps frontend
+# 5. Rolling restart (migrations run in backend entrypoint; proxy stays up)
+docker compose -f docker-compose.prod.yml up -d postgres
+docker compose -f docker-compose.prod.yml up -d --no-deps backend
+# wait for healthy /ready (via proxy once backend is up)
+docker compose -f docker-compose.prod.yml up -d --no-deps frontend
+docker compose -f docker-compose.prod.yml up -d caddy
 
-# 6. Smoke
-curl.exe -fsS http://127.0.0.1:8000/health
+# 6. Smoke via HTTPS (do not rely on host :8000 — not published in prod)
+curl.exe -fsS https://$env:ECMP_DOMAIN/live
+curl.exe -fsS https://$env:ECMP_DOMAIN/ready
 # login + critical path checks
 ```
+
+### Certificate renewal
+
+- **Caddy:** automatic; no upgrade step. Persist `ecmp_prod_caddy_data`.
+- **Nginx alternative:** renew PEMs under `deploy/proxy/certs/`, then `nginx -s reload`.
 
 ## Alembic notes
 

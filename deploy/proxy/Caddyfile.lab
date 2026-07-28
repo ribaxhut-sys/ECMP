@@ -1,0 +1,30 @@
+# ECMP lab / offline TLS verification (NOT for public production).
+# Uses Caddy "tls internal" (local CA) — no ACME / public DNS required.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml \
+#     -f deploy/proxy/docker-compose.lab-override.yml up -d
+
+{
+	local_certs
+}
+
+{$ECMP_DOMAIN:localhost} {
+	tls internal
+
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	@backend path /api/* /live /ready /health /version /openapi.json /docs /redoc
+	handle @backend {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

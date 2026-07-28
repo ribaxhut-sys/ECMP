@@ -25,8 +25,9 @@
 - [ ] Docker images built
 - [ ] Images scanned (if scanner available)
 - [ ] Rollback package prepared (`docs/releases/ROLLBACK_v1.0.0.md`)
-- [ ] SSL certificate valid (reverse proxy / LB)
-- [ ] Domain configured (DNS + reverse proxy)
+- [ ] SSL certificate valid (Caddy ACME or Nginx PEMs — see `docs/deployment/TLS_REVERSE_PROXY.md`)
+- [ ] Domain configured (`ECMP_DOMAIN` DNS A/AAAA + reverse proxy)
+- [ ] Production compose is `docker-compose.prod.yml` (proxy-only published ports)
 - [ ] Confirm no `.env` with secrets is committed to git
 
 ## Database
@@ -39,19 +40,18 @@
 
 - [ ] Pull / checkout `v1.0.0` tag or release commit
 - [ ] Inject production env from vault (or `.env` not committed)
-- [ ] `docker compose build`
-- [ ] `docker compose up -d postgres`
-- [ ] Wait for Postgres healthy
-- [ ] `docker compose up -d backend` (entrypoint runs `alembic upgrade head`)
-- [ ] Wait for backend healthy (`/health`)
-- [ ] `docker compose up -d frontend`
-- [ ] Restart services gracefully if needed (`docker compose up -d --force-recreate`)
-- [ ] Reverse proxy / TLS terminating layer verified
+- [ ] `docker compose -f docker-compose.prod.yml config`
+- [ ] `docker compose -f docker-compose.prod.yml build`
+- [ ] `docker compose -f docker-compose.prod.yml up -d`
+- [ ] Wait for Postgres + backend healthy; Caddy serving 80/443
+- [ ] Restart services gracefully if needed (`docker compose -f docker-compose.prod.yml up -d --force-recreate`)
+- [ ] Reverse proxy / TLS terminating layer verified (HTTP→HTTPS, HSTS)
 
 ## Post-deployment
 
-- [ ] `GET /health` → `status=ok`, `database=up`, `version=1.0.0`
-  - Note: foundation stack uses combined `/health` for live + ready (DB ping)
+- [ ] `GET https://<ECMP_DOMAIN>/live` → HTTP 200
+- [ ] `GET https://<ECMP_DOMAIN>/ready` → HTTP 200, `checks.startup=ok`, `checks.database=ok`
+- [ ] Backend/frontend/Postgres **not** reachable on host :8000/:3000/:5432
 - [ ] Confirm `/docs` returns 404 in production
 - [ ] Login via UI `/login`
 - [ ] Dashboard loads
@@ -95,7 +95,7 @@ See [`docs/releases/ROLLBACK_v1.0.0.md`](./releases/ROLLBACK_v1.0.0.md).
 
 - Secret guard fails at startup (weak JWT secret)
 - Migrations fail
-- `/health` reports `database=down` after start window
+- `/ready` returns HTTP 503 after start window
 - Login or refresh broken
 - Critical security regression (tokens in logs, docs exposed in production)
 - Unexpected HTTP 500 rate during smoke test

@@ -16,17 +16,26 @@
 - [ ] `ALLOWED_ORIGINS` matches real frontend origin(s)
 - [ ] `PASSWORD_RESET_FRONTEND_BASE_URL` equals one allowed origin
 - [ ] `EMAIL_PROVIDER=noop` (staging/production) until SMTP exists
-- [ ] `NEXT_PUBLIC_API_BASE_URL` set for image build
+- [ ] `NEXT_PUBLIC_API_BASE_URL` set for image build (`https://ECMP_DOMAIN` in prod)
+- [ ] `ECMP_DOMAIN` / `ACME_EMAIL` set for production TLS compose
+- [ ] `ALLOWED_HOSTS` includes public hostname and `backend`
+- [ ] `FORWARDED_ALLOW_IPS` set for proxy trust (`*` in prod compose)
 - [ ] `IMAGE_TAG` pinned (not floating `latest`) for production
 - [ ] Pre-deploy DB backup completed (upgrades)
+- [ ] `docker compose -f docker-compose.prod.yml config` → valid (production)
 
 ## After start
 
-- [ ] `docker compose ps` — postgres / backend / frontend healthy or running
-- [ ] `GET /health` → 200, `database=up`
+- [ ] `docker compose -f docker-compose.prod.yml ps` — caddy / postgres / backend / frontend running
+- [ ] Host ports **80/443 only** (no published 3000/8000/5432 on prod compose)
+- [ ] `GET https://<ECMP_DOMAIN>/live` → 200
+- [ ] `GET https://<ECMP_DOMAIN>/ready` → 200 (`checks.startup=ok`, `checks.database=ok`)
+- [ ] HTTP → HTTPS redirect verified
+- [ ] `Strict-Transport-Security` present on HTTPS responses
+- [ ] App security headers present (`X-Content-Type-Options`, CSP, etc.)
 - [ ] Backend logs show `application started` with expected `ENVIRONMENT`
 - [ ] No `Configuration validation failed` in backend logs
-- [ ] Frontend HTTP 200 on `/`
+- [ ] Frontend HTTPS 200 on `/`
 - [ ] `/docs` returns 404 when `ENVIRONMENT` is staging/production
 - [ ] Login sets refresh cookie (`HttpOnly`; `Secure` outside development)
 - [ ] Refresh + logout succeed
@@ -42,3 +51,6 @@
 | Email provider rejected | `EMAIL_PROVIDER` | Use `noop` outside development |
 | Frontend build fails | `NEXT_PUBLIC_API_BASE_URL` | Set build-arg / `.env` |
 | Compose refuses to start | `POSTGRES_PASSWORD` / `JWT_SECRET_KEY` unset | Fill `.env` (`${VAR:?}` guards) |
+| ACME / TLS fails | `ECMP_DOMAIN` / DNS / ports 80+443 | Point DNS at host; open firewall; check Caddy logs |
+| TrustedHost 400 | `ALLOWED_HOSTS` | Include public `ECMP_DOMAIN` and `backend` |
+| Wrong client IP / scheme | `FORWARDED_ALLOW_IPS` | Use `*` in prod compose (backend not published) |

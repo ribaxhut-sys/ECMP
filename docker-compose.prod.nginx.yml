@@ -1,0 +1,138 @@
+# ECMP v1.0.0 — production Compose with Nginx (alternative to Caddy).
+# Operator must supply TLS PEMs before start:
+#   deploy/proxy/certs/fullchain.pem
+#   deploy/proxy/certs/privkey.pem
+#
+# Recommended reference remains docker-compose.prod.yml (Caddy).
+#
+#   docker compose -f docker-compose.prod.nginx.yml config
+#   docker compose -f docker-compose.prod.nginx.yml up -d --build
+
+name: ecmp-prod-nginx
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  ecmp_pgdata:
+    name: ecmp_prod_nginx_pgdata
+  certbot_www:
+    name: ecmp_prod_certbot_www
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ecmp-nginx
+    restart: unless-stopped
+    environment:
+      ECMP_DOMAIN: ${ECMP_DOMAIN:?Set ECMP_DOMAIN (public hostname)}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/proxy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/proxy/nginx/templates:/etc/nginx/templates:ro
+      - ./deploy/proxy/certs:/etc/nginx/certs:ro
+      - certbot_www:/var/www/certbot:ro
+    networks:
+      - edge
+      - internal
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecmp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecmp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ecmp}
+    volumes:
+      - ecmp_pgdata:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecmp} -d ${POSTGRES_DB:-ecmp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-backend:${IMAGE_TAG:-v1.0.0}
+    container_name: ecmp-backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ecmp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ecmp}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS to https://ECMP_DOMAIN}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?Set ALLOWED_HOSTS to ECMP_DOMAIN,backend}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      LOGIN_RATE_LIMIT_ENABLED: ${LOGIN_RATE_LIMIT_ENABLED:-true}
+      LOGIN_MAX_FAILED_ATTEMPTS: ${LOGIN_MAX_FAILED_ATTEMPTS:-5}
+      LOGIN_LOCKOUT_SECONDS: ${LOGIN_LOCKOUT_SECONDS:-300}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-8}
+      PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-15}
+      PASSWORD_RESET_FRONTEND_BASE_URL: ${PASSWORD_RESET_FRONTEND_BASE_URL:?Set PASSWORD_RESET_FRONTEND_BASE_URL}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-noop}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?Set NEXT_PUBLIC_API_BASE_URL to https://ECMP_DOMAIN}
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-frontend:${IMAGE_TAG:-v1.0.0}
+    container_name: ecmp-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    networks:
+      - internal
+    depends_on:
+      backend:
+        condition: service_healthy

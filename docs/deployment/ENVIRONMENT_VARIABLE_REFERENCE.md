@@ -35,9 +35,13 @@
 | `POSTGRES_HOST` | Required | `localhost` | service DNS | service DNS | Compose injects `postgres` |
 | `POSTGRES_PORT` | Optional | `5433` (host) | `5432` in-net | `5432` in-net | |
 | `DATABASE_URL` | Optional | unset | optional override | optional override | Must be PostgreSQL if set |
-| `BACKEND_PORT` | Optional | `8000` | map as needed | map as needed | Compose host port |
+| `BACKEND_PORT` | Optional | `8000` | map as needed | **not published** (prod compose) | Local compose host port only |
+| `ECMP_DOMAIN` | Production Only | — | public hostname | public hostname | Caddy/Nginx server name (B3) |
+| `ACME_EMAIL` | Production Only (Caddy) | — | ops email | ops email | ACME registration contact |
+| `HTTP_PORT` / `HTTPS_PORT` | Optional | — | `80` / `443` | `80` / `443` | Proxy published ports |
+| `FORWARDED_ALLOW_IPS` | Production (behind proxy) | `127.0.0.1` | proxy CIDRs or `*` | `*` in prod compose | Uvicorn trusted proxies; see TLS guide |
 | `ALLOWED_ORIGINS` | Required | `http://localhost:3000` | real origin(s) | **https** origin(s) | No `*`; no localhost outside dev |
-| `ALLOWED_HOSTS` | Required (non-dev) | localhost list | public hosts | public hosts | TrustedHostMiddleware |
+| `ALLOWED_HOSTS` | Required (non-dev) | localhost list | public hosts | `ECMP_DOMAIN,backend` | TrustedHostMiddleware |
 | `JWT_SECRET_KEY` | Required | placeholder OK | **≥32 chars** | **≥32 chars** | Compose `${:?}` required |
 | `JWT_ALGORITHM` | Required | `HS256` | `HS256` | `HS256` | Only supported algorithm |
 | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Optional | `15` | `15` | `15` | |
@@ -45,8 +49,8 @@
 | `LOGIN_RATE_LIMIT_ENABLED` | Optional | `true` | `true` | `true` | In-memory; not Redis |
 | `LOGIN_MAX_FAILED_ATTEMPTS` | Optional | `5` | `5` | `5` | |
 | `LOGIN_LOCKOUT_SECONDS` | Optional | `300` | `300` | `300` | |
-| `FRONTEND_PORT` | Optional | `3000` | map | map | |
-| `NEXT_PUBLIC_API_BASE_URL` | Required (build) | `http://localhost:8000` | public API URL | **https** API URL | Docker build fails if unset |
+| `FRONTEND_PORT` | Optional | `3000` | map | **not published** (prod compose) | Local compose host port only |
+| `NEXT_PUBLIC_API_BASE_URL` | Required (build) | `http://localhost:8000` | public API URL | **https://ECMP_DOMAIN** | Docker build fails if unset; single-host topology |
 | `PASSWORD_MIN_LENGTH` | Optional | `8` | ≥8 | ≥8 | |
 | `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` | Optional | `15` | set | set | |
 | `PASSWORD_RESET_FRONTEND_BASE_URL` | Required | localhost OK | public FE | **https** FE | Must align with `ALLOWED_ORIGINS` |
@@ -72,7 +76,10 @@
 
 ```bash
 python scripts/validate-production-config.py --env-file .env
-python scripts/validate-production-config.py --env-file .env.production --require-production
+python scripts/validate-production-config.py --env-file .env --require-production
+docker compose -f docker-compose.prod.yml config
 ```
+
+TLS / proxy: [`TLS_REVERSE_PROXY.md`](./TLS_REVERSE_PROXY.md), template [`.env.production.example`](../../.env.production.example).
 
 Unit coverage: `backend/tests/test_settings_guard.py`.

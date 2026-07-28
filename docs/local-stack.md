@@ -9,7 +9,8 @@ Docker Compose stack for ECMP **v1.0.0**.
 | Frontend | http://localhost:3000       |
 | Login    | http://localhost:3000/login |
 | Backend  | http://localhost:8000       |
-| Health   | http://localhost:8000/health|
+| Liveness | http://localhost:8000/live  |
+| Readiness| http://localhost:8000/ready |
 | API docs | http://localhost:8000/docs (development only) |
 | Postgres | localhost:5433              |
 | pgAdmin  | http://localhost:5050 (`--profile tools`) |
@@ -38,6 +39,11 @@ database/    Postgres init scripts
 docs/        Knowledge portal + stack + release notes
 ```
 
+## Production TLS (not this local file)
+
+Local `docker-compose.yml` publishes app ports for development. Public production uses
+[`docker-compose.prod.yml`](../docker-compose.prod.yml) + [`deployment/TLS_REVERSE_PROXY.md`](./deployment/TLS_REVERSE_PROXY.md) (B3).
+
 ## Release artifacts
 
 - [Release notes v1.0.0](./releases/v1.0.0.md)
@@ -45,6 +51,7 @@ docs/        Knowledge portal + stack + release notes
 - [Rollback package](./releases/ROLLBACK_v1.0.0.md)
 - [R6-03 Production configuration report](./releases/R6-03_PRODUCTION_CONFIGURATION_REPORT.md)
 - [Production deployment guide](./deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)
+- [TLS & reverse proxy (B3)](./deployment/TLS_REVERSE_PROXY.md)
 - [Environment variable reference](./deployment/ENVIRONMENT_VARIABLE_REFERENCE.md)
 
 Validate local/prod config:
