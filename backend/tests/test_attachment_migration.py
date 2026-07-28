@@ -16,13 +16,16 @@ from app.modules.attachment.models import AttachmentORM
 from app.modules.attachment.repository import AttachmentRepository, _to_entity, _to_orm
 
 
-def test_alembic_head_is_search_indexes() -> None:
+def test_alembic_head_is_admin_rbac_repair() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     cfg = Config(str(backend_root / "alembic.ini"))
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert "0036_search_indexes" in script.get_heads()
-    assert "0035_attachment_domain" in {r.revision for r in script.walk_revisions()}
+    # Head advances with Identity/RBAC migrations; attachment revision stays on chain.
+    assert script.get_heads() == ["0039_admin_rbac_repair"]
+    revisions = {r.revision for r in script.walk_revisions()}
+    assert "0035_attachment_domain" in revisions
+    assert "0036_search_indexes" in revisions
 
 
 def test_migration_file_structure() -> None:

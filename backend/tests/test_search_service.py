@@ -16,12 +16,14 @@ from app.modules.search.registration import build_search_service
 from app.modules.search.service import SearchService
 
 
-def test_alembic_head_is_search_indexes() -> None:
+def test_alembic_head_includes_search_indexes() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     cfg = Config(str(backend_root / "alembic.ini"))
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert "0036_search_indexes" in script.get_heads()
+    # Head advances after CAPABILITY-012; search revision must remain on the chain.
+    assert script.get_heads() == ["0039_admin_rbac_repair"]
+    assert "0036_search_indexes" in {r.revision for r in script.walk_revisions()}
 
 
 def test_migration_file_structure() -> None:
