@@ -137,6 +137,7 @@ def create_app() -> FastAPI:
             "name": settings.app_name,
             "version": __version__,
             "health": "/health",
+            "version_info": "/version",
         }
         if docs_enabled:
             payload["docs"] = "/docs"

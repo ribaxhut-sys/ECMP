@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
+    # R6-01 release provenance (baked at Docker build via ARG->ENV; not hardcoded).
+    git_commit: str = Field(default="unknown", alias="GIT_COMMIT")
+    git_branch: str = Field(default="unknown", alias="GIT_BRANCH")
+    build_time: str = Field(default="unknown", alias="BUILD_TIME")
+    git_tree_state: str = Field(default="unknown", alias="GIT_TREE_STATE")
+
     api_prefix: str = ""
     allowed_origins: str = "http://localhost:3000"
     allowed_hosts: str = "localhost,127.0.0.1"

@@ -37,6 +37,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-008 | POST /v1/cases/{caseId}/notes | Create append-only internal note | bearerAuth, permission `cases:notes:create` | 🟢 Implemented (Sprint-06) |
 | — | GET /health | Liveness check (di luar prefix /v1) | None | 🟢 Implemented |
 | — | GET /health/ready | Readiness check — DB `SELECT 1` (Sprint-08) | None | 🟢 Implemented |
+| — | GET /version | Release provenance (git_commit, branch, build_time) — R6-01 | None | 🟢 Implemented |
 
 ### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
 | API ID | Method & Endpoint | Description | Auth | Status |

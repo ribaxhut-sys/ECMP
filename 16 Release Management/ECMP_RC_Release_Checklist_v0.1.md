@@ -26,6 +26,9 @@ Phase 3 per ADR-010 / DEP-CHK-001).
 - [ ] Default branch tip selected; working tree clean on the cut machine
 - [ ] Commit SHA recorded in CHANGELOG / release notes
 - [ ] No secrets in tree (`.env` untracked; audit spot-check)
+- [ ] R6-01: `.\scripts\release\build-rc.ps1` succeeds without `-AllowDirty`
+- [ ] R6-01: `.\scripts\release\verify-artifact.ps1` RESULT=PASS
+- [ ] R6-01: `GET /version` returns matching `git_commit` and `git_tree_state=clean`
 
 ## 2. Quality gates (CI)
 

@@ -7,6 +7,7 @@ info:
     assign/status (Sprint-02B, FRD-002), paginated/filtered list (Sprint-03B,
     FRD-001 v0.4 FR-005), timeline/audit read + append-only notes (Sprint-06),
     production readiness probes (Sprint-08: /health liveness + /health/ready).
+    Release provenance probe (R6-01: GET /version).
     Consolidated from the formerly separate case-actions.v1.yaml
     (frozen at gate G1, DEC-006) into this single normative spec per DEC-006 D6/U-6 —
     Sprint-03A governance sync.
@@ -96,6 +97,41 @@ paths:
                     type: object
                     additionalProperties:
                       type: string
+  /version:
+    servers:
+      - url: http://localhost:8000
+        description: Version is served at root, outside the /v1 prefix (ADR-006)
+    get:
+      summary: Release artifact provenance
+      operationId: version
+      tags: [Operations]
+      security: []
+      description: |
+        R6-01 — returns build-time Git provenance (commit, branch, build_time,
+        tree state) and runtime environment. Values are injected via Docker
+        build ARG→ENV; they are not hardcoded application constants.
+      responses:
+        "200":
+          description: Provenance payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version, git_commit, branch, build_time, environment]
+                properties:
+                  version:
+                    type: string
+                  git_commit:
+                    type: string
+                  branch:
+                    type: string
+                  build_time:
+                    type: string
+                  environment:
+                    type: string
+                  git_tree_state:
+                    type: string
+                    description: clean|dirty|unknown
   /cases:
     get:
       summary: List cases (paginated, filtered)

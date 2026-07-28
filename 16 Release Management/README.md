@@ -27,6 +27,7 @@ Approved baseline — `ECMP_Release_Management_v0.1.md` (REL-001): unit rilis = 
 - `ECMP_Repository_Versioning_Policy_v0.1.md` (REL-VER-001) — SemVer app/repo
 - `ECMP_Git_Tag_Convention_v0.1.md` (REL-TAG-001) — annotated `vX.Y.Z[-rc.N]` tags
 - `ECMP_RC_Release_Checklist_v0.1.md` (REL-RC-001) — internal RC cut checklist
+- `ECMP_R6-01_Release_Artifact_Provenance_v1.0.md` (REL-R6-01) — Git↔Image↔Container provenance
 
 ## Minimum Contents (v1)
 - [x] Release cadence & freeze policy — rilis per slice/gate, bukan kalender (REL-001 pembuka)

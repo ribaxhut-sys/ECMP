@@ -41,6 +41,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        # R6-01: set via scripts/release/build-rc.ps1 (or export before compose build).
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-backend:${IMAGE_TAG:-latest}
     container_name: ecmp-backend
     restart: unless-stopped
     environment:
@@ -80,6 +88,13 @@ services:
       args:
         # R2-04: no silent localhost default — must be set in .env for local or prod.
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?Set NEXT_PUBLIC_API_BASE_URL in .env (see .env.example)}
+        # R6-01 provenance
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-frontend:${IMAGE_TAG:-latest}
     container_name: ecmp-frontend
     restart: unless-stopped
     environment:
