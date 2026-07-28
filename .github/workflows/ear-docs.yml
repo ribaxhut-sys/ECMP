@@ -2,7 +2,7 @@ name: EAR Docs Governance
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "feature/**", "release/**"]
   pull_request:
 
 jobs:

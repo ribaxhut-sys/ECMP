@@ -2,7 +2,7 @@ name: Frontend CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "feature/**", "release/**"]
     paths:
       - "implementation/frontend/**"
       - ".github/workflows/frontend-ci.yml"

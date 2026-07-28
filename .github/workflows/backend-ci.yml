@@ -5,7 +5,7 @@ name: Backend CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "feature/**", "release/**"]
     paths:
       - "backend/**"
       - "07 API Catalog/openapi/**"
