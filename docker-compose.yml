@@ -1,3 +1,12 @@
+# ECMP foundation stack — production-capable Compose (R6-03).
+# Secrets: never commit .env. Validate with:
+#   python scripts/validate-production-config.py --env-file .env
+# Redis is intentionally absent (login lockout is in-memory). Storage is DB Settings,
+# not compose volumes for object blobs beyond Postgres data.
+#
+# Startup order: postgres (healthy) → backend (migrate + healthy) → frontend.
+# Prefer IMAGE_TAG=vX.Y.Z (or RC tag) instead of floating "latest" for production.
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -60,6 +69,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ecmp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-ecmp}
+      # Development default only — production startup rejects localhost / non-HTTPS origins.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env (see .env.example)}

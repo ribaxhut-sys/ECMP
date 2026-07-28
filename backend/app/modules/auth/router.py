@@ -64,7 +64,7 @@ def _set_refresh_cookie(
         path=settings.refresh_cookie_path,
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="lax",
+        samesite=settings.refresh_cookie_samesite,
     )
 
 
@@ -74,7 +74,7 @@ def _clear_refresh_cookie(response: Response, *, settings: Settings) -> None:
         path=settings.refresh_cookie_path,
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="lax",
+        samesite=settings.refresh_cookie_samesite,
     )
 
 

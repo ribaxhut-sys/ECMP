@@ -43,5 +43,12 @@ docs/        Knowledge portal + stack + release notes
 - [Release notes v1.0.0](./releases/v1.0.0.md)
 - [Deployment checklist](./deployment-checklist.md)
 - [Rollback package](./releases/ROLLBACK_v1.0.0.md)
+- [R6-03 Production configuration report](./releases/R6-03_PRODUCTION_CONFIGURATION_REPORT.md)
+- [Production deployment guide](./deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)
+- [Environment variable reference](./deployment/ENVIRONMENT_VARIABLE_REFERENCE.md)
 
-See root `README.md` for repository context (EKR + application foundation).
+Validate local/prod config:
+
+```bash
+python scripts/validate-production-config.py --env-file .env
+```

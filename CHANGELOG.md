@@ -14,6 +14,14 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 
 - Post-`v1.0.0-rc2`: only hotfixes and approved change requests until final `v1.0.0` promotion gate.
 
+### Added
+
+- Sprint R6-03: production configuration hardening — structured startup validation (`ConfigValidationError`), `ENVIRONMENT=test`, config CLI (`scripts/validate-production-config.py`), deployment docs under `docs/deployment/`, report `docs/releases/R6-03_PRODUCTION_CONFIGURATION_REPORT.md`.
+
+### Security
+
+- Sprint R6-03: fail-fast rejects localhost/non-HTTPS CORS origins in production, misaligned password-reset base URL vs `ALLOWED_ORIGINS`, unknown `EMAIL_PROVIDER` / `JWT_ALGORITHM`, and `DEBUG=true` outside development/test.
+
 ## [1.0.0-rc2] - 2026-07-25
 
 ### Added

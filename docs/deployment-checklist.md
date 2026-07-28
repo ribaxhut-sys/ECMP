@@ -14,7 +14,10 @@
 - [ ] Release tag `v1.0.0` created
 - [ ] Confirm target environment is **production** (`ENVIRONMENT=production`)
 - [ ] Generate / rotate strong `JWT_SECRET_KEY` (≥32 random characters); store in vault
-- [ ] Set `ALLOWED_ORIGINS` to exact frontend origin(s) (no `*`)
+- [ ] Set `ALLOWED_ORIGINS` to exact frontend origin(s) (no `*`; https in production)
+- [ ] Set `PASSWORD_RESET_FRONTEND_BASE_URL` to the same public frontend origin
+- [ ] Set `EMAIL_PROVIDER=noop` (SMTP out of scope until later release)
+- [ ] Run `python scripts/validate-production-config.py --env-file .env --require-production`
 - [ ] Set `ALLOWED_HOSTS` to backend public hostnames
 - [ ] Confirm Postgres credentials and **backup completed**
 - [ ] Review `CHANGELOG.md` + `docs/releases/v1.0.0.md`
