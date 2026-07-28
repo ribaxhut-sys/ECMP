@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
-    # R6-01 release provenance (baked at Docker build via ARG->ENV; not hardcoded).
+    # R6-01 release provenance (baked at Docker build via ARG→ENV; not hardcoded).
     git_commit: str = Field(default="unknown", alias="GIT_COMMIT")
     git_branch: str = Field(default="unknown", alias="GIT_BRANCH")
     build_time: str = Field(default="unknown", alias="BUILD_TIME")
@@ -87,6 +87,20 @@ class Settings(BaseSettings):
     login_rate_limit_enabled: bool = True
     login_max_failed_attempts: int = 5
     login_lockout_seconds: int = 300
+
+    # Password policy / reset (Identity & Password Management)
+    password_min_length: int = Field(default=8, alias="PASSWORD_MIN_LENGTH", ge=8, le=72)
+    password_reset_token_expire_minutes: int = Field(
+        default=15,
+        alias="PASSWORD_RESET_TOKEN_EXPIRE_MINUTES",
+        ge=1,
+        le=1440,
+    )
+    password_reset_frontend_base_url: str = Field(
+        default="http://localhost:3000",
+        alias="PASSWORD_RESET_FRONTEND_BASE_URL",
+    )
+    email_provider: str = Field(default="logging", alias="EMAIL_PROVIDER")
 
     @computed_field  # type: ignore[prop-decorator]
     @property

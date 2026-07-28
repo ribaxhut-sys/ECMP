@@ -14,8 +14,17 @@ from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.auth.login_protection import get_login_attempt_guard
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import AuthMeResponse, LoginRequest, TokenResponse
+from app.modules.auth.schemas import (
+    AuthMeResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    LoginRequest,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    TokenResponse,
+)
 from app.modules.auth.service import AuthService
+from app.modules.email import get_email_service
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
@@ -24,7 +33,7 @@ def get_auth_service(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthService:
-    return AuthService(AuthRepository(session), settings)
+    return AuthService(AuthRepository(session), settings, get_email_service())
 
 
 def _client_ip(request: Request) -> str:
@@ -140,9 +149,12 @@ def logout(
     service: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
+    # UAT-019: clear cookie on the SAME Response instance that is returned.
+    # Returning a new Response(status_code=204) drops Set-Cookie headers.
     service.logout(_read_refresh_cookie(request, settings))
     _clear_refresh_cookie(response, settings=settings)
-    return Response(status_code=204)
+    response.status_code = 204
+    return response
 
 
 @router.get(
@@ -156,3 +168,31 @@ def me(
     service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> DataResponse[AuthMeResponse]:
     return DataResponse(data=service.me(principal.user_id))
+
+
+@router.post(
+    "/forgot-password",
+    response_model=DataResponse[ForgotPasswordResponse],
+    status_code=200,
+    summary="Request password reset",
+)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> DataResponse[ForgotPasswordResponse]:
+    return DataResponse(data=service.forgot_password(payload, request=request))
+
+
+@router.post(
+    "/reset-password",
+    response_model=DataResponse[ResetPasswordResponse],
+    status_code=200,
+    summary="Reset password with token",
+)
+def reset_password(
+    payload: ResetPasswordRequest,
+    request: Request,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> DataResponse[ResetPasswordResponse]:
+    return DataResponse(data=service.reset_password(payload, request=request))

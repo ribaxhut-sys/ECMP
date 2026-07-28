@@ -24,7 +24,7 @@ Approved (baseline) — v1.0 diselaraskan dengan skema fisik Sprint-01 + FRD-001
 
 ## Documents
 - [`ECMP_Data_Dictionary_v1.0.md`](./ECMP_Data_Dictionary_v1.0.md) — entity list 35 entity lintas 7 domain, plus detail atribut (Case Header, Customer Reference, Audit Log, Outbox, sketsa Config Version), standar kolom audit, dan naming standard
-- [`ECMP_ERD_Sprint01_v0.1.md`](./ECMP_ERD_Sprint01_v0.1.md) — DD-ERD-001, ERD fisik Sprint-01 (cases, audit_log, outbox) + diagram konseptual entitas inti
+- [`ECMP_ERD_Sprint01_v0.1.md`](./ECMP_ERD_Sprint01_v0.1.md) — DD-ERD-001, ERD fisik Sprint-01 (cases, audit_log, outbox) + diagram konseptual entitas inti (+ password_reset_tokens addendum)
 
 ## Minimum Contents (v1)
 - [x] Entity list by domain

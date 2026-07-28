@@ -94,8 +94,14 @@ class User(TimestampAuditSoftDeleteMixin, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=true()
     )
+    force_password_change: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    preferred_language: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="id", server_default=text("'id'")
     )
 
     role: Mapped[Role] = relationship(back_populates="users")
@@ -644,6 +650,41 @@ class RefreshToken(Base):
     user: Mapped[User] = relationship(foreign_keys=[user_id])
 
 
+class PasswordResetToken(Base):
+    """Single-use password reset token (hashed at rest; never store raw token)."""
+
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_password_reset_tokens_token_hash"),
+        Index("ix_password_reset_tokens_user_id", "user_id"),
+        Index("ix_password_reset_tokens_expires_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
 __all__ = [
     "Appointment",
     "Attachment",
@@ -658,6 +699,7 @@ __all__ = [
     "DataScope",
     "NotificationQueue",
     "NotificationTemplate",
+    "PasswordResetToken",
     "Permission",
     "RefreshToken",
     "Role",

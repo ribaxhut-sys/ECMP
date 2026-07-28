@@ -193,6 +193,149 @@ def test_login_refresh_me_logout_flow(
     assert refresh_after.json()["code"] == "UNAUTHENTICATED"
 
 
+def _set_cookie_headers(response) -> list[str]:
+    headers = response.headers
+    if hasattr(headers, "get_list"):
+        values = headers.get_list("set-cookie")
+        if values:
+            return list(values)
+    value = headers.get("set-cookie")
+    return [value] if value else []
+
+
+def _cookie_header_for(response, cookie_name: str) -> str | None:
+    prefix = f"{cookie_name}="
+    for header in _set_cookie_headers(response):
+        if header.startswith(prefix):
+            return header
+    return None
+
+
+def _cookie_attr(header: str, name: str) -> str | None:
+    """Return cookie attribute value (e.g. Path) or '' for flags like HttpOnly."""
+    parts = [p.strip() for p in header.split(";")]
+    target = name.lower()
+    for part in parts[1:]:
+        if "=" in part:
+            key, value = part.split("=", 1)
+            if key.strip().lower() == target:
+                return value.strip()
+        elif part.lower() == target:
+            return ""
+    return None
+
+
+def test_logout_clears_refresh_cookie_on_returned_response(
+    client: TestClient, auth_user: User
+) -> None:
+    """UAT-019: logout Set-Cookie must be a browser-compatible deletion."""
+    settings = get_settings()
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": auth_user.username, "password": "Secret123!"},
+    )
+    assert login.status_code == 200
+    login_cookie = _cookie_header_for(login, settings.refresh_cookie_name)
+    assert login_cookie is not None
+
+    logout = client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+
+    clear_cookie = _cookie_header_for(logout, settings.refresh_cookie_name)
+    assert clear_cookie is not None, "logout must emit Set-Cookie deletion header"
+
+    # Browser-compatible deletion: empty value + Max-Age=0 (or Expires in the past).
+    assert clear_cookie.startswith(f"{settings.refresh_cookie_name}=")
+    value = clear_cookie.split(";", 1)[0].split("=", 1)[1]
+    assert value in {"", '""'}
+    max_age = _cookie_attr(clear_cookie, "Max-Age")
+    assert max_age == "0"
+
+    # Deletion attributes must match the cookie that was set on login.
+    assert _cookie_attr(clear_cookie, "Path") == _cookie_attr(login_cookie, "Path")
+    assert _cookie_attr(clear_cookie, "Path") == settings.refresh_cookie_path
+    assert _cookie_attr(login_cookie, "Domain") == _cookie_attr(clear_cookie, "Domain")
+    assert ("HttpOnly" in clear_cookie) == ("HttpOnly" in login_cookie)
+    login_samesite = (_cookie_attr(login_cookie, "SameSite") or "").lower()
+    clear_samesite = (_cookie_attr(clear_cookie, "SameSite") or "").lower()
+    assert clear_samesite == login_samesite == "lax"
+    assert ("Secure" in clear_cookie) == ("Secure" in login_cookie)
+
+
+def test_logout_idempotent_returns_204_twice(
+    client: TestClient, auth_user: User
+) -> None:
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": auth_user.username, "password": "Secret123!"},
+    )
+    assert login.status_code == 200
+
+    first = client.post("/api/v1/auth/logout")
+    second = client.post("/api/v1/auth/logout")
+    assert first.status_code == 204
+    assert second.status_code == 204
+    # Second logout still clears cookie on the returned response.
+    assert _cookie_header_for(second, get_settings().refresh_cookie_name) is not None
+
+
+def test_refresh_unauthorized_after_logout(
+    client: TestClient, auth_user: User
+) -> None:
+    settings = get_settings()
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": auth_user.username, "password": "Secret123!"},
+    )
+    assert login.status_code == 200
+    raw_refresh = login.cookies.get(settings.refresh_cookie_name)
+    assert raw_refresh
+
+    logout = client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+
+    # Even if a stale cookie value is replayed, refresh must fail (token revoked).
+    refresh = client.post(
+        "/api/v1/auth/refresh",
+        cookies={settings.refresh_cookie_name: raw_refresh},
+    )
+    assert refresh.status_code == 401
+    assert refresh.json()["code"] == "UNAUTHENTICATED"
+
+
+def test_login_refresh_logout_login_again(
+    client: TestClient, auth_user: User
+) -> None:
+    """Regression: full auth cycle remains healthy after cookie-clear fix."""
+    settings = get_settings()
+    password = "Secret123!"
+
+    login1 = client.post(
+        "/api/v1/auth/login",
+        json={"username": auth_user.username, "password": password},
+    )
+    assert login1.status_code == 200
+    assert login1.cookies.get(settings.refresh_cookie_name)
+
+    refresh = client.post("/api/v1/auth/refresh")
+    assert refresh.status_code == 200
+    assert refresh.json()["data"]["accessToken"]
+
+    logout = client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+    assert _cookie_header_for(logout, settings.refresh_cookie_name) is not None
+
+    assert client.post("/api/v1/auth/refresh").status_code == 401
+
+    login2 = client.post(
+        "/api/v1/auth/login",
+        json={"username": auth_user.username, "password": password},
+    )
+    assert login2.status_code == 200
+    assert login2.cookies.get(settings.refresh_cookie_name)
+    assert client.post("/api/v1/auth/refresh").status_code == 200
+
+
 def test_login_rejects_bad_password(client: TestClient, auth_user: User) -> None:
     response = client.post(
         "/api/v1/auth/login",

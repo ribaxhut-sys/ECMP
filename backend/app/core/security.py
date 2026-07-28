@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import string
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -15,6 +16,8 @@ from app.core.config import Settings
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+_TEMP_PASSWORD_ALPHABET = string.ascii_letters + string.digits + "!@#$%^&*"
+
 
 def hash_password(password: str) -> str:
     """Hash a plaintext password with bcrypt (never store plaintext)."""
@@ -22,8 +25,33 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, password_hash: str) -> bool:
-    """Verify a plaintext password against a stored bcrypt hash."""
+    """Verify a plaintext password against a stored bcrypt hash.
+
+    Uses passlib/bcrypt constant-time comparison internally.
+    """
     return _pwd_context.verify(plain_password, password_hash)
+
+
+def generate_temporary_password(*, length: int = 16) -> str:
+    """Cryptographically secure temporary password (never log the return value)."""
+    if length < 8:
+        length = 8
+    return "".join(secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length))
+
+
+def generate_password_reset_token() -> str:
+    """Opaque single-use reset token (URL-safe). Never store or log the return value."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_password_reset_token(raw_token: str) -> str:
+    """SHA-256 hash for at-rest storage of password-reset tokens."""
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def tokens_equal(left: str, right: str) -> bool:
+    """Constant-time equality for opaque token strings."""
+    return secrets.compare_digest(left, right)
 
 
 def create_access_token(

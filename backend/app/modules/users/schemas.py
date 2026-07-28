@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -135,6 +136,53 @@ class UserResponse(BaseModel):
     role_name: str | None = Field(default=None, alias="roleName")
     branch_id: uuid.UUID | None = Field(default=None, alias="branchId")
     is_active: bool = Field(alias="isActive")
+    force_password_change: bool = Field(default=False, alias="forcePasswordChange")
     last_login_at: datetime | None = Field(default=None, alias="lastLoginAt")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
+    preferred_language: str = Field(default="id", alias="preferredLanguage")
+
+
+class PreferredLanguageUpdateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    preferred_language: Literal["id", "en"] = Field(alias="preferredLanguage")
+
+
+class PreferredLanguageUpdateResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    preferred_language: str = Field(alias="preferredLanguage")
+
+
+class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    current_password: str = Field(alias="currentPassword", min_length=1, max_length=72)
+    new_password: str = Field(alias="newPassword", min_length=1, max_length=72)
+    confirm_password: str = Field(alias="confirmPassword", min_length=1, max_length=72)
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> ChangePasswordRequest:
+        if self.new_password != self.confirm_password:
+            raise ValueError("newPassword and confirmPassword must match")
+        return self
+
+
+class ChangePasswordResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    message: str = "Password changed successfully."
+
+
+class AdminResetPasswordResponse(BaseModel):
+    """Temporary password is returned once to the admin — never logged."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_id: uuid.UUID = Field(alias="userId")
+    temporary_password: str = Field(alias="temporaryPassword")
+    force_password_change: bool = Field(alias="forcePasswordChange", default=True)
+    message: str = (
+        "Temporary password generated. User must change password on next login."
+    )

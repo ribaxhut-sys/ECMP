@@ -6,8 +6,10 @@ info:
     ECMP v1.0.0 Production contract. Complaint CRUD, assignment,
     escalation, appointment booking, resolution, timeline, reporting, user management,
     and production authentication. Paths use `/api/v1` prefix. Dashboard exports,
-    OAuth/SSO/LDAP/MFA, password reset, social login, provider delivery
-    (SMTP/WhatsApp/FCM), and workflow-engine APIs are out of scope.
+    OAuth/SSO/LDAP/MFA, social login, production SMTP/WhatsApp/FCM providers,
+    and workflow-engine APIs are out of scope. Identity & Password Management
+    (API-410–413: forgot/reset/change/admin-reset password; force password change;
+    EmailService logging provider) is in scope.
     SLA foundation read (API-314), SLA policy configuration (API-315–317),
     SLA deadline calculation at complaint create (TASK-023 / DEC-012),
     SLA status evaluation / breach detection (TASK-024 / DEC-013),
@@ -247,6 +249,65 @@ paths:
                 $ref: "#/components/schemas/AuthMeDataResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/forgot-password:
+    post:
+      summary: Request password reset
+      operationId: forgotPassword
+      x-ear-id: API-410
+      tags: [Auth]
+      security: []
+      description: |
+        Accepts an email and, when an active account exists, creates a single-use
+        password-reset token (15 minutes, SHA-256 hash only at rest) and delivers
+        a reset link via EmailService. Always returns the same message — never
+        reveals whether the email exists. Emits audit `password.reset_requested`
+        only when a token is issued. Raw tokens and passwords are never logged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Always returns opaque success message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/reset-password:
+    post:
+      summary: Reset password with token
+      operationId: resetPassword
+      x-ear-id: API-411
+      tags: [Auth]
+      security: []
+      description: |
+        Verifies the reset token hash, rejects expired or already-used tokens,
+        updates the password (bcrypt), marks the token used, revokes refresh
+        tokens, and clears `forcePasswordChange`. Emits `password.reset_completed`
+        (or expired/reused failure audits).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetPasswordDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/complaints:
@@ -3660,6 +3721,71 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/users/me/change-password:
+    post:
+      summary: Change own password
+      operationId: changeOwnPassword
+      x-ear-id: API-412
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      description: |
+        Authenticated self-service password change. Verifies `currentPassword`,
+        enforces password policy (`PASSWORD_MIN_LENGTH`, not same as current),
+        hashes with bcrypt, updates `updated_at`, clears `forcePasswordChange`,
+        and revokes all refresh tokens. Emits `password.changed` or
+        `password.change_failed`. Allowed even when `forcePasswordChange` is true.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangePasswordDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users/me/preferred-language:
+    patch:
+      summary: Update own preferred language
+      operationId: updateOwnPreferredLanguage
+      x-ear-id: API-414
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      description: |
+        Self-service update of `preferredLanguage` (`id` or `en`). Auth
+        required; no additional permission beyond being logged in. Drives
+        localization of outbound email (password reset, etc.) and, where
+        resolved, API response messages for this user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreferredLanguageUpdateRequest"
+      responses:
+        "200":
+          description: Preferred language updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferredLanguageUpdateDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/users/{id}:
     get:
       summary: Get user by id
@@ -3825,6 +3951,37 @@ paths:
                 $ref: "#/components/schemas/UserDataResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users/{id}/reset-password:
+    post:
+      summary: Admin reset user password
+      operationId: adminResetPassword
+      x-ear-id: API-413
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      description: |
+        Generates a cryptographically secure temporary password, sets
+        `forcePasswordChange=true`, revokes refresh tokens, and returns the
+        temporary password once to the caller. Requires permission
+        `users:reset_password` (Admin / Supervisor). Emits `password.admin_reset`.
+        Temporary password must not be written to application logs.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Temporary password issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminResetPasswordDataResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -5606,9 +5763,15 @@ components:
         roleName: { type: string, nullable: true, description: Human-readable role name }
         branchId: { type: string, format: uuid, nullable: true }
         isActive: { type: boolean }
+        forcePasswordChange: { type: boolean, default: false }
         lastLoginAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        preferredLanguage:
+          type: string
+          enum: [id, en]
+          default: id
+          description: Drives localized email/API messages for this user.
       description: |
         Password hash is never included in responses. `roleCode`/`roleName` are
         included for UI reference pickers (TASK-007 assignee select) so clients
@@ -5708,9 +5871,15 @@ components:
         roleId: { type: string, format: uuid }
         branchId: { type: string, format: uuid, nullable: true }
         isActive: { type: boolean }
+        forcePasswordChange: { type: boolean, default: false }
         lastLoginAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        preferredLanguage:
+          type: string
+          enum: [id, en]
+          default: id
+          description: Drives localized email/API messages for this user.
         roles:
           type: array
           items: { type: string }
@@ -5723,3 +5892,82 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/AuthMe" }
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+    ForgotPasswordResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: If the account exists, a reset link has been sent.
+    ForgotPasswordDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ForgotPasswordResponse" }
+    ResetPasswordRequest:
+      type: object
+      required: [token, password, confirmPassword]
+      properties:
+        token: { type: string, minLength: 1 }
+        password: { type: string, minLength: 8, maxLength: 72 }
+        confirmPassword: { type: string, minLength: 1, maxLength: 72 }
+    ResetPasswordResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    ResetPasswordDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ResetPasswordResponse" }
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword, confirmPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 72 }
+        newPassword: { type: string, minLength: 8, maxLength: 72 }
+        confirmPassword: { type: string, minLength: 1, maxLength: 72 }
+    ChangePasswordResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    ChangePasswordDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ChangePasswordResponse" }
+    AdminResetPasswordResponse:
+      type: object
+      required: [userId, temporaryPassword, forcePasswordChange, message]
+      properties:
+        userId: { type: string, format: uuid }
+        temporaryPassword: { type: string }
+        forcePasswordChange: { type: boolean }
+        message: { type: string }
+    AdminResetPasswordDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AdminResetPasswordResponse" }
+    PreferredLanguageUpdateRequest:
+      type: object
+      required: [preferredLanguage]
+      properties:
+        preferredLanguage: { type: string, enum: [id, en] }
+    PreferredLanguageUpdateResponse:
+      type: object
+      required: [preferredLanguage]
+      properties:
+        preferredLanguage: { type: string, enum: [id, en] }
+    PreferredLanguageUpdateDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/PreferredLanguageUpdateResponse" }

@@ -12,18 +12,29 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.authorization.principal import Principal
 from app.core.config import Settings, get_settings
-from app.core.errors import UnauthenticatedError
+from app.core.errors import ForbiddenError, UnauthenticatedError
 from app.core.security import decode_access_token
 from app.db.session import get_db_session
+from app.models import User
 from app.modules.iam.permission_resolver import PermissionResolver
 
 _bearer = HTTPBearer(auto_error=False)
+
+# Paths allowed while ``force_password_change`` is true.
+_FORCE_PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(
+    {
+        "/api/v1/auth/me",
+        "/api/v1/auth/logout",
+        "/api/v1/users/me/change-password",
+    }
+)
 
 
 def _as_string_list(value: Any) -> list[str]:
@@ -80,12 +91,40 @@ def resolve_principal_permissions(
     return PermissionResolver(session).resolve(user_id)
 
 
+def _load_force_password_change(session: Session, user_id: uuid.UUID) -> bool:
+    value = session.scalar(
+        select(User.force_password_change).where(
+            User.id == user_id,
+            User.deleted_at.is_(None),
+        )
+    )
+    return bool(value)
+
+
 def get_current_principal(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
     settings: Annotated[Settings, Depends(get_settings)],
     session: Annotated[Session, Depends(get_db_session)],
 ) -> Principal:
-    """Authentication + Permission Resolver → :class:`Principal`."""
+    """Authentication + Permission Resolver → :class:`Principal`.
+
+    When ``force_password_change`` is set, only password-change / me / logout
+    routes are permitted until the user changes their password.
+    """
     user_id, roles, payload = authenticate_bearer(credentials, settings)
     permissions = resolve_principal_permissions(user_id, payload, session)
-    return Principal(user_id=user_id, roles=roles, permissions=permissions)
+    force = _load_force_password_change(session, user_id)
+    principal = Principal(
+        user_id=user_id,
+        roles=roles,
+        permissions=permissions,
+        force_password_change=force,
+    )
+    if force and request.url.path not in _FORCE_PASSWORD_CHANGE_ALLOWED_PATHS:
+        raise ForbiddenError(
+            "Password change required before accessing the application",
+            code="PASSWORD_CHANGE_REQUIRED",
+            details={"forcePasswordChange": True},
+        )
+    return principal

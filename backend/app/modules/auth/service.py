@@ -5,23 +5,51 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 from sqlalchemy import select
 
 from app.core.config import Settings
-from app.core.errors import UnauthenticatedError
+from app.core.errors import UnauthenticatedError, ValidationAppError
+from app.core.i18n_messages import get_message, normalize_language, parse_accept_language
+from app.core.password_policy import get_password_policy
 from app.core.security import (
     create_access_token,
+    generate_password_reset_token,
     generate_refresh_token,
+    hash_password,
+    hash_password_reset_token,
     hash_refresh_token,
     verify_password,
 )
-from app.models import RefreshToken, User
+from app.models import PasswordResetToken, RefreshToken, User
+from app.modules.auth.password_helpers import (
+    revoke_all_refresh_tokens,
+    set_user_password,
+    write_password_audit,
+)
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import AuthMeResponse, LoginRequest, TokenResponse
+from app.modules.auth.schemas import (
+    AuthMeResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    LoginRequest,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    TokenResponse,
+)
 from app.modules.iam.permission_resolver import PermissionResolver
 from app.modules.iam.role.models import Role
 from app.modules.iam.user_role.models import UserRole
+
+if TYPE_CHECKING:
+    from fastapi import Request
+
+    from app.modules.email import EmailService
+
+
+FORGOT_PASSWORD_MESSAGE = get_message("forgot_password", "id")
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,14 +103,24 @@ def _to_me(repository: AuthRepository, user: User) -> AuthMeResponse:
         update={
             "roles": roles,
             "permissions": permissions,
+            "preferred_language": getattr(user, "preferred_language", None) or "id",
         }
     )
 
 
 class AuthService:
-    def __init__(self, repository: AuthRepository, settings: Settings) -> None:
+    def __init__(
+        self,
+        repository: AuthRepository,
+        settings: Settings,
+        email_service: EmailService | None = None,
+    ) -> None:
         self._repo = repository
         self._settings = settings
+        self._email = email_service
+
+    def _policy(self):
+        return get_password_policy(min_length=self._settings.password_min_length)
 
     def _issue_access(self, user: User) -> TokenResponse:
         token = create_access_token(
@@ -213,3 +251,156 @@ class AuthService:
         if user is None or not user.is_active:
             raise UnauthenticatedError("Authentication required")
         return _to_me(self._repo, user)
+
+    def forgot_password(
+        self,
+        payload: ForgotPasswordRequest,
+        *,
+        request: Request | None = None,
+    ) -> ForgotPasswordResponse:
+        """Always return the same message — never reveal whether the email exists.
+
+        The response message is localized from the request's ``Accept-Language``
+        header only (never from the target user's stored preference), so the
+        wording cannot be used to infer whether the account exists.
+        """
+        accept_language = None
+        if request is not None:
+            accept_language = parse_accept_language(
+                request.headers.get("accept-language")
+            )
+        response_language = normalize_language(accept_language)
+        response = ForgotPasswordResponse(
+            message=get_message("forgot_password", response_language)
+        )
+        user = self._repo.get_user_by_email(payload.email)
+        if user is None or not user.is_active:
+            return response
+
+        raw_token = generate_password_reset_token()
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(
+            minutes=self._settings.password_reset_token_expire_minutes
+        )
+        row = PasswordResetToken(
+            user_id=user.id,
+            token_hash=hash_password_reset_token(raw_token),
+            expires_at=expires_at,
+            used_at=None,
+            created_at=now,
+        )
+        self._repo.add_password_reset_token(row)
+
+        base = self._settings.password_reset_frontend_base_url.rstrip("/")
+        reset_url = f"{base}/reset-password?{urlencode({'token': raw_token})}"
+
+        email_language = getattr(user, "preferred_language", None) or accept_language or "id"
+        if self._email is not None:
+            self._email.send_password_reset(
+                to_email=user.email,
+                reset_url=reset_url,
+                expires_at=expires_at,
+                language=email_language,
+            )
+
+        write_password_audit(
+            self._repo.session,
+            request=request,
+            event_type="password.reset_requested",
+            entity_id=user.id,
+            actor_id=user.id,
+            new_values={"expiresAt": expires_at.isoformat()},
+            commit=False,
+        )
+        self._repo.commit()
+        return response
+
+    def reset_password(
+        self,
+        payload: ResetPasswordRequest,
+        *,
+        request: Request | None = None,
+    ) -> ResetPasswordResponse:
+        token_hash = hash_password_reset_token(payload.token)
+        row = self._repo.get_password_reset_by_hash(token_hash)
+        now = datetime.now(UTC)
+
+        if row is None:
+            write_password_audit(
+                self._repo.session,
+                request=request,
+                event_type="password.reset_failed",
+                entity_id=None,
+                actor_id=None,
+                new_values={"reason": "invalid_token"},
+                commit=True,
+            )
+            raise ValidationAppError(
+                "Invalid or expired reset token",
+                details={"field": "token"},
+            )
+
+        if row.used_at is not None:
+            write_password_audit(
+                self._repo.session,
+                request=request,
+                event_type="password.reset_token_reused",
+                entity_id=row.user_id,
+                actor_id=row.user_id,
+                new_values={"tokenId": str(row.id)},
+                commit=True,
+            )
+            raise ValidationAppError(
+                "Invalid or expired reset token",
+                details={"field": "token"},
+            )
+
+        expires = row.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=UTC)
+        if expires <= now:
+            write_password_audit(
+                self._repo.session,
+                request=request,
+                event_type="password.reset_token_expired",
+                entity_id=row.user_id,
+                actor_id=row.user_id,
+                new_values={"tokenId": str(row.id)},
+                commit=True,
+            )
+            raise ValidationAppError(
+                "Invalid or expired reset token",
+                details={"field": "token"},
+            )
+
+        user = self._repo.get_user_by_id(row.user_id)
+        if user is None or not user.is_active:
+            raise ValidationAppError(
+                "Invalid or expired reset token",
+                details={"field": "token"},
+            )
+
+        self._policy().validate(payload.password, current_hash=user.password_hash)
+
+        set_user_password(
+            user,
+            password_hash=hash_password(payload.password),
+            actor_user_id=user.id,
+            force_password_change=False,
+        )
+        row.used_at = now
+        revoked = revoke_all_refresh_tokens(self._repo.session, user.id)
+        write_password_audit(
+            self._repo.session,
+            request=request,
+            event_type="password.reset_completed",
+            entity_id=user.id,
+            actor_id=user.id,
+            new_values={
+                "tokenId": str(row.id),
+                "refreshTokensRevoked": revoked,
+            },
+            commit=False,
+        )
+        self._repo.commit()
+        return ResetPasswordResponse()

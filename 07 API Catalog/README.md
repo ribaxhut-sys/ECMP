@@ -189,7 +189,11 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-218 | POST /api/v1/auth/login | Login (bcrypt; JWT access 15m; HttpOnly refresh cookie 7d; audit `auth.login`) | None (public) | 🟢 Implemented |
 | API-219 | POST /api/v1/auth/refresh | Rotate refresh cookie; issue new access token (audit `auth.refresh`) | Refresh cookie | 🟢 Implemented |
 | API-220 | POST /api/v1/auth/logout | Revoke refresh token + clear cookie (audit `auth.logout`) | Refresh cookie | 🟢 Implemented |
-| API-221 | GET /api/v1/auth/me | Current user + roles/permissions | bearerAuth | 🟢 Implemented |
+| API-221 | GET /api/v1/auth/me | Current user + roles/permissions (+ `forcePasswordChange`) | bearerAuth | 🟢 Implemented |
+| API-410 | POST /api/v1/auth/forgot-password | Request password reset (opaque response; token hash only) | None (public) | 🟢 Implemented |
+| API-411 | POST /api/v1/auth/reset-password | Reset password with single-use token | None (public) | 🟢 Implemented |
+| API-412 | POST /api/v1/users/me/change-password | Self-service change password (revokes refresh tokens) | bearerAuth | 🟢 Implemented |
+| API-413 | POST /api/v1/users/{id}/reset-password | Admin/supervisor reset + force change | bearerAuth, permission `users:reset_password` | 🟢 Implemented |
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
@@ -491,6 +495,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > `REQUESTED`; timeline `complaint.escalation_requested`. Review/Approve
 > out of scope. Migration `0005_complaint_escalations` extends
 > `complaint_escalations` with request fields.
+>
+> **2026-07-28 (Identity & Password Management):** complaint-service —
+> API-410 forgot-password / API-411 reset-password / API-412 change-password /
+> API-413 admin reset. Table `password_reset_tokens`, column
+> `users.force_password_change`, permission `users:reset_password`,
+> EmailService abstraction (`EMAIL_PROVIDER=logging|noop`).
 >
 > **2026-07-23 (TASK-010 Complaint Resolution):** complaint-service — API-225
 > (`POST /api/v1/complaints/{id}/resolution`) + API-226 GET current resolution.

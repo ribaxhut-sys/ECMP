@@ -32,11 +32,17 @@ from app.core.authorization.permission_check import (
 )
 from app.core.authorization.pipeline import CurrentPrincipal
 from app.core.authorization.principal import Principal
+from app.core.authorization.role_assignment_policy import (
+    assert_can_assign_role,
+    can_assign_role,
+)
 
 __all__ = [
     "CurrentPrincipal",
     "Principal",
+    "assert_can_assign_role",
     "authenticate_bearer",
+    "can_assign_role",
     "check_data_scope",
     "check_permissions",
     "check_roles",

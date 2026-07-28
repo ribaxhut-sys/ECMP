@@ -5,14 +5,20 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions
+from app.core.auth import CurrentPrincipal, Principal, require_permissions
+from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import (
+    AdminResetPasswordResponse,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
+    PreferredLanguageUpdateRequest,
+    PreferredLanguageUpdateResponse,
     UserCreateRequest,
     UserResponse,
     UserStatusUpdateRequest,
@@ -25,8 +31,44 @@ router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
 def get_user_service(
     session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> UserService:
-    return UserService(UserRepository(session))
+    return UserService(UserRepository(session), settings)
+
+
+@router.post(
+    "/me/change-password",
+    response_model=DataResponse[ChangePasswordResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Change own password",
+)
+def change_own_password(
+    payload: ChangePasswordRequest,
+    request: Request,
+    service: Annotated[UserService, Depends(get_user_service)],
+    principal: CurrentPrincipal,
+) -> DataResponse[ChangePasswordResponse]:
+    result = service.change_password(
+        principal.user_id, payload, request=request
+    )
+    return DataResponse(data=result)
+
+
+@router.patch(
+    "/me/preferred-language",
+    response_model=DataResponse[PreferredLanguageUpdateResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Update own preferred language",
+)
+def update_own_preferred_language(
+    payload: PreferredLanguageUpdateRequest,
+    service: Annotated[UserService, Depends(get_user_service)],
+    principal: CurrentPrincipal,
+) -> DataResponse[PreferredLanguageUpdateResponse]:
+    result = service.update_preferred_language(
+        principal.user_id, payload.preferred_language
+    )
+    return DataResponse(data=result)
 
 
 @router.post(
@@ -40,7 +82,11 @@ def create_user(
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:create"))],
 ) -> DataResponse[UserResponse]:
-    created = service.create(payload, actor_user_id=principal.user_id)
+    created = service.create(
+        payload,
+        actor_user_id=principal.user_id,
+        actor_roles=principal.roles,
+    )
     return DataResponse(data=created)
 
 
@@ -100,7 +146,12 @@ def update_user(
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:update"))],
 ) -> DataResponse[UserResponse]:
-    updated = service.update(id, payload, actor_user_id=principal.user_id)
+    updated = service.update(
+        id,
+        payload,
+        actor_user_id=principal.user_id,
+        actor_roles=principal.roles,
+    )
     return DataResponse(data=updated)
 
 
@@ -118,3 +169,23 @@ def update_user_status(
 ) -> DataResponse[UserResponse]:
     updated = service.update_status(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=updated)
+
+
+@router.post(
+    "/{id}/reset-password",
+    response_model=DataResponse[AdminResetPasswordResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Admin reset user password",
+)
+def admin_reset_password(
+    id: uuid.UUID,
+    request: Request,
+    service: Annotated[UserService, Depends(get_user_service)],
+    principal: Annotated[
+        Principal, Depends(require_permissions("users:reset_password"))
+    ],
+) -> DataResponse[AdminResetPasswordResponse]:
+    result = service.admin_reset_password(
+        id, actor_user_id=principal.user_id, request=request
+    )
+    return DataResponse(data=result)

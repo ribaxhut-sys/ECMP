@@ -69,7 +69,9 @@ def replace_user_roles(
 ) -> DataResponse[list[RoleResponse]]:
     """API-352 — replace full role set for a user (empty clears)."""
     before = service.get_user_roles(user_id)
-    result = service.replace_roles(user_id, payload)
+    result = service.replace_roles(
+        user_id, payload, actor_roles=principal.roles
+    )
     write_audit(
         session,
         request=request,

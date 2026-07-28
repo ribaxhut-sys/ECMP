@@ -7,12 +7,16 @@ import uuid
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Branch, Role, User
+from app.models import Branch, Role, User, UserRole
 
 
 class UserRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    @property
+    def session(self) -> Session:
+        return self._session
 
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         stmt = (
@@ -48,6 +52,15 @@ class UserRepository:
         )
         return self._session.scalar(stmt) is not None
 
+    def get_role_code(self, role_id: uuid.UUID) -> str | None:
+        stmt = select(Role.code).where(
+            Role.id == role_id,
+            Role.deleted_at.is_(None),
+            Role.is_active.is_(True),
+        )
+        code = self._session.scalar(stmt)
+        return str(code) if code is not None else None
+
     def branch_exists(self, branch_id: uuid.UUID) -> bool:
         stmt = select(Branch.id).where(
             Branch.id == branch_id,
@@ -60,6 +73,53 @@ class UserRepository:
         self._session.add(user)
         self._session.flush()
         return user
+
+    def get_user_role_link(
+        self, user_id: uuid.UUID, role_id: uuid.UUID
+    ) -> UserRole | None:
+        return self._session.scalar(
+            select(UserRole).where(
+                UserRole.user_id == user_id,
+                UserRole.role_id == role_id,
+            )
+        )
+
+    def ensure_user_role(self, user_id: uuid.UUID, role_id: uuid.UUID) -> bool:
+        """Insert user_roles(user_id, role_id) if missing. Returns True if inserted."""
+        if self.get_user_role_link(user_id, role_id) is not None:
+            return False
+        self._session.add(
+            UserRole(id=uuid.uuid4(), user_id=user_id, role_id=role_id)
+        )
+        self._session.flush()
+        return True
+
+    def remove_user_role(self, user_id: uuid.UUID, role_id: uuid.UUID) -> bool:
+        """Delete user_roles(user_id, role_id) if present. Returns True if deleted."""
+        link = self.get_user_role_link(user_id, role_id)
+        if link is None:
+            return False
+        self._session.delete(link)
+        self._session.flush()
+        return True
+
+    def sync_primary_user_role(
+        self,
+        user_id: uuid.UUID,
+        *,
+        previous_role_id: uuid.UUID,
+        new_role_id: uuid.UUID,
+    ) -> None:
+        """UAT-021: keep junction aligned when primary users.role_id changes.
+
+        - Ensure ``new_role_id`` is present (idempotent).
+        - Remove obsolete ``previous_role_id`` so demotion cannot leave
+          elevated permissions via stale junction rows.
+        - Preserve any other explicitly assigned secondary roles.
+        """
+        self.ensure_user_role(user_id, new_role_id)
+        if previous_role_id != new_role_id:
+            self.remove_user_role(user_id, previous_role_id)
 
     def list_page(
         self,
@@ -93,6 +153,9 @@ class UserRepository:
 
     def commit(self) -> None:
         self._session.commit()
+
+    def rollback(self) -> None:
+        self._session.rollback()
 
     def refresh(self, user: User) -> User:
         self._session.refresh(user)
