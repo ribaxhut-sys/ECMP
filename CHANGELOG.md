@@ -138,8 +138,8 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
   (ADR-012 Phase 3) is accepted and active (ADR-010 / DEP-CHK-001).
 - This RC is for internal DEV/CI validation only.
 
-[Unreleased]: https://github.com/nandeshut/ECMP/compare/v1.0.0-rc2...HEAD
-[1.0.0-rc2]: https://github.com/nandeshut/ECMP/releases/tag/v1.0.0-rc2
-[1.0.0]: https://github.com/nandeshut/ECMP/releases/tag/v1.0.0
-[1.0.0-rc1]: https://github.com/nandeshut/ECMP/releases/tag/v1.0.0-rc1
-[0.8.0-rc.1]: https://github.com/nandeshut/ECMP/releases/tag/v0.8.0-rc.1
+[Unreleased]: https://github.com/hutbeon-hub/ECMP/compare/v1.0.0-rc2...HEAD
+[1.0.0-rc2]: https://github.com/hutbeon-hub/ECMP/releases/tag/v1.0.0-rc2
+[1.0.0]: https://github.com/hutbeon-hub/ECMP/releases/tag/v1.0.0
+[1.0.0-rc1]: https://github.com/hutbeon-hub/ECMP/releases/tag/v1.0.0-rc1
+[0.8.0-rc.1]: https://github.com/hutbeon-hub/ECMP/releases/tag/v0.8.0-rc.1
