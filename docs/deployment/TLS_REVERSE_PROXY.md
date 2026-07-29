@@ -83,7 +83,7 @@ Uses `Caddyfile.lab` (`tls internal`). Browser/curl must trust the local CA or u
 
 ## Environment variables
 
-Copy [`.env.production.example`](../../.env.production.example) → `.env` (never commit).
+Copy `.env.production.example` (repo root) → `.env` (never commit).
 
 | Variable | Required | Notes |
 |---|---|---|
@@ -190,4 +190,4 @@ v1.0.0 has **no** product WebSocket APIs. Proxy configs still forward `Upgrade` 
 - [`ENVIRONMENT_VARIABLE_REFERENCE.md`](./ENVIRONMENT_VARIABLE_REFERENCE.md)
 - [`UPGRADE_PROCEDURE.md`](./UPGRADE_PROCEDURE.md)
 - [`../deployment-checklist.md`](../deployment-checklist.md)
-- [`../../deploy/proxy/README.md`](../../deploy/proxy/README.md)
+- `deploy/proxy/README.md` (repo root)

@@ -42,7 +42,7 @@ docs/        Knowledge portal + stack + release notes
 ## Production TLS (not this local file)
 
 Local `docker-compose.yml` publishes app ports for development. Public production uses
-[`docker-compose.prod.yml`](../docker-compose.prod.yml) + [`deployment/TLS_REVERSE_PROXY.md`](./deployment/TLS_REVERSE_PROXY.md) (B3).
+`docker-compose.prod.yml` (repo root) + [`deployment/TLS_REVERSE_PROXY.md`](./deployment/TLS_REVERSE_PROXY.md) (B3).
 
 ## Release artifacts
 

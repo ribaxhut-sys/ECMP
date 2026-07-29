@@ -80,6 +80,6 @@ python scripts/validate-production-config.py --env-file .env --require-productio
 docker compose -f docker-compose.prod.yml config
 ```
 
-TLS / proxy: [`TLS_REVERSE_PROXY.md`](./TLS_REVERSE_PROXY.md), template [`.env.production.example`](../../.env.production.example).
+TLS / proxy: [`TLS_REVERSE_PROXY.md`](./TLS_REVERSE_PROXY.md), template `.env.production.example` (repo root).
 
 Unit coverage: `backend/tests/test_settings_guard.py`.

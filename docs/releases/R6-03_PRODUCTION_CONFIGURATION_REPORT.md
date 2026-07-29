@@ -34,7 +34,7 @@ R6-03 hardens the foundation stack for production deployment without adding busi
 
 ## 2. Environment Variable Matrix
 
-Canonical table: [`../deployment/ENVIRONMENT_VARIABLE_REFERENCE.md`](../deployment/ENVIRONMENT_VARIABLE_REFERENCE.md) and root [`.env.example`](../../.env.example).
+Canonical table: [`../deployment/ENVIRONMENT_VARIABLE_REFERENCE.md`](../deployment/ENVIRONMENT_VARIABLE_REFERENCE.md) and root `.env.example`.
 
 ### Detection summary
 

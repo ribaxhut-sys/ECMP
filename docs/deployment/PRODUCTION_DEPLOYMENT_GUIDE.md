@@ -59,7 +59,7 @@ python scripts/validate-production-config.py --env-file .env --require-productio
 | `FORWARDED_ALLOW_IPS` | `*` (prod compose; backend not published) |
 | `IMAGE_TAG` | `v1.0.0` (or RC) |
 
-Templates: [`.env.production.example`](../../.env.production.example), full matrix [`ENVIRONMENT_VARIABLE_REFERENCE.md`](./ENVIRONMENT_VARIABLE_REFERENCE.md).
+Templates: `.env.production.example` (repo root), full matrix [`ENVIRONMENT_VARIABLE_REFERENCE.md`](./ENVIRONMENT_VARIABLE_REFERENCE.md).
 
 ## Deploy procedure (production + TLS)
 
