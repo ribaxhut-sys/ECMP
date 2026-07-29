@@ -1,0 +1,76 @@
+{
+  "date": "2026-07-29",
+  "health": 95,
+  "markdown_files": 455,
+  "adr_count": 15,
+  "api_spec_count": 7,
+  "event_count": 40,
+  "business_rules_referenced": 8,
+  "fr_referenced": 12,
+  "domains_in_traceability": 6,
+  "traceability_links": 10,
+  "metadata_complete_pct": 80,
+  "reviewed_pct": 44,
+  "trends_generated": true,
+  "top_changed_files": [
+    {
+      "path": "07 API Catalog/README.md",
+      "count": 19
+    },
+    {
+      "path": "frontend/src/lib/api/index.ts",
+      "count": 18
+    },
+    {
+      "path": "07 API Catalog/openapi/complaint-service.v1.yaml",
+      "count": 15
+    },
+    {
+      "path": "frontend/src/lib/api/types.ts",
+      "count": 15
+    },
+    {
+      "path": "backend/app/models/__init__.py",
+      "count": 13
+    },
+    {
+      "path": "backend/app/core/enums.py",
+      "count": 12
+    },
+    {
+      "path": "frontend/src/features/complaints/TimelineCard.tsx",
+      "count": 11
+    },
+    {
+      "path": "frontend/src/features/complaints/ComplaintDetailView.tsx",
+      "count": 11
+    },
+    {
+      "path": "07 API Catalog/API_CATALOG.generated.md",
+      "count": 11
+    },
+    {
+      "path": "backend/app/modules/escalations/repository.py",
+      "count": 9
+    }
+  ],
+  "active_areas": {
+    "Implementation": 245,
+    "Portal Docs": 176,
+    "Domain Architecture": 97,
+    "AI Context": 66,
+    "API": 59,
+    "Tooling": 27,
+    "ADR": 19,
+    "FRD": 13,
+    "Event": 8,
+    "Solution Architecture": 5,
+    "Business": 5,
+    "Business Rules": 3,
+    "Core Platform": 1,
+    "CRM": 1,
+    "Dashboard": 1
+  },
+  "coverage_overall": 68.75,
+  "docs_sync_signal": "n/a"
+}

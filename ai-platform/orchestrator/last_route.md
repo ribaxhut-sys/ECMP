@@ -11,7 +11,7 @@
 | Last Review | auto |
 | Next Review | auto |
 
-> Task: CAPABILITY-008 Complaint SLA Foundation
+> Task: implement FR-001 create case
 
 ## Capability: Implement Feature
 - ID: `CAP-IMPLEMENT-FEATURE`
@@ -42,11 +42,11 @@
 
 ## RAG Top Hits
 
-- `07 API Catalog/README.md` (score=0.2231)
-- `07 API Catalog/API_CATALOG.generated.md` (score=0.211)
-- `ai/sprint/Sprint-01.md` (score=0.1737)
-- `ai/01_business.md` (score=0.1605)
-- `ai/generated/memory_global.md` (score=0.1505)
+- `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (score=0.2717)
+- `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (score=0.2401)
+- `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (score=0.2385)
+- `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.0.md` (score=0.2248)
+- `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.0.md` (score=0.2056)
 
 ## Next
 1. Load prompt + context in the selected tool role

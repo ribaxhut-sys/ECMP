@@ -14,6 +14,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import __version__
 from app.api.router import api_router
+from app.core.authorization.auth_strategy import configure_authentication
 from app.core.config import get_settings, validate_runtime_config
 from app.core.errors import ApiError
 from app.core.logging import configure_logging, get_logger
@@ -24,7 +25,14 @@ from app.core.schemas import ErrorResponse
 logger = get_logger("app.main")
 
 _CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-_CORS_HEADERS = ["Authorization", "Content-Type", "X-Request-ID", "Accept"]
+_CORS_HEADERS = [
+    "Authorization",
+    "Content-Type",
+    "X-Request-ID",
+    "Accept",
+    "Idempotency-Key",
+    "X-Channel-Message-Id",
+]
 
 
 @asynccontextmanager
@@ -32,12 +40,15 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
     validate_runtime_config(settings)
+    configure_authentication(settings)
     mark_startup_complete()
     logger.info(
-        "application started name=%s version=%s env=%s",
+        "application started name=%s version=%s env=%s auth_mode=%s ecmp_env=%s",
         settings.app_name,
         settings.app_version,
         settings.environment,
+        settings.ecmp_auth_mode,
+        settings.ecmp_env,
     )
     try:
         yield

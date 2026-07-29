@@ -55,11 +55,13 @@ from app.modules.timeline.router import (
 from app.modules.timeline.router import router as activity_timeline_router
 from app.modules.search.router import router as complaint_search_router
 from app.modules.users.router import router as users_router
+from app.modules.cm_batch1.router import router as cm_batch1_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
 api_router.include_router(version_router)
 api_router.include_router(auth_router)
+api_router.include_router(cm_batch1_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(kpi_router)
 api_router.include_router(settings_router)

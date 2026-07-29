@@ -24,6 +24,7 @@ Draft — konten inti terisi (OPS-RB-001, OPS-DR-001, OPS-SHDN-001, OPS-LOG-001)
 
 ## Documents
 - [`ECMP_Runbook_Slice_v0.1.md`](./ECMP_Runbook_Slice_v0.1.md) (OPS-RB-001) — service inventory, health check, playbooks P1–P6, escalation matrix
+- [`ECMP_IdP_Administrator_Runbook_v1.0.md`](./ECMP_IdP_Administrator_Runbook_v1.0.md) (OPS-IDP-001) — local DEV Keycloak baseline (SEC-MIG Phase 1 / TASK-PLATFORM-SECMIG-P1-001)
 - [`ECMP_Shutdown_Procedure_v0.1.md`](./ECMP_Shutdown_Procedure_v0.1.md) (OPS-SHDN-001) — Sprint-09 orderly shutdown
 - [`ECMP_Log_Inspection_Procedure_v0.1.md`](./ECMP_Log_Inspection_Procedure_v0.1.md) (OPS-LOG-001) — Sprint-09 structured log / request_id / correlation_id lookup
 - [`ECMP_DR_BCP_Plan_v0.1.md`](./ECMP_DR_BCP_Plan_v0.1.md) (OPS-DR-001) — RTO/RPO baseline, backup/restore, perlindungan audit_log, BCP

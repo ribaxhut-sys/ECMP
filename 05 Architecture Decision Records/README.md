@@ -67,3 +67,7 @@ Example: `ECMP_ADR_001_Use_Event_Driven_Case_Updates_v1.0.md`
 | 009 | [Message Broker — Deferred (outbox first)](./ECMP_ADR_009_Message_Broker_Deferral_v1.0.md) | Accepted |
 | 010 | [Deployment Platform Baseline (DEV/CI/SIT-UAT; PROD deferred)](./ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md) | Accepted |
 | 011 | [Frontend — Deferred (API-first)](./ECMP_ADR_011_Frontend_Deferral_v1.0.md) | Accepted |
+| 012 | [Target Authentication Architecture](./ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md) | Proposed |
+| 013 | [Frontend Technology Stack](./ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md) | Approved |
+| 014 | [ECMP Enterprise Business Module](./ECMP_ADR_014_ECMP_Enterprise_Business_Module_v1.0.md) | Proposed |
+| 015 | [Enterprise Identity Contract](./ECMP_ADR_015_Enterprise_Identity_Contract_v1.0.md) | Proposed |

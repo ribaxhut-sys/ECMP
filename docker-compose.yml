@@ -83,6 +83,10 @@ services:
       PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-15}
       PASSWORD_RESET_FRONTEND_BASE_URL: ${PASSWORD_RESET_FRONTEND_BASE_URL:-http://localhost:3000}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-logging}
+      # CM Batch 1 Master Customer — TASK-OPS-03 stance: stub for lab/synthetic only.
+      # Do not set enterprise until an approved Enterprise HTTP adapter lands (EX-A/EX-B).
+      CUSTOMER_PROVIDER: ${CUSTOMER_PROVIDER:-stub}
+      CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL: ${CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     healthcheck:

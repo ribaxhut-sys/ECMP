@@ -273,9 +273,15 @@ def test_router_handlers_call_service() -> None:
 
     upload_file.read = _read
 
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = None
+    batch1.try_get.return_value = None
+    batch1.resolve_platform_attachment_id.side_effect = lambda aid: aid
+
     created = asyncio.run(
         upload_attachment(
             service=svc,
+            batch1=batch1,
             principal=principal,
             aggregate_type="Complaint",
             aggregate_id=entity.aggregate_id,
@@ -284,19 +290,31 @@ def test_router_handlers_call_service() -> None:
     )
     assert created.data.id == entity.id
 
-    assert get_attachment(entity.id, svc, principal).data.id == entity.id
+    assert get_attachment(entity.id, svc, batch1, principal).data.id == entity.id
     listed = list_attachments(svc, principal)
     assert listed.meta.total_items == 1
-    dl = download_attachment(entity.id, svc, principal)
+    dl = download_attachment(entity.id, svc, batch1, principal)
     assert dl.body == b"%PDF"
 
-    complaint_listed = list_complaint_attachments(entity.aggregate_id, svc, principal)
-    assert complaint_listed.meta.total_items == 1
+    with patch(
+        "app.modules.attachment.router.CmBatch1Repository"
+    ) as repo_cls:
+        repo_cls.return_value.get.return_value = None
+        complaint_listed = list_complaint_attachments(
+            entity.aggregate_id,
+            svc,
+            batch1,
+            session=MagicMock(),
+            principal=principal,
+        )
+        assert complaint_listed.meta.total_items == 1
 
     request = MagicMock()
     session = MagicMock()
     with patch("app.modules.attachment.router.write_audit") as audit:
-        result = delete_attachment(entity.id, request, session, svc, principal)
+        result = delete_attachment(
+            entity.id, request, session, svc, batch1, principal
+        )
         assert result.status_code == 204
         audit.assert_called_once()
         svc.soft_delete.assert_called_once_with(entity.id)

@@ -7,6 +7,7 @@ Request
   → Authentication          (JWT Bearer → user_id + roles)
   → Permission Resolver     (TASK-038 IAM cache; skip if JWT has permissions claim)
   → Permission Check        (require_permissions / require_roles)
+  → Org Unit Guard          (SECMIG-P4; opt-in G1 endpoints)
   → Data Scope Resolver     (TASK-039 IAM cache; optional / opt-in)
   → Data Scope Check        (require_data_scope; optional / opt-in)
   → Endpoint

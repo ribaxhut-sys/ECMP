@@ -26,5 +26,7 @@
 | ADR-009 | ECMP_ADR_009_Message_Broker_Deferral_v1.0 | 🟢 Approved | Solution Architect | 2026-07-21 | `05 Architecture Decision Records/ECMP_ADR_009_Message_Broker_Deferral_v1.0.md` |
 | ADR-010 | ECMP_ADR_010_Deployment_Platform_Baseline_v1.0 | 🟢 Approved | Solution Architect | 2026-07-21 | `05 Architecture Decision Records/ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md` |
 | ADR-011 | ECMP_ADR_011_Frontend_Deferral_v1.0 | 🟢 Approved | Solution Architect | 2026-07-21 | `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md` |
-| ADR-012 | ECMP_ADR_012_Target_Authentication_Architecture_v1.0 | 🟡 Proposed | Security Architect | 2026-07-21 | `05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md` |
+| ADR-012 | ECMP_ADR_012_Target_Authentication_Architecture_v1.0 | 🟢 Accepted | Security Architect | 2026-07-29 | `05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md` |
 | ADR-013 | ECMP_ADR_013_Frontend_Technology_Stack_v1.0 | 🟢 Approved | Solution Architect / Tech Lead | 2026-07-22 | `05 Architecture Decision Records/ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md` |
+| ADR-014 | ECMP_ADR_014_ECMP_Enterprise_Business_Module_v1.0 | 🟡 Proposed | CTO | 2026-07-29 | `05 Architecture Decision Records/ECMP_ADR_014_ECMP_Enterprise_Business_Module_v1.0.md` |
+| ADR-015 | ECMP_ADR_015_Enterprise_Identity_Contract_v1.0 | 🟡 Proposed | Solution Architect | 2026-07-29 | `05 Architecture Decision Records/ECMP_ADR_015_Enterprise_Identity_Contract_v1.0.md` |

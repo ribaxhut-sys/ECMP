@@ -6,7 +6,7 @@ info:
     ECMF case operations: create/get (Sprint-01, FRD-001), lifecycle actions
     assign/status (Sprint-02B, FRD-002), paginated/filtered list (Sprint-03B,
     FRD-001 v0.4 FR-005), timeline/audit read + append-only notes (Sprint-06),
-    production readiness probes (Sprint-08: /health liveness + /health/ready).
+    production readiness probes (B2: /live liveness + /ready readiness).
     Release provenance probe (R6-01: GET /version).
     Consolidated from the formerly separate case-actions.v1.yaml
     (frozen at gate G1, DEC-006) into this single normative spec per DEC-006 D6/U-6 —
@@ -27,63 +27,76 @@ tags:
   - name: Operations
     description: Operational endpoints (unversioned, no auth)
 paths:
-  /health:
+  /live:
     servers:
       - url: http://localhost:8000
-        description: Health is served at root, outside the /v1 prefix (ADR-006)
+        description: Liveness is served at root, outside the /v1 prefix (ADR-006)
     get:
       summary: Service liveness check
-      operationId: health
+      operationId: live
       tags: [Operations]
       security: []
       description: |
-        Liveness probe — process is up. Does not verify database connectivity.
-        Use GET /health/ready for dependency readiness (Sprint-08).
+        Liveness probe — process is up. Does not verify database connectivity
+        or external services. Always returns HTTP 200 while the process is alive.
+        Docker/Kubernetes liveness may use this; readiness must use GET /ready.
       responses:
         "200":
-          description: Service is up
+          description: Process is alive
           content:
             application/json:
               schema:
                 type: object
+                required: [status, service]
                 properties:
                   status:
                     type: string
+                    enum: [ok]
                   service:
                     type: string
-                  sprint:
-                    type: string
-                    description: Active sprint label (informational)
-  /health/ready:
+  /ready:
     servers:
       - url: http://localhost:8000
         description: Readiness is served at root, outside the /v1 prefix (ADR-006)
     get:
       summary: Service readiness check
-      operationId: readiness
+      operationId: ready
       tags: [Operations]
       security: []
       description: |
-        Readiness probe — verifies database connectivity with SELECT 1.
-        Returns 503 when the database is unreachable (Sprint-08).
+        Readiness probe — verifies required startup initialization and database
+        connectivity with a lightweight SELECT 1 (timeout-protected).
+        Returns HTTP 200 only when all required dependencies are ready;
+        otherwise HTTP 503. Docker healthchecks must call this endpoint.
       responses:
         "200":
-          description: Service is ready (database reachable)
+          description: Service is ready (startup complete, database reachable)
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  service:
-                    type: string
-                  checks:
-                    type: object
-                    additionalProperties:
-                      type: string
+                $ref: "#/components/schemas/ReadyResponse"
         "503":
-          description: Service is not ready (database unreachable)
+          description: Service is not ready (startup incomplete or database unreachable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+  /health:
+    servers:
+      - url: http://localhost:8000
+        description: Health is served at root, outside the /v1 prefix (ADR-006)
+    get:
+      summary: Service health (legacy informational)
+      operationId: health
+      tags: [Operations]
+      security: []
+      deprecated: true
+      description: |
+        Legacy informational probe. Prefer GET /live (liveness) and GET /ready
+        (readiness). Orchestrators must not treat HTTP 200 here as readiness.
+      responses:
+        "200":
+          description: Informational health payload
           content:
             application/json:
               schema:
@@ -93,10 +106,13 @@ paths:
                     type: string
                   service:
                     type: string
-                  checks:
-                    type: object
-                    additionalProperties:
-                      type: string
+                  version:
+                    type: string
+                  environment:
+                    type: string
+                  database:
+                    type: string
+                    enum: [up, down]
   /version:
     servers:
       - url: http://localhost:8000
@@ -710,6 +726,25 @@ components:
         Slice phase (DEV/CI only): static env token; claims {userId, permissions[]}.
         401 = authentication failure; 403 = missing permission.
   schemas:
+    ReadyResponse:
+      type: object
+      required: [status, service, checks]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        service:
+          type: string
+        checks:
+          type: object
+          required: [startup, database]
+          properties:
+            startup:
+              type: string
+              enum: [ok, fail]
+            database:
+              type: string
+              enum: [ok, fail]
     CaseType:
       type: string
       enum: [COMPLAINT, INQUIRY]

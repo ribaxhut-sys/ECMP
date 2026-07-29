@@ -45,6 +45,44 @@ class PermissionResolver:
         self._cache.set(user_id, permissions)
         return permissions
 
+    def resolve_for_role_codes(
+        self,
+        role_codes: list[str] | tuple[str, ...] | set[str],
+    ) -> frozenset[str]:
+        """Resolve permissions for internal role codes (jwt mode / ADR-008).
+
+        Does not read permissions from the JWT. Unknown / empty codes yield
+        an empty permission set (fail-closed).
+        """
+        codes = sorted(
+            {
+                str(code).strip().upper()
+                for code in role_codes
+                if code is not None and str(code).strip()
+            }
+        )
+        if not codes:
+            return frozenset()
+
+        stmt = (
+            select(Permission.code)
+            .join(
+                RolePermission,
+                RolePermission.permission_id == Permission.id,
+            )
+            .join(Role, Role.id == RolePermission.role_id)
+            .where(
+                Role.code.in_(codes),
+                Role.deleted_at.is_(None),
+                Role.is_active.is_(True),
+                Permission.deleted_at.is_(None),
+                Permission.is_active.is_(True),
+            )
+            .distinct()
+        )
+        returned = self._session.scalars(stmt).all()
+        return frozenset(str(code) for code in returned)
+
     def resolve_sorted(self, user_id: uuid.UUID) -> list[str]:
         return sorted(self.resolve(user_id))
 

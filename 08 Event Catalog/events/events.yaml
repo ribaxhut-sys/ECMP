@@ -7,13 +7,14 @@
 # tests/test_service_unit.py::test_assign_and_status_payloads_match_event_catalog
 # and tests/test_lifecycle.py). Payloads unchanged (still frozen per DEC-006) —
 # this is a status-field correction only, not a contract change.
-version: 0.6
+version: 0.7
 owner: Integration Lead
 status: Approved
 delivery_guarantee: at-least-once (ADR-001); all consumers MUST be idempotent
 # Per-event lifecycle status vocabulary:
 #   Implemented = emitted by running code; Planned = approved, not yet produced; Proposed = pending approval.
 # 2026-07-24 (TASK-045): EVT-009..EVT-015 Complaint* foundation added (in-memory factory; no bus).
+# 2026-07-29 (S0 / FRD-CM-001): EVT-CM-001..034 Planned for Complaint Aggregate Batch 1.
 events:
   - id: EVT-001
     name: CaseCreated
@@ -358,3 +359,407 @@ events:
       - Workflow
       - AI
     idempotency: idempotent by eventId
+
+  # --- Complaint Management Batch 1 (FRD-CM-001 LOCKED / RTM-CM-B1-001) ---
+  # Planned domain/audit events for Aggregate Batch 1. Distinct from Case* EVT-001..005
+  # and foundation Complaint* EVT-009..015 (may converge later via DEC).
+  # Namespace: EVT-CM-*; do not invent producers until implementation.
+  - id: EVT-CM-001
+    name: ComplaintCreated
+    status: Planned
+    producer: ECMF
+    description: Batch 1 Aggregate create success (FR-001); status REGISTERED; no Case
+    fr: FR-001
+    api: API-500
+    payload:
+      complaintId: string
+      complaintNumber: string
+      customerId: string
+      status: string
+      requestId: string
+      channelMessageId: string
+      createdAt: datetime
+      createdBy: string
+    consumers:
+      - Notification
+      - Dashboard
+      - Core Platform
+    idempotency: idempotent by requestId / complaintId
+  - id: EVT-CM-002
+    name: CreateReplayed
+    status: Planned
+    producer: ECMF
+    description: Idempotent replay of create (Request Id or Channel Message Id)
+    fr: FR-001
+    api: API-500
+    payload:
+      complaintId: string
+      requestId: string
+      channelMessageId: string
+      replayedAt: datetime
+      actorId: string
+    consumers:
+      - Core Platform
+    idempotency: idempotent by requestId + replayedAt
+  - id: EVT-CM-003
+    name: CreateRedirectedToExisting
+    status: Planned
+    producer: ECMF
+    description: Create abandoned; actor redirected to existing Complaint (D-06)
+    fr: FR-001
+    api: API-500
+    payload:
+      survivingComplaintId: string
+      stagingToken: string
+      actorId: string
+      redirectedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by stagingToken + survivingComplaintId
+  - id: EVT-CM-004
+    name: DuplicateCheckOutcomeRecorded
+    status: Planned
+    producer: ECMF
+    description: Duplicate check outcome on create path
+    fr: FR-001
+    api: API-505
+    payload:
+      complaintId: string
+      outcome: string
+      policyVersion: string
+      recordedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by complaintId + recordedAt
+  - id: EVT-CM-005
+    name: NotificationOutboxEnqueued
+    status: Planned
+    producer: ECMF
+    description: Opt-in notification enqueued to ECMP outbox after create (ADR-009)
+    fr: FR-001
+    api: API-500
+    payload:
+      complaintId: string
+      outboxId: string
+      enqueuedAt: datetime
+    consumers:
+      - Notification
+    idempotency: idempotent by outboxId
+  - id: EVT-CM-010
+    name: CustomerValidated
+    status: Planned
+    producer: ECMF
+    description: Successful customer search/confirm (FR-002)
+    fr: FR-002
+    api: API-502
+    payload:
+      customerId: string
+      keyType: string
+      asOf: datetime
+      actorId: string
+    consumers:
+      - Core Platform
+    idempotency: idempotent by customerId + asOf + actorId
+  - id: EVT-CM-011
+    name: CustomerValidationFailed
+    status: Planned
+    producer: ECMF
+    description: not found / ambiguous / degraded / blocked enumeration outcome
+    fr: FR-002
+    api: API-502
+    payload:
+      keyType: string
+      outcome: string
+      actorId: string
+      occurredAt: datetime
+    consumers:
+      - Core Platform
+      - Notification
+    idempotency: idempotent by actorId + occurredAt + outcome
+  - id: EVT-CM-012
+    name: CustomerReferenceEnriched
+    status: Planned
+    producer: ECMF
+    description: UNVERIFIED Complaint enriched with verified CustomerId
+    fr: FR-002
+    api: API-503
+    payload:
+      complaintId: string
+      previousCustomerRef: string
+      customerId: string
+      enrichedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by complaintId + enrichedAt
+  - id: EVT-CM-020
+    name: DuplicateWarned
+    status: Planned
+    producer: ECMF
+    description: Duplicate candidates at or above threshold
+    fr: FR-003
+    api: API-505
+    payload:
+      customerId: string
+      candidateCount: integer
+      warnedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by customerId + warnedAt
+  - id: EVT-CM-021
+    name: DuplicateOverridden
+    status: Planned
+    producer: ECMF
+    description: Authorized override with justification
+    fr: FR-003
+    api: API-506
+    payload:
+      complaintId: string
+      justificationRef: string
+      actorId: string
+      overriddenAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by complaintId + overriddenAt
+  - id: EVT-CM-022
+    name: DuplicateLinked
+    status: Planned
+    producer: ECMF
+    description: Possible-duplicate / related linkage recorded
+    fr: FR-003
+    api: API-506
+    payload:
+      sourceComplaintId: string
+      targetComplaintId: string
+      linkType: string
+      linkedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by sourceComplaintId + targetComplaintId + linkedAt
+  - id: EVT-CM-023
+    name: DuplicateRedirectedToExisting
+    status: Planned
+    producer: ECMF
+    description: Redirect decision to existing Complaint
+    fr: FR-003
+    api: API-506
+    payload:
+      survivingComplaintId: string
+      actorId: string
+      redirectedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by survivingComplaintId + redirectedAt
+  - id: EVT-CM-024
+    name: DuplicateRecommendedExisting
+    status: Planned
+    producer: ECMF
+    description: Recommend continue on existing Complaint; no Case create in Batch 1
+    fr: FR-003
+    api: API-506
+    payload:
+      existingComplaintId: string
+      recommendation: string
+      recommendedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by existingComplaintId + recommendedAt
+  - id: EVT-CM-025
+    name: DuplicateCheckDegraded
+    status: Planned
+    producer: ECMF
+    description: Duplicate check unavailable / timeout
+    fr: FR-003
+    api: API-505
+    payload:
+      degradedFlag: boolean
+      reason: string
+      occurredAt: datetime
+    consumers:
+      - Core Platform
+      - Notification
+    idempotency: idempotent by occurredAt + reason
+  - id: EVT-CM-026
+    name: DuplicateLaterReviewEnqueued
+    status: Planned
+    producer: ECMF
+    description: Later-review work item for degraded duplicate check
+    fr: FR-003
+    api: API-505
+    payload:
+      workItemId: string
+      customerId: string
+      enqueuedAt: datetime
+    consumers:
+      - Notification
+      - Dashboard
+    idempotency: idempotent by workItemId
+  - id: EVT-CM-030
+    name: AttachmentUploaded
+    status: Planned
+    producer: ECMF
+    description: Attachment ACTIVE with integrity hash
+    fr: FR-004
+    api: API-507
+    payload:
+      attachmentId: string
+      complaintId: string
+      integrityHash: string
+      uploadedAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by attachmentId
+  - id: EVT-CM-031
+    name: AttachmentSuperseded
+    status: Planned
+    producer: ECMF
+    description: Prior attachment version superseded
+    fr: FR-004
+    api: API-507
+    payload:
+      attachmentId: string
+      supersededAttachmentId: string
+      supersededAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by attachmentId + supersededAttachmentId
+  - id: EVT-CM-032
+    name: AttachmentVoided
+    status: Planned
+    producer: ECMF
+    description: Void-with-reason (no physical delete)
+    fr: FR-004
+    api: API-512
+    payload:
+      attachmentId: string
+      reason: string
+      voidedAt: datetime
+      actorId: string
+    consumers:
+      - Core Platform
+    idempotency: idempotent by attachmentId + voidedAt
+  - id: EVT-CM-033
+    name: AttachmentTransferred
+    status: Planned
+    producer: ECMF
+    description: Staged evidence transferred to surviving Complaint (D-06); semantics OQ-CM-B1-014
+    fr: FR-004
+    api: API-508
+    payload:
+      attachmentId: string
+      fromStagingToken: string
+      survivingComplaintId: string
+      transferredAt: datetime
+    consumers:
+      - Core Platform
+    idempotency: idempotent by attachmentId + survivingComplaintId
+  - id: EVT-CM-034
+    name: AttachmentAccess
+    status: Planned
+    producer: ECMF
+    description: Sensitive attachment download/access audited
+    fr: FR-004
+    api: API-511
+    payload:
+      attachmentId: string
+      actorId: string
+      accessedAt: datetime
+      classification: string
+    consumers:
+      - Core Platform
+    idempotency: idempotent by attachmentId + actorId + accessedAt
+
+  # --- Complaint Management Escalation & Resolution (FRD-CM-002 / DEC-F4) ---
+  # Namespace EVT-CM-040…; Planned until implementation. Separate from foundation EVT-015.
+  - id: EVT-CM-040
+    name: CaseEscalatedToPusat
+    status: Planned
+    producer: ECMF
+    description: Case escalated Cabang→Pusat with Escalation Package (DEC-F4 / FR-CM-010)
+    fr: FR-CM-010
+    api: API-520
+    payload:
+      caseId: string
+      complaintId: string
+      fromBranchId: string
+      toUnit: string
+      reason: string
+      escalatedBy: string
+      escalatedAt: datetime
+    consumers:
+      - Notification
+      - Core Platform
+      - Dashboard
+    idempotency: idempotent by caseId + escalatedAt
+  - id: EVT-CM-041
+    name: CaseEscalationReturned
+    status: Planned
+    producer: ECMF
+    description: Pusat returned escalation to originating branch (reason code + note)
+    fr: FR-CM-011
+    api: API-521
+    payload:
+      caseId: string
+      complaintId: string
+      returnedToBranchId: string
+      returnReasonCode: string
+      returnNote: string
+      returnedBy: string
+      returnedAt: datetime
+    consumers:
+      - Notification
+      - Core Platform
+    idempotency: idempotent by caseId + returnedAt
+  - id: EVT-CM-042
+    name: CaseResolvedWithVisibility
+    status: Planned
+    producer: ECMF
+    description: Case resolved; includes resultVisibility when Pusat path (DEC-F4)
+    fr: FR-CM-013
+    api: API-523
+    payload:
+      caseId: string
+      complaintId: string
+      resolutionCode: string
+      resultVisibility: string
+      resolvedBy: string
+      resolvedAt: datetime
+    consumers:
+      - Notification
+      - Core Platform
+      - KPI
+    idempotency: idempotent by caseId + resolvedAt
+  - id: EVT-CM-043
+    name: ResultVisibilityChanged
+    status: Planned
+    producer: ECMF
+    description: Post-resolve result_visibility changed with audit fields
+    fr: FR-CM-014
+    api: API-524
+    payload:
+      caseId: string
+      complaintId: string
+      fromVisibility: string
+      toVisibility: string
+      changedBy: string
+      changedAt: datetime
+      changeNote: string
+    consumers:
+      - Core Platform
+      - Audit
+    idempotency: idempotent by caseId + changedAt
+  - id: EVT-CM-044
+    name: CaseAccessDenied
+    status: Planned
+    producer: ECMF
+    description: Optional security audit when Case read denied by org/result_visibility
+    fr: FR-CM-015
+    api: API-525
+    payload:
+      caseId: string
+      actorId: string
+      actorBranchId: string
+      deniedAt: datetime
+      reasonCode: string
+    consumers:
+      - Core Platform
+    idempotency: idempotent by caseId + actorId + deniedAt

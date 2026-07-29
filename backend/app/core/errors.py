@@ -67,6 +67,17 @@ class DataScopeDeniedError(ForbiddenError):
         super().__init__(message, code="DATA_SCOPE_DENIED", details=details)
 
 
+class OrgScopeDeniedError(ForbiddenError):
+    """HTTP 403 — principal org unit does not match resource org unit (SECMIG-P4)."""
+
+    def __init__(
+        self,
+        message: str = "Organization scope denied",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, code="ORG_SCOPE_DENIED", details=details)
+
+
 class NotFoundError(ApiError):
     def __init__(self, message: str = "Resource not found") -> None:
         super().__init__(404, "NOT_FOUND", message)

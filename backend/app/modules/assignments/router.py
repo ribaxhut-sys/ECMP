@@ -8,7 +8,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions, require_supervisor_assign
+from app.core.auth import (
+    OrgUnitResolver,
+    Principal,
+    enforce_org_scope,
+    require_permissions,
+    require_supervisor_assign,
+)
+from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.assignments.repository import AssignmentRepository
@@ -39,7 +46,12 @@ def assign_complaint(
     payload: AssignComplaintRequest,
     service: Annotated[AssignmentService, Depends(get_assignment_service)],
     principal: Annotated[Principal, Depends(require_supervisor_assign)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[AssignComplaintResult]:
+    # Permission (+ supervisor role) already validated; org scope runs next.
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.assign(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)
 
@@ -54,6 +66,10 @@ def list_assignments(
     id: uuid.UUID,
     service: Annotated[AssignmentService, Depends(get_assignment_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[list[AssignmentResponse]]:
-    _ = principal
+    """SECMIG-P4-001R M-1: approved G1 read — org scope after permission."""
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     return DataResponse(data=service.list_assignments(id))

@@ -27,6 +27,19 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampAuditSoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from app.modules.attachment.models import Attachment
+from app.modules.cm_batch1.models import (
+    CmBatch1AttachmentHistoryORM,
+    CmBatch1AttachmentORM,
+    CmBatch1AttachmentStagingORM,
+    CmBatch1ChannelMessageORM,
+    CmBatch1ComplaintORM,
+    CmBatch1CustomerLockORM,
+    CmBatch1DuplicateDecisionORM,
+    CmBatch1IdempotencyORM,
+    CmBatch1LaterReviewItemORM,
+    CmBatch1NumberCounterORM,
+    CmBatch1OutboxORM,
+)
 from app.modules.iam.data_scope.models import DataScope
 from app.modules.iam.permission.models import Permission
 from app.modules.iam.role.models import Role
@@ -690,6 +703,17 @@ __all__ = [
     "Attachment",
     "AuditLog",
     "Branch",
+    "CmBatch1AttachmentHistoryORM",
+    "CmBatch1AttachmentORM",
+    "CmBatch1AttachmentStagingORM",
+    "CmBatch1ChannelMessageORM",
+    "CmBatch1ComplaintORM",
+    "CmBatch1CustomerLockORM",
+    "CmBatch1DuplicateDecisionORM",
+    "CmBatch1IdempotencyORM",
+    "CmBatch1LaterReviewItemORM",
+    "CmBatch1NumberCounterORM",
+    "CmBatch1OutboxORM",
     "Complaint",
     "ComplaintAssignment",
     "ComplaintEscalation",

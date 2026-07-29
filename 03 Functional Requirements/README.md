@@ -23,11 +23,19 @@ Spesifikasi kebutuhan fungsional (FRD) per domain/modul ECMP.
 - [x] `ECMP_FRD_KPI_SLA_v0.1.md` (FRD-005 — 🟡 Draft; FR-030)
 - [x] `ECMP_FRD_Dashboard_Queue_v0.1.md` (FRD-006 — 🟡 Draft; FR-040)
 - [x] `ECMP_FRD_Administration_v0.1.md` (FRD-007 — 🟡 Draft; FR-050..FR-063: user/role/permission process, workflow/SLA/calendar/escalation/template/master-data/audit-config/settings, versioning + approval)
+- [x] `ECMP_FRD_Complaint_Management_Batch1_v1.0.md` (FRD-CM-001 — Draft v1.0; superseded by v1.1)
+- [x] `ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (FRD-CM-001 — 🔒 **LOCKED**; Batch 1 SoT: FR-001…FR-004; CTO D-01…D-08; Claude Delta Review + CTO Approval complete; Case create deferred Batch 2)
+- [x] `ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1.md` (FRD-CM-ESC-OUTLINE-001 — Outline; FR content superseded by Draft below)
+- [x] `ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1.md` (FRD-CM-002 — 🟡 **Draft**; FR-CM-010…015; DEC-F4; API-520…526; EVT-CM-040…044)
 
-> Semua FRD Draft (FRD-002..007) **belum DoR**; implementasi menunggu gate per DEC-002 (Build-1 setelah G0 exit).
+> FRD Draft artifacts (FRD-002..007) **belum DoR**. FRD-CM-001 v1.1 is **LOCKED** as Complaint Aggregate Batch 1 SoT; Sprint delivery IDs MUST NOT be silently overwritten until DEC remapping (OQ-CM-B1-001).
+>
+> **DEC-F4** (escalation visibility / return / result audience) is recorded under `18 Architecture Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md` and amends BR-CM-CAT-001 Draft BR-007/BR-008. It does **not** change FRD-CM-001 Batch 1; consume DEC-F4 in Batch 2+ FRD covering Escalation/Resolution.
 
 ## Planned
 - [ ] FRD Core Platform
+- [ ] FRD Complaint Management Batch 2+ (Case create, Assignment, SLA, Closure, Customer 360, dll.)
+- [x] FRD-CM-002 Escalation & Resolution Draft (DEC-F4) — awaiting Architecture Board countersign for LOCK path
 
 ## Folder Status Note
 **ECMF slice Approved; multi-domain Draft** (2026-07-21).

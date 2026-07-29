@@ -92,9 +92,7 @@ End-to-end complaint/inquiry management: registrasi, klasifikasi, assignment, pr
 - **Konteks:** Case Management. ECMF adalah domain transaksional inti ECMP; entitas pusatnya adalah **Case** sebagai Aggregate Root (lihat `CASE_AGGREGATE.md`, DOM-ECMF-002).
 - **ECMF = enforcer, bukan pemilik workflow config (ADR-008):** definisi status & transisi adalah konfigurasi bisnis milik Administration; ECMF memuat config aktif (via EVT-006) dan menolak transisi invalid. ECMF tidak mendefinisikan transisi sendiri (lihat `CASE_STATE_MACHINE.md`, DOM-ECMF-003).
 - **Baseline scope (DEC-001):** Blueprint v2.1 + FRD-001. Konsep Branch/HO/Schedule/WorkOrder **dilarang dimodelkan** di domain ini.
-- **Ubiquitous language:** Case, Case Type (COMPLAINT/INQUIRY), Priority, Status, Assignment, Resolution, Root Cause, SLA Clock, Reopen.
-
-## In Scope
-- Registration (Sprint-01 — implemen
+- **Ubiquitous language:** Case/Complaint, Case Type (COMPLAINT/INQUIRY), Priority, Status, Assignment, Resolution, Root Cause, SLA Clock, Reopen, Source Type, Target Type.
+- **Multi-sou
 
 _…truncated…_

@@ -25,7 +25,7 @@ Build-1 features beyond the slice wait for G0 exit sign-off.
 ```text
 implementation/
 ├── backend/          ← Sprint-01 active (app/, alembic/, tests/)
-├── infrastructure/   ← docker-compose.yml (PostgreSQL DEV)
+├── infrastructure/   ← docker-compose.yml (PostgreSQL DEV; optional Keycloak profile auth)
 ├── portal/           ← Developer Portal (EKR tooling, bukan produk)
 ├── frontend/         ← deferred (ADR menyusul sebelum sprint UI)
 ├── tests/            ← e2e lintas-service (belum dipakai)
@@ -44,3 +44,11 @@ alembic upgrade head
 uvicorn app.main:app --reload
 pytest -q
 ```
+
+### Optional: local IdP (SEC-MIG Phase 1 — no app wiring)
+
+```bash
+docker compose -f implementation/infrastructure/docker-compose.yml --profile auth up -d
+```
+
+See `infrastructure/keycloak/README.md`. Does **not** change application authentication.

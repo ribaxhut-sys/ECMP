@@ -1,10 +1,10 @@
 """Authentication step of the Authorization Middleware pipeline (TASK-040).
 
-Validates the Bearer JWT and builds a :class:`Principal`. Effective
-permissions come from ``PermissionResolver`` (TASK-038) when the token
-omits an explicit ``permissions`` claim.
+Validates the Bearer credential via the process-wide
+:class:`~app.core.authorization.auth_strategy.AuthenticationStrategy`
+(TASK-PLATFORM-SECMIG-P2-001) and builds a :class:`Principal`.
 
-Login / JWT minting is unchanged — this module only consumes tokens.
+Login / JWT minting for ``ECMP_AUTH_MODE=dev`` is unchanged.
 """
 
 from __future__ import annotations
@@ -14,66 +14,31 @@ from typing import Annotated, Any
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.authorization.auth_strategy import (
+    build_authentication_strategy,
+    get_authentication_strategy,
+)
 from app.core.authorization.principal import Principal
 from app.core.config import Settings, get_settings
-from app.core.errors import ForbiddenError, UnauthenticatedError
-from app.core.security import decode_access_token
 from app.db.session import get_db_session
-from app.models import User
 from app.modules.iam.permission_resolver import PermissionResolver
 
 _bearer = HTTPBearer(auto_error=False)
-
-# Paths allowed while ``force_password_change`` is true.
-_FORCE_PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(
-    {
-        "/api/v1/auth/me",
-        "/api/v1/auth/logout",
-        "/api/v1/users/me/change-password",
-    }
-)
-
-
-def _as_string_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, list):
-        return [str(item) for item in value if item is not None]
-    return []
 
 
 def authenticate_bearer(
     credentials: HTTPAuthorizationCredentials | None,
     settings: Settings,
 ) -> tuple[uuid.UUID, tuple[str, ...], dict[str, Any]]:
-    """Validate Bearer JWT → ``(user_id, roles, payload)``.
+    """Validate Bearer → ``(user_id, roles, payload)``.
 
-    Does not resolve permissions — that is the next pipeline step.
+    Builds a strategy from the supplied ``settings`` so unit tests can
+    supply isolated config without touching the process singleton.
     """
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise UnauthenticatedError("Bearer token required")
-
-    try:
-        payload = decode_access_token(credentials.credentials, settings)
-    except ValueError as exc:
-        raise UnauthenticatedError("Invalid or expired token") from exc
-
-    subject = payload.get("sub")
-    if not subject:
-        raise UnauthenticatedError("Token missing subject")
-
-    try:
-        user_id = uuid.UUID(str(subject))
-    except ValueError as exc:
-        raise UnauthenticatedError("Token subject must be a UUID") from exc
-
-    roles = tuple(_as_string_list(payload.get("roles")))
-    return user_id, roles, payload
+    strategy = build_authentication_strategy(settings)
+    return strategy.extract_identity(credentials)
 
 
 def resolve_principal_permissions(
@@ -87,18 +52,15 @@ def resolve_principal_permissions(
     Explicit claim (tests/tooling) is honored when present.
     """
     if "permissions" in payload:
-        return frozenset(_as_string_list(payload.get("permissions")))
+        value = payload.get("permissions")
+        if value is None:
+            return frozenset()
+        if isinstance(value, str):
+            return frozenset({value})
+        if isinstance(value, list):
+            return frozenset(str(item) for item in value if item is not None)
+        return frozenset()
     return PermissionResolver(session).resolve(user_id)
-
-
-def _load_force_password_change(session: Session, user_id: uuid.UUID) -> bool:
-    value = session.scalar(
-        select(User.force_password_change).where(
-            User.id == user_id,
-            User.deleted_at.is_(None),
-        )
-    )
-    return bool(value)
 
 
 def get_current_principal(
@@ -109,22 +71,13 @@ def get_current_principal(
 ) -> Principal:
     """Authentication + Permission Resolver → :class:`Principal`.
 
-    When ``force_password_change`` is set, only password-change / me / logout
-    routes are permitted until the user changes their password.
+    Uses the startup-selected authentication strategy. ``settings`` is
+    retained for FastAPI DI compatibility with existing overrides.
     """
-    user_id, roles, payload = authenticate_bearer(credentials, settings)
-    permissions = resolve_principal_permissions(user_id, payload, session)
-    force = _load_force_password_change(session, user_id)
-    principal = Principal(
-        user_id=user_id,
-        roles=roles,
-        permissions=permissions,
-        force_password_change=force,
+    del settings  # mode selected once at startup via configure_authentication
+    strategy = get_authentication_strategy()
+    return strategy.authenticate(
+        credentials,
+        session,
+        request_path=request.url.path,
     )
-    if force and request.url.path not in _FORCE_PASSWORD_CHANGE_ALLOWED_PATHS:
-        raise ForbiddenError(
-            "Password change required before accessing the application",
-            code="PASSWORD_CHANGE_REQUIRED",
-            details={"forcePasswordChange": True},
-        )
-    return principal

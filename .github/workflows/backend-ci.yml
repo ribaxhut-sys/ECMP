@@ -78,9 +78,7 @@ jobs:
       - name: Run migrations (Alembic)
         run: alembic upgrade head
       - name: Run tests against PostgreSQL (coverage gate)
-        # Coverage burn-down: after CAPABILITY dump (~86.8%), restore fail-under=90
-        # once repository integration tests close the gap (EPIC-001 follow-up).
-        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=86
+        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=90
 
   security-audit:
     runs-on: ubuntu-latest

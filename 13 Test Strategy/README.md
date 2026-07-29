@@ -24,7 +24,9 @@ Approved baseline — `ECMP_Test_Strategy_v0.1.md` (TST-001) v0.3 berisi strateg
 
 ## Contents
 - `ECMP_Test_Strategy_v0.1.md` (TST-001) — 🟢 Approved (v0.3 — Sprint-10 RC exit criteria)
-- `ECMP_Test_Case_Catalog_v0.1.md` (TC-CAT-001) — 🟡 Draft — spesifikasi formal per TC (Implemented + Planned) selaras traceability
+- `ECMP_Test_Case_Catalog_v0.1.md` (TC-CAT-001) — 🟡 Draft — Sprint delivery TC namespace
+- `ECMP_Test_Case_Catalog_CM_Batch1_v1.0.md` (TC-CAT-CM-B1-001) — 🟡 Planned — **38 TC** for FRD-CM-001 Batch 1 (S0)
+- `ECMP_UAT_Catalog_DEC_F4_v1.0.md` (TC-CAT-CM-F4-001) — 🟡 Planned — **UAT-F4-01…11** (DEC-F4 escalation visibility / return / `result_visibility`)
 - `ECMP_UAT_Plan_v0.2.md` (UAT-001) — 🟡 Draft — rencana UAT ter-gate v0.2 (Close/Reject + UAT↔TC traceability; Sprint-09)
 - `ECMP_UAT_Plan_v0.1.md` (UAT-001) — ⚫ Superseded by v0.2
 

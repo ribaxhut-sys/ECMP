@@ -20,6 +20,7 @@ Runbook jujur untuk scope slice: environment nyata hanya **DEV lokal + CI** (DEP
 | ecmp-case-service | Backend FastAPI slice create/get (FR-001/FR-002) | `uvicorn app.main:app` dari `implementation/backend` | Backend Lead (per OWNERSHIP_MATRIX folder 07) | Tech Lead / Solution Architect |
 | Developer Portal | Portal internal RAG/coverage/impact (IMP-PORTAL-001) — bukan frontend produk (ADR-011) | `uvicorn app:app --port 8030` dari `implementation/portal` | Engineering Manager / EA | Tech Lead |
 | PostgreSQL 16 | Database DEV via `implementation/infrastructure/docker-compose.yml` (container `ecmp-postgres`) | `docker compose -f implementation/infrastructure/docker-compose.yml up -d` | DevOps Lead (per OWNERSHIP_MATRIX folder 14) | SRE / Operations |
+| Keycloak (optional) | Local IdP baseline realm `ecmp` — SEC-MIG Phase 1; **not** wired to app auth | `docker compose -f implementation/infrastructure/docker-compose.yml --profile auth up -d` (OPS-IDP-001) | DevOps Lead / Security Architect | Tech Lead |
 
 ## 2. Health Check
 

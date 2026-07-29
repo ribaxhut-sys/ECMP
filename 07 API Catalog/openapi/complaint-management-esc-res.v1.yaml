@@ -1,0 +1,394 @@
+openapi: 3.0.3
+info:
+  title: ECMP Complaint Management Escalation & Resolution API (DEC-F4)
+  version: 1.0.0-planned
+  description: |
+    Planned OpenAPI for FRD-CM-002 Draft (Escalation & Resolution under DEC-F4).
+    Namespace: Aggregate `/api/v1/cm/` — separate from foundation complaint escalate APIs
+    until DEC remapping. Status: Planned — not implemented.
+    Catalog IDs: API-520…526 (logical API-CM-F4-001…007).
+  x-ecmp-frd: FRD-CM-002
+  x-ecmp-dec: DEC-F4
+  x-ecmp-status: Planned
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: CM-Escalation
+    description: FR-CM-010 / FR-CM-011 / FR-CM-012
+  - name: CM-Resolution
+    description: FR-CM-013 / FR-CM-014
+  - name: CM-Visibility
+    description: FR-CM-015
+paths:
+  /api/v1/cm/cases/{caseId}/escalate-to-pusat:
+    post:
+      summary: Escalate Case Cabang → Pusat
+      operationId: cmF4EscalateToPusat
+      x-ear-id: API-520
+      x-ecmp-logical-id: API-CM-F4-001
+      x-ecmp-fr: FR-CM-010
+      tags: [CM-Escalation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalateToPusatRequest"
+      responses:
+        "200":
+          description: Escalated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseEscalationResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/cases/{caseId}/return-escalation:
+    post:
+      summary: Return escalation to originating branch
+      operationId: cmF4ReturnEscalation
+      x-ear-id: API-521
+      x-ecmp-logical-id: API-CM-F4-002
+      x-ecmp-fr: FR-CM-011
+      tags: [CM-Escalation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnEscalationRequest"
+      responses:
+        "200":
+          description: Returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseEscalationResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/pusat/escalated-queue:
+    get:
+      summary: Pusat handler queue (escalated Cases only)
+      operationId: cmF4PusatEscalatedQueue
+      x-ear-id: API-522
+      x-ecmp-logical-id: API-CM-F4-003
+      x-ecmp-fr: FR-CM-012
+      tags: [CM-Escalation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseListResponse"
+        "403":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/cases/{caseId}/resolve:
+    post:
+      summary: Resolve Case (Pusat path requires result_visibility)
+      operationId: cmF4ResolveCase
+      x-ear-id: API-523
+      x-ecmp-logical-id: API-CM-F4-004
+      x-ecmp-fr: FR-CM-013
+      tags: [CM-Resolution]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveCaseRequest"
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetailResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/cases/{caseId}/result-visibility:
+    patch:
+      summary: Change result_visibility after Resolve
+      operationId: cmF4ChangeResultVisibility
+      x-ear-id: API-524
+      x-ecmp-logical-id: API-CM-F4-005
+      x-ecmp-fr: FR-CM-014
+      tags: [CM-Resolution]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeResultVisibilityRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetailResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/cases/{caseId}:
+    get:
+      summary: Get Case with visibility enforcement
+      operationId: cmF4GetCase
+      x-ear-id: API-525
+      x-ecmp-logical-id: API-CM-F4-006
+      x-ecmp-fr: FR-CM-015
+      tags: [CM-Visibility]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetailResponse"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/cases:
+    get:
+      summary: List/search Cases with visibility enforcement
+      operationId: cmF4ListCases
+      x-ear-id: API-526
+      x-ecmp-logical-id: API-CM-F4-007
+      x-ecmp-fr: FR-CM-015
+      tags: [CM-Visibility]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseListResponse"
+        "403":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema:
+        type: string
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              details:
+                type: object
+                additionalProperties: true
+  schemas:
+    ResultVisibility:
+      type: string
+      enum: [ORIGIN_BRANCH, ALL_BRANCHES]
+    ReturnReasonCode:
+      type: string
+      enum:
+        - MISSING_ATTACHMENT
+        - INCOMPLETE_CHRONOLOGY
+        - UNCLEAR_CUSTOMER_DATA
+        - WRONG_CATEGORY_OR_ROUTING
+        - ADDITIONAL_EVIDENCE_REQUIRED
+        - OTHER
+    EscalateToPusatRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+        summary:
+          type: string
+        confirmPackageComplete:
+          type: boolean
+          description: Actor confirmation of No Information Lost checklist
+    ReturnEscalationRequest:
+      type: object
+      required: [returnReasonCode, returnNote]
+      properties:
+        returnReasonCode:
+          $ref: "#/components/schemas/ReturnReasonCode"
+        returnNote:
+          type: string
+          minLength: 10
+          description: Free-text note; minimum 10 characters after trim (F4-OQ-01)
+    ResolveCaseRequest:
+      type: object
+      required: [resolutionCode, summary]
+      properties:
+        resolutionCode:
+          type: string
+        summary:
+          type: string
+        detail:
+          type: string
+        resultVisibility:
+          $ref: "#/components/schemas/ResultVisibility"
+          description: Required for Pusat resolve of escalated Case; default ORIGIN_BRANCH if omitted
+    ChangeResultVisibilityRequest:
+      type: object
+      required: [resultVisibility]
+      properties:
+        resultVisibility:
+          $ref: "#/components/schemas/ResultVisibility"
+        changeNote:
+          type: string
+    CaseEscalationResponse:
+      type: object
+      properties:
+        caseId:
+          type: string
+        complaintId:
+          type: string
+        status:
+          type: string
+        owningUnit:
+          type: string
+          enum: [BRANCH, PUSAT]
+        originatingBranchId:
+          type: string
+        lastEscalationEvent:
+          type: string
+        returnReasonCode:
+          $ref: "#/components/schemas/ReturnReasonCode"
+        returnNote:
+          type: string
+    CaseDetailResponse:
+      type: object
+      properties:
+        caseId:
+          type: string
+        complaintId:
+          type: string
+        status:
+          type: string
+        owningUnit:
+          type: string
+        originatingBranchId:
+          type: string
+        resultVisibility:
+          $ref: "#/components/schemas/ResultVisibility"
+          nullable: true
+        resolutionSummary:
+          type: string
+          nullable: true
+        readOnlyForCaller:
+          type: boolean
+    CaseListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseDetailResponse"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer

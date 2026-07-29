@@ -8,7 +8,14 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_complaint_close, require_permissions
+from app.core.auth import (
+    OrgUnitResolver,
+    Principal,
+    enforce_org_scope,
+    require_complaint_close,
+    require_permissions,
+)
+from app.core.config import Settings, get_settings
 from app.core.enums import ComplaintStatus
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
@@ -101,8 +108,12 @@ def get_complaint(
     id: uuid.UUID,
     service: Annotated[ComplaintService, Depends(get_complaint_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintResponse]:
-    _ = principal
+    """SECMIG-P4 / P4-001R: org scope on approved G1 read (after permission)."""
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     return DataResponse(data=service.get(id))
 
 
@@ -117,7 +128,12 @@ def update_complaint(
     payload: ComplaintUpdateRequest,
     service: Annotated[ComplaintService, Depends(get_complaint_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintResponse]:
+    """SECMIG-P4-001R C-2: org scope after permission check."""
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     updated = service.update(
         id,
         payload,
@@ -137,8 +153,15 @@ def change_complaint_status(
     payload: ComplaintStatusChangeRequest,
     service: Annotated[ComplaintService, Depends(get_complaint_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintResponse]:
-    """Validated status transition (TASK-009). Invalid transitions → 400."""
+    """Validated status transition (TASK-009). Invalid transitions → 400.
+
+    SECMIG-P4: org scope enforced after permission check (Gate G1).
+    """
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     updated = service.change_status(
         id,
         payload,
@@ -158,11 +181,16 @@ def close_complaint(
     payload: CloseComplaintRequest,
     service: Annotated[ComplaintService, Depends(get_complaint_service)],
     principal: Annotated[Principal, Depends(require_complaint_close)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[CloseComplaintResult]:
     """Explicit Complaint Closure after Final Resolution (API-312 / TASK-019).
 
     Does not close the escalation. Final Resolution must already exist.
+    SECMIG-P4-001R C-1: org scope after permission check.
     """
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     closed = service.close(
         id,
         payload,

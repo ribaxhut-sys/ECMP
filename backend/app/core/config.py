@@ -103,13 +103,39 @@ class Settings(BaseSettings):
     postgres_db: str = "ecmp"
     database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
 
-    # JWT / session
+    # JWT / session (dev-mode HS256 issuance; TASK-PLATFORM-SECMIG-P2-001)
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
     refresh_cookie_name: str = "ecmp_refresh_token"
     refresh_cookie_path: str = "/api/v1/auth"
+
+    # Dual-mode AuthN (SEC-MIG Phase 2) — default preserves lab HS256 login
+    ecmp_auth_mode: Literal["dev", "jwt"] = Field(default="dev", alias="ECMP_AUTH_MODE")
+    ecmp_env: str = Field(default="local", alias="ECMP_ENV")
+    oidc_issuer: str | None = Field(default=None, alias="OIDC_ISSUER")
+    oidc_audience: str | None = Field(default=None, alias="OIDC_AUDIENCE")
+    oidc_jwks_url: str | None = Field(default=None, alias="OIDC_JWKS_URL")
+    oidc_jwks_cache_ttl_seconds: int = Field(
+        default=600,
+        alias="OIDC_JWKS_CACHE_TTL_SECONDS",
+        ge=1,
+        le=86400,
+    )
+    # SECMIG-P4: comma-separated internal role codes allowed to skip org claim
+    # (service accounts). Empty = default deny when orgUnitId is missing in jwt mode.
+    # Bypass also requires subject UUID in ECMP_ORG_SCOPE_SERVICE_SUBJECTS (M-2).
+    ecmp_org_scope_service_allowlist: str = Field(
+        default="",
+        alias="ECMP_ORG_SCOPE_SERVICE_ALLOWLIST",
+    )
+    # SECMIG-P4-001R: comma-separated service subject UUIDs (machine identity).
+    # Role allowlist alone is insufficient — subject must match before bypass.
+    ecmp_org_scope_service_subjects: str = Field(
+        default="",
+        alias="ECMP_ORG_SCOPE_SERVICE_SUBJECTS",
+    )
 
     # Optional: validated outside development when present (compose / tools profile).
     pgadmin_default_password: str | None = None
@@ -132,6 +158,18 @@ class Settings(BaseSettings):
         alias="PASSWORD_RESET_FRONTEND_BASE_URL",
     )
     email_provider: str = Field(default="logging", alias="EMAIL_PROVIDER")
+
+    # Master Customer integration (ADR-002 read-only; CM Batch 1)
+    # stub = in-memory seed (default / current behavior)
+    # enterprise = Enterprise Platform skeleton (returns UNAVAILABLE until HTTP wired)
+    customer_provider: Literal["stub", "enterprise"] = Field(
+        default="stub",
+        alias="CUSTOMER_PROVIDER",
+    )
+    customer_provider_enterprise_base_url: str | None = Field(
+        default=None,
+        alias="CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL",
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -249,6 +287,58 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
                 suggested_fix="Use EMAIL_PROVIDER=logging (development only) or EMAIL_PROVIDER=noop until SMTP is wired (R6-04+).",
             )
         )
+
+    auth_mode = (settings.ecmp_auth_mode or "").strip().lower()
+    if auth_mode not in {"dev", "jwt"}:
+        issues.append(
+            ConfigIssue(
+                variable="ECMP_AUTH_MODE",
+                problem=f"Unsupported mode '{settings.ecmp_auth_mode}'.",
+                suggested_fix="Set ECMP_AUTH_MODE=dev (default) or ECMP_AUTH_MODE=jwt.",
+            )
+        )
+
+    ecmp_env = (settings.ecmp_env or "").strip().lower()
+    if auth_mode == "dev" and ecmp_env == "shared":
+        issues.append(
+            ConfigIssue(
+                variable="ECMP_AUTH_MODE",
+                problem="dev mode is forbidden when ECMP_ENV=shared.",
+                suggested_fix=(
+                    "Set ECMP_AUTH_MODE=jwt for shared environments, "
+                    "or use ECMP_ENV=local/ci for lab."
+                ),
+            )
+        )
+
+    if auth_mode == "jwt":
+        if not (settings.oidc_issuer or "").strip():
+            issues.append(
+                ConfigIssue(
+                    variable="OIDC_ISSUER",
+                    problem="Issuer is required when ECMP_AUTH_MODE=jwt.",
+                    suggested_fix=(
+                        "Set OIDC_ISSUER to the IdP realm issuer URL "
+                        "(e.g. http://localhost:8180/realms/ecmp)."
+                    ),
+                )
+            )
+        if not (settings.oidc_audience or "").strip():
+            issues.append(
+                ConfigIssue(
+                    variable="OIDC_AUDIENCE",
+                    problem="Audience is required when ECMP_AUTH_MODE=jwt.",
+                    suggested_fix="Set OIDC_AUDIENCE=ecmp-api (Phase 1 resource client).",
+                )
+            )
+        if not (settings.oidc_jwks_url or "").strip():
+            issues.append(
+                ConfigIssue(
+                    variable="OIDC_JWKS_URL",
+                    problem="JWKS URL is required when ECMP_AUTH_MODE=jwt.",
+                    suggested_fix="Set OIDC_JWKS_URL to the IdP JWKS endpoint.",
+                )
+            )
 
     if settings.database_url_override:
         db_url = settings.database_url_override.strip()

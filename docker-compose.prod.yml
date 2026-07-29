@@ -116,6 +116,10 @@ services:
       PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-15}
       PASSWORD_RESET_FRONTEND_BASE_URL: ${PASSWORD_RESET_FRONTEND_BASE_URL:?Set PASSWORD_RESET_FRONTEND_BASE_URL}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-noop}
+      # CM Batch 1 Master Customer — TASK-OPS-03 / EX-A: default stub (synthetic).
+      # enterprise returns UNAVAILABLE until HTTP adapter is approved — do not enable for real customers.
+      CUSTOMER_PROVIDER: ${CUSTOMER_PROVIDER:-stub}
+      CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL: ${CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL:-}
       # Trust X-Forwarded-* from the Compose reverse proxy only (backend not published).
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
     # No host ports — reachable only via caddy on the internal network.

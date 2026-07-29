@@ -35,8 +35,9 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-006 | GET /v1/cases/{caseId}/timeline | Timeline + Audit History (projection over `audit_log`) | bearerAuth, permission `cases:read` | 🟢 Implemented (Sprint-06) |
 | API-007 | GET /v1/cases/{caseId}/notes | List append-only internal notes | bearerAuth, permission `cases:read` | 🟢 Implemented (Sprint-06) |
 | API-008 | POST /v1/cases/{caseId}/notes | Create append-only internal note | bearerAuth, permission `cases:notes:create` | 🟢 Implemented (Sprint-06) |
-| — | GET /health | Liveness check (di luar prefix /v1) | None | 🟢 Implemented |
-| — | GET /health/ready | Readiness check — DB `SELECT 1` (Sprint-08) | None | 🟢 Implemented |
+| — | GET /live | Liveness check — process up, no DB (B2) | None | 🟢 Implemented |
+| — | GET /ready | Readiness check — startup + DB `SELECT 1`; 503 when not ready (B2) | None | 🟢 Implemented |
+| — | GET /health | Legacy informational health (prefer /live + /ready) | None | 🟢 Implemented (deprecated) |
 | — | GET /version | Release provenance (git_commit, branch, build_time) — R6-01 | None | 🟢 Implemented |
 
 ### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
@@ -176,6 +177,47 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-410 | POST /api/v1/complaints/{complaintId}/sla/complete | Complete active ComplaintSLA | None (Request Context ready) | 🟢 Implemented |
 | API-411 | POST /api/v1/complaints/{complaintId}/sla/recalculate | Manual breach detection + remaining time | None (Request Context ready) | 🟢 Implemented |
 | API-412 | GET /api/v1/complaints/{complaintId}/sla | Get active (or latest) ComplaintSLA | None (Request Context ready) | 🟢 Implemented |
+
+### complaint-management-batch1 v1 — [`openapi/complaint-management-batch1.v1.yaml`](./openapi/complaint-management-batch1.v1.yaml) **1.0.0-planned** — FRD-CM-001 Batch 1 (FR-001…FR-004)
+
+> Aggregate SoT namespace (`/api/v1/cm/...`). **No Case create.** Distinct from Sprint case-service and foundation complaint-domain IDs.
+> Collision `API-390`/`API-392` (dashboard vs domain) is **not** reused here — Batch 1 uses **API-500…512**.
+
+| API ID | Logical ID | Method & Endpoint | FR | Status |
+|---|---|---|---|---|
+| API-500 | API-CM-B1-001 | POST /api/v1/cm/complaints | FR-001 | 🟢 Implemented (S1 in-memory Aggregate; persistence migration follow-on) |
+| API-501 | API-CM-B1-002 | GET /api/v1/cm/complaints/{complaintId} | FR-001 | 🟢 Implemented (S1 in-memory) |
+| API-502 | API-CM-B1-003 | POST /api/v1/cm/customers/search | FR-002 | 🟢 Implemented (S1 Master Customer stub + enumeration) |
+| API-503 | API-CM-B1-004 | POST /api/v1/cm/customers/confirm | FR-002 | 🟢 Implemented (S1) |
+| API-504 | API-CM-B1-005 | GET /api/v1/cm/customers/{customerId}/batch1-360 | FR-002 | 🟢 Implemented (S1) |
+| API-505 | API-CM-B1-006 | POST /api/v1/cm/duplicates/check | FR-003 | 🟡 Planned |
+| API-506 | API-CM-B1-007 | POST /api/v1/cm/duplicates/decisions | FR-003 | 🟡 Planned |
+| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟡 Planned (semantics) |
+| API-508 | API-CM-B1-009 | POST /api/v1/cm/attachments/transfer | FR-004 | 🟡 Planned |
+| API-509 | API-CM-B1-010 | GET /api/v1/complaints/{id}/attachments (align API-387) | FR-004 | 🟡 Planned (semantics) |
+| API-510 | API-CM-B1-011 | GET /api/v1/attachments/{id} (align API-324) | FR-004 | 🟡 Planned (semantics) |
+| API-511 | API-CM-B1-012 | GET /api/v1/attachments/{id}/download (align API-325) | FR-004 | 🟡 Planned (semantics) |
+| API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟡 Planned (semantics) |
+
+### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
+
+> Aggregate `/api/v1/cm/` escalation & resolution. Separate from foundation API-207/301 until DEC remapping. Catalog IDs **API-520…526**.
+
+| API ID | Logical ID | Method & Endpoint | FR | Status |
+|---|---|---|---|---|
+| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟡 Planned |
+| API-521 | API-CM-F4-002 | POST /api/v1/cm/cases/{caseId}/return-escalation | FR-CM-011 | 🟡 Planned |
+| API-522 | API-CM-F4-003 | GET /api/v1/cm/pusat/escalated-queue | FR-CM-012 | 🟡 Planned |
+| API-523 | API-CM-F4-004 | POST /api/v1/cm/cases/{caseId}/resolve | FR-CM-013 | 🟡 Planned |
+| API-524 | API-CM-F4-005 | PATCH /api/v1/cm/cases/{caseId}/result-visibility | FR-CM-014 | 🟡 Planned |
+| API-525 | API-CM-F4-006 | GET /api/v1/cm/cases/{caseId} | FR-CM-015 | 🟡 Planned |
+| API-526 | API-CM-F4-007 | GET /api/v1/cm/cases | FR-CM-015 | 🟡 Planned |
+
+> **2026-07-29 (S1 / FRD-CM-001):** FR-002 + FR-001 slice implemented under `backend/app/modules/cm_batch1/`
+> (Master Customer stub, enumeration guard, in-memory Aggregate create/idempotency). Tests: `tests/test_cm_batch1.py`.
+> Persistence migration + FR-003/FR-004 remain S2.
+
+> **2026-07-29 (S0 / FRD-CM-001):** Planned Batch 1 Aggregate contracts published. RTM-CM-B1-001 LOCKED. Events `EVT-CM-*` Planned in Event Catalog. TC-CM-* authored (38). Implementation starts S1 (FR-002 → FR-001).
 
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (includes SLA `sla.*.completed` / `sla.*.breached` SYSTEM events) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |

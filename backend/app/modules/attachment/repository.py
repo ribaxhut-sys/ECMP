@@ -137,6 +137,18 @@ class AttachmentRepository:
         self._session.flush()
         return _to_entity(row)
 
+    def find_by_checksum(
+        self, checksum_sha256: str, *, include_deleted: bool = False
+    ) -> Attachment | None:
+        stmt = select(AttachmentORM).where(
+            AttachmentORM.checksum_sha256 == checksum_sha256
+        )
+        if not include_deleted:
+            stmt = stmt.where(AttachmentORM.status != AttachmentStatus.DELETED.value)
+        stmt = stmt.order_by(AttachmentORM.uploaded_at.asc()).limit(1)
+        row = self._session.scalar(stmt)
+        return _to_entity(row) if row is not None else None
+
     def commit(self) -> None:
         self._session.commit()
 

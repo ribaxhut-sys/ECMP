@@ -166,6 +166,9 @@ class AttachmentService:
         content_type: str | None,
         data: bytes,
         uploaded_by: uuid.UUID | None,
+        allowed_mime_types: set[str] | None = None,
+        max_bytes: int | None = None,
+        commit: bool = True,
     ) -> AttachmentResponse:
         try:
             AggregateType(aggregate_type)
@@ -188,15 +191,21 @@ class AttachmentService:
                 details={"sizeBytes": 0},
             )
 
-        max_mb = self._settings.get_int(
-            SETTING_MAX_UPLOAD_MB, default=_DEFAULT_MAX_UPLOAD_MB
-        )
-        if max_mb < 1:
-            raise ValidationAppError(
-                "storage.max.upload.mb must be >= 1",
-                details={"key": SETTING_MAX_UPLOAD_MB, "value": max_mb},
+        if max_bytes is None:
+            max_mb = self._settings.get_int(
+                SETTING_MAX_UPLOAD_MB, default=_DEFAULT_MAX_UPLOAD_MB
             )
-        max_bytes = max_mb * 1024 * 1024
+            if max_mb < 1:
+                raise ValidationAppError(
+                    "storage.max.upload.mb must be >= 1",
+                    details={"key": SETTING_MAX_UPLOAD_MB, "value": max_mb},
+                )
+            max_bytes = max_mb * 1024 * 1024
+        elif max_bytes < 1:
+            raise ValidationAppError(
+                "max_bytes must be >= 1",
+                details={"maxBytes": max_bytes},
+            )
         size_bytes = len(data)
         if size_bytes > max_bytes:
             raise ValidationAppError(
@@ -204,11 +213,10 @@ class AttachmentService:
                 details={
                     "sizeBytes": size_bytes,
                     "maxBytes": max_bytes,
-                    "maxUploadMb": max_mb,
                 },
             )
 
-        allowed = self._allowed_mime_types()
+        allowed = allowed_mime_types or self._allowed_mime_types()
         if mime_type not in allowed:
             raise ValidationAppError(
                 "mime type is not allowed",
@@ -257,7 +265,10 @@ class AttachmentService:
         )
         try:
             self._repo.add(entity)
-            self._repo.commit()
+            if commit:
+                self._repo.commit()
+            else:
+                self._repo.flush()
         except Exception:
             try:
                 self._storage.delete(storage_path)
@@ -267,6 +278,43 @@ class AttachmentService:
             raise
 
         return _to_response(entity)
+
+    def rebind(
+        self,
+        attachment_id: uuid.UUID,
+        *,
+        aggregate_type: str,
+        aggregate_id: uuid.UUID,
+        commit: bool = True,
+    ) -> AttachmentResponse:
+        """Move metadata bind to a new aggregate (Batch 1 staging → Complaint)."""
+        try:
+            AggregateType(aggregate_type)
+        except ValueError as exc:
+            raise ValidationAppError(
+                f"unsupported aggregate type: {aggregate_type}",
+                details={
+                    "aggregateType": aggregate_type,
+                    "allowed": [a.value for a in AggregateType],
+                },
+            ) from exc
+        entity = self._require(attachment_id, include_deleted=False)
+        entity.aggregate_type = aggregate_type
+        entity.aggregate_id = aggregate_id
+        self._repo.save(entity)
+        if commit:
+            self._repo.commit()
+        else:
+            self._repo.flush()
+        return _to_response(entity)
+
+    def find_by_checksum(
+        self, checksum_sha256: str, *, include_deleted: bool = False
+    ) -> AttachmentResponse | None:
+        entity = self._repo.find_by_checksum(
+            checksum_sha256.strip().lower(), include_deleted=include_deleted
+        )
+        return _to_response(entity) if entity is not None else None
 
     def get(self, attachment_id: uuid.UUID) -> AttachmentResponse:
         return _to_response(self._require(attachment_id))
@@ -320,15 +368,22 @@ class AttachmentService:
         data = self._storage.read(entity.storage_path)
         return entity, data
 
-    def soft_delete(self, attachment_id: uuid.UUID) -> None:
+    def soft_delete(
+        self, attachment_id: uuid.UUID, *, commit: bool = True
+    ) -> None:
         """Logical delete (status=DELETED). Physical blob retained."""
         entity = self._require(attachment_id)
         entity.mark_deleted()
         self._repo.save(entity)
-        self._repo.commit()
+        if commit:
+            self._repo.commit()
+        else:
+            self._repo.flush()
 
-    def _require(self, attachment_id: uuid.UUID) -> Attachment:
-        entity = self._repo.get(attachment_id)
+    def _require(
+        self, attachment_id: uuid.UUID, *, include_deleted: bool = False
+    ) -> Attachment:
+        entity = self._repo.get(attachment_id, include_deleted=include_deleted)
         if entity is None:
             raise NotFoundError("Attachment not found")
         return entity
