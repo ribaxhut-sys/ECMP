@@ -12,7 +12,7 @@
 
 Foundation shared/prod cutover order: **REL-SEC-001 → DEP-CHK-V1 → START-CHK-001**.
 
-- Gate: [`../../16 Release Management/ECMP_Release_Security_Gate_v1.0.md`](../../16%20Release%20Management/ECMP_Release_Security_Gate_v1.0.md)
+- Gate: `16 Release Management/ECMP_Release_Security_Gate_v1.0.md`
 - Deploy checklist: [`../deployment-checklist.md`](../deployment-checklist.md)
 - Hub: [`./README.md`](./README.md)
 
@@ -74,14 +74,14 @@ Foundation shared/prod cutover order: **REL-SEC-001 → DEP-CHK-V1 → START-CHK
 
 ## Security operations companions (P6-002)
 
-- [Security Operations Runbook](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md) — auth / lockout / secret / config / deploy
-- [Secret Operations Guide](../../15%20Operations%20Runbook/ECMP_Secret_Operations_Guide_v1.0.md) — rotate / emergency replace
-- [Audit Investigation Guide](../../15%20Operations%20Runbook/ECMP_Audit_Investigation_Guide_v1.0.md) — `security.*` + requestId
+- Security Operations Runbook (`15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`) — auth / lockout / secret / config / deploy
+- Secret Operations Guide (`15 Operations Runbook/ECMP_Secret_Operations_Guide_v1.0.md`) — rotate / emergency replace
+- Audit Investigation Guide (`15 Operations Runbook/ECMP_Audit_Investigation_Guide_v1.0.md`) — `security.*` + requestId
 - [Operational Security](./OPERATIONAL_SECURITY.md) — P5-005 defaults / audit flood policy
 
 ## Backup & recovery companions (P6-003)
 
-- [Backup Operations Guide](../../15%20Operations%20Runbook/ECMP_Backup_Operations_Guide_v1.0.md) — manual dump / config / secret policy
-- [Restore Verification Procedure](../../15%20Operations%20Runbook/ECMP_Restore_Verification_Procedure_v0.1.md) — restore + rollback
-- [DR/BCP Plan](../../15%20Operations%20Runbook/ECMP_DR_BCP_Plan_v0.1.md) — recovery priorities
-- [Recovery Validation Checklist](../../15%20Operations%20Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md) — `/live` `/ready`, RPO/RTO evidence
+- Backup Operations Guide (`15 Operations Runbook/ECMP_Backup_Operations_Guide_v1.0.md`) — manual dump / config / secret policy
+- Restore Verification Procedure (`15 Operations Runbook/ECMP_Restore_Verification_Procedure_v0.1.md`) — restore + rollback
+- DR/BCP Plan (`15 Operations Runbook/ECMP_DR_BCP_Plan_v0.1.md`) — recovery priorities
+- Recovery Validation Checklist (`15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md`) — `/live` `/ready`, RPO/RTO evidence

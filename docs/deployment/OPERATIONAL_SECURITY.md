@@ -17,9 +17,9 @@ behavior.
 
 | Doc | ID | Use |
 |---|---|---|
-| [Security Operations Runbook](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md) | OPS-SEC-RB-001 | Auth / lockout / secret / config / deploy incidents |
-| [Secret Operations Guide](../../15%20Operations%20Runbook/ECMP_Secret_Operations_Guide_v1.0.md) | OPS-SEC-SEC-001 | Rotate / emergency replace / rollback |
-| [Audit Investigation Guide](../../15%20Operations%20Runbook/ECMP_Audit_Investigation_Guide_v1.0.md) | OPS-SEC-AUD-001 | Investigate `security.*` rows |
+| Security Operations Runbook (`15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`) | OPS-SEC-RB-001 | Auth / lockout / secret / config / deploy incidents |
+| Secret Operations Guide (`15 Operations Runbook/ECMP_Secret_Operations_Guide_v1.0.md`) | OPS-SEC-SEC-001 | Rotate / emergency replace / rollback |
+| Audit Investigation Guide (`15 Operations Runbook/ECMP_Audit_Investigation_Guide_v1.0.md`) | OPS-SEC-AUD-001 | Investigate `security.*` rows |
 
 ## Audit flood policy
 

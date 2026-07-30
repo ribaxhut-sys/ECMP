@@ -9,10 +9,10 @@
 ## Principles
 
 1. Prefer **forward fixes** over schema downgrade.
-2. Always take a Postgres dump before applying new Alembic revisions (policy: [`../../15 Operations Runbook/ECMP_Backup_Operations_Guide_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Backup_Operations_Guide_v1.0.md)).
+2. Always take a Postgres dump before applying new Alembic revisions (policy: `15 Operations Runbook/ECMP_Backup_Operations_Guide_v1.0.md`).
 3. Pin `IMAGE_TAG` / git tag; do not upgrade production on floating `latest`.
 4. Re-run config validation after any `.env` change.
-5. After restore/rollback drills, complete [`../../15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md) (`/live`, `/ready`).
+5. After restore/rollback drills, complete `15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md` (`/live`, `/ready`).
 
 ## Upgrade steps
 
@@ -74,4 +74,4 @@ curl.exe -fsS https://$env:ECMP_DOMAIN/live
 curl.exe -fsS https://$env:ECMP_DOMAIN/ready
 ```
 
-Confirm startup log `auth_mode` matches the rolled-back release expectations; re-run smoke from [`PRODUCTION_DEPLOYMENT_GUIDE.md`](./PRODUCTION_DEPLOYMENT_GUIDE.md) § Post-deploy smoke. Security/config incidents: [`../../15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md).
+Confirm startup log `auth_mode` matches the rolled-back release expectations; re-run smoke from [`PRODUCTION_DEPLOYMENT_GUIDE.md`](./PRODUCTION_DEPLOYMENT_GUIDE.md) § Post-deploy smoke. Security/config incidents: `15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`.

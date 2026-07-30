@@ -148,7 +148,7 @@ See [`STARTUP_CHECKLIST.md`](./STARTUP_CHECKLIST.md) and [`TLS_REVERSE_PROXY.md`
 | 7 | Frontend | Loads via `NEXT_PUBLIC_API_BASE_URL` |
 | 8 | `/docs` | 404 in production |
 
-On failure: [`STARTUP_CHECKLIST.md`](./STARTUP_CHECKLIST.md) triage, security playbooks [`../../15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md), or rollback below.
+On failure: [`STARTUP_CHECKLIST.md`](./STARTUP_CHECKLIST.md) triage, security playbooks `15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`, or rollback below.
 
 ## Rollback verification
 
@@ -162,9 +162,9 @@ After executing [`../releases/ROLLBACK_v1.0.0.md`](../releases/ROLLBACK_v1.0.0.m
 | 4 | Auth smoke | Login works; log `auth_mode` expected for that release |
 | 5 | No secret leakage | Logs scrubbed; no plaintext secrets in tickets |
 
-Secret-only rollback (wrong rotate): [`Secret Operations Guide`](../../15%20Operations%20Runbook/ECMP_Secret_Operations_Guide_v1.0.md).
+Secret-only rollback (wrong rotate): `Secret Operations Guide` (`15 Operations Runbook/ECMP_Secret_Operations_Guide_v1.0.md`).
 
-Backup & recovery (P6-003): [`Backup Operations Guide`](../../15%20Operations%20Runbook/ECMP_Backup_Operations_Guide_v1.0.md), [`Restore Verification`](../../15%20Operations%20Runbook/ECMP_Restore_Verification_Procedure_v0.1.md), [`DR/BCP`](../../15%20Operations%20Runbook/ECMP_DR_BCP_Plan_v0.1.md), [`Recovery Validation Checklist`](../../15%20Operations%20Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md).
+Backup & recovery (P6-003): `Backup Operations Guide` (`15 Operations Runbook/ECMP_Backup_Operations_Guide_v1.0.md`), `Restore Verification` (`15 Operations Runbook/ECMP_Restore_Verification_Procedure_v0.1.md`), `DR/BCP` (`15 Operations Runbook/ECMP_DR_BCP_Plan_v0.1.md`), `Recovery Validation Checklist` (`15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md`).
 
 ## Related procedures
 
@@ -176,5 +176,5 @@ Backup & recovery (P6-003): [`Backup Operations Guide`](../../15%20Operations%20
 - [`ENVIRONMENT_VARIABLE_REFERENCE.md`](./ENVIRONMENT_VARIABLE_REFERENCE.md) (ENV-REF-001 / P6-001)
 - [`../releases/ROLLBACK_v1.0.0.md`](../releases/ROLLBACK_v1.0.0.md)
 - [`../deployment-checklist.md`](../deployment-checklist.md) (DEP-CHK-V1)
-- [`../../16 Release Management/ECMP_Release_Security_Gate_v1.0.md`](../../16%20Release%20Management/ECMP_Release_Security_Gate_v1.0.md) (REL-SEC-001)
-- [Security Operations Runbook](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md)
+- `16 Release Management/ECMP_Release_Security_Gate_v1.0.md` (REL-SEC-001)
+- Security Operations Runbook (`15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`)

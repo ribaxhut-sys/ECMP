@@ -28,7 +28,7 @@
 | Review completed | 2026-07-30 (TASK-PLATFORM-SECMIG-P6-006) |
 | Record issued | 2026-07-30 (this document — TASK-PLATFORM-SECMIG-P7-002) |
 | Related certification | [`SEC_MIG_FINAL_CERTIFICATION_v1.0.md`](./SEC_MIG_FINAL_CERTIFICATION_v1.0.md) (SEC-MIG-CERT-001 / P7-001) |
-| Controlling cutover gate | [`../../16 Release Management/ECMP_Release_Security_Gate_v1.0.md`](../../16%20Release%20Management/ECMP_Release_Security_Gate_v1.0.md) (**REL-SEC-001**) |
+| Controlling cutover gate | `16 Release Management/ECMP_Release_Security_Gate_v1.0.md` (**REL-SEC-001**) |
 | Approval matrix | REL-APR-001 |
 | Evidence template | REL-EVID-001 |
 

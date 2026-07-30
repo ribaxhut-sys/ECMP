@@ -10,8 +10,8 @@
 | Stack | Foundation: root `backend/`, `frontend/`, repo-root Compose |
 
 **Canonical hub** for foundation secure configuration and deploy procedures.
-Governance standards live in [`../../14 Deployment Standards/`](../../14%20Deployment%20Standards/).
-Release Go/No-Go starts in [`../../16 Release Management/`](../../16%20Release%20Management/).
+Governance standards live in `14 Deployment Standards`.
+Release Go/No-Go starts in `16 Release Management`.
 
 ## Operator navigation (official)
 
@@ -26,13 +26,13 @@ Release (REL-SEC-001)
 
 | Step | Document | ID |
 |---|---|---|
-| 1. Release security gate | [`../../16 Release Management/ECMP_Release_Security_Gate_v1.0.md`](../../16%20Release%20Management/ECMP_Release_Security_Gate_v1.0.md) | REL-SEC-001 |
+| 1. Release security gate | `16 Release Management/ECMP_Release_Security_Gate_v1.0.md` | REL-SEC-001 |
 | 2. Production deploy checklist | [`../deployment-checklist.md`](../deployment-checklist.md) | DEP-CHK-V1 |
 | 3. Startup / smoke | [`./STARTUP_CHECKLIST.md`](./STARTUP_CHECKLIST.md) | START-CHK-001 |
-| 4. Security operations | [`../../15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md) | OPS-SEC-RB-001 |
-| 5. Backup | [`../../15 Operations Runbook/ECMP_Backup_Operations_Guide_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Backup_Operations_Guide_v1.0.md) | OPS-BAK-001 |
-| 6. Restore | [`../../15 Operations Runbook/ECMP_Restore_Verification_Procedure_v0.1.md`](../../15%20Operations%20Runbook/ECMP_Restore_Verification_Procedure_v0.1.md) | OPS-RST-001 |
-| 7. Recovery validation | [`../../15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md) | OPS-RCV-001 |
+| 4. Security operations | `15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md` | OPS-SEC-RB-001 |
+| 5. Backup | `15 Operations Runbook/ECMP_Backup_Operations_Guide_v1.0.md` | OPS-BAK-001 |
+| 6. Restore | `15 Operations Runbook/ECMP_Restore_Verification_Procedure_v0.1.md` | OPS-RST-001 |
+| 7. Recovery validation | `15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md` | OPS-RCV-001 |
 | 8. Rollback | [`../releases/ROLLBACK_v1.0.0.md`](../releases/ROLLBACK_v1.0.0.md) | RBK-V1-001 |
 
 ## Documentation precedence (foundation cutover)
@@ -44,7 +44,7 @@ For **shared staging / UAT / production** cutovers on the foundation stack:
 3. **START-CHK-001** — pre/post start validation (`STARTUP_CHECKLIST.md`)
 
 **Do not** use the Sprint-08 legacy checklist
-[`../../14 Deployment Standards/ECMP_Production_Deployment_Checklist_v0.1.md`](../../14%20Deployment%20Standards/ECMP_Production_Deployment_Checklist_v0.1.md)
+`14 Deployment Standards/ECMP_Production_Deployment_Checklist_v0.1.md`
 (**DEP-CHK-001**, Historical) for foundation production cutover.
 
 Internal DEV RC only: REL-RC-001 (does not authorize shared/prod).
@@ -63,7 +63,7 @@ Internal DEV RC only: REL-RC-001 (does not authorize shared/prod).
 
 ## Related indexes
 
-- [`../../14 Deployment Standards/README.md`](../../14%20Deployment%20Standards/README.md) — DEP-001 standards
-- [`../../15 Operations Runbook/README.md`](../../15%20Operations%20Runbook/README.md) — ops / security / backup
-- [`../../16 Release Management/README.md`](../../16%20Release%20Management/README.md) — release entry
+- `14 Deployment Standards/README.md` — DEP-001 standards
+- `15 Operations Runbook/README.md` — ops / security / backup
+- `16 Release Management/README.md` — release entry
 - [`../releases/`](../releases/) — version notes + rollback package

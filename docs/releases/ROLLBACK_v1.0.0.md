@@ -104,7 +104,7 @@ Probes via `https://$ECMP_DOMAIN` (host `:8000` not published on prod compose).
 | Smoke: create complaint | Succeeds for authorized role |
 | Logs | No auth/token leakage |
 
-Full smoke table: [`../deployment/PRODUCTION_DEPLOYMENT_GUIDE.md`](../deployment/PRODUCTION_DEPLOYMENT_GUIDE.md). Secret rollback only: [`../../15 Operations Runbook/ECMP_Secret_Operations_Guide_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Secret_Operations_Guide_v1.0.md). DB/config restore procedure: [`../../15 Operations Runbook/ECMP_Restore_Verification_Procedure_v0.1.md`](../../15%20Operations%20Runbook/ECMP_Restore_Verification_Procedure_v0.1.md). Drill evidence checklist: [`../../15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md).
+Full smoke table: [`../deployment/PRODUCTION_DEPLOYMENT_GUIDE.md`](../deployment/PRODUCTION_DEPLOYMENT_GUIDE.md). Secret rollback only: `15 Operations Runbook/ECMP_Secret_Operations_Guide_v1.0.md`. DB/config restore procedure: `15 Operations Runbook/ECMP_Restore_Verification_Procedure_v0.1.md`. Drill evidence checklist: `15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md`.
 
 ## Communication
 
