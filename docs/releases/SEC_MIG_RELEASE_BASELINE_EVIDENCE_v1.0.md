@@ -1,4 +1,4 @@
-# ECMP SEC-MIG Release Baseline Evidence v1.0
+﻿# ECMP SEC-MIG Release Baseline Evidence v1.0
 
 | Field | Value |
 |---|---|
@@ -21,7 +21,7 @@ Cutover remains **NO-GO** until shared recovery and full REL-SEC scorecard PASS 
 |---|---|
 | Product / line | ECMP foundation — SEC-MIG program package |
 | Version / tag | `secmig-p6-baseline` |
-| Git commit SHA | `PLACEHOLDER_BASELINE_SHA` |
+| Git commit SHA | `60540f93f6d1e82f38975c761219eeab48d6ce91` |
 | Target environment | **N/A (baseline freeze)** — not a shared/prod cutover |
 | Compose file | `docker-compose.prod.yml` / `docker-compose.prod.nginx.yml` (documented) |
 | Change ticket / release id | TASK-PLATFORM-SECMIG-P7-003A |
@@ -54,3 +54,4 @@ Cutover remains **NO-GO** until shared recovery and full REL-SEC scorecard PASS 
 - `docs/releases/PRODUCTION_READINESS_REVIEW_v1.0.md` (SEC-MIG-PRR-001)
 - `16 Release Management/ECMP_Release_Security_Gate_v1.0.md` (REL-SEC-001)
 - `16 Release Management/ECMP_Git_Tag_Convention_v0.1.md` (REL-TAG-001) — product SemVer tags remain separate; this tag follows the SEC-MIG milestone pattern (`secmig-phase-5`)
+

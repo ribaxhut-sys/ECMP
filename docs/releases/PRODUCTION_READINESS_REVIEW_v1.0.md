@@ -1,4 +1,4 @@
-# ECMP Production Readiness Review v1.0
+﻿# ECMP Production Readiness Review v1.0
 
 | Field | Value |
 |---|---|
@@ -13,7 +13,7 @@
 | Status | 🟢 Issued |
 | Scope | **Documentation / audit record only** — preserves approved P6-006 findings; **no** new implementation; **no** change to approved findings |
 | Stack | Foundation: root `backend/`, `frontend/`, repo-root Compose |
-| Baseline commit SHA | `PLACEHOLDER_BASELINE_SHA` |
+| Baseline commit SHA | `60540f93f6d1e82f38975c761219eeab48d6ce91` |
 | Baseline tag | `secmig-p6-baseline` |
 
 ---
@@ -259,3 +259,4 @@ Wet-ink / ticket sign-off for **this audit record**. Cutover Go/No-Go for a spec
 - `16 Release Management/ECMP_Release_Approval_Matrix_v1.0.md` (REL-APR-001)
 - `docs/deployment/ENVIRONMENT_VARIABLE_REFERENCE.md` (ENV-REF-001)
 - `docs/releases/ROLLBACK_v1.0.0.md`
+

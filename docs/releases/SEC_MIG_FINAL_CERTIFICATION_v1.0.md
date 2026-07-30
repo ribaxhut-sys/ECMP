@@ -1,4 +1,4 @@
-# ECMP SEC-MIG Final Certification v1.0
+﻿# ECMP SEC-MIG Final Certification v1.0
 
 | Field | Value |
 |---|---|
@@ -12,7 +12,7 @@
 | Status | 🟢 Issued |
 | Scope | Documentation certification only — **no** new implementation in this task |
 | Stack | Foundation: root `backend/`, `frontend/`, repo-root Compose |
-| Baseline commit SHA | `PLACEHOLDER_BASELINE_SHA` |
+| Baseline commit SHA | `60540f93f6d1e82f38975c761219eeab48d6ce91` |
 | Baseline tag | `secmig-p6-baseline` |
 
 ---
@@ -298,3 +298,4 @@ Wet-ink / ticket sign-off for **this certification document**. Cutover Go/No-Go 
 - `docs/deployment/ENVIRONMENT_VARIABLE_REFERENCE.md` (ENV-REF-001)
 - `docs/deployment/SECURITY_TEST_SUITE.md` (SEC-TEST-001)
 - `docs/releases/ROLLBACK_v1.0.0.md`
+
