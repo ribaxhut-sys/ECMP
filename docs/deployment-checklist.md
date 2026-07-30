@@ -3,17 +3,36 @@
 | Field | Value |
 |---|---|
 | ID | DEP-CHK-V1 |
-| Version | 1.0.0 |
+| Version | 1.1.0 |
 | Applies to | Foundation stack (`backend/`, `frontend/`, Compose) |
-| Last Update | 2026-07-23 |
-| Task | PHASE-13 / TASK-016 |
+| Last Update | 2026-07-30 |
+| Status | 🟢 Active (canonical production deploy checklist) |
+| Task | PHASE-13 / TASK-016; SECMIG-P6-005 precedence |
+
+## Documentation precedence
+
+For **shared staging / UAT / production** foundation cutover, execute in order:
+
+1. **[REL-SEC-001](../16%20Release%20Management/ECMP_Release_Security_Gate_v1.0.md)** — Release Security Gate (Go/No-Go + evidence)
+2. **This checklist (DEP-CHK-V1)** — production deploy steps
+3. **[START-CHK-001](./deployment/STARTUP_CHECKLIST.md)** — startup / post-start validation
+
+Hub: [`docs/deployment/README.md`](./deployment/README.md).
+
+**Do not** use Historical Sprint-08 checklist
+[`14 Deployment Standards/ECMP_Production_Deployment_Checklist_v0.1.md`](../14%20Deployment%20Standards/ECMP_Production_Deployment_Checklist_v0.1.md)
+(DEP-CHK-001) for foundation production cutover.
+
+Approvals / evidence: [REL-APR-001](../16%20Release%20Management/ECMP_Release_Approval_Matrix_v1.0.md),
+[REL-EVID-001](../16%20Release%20Management/ECMP_Release_Evidence_Template_v1.0.md).
 
 ## Pre-deployment
 
 - [ ] Latest code from `main` (or release commit for `v1.0.0`)
 - [ ] Release tag `v1.0.0` created
 - [ ] Confirm target environment is **production** (`ENVIRONMENT=production`)
-- [ ] Generate / rotate strong `JWT_SECRET_KEY` (≥32 random characters); store in vault
+- [ ] `ECMP_AUTH_MODE=jwt`, `ECMP_ENV=shared`, and `OIDC_ISSUER` / `OIDC_AUDIENCE` / `OIDC_JWKS_URL` set (SECMIG-P6-001)
+- [ ] Generate / rotate strong `JWT_SECRET_KEY` (≥32 random characters); store in approved secret source (see Secret Operations Guide)
 - [ ] Set `ALLOWED_ORIGINS` to exact frontend origin(s) (no `*`; https in production)
 - [ ] Set `PASSWORD_RESET_FRONTEND_BASE_URL` to the same public frontend origin
 - [ ] Set `EMAIL_PROVIDER=noop` (SMTP out of scope until later release)
@@ -89,7 +108,13 @@
 
 ## Rollback
 
-See [`docs/releases/ROLLBACK_v1.0.0.md`](./releases/ROLLBACK_v1.0.0.md).
+See [`docs/releases/ROLLBACK_v1.0.0.md`](./releases/ROLLBACK_v1.0.0.md) (prefer
+`docker compose -f docker-compose.prod.yml`).
+
+Companions: [Security Operations](../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md),
+[Backup](../15%20Operations%20Runbook/ECMP_Backup_Operations_Guide_v1.0.md),
+[Restore](../15%20Operations%20Runbook/ECMP_Restore_Verification_Procedure_v0.1.md),
+[Recovery](../15%20Operations%20Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md).
 
 ## Abort criteria (do not proceed / NO-GO)
 

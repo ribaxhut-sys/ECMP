@@ -12,8 +12,16 @@
 | Next Review | 2027-01-22 |
 
 Checklist for cutting an **internal / DEV validation** Release Candidate (`vX.Y.Z-rc.N`).
-This does **not** authorize shared SIT/UAT/PROD deployment (blocked until ADR-012
-Phase 3 per ADR-010 / DEP-CHK-001).
+This does **not** authorize shared SIT/UAT/PROD deployment.
+
+To promote beyond DEV RC, complete:
+
+- [`./ECMP_Release_Security_Gate_v1.0.md`](./ECMP_Release_Security_Gate_v1.0.md) (REL-SEC-001)
+- [`./ECMP_Release_Approval_Matrix_v1.0.md`](./ECMP_Release_Approval_Matrix_v1.0.md) (REL-APR-001)
+- [`./ECMP_Release_Evidence_Template_v1.0.md`](./ECMP_Release_Evidence_Template_v1.0.md) (REL-EVID-001)
+
+(ADR-010 / Historical DEP-CHK-001 planning notes may still apply as context.
+Foundation cutover uses REL-SEC-001 → DEP-CHK-V1 → START-CHK-001.)
 
 ## 0. Scope declaration
 
@@ -55,6 +63,7 @@ Confirm against `../13 Test Strategy/ECMP_Test_Strategy_v0.1.md` § RC Exit Crit
 - [ ] Versioning policy followed (`ECMP_Repository_Versioning_Policy_v0.1.md`)
 - [ ] Tag name matches convention (`ECMP_Git_Tag_Convention_v0.1.md`)
 - [ ] Ops runbooks still accurate for DEV validation scenarios (shutdown, logs, restore)
+- [ ] If this RC is intended to feed a shared/prod cut later: REL-SEC-001 gates identified as follow-up (not claimed PASS by this RC alone)
 
 ## 5. Sign-off (RC1 / internal)
 
@@ -76,5 +85,6 @@ No-Go → fix-forward; cut a new `rc.N+1`. Do not move tags.
 - `ECMP_Repository_Versioning_Policy_v0.1.md`
 - `ECMP_Git_Tag_Convention_v0.1.md`
 - `ECMP_Release_Management_v0.1.md` (REL-001)
+- `ECMP_Release_Security_Gate_v1.0.md` (REL-SEC-001) — required before shared/prod
 - `../13 Test Strategy/ECMP_Test_Strategy_v0.1.md`
 - `../CHANGELOG.md`

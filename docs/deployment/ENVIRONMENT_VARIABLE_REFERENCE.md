@@ -3,11 +3,15 @@
 | Field | Value |
 |---|---|
 | ID | ENV-REF-001 |
-| Version | 1.0.0 |
-| Date | 2026-07-28 |
+| Version | 1.2.0 |
+| Date | 2026-07-30 |
 | Scope | Foundation stack (`backend/`, `frontend/`, root Compose) |
-| Related | R6-03, `.env.example`, `backend/app/core/config.py` |
+| Status | 🟢 Active — **canonical Secure Configuration matrix (SECMIG-P6-001)** |
+| Related | R6-03, SECMIG-P6-001, SECMIG-P6-005, `.env.example`, `backend/app/core/config.py` |
+| Hub | [`./README.md`](./README.md) |
 
+This file is the **canonical environment / secure-configuration SoT** for foundation
+deployments. Companion checklists: START-CHK-001, DEP-CHK-V1; gate: REL-SEC-001.
 ## Classification
 
 | Class | Meaning |
@@ -44,9 +48,17 @@
 | `ALLOWED_ORIGINS` | Required | `http://localhost:3000` | real origin(s) | **https** origin(s) | No `*`; no localhost outside dev |
 | `ALLOWED_HOSTS` | Required (non-dev) | localhost list | public hosts | `ECMP_DOMAIN,backend` | TrustedHostMiddleware |
 | `JWT_SECRET_KEY` | Required | placeholder OK | **≥32 chars** | **≥32 chars** | Compose `${:?}` required |
-| `JWT_ALGORITHM` | Required | `HS256` | `HS256` | `HS256` | Only supported algorithm |
+| `JWT_ALGORITHM` | Required | `HS256` | `HS256` | `HS256` | Only supported algorithm (lab issuance / dual-mode tooling) |
 | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Optional | `15` | `15` | `15` | |
 | `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | Optional | `7` | `7` | `7` | |
+| `ECMP_AUTH_MODE` | Required | `dev` (lab) | **`jwt` only** | **`jwt` only** | SECMIG-P6-001: staging/production refuse `dev`; prod compose `${:?}` |
+| `ECMP_ENV` | Required | `local` / `ci` | `shared` | `shared` | `shared` forbids `ECMP_AUTH_MODE=dev`; prod compose `${:?}` |
+| `OIDC_ISSUER` | Required when `jwt` / staging / production | lab IdP URL | IdP issuer | IdP issuer | Fail-fast if missing under those conditions |
+| `OIDC_AUDIENCE` | Required when `jwt` / staging / production | `ecmp-api` | resource client | resource client | Fail-fast if missing |
+| `OIDC_JWKS_URL` | Required when `jwt` / staging / production | lab JWKS URL | IdP JWKS | IdP JWKS | Fail-fast if missing |
+| `OIDC_JWKS_CACHE_TTL_SECONDS` | Optional | `600` | `600` | `600` | 1..86400 |
+| `ECMP_ORG_SCOPE_SERVICE_SUBJECTS` | Optional | empty | service UUIDs | service UUIDs | jwt mode machine bypass (with allowlist) |
+| `ECMP_ORG_SCOPE_SERVICE_ALLOWLIST` | Optional | empty | role codes | role codes | jwt mode; both lists required for bypass |
 | `LOGIN_RATE_LIMIT_ENABLED` | Optional | `true` | `true` | `true` | In-memory; not Redis |
 | `LOGIN_MAX_FAILED_ATTEMPTS` | Optional | `5` | `5` | `5` | |
 | `LOGIN_LOCKOUT_SECONDS` | Optional | `300` | `300` | `300` | Lockout JSON `retryAfterSeconds` + `Retry-After` header (P5-005) |
@@ -60,17 +72,28 @@
 | `IMAGE_TAG` | Optional | `latest` | pin tag | **pin release tag** | Avoid floating `latest` in prod |
 | `GIT_COMMIT` / `GIT_BRANCH` / `BUILD_TIME` / `GIT_TREE_STATE` | Optional | `unknown` | bake at build | bake at build | R6-01 provenance |
 | `REDIS_URL` / `REDIS_*` | **Deprecated / unused** | — | — | — | Not read by foundation stack |
-| `ECMP_*` (implementation backend) | Legacy pack | — | — | — | Not used by root foundation app |
+
+## AuthN production requirements (SECMIG-P6-001)
+
+| Rule | Enforcement |
+|---|---|
+| `ENVIRONMENT=staging\|production` ⇒ `ECMP_AUTH_MODE=jwt` | `validate_runtime_config` fail-fast |
+| jwt / staging / production ⇒ `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL` set | same |
+| `ECMP_ENV=shared` ⇒ `ECMP_AUTH_MODE` must not be `dev` | same (Phase 2 guard retained) |
+| Production Compose injects AuthN/OIDC env | `docker-compose.prod.yml` / `.prod.nginx.yml` `${:?}` |
+
+Lab (`ENVIRONMENT=development\|test`) may keep `ECMP_AUTH_MODE=dev` with local HS256.
 
 ## Unused / duplicate / conflict findings
 
 | Finding | Detail | Action |
 |---|---|---|
 | Unused Redis vars | No Redis client; login lockout is in-memory (R2-03) | Do not invent `REDIS_*`; document as N/A |
-| Duplicate stacks | Root `backend/` vs `implementation/backend/` (`ECMP_*`) | Production uses **root** stack only |
+| Duplicate stacks | Root `backend/` vs `implementation/backend/` | Production uses **root** stack only |
 | Duplicate CORS names | Root `ALLOWED_ORIGINS` vs legacy `ECMP_ALLOWED_ORIGINS` | Use `ALLOWED_ORIGINS` for foundation |
 | Conflict risk | `PASSWORD_RESET_FRONTEND_BASE_URL` ≠ any `ALLOWED_ORIGINS` | Fail-fast outside development |
 | Conflict risk | Compose default localhost origins + `ENVIRONMENT=production` | App refuses to start |
+| Conflict risk | Prod compose without AuthN/OIDC injection | Mitigated by SECMIG-P6-001 `${:?}` mapping |
 | Storage env | No `STORAGE_*` env | Configure via System Settings keys `storage.provider` / `storage.root.path` |
 
 ## Validation
@@ -85,4 +108,4 @@ TLS / proxy: [`TLS_REVERSE_PROXY.md`](./TLS_REVERSE_PROXY.md), template `.env.pr
 
 Security test suite (SECMIG-P5-006): [`SECURITY_TEST_SUITE.md`](./SECURITY_TEST_SUITE.md) — `python scripts/run_security_tests.py` from `backend/`.
 
-Unit coverage: `backend/tests/test_settings_guard.py`.
+Unit coverage: `backend/tests/test_settings_guard.py`, `backend/tests/test_secmig_p6_secure_config.py`.

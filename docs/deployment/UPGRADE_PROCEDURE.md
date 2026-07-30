@@ -9,9 +9,10 @@
 ## Principles
 
 1. Prefer **forward fixes** over schema downgrade.
-2. Always take a Postgres dump before applying new Alembic revisions.
+2. Always take a Postgres dump before applying new Alembic revisions (policy: [`../../15 Operations Runbook/ECMP_Backup_Operations_Guide_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Backup_Operations_Guide_v1.0.md)).
 3. Pin `IMAGE_TAG` / git tag; do not upgrade production on floating `latest`.
 4. Re-run config validation after any `.env` change.
+5. After restore/rollback drills, complete [`../../15 Operations Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Recovery_Validation_Checklist_v1.0.md) (`/live`, `/ready`).
 
 ## Upgrade steps
 
@@ -20,6 +21,8 @@ Substitute `docker compose` below with `docker compose -f docker-compose.prod.ym
 
 ```powershell
 # 1. Backup Postgres (+ optionally Caddy data volume ecmp_prod_caddy_data)
+# Plain SQL (text) — PowerShell `>` is OK here. For preferred custom-format `-Fc`,
+# use OPS-BAK-001 binary-safe steps (container file + docker compose cp; never `>` on -Fc).
 docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U $env:POSTGRES_USER $env:POSTGRES_DB `
   > "backups/ecmp_pre_upgrade_$(Get-Date -Format yyyyMMdd_HHmmss).sql"
 
@@ -62,3 +65,13 @@ curl.exe -fsS https://$env:ECMP_DOMAIN/ready
 ## Rollback
 
 Follow [`../releases/ROLLBACK_v1.0.0.md`](../releases/ROLLBACK_v1.0.0.md): stop app tiers, redeploy previous image tag, restore DB dump only when a migration must be reverted.
+
+### Rollback verification (minimum)
+
+```powershell
+python scripts\validate-production-config.py --env-file .env --require-production
+curl.exe -fsS https://$env:ECMP_DOMAIN/live
+curl.exe -fsS https://$env:ECMP_DOMAIN/ready
+```
+
+Confirm startup log `auth_mode` matches the rolled-back release expectations; re-run smoke from [`PRODUCTION_DEPLOYMENT_GUIDE.md`](./PRODUCTION_DEPLOYMENT_GUIDE.md) § Post-deploy smoke. Security/config incidents: [`../../15 Operations Runbook/ECMP_Security_Operations_Runbook_v1.0.md`](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md).

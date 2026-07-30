@@ -1,63 +1,102 @@
 # 15 Operations Runbook
 
-
 | Field | Value |
 |---|---|
 | ID | OPS-000 |
-| Version | 0.2 |
+| Version | 0.5 |
 | Owner | SRE / Operations |
 | Reviewer | DevOps |
 | Approver | Operations Lead |
-| Status | 🟡 Draft |
-| Last Review | 2026-07-22 |
-| Next Review | 2027-01-21 |
+| Status | 🟢 Active (security + backup-recovery; general Draft where noted) |
+| Last Review | 2026-07-30 |
+| Next Review | 2027-01-30 |
+| Task note | SECMIG-P6-005 navigation |
 
 ## Purpose
+
 Prosedur operasional harian dan penanganan insiden ECMP untuk tim operations/support.
 
+**Canonical application stack for production and SEC-MIG ops:** root `backend/`, `frontend/`, and Compose files at repo root. Paths under `implementation/` are **Historical / optional packs** (slice drills, local IdP baseline) unless a document explicitly says otherwise.
+
 ## Owner
+
 - Document Owner: Operations Lead
-- Reviewers: DevOps, Domain Tech Leads, Support Lead
+- Reviewers: DevOps, Domain Tech Leads, Support Lead, Security Architect
 
 ## Status
-Draft — konten inti terisi (OPS-RB-001, OPS-DR-001, OPS-SHDN-001, OPS-LOG-001); tetap 🟡 Draft konservatif karena shared-env prosedur masih Planned (ADR-010) dan batch/job monitoring belum relevan. Sprint-09: shutdown + log inspection + DEV scratch restore drill PASS.
+
+General runbook content remains Draft-conservative where shared-env automation is still Planned (ADR-010). Security operations (P6-002) and Backup & Recovery Security documentation (P6-003) are **Active** for the foundation stack. WAL/PITR/schedulers remain **out of scope**.
+
+## Operator navigation
+
+Come here **after** Release + Deployment + Startup for day-2 / incident / recovery work:
+
+```text
+Release (REL-SEC-001)
+  → Deployment (DEP-CHK-V1)
+  → Startup (START-CHK-001)
+  → Security Operations (this folder)
+  → Backup / Restore / Recovery
+  → Rollback (docs/releases)
+```
+
+Hub: [`../docs/deployment/README.md`](../docs/deployment/README.md).  
+Release entry: [`../16 Release Management/README.md`](../16%20Release%20Management/README.md).
+
+**Precedence for foundation cutover:** REL-SEC-001 → DEP-CHK-V1 → START-CHK-001.  
+Historical DEP-CHK-001 is **not** used for foundation production cutover.
 
 ## Documents
-- [`ECMP_Runbook_Slice_v0.1.md`](./ECMP_Runbook_Slice_v0.1.md) (OPS-RB-001) — service inventory, health check, playbooks P1–P6, escalation matrix
-- [`ECMP_IdP_Administrator_Runbook_v1.0.md`](./ECMP_IdP_Administrator_Runbook_v1.0.md) (OPS-IDP-001) — local DEV Keycloak baseline (SEC-MIG Phase 1 / TASK-PLATFORM-SECMIG-P1-001)
-- [`ECMP_Shutdown_Procedure_v0.1.md`](./ECMP_Shutdown_Procedure_v0.1.md) (OPS-SHDN-001) — Sprint-09 orderly shutdown
-- [`ECMP_Log_Inspection_Procedure_v0.1.md`](./ECMP_Log_Inspection_Procedure_v0.1.md) (OPS-LOG-001) — Sprint-09 structured log / request_id / correlation_id lookup
-- [`ECMP_DR_BCP_Plan_v0.1.md`](./ECMP_DR_BCP_Plan_v0.1.md) (OPS-DR-001) — RTO/RPO baseline, backup/restore, perlindungan audit_log, BCP
-- [`ECMP_Backup_Strategy_v0.1.md`](./ECMP_Backup_Strategy_v0.1.md) (OPS-BAK-001) — Sprint-08 docs-only backup strategy
-- [`ECMP_Restore_Verification_Procedure_v0.1.md`](./ECMP_Restore_Verification_Procedure_v0.1.md) (OPS-RST-001) — restore verification + Sprint-09 drill result
-- [`evidence/restore-drill-20260722/README.md`](./evidence/restore-drill-20260722/README.md) — Sprint-09 restore drill evidence (PASS)
+
+### Security operations (SECMIG-P6-002) — Active
+
+- [`ECMP_Security_Operations_Runbook_v1.0.md`](./ECMP_Security_Operations_Runbook_v1.0.md) (OPS-SEC-RB-001) — auth, lockout, secret compromise, config/deploy failure, escalation
+- [`ECMP_Secret_Operations_Guide_v1.0.md`](./ECMP_Secret_Operations_Guide_v1.0.md) (OPS-SEC-SEC-001) — rotation, emergency replace, validation, rollback, evidence
+- [`ECMP_Audit_Investigation_Guide_v1.0.md`](./ECMP_Audit_Investigation_Guide_v1.0.md) (OPS-SEC-AUD-001) — `security.*` events, requestId/correlationId, investigation workflow
+
+### Backup & recovery (SECMIG-P6-003) — Active
+
+- [`ECMP_Backup_Operations_Guide_v1.0.md`](./ECMP_Backup_Operations_Guide_v1.0.md) (OPS-BAK-001) — DB/config/secret backup policy, retention, encryption, current RPO, target RTO
+- [`ECMP_Restore_Verification_Procedure_v0.1.md`](./ECMP_Restore_Verification_Procedure_v0.1.md) (OPS-RST-001) — DB/config/secret restore, validation, rollback, evidence
+- [`ECMP_DR_BCP_Plan_v0.1.md`](./ECMP_DR_BCP_Plan_v0.1.md) (OPS-DR-001) — DR/BCP synchronized to foundation probes `/live` `/ready`
+- [`ECMP_Recovery_Validation_Checklist_v1.0.md`](./ECMP_Recovery_Validation_Checklist_v1.0.md) (OPS-RCV-001) — restore/smoke/RPO/RTO/evidence checklist
+- [`ECMP_Backup_Strategy_v0.1.md`](./ECMP_Backup_Strategy_v0.1.md) — **Superseded** stub → Backup Operations Guide
+- [`evidence/restore-drill-20260722/README.md`](./evidence/restore-drill-20260722/README.md) — Sprint-09 DEV scratch restore drill evidence (PASS)
+
+### Core operations
+
+- [`ECMP_Runbook_Slice_v0.1.md`](./ECMP_Runbook_Slice_v0.1.md) (OPS-RB-001) — service inventory, health, playbooks P1–P6, escalation matrix (foundation-updated)
+- [`ECMP_IdP_Administrator_Runbook_v1.0.md`](./ECMP_IdP_Administrator_Runbook_v1.0.md) (OPS-IDP-001) — local DEV Keycloak baseline (**Historical pack path** `implementation/infrastructure` — marked in-doc)
+- [`ECMP_Shutdown_Procedure_v0.1.md`](./ECMP_Shutdown_Procedure_v0.1.md) (OPS-SHDN-001) — orderly shutdown
+- [`ECMP_Log_Inspection_Procedure_v0.1.md`](./ECMP_Log_Inspection_Procedure_v0.1.md) (OPS-LOG-001) — request id lookup (foundation + historical JSON note)
+
+### Deployment & release (companions)
+
+- [`../docs/deployment/`](../docs/deployment/) — hub, startup checklist, production guide, TLS, upgrade, operational security, secure config
+- [`../16 Release Management/`](../16%20Release%20Management/) — **canonical release entry** (REL-SEC-001 security gate, approvals, evidence)
+- [`../docs/releases/ROLLBACK_v1.0.0.md`](../docs/releases/ROLLBACK_v1.0.0.md) — foundation rollback package
 
 ## Minimum Contents (v1)
+
 - [x] Service inventory & ownership (OPS-RB-001 §1)
-- [x] Health check procedures (OPS-RB-001 §2)
+- [x] Health check procedures (OPS-RB-001 §2) — foundation `/live` `/ready`
 - [x] Common incident playbooks (OPS-RB-001 §3 — P1–P4)
 - [x] Escalation matrix (OPS-RB-001 §4)
 - [x] Shutdown procedure (OPS-SHDN-001)
 - [x] Structured log inspection / id lookup (OPS-LOG-001)
-- [x] Restore drill executed (DEV scratch — OPS-RST-001 §6); shared-env drill still Planned
+- [x] Security operations runbook + secret + audit investigation (P6-002)
+- [x] Backup operations + restore + DR sync + recovery validation checklist (P6-003)
+- [x] Restore drill executed (DEV scratch — OPS-RST-001); shared-env drill still Planned (OPS-RCV-001)
 - [ ] Batch/job monitoring (if any) — belum ada batch/job
 - [x] Notification failure handling (OPS-RB-001 P6 — Planned, domain belum dibangun)
 - [x] SLA breach operational response (OPS-RB-001 P5 — baseline manual)
 
-## Template Sections (per playbook)
-1. Symptom
-2. Impact
-3. Detection
-4. Diagnosis steps
-5. Mitigation / workaround
-6. Resolution
-7. Escalation
-8. Post-incident actions
-
 ## Naming
-`ECMP_Runbook_<Topic>_vX.Y.md`
+
+`ECMP_Runbook_<Topic>_vX.Y.md` / `ECMP_<Topic>_Guide_vX.Y.md`
 
 ## Related
-- `../11 SLA and KPI Matrix`
+
 - `../14 Deployment Standards`
 - `../16 Release Management`
+- `../docs/deployment/`

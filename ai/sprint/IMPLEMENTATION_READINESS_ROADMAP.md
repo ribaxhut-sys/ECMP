@@ -7,7 +7,7 @@
 | Owner | Enterprise Technical Lead |
 | Reviewer | CTO / Architecture Board / PMO |
 | Approver | Engineering Manager / Business Owner |
-| Status | 🟡 Draft |
+| Status | ⚫ Historical (planning artifact — see body banner) |
 | Last Review | 2026-07-21 |
 | Next Review | 2026-08-04 |
 

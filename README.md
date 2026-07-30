@@ -38,12 +38,30 @@ docker compose up --build
 | Frontend | http://localhost:3000        |
 | Login    | http://localhost:3000/login  |
 | Backend  | http://localhost:8000        |
-| Health   | http://localhost:8000/health |
+| Liveness | http://localhost:8000/live   |
+| Readiness| http://localhost:8000/ready  |
 | Postgres | localhost:5433               |
 
+### Operator docs (foundation — security / release / deploy)
+
+```text
+Release → Deployment → Startup → Security Operations → Backup/Restore/Recovery → Rollback
+```
+
+| Step | Entry |
+|---|---|
+| Release | [16 Release Management](./16%20Release%20Management/README.md) (REL-SEC-001) |
+| Deployment hub | [docs/deployment/README.md](./docs/deployment/README.md) |
+| Deploy checklist | [docs/deployment-checklist.md](./docs/deployment-checklist.md) (DEP-CHK-V1) |
+| Startup | [docs/deployment/STARTUP_CHECKLIST.md](./docs/deployment/STARTUP_CHECKLIST.md) |
+| Security / backup ops | [15 Operations Runbook](./15%20Operations%20Runbook/README.md) |
+| Rollback | [docs/releases/ROLLBACK_v1.0.0.md](./docs/releases/ROLLBACK_v1.0.0.md) |
+
+**Precedence:** REL-SEC-001 → DEP-CHK-V1 → START-CHK-001.  
+Historical Sprint-08 DEP-CHK-001 is **not** for foundation production cutover.
+
 Release notes: [docs/releases/v1.0.0.md](./docs/releases/v1.0.0.md)  
-Deployment checklist: [docs/deployment-checklist.md](./docs/deployment-checklist.md)  
-Details: [docs/local-stack.md](./docs/local-stack.md)
+Local details: [docs/local-stack.md](./docs/local-stack.md)
 
 ## Two Layers (in one monorepo for now)
 
@@ -55,29 +73,39 @@ EKR (source of truth)
 ├── docs/        ← MkDocs portal
 └── tools/       ← self-governance automation
 
-backend/ frontend/ database/  ← ECMP foundation stack (this README § Local stack)
-implementation/               ← sprint product code (cases/portal) — parallel track
+backend/ frontend/ database/  ← ECMP foundation stack (canonical app SoT)
+implementation/               ← Historical / optional packs (slice, IdP, portal)
 ```
 
 > Layer AI kanonik = `ai-platform/` (lihat `.cursor/rules/ecmp-ai-platform.mdc`); `ai/` dipertahankan sebagai compatibility pack — sprint brief tetap di `ai/sprint/`.
 
 ## Development Status
-**Sprint-01 = GO untuk slice create/get + G0 platform floor (per DEC-002)** — Build-1 di luar slice menunggu G0 exit sign-off.  
+**Foundation stack** = canonical application path for SEC-MIG / shared / production docs.  
+**Sprint-01 slice packs** under `implementation/` = Historical / optional (see [implementation/README.md](./implementation/README.md)).  
 **Engineering Platform Wave A/B = live** (ontology, RAG, orchestrator, developer portal, feedback loop)
 
-### Start coding (Sprint-01 product track)
-Jalur kanonik (Postgres + Alembic — lihat `implementation/backend/README.md`):
+### Start coding (foundation)
+
+```bash
+cp .env.example .env
+docker compose up --build
+# or host: backend/ + frontend/ per docs/local-stack.md
+```
+
+### Optional Historical pack (Sprint-01 case-service)
+
+Only when deliberately running the legacy pack — not production SoT:
 
 ```bash
 cd implementation/infrastructure && docker compose up -d
 cd ../backend
 pip install -r requirements.txt
-cp .env.example .env   # isi ECMP_DATABASE_URL + token dev
+cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
-pytest -q
 ```
 
+See [implementation/README.md](./implementation/README.md).
 ### Start Developer Portal (Wave B)
 ```bash
 python tools/eos.py rag-index

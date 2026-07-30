@@ -53,6 +53,11 @@ _ISOLATED_ENV = (
     "PASSWORD_RESET_FRONTEND_BASE_URL",
     "EMAIL_PROVIDER",
     "PGADMIN_DEFAULT_PASSWORD",
+    "ECMP_AUTH_MODE",
+    "ECMP_ENV",
+    "OIDC_ISSUER",
+    "OIDC_AUDIENCE",
+    "OIDC_JWKS_URL",
 )
 
 
@@ -79,6 +84,11 @@ def _prod_ok(**overrides: object) -> Settings:
         "password_reset_frontend_base_url": "https://app.example.com",
         "email_provider": "noop",
         "debug": False,
+        "ecmp_auth_mode": "jwt",
+        "ecmp_env": "shared",
+        "oidc_issuer": "https://idp.example.com/realms/ecmp",
+        "oidc_audience": "ecmp-api",
+        "oidc_jwks_url": "https://idp.example.com/realms/ecmp/protocol/openid-connect/certs",
     }
     values.update(overrides)
     return _settings(**values)

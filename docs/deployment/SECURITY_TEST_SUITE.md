@@ -29,6 +29,7 @@ Marker: `@pytest.mark.security` (registered in `pytest.ini` / `pyproject.toml`).
 | Module | Scope |
 |---|---|
 | `tests/test_secmig_p5_*.py` | P5-001A…P5-006 workstreams |
+| `tests/test_secmig_p6_secure_config.py` | P6-001 secure configuration baseline |
 | `tests/test_login_protection.py` | Login lockout unit |
 | `tests/test_authorization_middleware.py` | AuthZ pipeline unit |
 | `tests/test_secmig_p2_auth.py` | AuthN JWT / JWKS |

@@ -398,15 +398,38 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
             )
         )
 
-    if auth_mode == "jwt":
+    # SECMIG-P6-001 — staging/production must never run lab HS256 AuthN.
+    if settings.environment in {"staging", "production"} and auth_mode != "jwt":
+        issues.append(
+            ConfigIssue(
+                variable="ECMP_AUTH_MODE",
+                problem=(
+                    f"ECMP_AUTH_MODE={settings.ecmp_auth_mode!r} is forbidden when "
+                    f"ENVIRONMENT={settings.environment}."
+                ),
+                suggested_fix=(
+                    "Set ECMP_AUTH_MODE=jwt and configure OIDC_ISSUER, "
+                    "OIDC_AUDIENCE, and OIDC_JWKS_URL for staging/production."
+                ),
+            )
+        )
+
+    require_oidc = auth_mode == "jwt" or settings.environment in {
+        "staging",
+        "production",
+    }
+    if require_oidc:
         if not (settings.oidc_issuer or "").strip():
             issues.append(
                 ConfigIssue(
                     variable="OIDC_ISSUER",
-                    problem="Issuer is required when ECMP_AUTH_MODE=jwt.",
+                    problem=(
+                        "Issuer is required when ECMP_AUTH_MODE=jwt "
+                        "or ENVIRONMENT is staging/production."
+                    ),
                     suggested_fix=(
                         "Set OIDC_ISSUER to the IdP realm issuer URL "
-                        "(e.g. http://localhost:8180/realms/ecmp)."
+                        "(e.g. https://idp.example.com/realms/ecmp)."
                     ),
                 )
             )
@@ -414,7 +437,10 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
             issues.append(
                 ConfigIssue(
                     variable="OIDC_AUDIENCE",
-                    problem="Audience is required when ECMP_AUTH_MODE=jwt.",
+                    problem=(
+                        "Audience is required when ECMP_AUTH_MODE=jwt "
+                        "or ENVIRONMENT is staging/production."
+                    ),
                     suggested_fix="Set OIDC_AUDIENCE=ecmp-api (Phase 1 resource client).",
                 )
             )
@@ -422,7 +448,10 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
             issues.append(
                 ConfigIssue(
                     variable="OIDC_JWKS_URL",
-                    problem="JWKS URL is required when ECMP_AUTH_MODE=jwt.",
+                    problem=(
+                        "JWKS URL is required when ECMP_AUTH_MODE=jwt "
+                        "or ENVIRONMENT is staging/production."
+                    ),
                     suggested_fix="Set OIDC_JWKS_URL to the IdP JWKS endpoint.",
                 )
             )

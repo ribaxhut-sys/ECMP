@@ -3,15 +3,23 @@
 | Field | Value |
 |---|---|
 | ID | OPS-SEC-001 |
-| Version | 1.0.0 |
+| Version | 1.1.0 |
 | Date | 2026-07-30 |
-| Related | TASK-PLATFORM-SECMIG-P5-005, `backend/app/core/operational_security.py` |
+| Related | TASK-PLATFORM-SECMIG-P5-005, TASK-PLATFORM-SECMIG-P6-002, `backend/app/core/operational_security.py` |
 
 ## Scope
 
 Improve operational security **without** changing authentication architecture,
 API envelopes, authorization semantics, audit taxonomy, or Complaint domain
 behavior.
+
+## Operations runbooks (P6-002)
+
+| Doc | ID | Use |
+|---|---|---|
+| [Security Operations Runbook](../../15%20Operations%20Runbook/ECMP_Security_Operations_Runbook_v1.0.md) | OPS-SEC-RB-001 | Auth / lockout / secret / config / deploy incidents |
+| [Secret Operations Guide](../../15%20Operations%20Runbook/ECMP_Secret_Operations_Guide_v1.0.md) | OPS-SEC-SEC-001 | Rotate / emergency replace / rollback |
+| [Audit Investigation Guide](../../15%20Operations%20Runbook/ECMP_Audit_Investigation_Guide_v1.0.md) | OPS-SEC-AUD-001 | Investigate `security.*` rows |
 
 ## Audit flood policy
 

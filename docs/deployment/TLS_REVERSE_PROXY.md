@@ -90,6 +90,9 @@ Copy `.env.production.example` (repo root) → `.env` (never commit).
 | `ECMP_DOMAIN` | Yes | Public hostname (DNS) |
 | `ACME_EMAIL` | Yes (Caddy) | ACME account email |
 | `ENVIRONMENT` | Yes | `production` |
+| `ECMP_AUTH_MODE` | Yes | `jwt` (staging/production refuse `dev`; SECMIG-P6-001) |
+| `ECMP_ENV` | Yes | `shared` for production compose |
+| `OIDC_ISSUER` / `OIDC_AUDIENCE` / `OIDC_JWKS_URL` | Yes | Injected by prod compose `${:?}` |
 | `ALLOWED_ORIGINS` | Yes | `https://<ECMP_DOMAIN>` |
 | `ALLOWED_HOSTS` | Yes | `<ECMP_DOMAIN>,backend` |
 | `NEXT_PUBLIC_API_BASE_URL` | Yes (build) | `https://<ECMP_DOMAIN>` |

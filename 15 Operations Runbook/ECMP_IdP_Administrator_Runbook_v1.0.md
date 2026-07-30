@@ -8,7 +8,7 @@
 | Reviewer | Tech Lead / SRE |
 | Approver | Architecture Board |
 | Status | 🟢 Active (local DEV baseline — SEC-MIG Phase 1) |
-| Last Review | 2026-07-29 |
+| Last Review | 2026-07-30 |
 | Next Review | 2026-10-21 |
 | Task | TASK-PLATFORM-SECMIG-P1-001 |
 
@@ -16,7 +16,9 @@
 
 Operational runbook for the **local/DEV Keycloak IdP baseline** introduced by SEC-MIG-001 Phase 1.
 
-This runbook does **not** authorize shared SIT/UAT/PROD IdP operation (Phase 3+) or ECMP application JWT mode (Phase 2).
+**Pack path note (Historical for production recovery):** Compose/realm assets live under `implementation/infrastructure/` (optional auth profile / local DEV IdP). This is **not** the foundation app tree and is **not** part of production ECMP disaster recovery. Production API ops use root `backend/` + security/backup runbooks (OPS-SEC-*, OPS-BAK-001, OPS-DR-001). Keycloak's own `/health/ready` on port 9000 is IdP-only — do not confuse with ECMP `/live` / `/ready`.
+
+This runbook does **not** authorize shared SIT/UAT/PROD IdP operation (Phase 3+) or replace foundation jwt-mode production procedures (P6-001).
 
 ## 2. Inventory
 
