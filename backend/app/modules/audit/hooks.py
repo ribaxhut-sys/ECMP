@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.auth import Principal
+from app.core.client_ip import resolve_client_ip
 from app.core.enums import AuditAction
 from app.models import User
 from app.modules.audit.repository import AuditRepository
@@ -17,13 +18,8 @@ from app.modules.audit.service import AuditService
 
 
 def client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        first = forwarded.split(",")[0].strip()
-        return first[:64] if first else None
-    if request.client and request.client.host:
-        return request.client.host[:64]
-    return None
+    """Resolve client IP via the shared SECMIG-P5-005 trust boundary."""
+    return resolve_client_ip(request)
 
 
 def client_user_agent(request: Request) -> str | None:

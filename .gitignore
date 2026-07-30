@@ -32,7 +32,11 @@ htmlcov/
 
 # Databases / local artifacts
 *.db
+*.sqlite
 *.sqlite3
+
+# Coverage / local probe dumps
+*_cov_*.txt
 
 # Docs site
 site/
@@ -40,6 +44,10 @@ site/
 # Frontend coverage / telemetry noise
 implementation/frontend/coverage/
 implementation/frontend/dist/
+*.tsbuildinfo
+
+# AI platform local orchestrator telemetry
+ai-platform/telemetry/runs/route_*.json
 
 # keep metrics history tracked; ignore local venv only
 

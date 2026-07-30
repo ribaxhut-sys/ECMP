@@ -9,11 +9,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
+from sqlalchemy.orm import Session
 
 from app.core.authorization.authentication import get_current_principal
 from app.core.authorization.principal import Principal
 from app.core.errors import PermissionDeniedError
+from app.db.session import get_db_session
+from app.modules.audit.security_events import SecurityEventType, write_security_event
 
 
 def check_permissions(principal: Principal, *required: str) -> None:
@@ -39,9 +42,24 @@ def require_permissions(*required: str) -> Callable[..., Principal]:
     """Dependency factory: Authentication → Permission Resolver → Permission Check."""
 
     def _dependency(
+        request: Request,
         principal: Annotated[Principal, Depends(get_current_principal)],
+        session: Annotated[Session, Depends(get_db_session)],
     ) -> Principal:
-        check_permissions(principal, *required)
+        try:
+            check_permissions(principal, *required)
+        except PermissionDeniedError as exc:
+            write_security_event(
+                session,
+                request=request,
+                event_type=SecurityEventType.PERMISSION_DENIED,
+                actor_id=principal.user_id,
+                entity_id=principal.user_id,
+                new_values=dict(exc.details or {}),
+                metadata_extra={"reasonCode": "FORBIDDEN"},
+                commit=True,
+            )
+            raise
         return principal
 
     return _dependency
@@ -51,9 +69,24 @@ def require_roles(*roles: str) -> Callable[..., Principal]:
     """Dependency factory: Authentication → Permission Resolver → Role Check."""
 
     def _dependency(
+        request: Request,
         principal: Annotated[Principal, Depends(get_current_principal)],
+        session: Annotated[Session, Depends(get_db_session)],
     ) -> Principal:
-        check_roles(principal, *roles)
+        try:
+            check_roles(principal, *roles)
+        except PermissionDeniedError as exc:
+            write_security_event(
+                session,
+                request=request,
+                event_type=SecurityEventType.PERMISSION_DENIED,
+                actor_id=principal.user_id,
+                entity_id=principal.user_id,
+                new_values=dict(exc.details or {}),
+                metadata_extra={"reasonCode": "FORBIDDEN", "check": "roles"},
+                commit=True,
+            )
+            raise
         return principal
 
     return _dependency

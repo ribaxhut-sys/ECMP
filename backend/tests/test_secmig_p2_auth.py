@@ -38,6 +38,8 @@ from app.core.errors import UnauthenticatedError
 from app.core.security import create_access_token
 from app.modules.iam.permission_resolver import PermissionResolver
 
+pytestmark = pytest.mark.security
+
 _ISSUER = "http://localhost:8180/realms/ecmp"
 _AUDIENCE = "ecmp-api"
 _KID = "test-key-1"

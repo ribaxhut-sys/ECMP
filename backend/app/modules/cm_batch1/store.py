@@ -15,6 +15,7 @@ from app.modules.cm_batch1.entities import (
     DuplicateDecisionRecord,
     IdempotencyRecord,
 )
+from app.modules.cm_batch1.exceptions import ReplayConflict
 
 
 class Batch1Store:
@@ -69,6 +70,76 @@ class Batch1Store:
                 return None
             return self._complaints.get(rec.complaint_id)
 
+    def resolve_create_keys(
+        self,
+        request_id: str,
+        channel_message_id: str | None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            by_req_rec = self._idempotency.get(request_id)
+            by_req = (
+                self._complaints.get(by_req_rec.complaint_id)
+                if by_req_rec is not None
+                else None
+            )
+            by_ch = None
+            if channel_message_id:
+                by_ch_rec = self._channel_msg.get(channel_message_id)
+                if by_ch_rec is not None:
+                    by_ch = self._complaints.get(by_ch_rec.complaint_id)
+            if by_req is not None and by_ch is not None:
+                if by_req.complaint_id != by_ch.complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "channelMessageId": channel_message_id,
+                            "requestComplaintId": by_req.complaint_id,
+                            "channelComplaintId": by_ch.complaint_id,
+                        }
+                    )
+                return by_req
+            if by_req is not None:
+                return by_req
+            if by_ch is not None:
+                return by_ch
+            return None
+
+    def ensure_request_alias(self, request_id: str, complaint_id: str) -> None:
+        with self._lock:
+            existing = self._idempotency.get(request_id)
+            if existing is not None:
+                if existing.complaint_id != complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "requestComplaintId": existing.complaint_id,
+                            "canonicalComplaintId": complaint_id,
+                        }
+                    )
+                return
+            self._idempotency[request_id] = IdempotencyRecord(
+                key=request_id, complaint_id=complaint_id
+            )
+
+    def ensure_channel_alias(
+        self, channel_message_id: str, complaint_id: str
+    ) -> None:
+        with self._lock:
+            existing = self._channel_msg.get(channel_message_id)
+            if existing is not None:
+                if existing.complaint_id != complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "channelMessageId": channel_message_id,
+                            "channelComplaintId": existing.complaint_id,
+                            "canonicalComplaintId": complaint_id,
+                        }
+                    )
+                return
+            self._channel_msg[channel_message_id] = IdempotencyRecord(
+                key=channel_message_id, complaint_id=complaint_id
+            )
+
     def get(self, complaint_id: str) -> ComplaintAggregate | None:
         with self._lock:
             return self._complaints.get(complaint_id)
@@ -95,13 +166,63 @@ class Batch1Store:
         channel_message_id: str | None,
     ) -> tuple[ComplaintAggregate, bool]:
         with self._lock:
-            existing = self._idempotency.get(request_id)
-            if existing is not None:
-                return self._complaints[existing.complaint_id], False
+            by_req_rec = self._idempotency.get(request_id)
+            by_req = (
+                self._complaints.get(by_req_rec.complaint_id)
+                if by_req_rec is not None
+                else None
+            )
+            by_ch = None
             if channel_message_id:
-                existing_ch = self._channel_msg.get(channel_message_id)
-                if existing_ch is not None:
-                    return self._complaints[existing_ch.complaint_id], False
+                by_ch_rec = self._channel_msg.get(channel_message_id)
+                if by_ch_rec is not None:
+                    by_ch = self._complaints.get(by_ch_rec.complaint_id)
+            if by_req is not None and by_ch is not None:
+                if by_req.complaint_id != by_ch.complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "channelMessageId": channel_message_id,
+                            "requestComplaintId": by_req.complaint_id,
+                            "channelComplaintId": by_ch.complaint_id,
+                        }
+                    )
+                return by_req, False
+            if by_req is not None:
+                # Bind channel_message_id alias to canonical request owner.
+                if channel_message_id:
+                    existing_ch = self._channel_msg.get(channel_message_id)
+                    if (
+                        existing_ch is not None
+                        and existing_ch.complaint_id != by_req.complaint_id
+                    ):
+                        raise ReplayConflict(
+                            diagnostic_details={
+                                "requestId": request_id,
+                                "channelMessageId": channel_message_id,
+                                "requestComplaintId": by_req.complaint_id,
+                                "channelComplaintId": existing_ch.complaint_id,
+                            }
+                        )
+                    self._channel_msg[channel_message_id] = IdempotencyRecord(
+                        key=channel_message_id, complaint_id=by_req.complaint_id
+                    )
+                return by_req, False
+            if by_ch is not None:
+                # Bind request_id alias to canonical channel owner (R3).
+                existing_alias = self._idempotency.get(request_id)
+                if existing_alias is not None and existing_alias.complaint_id != by_ch.complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "requestComplaintId": existing_alias.complaint_id,
+                            "channelComplaintId": by_ch.complaint_id,
+                        }
+                    )
+                self._idempotency[request_id] = IdempotencyRecord(
+                    key=request_id, complaint_id=by_ch.complaint_id
+                )
+                return by_ch, False
 
             n = next(self._seq)
             complaint_id = str(uuid.uuid4())

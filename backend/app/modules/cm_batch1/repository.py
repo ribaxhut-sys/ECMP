@@ -1,4 +1,8 @@
-"""Persistent repository for CM Batch 1 Aggregate (S2 Task 01)."""
+"""Persistent repository for CM Batch 1 Aggregate (S2 Task 01).
+
+Concurrency (TASK-PLATFORM-SECMIG-P5-001A): repository owns Atomic Claim via
+``INSERT … ON CONFLICT DO NOTHING`` (no full-session race rollback).
+"""
 
 from __future__ import annotations
 
@@ -6,10 +10,13 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from app.modules.cm_batch1.entities import ComplaintAggregate, DuplicateDecisionRecord
+from app.modules.cm_batch1.exceptions import ReplayConflict
 from app.modules.cm_batch1.models import (
     CmBatch1ChannelMessageORM,
     CmBatch1ComplaintORM,
@@ -96,6 +103,150 @@ class CmBatch1Repository:
             return None
         return self.get(str(rec.complaint_id))
 
+    def resolve_create_keys(
+        self,
+        request_id: str,
+        channel_message_id: str | None,
+    ) -> ComplaintAggregate | None:
+        """Return existing aggregate for replay, or None when a create is needed.
+
+        Raises :class:`ReplayConflict` when both keys exist but point at
+        different ComplaintIds (canonical identity clash).
+        """
+        by_req = self.get_idempotent(request_id)
+        by_ch = (
+            self.get_by_channel_message(channel_message_id)
+            if channel_message_id
+            else None
+        )
+        return self._reconcile_key_owners(
+            request_id=request_id,
+            channel_message_id=channel_message_id,
+            by_req=by_req,
+            by_ch=by_ch,
+        )
+
+    @staticmethod
+    def _reconcile_key_owners(
+        *,
+        request_id: str,
+        channel_message_id: str | None,
+        by_req: ComplaintAggregate | None,
+        by_ch: ComplaintAggregate | None,
+    ) -> ComplaintAggregate | None:
+        if by_req is not None and by_ch is not None:
+            if by_req.complaint_id != by_ch.complaint_id:
+                raise ReplayConflict(
+                    diagnostic_details={
+                        "requestId": request_id,
+                        "channelMessageId": channel_message_id,
+                        "requestComplaintId": by_req.complaint_id,
+                        "channelComplaintId": by_ch.complaint_id,
+                    }
+                )
+            return by_req
+        if by_req is not None:
+            return by_req
+        if by_ch is not None:
+            return by_ch
+        return None
+
+    def ensure_request_alias(self, request_id: str, complaint_id: str) -> None:
+        """Bind ``request_id`` → canonical ``complaint_id`` (no-op if already bound).
+
+        Raises :class:`ReplayConflict` when the key is already owned by a
+        different ComplaintId.
+        """
+        existing = self.get_idempotent(request_id)
+        if existing is not None:
+            if existing.complaint_id != complaint_id:
+                raise ReplayConflict(
+                    diagnostic_details={
+                        "requestId": request_id,
+                        "requestComplaintId": existing.complaint_id,
+                        "canonicalComplaintId": complaint_id,
+                    }
+                )
+            return
+        try:
+            cid = uuid.UUID(complaint_id)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Invalid canonical complaint_id for alias bind: {complaint_id}"
+            ) from exc
+        self._claim_insert(
+            CmBatch1IdempotencyORM.__table__,
+            {
+                "id": uuid.uuid4(),
+                "request_id": request_id,
+                "complaint_id": cid,
+                "created_at": datetime.now(UTC),
+            },
+            conflict_column="request_id",
+        )
+        # Concurrent binder may have won; verify canonical owner.
+        bound = self.get_idempotent(request_id)
+        if bound is None:
+            raise RuntimeError("Failed to bind request_id alias after claim")
+        if bound.complaint_id != complaint_id:
+            raise ReplayConflict(
+                diagnostic_details={
+                    "requestId": request_id,
+                    "requestComplaintId": bound.complaint_id,
+                    "canonicalComplaintId": complaint_id,
+                }
+            )
+
+    def ensure_channel_alias(
+        self, channel_message_id: str, complaint_id: str
+    ) -> None:
+        """Bind ``channel_message_id`` → canonical ``complaint_id`` (no-op if bound).
+
+        Raises :class:`ReplayConflict` when the key is already owned by a
+        different ComplaintId.
+        """
+        existing = self.get_by_channel_message(channel_message_id)
+        if existing is not None:
+            if existing.complaint_id != complaint_id:
+                raise ReplayConflict(
+                    diagnostic_details={
+                        "channelMessageId": channel_message_id,
+                        "channelComplaintId": existing.complaint_id,
+                        "canonicalComplaintId": complaint_id,
+                    }
+                )
+            return
+        try:
+            cid = uuid.UUID(complaint_id)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Invalid canonical complaint_id for alias bind: {complaint_id}"
+            ) from exc
+        self._claim_insert(
+            CmBatch1ChannelMessageORM.__table__,
+            {
+                "id": uuid.uuid4(),
+                "channel_message_id": channel_message_id,
+                "complaint_id": cid,
+                "created_at": datetime.now(UTC),
+            },
+            conflict_column="channel_message_id",
+        )
+        # Concurrent binder may have won; verify canonical owner.
+        bound = self.get_by_channel_message(channel_message_id)
+        if bound is None:
+            raise RuntimeError(
+                "Failed to bind channel_message_id alias after claim"
+            )
+        if bound.complaint_id != complaint_id:
+            raise ReplayConflict(
+                diagnostic_details={
+                    "channelMessageId": channel_message_id,
+                    "channelComplaintId": bound.complaint_id,
+                    "canonicalComplaintId": complaint_id,
+                }
+            )
+
     def get(self, complaint_id: str) -> ComplaintAggregate | None:
         try:
             cid = uuid.UUID(complaint_id)
@@ -133,6 +284,55 @@ class CmBatch1Repository:
         self._session.flush()
         return f"CM-{row.value:08d}"
 
+    def _dialect_name(self) -> str:
+        bind = self._session.get_bind()
+        if isinstance(bind, Connection):
+            return bind.dialect.name
+        return bind.dialect.name  # type: ignore[union-attr]
+
+    def _claim_insert(self, table, values: dict, *, conflict_column: str) -> bool:
+        """Insert row; return True if this session won the unique claim."""
+        dialect = self._dialect_name()
+        if dialect == "sqlite":
+            stmt = (
+                sqlite_insert(table)
+                .values(**values)
+                .on_conflict_do_nothing(index_elements=[conflict_column])
+                .returning(table.c.id)
+            )
+        else:
+            stmt = (
+                pg_insert(table)
+                .values(**values)
+                .on_conflict_do_nothing(index_elements=[conflict_column])
+                .returning(table.c.id)
+            )
+        return self._session.execute(stmt).first() is not None
+
+    def _delete_idempotency(self, request_id: str) -> None:
+        row = self._session.scalar(
+            select(CmBatch1IdempotencyORM).where(
+                CmBatch1IdempotencyORM.request_id == request_id
+            )
+        )
+        if row is not None:
+            self._session.delete(row)
+
+    def _rebind_idempotency(self, request_id: str, complaint_id: str) -> None:
+        """Point an existing request_id claim at the canonical ComplaintId."""
+        row = self._session.scalar(
+            select(CmBatch1IdempotencyORM).where(
+                CmBatch1IdempotencyORM.request_id == request_id
+            )
+        )
+        if row is None:
+            self.ensure_request_alias(request_id, complaint_id)
+            return
+        if str(row.complaint_id) == complaint_id:
+            return
+        row.complaint_id = uuid.UUID(complaint_id)
+        self._session.flush()
+
     def create(
         self,
         *,
@@ -146,16 +346,27 @@ class CmBatch1Repository:
         request_id: str,
         channel_message_id: str | None,
     ) -> tuple[ComplaintAggregate, bool]:
-        """Return ``(aggregate, created)`` — ``created=False`` on idempotent replay."""
-        existing = self.get_idempotent(request_id)
+        """Atomic Claim create — ``created=False`` on idempotent / race-loser replay.
+
+        Claim authority: unique indexes via ``ON CONFLICT DO NOTHING``.
+        Race losers never call ``session.rollback()``; provisional rows are deleted
+        in the same outer transaction (savepoint-free recovery).
+
+        Outcomes: ``(aggregate, True)`` NEW | ``(aggregate, False)`` REPLAY |
+        :class:`ReplayConflict` | internal error. Never returns NEW for a deleted
+        provisional aggregate.
+        """
+        existing = self.resolve_create_keys(request_id, channel_message_id)
         if existing is not None:
+            self.ensure_request_alias(request_id, existing.complaint_id)
+            if channel_message_id:
+                self.ensure_channel_alias(
+                    channel_message_id, existing.complaint_id
+                )
             return existing, False
-        if channel_message_id:
-            existing_ch = self.get_by_channel_message(channel_message_id)
-            if existing_ch is not None:
-                return existing_ch, False
 
         complaint_id = uuid.uuid4()
+        now = datetime.now(UTC)
         complaint_number = self._next_complaint_number()
         orm = CmBatch1ComplaintORM(
             id=complaint_id,
@@ -169,37 +380,62 @@ class CmBatch1Repository:
             status="REGISTERED",
             case_created=False,
             created_by=created_by,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=now,
+            updated_at=now,
         )
         self._session.add(orm)
-        self._session.add(
-            CmBatch1IdempotencyORM(
-                request_id=request_id,
-                complaint_id=complaint_id,
-                created_at=datetime.now(UTC),
-            )
+        self._session.flush()
+
+        won_request = self._claim_insert(
+            CmBatch1IdempotencyORM.__table__,
+            {
+                "id": uuid.uuid4(),
+                "request_id": request_id,
+                "complaint_id": complaint_id,
+                "created_at": now,
+            },
+            conflict_column="request_id",
         )
-        if channel_message_id:
-            self._session.add(
-                CmBatch1ChannelMessageORM(
-                    channel_message_id=channel_message_id,
-                    complaint_id=complaint_id,
-                    created_at=datetime.now(UTC),
-                )
-            )
-        try:
+        if not won_request:
+            self._session.delete(orm)
             self._session.flush()
-        except IntegrityError:
-            self._session.rollback()
-            replay = self.get_idempotent(request_id)
-            if replay is not None:
-                return replay, False
-            if channel_message_id:
-                replay_ch = self.get_by_channel_message(channel_message_id)
-                if replay_ch is not None:
-                    return replay_ch, False
-            raise
+            winner = self.resolve_create_keys(request_id, channel_message_id)
+            if winner is not None:
+                return winner, False
+            raise RuntimeError("Atomic claim lost without a visible winner")
+
+        if channel_message_id:
+            won_channel = self._claim_insert(
+                CmBatch1ChannelMessageORM.__table__,
+                {
+                    "id": uuid.uuid4(),
+                    "channel_message_id": channel_message_id,
+                    "complaint_id": complaint_id,
+                    "created_at": now,
+                },
+                conflict_column="channel_message_id",
+            )
+            if not won_channel:
+                by_ch = self.get_by_channel_message(channel_message_id)
+                if by_ch is None:
+                    self._delete_idempotency(request_id)
+                    self._session.delete(orm)
+                    self._session.flush()
+                    raise RuntimeError(
+                        "Channel claim lost without a visible winner"
+                    )
+                # Channel owner is canonical — keep request_id alias bound to it.
+                self._rebind_idempotency(request_id, by_ch.complaint_id)
+                self._session.delete(orm)
+                self._session.flush()
+                winner = self.resolve_create_keys(
+                    request_id, channel_message_id
+                )
+                if winner is None:
+                    raise RuntimeError(
+                        "Channel winner lost during request_id rebind"
+                    )
+                return winner, False
 
         return _to_entity(orm), True
 

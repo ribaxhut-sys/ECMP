@@ -8,10 +8,12 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.auth import CurrentPrincipal
+from app.core.client_ip import resolve_client_ip
 from app.core.config import Settings, get_settings
-from app.core.errors import UnauthenticatedError
+from app.core.errors import RateLimitedError, UnauthenticatedError
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
+from app.modules.audit.security_events import SecurityEventType, write_security_event
 from app.modules.auth.login_protection import get_login_attempt_guard
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import (
@@ -36,19 +38,9 @@ def get_auth_service(
     return AuthService(AuthRepository(session), settings, get_email_service())
 
 
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        first = forwarded.split(",", 1)[0].strip()
-        if first:
-            return first
-    if request.client and request.client.host:
-        return request.client.host
-    return "unknown"
-
-
-def _login_guard_key(request: Request, username: str) -> str:
-    return f"{_client_ip(request)}:{username.strip().lower()}"
+def _login_guard_key(request: Request, username: str, settings: Settings) -> str:
+    ip = resolve_client_ip(request, settings=settings) or "unknown"
+    return f"{ip}:{username.strip().lower()}"
 
 
 def _set_refresh_cookie(
@@ -98,18 +90,51 @@ def login(
     response: Response,
     service: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[Settings, Depends(get_settings)],
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> DataResponse[TokenResponse]:
-    guard_key = _login_guard_key(request, payload.username)
+    guard_key = _login_guard_key(request, payload.username, settings)
     guard = None
     if settings.login_rate_limit_enabled:
         guard = get_login_attempt_guard(settings)
-        guard.check(guard_key)
+        try:
+            guard.check(guard_key)
+        except RateLimitedError as exc:
+            write_security_event(
+                db,
+                request=request,
+                event_type=SecurityEventType.LOCKOUT,
+                new_values={
+                    "reason": "login_lockout_active",
+                    "retryAfterSeconds": (exc.details or {}).get("retryAfterSeconds"),
+                },
+                metadata_extra={"reasonCode": "RATE_LIMITED"},
+                commit=True,
+            )
+            raise
 
     try:
         session = service.login(payload)
     except UnauthenticatedError:
+        locked = False
         if guard is not None:
-            guard.record_failure(guard_key)
+            locked = guard.record_failure(guard_key)
+        write_security_event(
+            db,
+            request=request,
+            event_type=SecurityEventType.LOGIN_FAILED,
+            new_values={"reason": "invalid_credentials"},
+            metadata_extra={"reasonCode": "UNAUTHENTICATED"},
+            commit=True,
+        )
+        if locked:
+            write_security_event(
+                db,
+                request=request,
+                event_type=SecurityEventType.LOCKOUT,
+                new_values={"reason": "login_lockout_triggered"},
+                metadata_extra={"reasonCode": "RATE_LIMITED"},
+                commit=True,
+            )
         raise
 
     if guard is not None:

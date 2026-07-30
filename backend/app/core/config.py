@@ -1,14 +1,21 @@
-"""Application configuration via environment variables (Pydantic Settings)."""
+"""Application configuration via environment variables (Pydantic Settings).
+
+Secrets are loaded only from the approved configuration source (environment
+variables / git-ignored ``.env``) — never hardcoded. See
+``app.core.secrets.SECRET_INVENTORY`` (TASK-PLATFORM-SECMIG-P5-002).
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_serializer
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.secrets import REDACTED, SECRET_SETTINGS_FIELDS, redact_connection_string
 
 _INSECURE_JWT_SECRETS = frozenset(
     {
@@ -95,16 +102,17 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000"
     allowed_hosts: str = "localhost,127.0.0.1"
 
-    # Database
+    # Database — credentials from env only (no hardcoded secrets).
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "ecmp"
-    postgres_password: str = "ecmp"
+    postgres_password: str = ""
     postgres_db: str = "ecmp"
     database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
 
     # JWT / session (dev-mode HS256 issuance; TASK-PLATFORM-SECMIG-P2-001)
-    jwt_secret_key: str = "change-me-in-production"
+    # Mandatory secret — must be supplied via JWT_SECRET_KEY env / .env.
+    jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
@@ -145,6 +153,21 @@ class Settings(BaseSettings):
     login_max_failed_attempts: int = 5
     login_lockout_seconds: int = 300
 
+    # Client IP trust boundary (SECMIG-P5-005) — see app.core.client_ip.
+    # Default False: use ASGI peer (Uvicorn ProxyHeaders when FORWARDED_ALLOW_IPS
+    # allows). Set True only when app-level X-Forwarded-For parsing is required.
+    trust_forwarded_client_ip: bool = Field(
+        default=False,
+        alias="TRUST_FORWARDED_CLIENT_IP",
+    )
+    # Mirror of the Uvicorn/process env consumed by docker-entrypoint
+    # (--forwarded-allow-ips). Documented here for operational visibility;
+    # ProxyHeaders trust is applied by Uvicorn, not reimplemented in-app.
+    forwarded_allow_ips: str = Field(
+        default="127.0.0.1",
+        alias="FORWARDED_ALLOW_IPS",
+    )
+
     # Password policy / reset (Identity & Password Management)
     password_min_length: int = Field(default=8, alias="PASSWORD_MIN_LENGTH", ge=8, le=72)
     password_reset_token_expire_minutes: int = Field(
@@ -180,6 +203,53 @@ class Settings(BaseSettings):
             f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+
+    @field_serializer(
+        "jwt_secret_key",
+        "postgres_password",
+        "pgadmin_default_password",
+        "database_url_override",
+        when_used="always",
+    )
+    def _serialize_secrets(self, value: str | None) -> str | None:
+        """Never emit secret material via model_dump / JSON serialization."""
+        if value is None:
+            return None
+        if not str(value).strip():
+            return value
+        return REDACTED
+
+    @field_serializer("database_url", when_used="always")
+    def _serialize_database_url(self, value: str) -> str:
+        return redact_connection_string(value)
+
+    def _safe_field_value(self, name: str, raw: Any) -> Any:
+        """Mask secret field values for any public representation."""
+        if name in SECRET_SETTINGS_FIELDS and isinstance(raw, str) and raw.strip():
+            return REDACTED
+        return raw
+
+    def __repr__(self) -> str:
+        """Safe repr — secret fields never appear in plaintext."""
+        parts: list[str] = []
+        for name in self.__class__.model_fields:
+            raw: Any = getattr(self, name, None)
+            parts.append(f"{name}={self._safe_field_value(name, raw)!r}")
+        return f"Settings({', '.join(parts)})"
+
+    def __str__(self) -> str:
+        """Safe str — same masking contract as repr()."""
+        return self.__repr__()
+
+    def __iter__(self):
+        """Safe ``dict(settings)`` — secret fields yield redacted values."""
+        for name in self.__class__.model_fields:
+            raw: Any = getattr(self, name, None)
+            yield name, self._safe_field_value(name, raw)
+        extra = self.__pydantic_extra__
+        if extra:
+            for key, value in extra.items():
+                yield key, self._safe_field_value(str(key), value)
 
     @property
     def cors_origins(self) -> list[str]:
@@ -226,6 +296,20 @@ def _is_weak_password(value: str, *, min_length: int = 8) -> bool:
     return cleaned.lower() in _INSECURE_PASSWORDS or len(cleaned) < min_length
 
 
+def _effective_db_password(settings: Settings) -> tuple[str, str]:
+    """Return ``(source_env_var, password)`` for DB credential validation.
+
+    When ``DATABASE_URL`` embeds credentials, that password is the effective
+    source and ``POSTGRES_PASSWORD`` is not required for strength checks.
+    """
+    override = (settings.database_url_override or "").strip()
+    if override:
+        password = urlparse(override).password
+        if password is not None:
+            return "DATABASE_URL", password
+    return "POSTGRES_PASSWORD", settings.postgres_password or ""
+
+
 def _contains_local_host(value: str) -> bool:
     lowered = (value or "").strip().lower()
     return any(marker in lowered for marker in _LOCAL_HOST_MARKERS)
@@ -246,7 +330,10 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
             ConfigIssue(
                 variable="JWT_SECRET_KEY",
                 problem="Secret is missing or empty.",
-                suggested_fix="Set JWT_SECRET_KEY to a cryptographically random string of at least 32 characters.",
+                suggested_fix=(
+                    "Set JWT_SECRET_KEY via environment / .env (approved configuration source) "
+                    "to a cryptographically random string of at least 32 characters."
+                ),
             )
         )
 
@@ -380,7 +467,11 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
                 ConfigIssue(
                     variable="POSTGRES_PASSWORD",
                     problem="Database password is missing.",
-                    suggested_fix="Set POSTGRES_PASSWORD to a strong secret (compose refuses empty via ${POSTGRES_PASSWORD:?...}).",
+                    suggested_fix=(
+                        "Set POSTGRES_PASSWORD via environment / .env "
+                        "(or provide DATABASE_URL); compose refuses empty via "
+                        "${POSTGRES_PASSWORD:?...}."
+                    ),
                 )
             )
 
@@ -401,12 +492,24 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
             )
         )
 
-    if _is_weak_password(settings.postgres_password):
+    db_secret_var, db_password = _effective_db_password(settings)
+    if _is_weak_password(db_password):
+        if db_secret_var == "DATABASE_URL":
+            suggested = (
+                "Use a strong password embedded in DATABASE_URL (>=8 chars, not a "
+                "documented default), or omit credentials from DATABASE_URL and set "
+                "POSTGRES_PASSWORD instead."
+            )
+        else:
+            suggested = (
+                "Set POSTGRES_PASSWORD to a unique secret (>=8 chars) that is not a "
+                "documented default (ecmp/admin/password/...)."
+            )
         issues.append(
             ConfigIssue(
-                variable="POSTGRES_PASSWORD",
+                variable=db_secret_var,
                 problem="Password is weak or matches a known default denylist entry.",
-                suggested_fix="Set POSTGRES_PASSWORD to a unique secret (>=8 chars) that is not a documented default (ecmp/admin/password/...).",
+                suggested_fix=suggested,
             )
         )
 

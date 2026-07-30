@@ -56,6 +56,18 @@ class CmBatch1StoreProtocol(Protocol):
 
     def get_by_channel_message(self, message_id: str) -> ComplaintAggregate | None: ...
 
+    def resolve_create_keys(
+        self,
+        request_id: str,
+        channel_message_id: str | None,
+    ) -> ComplaintAggregate | None: ...
+
+    def ensure_request_alias(self, request_id: str, complaint_id: str) -> None: ...
+
+    def ensure_channel_alias(
+        self, channel_message_id: str, complaint_id: str
+    ) -> None: ...
+
     def get(self, complaint_id: str) -> ComplaintAggregate | None: ...
 
     def list_active_for_customer(self, customer_id: str) -> list[ComplaintAggregate]: ...
@@ -568,36 +580,28 @@ class CmBatch1Service:
         request_id: str,
         channel_message_id: str | None,
         actor_id: str | None,
+        authorize_replay: Callable[[str], None] | None = None,
     ) -> ComplaintBatch1Response:
         if not request_id or not request_id.strip():
             raise ValidationAppError("Request Id (Idempotency-Key) is required")
 
-        existing = self._store.get_idempotent(request_id.strip())
-        if existing is not None:
-            self._side_effects.record(
-                events.create_replayed(
-                    complaint_id=existing.complaint_id,
-                    request_id=request_id.strip(),
-                    channel_message_id=channel_message_id,
-                    actor_id=actor_id,
-                )
-            )
-            self._store.commit()
-            return self._to_complaint_response(existing, replayed=True)
+        cleaned_request_id = request_id.strip()
+        cleaned_channel = (
+            channel_message_id.strip() if channel_message_id else None
+        )
 
-        if channel_message_id:
-            existing_ch = self._store.get_by_channel_message(channel_message_id.strip())
-            if existing_ch is not None:
-                self._side_effects.record(
-                    events.create_replayed(
-                        complaint_id=existing_ch.complaint_id,
-                        request_id=request_id.strip(),
-                        channel_message_id=channel_message_id.strip(),
-                        actor_id=actor_id,
-                    )
-                )
-                self._store.commit()
-                return self._to_complaint_response(existing_ch, replayed=True)
+        # Deterministic replay read (repository owns key reconciliation).
+        existing = self._store.resolve_create_keys(
+            cleaned_request_id, cleaned_channel
+        )
+        if existing is not None:
+            return self._complete_replay(
+                existing,
+                request_id=cleaned_request_id,
+                channel_message_id=cleaned_channel,
+                actor_id=actor_id,
+                authorize_replay=authorize_replay,
+            )
 
         if not body.customer_id.strip():
             raise ValidationAppError("customerId is required")
@@ -637,57 +641,91 @@ class CmBatch1Service:
             description=body.description.strip(),
             priority=(body.priority or "MEDIUM").strip(),
             created_by=actor_id,
-            request_id=request_id.strip(),
-            channel_message_id=(
-                channel_message_id.strip() if channel_message_id else None
-            ),
+            request_id=cleaned_request_id,
+            channel_message_id=cleaned_channel,
         )
         assert row.case_created is False
 
-        if created:
-            self._side_effects.record(
-                events.complaint_created(
-                    complaint_id=row.complaint_id,
-                    complaint_number=row.complaint_number,
-                    customer_id=row.customer_id,
-                    request_id=request_id.strip(),
-                    channel_message_id=(
-                        channel_message_id.strip() if channel_message_id else None
-                    ),
+        # Race losers and any post-validate claim miss share the replay pipeline.
+        if not created:
+            return self._complete_replay(
+                row,
+                request_id=cleaned_request_id,
+                channel_message_id=cleaned_channel,
+                actor_id=actor_id,
+                authorize_replay=authorize_replay,
+            )
+
+        self._side_effects.record(
+            events.complaint_created(
+                complaint_id=row.complaint_id,
+                complaint_number=row.complaint_number,
+                customer_id=row.customer_id,
+                request_id=cleaned_request_id,
+                channel_message_id=cleaned_channel,
+                actor_id=actor_id,
+                created_at=row.created_at,
+                recording_unit_id=body.recording_unit_id,
+            )
+        )
+        if dup_result == "overridden":
+            override_rec = self._store.save_duplicate_decision(
+                customer_id=body.customer_id.strip(),
+                decision="override",
+                surviving_complaint_id=None,
+                source_complaint_id=row.complaint_id,
+                justification=(body.duplicate_override_justification or "").strip(),
+                staging_token=body.staging_token,
+                warning=True,
+                hard_block=False,
+                policy_version=self._dup_config.policy_version,
+                candidate_snapshot=None,
+                actor_id=actor_id,
+                later_review_work_item_id=None,
+            )
+            self._side_effects.record_many(
+                events.duplicate_decision_events(
+                    decision="override",
+                    customer_id=body.customer_id.strip(),
+                    surviving_complaint_id=row.complaint_id,
                     actor_id=actor_id,
-                    created_at=row.created_at,
-                    recording_unit_id=body.recording_unit_id,
+                    decision_id=override_rec.decision_id,
+                    justification_present=True,
                 )
             )
-            if dup_result == "overridden":
-                override_rec = self._store.save_duplicate_decision(
-                    customer_id=body.customer_id.strip(),
-                    decision="override",
-                    surviving_complaint_id=None,
-                    source_complaint_id=row.complaint_id,
-                    justification=(body.duplicate_override_justification or "").strip(),
-                    staging_token=body.staging_token,
-                    warning=True,
-                    hard_block=False,
-                    policy_version=self._dup_config.policy_version,
-                    candidate_snapshot=None,
-                    actor_id=actor_id,
-                    later_review_work_item_id=None,
-                )
-                self._side_effects.record_many(
-                    events.duplicate_decision_events(
-                        decision="override",
-                        customer_id=body.customer_id.strip(),
-                        surviving_complaint_id=row.complaint_id,
-                        actor_id=actor_id,
-                        decision_id=override_rec.decision_id,
-                        justification_present=True,
-                    )
-                )
-            self._store.commit()
-        resp = self._to_complaint_response(row, replayed=not created)
+        self._store.commit()
+        resp = self._to_complaint_response(row, replayed=False)
         resp.duplicate_check_result = dup_result
         return resp
+
+    def _complete_replay(
+        self,
+        row: ComplaintAggregate,
+        *,
+        request_id: str,
+        channel_message_id: str | None,
+        actor_id: str | None,
+        authorize_replay: Callable[[str], None] | None = None,
+    ) -> ComplaintBatch1Response:
+        # R3 — every successful replay key resolves to the canonical ComplaintId.
+        self._store.ensure_request_alias(request_id, row.complaint_id)
+        if channel_message_id:
+            self._store.ensure_channel_alias(
+                channel_message_id, row.complaint_id
+            )
+        # R2 — authorize actual resource before commit / outbox / audit / response.
+        if authorize_replay is not None:
+            authorize_replay(row.complaint_id)
+        self._side_effects.record(
+            events.create_replayed(
+                complaint_id=row.complaint_id,
+                request_id=request_id,
+                channel_message_id=channel_message_id,
+                actor_id=actor_id,
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(row, replayed=True)
 
     def get_complaint(self, complaint_id: str) -> ComplaintBatch1Response:
         row = self._store.get(complaint_id)

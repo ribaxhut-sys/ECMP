@@ -108,7 +108,7 @@ python scripts/validate-production-config.py --env-file .env --require-productio
 
 | Header | Set by proxy | Consumed by |
 |---|---|---|
-| `X-Forwarded-For` | Caddy / Nginx | Uvicorn (`--proxy-headers`) → `request.client`; login lockout / audit IP helpers |
+| `X-Forwarded-For` | Caddy / Nginx | Uvicorn (`--proxy-headers` + `FORWARDED_ALLOW_IPS`) → `request.client` |
 | `X-Forwarded-Proto` | Caddy / Nginx | Uvicorn URL scheme (`https`) |
 | `X-Forwarded-Host` | Caddy / Nginx | Host reconstruction behind proxy |
 | `Host` | Passed through | `TrustedHostMiddleware` (`ALLOWED_HOSTS`) |
@@ -116,6 +116,7 @@ python scripts/validate-production-config.py --env-file .env --require-productio
 Application settings:
 
 - `FORWARDED_ALLOW_IPS=*` in production compose (entrypoint passes `--forwarded-allow-ips`).
+- `TRUST_FORWARDED_CLIENT_IP` defaults to `false` (SECMIG-P5-005). Login lockout and audit IP helpers use the ASGI peer (`request.client.host`), which Uvicorn rewrites only for trusted hops. Set `TRUST_FORWARDED_CLIENT_IP=true` only when the process cannot rely on Uvicorn proxy-header trust and still needs application-level `X-Forwarded-For` parsing.
 - `ALLOWED_HOSTS` must include the public hostname **and** `backend` (healthchecks / internal DNS).
 - Refresh cookies use `Secure=true` when `ENVIRONMENT` is not development/test — requires HTTPS at the browser.
 

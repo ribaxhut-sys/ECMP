@@ -395,9 +395,12 @@ def org_http_client(monkeypatch: pytest.MonkeyPatch) -> Any:
         def create_complaint(self, body: Any, **kwargs: Any) -> ComplaintBatch1Response:
             # Replay path returns resource owned by cm_store["replay_org"].
             rid = kwargs.get("request_id") or ""
+            authorize = kwargs.get("authorize_replay")
             if rid in cm_store["idempotent"]:
                 cid = uuid.UUID(cm_store["idempotent"][rid])
                 resource_org_by_id[str(cid)] = cm_store["replay_org"]
+                if authorize is not None:
+                    authorize(str(cid))
                 cm_store["commits"] += 1
                 cm_store["outbox_events"].append("ComplaintCreateReplayed")
                 return ComplaintBatch1Response(

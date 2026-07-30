@@ -40,6 +40,7 @@
 | `ACME_EMAIL` | Production Only (Caddy) | — | ops email | ops email | ACME registration contact |
 | `HTTP_PORT` / `HTTPS_PORT` | Optional | — | `80` / `443` | `80` / `443` | Proxy published ports |
 | `FORWARDED_ALLOW_IPS` | Production (behind proxy) | `127.0.0.1` | proxy CIDRs or `*` | `*` in prod compose | Uvicorn trusted proxies; see TLS guide |
+| `TRUST_FORWARDED_CLIENT_IP` | Optional | `false` | `false` (prefer Uvicorn peer) | `false` | App-level XFF parsing; SECMIG-P5-005 trust boundary |
 | `ALLOWED_ORIGINS` | Required | `http://localhost:3000` | real origin(s) | **https** origin(s) | No `*`; no localhost outside dev |
 | `ALLOWED_HOSTS` | Required (non-dev) | localhost list | public hosts | `ECMP_DOMAIN,backend` | TrustedHostMiddleware |
 | `JWT_SECRET_KEY` | Required | placeholder OK | **≥32 chars** | **≥32 chars** | Compose `${:?}` required |
@@ -48,7 +49,7 @@
 | `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | Optional | `7` | `7` | `7` | |
 | `LOGIN_RATE_LIMIT_ENABLED` | Optional | `true` | `true` | `true` | In-memory; not Redis |
 | `LOGIN_MAX_FAILED_ATTEMPTS` | Optional | `5` | `5` | `5` | |
-| `LOGIN_LOCKOUT_SECONDS` | Optional | `300` | `300` | `300` | |
+| `LOGIN_LOCKOUT_SECONDS` | Optional | `300` | `300` | `300` | Lockout JSON `retryAfterSeconds` + `Retry-After` header (P5-005) |
 | `FRONTEND_PORT` | Optional | `3000` | map | **not published** (prod compose) | Local compose host port only |
 | `NEXT_PUBLIC_API_BASE_URL` | Required (build) | `http://localhost:8000` | public API URL | **https://ECMP_DOMAIN** | Docker build fails if unset; single-host topology |
 | `PASSWORD_MIN_LENGTH` | Optional | `8` | ≥8 | ≥8 | |
@@ -81,5 +82,7 @@ docker compose -f docker-compose.prod.yml config
 ```
 
 TLS / proxy: [`TLS_REVERSE_PROXY.md`](./TLS_REVERSE_PROXY.md), template `.env.production.example` (repo root).
+
+Security test suite (SECMIG-P5-006): [`SECURITY_TEST_SUITE.md`](./SECURITY_TEST_SUITE.md) — `python scripts/run_security_tests.py` from `backend/`.
 
 Unit coverage: `backend/tests/test_settings_guard.py`.

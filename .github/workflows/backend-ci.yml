@@ -79,6 +79,9 @@ jobs:
         run: alembic upgrade head
       - name: Run tests against PostgreSQL (coverage gate)
         run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=90
+      # SECMIG-P5-006 — security-only entry point (tests already included above):
+      #   python scripts/run_security_tests.py -q
+      # See docs/deployment/SECURITY_TEST_SUITE.md
 
   security-audit:
     runs-on: ubuntu-latest

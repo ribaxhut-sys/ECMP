@@ -155,6 +155,12 @@ def create_complaint(
     enforce_org_scope(principal, declared_org, settings)
     # SECMIG-P4-001R2 FIX 2: authorize the *actual* replay target before any
     # create_replayed commit / outbox. Declared recordingUnitId alone is insufficient.
+    def _authorize_replay(complaint_id: str) -> None:
+        if not org_scope_enforcement_enabled(settings):
+            return
+        actual_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+        enforce_org_scope(principal, actual_org, settings)
+
     if org_scope_enforcement_enabled(settings):
         replay_complaint_id: str | None = None
         if idempotency_key and idempotency_key.strip():
@@ -168,15 +174,13 @@ def create_complaint(
                 channel_message_id.strip()
             )
         if replay_complaint_id is not None:
-            actual_org = OrgUnitResolver(session).resolve_cm_complaint(
-                replay_complaint_id
-            )
-            enforce_org_scope(principal, actual_org, settings)
+            _authorize_replay(replay_complaint_id)
     result = service.create_complaint(
         body,
         request_id=idempotency_key or "",
         channel_message_id=channel_message_id,
         actor_id=_principal_key(principal),
+        authorize_replay=_authorize_replay,
     )
     if (
         not result.replayed

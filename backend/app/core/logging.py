@@ -6,12 +6,22 @@ import logging
 import sys
 from typing import Any
 
+from app.core.secrets import SecretRedactingFilter
+
 
 def configure_logging(level: str = "INFO") -> None:
     """Configure root logging for the application."""
     root = logging.getLogger()
+    secret_filter = SecretRedactingFilter()
+
+    if not any(isinstance(f, SecretRedactingFilter) for f in root.filters):
+        root.addFilter(secret_filter)
+
     if root.handlers:
         root.setLevel(level.upper())
+        for handler in root.handlers:
+            if not any(isinstance(f, SecretRedactingFilter) for f in handler.filters):
+                handler.addFilter(secret_filter)
         return
 
     handler = logging.StreamHandler(sys.stdout)
@@ -21,6 +31,7 @@ def configure_logging(level: str = "INFO") -> None:
             datefmt="%Y-%m-%dT%H:%M:%S%z",
         )
     )
+    handler.addFilter(secret_filter)
     root.addHandler(handler)
     root.setLevel(level.upper())
 

@@ -41,7 +41,8 @@ class LoginAttemptGuard:
                 # Lock expired — reset counter for a fresh window.
                 self._states.pop(key, None)
 
-    def record_failure(self, key: str) -> None:
+    def record_failure(self, key: str) -> bool:
+        """Record a failed attempt. Returns True when this call starts a lockout."""
         now = time.monotonic()
         with self._lock:
             state = self._states.get(key)
@@ -49,10 +50,12 @@ class LoginAttemptGuard:
                 state = _AttemptState()
                 self._states[key] = state
             if state.locked_until > now:
-                return
+                return False
             state.failures += 1
             if state.failures >= self.max_failures:
                 state.locked_until = now + self.lockout_seconds
+                return True
+            return False
 
     def reset(self, key: str) -> None:
         with self._lock:

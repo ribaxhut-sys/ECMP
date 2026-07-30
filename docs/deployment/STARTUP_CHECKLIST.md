@@ -20,6 +20,7 @@
 - [ ] `ECMP_DOMAIN` / `ACME_EMAIL` set for production TLS compose
 - [ ] `ALLOWED_HOSTS` includes public hostname and `backend`
 - [ ] `FORWARDED_ALLOW_IPS` set for proxy trust (`*` in prod compose)
+- [ ] `TRUST_FORWARDED_CLIENT_IP` left `false` unless app-level XFF is required (P5-005)
 - [ ] `IMAGE_TAG` pinned (not floating `latest`) for production
 - [ ] Pre-deploy DB backup completed (upgrades)
 - [ ] `docker compose -f docker-compose.prod.yml config` → valid (production)

@@ -22,7 +22,9 @@ from app.core.authorization.auth_strategy import (
 )
 from app.core.authorization.principal import Principal
 from app.core.config import Settings, get_settings
+from app.core.errors import UnauthenticatedError
 from app.db.session import get_db_session
+from app.modules.audit.security_events import SecurityEventType, write_security_event
 from app.modules.iam.permission_resolver import PermissionResolver
 
 _bearer = HTTPBearer(auto_error=False)
@@ -76,8 +78,19 @@ def get_current_principal(
     """
     del settings  # mode selected once at startup via configure_authentication
     strategy = get_authentication_strategy()
-    return strategy.authenticate(
-        credentials,
-        session,
-        request_path=request.url.path,
-    )
+    try:
+        return strategy.authenticate(
+            credentials,
+            session,
+            request_path=request.url.path,
+        )
+    except UnauthenticatedError as exc:
+        write_security_event(
+            session,
+            request=request,
+            event_type=SecurityEventType.TOKEN_REJECTED,
+            new_values={"reason": exc.message},
+            metadata_extra={"reasonCode": "UNAUTHENTICATED"},
+            commit=True,
+        )
+        raise
