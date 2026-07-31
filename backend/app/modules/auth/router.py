@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import CurrentPrincipal
 from app.core.config import Settings, get_settings
+from app.core.rate_limit import client_ip_from_request, login_rate_limiter
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.auth.repository import AuthRepository
@@ -68,10 +69,12 @@ def _read_refresh_cookie(request: Request, settings: Settings) -> str | None:
 )
 def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     service: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[TokenResponse]:
+    login_rate_limiter.check(client_ip_from_request(request))
     session = service.login(payload)
     _set_refresh_cookie(response, raw_token=session.refresh_token, settings=settings)
     return DataResponse(data=session.tokens)

@@ -89,3 +89,15 @@ class ConflictError(ApiError):
 
     def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
         super().__init__(409, "CONFLICT", message, details)
+
+
+class RateLimitError(ApiError):
+    """HTTP 429 — too many requests (e.g. login brute-force protection)."""
+
+    def __init__(
+        self,
+        message: str = "Too many requests. Try again later.",
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(429, "RATE_LIMITED", message, details)
