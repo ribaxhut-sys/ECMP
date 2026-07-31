@@ -69,6 +69,10 @@ def test_get_async_engine_caches_from_settings() -> None:
     fake = MagicMock(name="engine")
     settings = MagicMock()
     settings.database_url = "postgresql+psycopg://u:p@h/db"
+    settings.db_pool_size = 5
+    settings.db_max_overflow = 10
+    settings.db_pool_recycle_seconds = 0
+    settings.db_statement_timeout_ms = 0
     with (
         patch.object(mod, "get_settings", return_value=settings),
         patch.object(mod, "create_async_engine", return_value=fake),

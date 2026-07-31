@@ -39,6 +39,7 @@ from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.side_effects import CmBatch1SideEffectRecorder
 from app.modules.cm_batch1.store import Batch1Store
 from app.modules.timeline.models import TimelineEntryORM
+from tests.cm_batch1_helpers import confirmed_create
 
 pytestmark = pytest.mark.security
 
@@ -150,10 +151,11 @@ def _seed_complaint(
 def test_regression_request_id_replay(
     service: CmBatch1Service, db_session: Session
 ) -> None:
-    first = service.create_complaint(
-        _body(), request_id="p5-reg-1", channel_message_id=None, actor_id="a"
+    first = confirmed_create(
+        service, _body(), request_id="p5-reg-1", channel_message_id=None, actor_id="a"
     )
-    second = service.create_complaint(
+    second = confirmed_create(
+        service,
         _body(subject="changed"),
         request_id="p5-reg-1",
         channel_message_id=None,
@@ -168,13 +170,15 @@ def test_regression_request_id_replay(
 
 
 def test_regression_channel_message_replay(service: CmBatch1Service) -> None:
-    first = service.create_complaint(
+    first = confirmed_create(
+        service,
         _body(channel="CHANNEL"),
         request_id="p5-ch-1",
         channel_message_id="MSG-P5",
         actor_id="a",
     )
-    second = service.create_complaint(
+    second = confirmed_create(
+        service,
         _body(channel="CHANNEL", subject="other"),
         request_id="p5-ch-2",
         channel_message_id="MSG-P5",
@@ -290,8 +294,8 @@ def test_winner_loser_unified_replay_emits_evt_cm_002(
     service: CmBatch1Service, db_session: Session
 ) -> None:
     """created=False path uses the same CreateReplayed pipeline as early replay."""
-    winner = service.create_complaint(
-        _body(), request_id="p5-wl-1", channel_message_id=None, actor_id="w"
+    winner = confirmed_create(
+        service, _body(), request_id="p5-wl-1", channel_message_id=None, actor_id="w"
     )
     # Bypass service early resolve by calling repository create directly after commit.
     repo = CmBatch1Repository(db_session)
@@ -311,8 +315,8 @@ def test_winner_loser_unified_replay_emits_evt_cm_002(
 
     # Service-level loser (post-validate claim miss) must still emit EVT-CM-002.
     # Simulate by creating via service again (early resolve → replay pipeline).
-    loser = service.create_complaint(
-        _body(), request_id="p5-wl-1", channel_message_id=None, actor_id="l"
+    loser = confirmed_create(
+        service, _body(), request_id="p5-wl-1", channel_message_id=None, actor_id="l"
     )
     assert loser.replayed is True
     assert loser.complaint_id == winner.complaint_id
@@ -459,7 +463,8 @@ def test_race_loser_service_pipeline_without_early_hit(
         side_effects=CmBatch1SideEffectRecorder(db_session),
         duplicate_config=DuplicateConfig(enforce_on_create=False),
     )
-    result = svc.create_complaint(
+    result = confirmed_create(
+        svc,
         _body(customerId="CUST-10002"),
         request_id="p5-forced-loser",
         channel_message_id=None,
@@ -574,6 +579,7 @@ def test_r2_race_loser_replay_authorizes_actual_resource(
         side_effects=CmBatch1SideEffectRecorder(db_session),
         duplicate_config=DuplicateConfig(enforce_on_create=False),
     )
+    svc.confirm_customer("CUST-10001", principal_key="loser")
     with pytest.raises(OrgScopeDeniedError):
         svc.create_complaint(
             _body(),
@@ -629,7 +635,8 @@ def test_r3_request_replay_binds_channel_alias(
 
     Subsequent POST(K2, M) must replay X — never create Y.
     """
-    first = service.create_complaint(
+    first = confirmed_create(
+        service,
         _body(),
         request_id="K-CONV",
         channel_message_id=None,
@@ -638,7 +645,8 @@ def test_r3_request_replay_binds_channel_alias(
     assert first.replayed is False
     x = first.complaint_id
 
-    second = service.create_complaint(
+    second = confirmed_create(
+        service,
         _body(subject="replay-with-channel"),
         request_id="K-CONV",
         channel_message_id="M-CONV",
@@ -647,7 +655,8 @@ def test_r3_request_replay_binds_channel_alias(
     assert second.replayed is True
     assert second.complaint_id == x
 
-    third = service.create_complaint(
+    third = confirmed_create(
+        service,
         _body(subject="new-request-same-channel"),
         request_id="K2-CONV",
         channel_message_id="M-CONV",

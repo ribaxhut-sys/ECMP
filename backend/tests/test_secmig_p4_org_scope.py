@@ -118,7 +118,7 @@ def test_cross_unit_denied(caplog: pytest.LogCaptureFixture) -> None:
     # M-3: response must not expose protected resource ownership.
     assert "resourceOrgUnitId" not in exc.value.details
     assert "principalOrgUnitId" not in exc.value.details
-    assert any("ORG_SCOPE_DENIED" in r.message for r in caplog.records)
+    assert any("ORG_SCOPE_DENIED" in r.getMessage() for r in caplog.records)
 
 
 def test_missing_claim_denied_fail_closed() -> None:
