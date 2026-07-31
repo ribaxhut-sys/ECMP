@@ -15,6 +15,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session, sessionmaker
+from tests.cm_batch1_helpers import confirmed_create
 
 from app.db.base import Base
 from app.integrations.customer import StubCustomerProvider
@@ -39,7 +40,6 @@ from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.side_effects import CmBatch1SideEffectRecorder
 from app.modules.cm_batch1.store import Batch1Store
 from app.modules.timeline.models import TimelineEntryORM
-from tests.cm_batch1_helpers import confirmed_create
 
 pytestmark = pytest.mark.security
 
