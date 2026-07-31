@@ -1,0 +1,54 @@
+# Production / shared-host overlay for ECMP foundation stack.
+# Usage (after DNS A for $ECMP_DOMAIN points at this VPS):
+#   cp .env.prod.example .env.prod   # edit values
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Does NOT implement SSO/OIDC (see DEC-020). Local JWT login remains until SSO phase.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: ecmp-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ECMP_DOMAIN: ${ECMP_DOMAIN:?set ECMP_DOMAIN}
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?set CADDY_ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+  # Bind app ports to localhost only — public traffic via Caddy :443
+  postgres:
+    ports: !override
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+
+  backend:
+    ports: !override
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+
+volumes:
+  caddy_data:
+  caddy_config:
