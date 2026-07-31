@@ -1,5 +1,5 @@
+import { ReportsView } from "@/features/reports";
 import {
-  Empty,
   PageContainer,
   PageHeader,
 } from "@/shared/ui";
@@ -13,12 +13,9 @@ export default function ReportsPage() {
           { label: "Home", href: "/dashboard" },
           { label: "Reports" },
         ]}
-        description="Reporting views will use the shared design system and App Layout."
+        description="Complaint summary, status breakdown, and branch distribution."
       />
-      <Empty
-        title="Reports module"
-        description="Placeholder route for future report screens. No business features in this sprint."
-      />
+      <ReportsView />
     </PageContainer>
   );
 }

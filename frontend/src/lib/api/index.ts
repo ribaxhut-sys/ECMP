@@ -51,8 +51,10 @@ export { fetchBranches } from "./branches";
 export type { Branch } from "./branches";
 export { fetchCustomers } from "./customers";
 export type { Customer } from "./customers";
-export { fetchUsers } from "./users";
-export type { UserRef } from "./users";
+export { fetchUsers, createUser } from "./users";
+export type { UserRef, UserCreateRequest } from "./users";
+export { fetchRoles } from "./roles";
+export type { RoleRef } from "./roles";
 export {
   fetchReportByBranch,
   fetchReportByStatus,
