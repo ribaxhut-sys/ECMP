@@ -8,7 +8,8 @@
 | Last Review | 2026-07-31 |
 
 > **Canonical source (SoT):**  
-> [`18 Architecture Governance/ECMP_MASTER_PROMPT_001_Complaint_Management_Module_Engineering_Assistant_v1.1.md`](../../18%20Architecture%20Governance/ECMP_MASTER_PROMPT_001_Complaint_Management_Module_Engineering_Assistant_v1.1.md)
+> `18 Architecture Governance/ECMP_MASTER_PROMPT_001_Complaint_Management_Module_Engineering_Assistant_v1.1.md`  
+> (repository path outside MkDocs doc tree — open in git workspace, not portal nav)
 
 Turunan runtime dari [ECMP-CONSTITUTION-001](./ECMP-CONSTITUTION-001.md). Tidak mengubah Board / ADR / Target Architecture.
 

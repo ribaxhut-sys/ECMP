@@ -8,7 +8,8 @@
 | Last Review | 2026-07-31 |
 
 > **Canonical source (SoT):**  
-> [`18 Architecture Governance/ECMP_CONSTITUTION_001_Complaint_Management_Module_Constitution_v1.1.md`](../../18%20Architecture%20Governance/ECMP_CONSTITUTION_001_Complaint_Management_Module_Constitution_v1.1.md)
+> `18 Architecture Governance/ECMP_CONSTITUTION_001_Complaint_Management_Module_Constitution_v1.1.md`  
+> (repository path outside MkDocs doc tree — open in git workspace, not portal nav)
 
 ## Project Mission (ringkas)
 

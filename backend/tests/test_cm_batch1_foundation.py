@@ -380,14 +380,14 @@ def test_s3_migration_0043_chain() -> None:
     cfg = Config(str(backend_root / "alembic.ini"))
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0045_cm_batch1_later_review_complaint"]
+    assert script.get_heads() == ["0045_cm_b1_lr_complaint_id"]
     revs = {r.revision: r.down_revision for r in script.walk_revisions()}
     assert revs["0040_cm_batch1_persistence"] == "0039_admin_rbac_repair"
     assert revs["0041_cm_batch1_duplicate"] == "0040_cm_batch1_persistence"
     assert revs["0042_cm_batch1_attachment"] == "0041_cm_batch1_duplicate"
     assert revs["0043_cm_batch1_foundation"] == "0042_cm_batch1_attachment"
     assert revs["0044_admin_rbac_repair"] == "0043_cm_batch1_foundation"
-    assert revs["0045_cm_batch1_later_review_complaint"] == "0044_admin_rbac_repair"
+    assert revs["0045_cm_b1_lr_complaint_id"] == "0044_admin_rbac_repair"
 
 
 def test_td_ops_003_migration_0044_admin_repair_file() -> None:
@@ -408,15 +408,11 @@ def test_td_ops_003_migration_0044_admin_repair_file() -> None:
 def test_m3d_migration_0045_later_review_complaint_id() -> None:
     """M3d / EX-G — nullable complaint_id on later-review items."""
     backend_root = Path(__file__).resolve().parents[1]
-    path = (
-        backend_root
-        / "alembic"
-        / "versions"
-        / "0045_cm_batch1_later_review_complaint.py"
-    )
+    path = backend_root / "alembic" / "versions" / "0045_cm_b1_lr_complaint_id.py"
     ns: dict[str, object] = {}
     exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), ns)
-    assert ns["revision"] == "0045_cm_batch1_later_review_complaint"
+    assert ns["revision"] == "0045_cm_b1_lr_complaint_id"
     assert ns["down_revision"] == "0044_admin_rbac_repair"
     assert callable(ns["upgrade"])
     assert callable(ns["downgrade"])
+    assert len(str(ns["revision"])) <= 32
