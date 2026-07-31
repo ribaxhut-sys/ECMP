@@ -4,13 +4,15 @@ name: Backend CI
 # Does not lint/test tools/, implementation/portal/, or implementation/backend/.
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, master, "docs/**", "feature/**", "release/**"]
     paths:
       - "backend/**"
       - "07 API Catalog/openapi/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
+    branches: [main, master]
     paths:
       - "backend/**"
       - "07 API Catalog/openapi/**"

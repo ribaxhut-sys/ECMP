@@ -1,8 +1,10 @@
 name: AI Reviewer (Advisory)
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
+    branches: [main, master]
 
 jobs:
   ai-review:

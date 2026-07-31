@@ -1,9 +1,11 @@
 name: EAR Docs Governance
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, master, "docs/**", "feature/**", "release/**"]
   pull_request:
+    branches: [main, master]
 
 jobs:
   ear-check:
