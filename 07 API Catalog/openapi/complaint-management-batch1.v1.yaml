@@ -17,7 +17,8 @@ info:
   x-ecmp-rtm: RTM-CM-B1-001
   x-ecmp-dec: DEC-020
   x-ecmp-status: Implemented (lab) — coexistence per DEC-020
-  x-ecmp-ownership: CM Batch 1 Aggregate (`backend/app/modules/cm_batch1/`)servers:
+  x-ecmp-ownership: CM Batch 1 Aggregate (`backend/app/modules/cm_batch1/`)
+servers:
   - url: http://localhost:8000
     description: Local development
 tags:

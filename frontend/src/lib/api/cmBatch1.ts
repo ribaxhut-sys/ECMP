@@ -9,7 +9,6 @@
  */
 import { apiRequest } from "./client";
 import {
-  CM_BATCH1_BASE,
   buildCmBatch1CreateHeaders,
   cmBatch1Paths,
   type CmBatch1CreateComplaintOptions,
