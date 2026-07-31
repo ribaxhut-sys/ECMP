@@ -19,19 +19,16 @@ from app.integrations.customer import (
     build_customer_provider,
     mask_identity,
 )
+from app.modules.cm_batch1 import event_factory as events
 from app.modules.cm_batch1.duplicate_config import (
     DEFAULT_DUPLICATE_CONFIG,
     DuplicateConfig,
 )
 from app.modules.cm_batch1.duplicate_engine import evaluate_candidates
-from app.modules.cm_batch1 import event_factory as events
-from app.modules.cm_batch1.entities import ComplaintAggregate, DuplicateDecisionRecord
+from app.modules.cm_batch1.entities import ComplaintAggregate, DuplicateDecisionRecord, LaterReviewWorkItem
 from app.modules.cm_batch1.enumeration import EnumerationGuard
-from app.modules.cm_batch1.side_effects import (
-    NoOpSideEffectRecorder,
-    SideEffectRecorder,
-)
 from app.modules.cm_batch1.schemas import (
+    AgingComplaintItemResponse,
     ComplaintBatch1Response,
     ConfirmCustomerResponse,
     CreateComplaintBatch1Request,
@@ -43,8 +40,14 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    LaterReviewWorkItemResponse,
+    SupervisorQueueResponse,
 )
-from app.modules.cm_batch1.store import Batch1Store, STORE
+from app.modules.cm_batch1.side_effects import (
+    NoOpSideEffectRecorder,
+    SideEffectRecorder,
+)
+from app.modules.cm_batch1.store import STORE, Batch1Store
 
 
 class CmBatch1StoreProtocol(Protocol):
@@ -118,8 +121,24 @@ class CmBatch1StoreProtocol(Protocol):
     ) -> list[DuplicateDecisionRecord]: ...
 
     def create_later_review_work_item(
-        self, *, customer_id: str, reason: str
+        self,
+        *,
+        customer_id: str,
+        reason: str,
+        complaint_id: str | None = None,
     ) -> str: ...
+
+    def list_later_review_items(
+        self, *, status: str | None = "OPEN", limit: int = 100
+    ) -> list[LaterReviewWorkItem]: ...
+
+    def list_aging_without_case(
+        self, *, older_than: datetime, limit: int = 100
+    ) -> list[ComplaintAggregate]: ...
+
+
+DEFAULT_AGING_THRESHOLD_HOURS = 24
+DEFAULT_SUPERVISOR_QUEUE_LIMIT = 100
 
 
 class CmBatch1Service:
@@ -332,6 +351,7 @@ class CmBatch1Service:
             work_item_id = self._store.create_later_review_work_item(
                 customer_id=customer_id,
                 reason="duplicate_check_degraded",
+                complaint_id=None,
             )
             if emit_side_effects:
                 self._side_effects.record_many(
@@ -508,12 +528,81 @@ class CmBatch1Service:
             customer_id=customer_id, limit=limit
         )
 
-    def enqueue_later_review(self, *, customer_id: str, reason: str) -> str:
+    def enqueue_later_review(
+        self,
+        *,
+        customer_id: str,
+        reason: str,
+        complaint_id: str | None = None,
+    ) -> str:
         work_item_id = self._store.create_later_review_work_item(
-            customer_id=customer_id, reason=reason
+            customer_id=customer_id,
+            reason=reason,
+            complaint_id=complaint_id,
         )
         self._store.commit()
         return work_item_id
+
+    def get_supervisor_queue(
+        self,
+        *,
+        work_item_status: str = "OPEN",
+        aging_hours: int = DEFAULT_AGING_THRESHOLD_HOURS,
+        limit: int = DEFAULT_SUPERVISOR_QUEUE_LIMIT,
+    ) -> SupervisorQueueResponse:
+        """Read-only later-review + no-Case aging visibility (API-513)."""
+        status = (work_item_status or "OPEN").strip().upper() or "OPEN"
+        if status not in {"OPEN", "ALL", "CLOSED"}:
+            raise ValidationAppError(
+                "workItemStatus must be OPEN, CLOSED, or ALL",
+                details={"workItemStatus": work_item_status},
+            )
+        hours = max(1, min(int(aging_hours), 8760))
+        cap = max(1, min(int(limit), 500))
+        now = datetime.now(UTC)
+        older_than = now - timedelta(hours=hours)
+
+        later_rows = self._store.list_later_review_items(
+            status=status, limit=cap
+        )
+        aging_rows = self._store.list_aging_without_case(
+            older_than=older_than, limit=cap
+        )
+
+        def _age_hours(created_at: datetime) -> float:
+            created = created_at if created_at.tzinfo else created_at.replace(tzinfo=UTC)
+            return round(max(0.0, (now - created).total_seconds() / 3600.0), 2)
+
+        return SupervisorQueueResponse(
+            laterReviewItems=[
+                LaterReviewWorkItemResponse(
+                    workItemId=item.work_item_id,
+                    customerId=item.customer_id,
+                    complaintId=item.complaint_id,
+                    reason=item.reason,
+                    status=item.status,
+                    createdAt=item.created_at,
+                    ageHours=_age_hours(item.created_at),
+                )
+                for item in later_rows
+            ],
+            agingComplaints=[
+                AgingComplaintItemResponse(
+                    complaintId=row.complaint_id,
+                    complaintNumber=row.complaint_number,
+                    customerId=row.customer_id,
+                    status=row.status,
+                    subject=row.subject,
+                    priority=row.priority,
+                    createdAt=row.created_at,
+                    ageHours=_age_hours(row.created_at),
+                    caseCreated=False,
+                )
+                for row in aging_rows
+            ],
+            agingThresholdHours=hours,
+            asOf=now,
+        )
 
     def _enforce_duplicate_on_create(
         self, body: CreateComplaintBatch1Request
@@ -580,6 +669,7 @@ class CmBatch1Service:
         request_id: str,
         channel_message_id: str | None,
         actor_id: str | None,
+        principal_key: str | None = None,
         authorize_replay: Callable[[str], None] | None = None,
     ) -> ComplaintBatch1Response:
         if not request_id or not request_id.strip():
@@ -605,6 +695,26 @@ class CmBatch1Service:
 
         if not body.customer_id.strip():
             raise ValidationAppError("customerId is required")
+
+        # TD-CM-001 / EX-D / FR-002 AC1 — confirm lock required before new create.
+        lock_principal = (principal_key or actor_id or "").strip()
+        if not lock_principal:
+            raise ValidationAppError(
+                "principal key is required to enforce customer confirm lock",
+                details={"field": "principalKey"},
+            )
+        locked_customer_id = self._store.get_confirmed(lock_principal)
+        customer_id = body.customer_id.strip()
+        if locked_customer_id is None or locked_customer_id != customer_id:
+            raise ValidationAppError(
+                "CustomerId must be confirmed/locked for this actor before create",
+                details={
+                    "customerId": customer_id,
+                    "lockedCustomerId": locked_customer_id,
+                    "principalKey": lock_principal,
+                },
+            )
+
         existence = self._customers.exists(body.customer_id)
         if existence.status == CustomerLookupStatus.UNAVAILABLE and self.strict_master:
             raise ValidationAppError(
@@ -634,7 +744,7 @@ class CmBatch1Service:
         dup_result = self._enforce_duplicate_on_create(body)
 
         row, created = self._store.create(
-            customer_id=body.customer_id.strip(),
+            customer_id=customer_id,
             category=body.category.strip(),
             channel=body.channel.strip(),
             subject=body.subject.strip(),

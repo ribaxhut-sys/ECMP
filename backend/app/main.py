@@ -17,16 +17,16 @@ from app.api.router import api_router
 from app.core.authorization.auth_strategy import configure_authentication
 from app.core.config import get_settings, validate_runtime_config
 from app.core.errors import ApiError
-from app.core.logging import configure_logging, get_logger
-from app.core.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
-from app.core.operational_security import retry_after_header_value
-from app.core.runtime_state import mark_startup_complete, mark_startup_incomplete
-from app.core.schemas import ErrorResponse
 from app.core.keys import (
     build_registry_from_settings,
     clear_key_registry,
     configure_key_registry,
 )
+from app.core.logging import configure_logging, get_logger
+from app.core.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
+from app.core.operational_security import retry_after_header_value
+from app.core.runtime_state import mark_startup_complete, mark_startup_incomplete
+from app.core.schemas import ErrorResponse
 from app.core.secrets import (
     clear_runtime_secrets,
     redact_mapping,
@@ -51,7 +51,7 @@ _CORS_HEADERS = [
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, log_format=settings.log_format)
     validate_runtime_config(settings)
     register_runtime_secrets(settings)
     configure_key_registry(build_registry_from_settings(settings))

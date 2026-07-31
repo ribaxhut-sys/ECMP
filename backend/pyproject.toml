@@ -13,6 +13,22 @@ ignore = [
   "B008", # Depends(...) in defaults is the canonical FastAPI DI idiom
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Scoped burn-down debt. The CI lint gate is BLOCKING (backend-ci.yml); these
+# narrow exemptions exist so the gate can be enforced everywhere else while the
+# remaining findings are cleared. Delete each entry as its debt is paid — do not
+# widen the scope, and do not add new paths without a recorded decision.
+#
+# E501 — long `suggested_fix=` strings in the startup-validation inventory.
+#        File is under active revision (ADR-014 Mode A/B switches); reflowing it
+#        now would collide with in-flight work.
+"app/core/config.py" = ["E501"]
+# B017 — 35 blind `pytest.raises(Exception)` assertions across 22 test modules.
+#        Each needs its concrete exception type (e.g. FrozenInstanceError,
+#        ValidationError) plus a verifying test run; not a mechanical fix.
+# E501 — a handful of long literals in fixtures.
+"tests/**" = ["B017", "E501"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 

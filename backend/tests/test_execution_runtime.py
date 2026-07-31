@@ -4,64 +4,32 @@
 
 from __future__ import annotations
 
-
-
 import ast
-
 import uuid
-
 from datetime import UTC, datetime
-
 from pathlib import Path
-
 from unittest.mock import patch
-
-
 
 import pytest
 
-
-
 from app.modules.execution import (
-
     ExecutionContext,
-
     ExecutionPlan,
-
     ExecutionPlanSource,
-
     ExecutionPlanStatus,
-
     ExecutionPlanStore,
-
-    ExecutionPlanner,
-
     ExecutionRegistry,
-
     ExecutionResult,
-
     ExecutionRun,
-
     ExecutionRunStatus,
-
     ExecutionRunStore,
-
     ExecutionRunTask,
-
     ExecutionRunTaskStatus,
-
     ExecutionRuntime,
-
     ExecutionTask,
-
     build_execution_context,
-
 )
-
 from app.modules.execution.models import freeze_mapping
-
-
-
 
 
 def _plan(*, task_count: int = 3) -> ExecutionPlan:

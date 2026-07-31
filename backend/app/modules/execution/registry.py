@@ -8,7 +8,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-
 # Future executor may call handlers as (task, plan) -> None. Never invoked here.
 ExecutionTaskHandler = Callable[..., Any]
 

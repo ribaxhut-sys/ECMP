@@ -10,18 +10,11 @@ No business logic, no handler invocation, no side effects.
 
 from __future__ import annotations
 
-
-
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
 
-
-
 from app.modules.execution.runtime_models import ExecutionRunStatus
-
-
-
 
 
 @dataclass(frozen=True, slots=True)

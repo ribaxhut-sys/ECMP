@@ -8,7 +8,7 @@ import pytest
 
 from app.core.errors import ValidationAppError
 from app.modules.timeline.domain.entity import TimelineEntry
-from app.modules.timeline.domain.enums import AggregateType, ActorType, TimelineEventType
+from app.modules.timeline.domain.enums import ActorType, AggregateType, TimelineEventType
 
 
 def test_create_immutable_entry() -> None:

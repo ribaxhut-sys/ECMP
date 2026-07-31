@@ -6,7 +6,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.modules.queue.api.validators import strip_required, strip_optional
+from app.modules.queue.api.validators import strip_optional, strip_required
 from app.modules.queue.models import QueuePolicy, QueueStatus
 
 

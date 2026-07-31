@@ -17,7 +17,8 @@
 | Related Delta Review | GOV-DELTA-FRD-CM-001 |
 | Related Release Notes | GOV-RN-FRD-CM-001 |
 | Related S0 Pack | `18 Architecture Governance/reviews/ECMP_CM_Batch1_S0_Contract_Pack_v1.0.md` |
-| Namespace | FRD-CM-001 / BR-CM-CAT-001 (not Sprint delivery FRD-001 / BR-DOC-001) |
+| Related DEC | DEC-020 (Accepted — dual SoT / namespace ownership; closes OQ-CM-B1-001) |
+| Namespace | FRD-CM-001 / BR-CM-CAT-001 Aggregate (`/api/v1/cm`) — coexistence with Sprint/foundation (`/api/v1/complaints`) per DEC-020 |
 
 > This RTM does **not** modify the FRD, Business Rules, Architecture Decisions, or Batch 1 scope. It consolidates locked FRD mappings into the single Batch 1 traceability source for implementation planning and test design.
 
@@ -186,23 +187,24 @@ Business Rule
 
 ## 7. API ↔ UC ↔ FR Matrix
 
-> Logical Batch 1 APIs. Payload/OpenAPI authorship remains out of FRD scope. Catalog collisions `API-390` / `API-392` are highlighted in §14 — cite **path+method** until remapped.
+> Logical Batch 1 APIs. Payload/OpenAPI authorship remains out of FRD scope. Catalog collisions `API-390` / `API-392` are highlighted in §14 — cite **path+method** (DEC-020). Aggregate intake is `/api/v1/cm` (API-500…512).
 
 | API ID | Logical Capability | Path / Catalog Ref | FR | Mapped Use Case(s) | Status |
 |---|---|---|---|---|---|
-| API-CM-B1-001 | Create Complaint (idempotent) | `POST /api/v1/complaints` (catalog ID remap pending; collision on API-390) | FR-001 | UC-CM-001, UC-CM-005, UC-CM-006, UC-CM-009 | Existing alignment / Planned remap |
-| API-CM-B1-002 | Get Complaint confirmation/detail | `GET /api/v1/complaints/{complaintId}` (collision on API-392) | FR-001 | UC-CM-001, UC-CM-009 | Existing alignment / Planned remap |
-| API-CM-B1-003 | Search Customer by key | Planned ECMP customer-search facade | FR-002 | UC-CM-002, UC-CM-008 | **Planned** |
-| API-CM-B1-004 | Confirm / lock CustomerId | Planned (may embed in create draft) | FR-002 | UC-CM-002 | **Planned** |
-| API-CM-B1-005 | Batch 1 Customer 360 minimum | Planned (profile + active + count) | FR-002 | UC-CM-008 | **Planned** |
-| API-CM-B1-006 | Check duplicate candidates | Planned | FR-003 | UC-CM-003, UC-CM-006, UC-CM-007 | **Planned** |
-| API-CM-B1-007 | Record duplicate decision / linkage | Planned (or embedded in create) | FR-003 | UC-CM-003, UC-CM-006, UC-CM-007 | **Planned** |
-| API-CM-B1-008 | Upload attachment | `API-323` `POST /api/v1/attachments` | FR-004 | UC-CM-004, UC-CM-005, UC-CM-007 | Existing |
-| API-CM-B1-009 | Transfer staged attachments | Planned | FR-004 | UC-CM-007 | **Planned** |
-| API-CM-B1-010 | List attachments for Complaint | `API-387` | FR-004 | UC-CM-004 | Existing |
-| API-CM-B1-011 | Get attachment metadata | `API-324` | FR-004 | UC-CM-004 | Existing |
-| API-CM-B1-012 | Download attachment | `API-325` | FR-004 | UC-CM-004 | Existing |
-| API-CM-B1-013 | Logical void | `API-326` (semantics MUST match BR-012 void) | FR-004 | UC-CM-004 | Existing |
+| API-CM-B1-001 | Create Complaint (idempotent) | `API-500` `POST /api/v1/cm/complaints` | FR-001 | UC-CM-001, UC-CM-005, UC-CM-006, UC-CM-009 | Implemented (lab) |
+| API-CM-B1-002 | Get Complaint confirmation/detail | `API-501` `GET /api/v1/cm/complaints/{complaintId}` | FR-001 | UC-CM-001, UC-CM-009 | Implemented (lab) |
+| API-CM-B1-003 | Search Customer by key | `API-502` `POST /api/v1/cm/customers/search` | FR-002 | UC-CM-002, UC-CM-008 | Implemented (lab) |
+| API-CM-B1-004 | Confirm / lock CustomerId | `API-503` `POST /api/v1/cm/customers/confirm` | FR-002 | UC-CM-002 | Implemented (lab) |
+| API-CM-B1-005 | Batch 1 Customer 360 minimum | `API-504` `GET /api/v1/cm/customers/{customerId}/batch1-360` | FR-002 | UC-CM-008 | Implemented (lab) |
+| API-CM-B1-006 | Check duplicate candidates | `API-505` `POST /api/v1/cm/duplicates/check` | FR-003 | UC-CM-003, UC-CM-006, UC-CM-007 | **Implemented (lab)** |
+| API-CM-B1-007 | Record duplicate decision / linkage | `API-506` `POST /api/v1/cm/duplicates/decisions` | FR-003 | UC-CM-003, UC-CM-006, UC-CM-007 | **Implemented (lab)** |
+| API-CM-B1-008 | Upload attachment | `API-323` / `API-507` `POST /api/v1/attachments` | FR-004 | UC-CM-004, UC-CM-005, UC-CM-007 | **Implemented (lab; shared CAP)** |
+| API-CM-B1-009 | Transfer staged attachments | `API-508` `POST /api/v1/cm/attachments/transfer` | FR-004 | UC-CM-007 | **Implemented (lab)** |
+| API-CM-B1-010 | List attachments for Complaint | `API-387` / `API-509` `GET /api/v1/complaints/{id}/attachments` | FR-004 | UC-CM-004 | **Implemented (lab; shared listing)** |
+| API-CM-B1-011 | Get attachment metadata | `API-324` / `API-510` `GET /api/v1/attachments/{id}` | FR-004 | UC-CM-004 | **Implemented (lab; shared)** |
+| API-CM-B1-012 | Download attachment | `API-325` / `API-511` `GET /api/v1/attachments/{id}/download` | FR-004 | UC-CM-004 | **Implemented (lab; shared)** |
+| API-CM-B1-013 | Logical void | `API-326` / `API-512` (semantics MUST match BR-012 void) | FR-004 | UC-CM-004 | **Implemented (lab; shared void)** |
+| API-CM-B1-014 | Supervisor later-review / no-Case aging queue | `API-513` `GET /api/v1/cm/supervisor/queue` | FR-001 | UC-CM-001 (visibility) | **Implemented (lab; read-only)** |
 
 ### 7.1 Requirement check
 
@@ -324,7 +326,7 @@ Business Rule
 
 ## 11. Acceptance Criteria ↔ Test Cases
 
-> Test Cases are **Planned** IDs for Batch 1 implementation/QA. They are not yet in the Sprint delivery TC catalog (namespace collision caveat applies until DEC remapping — OQ-CM-B1-001).
+> Test Cases are **Planned** IDs for Batch 1 implementation/QA. They are not yet in the Sprint delivery TC catalog (namespace collision caveat applies under **DEC-020** dual SoT — qualify as TC-CM-* / FRD-CM-001).
 
 ### 11.1 FR-001 — Complaint Registration
 
@@ -398,11 +400,12 @@ Per CTO D-08 and FRD §18.1 — these do **not** block RTM approval or Batch 1 F
 
 | OQ ID | Topic | Impacted FR / DM | Blocking? | Disposition |
 |---|---|---|---|---|
+| OQ-CM-B1-001 | Dual SoT / DEC remapping | Namespace / implementation sequencing | **Closed** | **DEC-020** — Closed — remapped by dual SoT |
 | OQ-CM-B1-012 | Request Id / Channel Message Id lifetime (TTL) | FR-001 / DM-CM-010 / SEC-CM-001-02 | **Not Blocking** | Future Architecture Decision |
 | OQ-CM-B1-013 | Request Id generation authority (client / gateway / Backend) | FR-001 / SCR-CM-001 / SEC-CM-001-02 | **Not Blocking** | Future Architecture Decision |
 | OQ-CM-B1-014 | Attachment `TRANSFERRED` status semantics | FR-004 / EVT-CM-033 / DB-CM-015 | **Not Blocking** | Future Architecture Decision |
 
-Other FRD OQs (001–011, 007 v1.2) remain tracked in FRD §18; they are outside this RTM close-set but do not invalidate Batch 1 FR coverage.
+Other FRD OQs (002–011, 007 v1.2) remain tracked in FRD §18; they are outside this RTM close-set but do not invalidate Batch 1 FR coverage.
 
 ---
 
@@ -423,9 +426,9 @@ Other FRD OQs (001–011, 007 v1.2) remain tracked in FRD §18; they are outside
 | DM-CM-012 Notification Outbox | DM | No BR (ADR-009) | Acceptable ADR-linked entity |
 | EVT-CM-* | Event | Not yet published to Event Catalog | Catalog follow-on (implementation gate) |
 | TC-CM-* | Test | Planned IDs only | Author under Test Strategy after CTO RTM approval |
-| API-CM-B1-003…007, 009 | API | Planned capabilities | OpenAPI catalog update before code |
+| API-CM-B1-006…007, 009 | API | Planned Aggregate capabilities | OpenAPI catalog update before code |
 | BR-018 | BR | Consumed by FR-001/002/003 but omitted from FRD §15 reverse-mapping table | **Documentation gap in FRD reverse table** — RTM corrects coverage here; do not treat as missing FR consumption |
-| Sprint delivery FR/BR/API/TC IDs | Namespace | Parallel SoT until DEC remap | OQ-CM-B1-001 |
+| Sprint delivery FR/BR/API/TC IDs | Namespace | Parallel SoT under DEC-020 coexistence | **DEC-020** (OQ-CM-B1-001 Closed) |
 
 ---
 
@@ -444,9 +447,9 @@ Other FRD OQs (001–011, 007 v1.2) remain tracked in FRD §18; they are outside
 
 | ID | Issue | Severity | Disposition |
 |---|---|---|---|
-| `API-390` | Catalog collision: complaint create **and** dashboard queue | High (automation) | Cite path+method until catalog remap (FRD §13); RTM uses `API-CM-B1-001` |
-| `API-392` | Catalog collision: complaint get **and** dashboard notifications | High (automation) | Cite path+method until catalog remap; RTM uses `API-CM-B1-002` |
-| `FR-001` / `BR-001` | Namespace collision vs Sprint delivery SoT | High (implementation) | Namespace note + OQ-CM-B1-001; RTM uses CM Aggregate meaning only |
+| `API-390` | Catalog collision: complaint create **and** dashboard queue | High (automation) | Cite path+method (DEC-020); Aggregate create = `POST /api/v1/cm/complaints` (`API-500` / `API-CM-B1-001`) |
+| `API-392` | Catalog collision: complaint get **and** dashboard notifications | High (automation) | Cite path+method; Aggregate get = `GET /api/v1/cm/complaints/{complaintId}` (`API-501` / `API-CM-B1-002`) |
+| `FR-001` / `BR-001` | Namespace collision vs Sprint delivery SoT | High (implementation) | **DEC-020** dual SoT; RTM uses CM Aggregate meaning only + path+method |
 | `API-326` vs BR-012 | Catalog “logical delete” vs BR void-with-reason wording | Medium | Semantics MUST align to BR-012 void (FRD §13 note) |
 
 ---
@@ -458,7 +461,7 @@ Other FRD OQs (001–011, 007 v1.2) remain tracked in FRD §18; they are outside
 | **BR Coverage** | 11 consumed Batch 1 BRs | 11 / 11 | **100%** | 9 catalog BRs deferred out of Batch 1 |
 | **FR Coverage** | FR-001…FR-004 | 4 / 4 | **100%** | Each has BR, UC, Screen, API, DM, SEC, AC, TC |
 | **UC Coverage** | UC-CM-001…009 | 9 / 9 | **100%** | All map to ≥1 FR and ≥1 Screen |
-| **API Coverage** | API-CM-B1-001…013 | 13 / 13 | **100%** | All map to ≥1 UC; 6 Planned |
+| **API Coverage** | API-CM-B1-001…013 | 13 / 13 | **100%** | All map to ≥1 UC; path+method under DEC-020; FR-003/004 Planned |
 | **Domain Coverage** | DM-CM-001…008, 010…012 | 11 / 11 in-scope | **100%** | DM-CM-009 deferred Batch 2 |
 | **Security Coverage** | SEC-CM-001/002/003/004 controls | 33 / 33 | **100%** | Each cites originating FR |
 | **Test Coverage** | AC-CM-* (38) | 38 / 38 Planned TC | **100% Planned** | Execution coverage = 0% until TC authored |
@@ -537,6 +540,7 @@ Design-time Batch 1 traceability is complete against FRD-CM-001 v1.1 LOCKED. No 
 |---|---|---|---|
 | 1.0 | 2026-07-29 | Requirements Manager / QA Lead | Initial Batch 1 RTM from FRD-CM-001 v1.1 LOCKED; Validation Report + Coverage Summary; Ready for CTO Review |
 | 1.0 LOCKED | 2026-07-29 | Requirements Manager / CTO | Status → LOCKED (S0); API/Event/TC publication referenced |
+| 1.0 LOCKED + DEC-020 sync | 2026-07-30 | Documentation Architect | PROGRAM-DOC-001: §7 path+method → `/api/v1/cm` (API-500…512); OQ-CM-B1-001 Closed via DEC-020; no FR/BR change |
 
 ---
 
@@ -548,8 +552,9 @@ Design-time Batch 1 traceability is complete against FRD-CM-001 v1.1 LOCKED. No 
 - `18 Architecture Governance/reviews/ECMP_FRD_CM_001_v1.1_LOCKED_Release_Notes.md`
 - `18 Architecture Governance/reviews/ECMP_CM_Batch1_S0_Contract_Pack_v1.0.md`
 - `07 API Catalog/openapi/complaint-management-batch1.v1.yaml`
+- `27 Project Decisions/DEC-020_Complaint_Implementation_SoT_Namespace_Remapping_v1.0.md`
 - `13 Test Strategy/ECMP_Test_Case_Catalog_CM_Batch1_v1.0.md`
-- `26 Traceability/TRACEABILITY_MATRIX.md` (Sprint delivery SoT — separate namespace)
+- `26 Traceability/TRACEABILITY_MATRIX.md` (Sprint delivery SoT — separate namespace; DEC-020 coexistence)
 
 ---
 

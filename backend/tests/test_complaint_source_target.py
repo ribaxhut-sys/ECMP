@@ -135,10 +135,10 @@ def test_service_create_branch_complaint_derives_no_customer() -> None:
     result = service.create(payload, actor_user_id=actor_id)
 
     row = created["row"]
-    assert getattr(row, "customer_id") is None
-    assert getattr(row, "branch_id") is None
-    assert getattr(row, "source_type") == "BRANCH"
-    assert getattr(row, "target_type") == "HEAD_OFFICE"
+    assert row.customer_id is None
+    assert row.branch_id is None
+    assert row.source_type == "BRANCH"
+    assert row.target_type == "HEAD_OFFICE"
     assert result.source_type == ComplaintSourceType.BRANCH
     assert result.target_type == ComplaintTargetType.HEAD_OFFICE
     sla.create_for_complaint.assert_called_once()
@@ -200,5 +200,5 @@ def test_service_create_customer_target_branch_sets_branch_id() -> None:
         actor_user_id=actor_id,
     )
     row = created["row"]
-    assert getattr(row, "customer_id") == customer_id
-    assert getattr(row, "branch_id") == branch_id
+    assert row.customer_id == customer_id
+    assert row.branch_id == branch_id

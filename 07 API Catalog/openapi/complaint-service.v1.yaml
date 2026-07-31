@@ -10,6 +10,10 @@ info:
     and workflow-engine APIs are out of scope. Identity & Password Management
     (API-410–413: forgot/reset/change/admin-reset password; force password change;
     EmailService logging provider) is in scope.
+    Ownership (DEC-020 Accepted): `/api/v1/complaints` is the canonical foundation /
+    Sprint delivery lifecycle namespace. It is NOT interchangeable with Aggregate
+    intake under `/api/v1/cm` (complaint-management-batch1). Controlled coexistence
+    until an explicit Retirement/Cutover DEC.
     SLA foundation read (API-314), SLA policy configuration (API-315–317),
     SLA deadline calculation at complaint create (TASK-023 / DEC-012),
     SLA status evaluation / breach detection (TASK-024 / DEC-013),
@@ -37,6 +41,9 @@ info:
     Error responses use the Error envelope {code, message, details} for ALL 4xx/5xx
     (`details` may be null). Success responses use {data} or {data, meta} wrappers.
   x-ear-id: API-200
+  x-ecmp-dec: DEC-020
+  x-ecmp-ownership: Foundation / legacy complaint lifecycle
+  x-ecmp-status: Implemented (production foundation)
 servers:
   - url: http://localhost:8000
     description: Local development

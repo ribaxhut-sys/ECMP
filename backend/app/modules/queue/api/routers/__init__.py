@@ -6,11 +6,15 @@ from fastapi import APIRouter
 
 from app.modules.queue.api.routers.counters import (
     counters_router,
+)
+from app.modules.queue.api.routers.counters import (
     nested_router as counters_nested_router,
 )
 from app.modules.queue.api.routers.queues import router as queues_router
 from app.modules.queue.api.routers.tickets import (
     nested_router as tickets_nested_router,
+)
+from app.modules.queue.api.routers.tickets import (
     ops_queue_router,
     ops_tickets_router,
     tickets_router,

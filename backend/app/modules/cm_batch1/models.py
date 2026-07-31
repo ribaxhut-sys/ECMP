@@ -222,6 +222,7 @@ class CmBatch1LaterReviewItemORM(Base):
     __table_args__ = (
         Index("ix_cm_batch1_later_review_customer_id", "customer_id"),
         Index("ix_cm_batch1_later_review_status", "status"),
+        Index("ix_cm_batch1_later_review_complaint_id", "complaint_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -232,6 +233,7 @@ class CmBatch1LaterReviewItemORM(Base):
     )
     work_item_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     customer_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    complaint_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     reason: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="OPEN")
     created_at: Mapped[datetime] = mapped_column(

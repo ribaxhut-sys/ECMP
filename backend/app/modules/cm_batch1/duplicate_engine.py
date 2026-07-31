@@ -4,23 +4,12 @@
 
 from __future__ import annotations
 
-
-
 import re
-
 from dataclasses import dataclass
-
 from datetime import datetime
 
-
-
 from app.modules.cm_batch1.duplicate_config import DuplicateConfig
-
 from app.modules.cm_batch1.entities import ComplaintAggregate
-
-
-
-
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 

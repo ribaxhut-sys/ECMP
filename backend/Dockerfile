@@ -46,7 +46,7 @@ LABEL org.opencontainers.image.title="ecmp-backend" \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 ecmp \
     && useradd --system --uid 10001 --gid ecmp --home-dir /app --shell /usr/sbin/nologin ecmp
@@ -55,9 +55,11 @@ COPY --from=builder /install /install
 COPY --chown=ecmp:ecmp . .
 
 RUN chmod +x /app/docker-entrypoint.sh \
+    && mkdir -p /app/storage/attachments \
     && chown -R ecmp:ecmp /app
 
-USER ecmp
+# Entrypoint starts as root to chown named volumes, then drops to uid 10001.
+USER root
 
 EXPOSE 8000
 

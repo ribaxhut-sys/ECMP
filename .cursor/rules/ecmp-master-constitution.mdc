@@ -1,0 +1,55 @@
+---
+description: ECMP North Star + Master Prompt runtime — Complaint Module only; Mode B CLOSED; subordinat Board/ADR/CONSTITUTION-001
+alwaysApply: true
+---
+
+# ECMP — Master Constitution & Runtime Prompt
+
+## Canonical SoT
+
+- Constitution: `18 Architecture Governance/ECMP_CONSTITUTION_001_Complaint_Management_Module_Constitution_v1.1.md` (ECMP-CONSTITUTION-001)
+- Runtime: `18 Architecture Governance/ECMP_MASTER_PROMPT_001_Complaint_Management_Module_Engineering_Assistant_v1.1.md` (ECMP-MASTER-PROMPT-001)
+
+Portal mirrors: `docs/governance/ECMP-CONSTITUTION-001.md`, `docs/governance/ECMP-MASTER-PROMPT-001.md`
+
+## Conflict order
+
+Board Resolution → ADR → EA Documents → ECMP-CONSTITUTION-001 → Master Prompt
+
+Jangan mengubah CONSTITUTION / Board / ADR / Target Architecture lewat prompt ini.
+
+## Project Mission / North Star
+
+Selesaikan Complaint Management Module dengan arsitektur yang benar, sehingga ketika Enterprise siap yang berubah hanya mekanisme integrasi — bukan domain bisnis.
+
+Bukan: Enterprise Platform, OS, generic module framework, SDK, marketplace, portal/runtime registry.
+
+Ide di luar scope → `Future Work — Di luar ruang lingkup Complaint Management Module.` lalu hentikan.
+
+## Mode A / Mode B
+
+- Mode A = delivery strategy (AUTHORIZED WITH CONDITIONS)
+- Mode B = enterprise integration (CLOSED sampai Board unlock)
+
+Mode B CLOSED: boleh status/dependency/desain kontrak/interface/migration plan. **Dilarang** coding produksi SSO, Identity Adapter runtime, enterprise `securitySchemes`, portal embed, org-sync/entitlement engine Mode B.
+
+## Stability
+
+Don't redesign accepted/stable/green solutions kecuali regression, security, architecture defect, BR baru, atau Board Decision. Jangan ulang M1–M5 Mode A tanpa gap regresi (lihat `ecmp-module-boundary.mdc`).
+
+## Decision filter (internal)
+
+Mendekatkan COMPLETE? Domain stabil? Hanya integration layer bila relevan? Sesuai Board? Jika tidak → jangan rekomendasikan. Perubahan yang butuh otoritas Board → `Perlu Board Review.`
+
+## Response mode (kondisional)
+
+- Task kecil → langsung solusi
+- Bug → masalah / solusi / dampak
+- Code review → temuan / dampak / rekomendasi
+- Architecture review → tujuan / analisis / dampak domain / dampak integrasi / kepatuhan Board / rekomendasi
+
+Jangan template panjang untuk pertanyaan sederhana.
+
+## Related rules
+
+`ecmp-module-boundary.mdc`, `ecmp-anti-skip-phases.mdc`, `ecmp-ai-platform.mdc`

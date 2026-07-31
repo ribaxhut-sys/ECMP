@@ -62,10 +62,13 @@ Historical DEP-CHK-001 is **not** used for foundation production cutover.
 - [`ECMP_Recovery_Validation_Checklist_v1.0.md`](./ECMP_Recovery_Validation_Checklist_v1.0.md) (OPS-RCV-001) — restore/smoke/RPO/RTO/evidence checklist
 - [`ECMP_Backup_Strategy_v0.1.md`](./ECMP_Backup_Strategy_v0.1.md) — **Superseded** stub → Backup Operations Guide
 - [`evidence/restore-drill-20260722/README.md`](./evidence/restore-drill-20260722/README.md) — Sprint-09 DEV scratch restore drill evidence (PASS)
+- [`evidence/restore-drill-20260730/README.md`](./evidence/restore-drill-20260730/README.md) — Foundation lab restore drill (PASS procedure; Mode A)
+- [`evidence/restore-drill-20260730-shared/README.md`](./evidence/restore-drill-20260730-shared/README.md) — **Shared-profile** restore drill (PASS — closes audit K-4 / RR-1 with conditions)
 
 ### Core operations
 
 - [`ECMP_Runbook_Slice_v0.1.md`](./ECMP_Runbook_Slice_v0.1.md) (OPS-RB-001) — service inventory, health, playbooks P1–P6, escalation matrix (foundation-updated)
+- [`ECMP_CM_Batch1_Staging_TTL_Cleanup_v0.1.md`](./ECMP_CM_Batch1_Staging_TTL_Cleanup_v0.1.md) (OPS-CM-B1-STG-001) — Mode A FR-004 staging TTL void + attachment storage probe (script; no Mode B)
 - [`ECMP_IdP_Administrator_Runbook_v1.0.md`](./ECMP_IdP_Administrator_Runbook_v1.0.md) (OPS-IDP-001) — local DEV Keycloak baseline (**Historical pack path** `implementation/infrastructure` — marked in-doc)
 - [`ECMP_Shutdown_Procedure_v0.1.md`](./ECMP_Shutdown_Procedure_v0.1.md) (OPS-SHDN-001) — orderly shutdown
 - [`ECMP_Log_Inspection_Procedure_v0.1.md`](./ECMP_Log_Inspection_Procedure_v0.1.md) (OPS-LOG-001) — request id lookup (foundation + historical JSON note)
@@ -86,8 +89,8 @@ Historical DEP-CHK-001 is **not** used for foundation production cutover.
 - [x] Structured log inspection / id lookup (OPS-LOG-001)
 - [x] Security operations runbook + secret + audit investigation (P6-002)
 - [x] Backup operations + restore + DR sync + recovery validation checklist (P6-003)
-- [x] Restore drill executed (DEV scratch — OPS-RST-001); shared-env drill still Planned (OPS-RCV-001)
-- [ ] Batch/job monitoring (if any) — belum ada batch/job
+- [x] Restore drill executed (DEV scratch 2026-07-22; foundation lab 2026-07-30; **shared-profile** 2026-07-30 — OPS-RST-EVID-20260730-SHARED). Dedicated remote SIT/UAT re-drill remains Planned when ADR-010 hosts exist.
+- [x] Batch/job monitoring (if any) — Mode A CM Batch-1 staging TTL cleanup via `scripts/cm_batch1_ops_hygiene.py` (OPS-CM-B1-STG-001); generic batch platform still Planned
 - [x] Notification failure handling (OPS-RB-001 P6 — Planned, domain belum dibangun)
 - [x] SLA breach operational response (OPS-RB-001 P5 — baseline manual)
 

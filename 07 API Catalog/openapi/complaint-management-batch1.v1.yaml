@@ -3,15 +3,21 @@ info:
   title: ECMP Complaint Management Batch 1 API
   version: 1.0.0-planned
   description: |
-    Planned OpenAPI for Complaint Management Module Batch 1 (FRD-CM-001 v1.1 LOCKED).
+    OpenAPI for Complaint Management Module Batch 1 (FRD-CM-001 v1.1 LOCKED).
     Scope: FR-001…FR-004 only. No Case create.
-    Status: Planned — not yet implemented against Aggregate SoT.
-    Logical IDs API-CM-B1-xxx map to catalog IDs API-500…API-512.
-    Existing Sprint/foundation stacks remain separate namespaces until DEC remapping.
+    Ownership: `/api/v1/cm` Aggregate namespace (DEC-020 Accepted).
+    Implementation status: Implemented (lab) for FR-001…FR-004 (API-500…513) on durable
+    `cm_batch1_*` persistence (Alembic 0040…0043). Residual lab exceptions remain under
+    EPIC-CM-B1-OPS / EX pack — not a Batch-2 or Mode B unlock.
+    Logical IDs API-CM-B1-xxx map to catalog IDs API-500…API-513.
+    Controlled coexistence with foundation `/api/v1/complaints` (complaint-service) —
+    namespaces MUST NOT be treated as interchangeable (DEC-020). Cutover/retirement
+    requires a separate Board Decision.
   x-ecmp-frd: FRD-CM-001
   x-ecmp-rtm: RTM-CM-B1-001
-  x-ecmp-status: Planned
-servers:
+  x-ecmp-dec: DEC-020
+  x-ecmp-status: Implemented (lab) — coexistence per DEC-020
+  x-ecmp-ownership: CM Batch 1 Aggregate (`backend/app/modules/cm_batch1/`)servers:
   - url: http://localhost:8000
     description: Local development
 tags:
@@ -262,6 +268,65 @@ paths:
         "200":
           description: Transferred
         "400":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/supervisor/queue:
+    get:
+      summary: Supervisor later-review and no-Case aging visibility
+      operationId: cmB1GetSupervisorQueue
+      x-ear-id: API-513
+      x-ecmp-logical-id: API-CM-B1-014
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Read-only supervisor visibility (Mode A / Batch 1).
+        Returns OPEN later-review work items (FR-003 E1 degraded duplicate;
+        FR-004 E8 failed bind) and REGISTERED Complaints without Case past
+        the aging threshold (FR-001 A4 / D-02 — awaiting Batch 2 Case create).
+        MUST NOT create Case. Resolve/close of work items is out of this slice.
+      parameters:
+        - name: workItemStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OPEN, ALL]
+            default: OPEN
+          description: Filter later-review work items.
+        - name: agingHours
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8760
+            default: 24
+          description: |
+            Lab default threshold (hours) for no-Case aging flag.
+            Production SLA remains OQ-CM-B1-004 / Batch 2.
+            Inclusion: createdAt <= asOf - agingHours (inclusive boundary).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+          description: |
+            Cap on laterReviewItems and agingComplaints each.
+            Offset/cursor pagination is out of this contract (Mode A visibility).
+      responses:
+        "200":
+          description: Supervisor queue snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupervisorQueueResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
           $ref: "#/components/responses/Error"
   /api/v1/complaints/{id}/attachments:
     get:
@@ -522,3 +587,80 @@ components:
           type: string
         stagingToken:
           type: string
+    SupervisorQueueResponse:
+      type: object
+      required:
+        [laterReviewItems, agingComplaints, agingThresholdHours, asOf]
+      properties:
+        laterReviewItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/LaterReviewWorkItem"
+        agingComplaints:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgingComplaintItem"
+        agingThresholdHours:
+          type: integer
+        asOf:
+          type: string
+          format: date-time
+    LaterReviewWorkItem:
+      type: object
+      required: [workItemId, customerId, reason, status, createdAt, ageHours]
+      properties:
+        workItemId:
+          type: string
+        customerId:
+          type: string
+        complaintId:
+          type: string
+          nullable: true
+          description: |
+            Optional Aggregate Complaint id when known (EX-G / FR-004 E8 bind
+            failure). Null for pre-create degraded duplicate review (FR-003 E1).
+        reason:
+          type: string
+          description: |
+            Lab reasons include duplicate_check_degraded, attachment_bind_failed.
+        status:
+          type: string
+          enum: [OPEN, CLOSED]
+        createdAt:
+          type: string
+          format: date-time
+        ageHours:
+          type: number
+    AgingComplaintItem:
+      type: object
+      required:
+        [
+          complaintId,
+          complaintNumber,
+          customerId,
+          status,
+          createdAt,
+          ageHours,
+          caseCreated,
+        ]
+      properties:
+        complaintId:
+          type: string
+        complaintNumber:
+          type: string
+        customerId:
+          type: string
+        status:
+          type: string
+        subject:
+          type: string
+        priority:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        ageHours:
+          type: number
+        caseCreated:
+          type: boolean
+          enum: [false]

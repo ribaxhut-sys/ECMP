@@ -10,12 +10,12 @@ import pytest
 from fastapi import Request
 from starlette.datastructures import Headers
 
-from app.core.enums import AuditAction
-from app.core.errors import PermissionDeniedError, UnauthenticatedError
-from app.core.secrets import REDACTED, register_runtime_secrets, clear_runtime_secrets
-from app.core.config import Settings
 from app.core.authorization.permission_check import require_permissions
 from app.core.authorization.principal import Principal
+from app.core.config import Settings
+from app.core.enums import AuditAction
+from app.core.errors import PermissionDeniedError, UnauthenticatedError
+from app.core.secrets import REDACTED, clear_runtime_secrets, register_runtime_secrets
 from app.modules.audit.security_events import (
     ENTITY_TYPE_SECURITY,
     SECURITY_EVENT_ACTIONS,

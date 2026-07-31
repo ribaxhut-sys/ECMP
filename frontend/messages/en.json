@@ -841,9 +841,16 @@
   },
   "reports": {
     "title": "Reports",
-    "description": "Reporting views will use the shared design system and App Layout.",
-    "moduleTitle": "Reports module",
-    "placeholder": "Placeholder route for future report screens. No business features in this sprint."
+    "description": "Complaint report summaries from catalogued report APIs (API-210…212).",
+    "summaryTitle": "Summary",
+    "totalComplaints": "Total complaints",
+    "openComplaints": "Open (non-closed)",
+    "closedComplaints": "Resolved / closed",
+    "noSummary": "No summary data",
+    "noSummaryDescription": "Report summary is unavailable. Other widgets may still load.",
+    "unableToLoad": "Unable to load reports",
+    "accessRestricted": "Access restricted",
+    "accessRestrictedDescription": "You need reports:read permission to view this page."
   },
   "users": {
     "title": "Users",

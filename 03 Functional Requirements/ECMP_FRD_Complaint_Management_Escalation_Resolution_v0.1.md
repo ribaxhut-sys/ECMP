@@ -76,7 +76,7 @@ Define Draft functional requirements for:
 - Complaint Closure aggregate rules beyond Case resolve side-effects (BR-009 detail remains separate)
 - SSO protocol selection
 - Batch 1 intake redesign
-- Implementation against foundation complaint escalate APIs (API-207/301…) — separate namespace until DEC remapping
+- Implementation against foundation complaint escalate APIs (API-207/301…) — separate namespace under DEC-020 coexistence (not interchangeable with Aggregate `/api/v1/cm`)
 
 ---
 

@@ -1,8 +1,28 @@
 #!/bin/sh
 set -eu
 
+# Named volume mounts often arrive as root-owned; ensure LocalStorageProvider
+# path is writable by the runtime user before dropping privileges.
+STORAGE_DIR="${ECMP_ATTACHMENT_STORAGE_DIR:-/app/storage/attachments}"
+mkdir -p "${STORAGE_DIR}"
+
+if [ "$(id -u)" = "0" ]; then
+  chown -R ecmp:ecmp /app/storage
+  run_as_ecmp() {
+    exec setpriv --reuid=ecmp --regid=ecmp --init-groups -- "$@"
+  }
+else
+  run_as_ecmp() {
+    exec "$@"
+  }
+fi
+
 echo "Running database migrations..."
-alembic upgrade head
+if [ "$(id -u)" = "0" ]; then
+  setpriv --reuid=ecmp --regid=ecmp --init-groups -- alembic upgrade head
+else
+  alembic upgrade head
+fi
 
 # Trust X-Forwarded-For / X-Forwarded-Proto / X-Forwarded-Host from the
 # Compose reverse proxy. Uvicorn also reads $FORWARDED_ALLOW_IPS when set.
@@ -12,7 +32,7 @@ alembic upgrade head
 FORWARDED_ALLOW_IPS="${FORWARDED_ALLOW_IPS:-127.0.0.1}"
 
 echo "Starting API (graceful shutdown enabled; proxy-headers trusted for ${FORWARDED_ALLOW_IPS})..."
-exec uvicorn app.main:app \
+run_as_ecmp uvicorn app.main:app \
   --host 0.0.0.0 \
   --port 8000 \
   --proxy-headers \

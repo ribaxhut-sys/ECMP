@@ -40,25 +40,19 @@ from app.modules.queue.api.dependencies import (
 )
 from app.modules.queue.api.exception_handlers import map_queue_error
 from app.modules.queue.api.requests import (
-    CreateCounterRequest,
     CreateQueueRequest,
-    CreateTicketRequest,
-    UpdateCounterRequest,
-    UpdateQueueRequest,
-    UpdateTicketRequest,
 )
 from app.modules.queue.api.responses import (
     QueueCounterResponse,
     QueueResponse,
     QueueTicketResponse,
 )
-from app.modules.queue.application.dto import QueueDto, QueueTicketDto
+from app.modules.queue.application.dto import QueueDto
 from app.modules.queue.application.services import (
     CreateCounterInput,
     CreateQueueInput,
     IssueTicketInput,
     QueueApplicationError,
-    QueueCounterView,
     QueueCrudApplicationService,
     QueueDomainService,
     QueueOperationsApplicationService,
@@ -81,7 +75,6 @@ from app.modules.queue.models import (
     QueueTicketStatus,
 )
 from app.modules.queue.orm import QueueCounterORM, QueueORM, QueueTicketORM
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fakes

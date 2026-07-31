@@ -16,6 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+from app.core.auth import Principal, get_current_principal
 from app.core.errors import ApiError
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import ErrorResponse
@@ -71,6 +72,21 @@ def _ctx() -> RequestContext:
     return RequestContext(
         request_id="test-request-id",
         correlation_id="test-correlation-id",
+    )
+
+
+def _principal() -> Principal:
+    return Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset(
+            {
+                "complaints:create",
+                "complaints:read",
+                "complaints:update",
+                "complaints:delete",
+            }
+        ),
     )
 
 
@@ -343,6 +359,7 @@ def _foundation_app(
     app.dependency_overrides[get_complaint_escalation_service] = lambda: escalation
     app.dependency_overrides[get_complaint_sla_service] = lambda: sla
     app.dependency_overrides[get_request_context] = _ctx
+    app.dependency_overrides[get_current_principal] = _principal
     return app
 
 

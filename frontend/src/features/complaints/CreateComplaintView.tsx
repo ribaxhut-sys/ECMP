@@ -11,12 +11,12 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
-  createComplaint,
+  checkCmBatch1Duplicates,
+  createCmBatch1Complaint,
   fetchBranches,
-  fetchCustomers,
-  uploadAttachment,
+  recordCmBatch1DuplicateDecision,
   type Branch,
-  type Customer,
+  type CmBatch1DuplicateCheckResponse,
 } from "@/lib/api";
 import {
   Alert,
@@ -33,16 +33,26 @@ import {
   Select,
   Textarea,
 } from "@/shared/ui";
+import { CustomerSearchPanel } from "./CustomerSearchPanel";
+import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
+import { StagingAttachmentsPanel } from "./StagingAttachmentsPanel";
 import {
   CHANNEL_OPTIONS,
   createEmptyComplaintForm,
+  newCmBatch1IdempotencyKey,
+  newCmBatch1StagingToken,
   PRIORITY_OPTIONS,
-  toCreateComplaintRequest,
-  validateCreateComplaintForm,
+  toCmBatch1CreateRequest,
+  validateCmBatch1CreateForm,
   type CreateComplaintFieldErrors,
   type CreateComplaintFormValues,
 } from "./createComplaintForm";
 
+/**
+ * Create Complaint — Mode A Batch-1 Aggregate intake (API-500).
+ * Dual SoT (DEC-020): posts to `/api/v1/cm/complaints`, not foundation.
+ * Confirmation lands on `/complaints/cm/[id]` (Aggregate read path).
+ */
 export function CreateComplaintView() {
   const router = useRouter();
   const { user, hasPermission } = useAuth();
@@ -54,43 +64,22 @@ export function CreateComplaintView() {
   );
   const [errors, setErrors] = useState<CreateComplaintFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customersLoading, setCustomersLoading] = useState(true);
-  const [customersError, setCustomersError] = useState<string | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(true);
   const [branchesError, setBranchesError] = useState<string | null>(null);
-  const [files, setFiles] = useState<File[]>([]);
 
-  useEffect(() => {
-    if (!canCreate) {
-      setCustomersLoading(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setCustomersLoading(true);
-      setCustomersError(null);
-      try {
-        const res = await fetchCustomers(100);
-        if (!cancelled) setCustomers(res.data);
-      } catch (err) {
-        if (!cancelled) {
-          setCustomersError(
-            err instanceof ApiError
-              ? err.message
-              : "Unable to load customers.",
-          );
-        }
-      } finally {
-        if (!cancelled) setCustomersLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [canCreate]);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [duplicateResult, setDuplicateResult] =
+    useState<CmBatch1DuplicateCheckResponse | null>(null);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [overrideJustification, setOverrideJustification] = useState<
+    string | null
+  >(null);
+  const [stagingToken, setStagingToken] = useState(() =>
+    newCmBatch1StagingToken(),
+  );
 
   useEffect(() => {
     if (!canCreate) {
@@ -131,6 +120,52 @@ export function CreateComplaintView() {
     };
   }, [agentBranchId, canCreate]);
 
+  const updateField = useCallback(
+    <K extends keyof CreateComplaintFormValues>(
+      key: K,
+      value: CreateComplaintFormValues[K],
+    ) => {
+      setValues((prev) => ({ ...prev, [key]: value }));
+      setErrors((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [],
+  );
+
+  const onCustomerConfirmed = useCallback(
+    (payload: { customerId: string; displayName: string }) => {
+      setValues((prev) => ({
+        ...prev,
+        customerId: payload.customerId,
+        customerName: payload.displayName,
+      }));
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.customerId;
+        delete next.customerName;
+        return next;
+      });
+      setOverrideJustification(null);
+      setDuplicateResult(null);
+      setInfoMessage(null);
+    },
+    [],
+  );
+
+  const onCustomerCleared = useCallback(() => {
+    setValues((prev) => ({
+      ...prev,
+      customerId: "",
+      customerName: "",
+    }));
+    setOverrideJustification(null);
+    setDuplicateResult(null);
+  }, []);
+
   if (!canCreate) {
     return (
       <PageContainer className="space-y-6">
@@ -159,22 +194,6 @@ export function CreateComplaintView() {
     );
   }
 
-  const updateField = useCallback(
-    <K extends keyof CreateComplaintFormValues>(
-      key: K,
-      value: CreateComplaintFormValues[K],
-    ) => {
-      setValues((prev) => ({ ...prev, [key]: value }));
-      setErrors((prev) => {
-        if (!prev[key]) return prev;
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    },
-    [],
-  );
-
   function onTextChange(
     key: keyof CreateComplaintFormValues,
   ): (
@@ -187,34 +206,33 @@ export function CreateComplaintView() {
         key,
         event.target.value as CreateComplaintFormValues[typeof key],
       );
+      setOverrideJustification(null);
     };
-  }
-
-  function onCustomerChange(event: ChangeEvent<HTMLSelectElement>): void {
-    const customerId = event.target.value;
-    const match = customers.find((c) => c.id === customerId);
-    setValues((prev) => ({
-      ...prev,
-      customerId,
-      customerName: match?.fullName ?? "",
-    }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.customerId;
-      delete next.customerName;
-      return next;
-    });
   }
 
   function onCancel(): void {
     router.push("/complaints");
   }
 
+  async function createAggregate(
+    justification: string | null,
+  ): Promise<void> {
+    const response = await createCmBatch1Complaint(
+      toCmBatch1CreateRequest(values, {
+        duplicateOverrideJustification: justification,
+        stagingToken,
+      }),
+      { idempotencyKey: newCmBatch1IdempotencyKey() },
+    );
+    router.push(`/complaints/cm/${response.data.complaintId}`);
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSubmitError(null);
+    setInfoMessage(null);
 
-    const nextErrors = validateCreateComplaintForm(values);
+    const nextErrors = validateCmBatch1CreateForm(values);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       const firstKey = Object.keys(nextErrors)[0];
@@ -225,26 +243,25 @@ export function CreateComplaintView() {
 
     setSubmitting(true);
     try {
-      const response = await createComplaint(toCreateComplaintRequest(values));
-      const complaintId = response.data.id;
-
-      const failedUploads: string[] = [];
-      for (const file of files) {
-        try {
-          await uploadAttachment("Complaint", complaintId, file);
-        } catch {
-          // Best-effort: complaint already exists; user can retry from detail.
-          failedUploads.push(file.name);
-        }
+      if (overrideJustification) {
+        await createAggregate(overrideJustification);
+        return;
       }
 
-      if (failedUploads.length > 0) {
-        router.push(
-          `/complaints/${complaintId}?attachmentUploadFailed=${failedUploads.length}`,
-        );
-      } else {
-        router.push(`/complaints/${complaintId}`);
+      const dup = await checkCmBatch1Duplicates({
+        customerId: values.customerId.trim(),
+        category: values.category.trim(),
+        subject: values.subject.trim(),
+        channel: values.channel.trim(),
+      });
+      setDuplicateResult(dup.data);
+
+      if (dup.data.warning) {
+        setDuplicateOpen(true);
+        return;
       }
+
+      await createAggregate(null);
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -258,10 +275,78 @@ export function CreateComplaintView() {
     }
   }
 
-  const customerOptions = customers.map((c) => ({
-    value: c.id,
-    label: `${c.fullName} (${c.externalCustomerId})`,
-  }));
+  async function onDuplicateDecide(payload: {
+    decision: "link_existing" | "override" | "recommend_only" | "blocked";
+    survivingComplaintId?: string;
+    justification?: string;
+  }): Promise<void> {
+    setDuplicateBusy(true);
+    setSubmitError(null);
+    try {
+      if (payload.decision === "recommend_only") {
+        await recordCmBatch1DuplicateDecision({
+          decision: "recommend_only",
+          customerId: values.customerId.trim(),
+          survivingComplaintId: payload.survivingComplaintId,
+        });
+        setDuplicateOpen(false);
+        setInfoMessage(
+          "Recommendation recorded: continue on the existing complaint. Case create is Batch 2 — not available here.",
+        );
+        return;
+      }
+
+      if (payload.decision === "link_existing") {
+        const surviving = payload.survivingComplaintId?.trim();
+        if (!surviving) {
+          setSubmitError("Surviving complaint ID is required to link.");
+          return;
+        }
+        await recordCmBatch1DuplicateDecision({
+          decision: "link_existing",
+          customerId: values.customerId.trim(),
+          survivingComplaintId: surviving,
+          stagingToken,
+        });
+        setDuplicateOpen(false);
+        router.push(`/complaints/cm/${surviving}`);
+        return;
+      }
+
+      if (payload.decision === "override") {
+        const justification = payload.justification?.trim() ?? "";
+        // Create path (API-500) records override + audit when justification is present.
+        setOverrideJustification(justification);
+        setDuplicateOpen(false);
+        setSubmitting(true);
+        try {
+          await createAggregate(justification);
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
+
+      if (payload.decision === "blocked") {
+        await recordCmBatch1DuplicateDecision({
+          decision: "blocked",
+          customerId: values.customerId.trim(),
+        });
+        setDuplicateOpen(false);
+        setSubmitError("Create is blocked by duplicate policy.");
+      }
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Unable to record duplicate decision.",
+      );
+    } finally {
+      setDuplicateBusy(false);
+    }
+  }
 
   const branchOptions = branches.map((b) => ({
     value: b.id,
@@ -277,7 +362,7 @@ export function CreateComplaintView() {
           { label: "Complaints", href: "/complaints" },
           { label: "Create" },
         ]}
-        description="Register a new complaint. Required fields are marked with an asterisk."
+        description="Batch-1 Aggregate intake (/api/v1/cm): search & confirm customer, duplicate check, then register. Dual SoT — not listed on foundation /api/v1/complaints."
       />
 
       <form
@@ -294,12 +379,8 @@ export function CreateComplaintView() {
           />
         ) : null}
 
-        {customersError ? (
-          <Alert
-            tone="danger"
-            title="Could not load customers"
-            description={customersError}
-          />
+        {infoMessage ? (
+          <Alert tone="info" title="Notice" description={infoMessage} />
         ) : null}
 
         {branchesError ? (
@@ -310,54 +391,25 @@ export function CreateComplaintView() {
           />
         ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle id="section-customer-info">
-              Customer Information
-            </CardTitle>
-            <CardDescription>
-              Select a customer from the local reference list. Customer ID is
-              taken from that selection.
-            </CardDescription>
-          </CardHeader>
-          <CardBody>
-            <fieldset
-              aria-labelledby="section-customer-info"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
-            >
-              <legend className="sr-only">Customer Information</legend>
-              <Select
-                name="customerId"
-                id="customerId"
-                label="Customer"
-                required
-                placeholder={
-                  customersLoading ? "Loading customers…" : "Select customer"
-                }
-                options={customerOptions}
-                value={values.customerId}
-                onChange={onCustomerChange}
-                error={errors.customerId || errors.customerName}
-                disabled={customersLoading || customerOptions.length === 0}
-                aria-required="true"
-                hint={
-                  customerOptions.length === 0 && !customersLoading
-                    ? "No customers available in the reference list"
-                    : "Loaded from GET /api/v1/customers"
-                }
-              />
-              <Input
-                name="customerName"
-                id="customerName"
-                label="Customer name"
-                value={values.customerName}
-                readOnly
-                aria-readonly="true"
-                hint="Filled from the selected customer"
-              />
-            </fieldset>
-          </CardBody>
-        </Card>
+        <CustomerSearchPanel
+          confirmedCustomerId={values.customerId}
+          confirmedDisplayName={values.customerName}
+          onConfirmed={onCustomerConfirmed}
+          onCleared={onCustomerCleared}
+          disabled={submitting}
+        />
+
+        {(errors.customerId || errors.customerName) && !values.customerId ? (
+          <Alert
+            tone="danger"
+            title="Customer required"
+            description={
+              errors.customerId ||
+              errors.customerName ||
+              "Confirm a customer before creating."
+            }
+          />
+        ) : null}
 
         <Card>
           <CardHeader>
@@ -365,7 +417,8 @@ export function CreateComplaintView() {
               Complaint Information
             </CardTitle>
             <CardDescription>
-              Subject, narrative, and priority for the case.
+              Subject, narrative, category, and channel (API-500 required
+              fields).
             </CardDescription>
           </CardHeader>
           <CardBody>
@@ -392,13 +445,35 @@ export function CreateComplaintView() {
                 name="priority"
                 id="priority"
                 label="Priority"
-                required
-                placeholder="Select priority"
+                placeholder="Select priority (optional)"
                 options={PRIORITY_OPTIONS}
                 value={values.priority}
                 onChange={onTextChange("priority")}
                 error={errors.priority}
+              />
+              <Select
+                name="channel"
+                id="channel"
+                label="Channel"
+                required
+                placeholder="Select channel"
+                options={CHANNEL_OPTIONS}
+                value={values.channel}
+                onChange={onTextChange("channel")}
+                error={errors.channel}
                 aria-required="true"
+              />
+              <Input
+                name="category"
+                id="category"
+                label="Category"
+                required
+                maxLength={64}
+                value={values.category}
+                onChange={onTextChange("category")}
+                error={errors.category}
+                aria-required="true"
+                autoComplete="off"
               />
               <div className="md:col-span-2">
                 <Textarea
@@ -421,10 +496,10 @@ export function CreateComplaintView() {
 
         <Card>
           <CardHeader>
-            <CardTitle id="section-location">Location</CardTitle>
+            <CardTitle id="section-location">Recording unit</CardTitle>
             <CardDescription>
-              Select the branch where the complaint applies. The UUID is taken
-              from that selection.
+              Optional recording unit (branch) mapped to Aggregate
+              recordingUnitId.
             </CardDescription>
           </CardHeader>
           <CardBody>
@@ -432,12 +507,11 @@ export function CreateComplaintView() {
               aria-labelledby="section-location"
               className="grid grid-cols-1 gap-4 md:grid-cols-2"
             >
-              <legend className="sr-only">Location</legend>
+              <legend className="sr-only">Recording unit</legend>
               <Select
                 name="branchId"
                 id="branchId"
                 label="Branch"
-                required
                 placeholder={
                   branchesLoading ? "Loading branches…" : "Select branch"
                 }
@@ -446,102 +520,36 @@ export function CreateComplaintView() {
                 onChange={onTextChange("branchId")}
                 error={errors.branchId}
                 disabled={branchesLoading || branchOptions.length === 0}
-                aria-required="true"
                 hint={
                   branchOptions.length === 0 && !branchesLoading
                     ? "No active branches available"
-                    : "Loaded from GET /api/v1/branches"
+                    : "Optional — Mode A lab branches"
                 }
               />
             </fieldset>
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle id="section-additional">
-              Additional Information
-            </CardTitle>
-            <CardDescription>
-              Channel, category, and reported time when known.
-            </CardDescription>
-          </CardHeader>
-          <CardBody>
-            <fieldset
-              aria-labelledby="section-additional"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
-            >
-              <legend className="sr-only">Additional Information</legend>
-              <Select
-                name="channel"
-                id="channel"
-                label="Channel"
-                placeholder="Select channel (optional)"
-                options={CHANNEL_OPTIONS}
-                value={values.channel}
-                onChange={onTextChange("channel")}
-                error={errors.channel}
-              />
-              <Input
-                name="category"
-                id="category"
-                label="Category"
-                maxLength={64}
-                value={values.category}
-                onChange={onTextChange("category")}
-                error={errors.category}
-                autoComplete="off"
-              />
-              <Input
-                name="reportedAt"
-                id="reportedAt"
-                type="datetime-local"
-                label="Reported at"
-                value={values.reportedAt}
-                onChange={onTextChange("reportedAt")}
-                error={errors.reportedAt}
-                hint="Defaults to today; change if reported at another time"
-              />
-            </fieldset>
-          </CardBody>
-        </Card>
+        {overrideJustification ? (
+          <Alert
+            tone="warning"
+            title="Duplicate override armed"
+            description="Create will proceed with the recorded override justification."
+          />
+        ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle id="section-attachments">Attachments</CardTitle>
-            <CardDescription>
-              Optional files are uploaded after the complaint is created
-              (API-323).
-            </CardDescription>
-          </CardHeader>
-          <CardBody className="space-y-3">
-            <Input
-              type="file"
-              name="attachments"
-              id="attachments"
-              label="Attach files"
-              multiple
-              onChange={(event) => {
-                const list = event.target.files
-                  ? Array.from(event.target.files)
-                  : [];
-                setFiles(list);
-              }}
-              hint={
-                files.length === 0
-                  ? "You can add more files later from the complaint detail page."
-                  : `${files.length} file(s) selected`
-              }
-            />
-          </CardBody>
-        </Card>
+        <StagingAttachmentsPanel
+          stagingToken={stagingToken}
+          disabled={submitting || duplicateBusy}
+          onStagingTokenResolved={setStagingToken}
+        />
 
         <div className="flex flex-col-reverse gap-3 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
           <Button
             type="button"
             variant="outline"
             onClick={onCancel}
-            disabled={submitting}
+            disabled={submitting || duplicateBusy}
             aria-label="Cancel and return to complaints"
           >
             Cancel
@@ -549,12 +557,21 @@ export function CreateComplaintView() {
           <Button
             type="submit"
             loading={submitting}
+            disabled={duplicateBusy}
             aria-label="Create complaint"
           >
             {submitting ? "Creating…" : "Create Complaint"}
           </Button>
         </div>
       </form>
+
+      <DuplicateWarningPanel
+        open={duplicateOpen}
+        result={duplicateResult}
+        busy={duplicateBusy || submitting}
+        onClose={() => setDuplicateOpen(false)}
+        onDecide={onDuplicateDecide}
+      />
     </PageContainer>
   );
 }

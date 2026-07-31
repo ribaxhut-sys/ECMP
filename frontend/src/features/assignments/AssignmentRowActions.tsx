@@ -99,6 +99,19 @@ export function AssignmentRowActions({
     }
   }, [action, loadUsers]);
 
+  const options = useMemo(
+    () =>
+      users
+        .filter((u) => u.id !== row.currentAssigneeId)
+        .map((user) => ({
+          value: user.id,
+          label: userOptionLabel(user),
+        })),
+    // userOptionLabel is stable per render via local helpers + tCommon
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- labels use tCommon only
+    [row.currentAssigneeId, users, tCommon],
+  );
+
   if (!canDoAssign && !canReassign && !canCancel) {
     return null;
   }
@@ -172,17 +185,6 @@ export function AssignmentRowActions({
       setSubmitting(false);
     }
   }
-
-  const options = useMemo(
-    () =>
-      users
-        .filter((u) => u.id !== row.currentAssigneeId)
-        .map((user) => ({
-          value: user.id,
-          label: userOptionLabel(user),
-        })),
-    [row.currentAssigneeId, users],
-  );
 
   const modalTitle =
     action === "assign"

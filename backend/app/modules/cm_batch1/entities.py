@@ -30,6 +30,18 @@ class IdempotencyRecord:
 
 
 @dataclass
+class LaterReviewWorkItem:
+    """Supervisor later-review work item (FR-001 / FR-003 E1 / FR-004 E8)."""
+
+    work_item_id: str
+    customer_id: str
+    reason: str
+    status: str = "OPEN"
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    complaint_id: str | None = None
+
+
+@dataclass
 class DuplicateDecisionRecord:
     decision_id: str
     customer_id: str

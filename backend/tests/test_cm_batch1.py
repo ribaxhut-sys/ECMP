@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.authorization.principal import Principal
 from app.core.errors import RateLimitedError, ValidationAppError
 from app.db.base import Base
-from app.main import create_app
 from app.integrations.customer import StubCustomerProvider
+from app.main import create_app
 from app.modules.cm_batch1.duplicate_config import DuplicateConfig
 from app.modules.cm_batch1.duplicate_engine import score_candidate, subject_similarity
 from app.modules.cm_batch1.entities import ComplaintAggregate
@@ -39,6 +39,7 @@ from app.modules.cm_batch1.schemas import (
 )
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.store import Batch1Store
+from cm_batch1_helpers import confirmed_create
 
 _BATCH1_TABLES = [
     CmBatch1ComplaintORM.__table__,
@@ -173,8 +174,28 @@ def test_tc_cm_fr002_09_as_of_present(service: CmBatch1Service) -> None:
     assert "displayName" in view.profile
 
 
+def test_tc_cm_fr001_confirm_lock_required_on_create(
+    service: CmBatch1Service,
+) -> None:
+    """TD-CM-001 / EX-D / FR-002 AC1 — create without confirm is rejected."""
+    with pytest.raises(ValidationAppError, match="confirmed/locked"):
+        service.create_complaint(
+            CreateComplaintBatch1Request(
+                customerId="CUST-10001",
+                category="BILLING",
+                channel="BRANCH",
+                subject="No lock",
+                description="Desc",
+            ),
+            request_id="req-lock-1",
+            channel_message_id=None,
+            actor_id="actor-lock",
+            principal_key="actor-lock",
+        )
+
+
 def test_tc_cm_fr001_01_create_registered_no_case(service: CmBatch1Service) -> None:
-    created = service.create_complaint(
+    created = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -192,7 +213,7 @@ def test_tc_cm_fr001_01_create_registered_no_case(service: CmBatch1Service) -> N
 
 
 def test_tc_cm_fr001_02_customer_id_only(service: CmBatch1Service) -> None:
-    created = service.create_complaint(
+    created = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -212,7 +233,7 @@ def test_tc_cm_fr001_02_customer_id_only(service: CmBatch1Service) -> None:
 
 def test_tc_cm_fr001_04_missing_fields(service: CmBatch1Service) -> None:
     with pytest.raises(ValidationAppError):
-        service.create_complaint(
+        confirmed_create(service, 
             CreateComplaintBatch1Request(
                 customerId="CUST-10001",
                 category="",
@@ -227,7 +248,7 @@ def test_tc_cm_fr001_04_missing_fields(service: CmBatch1Service) -> None:
 
 
 def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
-    first = service.create_complaint(
+    first = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -239,7 +260,7 @@ def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
         channel_message_id=None,
         actor_id="a",
     )
-    second = service.create_complaint(
+    second = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -257,7 +278,7 @@ def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
 
 
 def test_tc_cm_fr001_11_channel_message_replay(service: CmBatch1Service) -> None:
-    first = service.create_complaint(
+    first = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -269,7 +290,7 @@ def test_tc_cm_fr001_11_channel_message_replay(service: CmBatch1Service) -> None
         channel_message_id="MSG-9",
         actor_id="a",
     )
-    second = service.create_complaint(
+    second = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -286,7 +307,7 @@ def test_tc_cm_fr001_11_channel_message_replay(service: CmBatch1Service) -> None
 
 
 def test_tc_cm_fr001_12_360_after_create(service: CmBatch1Service) -> None:
-    service.create_complaint(
+    confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -332,7 +353,7 @@ def api_client(service: CmBatch1Service) -> Generator[TestClient, None, None]:
 
     async def _principal() -> Principal:
         return Principal(
-            user_id=uuid.uuid4(),
+            user_id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
             roles=("AGENT",),
             permissions=frozenset({"complaints:read", "complaints:create", "*"}),
         )
@@ -353,6 +374,13 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
     assert search.status_code == 200, search.text
     body = search.json()["data"]
     assert body["customerId"] == "CUST-10001"
+
+    confirm = api_client.post(
+        "/api/v1/cm/customers/confirm",
+        json={"customerId": "CUST-10001"},
+    )
+    assert confirm.status_code == 200, confirm.text
+    assert confirm.json()["data"]["locked"] is True
 
     created = api_client.post(
         "/api/v1/cm/complaints",
@@ -390,7 +418,7 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
 
 
 def test_s2_persistence_create_get_idempotent(persistent_service: CmBatch1Service) -> None:
-    created = persistent_service.create_complaint(
+    created = confirmed_create(persistent_service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -410,7 +438,7 @@ def test_s2_persistence_create_get_idempotent(persistent_service: CmBatch1Servic
     assert loaded.complaint_id == created.complaint_id
     assert loaded.customer_id == "CUST-10001"
 
-    replay = persistent_service.create_complaint(
+    replay = confirmed_create(persistent_service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -433,7 +461,7 @@ def test_s2_persistence_360_and_confirm(
     repo = CmBatch1Repository(db_session)
     assert repo.get_confirmed("p-db") == "CUST-10001"
 
-    persistent_service.create_complaint(
+    confirmed_create(persistent_service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -448,7 +476,7 @@ def test_s2_persistence_360_and_confirm(
     view = persistent_service.customer_360_minimum("CUST-10001")
     assert view.complaint_count == 1
 
-    replay_ch = persistent_service.create_complaint(
+    replay_ch = confirmed_create(persistent_service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -504,7 +532,7 @@ def _seed_complaint(
     subject: str = "Incorrect billing charge",
     channel: str = "BRANCH",
 ) -> str:
-    created = service.create_complaint(
+    created = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category=category,
@@ -602,7 +630,7 @@ def test_tc_cm_fr003_04_override_with_justification(
     service: CmBatch1Service,
 ) -> None:
     _seed_complaint(service, request_id="dup-ov-1")
-    created = service.create_complaint(
+    created = confirmed_create(service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -629,7 +657,7 @@ def test_tc_cm_fr003_05_hard_block_rejects_create(service: CmBatch1Service) -> N
         subject="Unauthorized card transaction",
     )
     with pytest.raises(ValidationAppError) as exc:
-        service.create_complaint(
+        confirmed_create(service, 
             CreateComplaintBatch1Request(
                 customerId="CUST-10001",
                 category="FRAUD",
@@ -656,6 +684,240 @@ def test_tc_cm_fr003_06_degraded_later_review(
     assert result.later_review_work_item_id is not None
     assert result.later_review_work_item_id.startswith("LR-")
     assert result.candidates == []
+
+
+def test_api_513_supervisor_queue_later_review_and_aging(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    store.force_degraded = True
+    check = service.check_duplicates(
+        DuplicateCheckRequest(customerId="CUST-10001", category="BILLING")
+    )
+    assert check.later_review_work_item_id is not None
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Aging visibility subject",
+            description="Detail for aging queue",
+        ),
+        request_id="aging-vis-1",
+        actor_id="a",
+    )
+    row = store.get(created.complaint_id)
+    assert row is not None
+    row.created_at = datetime.now(UTC) - timedelta(hours=48)
+
+    queue = service.get_supervisor_queue(aging_hours=24, limit=50)
+    assert queue.aging_threshold_hours == 24
+    assert any(
+        i.work_item_id == check.later_review_work_item_id
+        for i in queue.later_review_items
+    )
+    assert any(
+        c.complaint_id == created.complaint_id for c in queue.aging_complaints
+    )
+    assert all(c.case_created is False for c in queue.aging_complaints)
+
+
+def test_api_513_empty_queue(service: CmBatch1Service) -> None:
+    queue = service.get_supervisor_queue(aging_hours=24, limit=50)
+    assert queue.later_review_items == []
+    assert queue.aging_complaints == []
+    assert queue.aging_threshold_hours == 24
+
+
+def test_api_513_aging_threshold_boundary(service: CmBatch1Service, store: Batch1Store) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Boundary aging",
+            description="Exact threshold",
+        ),
+        request_id="aging-bound-1",
+        actor_id="a",
+    )
+    row = store.get(created.complaint_id)
+    assert row is not None
+    # Align to the same clock used by get_supervisor_queue: age exactly 24h.
+    # Inclusion rule: created_at <= now - agingHours.
+    fixed_now = datetime.now(UTC)
+    row.created_at = fixed_now - timedelta(hours=24)
+
+    included = service.get_supervisor_queue(aging_hours=24, limit=50)
+    assert any(c.complaint_id == created.complaint_id for c in included.aging_complaints)
+
+    # Just under threshold (newer than cutoff) must be excluded.
+    row.created_at = datetime.now(UTC) - timedelta(hours=23, minutes=50)
+    excluded = service.get_supervisor_queue(aging_hours=24, limit=50)
+    assert all(c.complaint_id != created.complaint_id for c in excluded.aging_complaints)
+
+
+def test_api_513_limit_caps_many_items(service: CmBatch1Service, store: Batch1Store) -> None:
+    for i in range(12):
+        store.create_later_review_work_item(
+            customer_id=f"CUST-{i}", reason="duplicate_check_degraded"
+        )
+    capped = service.get_supervisor_queue(limit=5)
+    assert len(capped.later_review_items) == 5
+    # Contract: limit only — no offset/page; larger limit returns more.
+    wider = service.get_supervisor_queue(limit=20)
+    assert len(wider.later_review_items) == 12
+
+
+def test_api_513_unknown_reason_pass_through(service: CmBatch1Service, store: Batch1Store) -> None:
+    wid = store.create_later_review_work_item(
+        customer_id="CUST-X", reason="future_enrichment_v2"
+    )
+    queue = service.get_supervisor_queue()
+    hit = next(i for i in queue.later_review_items if i.work_item_id == wid)
+    assert hit.reason == "future_enrichment_v2"
+    assert hit.status == "OPEN"
+    assert hit.complaint_id is None
+
+
+def test_api_513_m3d_complaint_id_on_later_review(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    """M3d / EX-G: complaintId present when known; null for pre-create degrade."""
+    store.force_degraded = True
+    check = service.check_duplicates(
+        DuplicateCheckRequest(customerId="CUST-10001", category="BILLING")
+    )
+    assert check.later_review_work_item_id is not None
+    queue = service.get_supervisor_queue()
+    degraded = next(
+        i
+        for i in queue.later_review_items
+        if i.work_item_id == check.later_review_work_item_id
+    )
+    assert degraded.complaint_id is None
+    assert degraded.reason == "duplicate_check_degraded"
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Bind failure anchor",
+            description="Detail",
+        ),
+        request_id="m3d-anchor-1",
+        actor_id="a",
+    )
+    wid = service.enqueue_later_review(
+        customer_id=created.customer_id,
+        reason="attachment_bind_failed",
+        complaint_id=created.complaint_id,
+    )
+    queue2 = service.get_supervisor_queue()
+    hit = next(i for i in queue2.later_review_items if i.work_item_id == wid)
+    assert hit.complaint_id == created.complaint_id
+    assert hit.reason == "attachment_bind_failed"
+    assert hit.status == "OPEN"
+
+
+def test_api_513_http_roundtrip_smoke_e2e(
+    api_client: TestClient, service: CmBatch1Service, store: Batch1Store
+) -> None:
+    """Create → later-review + aging → API-513 JSON fields → detail get (no Case)."""
+    from datetime import UTC, datetime, timedelta
+
+    empty = api_client.get("/api/v1/cm/supervisor/queue?agingHours=24&limit=50")
+    assert empty.status_code == 200, empty.text
+    empty_body = empty.json()["data"]
+    assert empty_body["laterReviewItems"] == []
+    assert empty_body["agingComplaints"] == []
+    assert empty_body["agingThresholdHours"] == 24
+    assert "asOf" in empty_body
+
+    store.force_degraded = True
+    check = api_client.post(
+        "/api/v1/cm/duplicates/check",
+        json={"customerId": "CUST-10001", "category": "BILLING"},
+    )
+    assert check.status_code == 200, check.text
+    lr_id = check.json()["data"]["laterReviewWorkItemId"]
+    assert lr_id and str(lr_id).startswith("LR-")
+
+    confirm = api_client.post(
+        "/api/v1/cm/customers/confirm",
+        json={"customerId": "CUST-10001"},
+    )
+    assert confirm.status_code == 200, confirm.text
+    created = api_client.post(
+        "/api/v1/cm/complaints",
+        headers={"Idempotency-Key": "api513-e2e-1"},
+        json={
+            "customerId": "CUST-10001",
+            "category": "BILLING",
+            "channel": "BRANCH",
+            "subject": "Supervisor e2e aging",
+            "description": "Detail",
+            "priority": "MEDIUM",
+        },
+    )
+    assert created.status_code in (200, 201), created.text
+    complaint = created.json()["data"]
+    assert complaint["caseCreated"] is False
+    complaint_id = complaint["complaintId"]
+
+    row = store.get(complaint_id)
+    assert row is not None
+    row.created_at = datetime.now(UTC) - timedelta(hours=30)
+
+    queue = api_client.get(
+        "/api/v1/cm/supervisor/queue?workItemStatus=OPEN&agingHours=24&limit=100"
+    )
+    assert queue.status_code == 200, queue.text
+    data = queue.json()["data"]
+    assert data["agingThresholdHours"] == 24
+
+    lr_hit = next(i for i in data["laterReviewItems"] if i["workItemId"] == lr_id)
+    assert set(lr_hit.keys()) >= {
+        "workItemId",
+        "customerId",
+        "reason",
+        "status",
+        "createdAt",
+        "ageHours",
+    }
+    assert "complaintId" in lr_hit
+    assert lr_hit["complaintId"] is None  # pre-create degraded
+    assert lr_hit["status"] == "OPEN"
+    assert lr_hit["reason"] == "duplicate_check_degraded"
+
+    age_hit = next(c for c in data["agingComplaints"] if c["complaintId"] == complaint_id)
+    assert set(age_hit.keys()) >= {
+        "complaintId",
+        "complaintNumber",
+        "customerId",
+        "status",
+        "createdAt",
+        "ageHours",
+        "caseCreated",
+    }
+    assert age_hit["caseCreated"] is False
+    assert age_hit["status"] == "REGISTERED"
+    assert age_hit["ageHours"] >= 24
+
+    # Detail via Aggregate service (API-501 path uses org-scope DB resolver —
+    # lab api_client overrides service only; assert no Case without Postgres).
+    detail = service.get_complaint(complaint_id)
+    assert detail.case_created is False
+    assert detail.complaint_id == complaint_id
+    assert detail.complaint_number == age_hit["complaintNumber"]
 
 
 def test_tc_cm_fr003_07_out_of_scope_uniform_empty(store: Batch1Store) -> None:
@@ -714,7 +976,7 @@ def test_tc_cm_fr003_08_no_case_from_duplicate_flow(service: CmBatch1Service) ->
 def test_s2_persistence_duplicate_check_and_decision(
     persistent_service: CmBatch1Service, db_session: Session
 ) -> None:
-    first = persistent_service.create_complaint(
+    first = confirmed_create(persistent_service, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",

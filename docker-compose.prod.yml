@@ -33,6 +33,8 @@ volumes:
     name: ecmp_prod_caddy_data
   caddy_config:
     name: ecmp_prod_caddy_config
+  ecmp_attachments:
+    name: ecmp_prod_attachments
 
 services:
   caddy:
@@ -96,6 +98,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       APP_VERSION: ${APP_VERSION:-1.0.0}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
       DEBUG: ${DEBUG:-false}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -112,6 +115,10 @@ services:
       # SECMIG-P6-001 — staging/production must run jwt AuthN (never lab default).
       ECMP_AUTH_MODE: ${ECMP_AUTH_MODE:?Set ECMP_AUTH_MODE=jwt for production}
       ECMP_ENV: ${ECMP_ENV:?Set ECMP_ENV=shared for production}
+      # ADR-014 / audit K-3 — Mode A credential AuthN must be off in production.
+      ECMP_LOCAL_CREDENTIAL_AUTH: ${ECMP_LOCAL_CREDENTIAL_AUTH:?Set ECMP_LOCAL_CREDENTIAL_AUTH=false for production}
+      # Mode B runtime — remain false while PROGRAM-BOARD-004 C-7 CLOSED.
+      ECMP_ENTERPRISE_MODE: ${ECMP_ENTERPRISE_MODE:?Set ECMP_ENTERPRISE_MODE=false until Board unlock}
       OIDC_ISSUER: ${OIDC_ISSUER:?Set OIDC_ISSUER}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE}
       OIDC_JWKS_URL: ${OIDC_JWKS_URL:?Set OIDC_JWKS_URL}
@@ -130,6 +137,9 @@ services:
       # Trust X-Forwarded-* from the Compose reverse proxy only (backend not published).
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
     # No host ports — reachable only via caddy on the internal network.
+    volumes:
+      # Persist attachment blobs (LocalStorageProvider default: storage/attachments).
+      - ecmp_attachments:/app/storage/attachments
     networks:
       - internal
     healthcheck:

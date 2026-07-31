@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | EAR-STD-004 |
-| Version | 1.0 |
+| Version | 1.0a |
 | Owner | Enterprise Architecture / PMO |
 | Reviewer | Architecture Board |
 | Approver | CIO / Program Sponsor |
 | Status | 🟢 Approved |
-| Last Review | 2026-07-21 |
+| Last Review | 2026-07-31 |
 | Next Review | 2027-01-21 |
 
 ## Folder Ownership
@@ -43,6 +43,24 @@
 | 25 Glossary | Business Analyst | Domain PO | Architecture |
 | 26 Traceability | BA Lead / QA Lead | PMO | Compliance |
 | 27 Project Decisions | PMO | Product Owner | Stakeholders |
+| docs/frontend (hub) | Frontend Lead / Solution Architect | UX Lead | Architecture Board |
+| docs/architecture (portal mirrors) | Enterprise Architecture | PMO | Solution Architect |
 
 ## Accountability Rule
 Owner bertanggung jawab atas akurasi, review schedule, dan status dokumen di foldernya.
+
+## Code / namespace ownership (DEC-020 dual SoT — Mode A)
+
+Complement to folder ownership. **No forced merge.** Cutover / mounting `complaint_foundation_router` / retiring `/api/v1/complaints` requires a future Retirement DEC (Board).
+
+| Namespace / stack | Code owner path | Consumers MUST treat as | Mount posture (production) |
+|---|---|---|---|
+| `/api/v1/cm` · CM Batch 1 Aggregate | `backend/app/modules/cm_batch1/` | Canonical for FRD-CM-001 Batch 1 (FR-001…FR-004) | Mounted (`cm_batch1_router`) |
+| `/api/v1/complaints` · Legacy ECMF lifecycle | `backend/app/modules/complaints/` (+ related) | Canonical for foundation assign/escalate/resolve/close/search | Mounted (`complaints_router`) |
+| Visit-linked CA BC (`complaint_cases*`) | `backend/app/modules/complaint/` | Ticket-nested only; **not** Aggregate; **not** silent replacement for legacy | Ticket-nested via `complaint_api_router`; full `complaint_foundation_router` **unmounted** |
+
+Mode B / Batch-2 / enterprise customer remain **CLOSED** (PROGRAM-BOARD-006 **C-B6-1** / PROGRAM-BOARD-004 **C-7**).
+
+| Rev | Date | Notes |
+|---|---|---|
+| 1.0a | 2026-07-31 | DEC-020 dual-SoT code/namespace ownership rows (Mode A hygiene; no Mode B unlock) |

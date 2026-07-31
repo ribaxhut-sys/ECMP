@@ -8,7 +8,7 @@
 | Owner | Operations Lead |
 | Reviewer | DevOps Lead / Security Officer |
 | Approver | Operations Lead |
-| Status | 🟢 Active (procedure) — shared-env drill still **Planned** |
+| Status | 🟢 Active (procedure) — shared-profile drill **PASS** 2026-07-30; dedicated remote SIT/UAT re-drill Planned when hosted |
 | Task | TASK-PLATFORM-SECMIG-P6-003 |
 | Revision | P6-003 review: `audit_logs` / `created_at`; binary-safe restore |
 | Stack | Foundation: root `backend/`, repo-root Compose |
@@ -190,6 +190,26 @@ Its recorded checks map to what is now **`audit_logs_legacy`** (`occurred_at`). 
 gates must use platform **`audit_logs`** (`created_at`) plus explicit legacy checks when needed.
 Re-pin Alembic head to current `backend/` on the next shared drill.
 
+## 9a. Foundation lab drill (2026-07-30)
+
+| Field | Value |
+|---|---|
+| Evidence pack | `./evidence/restore-drill-20260730/README.md` (OPS-RST-EVID-20260730) |
+| Dump SHA-256 | `F81F1C2F2CE7A8EE7162BF48912CFC04F9DEF1DEBA901D89D4F93C465F11EE66` |
+| Alembic head | `0044_admin_rbac_repair` |
+| Result | **PASS** (lab procedure) — dual audit tables + `/live` `/ready` + Mode A login smoke |
+| Shared-profile / K-4 | Superseded for K-4 closure by §9b |
+
+## 9b. Shared-profile drill (2026-07-30) — closes audit K-4 / RR-1
+
+| Field | Value |
+|---|---|
+| Evidence pack | `./evidence/restore-drill-20260730-shared/README.md` (OPS-RST-EVID-20260730-SHARED) |
+| Dump SHA-256 | `EE804E34F223D857CDCF7E8C50D300FC2C3F1D354CDD0831AC698108377910C6` |
+| Profile | `ECMP_ENV=shared` + `ECMP_AUTH_MODE=jwt` + Keycloak IdP |
+| Result | **PASS** — writers stopped; dual audit tables; `/live` `/ready`; local credential disabled; IdP `/auth/me` OK |
+| Conditions | C-K4-1…5 in evidence README — does **not** alone authorize production cutover |
+
 ## 10. Related
 
 - `./ECMP_Backup_Operations_Guide_v1.0.md` (OPS-BAK-001)
@@ -198,5 +218,7 @@ Re-pin Alembic head to current `backend/` on the next shared drill.
 - `./ECMP_Shutdown_Procedure_v0.1.md` (OPS-SHDN-001)
 - `./ECMP_Secret_Operations_Guide_v1.0.md` (OPS-SEC-SEC-001)
 - `./evidence/restore-drill-20260722/README.md`
+- `./evidence/restore-drill-20260730/README.md`
+- `./evidence/restore-drill-20260730-shared/README.md`
 - `../docs/deployment/UPGRADE_PROCEDURE.md`
 - `../docs/releases/ROLLBACK_v1.0.0.md`

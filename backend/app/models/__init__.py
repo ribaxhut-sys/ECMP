@@ -17,8 +17,8 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
-    func,
     false,
+    func,
     text,
     true,
 )

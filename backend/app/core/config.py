@@ -91,6 +91,8 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "staging", "production"] = "development"
     debug: bool = False
     log_level: str = "INFO"
+    # json = default for ops shipping; text = local human-readable (LOG_FORMAT=text).
+    log_format: Literal["json", "text"] = Field(default="json", alias="LOG_FORMAT")
 
     # R6-01 release provenance (baked at Docker build via ARG→ENV; not hardcoded).
     git_commit: str = Field(default="unknown", alias="GIT_COMMIT")
@@ -110,6 +112,28 @@ class Settings(BaseSettings):
     postgres_db: str = "ecmp"
     database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
 
+    # Connection pool (audit: pool was previously untunable at defaults 5+10 with
+    # no recycle). Defaults below reproduce prior behaviour exactly — nothing
+    # changes until an operator sets these. Two engines exist (sync + async), so
+    # a process holds up to 2 x (size + overflow) connections; size Postgres
+    # max_connections accordingly.
+    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE", ge=1, le=100)
+    db_max_overflow: int = Field(default=10, alias="DB_MAX_OVERFLOW", ge=0, le=100)
+    # 0 disables recycling (SQLAlchemy default -1 semantics preserved below).
+    db_pool_recycle_seconds: int = Field(
+        default=0,
+        alias="DB_POOL_RECYCLE_SECONDS",
+        ge=0,
+        le=86400,
+    )
+    # Server-side guard against runaway queries. 0 = disabled (current behaviour).
+    db_statement_timeout_ms: int = Field(
+        default=0,
+        alias="DB_STATEMENT_TIMEOUT_MS",
+        ge=0,
+        le=600000,
+    )
+
     # JWT / session (dev-mode HS256 issuance; TASK-PLATFORM-SECMIG-P2-001)
     # Mandatory secret — must be supplied via JWT_SECRET_KEY env / .env.
     jwt_secret_key: str = ""
@@ -122,6 +146,16 @@ class Settings(BaseSettings):
     # Dual-mode AuthN (SEC-MIG Phase 2) — default preserves lab HS256 login
     ecmp_auth_mode: Literal["dev", "jwt"] = Field(default="dev", alias="ECMP_AUTH_MODE")
     ecmp_env: str = Field(default="local", alias="ECMP_ENV")
+    # ADR-014 / audit K-3 — Mode B runtime switch. Remains false while C-7 CLOSED.
+    # Must not be set true without Architecture Board Mode B unlock.
+    ecmp_enterprise_mode: bool = Field(default=False, alias="ECMP_ENTERPRISE_MODE")
+    # Mode A local credential AuthN surface (login / forgot / reset / change /
+    # admin reset / user create password / user update password).
+    # Lab default true. Staging/production and enterprise mode require false (fail-fast).
+    ecmp_local_credential_auth: bool = Field(
+        default=True,
+        alias="ECMP_LOCAL_CREDENTIAL_AUTH",
+    )
     oidc_issuer: str | None = Field(default=None, alias="OIDC_ISSUER")
     oidc_audience: str | None = Field(default=None, alias="OIDC_AUDIENCE")
     oidc_jwks_url: str | None = Field(default=None, alias="OIDC_JWKS_URL")
@@ -410,6 +444,52 @@ def collect_runtime_config_issues(settings: Settings) -> list[ConfigIssue]:
                 suggested_fix=(
                     "Set ECMP_AUTH_MODE=jwt and configure OIDC_ISSUER, "
                     "OIDC_AUDIENCE, and OIDC_JWKS_URL for staging/production."
+                ),
+            )
+        )
+
+    # ADR-014 / audit K-3 — Mode B + local credential AuthN must fail-fast.
+    if settings.ecmp_enterprise_mode and settings.ecmp_local_credential_auth:
+        issues.append(
+            ConfigIssue(
+                variable="ECMP_LOCAL_CREDENTIAL_AUTH",
+                problem=(
+                    "Local credential AuthN cannot be enabled when "
+                    "ECMP_ENTERPRISE_MODE=true (ADR-014 Mode B local-auth prohibition)."
+                ),
+                suggested_fix=(
+                    "Set ECMP_LOCAL_CREDENTIAL_AUTH=false for enterprise mode, "
+                    "or keep ECMP_ENTERPRISE_MODE=false while Mode B remains CLOSED (C-7)."
+                ),
+            )
+        )
+    if settings.ecmp_enterprise_mode and auth_mode != "jwt":
+        issues.append(
+            ConfigIssue(
+                variable="ECMP_AUTH_MODE",
+                problem=(
+                    "ECMP_ENTERPRISE_MODE=true requires ECMP_AUTH_MODE=jwt "
+                    "(IdP / enterprise AuthN consumption)."
+                ),
+                suggested_fix="Set ECMP_AUTH_MODE=jwt and configure OIDC_* for enterprise mode.",
+            )
+        )
+    if (
+        settings.environment in {"staging", "production"}
+        and settings.ecmp_local_credential_auth
+    ):
+        issues.append(
+            ConfigIssue(
+                variable="ECMP_LOCAL_CREDENTIAL_AUTH",
+                problem=(
+                    f"Local credential AuthN is forbidden when "
+                    f"ENVIRONMENT={settings.environment} "
+                    "(ADR-014 / audit K-3 — Mode A credential surface must not be a "
+                    "production AuthN path)."
+                ),
+                suggested_fix=(
+                    "Set ECMP_LOCAL_CREDENTIAL_AUTH=false for staging/production. "
+                    "Mode A password login remains for development/test only."
                 ),
             )
         )

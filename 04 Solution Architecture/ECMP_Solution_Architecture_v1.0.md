@@ -137,7 +137,7 @@ Diagram source: `../23 Assets/mermaid/create-case-sequence.mmd` (create case Spr
 
 ## 8. Security Architecture (high-level)
 - AuthN/AuthZ terpusat di Core Platform (BR-CP-01, BR-CP-02); domain lain tidak boleh implementasi otorisasi sendiri di luar Core Platform.
-- Model autentikasi konkret: arah diputuskan di **ADR-007** (Bearer slice → JWT/OIDC sebelum shared UAT); desain fase target diusulkan di **ADR-012** (Proposed) + `10 Security and Access Standards/ECMP_Target_Authentication_Architecture_v1.0.md`; SSO penuh tetap Future Enhancement (jalur brokering, SEC-AUTH-001 §9).
+- Model autentikasi konkret: arah diputuskan di **ADR-007** (Bearer slice → JWT/OIDC sebelum shared UAT); desain fase target di **ADR-012** (**Accepted**) + `10 Security and Access Standards/ECMP_Target_Authentication_Architecture_v1.0.md` (SEC-AUTH-001; design normative under ADR-012, document badge may remain Proposed until Board sync); SSO penuh tetap Future Enhancement / Enterprise Mode (ADR-014 Proposed — Relationship Pending).
 - Data sensitif (PII pelanggan, kontak) memerlukan klasifikasi dan masking — rujuk `06 Data Dictionary` bagian PII dan `10 Security and Access Standards` (Security Standards, Role Access Matrix, AuthN Limitations Register).
 - Audit trail immutable menjadi kontrol keamanan inti, bukan opsional (prinsip #5).
 
@@ -167,7 +167,7 @@ Diagram source: `../23 Assets/mermaid/deployment-dev-ci.mmd` (deployment view DE
 - ADR-007 — Authentication Model, slice + target (Accepted)
 - ADR-008 — Role-Permission Matrix SoT & Workflow Config Ownership (Accepted)
 - ADR-009 — Message Broker Deferral, outbox first (Accepted)
-- ADR-012 — Target Authentication Architecture, JWT/OIDC design (Proposed)
+- ADR-012 — Target Authentication Architecture, JWT/OIDC design (**Accepted**)
 
 ## Open Decisions (status 2026-07-21)
 1. Teknologi message broker — **ditunda secara eksplisit** (ADR-009): outbox lokal dulu, pilih broker sebelum multi-service.

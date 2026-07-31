@@ -11,7 +11,7 @@
 | Last Review | YYYY-MM-DD |
 | Next Review | YYYY-MM-DD |
 
-- ADR Status: Proposed | Accepted | Superseded | Deprecated
+- ADR Status: Proposed | Accepted | Superseded | Deprecated | Rejected
 - Date: YYYY-MM-DD
 - Decision Owners:
 - Related Domains:

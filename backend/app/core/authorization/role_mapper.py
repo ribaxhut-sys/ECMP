@@ -1,6 +1,14 @@
 """IdP role → Core Platform role-code mapping (TASK-PLATFORM-SECMIG-P2-001).
 
 IdP role names are not assumed equal to database ``roles.code`` values.
+
+Mode A hardening (2026-07-31): privileged Core Platform codes
+(``ADMIN`` / ``ADMINISTRATOR`` / ``SUPER_ADMIN``) are **never** accepted from
+IdP ``roles[]`` — neither as pass-through nor as mapping targets. That path
+would grant ADR-008 wildcard permissions from AuthN alone, which contradicts
+ADR-014 ("enterprise roles shall not automatically become ECMP roles") and
+ADR-015 §6. Local / Mode A admin still comes from DB-backed role assignment
+via the HS256 (dev) strategy, not from this mapper.
 """
 
 from __future__ import annotations
@@ -15,12 +23,18 @@ _DEFAULT_IDP_TO_INTERNAL: dict[str, str] = {
     "handler": "HANDLER",
 }
 
-# Internal codes accepted as already-canonical (pass-through).
-_INTERNAL_CODES: frozenset[str] = frozenset(
+# Privileged codes — never emit from IdP claim mapping (Mode A hardening).
+_PRIVILEGED_CODES: frozenset[str] = frozenset(
     {
         "SUPER_ADMIN",
         "ADMIN",
         "ADMINISTRATOR",
+    }
+)
+
+# Non-privileged internal codes accepted as already-canonical (pass-through).
+_OPERATIONAL_INTERNAL_CODES: frozenset[str] = frozenset(
+    {
         "SUPERVISOR",
         "AGENT",
         "HANDLER",
@@ -45,17 +59,24 @@ class RoleMapper:
         self._map = base
 
     def map_one(self, idp_role: str) -> str | None:
-        """Return internal role code or ``None`` when unmapped (ignored)."""
+        """Return internal role code or ``None`` when unmapped / privileged."""
         raw = (idp_role or "").strip()
         if not raw:
             return None
         upper = raw.upper()
-        if upper in _INTERNAL_CODES:
+        if upper in _PRIVILEGED_CODES:
+            return None
+        if upper in _OPERATIONAL_INTERNAL_CODES:
             return upper
-        return self._map.get(raw.lower())
+        mapped = self._map.get(raw.lower())
+        if mapped is None:
+            return None
+        if mapped in _PRIVILEGED_CODES:
+            return None
+        return mapped
 
     def map_many(self, idp_roles: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
-        """Map IdP roles; preserve order; drop unknowns; de-duplicate."""
+        """Map IdP roles; preserve order; drop unknowns/privileged; de-duplicate."""
         if not idp_roles:
             return ()
         seen: set[str] = set()

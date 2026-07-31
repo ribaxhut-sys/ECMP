@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import get_settings
+from app.db.session import build_connect_args, build_pool_kwargs
 
 _async_engine: AsyncEngine | None = None
 _AsyncSessionLocal: async_sessionmaker[AsyncSession] | None = None
@@ -47,9 +48,16 @@ def _engine_kwargs(url: str) -> dict:
         "pool_pre_ping": True,
         "future": True,
     }
-    # connect_timeout is a libpq/psycopg option; skip for sqlite test URLs.
+    # connect_timeout / pool sizing are libpq + QueuePool concerns; sqlite test
+    # URLs use a different pool implementation and must not receive them.
     if "sqlite" not in url:
-        kwargs["connect_args"] = {"connect_timeout": _CONNECT_TIMEOUT_SECONDS}
+        settings = get_settings()
+        kwargs["connect_args"] = build_connect_args(
+            settings,
+            connect_timeout=_CONNECT_TIMEOUT_SECONDS,
+        )
+        # Defaults reproduce prior behaviour; see Settings.db_pool_* (audit).
+        kwargs.update(build_pool_kwargs(settings))
     return kwargs
 
 

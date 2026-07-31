@@ -33,6 +33,18 @@ Draft
 - Architecture decisions → `05 Architecture Decision Records`
 - Architecture review forms → `18 Architecture Governance/reviews`
 
+## Implementation Baseline (active Project Decisions)
+
+| DEC | Title | Status | Binding for |
+|---|---|---|---|
+| DEC-019 | Engineering Foundation Canonical Trees | Accepted | `backend/` + `frontend/` production trees |
+| **DEC-020** | Complaint Implementation SoT & Namespace Remapping | **Accepted** | Dual SoT; `/api/v1/cm` Aggregate vs `/api/v1/complaints` foundation; coexistence; cutover policy |
+| DEC-021 | Organization Hierarchy Descendant Scope (O-06) | **Proposed** | No silent descendant AuthZ; Mode B not unlocked |
+| DEC-022 | Org Restructure / Orphan Remediation (O-07) | **Proposed** | Retain + fail-closed interim; Mode B not unlocked |
+
+> DEC-020 closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, Batch-2, or real-customer production.
+> DEC-021 / DEC-022 are **Proposed** only — interim fail-closed rules apply until Accepted.
+
 ## Structure (konvensi aktual — flat)
 - `DEC-*.md` di root folder ini — decision records bernomor urut (DEC-001 dst.)
 - `OPEN_QUESTIONS.md` — daftar open questions (OQ-xxx) beserta statusnya

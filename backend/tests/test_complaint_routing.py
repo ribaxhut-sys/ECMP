@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,8 +17,6 @@ from app.core.errors import ValidationAppError
 from app.modules.complaints.schemas import ComplaintCreateRequest
 from app.modules.complaints.service import ComplaintService
 from app.modules.routing import ComplaintRoutingService
-from unittest.mock import MagicMock
-from datetime import UTC, datetime
 
 
 @pytest.fixture()
@@ -172,8 +172,8 @@ def test_complaint_service_uses_routing_not_inline_rules() -> None:
         actor_user_id=actor_id,
     )
     row = created["row"]
-    assert getattr(row, "branch_id") == branch_id
-    assert getattr(row, "customer_id") == customer_id
+    assert row.branch_id == branch_id
+    assert row.customer_id == customer_id
     # Timeline metadata must include routing result (consumes route only).
     meta = repo.add_timeline.call_args.kwargs["metadata"]
     assert meta["receiverType"] == "BRANCH"

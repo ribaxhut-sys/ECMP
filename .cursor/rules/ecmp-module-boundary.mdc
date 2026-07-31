@@ -1,0 +1,59 @@
+---
+description: ECMP adalah modul bisnis tambahan di Enterprise Platform — jangan ulang kerja Mode A yang sudah selesai; jangan bangun ulang kemampuan platform
+alwaysApply: true
+---
+
+# ECMP — Module Boundary & Anti-Redo
+
+## Identitas produk (binding)
+
+ECMP adalah **Business Module tambahan** dari **aplikasi utama (Enterprise Platform)**, bukan aplikasi enterprise mandiri sebagai target akhir (ADR-014 LAP-01).
+
+| Layer | Peran |
+|---|---|
+| **Enterprise Platform** (app utama) | Portal, AuthN/SSO, User Directory, Org, navigasi enterprise, session, identity audit |
+| **ECMP Business Module** | Complaint lifecycle + ECMP business notification (modul-scoped) |
+| **Core Platform** (domain di dalam ECMP) | Role-Permission Matrix SoT (ADR-008) — **bukan** Enterprise Platform |
+
+Mode A (standalone hedge) boleh dipakai untuk delivery lab/ops lokal. Mode B (embed/SSO ke app utama) tetap **CLOSED** sampai Board unlock (C-7 / C-B6-1).
+
+## Jangan mengulang pekerjaan
+
+Sebelum mulai task, cek apakah item sudah selesai di jalur Mode A. **Jangan** mengulang atau “rebuild from scratch” tanpa gap baru yang jelas.
+
+Sudah dikerjakan / jangan ulang tanpa alasan regresi:
+
+- M1 credential-route guards (FE `check:auth-routes*` + BE `ECMP_LOCAL_CREDENTIAL_AUTH`)
+- M2 DEC-020 dual-SoT hygiene (mount coexistence test, ownership/catalog sync)
+- M3 Aggregate client `/api/v1/cm` + intake SCR-CM-001…006 + FR-004 staging/void/confirmation list (**CLOSED** for this Mode A slice; UI cutover foundation **bukan** bagian selesai — DEC-020 coexistence)
+- M5 coverage helpers + FR-004 helper/`cmBatch1Attachments` + staging/bound panel smoke
+- M6 ops hygiene (staging TTL script + storage probe) — jangan ulang Ops P0 (volume / JSON log / BC AuthN floor) tanpa regresi
+
+Jika user minta “lanjut” / “ulang dari awal”, **ringkas status selesai** lalu lanjut gap berikutnya saja.
+
+## Jangan dibangun ulang di ECMP (milik app utama / Mode B)
+
+Jangan implementasi atau redesign seolah ECMP punya SoR enterprise untuk:
+
+- SSO / OIDC browser bridge / Identity Adapter runtime
+- OpenAPI enterprise `securitySchemes`
+- Enterprise org sync / entitlement engine sebagai produk Mode B
+- Portal chrome / module switcher enterprise
+- Login produksi enterprise (hapus Mode A credential routes untuk Mode B) sebelum unlock
+
+Jika diminta: status **BLOCKED (Board Authorization Required)** — jangan diam-diam kerjakan.
+
+## Yang boleh dilanjutkan (Mode A)
+
+- Complaint / Batch-1 lab dalam OpenAPI catalog
+- Refactor, bugfix, test, observability, docs
+- UI Aggregate **berdampingan** foundation (bukan silent replace)
+- Harden boundary modul (namespace, guards) tanpa Mode B
+
+## Saat ragu
+
+1. Apakah ini kemampuan **modul complaint** atau **platform utama**?
+2. Apakah sudah ada artefak/tes hijau untuk ini?
+3. Apakah butuh unlock Mode B?
+
+Jawab singkat ke user sebelum coding ulang.

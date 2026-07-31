@@ -841,9 +841,16 @@
   },
   "reports": {
     "title": "Laporan",
-    "description": "Tampilan laporan akan menggunakan sistem desain bersama dan Tata Letak Aplikasi.",
-    "moduleTitle": "Modul laporan",
-    "placeholder": "Rute placeholder untuk layar laporan di masa depan. Belum ada fitur bisnis di sprint ini."
+    "description": "Ringkasan laporan keluhan dari API laporan di katalog (API-210…212).",
+    "summaryTitle": "Ringkasan",
+    "totalComplaints": "Total keluhan",
+    "openComplaints": "Terbuka (belum ditutup)",
+    "closedComplaints": "Selesai / ditutup",
+    "noSummary": "Tidak ada data ringkasan",
+    "noSummaryDescription": "Ringkasan laporan tidak tersedia. Widget lain mungkin tetap dimuat.",
+    "unableToLoad": "Tidak dapat memuat laporan",
+    "accessRestricted": "Akses dibatasi",
+    "accessRestrictedDescription": "Anda memerlukan izin reports:read untuk melihat halaman ini."
   },
   "users": {
     "title": "Pengguna",

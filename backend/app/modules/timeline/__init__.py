@@ -5,8 +5,8 @@ Does not replace API-209 ``complaint_timelines`` (module ``timelines``).
 """
 
 from app.modules.timeline.domain import (
-    AggregateType,
     ActorType,
+    AggregateType,
     TimelineEntry,
     TimelineEventType,
 )

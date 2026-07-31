@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -33,8 +34,6 @@ from app.db.async_session import _to_async_url
 from app.db.base import Base
 from app.modules.complaint.api import complaint_foundation_router
 from app.modules.complaint.api.controllers import ComplaintController
-from unittest.mock import MagicMock
-
 from app.modules.complaint.api.dependencies import (
     get_complaint_assignment_service,
     get_complaint_crud_service,

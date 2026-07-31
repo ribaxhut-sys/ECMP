@@ -1,12 +1,6 @@
 """Bidirectional Assignment domain ↔ ORM mapping (CAPABILITY-006)."""
 
-from __future__ import annotations
-
-from app.modules.complaint.domain.models import AssigneeType, Assignment
-from app.modules.complaint.infrastructure.orm.models import AssignmentORM
-
-
-class AssignmentMapper:
+from __future__ import annotationsfrom app.modules.complaint.domain.models import AssigneeType, Assignmentfrom app.modules.complaint.infrastructure.orm.models import AssignmentORMclass AssignmentMapper:
     """Map Assignment domain ↔ AssignmentORM."""
 
     @staticmethod

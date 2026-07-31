@@ -15,6 +15,7 @@
 
 | Prompt | Current | Status |
 |---|---|---|
+| ecmp-master | v1 | locked (pointer → ECMP-MASTER-PROMPT-001 / CONSTITUTION-001) |
 | architecture-review | v1 | stable |
 | code-review | v1 | stable |
 | frd-generator | v1 | stable |

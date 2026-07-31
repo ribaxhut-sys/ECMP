@@ -6,10 +6,17 @@ User assignment / permission matrix remain out of scope.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Boolean, Index, String, Text, UniqueConstraint, false, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampAuditSoftDeleteMixin
+
+if TYPE_CHECKING:
+    # Resolved at runtime by the SQLAlchemy registry; imported here only so the
+    # forward reference in ``users`` is a defined name for linters/type checkers.
+    from app.models import User
 
 
 class Role(TimestampAuditSoftDeleteMixin, Base):

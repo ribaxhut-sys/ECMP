@@ -57,10 +57,12 @@ jobs:
           python -c "import pathlib; p=pathlib.Path('pyproject.toml'); assert p.is_file(), 'missing backend/pyproject.toml'; print(p.resolve())"
           ruff check --show-settings app 2>&1 | head -n 40
       - name: Lint backend (ruff)
-        # M2: config is authoritative under backend/pyproject.toml.
-        # Existing lint debt (~90 findings) is non-blocking until burn-down;
-        # hard gate is follow-up (not M0–M2). Tests/OpenAPI/Alembic remain blocking.
-        continue-on-error: true
+        # BLOCKING as of 2026-07-31 (audit TD-M1 burn-down).
+        # Config is authoritative under backend/pyproject.toml. The former
+        # ~134-finding backlog is cleared; the only remaining debt is declared
+        # explicitly in [tool.ruff.lint.per-file-ignores] so it stays visible
+        # and shrinkable. Do not reintroduce continue-on-error — narrow the
+        # per-file-ignores instead.
         run: ruff check app tests
       - name: Validate OpenAPI contracts (all specs incl. drafts)
         working-directory: .

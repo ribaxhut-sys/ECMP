@@ -8,18 +8,53 @@ Living knowledge hub and AI context platform for **Enterprise Complaint Manageme
 | Field | Value |
 |---|---|
 | ID | EAR-IDX-000 |
-| Version | 2.1 |
+| Version | 2.2 |
 | Owner | Enterprise Architecture |
 | Reviewer | PMO / Solution Architect |
 | Approver | Architecture Board |
 | Status | 🟡 Draft |
-| Last Review | 2026-07-21 |
+| Last Review | 2026-07-31 |
 | Next Review | 2027-01-21 |
+
+## What ECMP is (architecture position)
+
+ECMP is the **Complaint Management business module**. Per **ADR-014 v1.4** and
+**ADR-015 v1.3** (both 🟢 *Accepted with Conditions* — PROGRAM-BOARD-004,
+BR-009 / BR-010), it runs in one of two deployment modes:
+
+| Mode | Authentication | Identity / Org / Portal owner | Status |
+|---|---|---|---|
+| **Mode A — Standalone** | Local credentials inside ECMP | ECMP | Current delivery mode |
+| **Mode B — Enterprise** | Enterprise Platform SSO | **Enterprise Platform** | 🔴 **CLOSED** (condition C-7) — architecture accepted, implementation deferred |
+
+Ownership boundary under Mode B (ADR-014):
+
+- **Enterprise Platform owns** — Authentication, SSO, User Directory, Password
+  Management, MFA, Session, Organization / Branch / Department, Enterprise
+  Navigation & Portal, Enterprise Global Notification, Identity Audit.
+- **ECMP owns** — Complaint lifecycle, Assignment, Escalation, Resolution, SLA,
+  Timeline, Complaint KPI, **Complaint Authorization** (roles & permissions,
+  applied *after* the Enterprise Entitlement Gate), ECMP Business Notification.
+
+Mode divergence terminates at the **Identity Adapter** (ADR-014). Business
+modules must not branch on deployment mode.
+
+Subordinate contracts: **ADR-016** (Protocol Binding) · **ADR-017** (Entitlement
+Architecture) · **ADR-018** (Organization Synchronization) — all *Accepted with
+Conditions*, PROGRAM-BOARD-006 (BR-011 / BR-012 / BR-013).
 
 ## Local stack foundation (v1.0.0)
 
-Application foundation Production release: authentication, complaints, assignments,
-escalations, timelines, reporting, user management, and dashboard.
+Application foundation Production release: complaints, assignments, escalations,
+timelines, reporting, and dashboard — plus **Mode A** authentication and user
+management.
+
+> **Mode A only.** The local credential surface (login, forgot / reset / change
+> password, admin reset, user create) is governed by `ECMP_LOCAL_CREDENTIAL_AUTH`
+> and **fails closed** when disabled. Startup validation *forbids* enabling it in
+> `staging` / `production` or when `ECMP_ENTERPRISE_MODE=true` (ADR-014 Mode B
+> local-auth prohibition / audit K-3). Under Mode B these capabilities belong to
+> the Enterprise Platform.
 
 ```text
 backend/     FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL
@@ -121,10 +156,11 @@ Open http://127.0.0.1:8030
 1. Active Sprint (GO = slice + G0 floor, DEC-002): [ai/sprint/Sprint-01.md](./ai/sprint/Sprint-01.md)
 2. FRD ECMF: [03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md](./03%20Functional%20Requirements/ECMP_FRD_ECMF_v0.1.md)
 3. Stack ADR: [ADR-004](./05%20Architecture%20Decision%20Records/ECMP_ADR_004_Implementation_Stack_Sprint01_v1.0.md)
-4. Developer Portal: `implementation/portal`
-5. MkDocs: `python -m mkdocs serve`
-6. DX Launcher: `python tools/eos.py`
-7. AI Rules: [ai-platform/policies/ai-rules.md](./ai-platform/policies/ai-rules.md)
+4. Implementation baseline: [DEC-019](./27%20Project%20Decisions/DEC-019_Engineering_Foundation_Canonical_Trees_EPIC001_v1.0.md) (canonical trees) · [DEC-020](./27%20Project%20Decisions/DEC-020_Complaint_Implementation_SoT_Namespace_Remapping_v1.0.md) (Complaint dual SoT / coexistence)
+5. Developer Portal: `implementation/portal`
+6. MkDocs: `python -m mkdocs serve`
+7. DX Launcher: `python tools/eos.py`
+8. AI Rules: [ai-platform/policies/ai-rules.md](./ai-platform/policies/ai-rules.md)
 
 ## AI Tool Roles
 

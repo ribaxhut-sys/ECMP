@@ -39,6 +39,8 @@ _ISOLATED_ENV = (
     "EMAIL_PROVIDER",
     "ECMP_AUTH_MODE",
     "ECMP_ENV",
+    "ECMP_ENTERPRISE_MODE",
+    "ECMP_LOCAL_CREDENTIAL_AUTH",
     "OIDC_ISSUER",
     "OIDC_AUDIENCE",
     "OIDC_JWKS_URL",
@@ -47,6 +49,8 @@ _ISOLATED_ENV = (
 _REQUIRED_COMPOSE_AUTH_KEYS = (
     "ECMP_AUTH_MODE",
     "ECMP_ENV",
+    "ECMP_LOCAL_CREDENTIAL_AUTH",
+    "ECMP_ENTERPRISE_MODE",
     "OIDC_ISSUER",
     "OIDC_AUDIENCE",
     "OIDC_JWKS_URL",
@@ -72,6 +76,8 @@ def _prod_ok(**overrides: object) -> Settings:
         "password_reset_frontend_base_url": "https://app.example.com",
         "email_provider": "noop",
         "debug": False,
+        "ecmp_local_credential_auth": False,
+        "ecmp_enterprise_mode": False,
         **_PROD_OIDC,
     }
     values.update(overrides)
@@ -149,6 +155,54 @@ def test_staging_production_accept_jwt_with_oidc(environment: str) -> None:
         ),
     )
     validate_runtime_config(settings)
+
+
+def test_staging_production_forbid_local_credential_auth() -> None:
+    """ADR-014 / K-3 — Mode A password surface must not be a production AuthN path."""
+    settings = _prod_ok(ecmp_local_credential_auth=True)
+    issues = collect_runtime_config_issues(settings)
+    assert any(
+        i.variable == "ECMP_LOCAL_CREDENTIAL_AUTH" and "forbidden" in i.problem.lower()
+        for i in issues
+    )
+    with pytest.raises(ConfigValidationError, match="ECMP_LOCAL_CREDENTIAL_AUTH"):
+        validate_runtime_config(settings)
+
+
+def test_enterprise_mode_forbids_local_credential_auth() -> None:
+    settings = _settings(
+        environment="development",
+        jwt_secret_key=_STRONG_JWT,
+        postgres_password=_STRONG_DB_PASSWORD,
+        ecmp_auth_mode="jwt",
+        ecmp_env="local",
+        oidc_issuer="https://idp.example.com/realms/ecmp",
+        oidc_audience="ecmp-api",
+        oidc_jwks_url="https://idp.example.com/realms/ecmp/protocol/openid-connect/certs",
+        ecmp_enterprise_mode=True,
+        ecmp_local_credential_auth=True,
+    )
+    issues = collect_runtime_config_issues(settings)
+    assert any(i.variable == "ECMP_LOCAL_CREDENTIAL_AUTH" for i in issues)
+    with pytest.raises(ConfigValidationError, match="ECMP_LOCAL_CREDENTIAL_AUTH"):
+        validate_runtime_config(settings)
+
+
+def test_enterprise_mode_requires_jwt() -> None:
+    settings = _settings(
+        environment="development",
+        jwt_secret_key=_STRONG_JWT,
+        postgres_password=_STRONG_DB_PASSWORD,
+        ecmp_auth_mode="dev",
+        ecmp_env="local",
+        ecmp_enterprise_mode=True,
+        ecmp_local_credential_auth=False,
+    )
+    issues = collect_runtime_config_issues(settings)
+    assert any(
+        i.variable == "ECMP_AUTH_MODE" and "enterprise" in i.problem.lower()
+        for i in issues
+    )
 
 
 def test_development_still_allows_dev_auth_mode() -> None:
@@ -235,10 +289,14 @@ def test_env_production_example_passes_runtime_validation(
         "PASSWORD_RESET_FRONTEND_BASE_URL", "https://ecmp.example.com"
     )
     monkeypatch.setenv("EMAIL_PROVIDER", "noop")
+    monkeypatch.setenv("ECMP_LOCAL_CREDENTIAL_AUTH", "false")
+    monkeypatch.setenv("ECMP_ENTERPRISE_MODE", "false")
 
     settings = Settings(_env_file=None)
     assert settings.ecmp_auth_mode == "jwt"
     assert settings.environment == "production"
+    assert settings.ecmp_local_credential_auth is False
+    assert settings.ecmp_enterprise_mode is False
     assert settings.oidc_issuer
     assert settings.oidc_audience
     assert settings.oidc_jwks_url

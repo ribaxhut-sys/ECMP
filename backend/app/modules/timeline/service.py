@@ -8,7 +8,7 @@ from typing import Any
 from app.core.errors import NotFoundError
 from app.core.schemas import PageMeta
 from app.modules.timeline.domain.entity import TimelineEntry
-from app.modules.timeline.domain.enums import AggregateType, ActorType
+from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
 from app.modules.timeline.schemas import (
     TimelineEntryCreateRequest,

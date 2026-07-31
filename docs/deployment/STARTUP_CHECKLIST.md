@@ -22,6 +22,8 @@ Foundation shared/prod cutover order: **REL-SEC-001 → DEP-CHK-V1 → START-CHK
 - [ ] `python scripts/validate-production-config.py --env-file .env` → PASS
 - [ ] For production: `--require-production` → PASS
 - [ ] `ENVIRONMENT=staging` or `production` ⇒ `ECMP_AUTH_MODE=jwt` (SECMIG-P6-001)
+- [ ] `ENVIRONMENT=staging` or `production` ⇒ `ECMP_LOCAL_CREDENTIAL_AUTH=false` (ADR-014 / audit K-3)
+- [ ] `ECMP_ENTERPRISE_MODE=false` until Architecture Board unlocks Mode B (C-7)
 - [ ] `ECMP_ENV=shared` for shared/staging/production deployments
 - [ ] `OIDC_ISSUER` / `OIDC_AUDIENCE` / `OIDC_JWKS_URL` set and reachable from backend network
 - [ ] `JWT_SECRET_KEY` rotated / vault-injected (≥32 chars; retained for dual-mode tooling)

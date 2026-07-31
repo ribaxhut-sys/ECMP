@@ -45,6 +45,8 @@ See **[SPRINT_F5.md](./SPRINT_F5.md)** for resolution workflow list + supported 
 | Queue module | `src/features/queue/`, `src/app/(app)/queue/` |
 | Assignments module | `src/features/assignments/`, `src/app/(app)/assignments/` |
 | Resolutions module | `src/features/resolutions/`, `src/app/(app)/resolutions/` |
+| Reports module | `src/features/reports/`, `src/app/(app)/reports/` (API-210…212) |
+| CM Batch 1 Aggregate client | `src/lib/api/cmBatch1.ts` (`/api/v1/cm` — DEC-020; **not** a replace for `complaints.ts`) |
 | Design system | `src/shared/ui`, `src/shared/theme` |
 
 See **[src/shared/README.md](./src/shared/README.md)** for design tokens and layout rules.
@@ -56,4 +58,8 @@ See **[src/shared/README.md](./src/shared/README.md)** for design tokens and lay
 | `npm run dev` | Local development server (port 3000) |
 | `npm run build` | Production build |
 | `npm run start` | Serve production build |
-| `npm run lint` | Next.js lint |
+| `npm run lint` | ESLint (max-warnings 0) |
+| `npm run typecheck` | TypeScript `--noEmit` |
+| `npm run test` | Vitest unit tests |
+| `npm run test:coverage` | Vitest + Phase C coverage hard-fail thresholds |
+| `npm run test:a11y` | axe-core smoke on shared UI (warn-mode in CI) |

@@ -13,6 +13,7 @@
 | Last Review | 2026-07-29 |
 | Next Review | 2026-10-29 |
 | Related BR Catalog | `02 Business Rules/ECMP_Business_Rules_Complaint_Management_Module_v1.0.md` (BR-CM-CAT-001) |
+| Related DEC | DEC-020 (Complaint Implementation SoT & Namespace Remapping — Accepted; closes OQ-CM-B1-001) |
 | Related ADRs | ADR-014 (Enterprise Business Module), ADR-015 (Enterprise Identity Contract), ADR-002 (Customer Master non-SoR), ADR-008 (Role-Permission), ADR-009 (Outbox) |
 | Related Revision Plan | `18 Architecture Governance/reviews/ECMP_FRD_CM_001_Revision_Plan_v1.1.md` (GOV-RP-FRD-CM-001) |
 | Related Architecture Review | `18 Architecture Governance/reviews/ECMP_FRD_CM_001_Architecture_Review_v1.0.md` (GOV-REV-FRD-CM-001) |
@@ -58,9 +59,9 @@ This FRD defines **Complaint Aggregate** functional requirements for the Complai
 | **This FRD (normative LOCKED Batch 1 SoT)** | FRD-CM-001 + BR-CM-CAT-001 | FR-001 = Complaint Registration; BR-001 = Create Complaint |
 | Delivery Sprint SoT (separate) | FRD-001 / BR-DOC-001 | FR-001 = Create Case (case-centric slice); BR-001 = workflow transition rule |
 
-Until a formal DEC remaps delivery SoT to the Complaint Aggregate model, **implementation of this Batch 1 FRD MUST NOT silently overwrite Sprint delivery IDs**. Traceability in this document uses **BR-CM-CAT-001 rule IDs** and **FRD-CM-001 FR IDs**.
+Per **DEC-020** (Accepted), dual SoT under controlled coexistence applies: this FRD remains authoritative for Batch 1 Aggregate intake (`/api/v1/cm`); Sprint/foundation lifecycle SoT remains separate (`/api/v1/complaints`). **Implementation of this Batch 1 FRD MUST NOT silently overwrite Sprint delivery IDs**. Traceability in this document uses **BR-CM-CAT-001 rule IDs** and **FRD-CM-001 FR IDs**. **OQ-CM-B1-001 is Closed** (remapped by dual SoT — not wholesale replacement).
 
-Document status is **LOCKED** (CTO Decision D-08). This FRD is the **Source of Truth for Batch 1 implementation** (FR-001…FR-004). Claude Delta Review and CTO Approval are complete. Per D-01, foundation readiness of BR-CM-CAT-001 / ADR-014 / ADR-015 / DEC remapping remains tracked under OQ-CM-B1-001 — this LOCK does not upgrade those artifacts' statuses.
+Document status is **LOCKED** (CTO Decision D-08). This FRD is the **Source of Truth for Batch 1 Aggregate implementation** (FR-001…FR-004). Claude Delta Review and CTO Approval are complete. Per D-01, foundation readiness of BR-CM-CAT-001 / ADR-014 / ADR-015 remains unchanged by DEC-020 — this LOCK does not upgrade those artifacts' statuses.
 
 ### 1.2 Quality Rules Applied
 
@@ -1140,22 +1141,22 @@ Existing product screen UX-SCR-001 (Case Detail Workspace) is **not** redefined 
 
 ## 13. API Mapping
 
-Logical ECMP Backend API capabilities required by Batch 1. **Payload design and OpenAPI authorship are out of scope** for this FRD. Existing catalog IDs are referenced where aligned; gaps are marked **Planned**. Catalog ID collisions for `API-390` / `API-392` MUST be resolved in `07 API Catalog` before treating those IDs as stable automation anchors (cite path+method until remapped).
+Logical ECMP Backend API capabilities required by Batch 1. **Payload design and OpenAPI authorship are out of scope** for this FRD. Per **DEC-020**, Aggregate intake is canonical under `/api/v1/cm` (API-500…512); foundation `/api/v1/complaints` remains a separate lifecycle SoT. Catalog ID collisions for `API-390` / `API-392` MUST be resolved in `07 API Catalog` before treating those IDs as stable automation anchors (prefer **path+method** until remapped).
 
 | FR | Logical API Capability | Existing / Planned Catalog Reference | Consumer | Downstream Enterprise API |
 |---|---|---|---|---|
-| FR-001 | Create Complaint (idempotent) | Existing alignment: `POST /api/v1/complaints` (catalog ID remap pending); requires Request Id; Channel Message Id when channel-sourced | Frontend → ECMP Backend | Notification (opt-in); Audit Platform (optional copy) |
-| FR-001 | Get Complaint confirmation/detail | Existing alignment: `GET /api/v1/complaints/{complaintId}` (catalog ID remap pending) | Frontend → ECMP Backend | — |
-| FR-002 | Search Customer by key | **Planned** ECMP Backend customer-search facade over Master Customer | Frontend → ECMP Backend | Master Customer Search/Get; Enterprise Security anti-enumeration |
-| FR-002 | Confirm / lock CustomerId in session/context | **Planned** (may be embedded in create draft context) | Frontend → ECMP Backend | Master Customer Get-by-id |
-| FR-002 | Batch 1 Customer 360 minimum | **Planned** (profile + active complaints + count) | Frontend → ECMP Backend | Master Customer profile read; ECMP Complaint reads |
-| FR-003 | Check duplicate candidates | **Planned** (dedicated or create pre-check). May leverage complaint search substrate | Frontend → ECMP Backend | — |
-| FR-003 | Record duplicate decision / linkage | **Planned** (or embedded in create command) | Frontend → ECMP Backend | — |
-| FR-004 | Upload attachment | Existing: `API-323` `POST /api/v1/attachments` | Frontend → ECMP Backend | Enterprise Storage; optional malware scan service |
-| FR-004 | Transfer staged attachments to surviving Complaint | **Planned** | ECMP Backend internal / Frontend-triggered redirect flow | Enterprise Storage (rebind metadata) |
-| FR-004 | List attachments for Complaint | Existing: `API-387` | Frontend → ECMP Backend | — |
-| FR-004 | Get metadata / download | Existing: `API-324`, `API-325` | Frontend → ECMP Backend | Enterprise Storage |
-| FR-004 | Logical void | Existing: `API-326` (logical delete semantics MUST match BR-012 void rules) | Frontend → ECMP Backend | — |
+| FR-001 | Create Complaint (idempotent) | `API-500` `POST /api/v1/cm/complaints`; requires Request Id; Channel Message Id when channel-sourced | Frontend → ECMP Backend | Notification (opt-in); Audit Platform (optional copy) |
+| FR-001 | Get Complaint confirmation/detail | `API-501` `GET /api/v1/cm/complaints/{complaintId}` | Frontend → ECMP Backend | — |
+| FR-002 | Search Customer by key | `API-502` `POST /api/v1/cm/customers/search` | Frontend → ECMP Backend | Master Customer Search/Get; Enterprise Security anti-enumeration |
+| FR-002 | Confirm / lock CustomerId in session/context | `API-503` `POST /api/v1/cm/customers/confirm` | Frontend → ECMP Backend | Master Customer Get-by-id |
+| FR-002 | Batch 1 Customer 360 minimum | `API-504` `GET /api/v1/cm/customers/{customerId}/batch1-360` | Frontend → ECMP Backend | Master Customer profile read; ECMP Complaint reads |
+| FR-003 | Check duplicate candidates | `API-505` `POST /api/v1/cm/duplicates/check` (**Planned**) | Frontend → ECMP Backend | — |
+| FR-003 | Record duplicate decision / linkage | `API-506` `POST /api/v1/cm/duplicates/decisions` (**Planned**) | Frontend → ECMP Backend | — |
+| FR-004 | Upload attachment | Existing shared: `API-323` / `API-507` `POST /api/v1/attachments` | Frontend → ECMP Backend | Enterprise Storage; optional malware scan service |
+| FR-004 | Transfer staged attachments to surviving Complaint | `API-508` `POST /api/v1/cm/attachments/transfer` (**Planned**) | ECMP Backend internal / Frontend-triggered redirect flow | Enterprise Storage (rebind metadata) |
+| FR-004 | List attachments for Complaint | Existing shared: `API-387` / `API-509` `GET /api/v1/complaints/{id}/attachments` | Frontend → ECMP Backend | — |
+| FR-004 | Get metadata / download | Existing shared: `API-324`/`API-325` / `API-510`/`API-511` | Frontend → ECMP Backend | Enterprise Storage |
+| FR-004 | Logical void | Existing shared: `API-326` / `API-512` (semantics MUST match BR-012 void rules) | Frontend → ECMP Backend | — |
 
 ### Integration constraints (normative)
 
@@ -1282,7 +1283,7 @@ This FRD Batch 1 does **not** include:
 
 | ID | Question | Impact | Suggested Owner | Target |
 |---|---|---|---|---|
-| OQ-CM-B1-001 | DEC remapping date: when does BR-CM-CAT-001 replace Sprint delivery SoT for implementation? | ID namespace / implementation sequencing | Business Owner + Architecture Board | Parallel to v1.1 approval |
+| OQ-CM-B1-001 | DEC remapping date: when does BR-CM-CAT-001 replace Sprint delivery SoT for implementation? | ID namespace / implementation sequencing | Business Owner + Architecture Board | **Closed — remapped by dual SoT (DEC-020)** |
 | OQ-CM-B1-002 | Exact Master Customer search API fields and identity-number masking contract | FR-002 audit/display | Integration Lead + Security | v1.1 close |
 | OQ-CM-B1-003 | Default duplicate threshold, window (days), and hard-block category list | FR-003 behavior | Operations Lead + Administrator | v1.1 close |
 | OQ-CM-B1-004 | Production policy for when Batch 2 Case create becomes mandatory after REGISTERED | Aging KPI / supervisor queue SLAs | Domain PO ECMF | Batch 2 |
@@ -1316,6 +1317,7 @@ The following are **implementation-level** decisions parked at LOCK. They MUST N
 | 1.0 | 2026-07-29 | Business Analyst (FRD Batch 1) | Initial Draft v1.0 — FR-001…FR-004 + mappings + RTM |
 | 1.1 | 2026-07-29 | Requirements Manager / Solution Architect | Draft v1.1 per GOV-RP-FRD-CM-001 + CTO Decisions D-01…D-07; Security Considerations added to all FRs; Case create removed from Batch 1; idempotency + enumeration MUST + 360 minimum + evidence transfer |
 | 1.1 LOCKED | 2026-07-29 | Requirements Manager / CTO | CTO Decision D-08: LOCK after GOV-DELTA-FRD-CM-001; OQ-CM-B1-012…014 + ADR candidates; no FR redesign; no Batch 1 scope change |
+| 1.1 LOCKED + DEC-020 sync | 2026-07-30 | Documentation Architect | PROGRAM-DOC-001: OQ-CM-B1-001 Closed (DEC-020); dual-SoT narrative; §13 Aggregate path refs → `/api/v1/cm` (API-500…512). **No BR/FR redesign** |
 
 ---
 
@@ -1380,11 +1382,11 @@ The following are **implementation-level** decisions parked at LOCK. They MUST N
 | m-03 | Complaint Number format policy → OQ-CM-B1-010 |
 | m-05 | Justification minimum value → OQ-CM-B1-008 |
 | m-11 | Concurrency deep design → covered partially by idempotency + OQ-CM-B1-011 |
-| m-13 | Durable ID tooling rename → remains governed by OQ-CM-B1-001 / namespace note (no FR renumber) |
+| m-13 | Durable ID tooling rename → governed by **DEC-020** dual-SoT / namespace qualification (no FR renumber) |
 
 ### 20.3 Open Questions
 
-See §18: OQ-CM-B1-001 … OQ-CM-B1-014. **Customer Merge is explicitly OQ-CM-B1-007 for v1.2 (D-07).** **D-08 parks OQ-CM-B1-012…014 as Architecture Decision candidates** (Request Id TTL, Request Id generation authority, TRANSFERRED semantics) without expanding Batch 1 scope.
+See §18: OQ-CM-B1-001 (**Closed — DEC-020**) … OQ-CM-B1-014. **Customer Merge is explicitly OQ-CM-B1-007 for v1.2 (D-07).** **D-08 parks OQ-CM-B1-012…014 as Architecture Decision candidates** (Request Id TTL, Request Id generation authority, TRANSFERRED semantics) without expanding Batch 1 scope.
 
 ### 20.4 Sections Changed
 

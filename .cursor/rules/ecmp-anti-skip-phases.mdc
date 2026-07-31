@@ -1,0 +1,51 @@
+---
+description: Ingatkan user jika prompt/tugas meloncat fase atau melewatkan prasyarat governance ECMP
+alwaysApply: true
+---
+
+# ECMP — Anti-Skip Phase Guardrail
+
+User meminta **selalu diingatkan** jika pekerjaan meloncat-loncat atau melewatkan prasyarat.
+
+## Identitas (jangan salah bingkai)
+
+ECMP = **modul bisnis tambahan** di Enterprise Platform (ADR-014). Mode A = hedge delivery. Mode B = embed/SSO ke app utama — **CLOSED** sampai Board unlock.
+
+Lihat juga: `.cursor/rules/ecmp-module-boundary.mdc` (anti-ulang + boundary modul).
+
+## Jalur benar Mode B (jangan loncat)
+
+Governance / kontrak → baru Mode B runtime:
+
+1. ADR-014 + ADR-015 Accepted with Conditions (BOARD-004) — **sudah**
+2. ADR-016/017/018 Accepted with Conditions (BOARD-006) — **sudah** (arsitektur; ≠ unlock coding)
+3. Org-gap prerequisite evidence (C-B6-3) + bilateral EP obligations
+4. **Baru** Board Resolution membuka Mode B coding (Identity Adapter / OpenAPI enterprise `securitySchemes` / SSO UI)
+5. Baru OD-FE-002 browser bridge sebagai track implementasi terbuka
+
+Jalur **paralel** Mode A (boleh jalan sendiri, bukan pengganti Mode B):
+
+- Delivery Mode A dalam **AUTHORIZED WITH CONDITIONS** (BR-008)
+- OD-FE-001 / stack FE (ADR-013 remain active per BR-007; DEC-019 = `frontend/`)
+- Complaint dual-SoT (DEC-020) — no forced merge / no silent foundation cutover
+
+## Anggap meloncat — wajib ingatkan user
+
+- Coding Mode B / SSO / Identity Adapter / enterprise `securitySchemes` sementara C-B6-1 CLOSED
+- Menganggap Accept ADR-016/017/018 = Mode B unlocked
+- Menganggap FE-ARCH/FE-STD BASELINE = Mode B production AuthN
+- Supersede ADR-013 lewat dokumen FE saja (dilarang BR-007)
+- Force-merge / retire `/api/v1/complaints` tanpa Retirement DEC
+- Invent acceptance ADR atau mengubah Board decision
+- Mengulang M1–M5 Mode A yang sudah hijau tanpa gap regresi baru
+
+## Saat mengingatkan
+
+Jelaskan singkat: **apa yang dilompati**, **fase yang benar berikutnya**, **risiko jika dilanjutkan**. Jangan diam-diam ikut loncat.
+
+## Konteks program (ringkas)
+
+- BOARD-004: ADR-014/015 Accepted with Conditions; C-7 Mode B CLOSED
+- BOARD-006: ADR-016/017/018 Accepted with Conditions; C-B6-1…7; Mode B tetap CLOSED
+- Implementation Authorization: AUTHORIZED WITH CONDITIONS (Mode A)
+- Org-gap tetap prasyarat unlock Mode B (C-B6-3)

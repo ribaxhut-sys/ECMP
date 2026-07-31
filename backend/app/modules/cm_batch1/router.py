@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Response, status
+from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import OrgUnitResolver, Principal, enforce_org_scope, require_permissions
@@ -13,6 +13,9 @@ from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.integrations.customer import build_customer_provider
+from app.modules.attachment.registration import build_attachment_service
+from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
+from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import (
     ComplaintBatch1Response,
@@ -26,14 +29,12 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    SupervisorQueueResponse,
     TransferAttachmentsRequest,
     TransferAttachmentsResponse,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
-from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
-from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.side_effects import CmBatch1SideEffectRecorder
-from app.modules.attachment.registration import build_attachment_service
 
 router = APIRouter(prefix="/api/v1/cm", tags=["CM-Batch1"])
 
@@ -130,6 +131,31 @@ def forbid_write_back(
     service.reject_master_write_back()
 
 
+@router.get(
+    "/supervisor/queue",
+    response_model=DataResponse[SupervisorQueueResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Supervisor later-review / aging queue (API-513 / FR-001)",
+)
+def get_supervisor_queue(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    work_item_status: Annotated[
+        str, Query(alias="workItemStatus")
+    ] = "OPEN",
+    aging_hours: Annotated[int, Query(alias="agingHours", ge=1, le=8760)] = 24,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> DataResponse[SupervisorQueueResponse]:
+    _ = principal
+    return DataResponse(
+        data=service.get_supervisor_queue(
+            work_item_status=work_item_status,
+            aging_hours=aging_hours,
+            limit=limit,
+        )
+    )
+
+
 @router.post(
     "/complaints",
     response_model=DataResponse[ComplaintBatch1Response],
@@ -180,6 +206,7 @@ def create_complaint(
         request_id=idempotency_key or "",
         channel_message_id=channel_message_id,
         actor_id=_principal_key(principal),
+        principal_key=_principal_key(principal),
         authorize_replay=_authorize_replay,
     )
     if (
@@ -198,6 +225,7 @@ def create_complaint(
             service.enqueue_later_review(
                 customer_id=result.customer_id,
                 reason="attachment_bind_failed",
+                complaint_id=result.complaint_id,
             )
     response.status_code = (
         status.HTTP_200_OK if result.replayed else status.HTTP_201_CREATED

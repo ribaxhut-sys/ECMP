@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.errors import ForbiddenError, InvalidStateError, ValidationAppError
 from app.core.auth import Principal, require_supervisor_assign
+from app.core.errors import ForbiddenError, InvalidStateError, ValidationAppError
 from app.modules.assignments.schemas import AssignComplaintRequest
 from app.modules.assignments.service import AssignmentService
 

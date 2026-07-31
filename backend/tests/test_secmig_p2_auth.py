@@ -213,9 +213,27 @@ def test_role_mapper_maps_idp_roles() -> None:
     assert mapper.map_many(["cs_agent", "viewer", "unknown"]) == ("AGENT", "VIEWER")
 
 
-def test_role_mapper_passthrough_internal_codes() -> None:
+def test_role_mapper_passthrough_operational_internal_codes() -> None:
     mapper = RoleMapper()
-    assert mapper.map_many(["AGENT", "SUPERVISOR"]) == ("AGENT", "SUPERVISOR")
+    assert mapper.map_many(["AGENT", "SUPERVISOR", "HANDLER", "VIEWER"]) == (
+        "AGENT",
+        "SUPERVISOR",
+        "HANDLER",
+        "VIEWER",
+    )
+
+
+def test_role_mapper_drops_privileged_idp_codes() -> None:
+    """IdP must not mint ADMIN/SUPER_ADMIN via roles[] (Mode A hardening)."""
+    mapper = RoleMapper()
+    assert mapper.map_many(
+        ["ADMIN", "SUPER_ADMIN", "ADMINISTRATOR", "cs_agent", "viewer"]
+    ) == ("AGENT", "VIEWER")
+
+
+def test_role_mapper_drops_privileged_mapping_targets() -> None:
+    mapper = RoleMapper({"evil_admin": "ADMIN", "ok": "AGENT"})
+    assert mapper.map_many(["evil_admin", "ok"]) == ("AGENT",)
 
 
 def test_role_mapper_deduplicates() -> None:

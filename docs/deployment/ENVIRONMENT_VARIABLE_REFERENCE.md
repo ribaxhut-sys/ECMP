@@ -32,6 +32,7 @@ deployments. Companion checklists: START-CHK-001, DEP-CHK-V1; gate: REL-SEC-001.
 | `ENVIRONMENT` | Required | `development` | `staging` | `production` | Drives fail-fast gates |
 | `APP_VERSION` | Optional | `1.0.0` | set to release | set to release | Also bake via build ARG |
 | `LOG_LEVEL` | Optional | `INFO` | `INFO` | `INFO` | |
+| `LOG_FORMAT` | Optional | `json` | `json` | `json` | `text` for local human-readable; JSON default for ops shipping |
 | `DEBUG` | Development Only | `false` | **must false** | **must false** | Fail-fast if true outside dev/test |
 | `POSTGRES_USER` | Required | `ecmp` | strong role | strong role | |
 | `POSTGRES_PASSWORD` | Required | weak OK | **strong** | **strong** | Compose `${:?}` required |
@@ -53,6 +54,8 @@ deployments. Companion checklists: START-CHK-001, DEP-CHK-V1; gate: REL-SEC-001.
 | `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | Optional | `7` | `7` | `7` | |
 | `ECMP_AUTH_MODE` | Required | `dev` (lab) | **`jwt` only** | **`jwt` only** | SECMIG-P6-001: staging/production refuse `dev`; prod compose `${:?}` |
 | `ECMP_ENV` | Required | `local` / `ci` | `shared` | `shared` | `shared` forbids `ECMP_AUTH_MODE=dev`; prod compose `${:?}` |
+| `ECMP_LOCAL_CREDENTIAL_AUTH` | Required | `true` (Mode A) | **`false`** | **`false`** | ADR-014 / audit K-3; staging/production + enterprise mode refuse `true` |
+| `ECMP_ENTERPRISE_MODE` | Required | `false` | `false` until Board unlock | `false` until Board unlock | Mode B runtime; keep false while C-7 CLOSED |
 | `OIDC_ISSUER` | Required when `jwt` / staging / production | lab IdP URL | IdP issuer | IdP issuer | Fail-fast if missing under those conditions |
 | `OIDC_AUDIENCE` | Required when `jwt` / staging / production | `ecmp-api` | resource client | resource client | Fail-fast if missing |
 | `OIDC_JWKS_URL` | Required when `jwt` / staging / production | lab JWKS URL | IdP JWKS | IdP JWKS | Fail-fast if missing |
@@ -80,7 +83,9 @@ deployments. Companion checklists: START-CHK-001, DEP-CHK-V1; gate: REL-SEC-001.
 | `ENVIRONMENT=staging\|production` ⇒ `ECMP_AUTH_MODE=jwt` | `validate_runtime_config` fail-fast |
 | jwt / staging / production ⇒ `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL` set | same |
 | `ECMP_ENV=shared` ⇒ `ECMP_AUTH_MODE` must not be `dev` | same (Phase 2 guard retained) |
-| Production Compose injects AuthN/OIDC env | `docker-compose.prod.yml` / `.prod.nginx.yml` `${:?}` |
+| `ENVIRONMENT=staging\|production` ⇒ `ECMP_LOCAL_CREDENTIAL_AUTH=false` | ADR-014 / audit K-3 |
+| `ECMP_ENTERPRISE_MODE=true` ⇒ `ECMP_LOCAL_CREDENTIAL_AUTH=false` and `ECMP_AUTH_MODE=jwt` | ADR-014 Mode B local-auth prohibition |
+| Production Compose injects AuthN/OIDC + credential-auth env | `docker-compose.prod.yml` / `.prod.nginx.yml` `${:?}` |
 
 Lab (`ENVIRONMENT=development\|test`) may keep `ECMP_AUTH_MODE=dev` with local HS256.
 
@@ -94,7 +99,7 @@ Lab (`ENVIRONMENT=development\|test`) may keep `ECMP_AUTH_MODE=dev` with local H
 | Conflict risk | `PASSWORD_RESET_FRONTEND_BASE_URL` ≠ any `ALLOWED_ORIGINS` | Fail-fast outside development |
 | Conflict risk | Compose default localhost origins + `ENVIRONMENT=production` | App refuses to start |
 | Conflict risk | Prod compose without AuthN/OIDC injection | Mitigated by SECMIG-P6-001 `${:?}` mapping |
-| Storage env | No `STORAGE_*` env | Configure via System Settings keys `storage.provider` / `storage.root.path` |
+| Storage env | No `STORAGE_*` env | Configure via System Settings keys `storage.provider` / `storage.root.path` (default relative `storage/attachments`). Compose mounts named volume `ecmp_attachments` → `/app/storage/attachments` so blobs survive recreate. |
 
 ## Validation
 

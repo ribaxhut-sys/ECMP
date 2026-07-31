@@ -24,6 +24,7 @@ Draft
 
 ## Minimum Contents (v1)
 - [x] Traceability matrix starter
+- [x] Decision Traceability Matrix (DTM-001) — architecture decisions ↔ ADR/EA/HOST
 - [ ] Coverage report process
 - [ ] ID conventions across artifacts
 - [ ] Update rule on every approved change
@@ -35,6 +36,7 @@ Draft
 - API operation: `API-xxx`
 - Event: `EVT-xxx`
 - Test Case: `TC-xxx`
+- Architecture decision (DTM): `DTM-D-xxx` / HOST open item `H*` · `K*` · `F*` (see DTM-001)
 
 ## Chain
 ```text
@@ -43,6 +45,7 @@ BP → BR → FRD → API/Event → Test Case → UAT scenario (acceptance subse
 
 ## Related
 - `TRACEABILITY_MATRIX.md` — FR/API/Event/TC matrix (synced from `traceability.yaml`) — **Sprint delivery SoT namespace**
+- [`ECMP_DTM_001_Decision_Traceability_Matrix_v0.1.md`](./ECMP_DTM_001_Decision_Traceability_Matrix_v0.1.md) — **DTM-001** Decision Traceability Matrix (ADR ↔ principle ↔ design ↔ HOST gate); companion BOARD-008; **bukan** RTM pengganti
 - `ECMP_RTM_Complaint_Management_Batch1_v1.0.md` — **Complaint Aggregate Batch 1 RTM** (RTM-CM-B1-001; 🔒 LOCKED; namespace FRD-CM-001 / BR-CM-CAT-001)
 - `ECMP_RTM_Complaint_Management_DEC_F4_v0.1.md` — Draft RTM for FRD-CM-002 / DEC-F4 (RTM-CM-F4-001)
 - `ECMP_IMPACT_DEC_F4_v1.0.md` — **Authoritative** impact for DEC-F4 / CM BR-007·008 (EOS `impact --id BR-007` hits Sprint BR namespace — do not use for F4)

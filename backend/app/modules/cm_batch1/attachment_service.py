@@ -7,15 +7,18 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.logging import get_logger
 from app.modules.attachment.domain.enums import AggregateType
 from app.modules.attachment.service import AttachmentService, sanitize_filename
 from app.modules.cm_batch1 import event_factory as events
 from app.modules.cm_batch1.antivirus import AntivirusScanner, StubAntivirusScanner
 from app.modules.cm_batch1.attachment_config import (
+    DEFAULT_ATTACHMENT_CONFIG_PROVIDER,
     AttachmentConfig,
     AttachmentConfigProvider,
-    DEFAULT_ATTACHMENT_CONFIG_PROVIDER,
 )
+
+logger = get_logger("app.modules.cm_batch1.attachment")
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.entities import (
     ATTACHMENT_STATUS_ACTIVE,
@@ -175,6 +178,7 @@ class CmBatch1AttachmentService:
                 )
 
         complaint_uuid: uuid.UUID | None = None
+        complaint_customer_id: str | None = None
         status = ATTACHMENT_STATUS_STAGED
         token: str | None = None
 
@@ -183,6 +187,7 @@ class CmBatch1AttachmentService:
             if complaint is None:
                 raise NotFoundError("Complaint not found")
             complaint_uuid = uuid.UUID(complaint.complaint_id)
+            complaint_customer_id = complaint.customer_id
             status = ATTACHMENT_STATUS_ACTIVE
             aggregate_type = AggregateType.COMPLAINT.value
             aggregate_id = complaint_uuid
@@ -286,8 +291,9 @@ class CmBatch1AttachmentService:
                 pass
             if complaint_uuid is not None:
                 self._complaints.create_later_review_work_item(
-                    customer_id="ATTACHMENT_BIND",
+                    customer_id=complaint_customer_id or "ATTACHMENT_BIND",
                     reason="attachment_bind_failed",
+                    complaint_id=str(complaint_uuid),
                 )
                 self._complaints.commit()
             raise ValidationAppError(
@@ -498,6 +504,10 @@ class CmBatch1AttachmentService:
     def void_abandoned_staging(self, *, actor_id: str | None = "system") -> int:
         cfg = self._cfg()
         if cfg.abandoned_staging_action != "VOID":
+            logger.info(
+                "abandoned staging cleanup skipped action=%s",
+                cfg.abandoned_staging_action,
+            )
             return 0
         expired = self._repo.list_expired_open_staging(now=datetime.now(UTC))
         count = 0
@@ -529,6 +539,13 @@ class CmBatch1AttachmentService:
             self._repo.close_staging(session.staging_token, status="ABANDONED")
         if expired:
             self._repo.commit()
+        logger.info(
+            "abandoned staging cleanup complete expiredSessions=%s voidedAttachments=%s actorId=%s ttlHours=%s",
+            len(expired),
+            count,
+            actor_id,
+            cfg.staging_ttl_hours,
+        )
         return count
 
     def history(self, attachment_id: str) -> list[dict]:

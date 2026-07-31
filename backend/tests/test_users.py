@@ -11,7 +11,6 @@ import pytest
 
 from app.core.errors import (
     ConflictError,
-    ForbiddenError,
     NotFoundError,
     ValidationAppError,
 )

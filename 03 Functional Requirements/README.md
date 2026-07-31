@@ -28,7 +28,7 @@ Spesifikasi kebutuhan fungsional (FRD) per domain/modul ECMP.
 - [x] `ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1.md` (FRD-CM-ESC-OUTLINE-001 — Outline; FR content superseded by Draft below)
 - [x] `ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1.md` (FRD-CM-002 — 🟡 **Draft**; FR-CM-010…015; DEC-F4; API-520…526; EVT-CM-040…044)
 
-> FRD Draft artifacts (FRD-002..007) **belum DoR**. FRD-CM-001 v1.1 is **LOCKED** as Complaint Aggregate Batch 1 SoT; Sprint delivery IDs MUST NOT be silently overwritten until DEC remapping (OQ-CM-B1-001).
+> FRD Draft artifacts (FRD-002..007) **belum DoR**. FRD-CM-001 v1.1 is **LOCKED** as Complaint Aggregate Batch 1 SoT. Per **DEC-020** (Accepted): dual SoT under controlled coexistence — Aggregate intake uses `/api/v1/cm` (FRD-CM-001); foundation lifecycle remains `/api/v1/complaints`. Sprint delivery IDs MUST NOT be silently overwritten. **OQ-CM-B1-001 Closed**.
 >
 > **DEC-F4** (escalation visibility / return / result audience) is recorded under `18 Architecture Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md` and amends BR-CM-CAT-001 Draft BR-007/BR-008. It does **not** change FRD-CM-001 Batch 1; consume DEC-F4 in Batch 2+ FRD covering Escalation/Resolution.
 

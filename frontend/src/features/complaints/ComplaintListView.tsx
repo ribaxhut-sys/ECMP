@@ -295,10 +295,26 @@ export function ComplaintListView() {
         ]}
         description="Search, filter, and open customer complaints."
         actions={
-          canCreate ? (
-            <Button type="button" onClick={() => router.push("/complaints/new")}>
-              Create Complaint
-            </Button>
+          canCreate || canRead ? (
+            <div className="flex flex-wrap gap-2">
+              {canRead ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/complaints/cm/supervisor")}
+                >
+                  Batch-1 supervisor queue
+                </Button>
+              ) : null}
+              {canCreate ? (
+                <Button
+                  type="button"
+                  onClick={() => router.push("/complaints/new")}
+                >
+                  Create Complaint
+                </Button>
+              ) : null}
+            </div>
           ) : undefined
         }
       />

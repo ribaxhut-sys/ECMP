@@ -1,16 +1,34 @@
-# ECMP Keycloak IdP baseline (SEC-MIG-001 Phase 1)
+# ECMP Keycloak IdP baseline — local development harness (SEC-MIG-001 Phase 1)
 
 | Field | Value |
 |---|---|
 | Task | TASK-PLATFORM-SECMIG-P1-001 |
-| Realm | `ecmp` |
+| Realm | `ecmp` (**ECMP-owned test realm — not an enterprise realm**) |
 | Image | `quay.io/keycloak/keycloak:26.2.5` (pinned) |
 | Compose profile | `auth` |
 | Host URL (DEV) | http://localhost:8180 |
+| Scope | Local / DEV / CI only — **never** a Mode B identity source |
+
+> ## ⚠️ This is NOT the Enterprise Platform IdP
+>
+> This Keycloak instance is **provisioned by the ECMP repository itself**
+> (`import/ecmp-realm.json`) and serves realm `ecmp`. It exists so RS256 token
+> validation, JWKS caching, and claim handling can be exercised locally and in
+> CI **before** the Enterprise Platform binding is available.
+>
+> Under **ADR-014**, Enterprise Identity is owned by the **Enterprise Platform**
+> — a system outside this repository. A realm defined and controlled by ECMP
+> does not satisfy that ownership rule and must never be presented as
+> "Enterprise SSO" in documentation, demos, or release evidence.
+>
+> The real Mode B issuer, audience, and claim set are pending the Enterprise
+> Platform issuer catalog. Until then the binding profile
+> (`SEC-BIND-OIDC-001`, Draft v0.1) is explicitly **provisional**, and Mode B
+> coding is **not authorized** (C-B6-1 / C-7 CLOSED).
 
 ## Purpose
 
-Repository-managed Keycloak baseline for local/DEV. **Does not** wire ECMP application authentication (Phase 2).
+Repository-managed Keycloak baseline for local/DEV. **Does not** wire ECMP application authentication (Phase 2), and **does not** represent the Enterprise Platform identity provider.
 
 ## Layout
 

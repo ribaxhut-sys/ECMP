@@ -26,6 +26,16 @@ Draft — v1.0 tersedia, beberapa keputusan teknis masih Open Decision
 - [`ECMP_Solution_Architecture_v1.0.md`](./ECMP_Solution_Architecture_v1.0.md) — goals, principles, context/component/sequence view (naratif + Mermaid), data/integration/security/deployment architecture, risks, dan open decisions
 - [`ECMP_NFR_Specification_v0.1.md`](./ECMP_NFR_Specification_v0.1.md) — NFR-001, non-functional requirements (availability, latency, throughput, kapasitas, RTO/RPO, security, auditability, observability) dengan nilai baseline DEC-005
 
+## Architecture Board drafts (`board-drafts/`)
+
+Lifecycle **DRAFT** (PROGRAM-ADR-002 BR-002). Pack: [`../18 Architecture Governance/ECMP_PROGRAM_BOARD_008_EA_TARGET_PLATFORM_Draft_Pack_v0.1.md`](../18%20Architecture%20Governance/ECMP_PROGRAM_BOARD_008_EA_TARGET_PLATFORM_Draft_Pack_v0.1.md). **Bukan** tiket implementasi; HOST assumptions harus Closed sebelum coding bergantung kontrak; Mode B CLOSED (C-B6-1 / C-7).
+
+| ID | File |
+|---|---|
+| EA-TARGET-CM-001 | [`board-drafts/EA-TARGET-CM-001_Complaint_Management_Module_Target_Architecture_v1.0.md`](./board-drafts/EA-TARGET-CM-001_Complaint_Management_Module_Target_Architecture_v1.0.md) |
+| EA-PLATFORM-001 | [`board-drafts/EA-PLATFORM-001_Enterprise_Module_Platform_v1.0.md`](./board-drafts/EA-PLATFORM-001_Enterprise_Module_Platform_v1.0.md) |
+| DTM-001 (indeks) | [`../26 Traceability/ECMP_DTM_001_Decision_Traceability_Matrix_v0.1.md`](../26%20Traceability/ECMP_DTM_001_Decision_Traceability_Matrix_v0.1.md) |
+
 ## Minimum Contents (v1)
 - [x] Architecture overview (C4 Context/Container — naratif, diagram formal menyusul di `23 Assets`)
 - [x] Domain/module component view

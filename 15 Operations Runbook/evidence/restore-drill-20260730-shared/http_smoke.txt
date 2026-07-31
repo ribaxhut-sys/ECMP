@@ -1,0 +1,8 @@
+﻿live={"status":"ok","service":"ECMP"}
+ready={"status":"ready","service":"ECMP","checks":{"startup":"ok","database":"ok"}}
+local_credential_login={"code":"LOCAL_CREDENTIAL_AUTH_DISABLED","message":"Local credential authentication is disabled","details":{"ecmpLocalCredentialAuth":"***REDACTED***","ecmpEnterpriseMode":false}}
+idp_auth_me=OK username=idp_dev_cs_agent roles=AGENT
+startup_log=auth_mode=jwt ecmp_env=shared
+T0=2026-07-30T13:32:04Z
+T1=2026-07-30T13:34:20.8212130Z
+SHA256=EE804E34F223D857CDCF7E8C50D300FC2C3F1D354CDD0831AC698108377910C6

@@ -13,18 +13,25 @@ from app.modules.appointments.router import (
 from app.modules.assignments.router import router as assignments_router
 from app.modules.attachment.router import (
     complaint_attachments_router,
+)
+from app.modules.attachment.router import (
     router as attachment_router,
 )
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.branches.router import router as branches_router
+from app.modules.cm_batch1.router import router as cm_batch1_router
+from app.modules.complaint.api import complaint_api_router
 from app.modules.complaints.router import router as complaints_router
 from app.modules.customers.router import router as customers_router
+from app.modules.dashboard.router import router as dashboard_router
 from app.modules.escalations.router import (
     escalations_router,
+)
+from app.modules.escalations.router import (
     router as complaint_escalations_router,
 )
-from app.modules.dashboard.router import router as dashboard_router
+from app.modules.iam.data_scope.router import roles_data_scopes_router
 from app.modules.iam.permission.router import router as permissions_router
 from app.modules.iam.role.router import router as roles_router
 from app.modules.iam.role_permission.router import (
@@ -35,27 +42,24 @@ from app.modules.iam.user_role.router import (
     roles_users_router,
     users_roles_router,
 )
-from app.modules.iam.data_scope.router import roles_data_scopes_router
 from app.modules.kpi.router import router as kpi_router
 from app.modules.notification.router import queue_router as notification_queue_router
 from app.modules.notification.router import (
     templates_router as notification_templates_router,
 )
-from app.modules.complaint.api import complaint_api_router
 from app.modules.queue.api import queue_api_router
 from app.modules.reports.router import router as reports_router
 from app.modules.resolutions.router import router as resolutions_router
+from app.modules.search.router import router as complaint_search_router
 from app.modules.settings.router import router as settings_router
 from app.modules.sla.router import policies_router as sla_policies_router
 from app.modules.sla.router import router as sla_router
-from app.modules.timelines.router import router as timelines_router
 from app.modules.timeline.router import (
     complaint_activity_router as activity_timeline_complaint_router,
 )
 from app.modules.timeline.router import router as activity_timeline_router
-from app.modules.search.router import router as complaint_search_router
+from app.modules.timelines.router import router as timelines_router
 from app.modules.users.router import router as users_router
-from app.modules.cm_batch1.router import router as cm_batch1_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)

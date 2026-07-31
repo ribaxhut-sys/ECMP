@@ -35,10 +35,10 @@ Batch 1 ships with documented stubs/gaps listed below, consistent with LOCKED FR
 | EX-A | `CUSTOMER_PROVIDER` default **`stub`** | High (if claimed as real-customer prod) | ECMP is not Customer Master SoR; Enterprise HTTP out of S3 scope; stub required for synthetic UAT | Non-prod / lab only. Prod-with-real-customers requires approved Enterprise adapter + TASK-OPS-03 stance |
 | EX-B | Enterprise adapter returns **UNAVAILABLE** | High if selected early | Skeleton only; fail-closed under `strict_master=True` | Do not set `CUSTOMER_PROVIDER=enterprise` until HTTP adapter epic approved |
 | EX-C | Antivirus mode **`STUB_ONLY`** (always clean) | Medium | Real AV integration not in Batch 1 S3 | Accept for lab; real AV adapter + config before high-trust attachment prod |
-| EX-D | Confirm lock **not enforced** on create | Medium | Known S1/S2 residual; FR-002 confirm exists but create path does not hard-require lock | Documented; enforce only after approved hardening task |
+| EX-D | Confirm lock **not enforced** on create | Medium | **Closed (Mode A lab 2026-07-31)** — API-500 requires principal confirm lock matching `customerId` (TD-CM-001) | Was documented residual; now enforced |
 | EX-E | EnumerationGuard **in-process only** | Medium | Multi-worker / multi-instance ineffective | Accept single-instance lab; shared-store/rate-limit epic before HA prod |
 | EX-F | Outbox **persist-only** (no publisher) | Accepted | Explicit S3 out of scope; ADR-009 broker revisit separate | Publisher/relay only after approved Eventing epic |
-| EX-G | Create → attachment bind **split TX** / later-review | Low–Medium | Designed compensation path (E8); complaint remains | Keep later-review ops visibility; harden only if approved |
+| EX-G | Create → attachment bind **split TX** / later-review | Low–Medium | Designed compensation path (E8); complaint remains | **Mode A M3b+M3d:** API-513 visibility + nullable `complaintId` anchor (2026-07-31). Split-TX design residual remains — TX harden only if approved |
 | EX-H | Duplicate decision API not client-idempotent | Low | Create/outbox keys cover registration | Accept; client retries should use create Idempotency-Key |
 
 ### Operational debt recorded (not product exceptions)

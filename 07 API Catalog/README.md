@@ -41,6 +41,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | — | GET /version | Release provenance (git_commit, branch, build_time) — R6-01 | None | 🟢 Implemented |
 
 ### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
+
+> **DEC-020:** Canonical foundation / Sprint delivery lifecycle namespace (`/api/v1/complaints`). Controlled coexistence with Aggregate `/api/v1/cm` — not interchangeable. Retirement requires a separate Cutover DEC.
 | API ID | Method & Endpoint | Description | Auth | Status |
 |---|---|---|---|---|
 | API-201 | POST /api/v1/complaints | Create complaint (status NEW; multi-source/target via DEC-018; legacy customerId→CUSTOMER/BRANCH; audit `complaint.create`) | bearerAuth, permission `complaints:create` | 🟢 Implemented |
@@ -152,6 +154,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-381 | POST /api/v1/tickets/{ticketId}/cancel | Cancel ticket | None (Request Context ready) | 🟢 Implemented |
 
 ### complaint-domain-service v1 — [`openapi/complaint-domain-service.v1.yaml`](./openapi/complaint-domain-service.v1.yaml) **1.4.0** — Complaint Domain Foundation + Processing + Assignment + Escalation + SLA (CAPABILITY-004…008)
+
+> **DEC-020:** Visit-linked CA BC (`complaint_cases*`). Separate from Aggregate `/api/v1/cm` and foundation lifecycle `/api/v1/complaints`. Full router unmounted pending Cutover DEC; production = ticket-nested ops only.
 | API ID | Method & Endpoint | Description | Auth | Status |
 |---|---|---|---|---|
 | API-390 | POST /api/v1/complaints | Create visit-context Complaint (status OPEN; queueTicketId required) | None (Request Context ready) | 🟢 Implemented |
@@ -180,28 +184,29 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ### complaint-management-batch1 v1 — [`openapi/complaint-management-batch1.v1.yaml`](./openapi/complaint-management-batch1.v1.yaml) **1.0.0-planned** — FRD-CM-001 Batch 1 (FR-001…FR-004)
 
-> Aggregate SoT namespace (`/api/v1/cm/...`). **No Case create.** Distinct from Sprint case-service and foundation complaint-domain IDs.
-> Collision `API-390`/`API-392` (dashboard vs domain) is **not** reused here — Batch 1 uses **API-500…512**.
+> **DEC-020 (Accepted):** Aggregate SoT namespace (`/api/v1/cm/...`). **No Case create.** Distinct from Sprint case-service and foundation complaint-domain IDs. Dual SoT coexistence with `/api/v1/complaints`.
+> Collision `API-390`/`API-392` (dashboard vs domain) is **not** reused here — Batch 1 uses **API-500…513**. Prefer **path+method** anchors until ID collisions are remediated.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
-| API-500 | API-CM-B1-001 | POST /api/v1/cm/complaints | FR-001 | 🟢 Implemented (S1 in-memory Aggregate; persistence migration follow-on) |
-| API-501 | API-CM-B1-002 | GET /api/v1/cm/complaints/{complaintId} | FR-001 | 🟢 Implemented (S1 in-memory) |
-| API-502 | API-CM-B1-003 | POST /api/v1/cm/customers/search | FR-002 | 🟢 Implemented (S1 Master Customer stub + enumeration) |
-| API-503 | API-CM-B1-004 | POST /api/v1/cm/customers/confirm | FR-002 | 🟢 Implemented (S1) |
-| API-504 | API-CM-B1-005 | GET /api/v1/cm/customers/{customerId}/batch1-360 | FR-002 | 🟢 Implemented (S1) |
-| API-505 | API-CM-B1-006 | POST /api/v1/cm/duplicates/check | FR-003 | 🟡 Planned |
-| API-506 | API-CM-B1-007 | POST /api/v1/cm/duplicates/decisions | FR-003 | 🟡 Planned |
-| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟡 Planned (semantics) |
-| API-508 | API-CM-B1-009 | POST /api/v1/cm/attachments/transfer | FR-004 | 🟡 Planned |
-| API-509 | API-CM-B1-010 | GET /api/v1/complaints/{id}/attachments (align API-387) | FR-004 | 🟡 Planned (semantics) |
-| API-510 | API-CM-B1-011 | GET /api/v1/attachments/{id} (align API-324) | FR-004 | 🟡 Planned (semantics) |
-| API-511 | API-CM-B1-012 | GET /api/v1/attachments/{id}/download (align API-325) | FR-004 | 🟡 Planned (semantics) |
-| API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟡 Planned (semantics) |
+| API-500 | API-CM-B1-001 | POST /api/v1/cm/complaints | FR-001 | 🟢 Implemented (lab; durable `cm_batch1_*` / Alembic 0040…0043) |
+| API-501 | API-CM-B1-002 | GET /api/v1/cm/complaints/{complaintId} | FR-001 | 🟢 Implemented (lab) |
+| API-502 | API-CM-B1-003 | POST /api/v1/cm/customers/search | FR-002 | 🟢 Implemented (lab; Master Customer stub + enumeration) |
+| API-503 | API-CM-B1-004 | POST /api/v1/cm/customers/confirm | FR-002 | 🟢 Implemented (lab) |
+| API-504 | API-CM-B1-005 | GET /api/v1/cm/customers/{customerId}/batch1-360 | FR-002 | 🟢 Implemented (lab) |
+| API-505 | API-CM-B1-006 | POST /api/v1/cm/duplicates/check | FR-003 | 🟢 Implemented (lab) |
+| API-506 | API-CM-B1-007 | POST /api/v1/cm/duplicates/decisions | FR-003 | 🟢 Implemented (lab) |
+| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟢 Implemented (lab; shared attachment CAP + Batch 1 fields) |
+| API-508 | API-CM-B1-009 | POST /api/v1/cm/attachments/transfer | FR-004 | 🟢 Implemented (lab) |
+| API-509 | API-CM-B1-010 | GET /api/v1/complaints/{id}/attachments (align API-387) | FR-004 | 🟢 Implemented (lab; shared listing semantics) |
+| API-510 | API-CM-B1-011 | GET /api/v1/attachments/{id} (align API-324) | FR-004 | 🟢 Implemented (lab; shared) |
+| API-511 | API-CM-B1-012 | GET /api/v1/attachments/{id}/download (align API-325) | FR-004 | 🟢 Implemented (lab; shared) |
+| API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟢 Implemented (lab; shared void semantics) |
+| API-513 | API-CM-B1-014 | GET /api/v1/cm/supervisor/queue | FR-001 | 🟢 Implemented (lab; later-review + no-Case aging visibility) |
 
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 
-> Aggregate `/api/v1/cm/` escalation & resolution. Separate from foundation API-207/301 until DEC remapping. Catalog IDs **API-520…526**.
+> Aggregate `/api/v1/cm/` escalation & resolution. Separate from foundation API-207/301 under **DEC-020** coexistence (not remapped/merged). Catalog IDs **API-520…526**. Not unlocked by DEC-020.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
@@ -213,9 +218,16 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-525 | API-CM-F4-006 | GET /api/v1/cm/cases/{caseId} | FR-CM-015 | 🟡 Planned |
 | API-526 | API-CM-F4-007 | GET /api/v1/cm/cases | FR-CM-015 | 🟡 Planned |
 
+> **2026-07-30 (PROGRAM-DOC-001 / DEC-020):** Documentation metadata sync — dual SoT ownership,
+> coexistence notes, and `x-ecmp-dec` references. **No endpoint or schema contract changes.**
+> OQ-CM-B1-001 Closed.
+
+> **2026-07-31 (Mode A / DEC-020 hygiene):** Catalog metadata aligned — API-500…512 marked Implemented (lab)
+> including FR-003/FR-004 Aggregate ops. Dual SoT coexistence unchanged; API-520…526 remain Planned (Batch-2 CLOSED).
+
 > **2026-07-29 (S1 / FRD-CM-001):** FR-002 + FR-001 slice implemented under `backend/app/modules/cm_batch1/`
-> (Master Customer stub, enumeration guard, in-memory Aggregate create/idempotency). Tests: `tests/test_cm_batch1.py`.
-> Persistence migration + FR-003/FR-004 remain S2.
+> (Master Customer stub, enumeration guard, Aggregate create/idempotency). Tests: `tests/test_cm_batch1.py`.
+> Persistence + FR-003/FR-004 delivered in S2/S3 lab track (see BMR EPIC-CM-B1).
 
 > **2026-07-29 (S0 / FRD-CM-001):** Planned Batch 1 Aggregate contracts published. RTM-CM-B1-001 LOCKED. Events `EVT-CM-*` Planned in Event Catalog. TC-CM-* authored (38). Implementation starts S1 (FR-002 → FR-001).
 

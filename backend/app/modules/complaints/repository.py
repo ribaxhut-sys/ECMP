@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
+from app.core.enums import SlaStatus
 from app.models import (
     AuditLog,
     Branch,
@@ -20,7 +21,6 @@ from app.models import (
     SlaRecord,
     User,
 )
-from app.core.enums import SlaStatus
 
 
 class ComplaintRepository:

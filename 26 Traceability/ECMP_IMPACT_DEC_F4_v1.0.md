@@ -12,7 +12,7 @@
 | Status | 🟡 Draft — manual analysis (EOS auto-impact collides Sprint `BR-007` namespace) |
 | Related | `GOV-DEC-F4`, BR-CM-CAT-001 v1.1 |
 
-> **Note:** `python tools/eos.py impact --id BR-007` resolves the **Sprint delivery** BR-007 (auth/permission), not CM Escalation. Until DEC remapping (OQ-CM-B1-001) unifies namespaces, use **this document** for DEC-F4 impact.
+> **Note:** `python tools/eos.py impact --id BR-007` resolves the **Sprint delivery** BR-007 (auth/permission), not CM Escalation. Per **DEC-020** dual SoT (OQ-CM-B1-001 Closed), namespaces remain qualified — use **this document** for DEC-F4 impact.
 
 ---
 
@@ -46,7 +46,7 @@ DEC-F4
 | Artifact | Impact | Action required |
 |---|---|---|
 | `GOV-DEC-F4` | Source decision | Countersign Architecture Board (`GOV-CS-DEC-F4`) |
-| BR-CM-CAT-001 BR-007 / BR-008 | **Amended** (Draft v1.1) | Keep Draft until remapping DEC |
+| BR-CM-CAT-001 BR-007 / BR-008 | **Amended** (Draft v1.1) | Keep Draft; dual SoT per DEC-020 (no wholesale remapping) |
 | FRD-CM-001 v1.1 LOCKED | None | Do not edit |
 | FRD-CM-002 Draft | **Authored** | Board countersign → refine → LOCK path |
 | OpenAPI `complaint-management-esc-res.v1.yaml` | **Planned** API-520…526 | Implement after FRD LOCK / sprint plan |
@@ -97,7 +97,7 @@ DEC-F4
 
 | Risk | Mitigation |
 |---|---|
-| ID collision Sprint `BR-007` vs CM Escalation `BR-007` | Use BR-CM-CAT-001 + DEC-F4 IDs in reviews; track OQ-CM-B1-001 |
+| ID collision Sprint `BR-007` vs CM Escalation `BR-007` | Use BR-CM-CAT-001 + DEC-F4 IDs in reviews; dual SoT per **DEC-020** (OQ-CM-B1-001 Closed) |
 | Accidental edit to LOCKED FRD Batch 1 | Explicit non-impact in DEC-F4 §7 |
 | Premature API without FRD | Keep API/Event **Planned** until Escalation FRD batch |
 | Regional UI regressing into path | AC: no Regional target under DEC-F4 config |

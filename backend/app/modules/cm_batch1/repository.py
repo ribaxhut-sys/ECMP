@@ -15,7 +15,11 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
-from app.modules.cm_batch1.entities import ComplaintAggregate, DuplicateDecisionRecord
+from app.modules.cm_batch1.entities import (
+    ComplaintAggregate,
+    DuplicateDecisionRecord,
+    LaterReviewWorkItem,
+)
 from app.modules.cm_batch1.exceptions import ReplayConflict
 from app.modules.cm_batch1.models import (
     CmBatch1ChannelMessageORM,
@@ -553,14 +557,20 @@ class CmBatch1Repository:
         ]
 
     def create_later_review_work_item(
-        self, *, customer_id: str, reason: str
+        self,
+        *,
+        customer_id: str,
+        reason: str,
+        complaint_id: str | None = None,
     ) -> str:
         work_item_id = f"LR-{uuid.uuid4().hex[:12].upper()}"
+        cleaned_complaint = (complaint_id or "").strip() or None
         self._session.add(
             CmBatch1LaterReviewItemORM(
                 id=uuid.uuid4(),
                 work_item_id=work_item_id,
                 customer_id=customer_id,
+                complaint_id=cleaned_complaint,
                 reason=reason,
                 status="OPEN",
                 created_at=datetime.now(UTC),
@@ -568,3 +578,37 @@ class CmBatch1Repository:
         )
         self._session.flush()
         return work_item_id
+
+    def list_later_review_items(
+        self, *, status: str | None = "OPEN", limit: int = 100
+    ) -> list[LaterReviewWorkItem]:
+        stmt = select(CmBatch1LaterReviewItemORM).order_by(
+            CmBatch1LaterReviewItemORM.created_at.asc()
+        )
+        if status and status != "ALL":
+            stmt = stmt.where(CmBatch1LaterReviewItemORM.status == status)
+        stmt = stmt.limit(limit)
+        rows = self._session.scalars(stmt).all()
+        return [
+            LaterReviewWorkItem(
+                work_item_id=r.work_item_id,
+                customer_id=r.customer_id,
+                reason=r.reason,
+                status=r.status,
+                created_at=r.created_at,
+                complaint_id=r.complaint_id,
+            )
+            for r in rows
+        ]
+
+    def list_aging_without_case(
+        self, *, older_than: datetime, limit: int = 100
+    ) -> list[ComplaintAggregate]:
+        rows = self._session.scalars(
+            select(CmBatch1ComplaintORM)
+            .where(CmBatch1ComplaintORM.case_created.is_(False))
+            .where(CmBatch1ComplaintORM.created_at <= older_than)
+            .order_by(CmBatch1ComplaintORM.created_at.asc())
+            .limit(limit)
+        ).all()
+        return [_to_entity(r) for r in rows]

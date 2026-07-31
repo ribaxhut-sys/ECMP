@@ -12,7 +12,7 @@ from app.core.logging import get_logger
 from app.db.session import get_session_factory
 from app.modules.complaint_events.models import ComplaintEvent, ComplaintEventType
 from app.modules.event_dispatcher.handler import EventHandler
-from app.modules.timeline.domain.enums import AggregateType, ActorType, TimelineEventType
+from app.modules.timeline.domain.enums import ActorType, AggregateType, TimelineEventType
 from app.modules.timeline.repository import TimelineRepository
 from app.modules.timeline.service import ActivityTimelineService
 

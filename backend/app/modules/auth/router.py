@@ -11,6 +11,7 @@ from app.core.auth import CurrentPrincipal
 from app.core.client_ip import resolve_client_ip
 from app.core.config import Settings, get_settings
 from app.core.errors import RateLimitedError, UnauthenticatedError
+from app.core.local_credential_auth import require_local_credential_auth
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.audit.security_events import SecurityEventType, write_security_event
@@ -29,6 +30,8 @@ from app.modules.auth.service import AuthService
 from app.modules.email import get_email_service
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
+
+LocalCredentialAuth = Annotated[Settings, Depends(require_local_credential_auth)]
 
 
 def get_auth_service(
@@ -89,7 +92,7 @@ def login(
     request: Request,
     response: Response,
     service: Annotated[AuthService, Depends(get_auth_service)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    settings: LocalCredentialAuth,
     db: Annotated[Session, Depends(get_db_session)],
 ) -> DataResponse[TokenResponse]:
     guard_key = _login_guard_key(request, payload.username, settings)
@@ -205,6 +208,7 @@ def forgot_password(
     payload: ForgotPasswordRequest,
     request: Request,
     service: Annotated[AuthService, Depends(get_auth_service)],
+    _: LocalCredentialAuth,
 ) -> DataResponse[ForgotPasswordResponse]:
     return DataResponse(data=service.forgot_password(payload, request=request))
 
@@ -219,5 +223,6 @@ def reset_password(
     payload: ResetPasswordRequest,
     request: Request,
     service: Annotated[AuthService, Depends(get_auth_service)],
+    _: LocalCredentialAuth,
 ) -> DataResponse[ResetPasswordResponse]:
     return DataResponse(data=service.reset_password(payload, request=request))

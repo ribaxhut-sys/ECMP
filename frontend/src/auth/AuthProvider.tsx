@@ -111,8 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => (prev ? { ...prev, ...partial } : prev));
   }, []);
 
-  const permissions = user?.permissions ?? [];
-  const roles = user?.roles ?? [];
+  const permissions = useMemo(
+    () => user?.permissions ?? [],
+    [user?.permissions],
+  );
+  const roles = useMemo(() => user?.roles ?? [], [user?.roles]);
   const forcePasswordChange = Boolean(user?.forcePasswordChange);
 
   const hasPermission = useCallback(

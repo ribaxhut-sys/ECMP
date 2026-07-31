@@ -29,8 +29,11 @@ Approved — baseline Sprint-01 (diperluas per gate)
 - [`ECMP_IAM_Cache_Design_v1.0.md`](./ECMP_IAM_Cache_Design_v1.0.md) — IAM in-memory cache (TASK-041)
 - [`ECMP_AuthN_Limitations_Register_v0.1.md`](./ECMP_AuthN_Limitations_Register_v0.1.md)
 - [`ECMP_Threat_Model_v0.1.md`](./ECMP_Threat_Model_v0.1.md) — SEC-TM-001, 🟡 Draft (STRIDE scope slice)
-- [`ECMP_Target_Authentication_Architecture_v1.0.md`](./ECMP_Target_Authentication_Architecture_v1.0.md) — SEC-AUTH-001, 🟡 Proposed (desain fase target ADR-007, decision record ADR-012)
-- [`ECMP_AuthN_Migration_Rollout_Plan_v1.0.md`](./ECMP_AuthN_Migration_Rollout_Plan_v1.0.md) — SEC-MIG-001, 🟡 Proposed (migrasi, risk register, rollout)
+- [`ECMP_Target_Authentication_Architecture_v1.0.md`](./ECMP_Target_Authentication_Architecture_v1.0.md) — SEC-AUTH-001, 🟡 Proposed (design normative under **Accepted** ADR-012; implementation not authorized by this document alone)
+- [`ECMP_AuthN_Migration_Rollout_Plan_v1.0.md`](./ECMP_AuthN_Migration_Rollout_Plan_v1.0.md) — SEC-MIG-001, 🟡 Proposed (migrasi, risk register, rollout; gated on Board/sprint authorization)
+- [`ECMP_BINDING_PROFILE_OIDC_ECMP_v0.1.md`](./ECMP_BINDING_PROFILE_OIDC_ECMP_v0.1.md) — SEC-BIND-OIDC-001, 🟡 Draft subordinate Binding Profile (ADR-016); Mode B CLOSED
+- [`ECMP_ENTITLEMENT_REPRESENTATION_PROFILE_v0.1.md`](./ECMP_ENTITLEMENT_REPRESENTATION_PROFILE_v0.1.md) — SEC-ENT-REP-001, 🟡 Draft Entitlement Representation (ADR-017 E-01); Mode B CLOSED
+- [`ECMP_ORG_SYNC_INTEGRATION_PROFILE_v0.1.md`](./ECMP_ORG_SYNC_INTEGRATION_PROFILE_v0.1.md) — SEC-ORG-SYNC-001, 🟡 Draft Org Sync Integration (ADR-018); org-gap prerequisite remains; Mode B CLOSED
 
 ## Minimum Contents (v1)
 - [x] Authentication standard — ADR-007 + Security Standards §2

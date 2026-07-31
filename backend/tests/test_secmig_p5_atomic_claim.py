@@ -12,10 +12,13 @@ from typing import Any
 
 import pytest
 from sqlalchemy import create_engine, select
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
 from app.integrations.customer import StubCustomerProvider
+from app.modules.audit.models import SystemAuditLog
 from app.modules.cm_batch1.duplicate_config import DuplicateConfig
 from app.modules.cm_batch1.enumeration import EnumerationGuard
 from app.modules.cm_batch1.exceptions import ReplayConflict
@@ -35,10 +38,7 @@ from app.modules.cm_batch1.schemas import CreateComplaintBatch1Request
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.side_effects import CmBatch1SideEffectRecorder
 from app.modules.cm_batch1.store import Batch1Store
-from app.modules.audit.models import SystemAuditLog
 from app.modules.timeline.models import TimelineEntryORM
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.compiler import compiles
 
 pytestmark = pytest.mark.security
 

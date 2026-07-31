@@ -1,9 +1,10 @@
 """Complaint resource FastAPI routes (CAPABILITY-004…008).
 
 Note: paths overlap the legacy ``complaints`` ECMF module. This router is
-mounted for the Clean Architecture foundation BC. Ticket-nested routes are
-unique to CAPABILITY-004. SLA paths under ``…/sla/start|complete|recalculate``
-do not collide with legacy GET ``…/sla`` (ECMF).
+part of ``complaint_foundation_router`` for isolated tests / future Cutover DEC
+only — production mounts ticket-nested routes via ``complaint_api_router``
+(DEC-020). AuthN is required at router level so a future mount cannot expose
+unauthenticated identity-from-header handlers.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Query, Response, status
 
+from app.core.auth import get_current_principal
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import DataResponse, ErrorResponse
 from app.modules.complaint.api.controllers import ComplaintController
@@ -50,7 +52,12 @@ from app.modules.complaint.application.services import (
     ComplaintSLAApplicationService,
 )
 
-router = APIRouter(prefix="/api/v1/complaints", tags=["Complaint Domain"])
+router = APIRouter(
+    prefix="/api/v1/complaints",
+    tags=["Complaint Domain"],
+    # AuthN floor (latent harden): foundation router remains unmounted in production.
+    dependencies=[Depends(get_current_principal)],
+)
 
 _ERROR = {
     400: {"model": ErrorResponse},

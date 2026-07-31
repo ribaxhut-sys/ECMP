@@ -17,10 +17,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.errors import ValidationAppError
 from app.db.base import Base
+from app.integrations.customer import StubCustomerProvider
 from app.modules.audit.models import SystemAuditLog
 from app.modules.cm_batch1 import event_factory as events
 from app.modules.cm_batch1.domain_events import DomainEvent
-from app.integrations.customer import StubCustomerProvider
 from app.modules.cm_batch1.enumeration import EnumerationGuard
 from app.modules.cm_batch1.models import (
     CmBatch1ChannelMessageORM,
@@ -44,6 +44,7 @@ from app.modules.cm_batch1.side_effects import (
     NoOpSideEffectRecorder,
 )
 from app.modules.timeline.models import TimelineEntryORM
+from cm_batch1_helpers import confirmed_create
 
 
 @compiles(JSONB, "sqlite")
@@ -221,7 +222,7 @@ def test_outbox_no_publish_marker_excluded_from_unpublished(
 def test_create_commits_audit_timeline_outbox(
     service: CmBatch1Service, db_session: Session
 ) -> None:
-    created = service.create_complaint(
+    created = confirmed_create(service, 
         _create_body(),
         request_id="foundation-create-1",
         channel_message_id=None,
@@ -250,19 +251,19 @@ def test_create_commits_audit_timeline_outbox(
 def test_idempotent_replay_emits_evt_cm_002_once(
     service: CmBatch1Service, db_session: Session
 ) -> None:
-    first = service.create_complaint(
+    first = confirmed_create(service, 
         _create_body(),
         request_id="foundation-replay-1",
         channel_message_id=None,
         actor_id=None,
     )
-    second = service.create_complaint(
+    second = confirmed_create(service, 
         _create_body(),
         request_id="foundation-replay-1",
         channel_message_id=None,
         actor_id=None,
     )
-    third = service.create_complaint(
+    third = confirmed_create(service, 
         _create_body(),
         request_id="foundation-replay-1",
         channel_message_id=None,
@@ -293,7 +294,8 @@ def test_rejected_create_leaves_no_side_effects(
             _create_body(customerId=""),
             request_id="foundation-reject-1",
             channel_message_id=None,
-            actor_id=None,
+            actor_id="actor-1",
+            principal_key="actor-1",
         )
     assert db_session.scalars(select(CmBatch1OutboxORM)).all() == []
     assert db_session.scalars(select(SystemAuditLog)).all() == []
@@ -303,7 +305,7 @@ def test_rejected_create_leaves_no_side_effects(
 def test_duplicate_decision_side_effects(
     service: CmBatch1Service, db_session: Session
 ) -> None:
-    created = service.create_complaint(
+    created = confirmed_create(service, 
         _create_body(),
         request_id="foundation-dup-1",
         channel_message_id=None,
@@ -351,7 +353,7 @@ def test_side_effect_failure_rolls_back_aggregate(
         side_effects=recorder,
     )
     with pytest.raises(RuntimeError, match="outbox unavailable"):
-        svc.create_complaint(
+        confirmed_create(svc, 
             _create_body(),
             request_id="foundation-tx-fail",
             channel_message_id=None,
@@ -378,13 +380,14 @@ def test_s3_migration_0043_chain() -> None:
     cfg = Config(str(backend_root / "alembic.ini"))
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0044_admin_rbac_repair"]
+    assert script.get_heads() == ["0045_cm_batch1_later_review_complaint"]
     revs = {r.revision: r.down_revision for r in script.walk_revisions()}
     assert revs["0040_cm_batch1_persistence"] == "0039_admin_rbac_repair"
     assert revs["0041_cm_batch1_duplicate"] == "0040_cm_batch1_persistence"
     assert revs["0042_cm_batch1_attachment"] == "0041_cm_batch1_duplicate"
     assert revs["0043_cm_batch1_foundation"] == "0042_cm_batch1_attachment"
     assert revs["0044_admin_rbac_repair"] == "0043_cm_batch1_foundation"
+    assert revs["0045_cm_batch1_later_review_complaint"] == "0044_admin_rbac_repair"
 
 
 def test_td_ops_003_migration_0044_admin_repair_file() -> None:
@@ -398,5 +401,22 @@ def test_td_ops_003_migration_0044_admin_repair_file() -> None:
     assert "ADMIN" in ns["_ADMIN_ROLE_CODES"]
     assert "complaints:read" in ns["_ADMIN_PERMS"]
     assert "complaints:create" in ns["_ADMIN_PERMS"]
+    assert callable(ns["upgrade"])
+    assert callable(ns["downgrade"])
+
+
+def test_m3d_migration_0045_later_review_complaint_id() -> None:
+    """M3d / EX-G — nullable complaint_id on later-review items."""
+    backend_root = Path(__file__).resolve().parents[1]
+    path = (
+        backend_root
+        / "alembic"
+        / "versions"
+        / "0045_cm_batch1_later_review_complaint.py"
+    )
+    ns: dict[str, object] = {}
+    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), ns)
+    assert ns["revision"] == "0045_cm_batch1_later_review_complaint"
+    assert ns["down_revision"] == "0044_admin_rbac_repair"
     assert callable(ns["upgrade"])
     assert callable(ns["downgrade"])

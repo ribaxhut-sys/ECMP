@@ -27,6 +27,8 @@ Proses dan formulir review arsitektur ECMP. Bagian dari Governance (`18`), bukan
 - `EXCEPTION_REQUEST.md`
 
 ## Active decision / review packs
+- Parent-folder Mode A lab COMPLETE evidence: [`../ECMP_PROGRAM_MODE_A_M3C_Module_Lab_COMPLETE_Evidence_Pack_v1.0.md`](../ECMP_PROGRAM_MODE_A_M3C_Module_Lab_COMPLETE_Evidence_Pack_v1.0.md) (GOV-MODEA-M3C-001) — lab/synthetic only; Mode B CLOSED
+- Parent-folder audit addendum: [`../ECMP_AUDIT_ADDENDUM_Independent_Program_Audit_20260730_Fase0_v1.0.md`](../ECMP_AUDIT_ADDENDUM_Independent_Program_Audit_20260730_Fase0_v1.0.md) (AUDIT-ADD-20260730-F0) — Independent Program Audit 2026-07-30 Fase 0 / K-1 / K-2 remediated; Mode B CLOSED
 - `ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md` (GOV-DEC-F4) — Cabang→Pusat path, HQ return, `result_visibility` (amends BR-007/BR-008 Draft; does **not** change LOCKED FRD-CM-001 Batch 1)
 - `ECMP_DEC_F4_Architecture_Board_Countersign_Pack_v1.0.md` (GOV-CS-DEC-F4) — one-page Board sign-off
 - Impact: `../../26 Traceability/ECMP_IMPACT_DEC_F4_v1.0.md` (GOV-IMPACT-DEC-F4)

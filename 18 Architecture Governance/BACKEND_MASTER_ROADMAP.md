@@ -7,7 +7,7 @@
 | Owner | Lead Software Engineer |
 | Reviewer | Solution Architect / Architecture Board |
 | Status | 🟡 Active — pending Architecture Board approvals between tasks |
-| Last Update | 2026-07-29 |
+| Last Update | 2026-07-31 |
 | Production Ready | **No** (backend-wide). CM Batch 1 **lab/synthetic** track: READY WITH CONDITIONS accepted |
 
 ## Purpose
@@ -39,10 +39,10 @@ Single execution roadmap for completing the ECMP **backend** to Production Ready
 
 | Epic ID | Name | Status | Progress |
 |---|---|---|---|
-| EPIC-CM-B1 | Complaint Management Batch 1 (FR-001…FR-004) | **READY (lab)** | Features COMPLETE; lab READY WITH CONDITIONS **accepted** (EX-20260729-01) |
+| EPIC-CM-B1 | Complaint Management Batch 1 (FR-001…FR-004) | **READY (lab)** | Features COMPLETE; Mode A lab COMPLETE evidence **GOV-MODEA-M3C-001** (2026-07-31); lab READY WITH CONDITIONS **accepted** (EX-20260729-01); dual SoT per **DEC-020**; API-500…513 |
 | EPIC-CM-B1-OPS | Batch 1 release cutover (redeploy, config stance, exceptions) | **COMPLETE (lab)** | OPS-01/01b/02/03 + lab countersign done; Docker recreate optional follow-up |
 | EPIC-PLATFORM | Platform / CI / auth / observability (approved ADR track) | PARTIAL | Existing platform modules; not fully signed Production Ready |
-| EPIC-ECMF-LEGACY | Legacy case/complaint stack (pre–Batch 1) | PARTIAL | Remains for non-CM paths; do not rewrite unless defect |
+| EPIC-ECMF-LEGACY | Legacy case/complaint stack (pre–Batch 1) | PARTIAL | Remains for foundation lifecycle `/api/v1/complaints` under **DEC-020** coexistence; defect-driven only; do not force-merge with `cm_batch1` |
 | EPIC-CM-F4 | Escalation / Resolution (DEC-F4 / FRD-CM-002) | **NOT APPROVED FOR CODE** | Spec/OpenAPI/review packs exist; implementation blocked until Board unlock |
 
 ---
@@ -54,14 +54,16 @@ Deliver LOCKED FRD-CM-001 v1.1 Batch 1 (registration, customer search/confirm/36
 
 ### Scope
 - Modules: `backend/app/modules/cm_batch1/`, `backend/app/integrations/customer/`
-- Migrations: `0040`…`0043`
-- APIs: API-500…512 under `/api/v1/cm/...`
+- Migrations: `0040`…`0045` (`0045` later-review `complaint_id`)
+- APIs: API-500…513 under `/api/v1/cm/...` (plus shared attachment CAP alignments; API-513 supervisor queue)
 - Events: outbox persist only (publisher out of Batch 1 S3)
+- **DEC-020:** Aggregate SoT for Batch 1 intake; does **not** retire `/api/v1/complaints`; does **not** mount `complaint_foundation_router`; cutover only via future Retirement DEC
 
 ### Dependencies
 - FRD-CM-001 v1.1 LOCKED
 - OpenAPI `complaint-management-batch1.v1.yaml`
 - ADR-014 / ADR-015 (architecture baseline; no redesign in feature code)
+- DEC-020 dual-SoT coexistence (Accepted)
 - Platform DB/session/auth envelope
 
 ### Current Progress
@@ -191,11 +193,11 @@ Future batch per DEC-F4 / FRD-CM-002 Draft.
 
 | ID | Discovery | Classification | Impact | Recommended order |
 |---|---|---|---|---|
-| TD-CM-001 | Confirm lock not enforced on create | Known gap (S1/S2) | Medium | Exception or approved hardening task |
+| TD-CM-001 | Confirm lock not enforced on create | Known gap (S1/S2) | Medium | **Closed (Mode A lab)** — create requires confirm lock matching `customerId` (2026-07-31) |
 | TD-CM-002 | EnumerationGuard in-process only | Soft limit | Medium | Exception or shared-store epic |
 | TD-CM-003 | Antivirus `STUB_ONLY` default | Integration gap | Medium | Exception until AV adapter approved |
 | TD-CM-004 | Enterprise CustomerProvider UNAVAILABLE | Integration gap / approved stub | High for real-customer prod | Separate integration epic after approval |
-| TD-CM-005 | Create→attachment bind split TX / later-review path | Known design residual | Low–Medium | Document; harden only if approved |
+| TD-CM-005 | Create→attachment bind split TX / later-review path | Known design residual | Low–Medium | Visibility API-513 + `complaintId` (M3b/M3d); TX harden only if approved |
 | TD-OPS-001 | Compose backend image lag vs DB head after local migrate | Operational | High on container restart | Mitigated by TASK-OPS-01 rebuild |
 | TD-OPS-002 | Documented GoLive agent/viewer passwords fail login (401) | Operational / secret drift | Agent UAT path broken | Record in exception pack / reset only if approved |
 | TD-OPS-003 | ADMIN role has 0 `role_permissions` in local DB | Data/seed debt | **Closed** by `0044_admin_rbac_repair` (GOV-PLATFORM-OPS-SEED-001) |

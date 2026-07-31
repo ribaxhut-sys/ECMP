@@ -5,12 +5,20 @@ Issue · Queue Closed · Call Next · Complete · Skip · Cancel · Invalid Tran
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.test_queue_api import (
+    InMemoryCounterRepository,
+    InMemoryQueueRepository,
+    InMemoryTicketRepository,
+    _ctx,
+    _principal,
+    _qid,
+    _run,
+)
 
 from app.core.auth import get_current_principal
 from app.main import create_app
@@ -32,15 +40,6 @@ from app.modules.queue.models import (
     QueueStatus,
     QueueTicket,
     QueueTicketStatus,
-)
-from tests.test_queue_api import (
-    InMemoryCounterRepository,
-    InMemoryQueueRepository,
-    InMemoryTicketRepository,
-    _ctx,
-    _principal,
-    _qid,
-    _run,
 )
 
 

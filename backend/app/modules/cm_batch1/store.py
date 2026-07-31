@@ -14,6 +14,7 @@ from app.modules.cm_batch1.entities import (
     ComplaintAggregate,
     DuplicateDecisionRecord,
     IdempotencyRecord,
+    LaterReviewWorkItem,
 )
 from app.modules.cm_batch1.exceptions import ReplayConflict
 
@@ -29,7 +30,7 @@ class Batch1Store:
         self._channel_msg: dict[str, IdempotencyRecord] = {}
         self._confirmed: dict[str, str] = {}
         self._decisions: list[DuplicateDecisionRecord] = []
-        self._later_reviews: list[tuple[str, str, str]] = []
+        self._later_reviews: list[LaterReviewWorkItem] = []
         self._seq = itertools.count(1)
         self.force_degraded: bool = False
 
@@ -314,12 +315,44 @@ class Batch1Store:
             return rows[:limit]
 
     def create_later_review_work_item(
-        self, *, customer_id: str, reason: str
+        self, *, customer_id: str, reason: str, complaint_id: str | None = None
     ) -> str:
         with self._lock:
             work_item_id = f"LR-{uuid.uuid4().hex[:12].upper()}"
-            self._later_reviews.append((work_item_id, customer_id, reason))
+            self._later_reviews.append(
+                LaterReviewWorkItem(
+                    work_item_id=work_item_id,
+                    customer_id=customer_id,
+                    reason=reason,
+                    status="OPEN",
+                    created_at=datetime.now(UTC),
+                    complaint_id=(complaint_id.strip() if complaint_id else None)
+                    or None,
+                )
+            )
             return work_item_id
+
+    def list_later_review_items(
+        self, *, status: str | None = "OPEN", limit: int = 100
+    ) -> list[LaterReviewWorkItem]:
+        with self._lock:
+            rows = list(self._later_reviews)
+            if status and status != "ALL":
+                rows = [r for r in rows if r.status == status]
+            rows.sort(key=lambda r: r.created_at)
+            return rows[:limit]
+
+    def list_aging_without_case(
+        self, *, older_than: datetime, limit: int = 100
+    ) -> list[ComplaintAggregate]:
+        with self._lock:
+            rows = [
+                c
+                for c in self._complaints.values()
+                if not c.case_created and c.created_at <= older_than
+            ]
+            rows.sort(key=lambda c: c.created_at)
+            return rows[:limit]
 
 
 # Retained for rare process-local fallbacks / migrations; router uses DB repo.

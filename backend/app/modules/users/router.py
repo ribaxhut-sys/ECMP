@@ -10,6 +10,10 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import CurrentPrincipal, Principal, require_permissions
 from app.core.config import Settings, get_settings
+from app.core.local_credential_auth import (
+    assert_local_credential_auth_enabled,
+    require_local_credential_auth,
+)
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.modules.users.repository import UserRepository
@@ -27,6 +31,8 @@ from app.modules.users.schemas import (
 from app.modules.users.service import UserService
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
+
+LocalCredentialAuth = Annotated[Settings, Depends(require_local_credential_auth)]
 
 
 def get_user_service(
@@ -47,6 +53,7 @@ def change_own_password(
     request: Request,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: CurrentPrincipal,
+    _: LocalCredentialAuth,
 ) -> DataResponse[ChangePasswordResponse]:
     result = service.change_password(
         principal.user_id, payload, request=request
@@ -81,6 +88,7 @@ def create_user(
     payload: UserCreateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:create"))],
+    _: LocalCredentialAuth,
 ) -> DataResponse[UserResponse]:
     created = service.create(
         payload,
@@ -145,7 +153,11 @@ def update_user(
     payload: UserUpdateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:update"))],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[UserResponse]:
+    # Password field is Mode A local credential surface (K-3); profile-only updates stay open.
+    if payload.password is not None:
+        assert_local_credential_auth_enabled(settings)
     updated = service.update(
         id,
         payload,
@@ -184,6 +196,7 @@ def admin_reset_password(
     principal: Annotated[
         Principal, Depends(require_permissions("users:reset_password"))
     ],
+    _: LocalCredentialAuth,
 ) -> DataResponse[AdminResetPasswordResponse]:
     result = service.admin_reset_password(
         id, actor_user_id=principal.user_id, request=request

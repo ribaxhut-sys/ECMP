@@ -60,7 +60,7 @@
 ## Duplicates (summary)
 
 - **Expected multi-maps:** FR↔UC, BR↔FR composites — non-defect
-- **Defect highlights:** `API-390` / `API-392` catalog ID collisions; Sprint vs CM Aggregate ID namespace (OQ-CM-B1-001)
+- **Defect highlights:** `API-390` / `API-392` catalog ID collisions; Sprint vs CM Aggregate ID namespace — dual SoT per **DEC-020** (OQ-CM-B1-001 Closed); prefer path+method
 
 ---
 

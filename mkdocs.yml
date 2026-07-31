@@ -59,6 +59,8 @@ nav:
   - API: catalogs/api.md
   - Events: catalogs/event.md
   - Governance:
+      - Constitution (ECMP-CONSTITUTION-001): governance/ECMP-CONSTITUTION-001.md
+      - Master Prompt (ECMP-MASTER-PROMPT-001): governance/ECMP-MASTER-PROMPT-001.md
       - Repository Index: governance/repository-index.md
       - Dashboard: governance/dashboard.md
       - Health Report: governance/health-report.md

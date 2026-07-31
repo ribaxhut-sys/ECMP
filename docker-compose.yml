@@ -1,8 +1,9 @@
 # ECMP foundation stack — production-capable Compose (R6-03).
 # Secrets: never commit .env. Validate with:
 #   python scripts/validate-production-config.py --env-file .env
-# Redis is intentionally absent (login lockout is in-memory). Storage is DB Settings,
-# not compose volumes for object blobs beyond Postgres data.
+# Redis is intentionally absent (login lockout is in-memory).
+# Attachment blobs persist on named volume ``ecmp_attachments`` (default path
+# ``storage/attachments`` under the backend working directory).
 #
 # Startup order: postgres (healthy) → backend (migrate + healthy) → frontend.
 # Prefer IMAGE_TAG=vX.Y.Z (or RC tag) instead of floating "latest" for production.
@@ -64,6 +65,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_VERSION: ${APP_VERSION:-1.0.0}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-ecmp}
@@ -89,6 +91,9 @@ services:
       CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL: ${CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Persist LocalStorageProvider blobs across recreate (default root storage/attachments).
+      - ecmp_attachments:/app/storage/attachments
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
       interval: 15s
@@ -126,3 +131,4 @@ services:
 volumes:
   ecmp_pgdata:
   ecmp_pgadmin:
+  ecmp_attachments:

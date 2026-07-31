@@ -1,4 +1,10 @@
 export { CreateComplaintView } from "./CreateComplaintView";
+export { CmBatch1ConfirmationView } from "./CmBatch1ConfirmationView";
+export { CmBatch1SupervisorQueueView } from "./CmBatch1SupervisorQueueView";
+export { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
+export { CustomerSearchPanel } from "./CustomerSearchPanel";
+export { DuplicateWarningPanel } from "./DuplicateWarningPanel";
+export { StagingAttachmentsPanel } from "./StagingAttachmentsPanel";
 export { ComplaintDetailView } from "./ComplaintDetailView";
 export { ComplaintListView } from "./ComplaintListView";
 export { EditComplaintView } from "./EditComplaintView";

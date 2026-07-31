@@ -1,0 +1,5 @@
+﻿live={"status":"ok","service":"ECMP"}
+ready={"status":"ready","service":"ECMP","checks":{"startup":"ok","database":"ok"}}
+login=OK
+me_username=golive_admin
+auth_note=Mode A local credential auth (ECMP_AUTH_MODE=dev) on foundation compose — not staging/production jwt

@@ -189,3 +189,42 @@ class VoidAttachmentRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     reason: str
+
+
+class LaterReviewWorkItemResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    work_item_id: str = Field(alias="workItemId")
+    customer_id: str = Field(alias="customerId")
+    complaint_id: str | None = Field(default=None, alias="complaintId")
+    reason: str
+    status: str
+    created_at: datetime = Field(alias="createdAt")
+    age_hours: float = Field(alias="ageHours")
+
+
+class AgingComplaintItemResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    complaint_id: str = Field(alias="complaintId")
+    complaint_number: str = Field(alias="complaintNumber")
+    customer_id: str = Field(alias="customerId")
+    status: str
+    subject: str | None = None
+    priority: str | None = None
+    created_at: datetime = Field(alias="createdAt")
+    age_hours: float = Field(alias="ageHours")
+    case_created: Literal[False] = Field(default=False, alias="caseCreated")
+
+
+class SupervisorQueueResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    later_review_items: list[LaterReviewWorkItemResponse] = Field(
+        alias="laterReviewItems"
+    )
+    aging_complaints: list[AgingComplaintItemResponse] = Field(
+        alias="agingComplaints"
+    )
+    aging_threshold_hours: int = Field(alias="agingThresholdHours")
+    as_of: datetime = Field(alias="asOf")

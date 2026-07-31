@@ -19,8 +19,8 @@ from app.core.logging import configure_logging
 from app.core.secrets import (
     MANDATORY_SECRET_ENV_VARS,
     REDACTED,
-    SECRET_INVENTORY,
     SECRET_ENV_VARS,
+    SECRET_INVENTORY,
     clear_runtime_secrets,
     collect_secret_values,
     redact_connection_string,

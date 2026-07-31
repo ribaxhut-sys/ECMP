@@ -166,11 +166,11 @@ This document is the official **Final Certification** for the ECMP Security Migr
 | Rollback package | **PASS** | `docs/releases/ROLLBACK_v1.0.0.md` |
 | Operator navigation end-to-end | **PASS** | OPS / REL / DEP hubs |
 | DEV restore procedure proof | **PASS (DEV only)** | OPS-RST-EVID-20260722 — PASS scratch; HTTP/AuthN smoke deferred; SO deferred to shared |
-| Shared-env restore / recovery drill (OPS-RCV-001) | **FAIL / OPEN** | Required before first shared UAT/prod; REL-SEC-001 §3.6 NO-GO if missing |
+| Shared-env restore / recovery drill (OPS-RCV-001) | **PASS (shared-profile)** | OPS-RST-EVID-20260730-SHARED — `ECMP_ENV=shared` + jwt + IdP; `/live` `/ready`; dual audit; local credential disabled; SO delegate + C-K4 conditions. Dedicated remote SIT/prod host re-drill still required before cutover. |
 | Honest RPO (no false 15m without WAL) | **PASS (honesty)** | Current RPO = time since last logical dump; WAL/PITR out of scope |
 | General runbook shared-env automation | **PARTIAL** | OPS README: Draft-conservative where ADR-010 Planned |
 
-**Operational certification statement:** Operational **framework** is certified. **Cutover readiness** is certified **only after** shared recovery validation PASSes (Condition C1).
+**Operational certification statement:** Operational **framework** is certified. Shared-profile recovery evidence (C1 / RR-1) is **PASS** with conditions (OPS-RST-EVID-20260730-SHARED). **Production / dedicated SIT cutover** still requires REL-SEC-001 per release candidate and C-K4-4 host re-drill.
 
 ---
 
@@ -196,7 +196,7 @@ Derived only from SEC-MIG-001 risk register, SEC-LIM-001, P6-003/REL-SEC honesty
 
 | ID | Severity | Risk | Residual owner / gate |
 |---|---|---|---|
-| RR-1 | **CRITICAL** | No shared-env restore/recovery drill meeting OPS-RCV-001 (`/live` `/ready`, `audit_logs` rules, honest RTO/RPO, Security Officer sign-off). Evidence 2026-07-22 = DEV scratch only. | Operations Lead; REL-SEC-001 §3.6 |
+| RR-1 | **CLOSED (shared-profile)** | Shared-profile restore/recovery drill PASS (OPS-RST-EVID-20260730-SHARED). Residual: re-run on dedicated remote SIT/UAT or production host with named SO before cutover (evidence C-K4-4). | Operations Lead; REL-SEC-001 §3.6 |
 | RR-2 | **CRITICAL** | Accidental `dev` AuthN on shared env (SEC-MIG R-1) | DevOps Lead; P6-001 startup refusal |
 | RR-3 | **CRITICAL** | Migration stall leaving static tokens on UAT “temporarily” (SEC-MIG R-9) | Architecture Board; ADR-010 / Phase 3 hard gate |
 | RR-4 | **MAJOR** | Actual RPO ≠ DEC-005 15m target; false 15m claim without WAL/PITR fails gate | Operations Lead; OPS-BAK-001 |
@@ -215,7 +215,7 @@ Production operation and any **shared staging / UAT / production cutover** under
 
 | # | Condition | Source | Mandatory before |
 |---|---|---|---|
-| **C1** | Shared-env restore drill **PASS** per OPS-RCV-001 / OPS-RST-001 (foundation probes `/live` `/ready`; audit table rules; measured RTO/RPO honesty; Security Officer sign-off as required) | REL-SEC-001 §3.6; OPS-RCV-001; P6-006 CRITICAL | First shared UAT **and** production cutover |
+| **C1** | Shared-env restore drill **PASS** per OPS-RCV-001 / OPS-RST-001 (foundation probes `/live` `/ready`; audit table rules; measured RTO/RPO honesty; Security Officer sign-off as required) — **SATISFIED at shared-profile class** via OPS-RST-EVID-20260730-SHARED (C-K4 conditions). Re-validate on dedicated remote SIT/prod host before cutover. | REL-SEC-001 §3.6; OPS-RCV-001; P6-006 CRITICAL | First shared UAT **and** production cutover |
 | **C2** | Full REL-SEC-001 scorecard **PASS** (Configuration, Authentication, Authorization, Audit, Backup, Recovery, Smoke) + evidence pack (REL-EVID-001) | REL-SEC-001 | Shared/prod release |
 | **C3** | Required approvers record **Go** (Tech Lead, Security Officer/Architect, Operations Lead, Release Manager) — **no** Conditional Go | REL-APR-001 | Shared/prod release |
 | **C4** | Target environment runs `ENVIRONMENT=staging\|production` with `ECMP_AUTH_MODE=jwt`, `ECMP_ENV=shared`, and required `OIDC_*`; `dev` mode impossible | ENV-REF-001 / P6-001; DEP-001 | Shared/prod start |
@@ -249,7 +249,7 @@ WITH CONDITIONS
 ### Binding interpretation
 
 1. **Certified:** Architecture Phase 0–1 decisions; foundation secure-configuration, security-operations, backup/recovery documentation, release security governance, and security test entry points listed in §§3–7.
-2. **Not certified as unconditional cutover:** Shared/production Go-Live. P6-006 NO-GO stands until C1–C3 (and applicable C4–C10) are met under REL-SEC-001.
+2. **Not certified as unconditional cutover:** Shared/production Go-Live. C1 shared-profile recovery is **PASS** (OPS-RST-EVID-20260730-SHARED); remaining C2–C3 (and applicable C4–C10) plus REL-SEC-001 per release candidate still control cutover. Dedicated remote host re-drill: C-K4-4.
 3. **Not certified as complete AuthN migration Phases 2–5** unless/until SEC-MIG-001 SoT status is updated by Architecture Board after those phase exits.
 4. **Conditions are prerequisites, not waivers.** REL-SEC-001 Conditional Go remains **Forbidden**.
 

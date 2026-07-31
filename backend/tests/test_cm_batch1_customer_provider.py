@@ -29,7 +29,7 @@ from app.modules.cm_batch1.schemas import (
 )
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.store import Batch1Store
-
+from cm_batch1_helpers import confirmed_create
 
 # ---------------------------------------------------------------------------
 # Unit — contract surface
@@ -207,7 +207,7 @@ def test_regression_create_still_works_with_provider() -> None:
         guard=EnumerationGuard(),
         store=store,
     )
-    created = svc.create_complaint(
+    created = confirmed_create(svc, 
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",

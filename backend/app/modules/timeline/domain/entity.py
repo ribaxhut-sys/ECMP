@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Any, Mapping
 
 from app.core.errors import ValidationAppError
-from app.modules.timeline.domain.enums import AggregateType, ActorType
+from app.modules.timeline.domain.enums import ActorType, AggregateType
 
 
 @dataclass(frozen=True, slots=True)
