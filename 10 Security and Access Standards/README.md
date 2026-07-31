@@ -23,7 +23,8 @@ Standar keamanan dan akses ECMP: autentikasi, otorisasi, role matrix, data prote
 Approved — baseline Sprint-01 (diperluas per gate)
 
 ## Documents
-- [`ECMP_Security_Standards_v0.1.md`](./ECMP_Security_Standards_v0.1.md)
+- [`ECMP_Security_Baseline_Standard_v1.0.md`](./ECMP_Security_Baseline_Standard_v1.0.md) — **SEC-BASE-001** Security Baseline (host/domain/DR/release portability; L1–L5 roadmap)
+- [`ECMP_Security_Standards_v0.1.md`](./ECMP_Security_Standards_v0.1.md) — SEC-STD-001 app AuthN/Z / audit / secrets baseline
 - [`ECMP_Role_Access_Matrix_v0.1.md`](./ECMP_Role_Access_Matrix_v0.1.md) — v0.2: + bagian Planned Sprint-02
 - [`ECMP_RBAC_Flow_v1.0.md`](./ECMP_RBAC_Flow_v1.0.md) — Authorization Middleware pipeline (TASK-038/039/040)
 - [`ECMP_IAM_Cache_Design_v1.0.md`](./ECMP_IAM_Cache_Design_v1.0.md) — IAM in-memory cache (TASK-041)

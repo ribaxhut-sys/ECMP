@@ -15,6 +15,8 @@
 ## Purpose
 Tata kelola arsitektur ECMP: proses review, RACI, quality gates, dan pengelolaan ADR/standards.
 
+**Master index (IMS):** [`ECMP_Integrated_Management_System_IMS-001_v1.0.md`](./ECMP_Integrated_Management_System_IMS-001_v1.0.md) — menghubungkan policy→evidence tanpa mengganti dokumen yang sudah approved.
+
 ## Owner
 - Document Owner: Architecture Board Chair / Chief Architect
 - Reviewers: Solution Architects, Security, Product Owners, PMO
