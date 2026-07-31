@@ -222,7 +222,7 @@ def test_outbox_no_publish_marker_excluded_from_unpublished(
 def test_create_commits_audit_timeline_outbox(
     service: CmBatch1Service, db_session: Session
 ) -> None:
-    created = confirmed_create(service, 
+    created = confirmed_create(service,
         _create_body(),
         request_id="foundation-create-1",
         channel_message_id=None,
@@ -251,19 +251,19 @@ def test_create_commits_audit_timeline_outbox(
 def test_idempotent_replay_emits_evt_cm_002_once(
     service: CmBatch1Service, db_session: Session
 ) -> None:
-    first = confirmed_create(service, 
+    first = confirmed_create(service,
         _create_body(),
         request_id="foundation-replay-1",
         channel_message_id=None,
         actor_id=None,
     )
-    second = confirmed_create(service, 
+    second = confirmed_create(service,
         _create_body(),
         request_id="foundation-replay-1",
         channel_message_id=None,
         actor_id=None,
     )
-    third = confirmed_create(service, 
+    third = confirmed_create(service,
         _create_body(),
         request_id="foundation-replay-1",
         channel_message_id=None,
@@ -305,7 +305,7 @@ def test_rejected_create_leaves_no_side_effects(
 def test_duplicate_decision_side_effects(
     service: CmBatch1Service, db_session: Session
 ) -> None:
-    created = confirmed_create(service, 
+    created = confirmed_create(service,
         _create_body(),
         request_id="foundation-dup-1",
         channel_message_id=None,
@@ -353,7 +353,7 @@ def test_side_effect_failure_rolls_back_aggregate(
         side_effects=recorder,
     )
     with pytest.raises(RuntimeError, match="outbox unavailable"):
-        confirmed_create(svc, 
+        confirmed_create(svc,
             _create_body(),
             request_id="foundation-tx-fail",
             channel_message_id=None,

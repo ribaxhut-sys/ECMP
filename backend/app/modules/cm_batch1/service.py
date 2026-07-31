@@ -25,7 +25,11 @@ from app.modules.cm_batch1.duplicate_config import (
     DuplicateConfig,
 )
 from app.modules.cm_batch1.duplicate_engine import evaluate_candidates
-from app.modules.cm_batch1.entities import ComplaintAggregate, DuplicateDecisionRecord, LaterReviewWorkItem
+from app.modules.cm_batch1.entities import (
+    ComplaintAggregate,
+    DuplicateDecisionRecord,
+    LaterReviewWorkItem,
+)
 from app.modules.cm_batch1.enumeration import EnumerationGuard
 from app.modules.cm_batch1.schemas import (
     AgingComplaintItemResponse,

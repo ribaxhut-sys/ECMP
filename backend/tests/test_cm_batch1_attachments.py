@@ -124,7 +124,7 @@ def cm_service(db_session: Session) -> CmBatch1Service:
 
 
 def _create_complaint(cm_service: CmBatch1Service, request_id: str) -> str:
-    created = confirmed_create(cm_service, 
+    created = confirmed_create(cm_service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -336,7 +336,7 @@ def test_bind_on_create_and_link_transfer_api(
         actor_id="a1",
         staging_token="STG-BIND-1",
     )
-    created = confirmed_create(cm_service, 
+    created = confirmed_create(cm_service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -461,7 +461,8 @@ def test_api_507_508_509_512_roundtrip(
             },
         )
         assert created.status_code == 201, created.text
-        complaint_id = created.json()["data"]["complaintId"]
+        _complaint_id = created.json()["data"]["complaintId"]
+        assert _complaint_id
 
         staged = client.post(
             "/api/v1/attachments",

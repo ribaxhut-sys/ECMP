@@ -207,7 +207,7 @@ def test_regression_create_still_works_with_provider() -> None:
         guard=EnumerationGuard(),
         store=store,
     )
-    created = confirmed_create(svc, 
+    created = confirmed_create(svc,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",

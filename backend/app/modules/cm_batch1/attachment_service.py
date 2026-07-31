@@ -17,8 +17,6 @@ from app.modules.cm_batch1.attachment_config import (
     AttachmentConfig,
     AttachmentConfigProvider,
 )
-
-logger = get_logger("app.modules.cm_batch1.attachment")
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.entities import (
     ATTACHMENT_STATUS_ACTIVE,
@@ -38,6 +36,8 @@ from app.modules.cm_batch1.side_effects import (
     NoOpSideEffectRecorder,
     SideEffectRecorder,
 )
+
+logger = get_logger("app.modules.cm_batch1.attachment")
 
 
 class CmBatch1AttachmentService:
@@ -540,7 +540,8 @@ class CmBatch1AttachmentService:
         if expired:
             self._repo.commit()
         logger.info(
-            "abandoned staging cleanup complete expiredSessions=%s voidedAttachments=%s actorId=%s ttlHours=%s",
+            "abandoned staging cleanup complete "
+            "expiredSessions=%s voidedAttachments=%s actorId=%s ttlHours=%s",
             len(expired),
             count,
             actor_id,

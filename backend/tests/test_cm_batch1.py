@@ -195,7 +195,7 @@ def test_tc_cm_fr001_confirm_lock_required_on_create(
 
 
 def test_tc_cm_fr001_01_create_registered_no_case(service: CmBatch1Service) -> None:
-    created = confirmed_create(service, 
+    created = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -213,7 +213,7 @@ def test_tc_cm_fr001_01_create_registered_no_case(service: CmBatch1Service) -> N
 
 
 def test_tc_cm_fr001_02_customer_id_only(service: CmBatch1Service) -> None:
-    created = confirmed_create(service, 
+    created = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -233,7 +233,7 @@ def test_tc_cm_fr001_02_customer_id_only(service: CmBatch1Service) -> None:
 
 def test_tc_cm_fr001_04_missing_fields(service: CmBatch1Service) -> None:
     with pytest.raises(ValidationAppError):
-        confirmed_create(service, 
+        confirmed_create(service,
             CreateComplaintBatch1Request(
                 customerId="CUST-10001",
                 category="",
@@ -248,7 +248,7 @@ def test_tc_cm_fr001_04_missing_fields(service: CmBatch1Service) -> None:
 
 
 def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
-    first = confirmed_create(service, 
+    first = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -260,7 +260,7 @@ def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
         channel_message_id=None,
         actor_id="a",
     )
-    second = confirmed_create(service, 
+    second = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -278,7 +278,7 @@ def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
 
 
 def test_tc_cm_fr001_11_channel_message_replay(service: CmBatch1Service) -> None:
-    first = confirmed_create(service, 
+    first = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -290,7 +290,7 @@ def test_tc_cm_fr001_11_channel_message_replay(service: CmBatch1Service) -> None
         channel_message_id="MSG-9",
         actor_id="a",
     )
-    second = confirmed_create(service, 
+    second = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -307,7 +307,7 @@ def test_tc_cm_fr001_11_channel_message_replay(service: CmBatch1Service) -> None
 
 
 def test_tc_cm_fr001_12_360_after_create(service: CmBatch1Service) -> None:
-    confirmed_create(service, 
+    confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -418,7 +418,7 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
 
 
 def test_s2_persistence_create_get_idempotent(persistent_service: CmBatch1Service) -> None:
-    created = confirmed_create(persistent_service, 
+    created = confirmed_create(persistent_service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -438,7 +438,7 @@ def test_s2_persistence_create_get_idempotent(persistent_service: CmBatch1Servic
     assert loaded.complaint_id == created.complaint_id
     assert loaded.customer_id == "CUST-10001"
 
-    replay = confirmed_create(persistent_service, 
+    replay = confirmed_create(persistent_service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -461,7 +461,7 @@ def test_s2_persistence_360_and_confirm(
     repo = CmBatch1Repository(db_session)
     assert repo.get_confirmed("p-db") == "CUST-10001"
 
-    confirmed_create(persistent_service, 
+    confirmed_create(persistent_service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -476,7 +476,7 @@ def test_s2_persistence_360_and_confirm(
     view = persistent_service.customer_360_minimum("CUST-10001")
     assert view.complaint_count == 1
 
-    replay_ch = confirmed_create(persistent_service, 
+    replay_ch = confirmed_create(persistent_service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -532,7 +532,7 @@ def _seed_complaint(
     subject: str = "Incorrect billing charge",
     channel: str = "BRANCH",
 ) -> str:
-    created = confirmed_create(service, 
+    created = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category=category,
@@ -630,7 +630,7 @@ def test_tc_cm_fr003_04_override_with_justification(
     service: CmBatch1Service,
 ) -> None:
     _seed_complaint(service, request_id="dup-ov-1")
-    created = confirmed_create(service, 
+    created = confirmed_create(service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",
@@ -657,7 +657,7 @@ def test_tc_cm_fr003_05_hard_block_rejects_create(service: CmBatch1Service) -> N
         subject="Unauthorized card transaction",
     )
     with pytest.raises(ValidationAppError) as exc:
-        confirmed_create(service, 
+        confirmed_create(service,
             CreateComplaintBatch1Request(
                 customerId="CUST-10001",
                 category="FRAUD",
@@ -976,7 +976,7 @@ def test_tc_cm_fr003_08_no_case_from_duplicate_flow(service: CmBatch1Service) ->
 def test_s2_persistence_duplicate_check_and_decision(
     persistent_service: CmBatch1Service, db_session: Session
 ) -> None:
-    first = confirmed_create(persistent_service, 
+    first = confirmed_create(persistent_service,
         CreateComplaintBatch1Request(
             customerId="CUST-10001",
             category="BILLING",

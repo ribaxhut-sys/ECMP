@@ -136,6 +136,7 @@ export type {
   CmBatch1CreateComplaintOptions,
   CmBatch1CreateComplaintRequest,
   CmBatch1Customer360Response,
+  CmBatch1CustomerCandidate,
   CmBatch1CustomerSearchRequest,
   CmBatch1CustomerSearchResponse,
   CmBatch1DuplicateCheckRequest,
