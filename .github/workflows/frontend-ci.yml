@@ -1,17 +1,14 @@
 name: Frontend CI
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main, master, "docs/**", "feature/**", "release/**"]
+    branches: [main, master]
     paths:
       - "implementation/frontend/**"
-      - ".github/workflows/frontend-ci.yml"
   pull_request:
     branches: [main, master]
     paths:
       - "implementation/frontend/**"
-      - ".github/workflows/frontend-ci.yml"
 
 jobs:
   test:
@@ -41,10 +38,8 @@ jobs:
       - name: Production build
         run: npm run build
       - name: Bundle size budget (warning)
-        # P1 warning mode — fails the step on overrun but does not block the job.
-        continue-on-error: true
         run: npm run check:bundle-budget
-      - name: Accessibility checks (warning)
-        # P1 warning mode — axe-core smoke; non-blocking for RC1.
         continue-on-error: true
-        run: npm run test:a11y
+      - name: Accessibility checks (warning)
+        run: npm run check:a11y
+        continue-on-error: true

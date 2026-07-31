@@ -43,7 +43,8 @@ def test_complaint_summary_reads_single_aggregate_row() -> None:
 
 def test_complaint_trends_fills_missing_days() -> None:
     session = MagicMock()
-    day = datetime(2026, 7, 25, tzinfo=UTC)
+    # TODAY period keys buckets by UTC calendar "today", not an arbitrary fixture day.
+    day = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     session.execute.return_value.all.return_value = [
         _row(day=day, count=4),
     ]
@@ -51,6 +52,7 @@ def test_complaint_trends_fills_missing_days() -> None:
         DashboardFilters(), period=TrendPeriod.TODAY
     )
     assert len(buckets) == 1
+    assert buckets[0].day == day.date()
     assert buckets[0].count == 4
 
 
