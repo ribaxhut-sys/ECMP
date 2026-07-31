@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.security import hash_password
 from app.models import User
+from app.modules.iam.permission_resolver import PermissionResolver
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import (
     UserCreateRequest,
@@ -39,6 +40,9 @@ def _to_response(user: User) -> UserResponse:
 class UserService:
     def __init__(self, repository: UserRepository) -> None:
         self._repo = repository
+
+    def _invalidate_permissions(self, user_id: uuid.UUID) -> None:
+        PermissionResolver(self._repo.session).invalidate(user_id)
 
     def _ensure_role(self, role_id: uuid.UUID) -> None:
         if not self._repo.role_exists(role_id):
@@ -100,8 +104,10 @@ class UserService:
             updated_by=actor_user_id,
         )
         self._repo.add(user)
+        self._repo.sync_primary_user_role(user.id, payload.role_id)
         self._repo.commit()
         self._repo.refresh(user)
+        self._invalidate_permissions(user.id)
         return _to_response(user)
 
     def get(self, user_id: uuid.UUID) -> UserResponse:
@@ -158,6 +164,7 @@ class UserService:
             self._ensure_branch(changes["branch_id"])
 
         password = changes.pop("password", None)
+        previous_role_id = user.role_id
         for field_name, value in changes.items():
             setattr(user, field_name, value)
         if password is not None:
@@ -167,8 +174,16 @@ class UserService:
         user.updated_at = now
         user.updated_by = actor_user_id
 
+        if "role_id" in changes and changes["role_id"] is not None:
+            self._repo.sync_primary_user_role(
+                user.id,
+                user.role_id,
+                previous_role_id=previous_role_id,
+            )
+
         self._repo.commit()
         self._repo.refresh(user)
+        self._invalidate_permissions(user.id)
         return _to_response(user)
 
     def update_status(

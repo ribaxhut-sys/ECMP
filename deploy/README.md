@@ -38,6 +38,17 @@ docker compose --env-file .env up -d
 
 Dumps land in `backups/ecmp_*.sql.gz` (git-ignored). Cron example (02:15 UTC daily) is installed on the lab VPS; retain `ECMP_BACKUP_KEEP_DAYS` (default 14).
 
+## Lab master data seed
+
+Without seed data, complaint create fails (empty customers/branches + no active SLA).
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod \
+  exec -T postgres psql -U ecmp -d ecmp < deploy/seed-lab-master-data.sql
+```
+
+Then create `agent1` / `supervisor1` via `POST /api/v1/users`, insert matching `user_roles` rows, and restart backend so permission cache refreshes. Assign requires role `SUPERVISOR` + `complaints:assign`.
+
 ## Host credentials
 
 On the VPS only (not in git): `/root/.ecmp-credentials` (mode 600) — admin + DB passwords after hardening.

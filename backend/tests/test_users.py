@@ -77,6 +77,7 @@ def test_create_user_hashes_password_and_hides_hash() -> None:
     assert added.password_hash != "Secret123"
     assert verify_password("Secret123", added.password_hash)
     assert added.is_active is True
+    repo.sync_primary_user_role.assert_called_once_with(created.id, role_id)
 
 
 def test_create_duplicate_username_conflict() -> None:

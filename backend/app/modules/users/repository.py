@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Branch, Role, User
+from app.models import Branch, Role, User, UserRole
 
 
 class UserRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    @property
+    def session(self) -> Session:
+        return self._session
 
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         stmt = (
@@ -60,6 +64,35 @@ class UserRepository:
         self._session.add(user)
         self._session.flush()
         return user
+
+    def sync_primary_user_role(
+        self,
+        user_id: uuid.UUID,
+        role_id: uuid.UUID,
+        *,
+        previous_role_id: uuid.UUID | None = None,
+    ) -> None:
+        """Keep IAM ``user_roles`` aligned with ``users.role_id``.
+
+        PermissionResolver reads ``user_roles`` (not ``users.role_id`` alone).
+        """
+        if previous_role_id is not None and previous_role_id != role_id:
+            self._session.execute(
+                delete(UserRole).where(
+                    UserRole.user_id == user_id,
+                    UserRole.role_id == previous_role_id,
+                )
+            )
+
+        exists = self._session.scalar(
+            select(UserRole.id).where(
+                UserRole.user_id == user_id,
+                UserRole.role_id == role_id,
+            )
+        )
+        if exists is None:
+            self._session.add(UserRole(user_id=user_id, role_id=role_id))
+            self._session.flush()
 
     def list_page(
         self,
