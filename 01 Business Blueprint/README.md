@@ -9,7 +9,7 @@
 | Reviewer | Architecture / Ops |
 | Approver | Business Owner |
 | Status | 🟢 Approved (baseline per DEC-001) |
-| Last Review | 2026-07-21 |
+| Last Review | 2026-08-01 |
 | Next Review | 2027-01-21 |
 
 ## Purpose
@@ -25,7 +25,7 @@ Active — Approved sebagai baseline bisnis resmi (Blueprint v2.1 + FRD-001, per
 ## Current Artifacts
 - [x] `ECMP_Business_Blueprint_v2.1.docx` (baseline resmi per DEC-001)
 - [x] `ECMP_Business_Blueprint_v2.1_MD_Extract.md` (BP-EXT-001 — ekstrak markdown navigable)
-- [x] `ECMP_Capability_Register_v0.1.md` (BP-CAP-001 — CAP-001..007 → BP/FR/status)
+- [x] `ECMP_Capability_Register_v0.1.md` (BP-CAP-001 — CAP-001..008 → BP/FR/status; B2-07 aligned 2026-08-01)
 - [x] `ECMP_RACI_Role_Matrix_Annex_v0.1.md` (BP-RACI-001 — RACI artefak + aktor bisnis)
 
 ## Minimum Contents (v1)

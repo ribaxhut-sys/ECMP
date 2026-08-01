@@ -12,16 +12,131 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 
 ### Notes
 
-- Post-`v1.2.0-rc.1`: only hotfixes and approved change requests (new SemVer PATCH or new `rc.N` per versioning policy).
+- **B2-23 CAP-006 Time Source Fulfillment Pattern Decision (2026-08-01):** ARB
+  governance-only — verdict **FULFILLMENT PATTERN NOT SPECIFIED**. Repository
+  defines Time Source as stimulus **requirement** (ARC-CAP006-001) but does
+  **not** define a conceptual fulfillment pattern; Accepting one in this sprint
+  would invent. CAP-006 engine unchanged (Planned / Stay Deferred). Evidence:
+  `deploy/evidence/B2-23_CAP-006_Time_Source_Fulfillment_Pattern_Decision_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / FRD / BR / DB / scheduler.
+- **B2-22 CAP-006 Concrete Runtime Non-Invent Gate (2026-08-01):** ARB
+  governance-only audit — verdict **ADDITIONAL ARCHITECTURE REQUIRED**.
+  Existing outbox + event-consumption patterns cover Hybrid lifecycle/emit
+  halves; **Time Source fulfillment pattern absent** (ARC-CAP006-001 concept
+  only). Technical Runtime Design **not** unlocked. CAP-006 engine status
+  unchanged (Planned / Stay Deferred). Evidence:
+  `deploy/evidence/B2-22_CAP-006_Concrete_Runtime_Non_Invent_Gate_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / FRD / BR / DB / scheduler
+  design.
+- **B2-21 CAP-006 Runtime Architecture Specification (2026-08-01):** ARB
+  governance-only — created
+  `05 Architecture Decision Records/ARC-CAP006-002_Runtime_Architecture.md`
+  (**Accepted** Architecture Concept; **ONE** official conceptual CAP-006
+  runtime). Stages/responsibilities/boundaries/ownership specified; no
+  scheduler/job/poll/worker/retry/queue/SQL/persistence/timer. CAP-006 engine
+  status unchanged (Planned / Stay Deferred); does not authorize FR-030
+  engineering. Evidence:
+  `deploy/evidence/B2-21_CAP-006_Runtime_Architecture_Specification_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / FRD / BR / DB / scheduler.
+- **B2-20 CAP-006 ADR-CAP006-001 Mechanism Class Decision Closure (2026-08-01):**
+  ARB governance-only — **ADR-CAP006-001 ACCEPTED** (v2.0); mechanism class =
+  **Hybrid** (lifecycle events + Time Source, both mandatory). Concrete runtime
+  (scheduler/job/poll/worker/retry/queue/SQL/persistence/timer) remains
+  **Deferred**. CAP-006 engine status unchanged (Planned / Stay Deferred); does
+  not by itself authorize FR-030 engineering. Evidence:
+  `deploy/evidence/B2-20_CAP-006_ADR-CAP006-001_Mechanism_Class_Decision_Closure_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / FRD / BR / DB / scheduler.
+- **B2-19 CAP-006 Time Source Concept Formalization (2026-08-01):** ARB governance-only —
+  created `05 Architecture Decision Records/ARC-CAP006-001_Time_Source.md`
+  (**Accepted** Architecture Concept); updated ADR-CAP006-001 → **v1.1**
+  (event-only rejected; Time Source required; hybrid class direction; concrete
+  job/scheduler still **NOT SPECIFIED**). CAP-006 engine status unchanged
+  (Planned / Stay Deferred). Evidence:
+  `deploy/evidence/B2-19_CAP-006_Time_Source_Concept_Formalization_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / FRD / BR / DB / scheduler.
+- **B2-17E CAP-006 ADR-CAP006-001 Decision Closure (2026-08-01):** ARB governance-only —
+  Verdict **DEFERRED** (neither event-only nor job Acceptable without invent or AC gap).
+  ADR-CAP006-001 remains **Proposed**; mechanism **NOT SPECIFIED**. Evidence:
+  `deploy/evidence/B2-17E_CAP-006_ADR-CAP006-001_Decision_Closure_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / FRD / BR / DB / scheduler invent.
+- **B2-17D CAP-006 ADR-CAP006-001 Repository Persist (2026-08-01):** Governance-only —
+  created `05 Architecture Decision Records/ADR-CAP006-001_Evaluation_Mechanism.md`
+  (Status **Proposed**; evaluation mechanism selection **NOT SPECIFIED** — no invent).
+  Synced ADR index, Capability Register reference, TRC-L-007 notes, Architecture
+  Governance README. CAP-006 status unchanged (Planned / Stay Deferred). Evidence:
+  `deploy/evidence/B2-17D_CAP-006_ADR-CAP006-001_Repository_Persist_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / FRD / BR / DB.
+- **B2-16 CAP-006 FRD Lock & Governance Closure (2026-08-01):** Governance-only —
+  FRD-005 **LOCKED** v0.2; DEC-CAP006-BQ-001 applied; Capability Register /
+  OPEN_QUESTIONS / TRC-L-007 / TC-030 metadata synced. Eng verdict **NOT READY**
+  (EVT-004 Planned; no FR-030 engine; mechanism ADR pending). Evidence:
+  `deploy/evidence/B2-16_CAP-006_FRD_Lock_Governance_Closure_20260801.md`.
+  No Backend / Frontend / OpenAPI / Event Catalog / BR body / DB.
+- **B2-15 CAP-006 Business Decision Closure (2026-08-01):** Governance-only —
+  DEC-CAP006-BQ-001 **BUSINESS READY**; BQ-CAP006-01…15 CLOSED/DEFERRED from
+  repository evidence. Evidence:
+  `deploy/evidence/B2-15_CAP-006_Business_Decision_Closure_20260801.md`.
+  No Backend / Frontend / OpenAPI / BR / invent scheduler or SLA algorithm.
+- **B2-13 API-040 Normative Closure (2026-08-01):** Contract governance only —
+  promoted API-040 to `07 API Catalog/openapi/dashboard-queues.v1.yaml` **1.0.0**;
+  draft superseded. Evidence:
+  `deploy/evidence/B2-13_API-040_Normative_Closure_20260801.md`.
+  No Backend / Frontend / BR / schema invent / CAP-008 / API-390 / API-513 / Mode B.
+- **B2-12 CAP-007 FRD Lock & Governance Closure (2026-08-01):** Governance-only —
+  FRD-006 **LOCKED**; DEC-CAP007-BQ-001 applied to FRD / draft OpenAPI metadata /
+  SEC-RAM / TRC-L-008 / TC-040. Eng verdict **NOT READY** (API-040 still draft).
+  Evidence: `deploy/evidence/B2-12_CAP-007_FRD_Lock_Governance_Closure_20260801.md`.
+  No Backend / Frontend / BR body / CAP-008 / Queue Service / API-390 / API-513 / Mode B.
+- **B2-11 CAP-007 Business Decision Closure (2026-08-01):** Governance-only —
+  DEC-CAP007-BQ-001 **BUSINESS DECISION READY**; BQ-01…05 closed from repo evidence.
+  Evidence: `deploy/evidence/B2-11_CAP-007_Business_Decision_Closure_20260801.md`.
+  No Backend / Frontend / OpenAPI / BR / FRD body / Mode B / CAP-008 / API-390 / API-513 changes.
+- **B2-10 CAP-007 Definition of Ready (2026-08-01):** Governance-only assessment —
+  verdict **CAP-007 NOT READY**; recommendation **Continue Draft**. Evidence:
+  `deploy/evidence/B2-10_CAP-007_Definition_of_Ready_20260801.md`.
+  No Backend / Frontend / OpenAPI / BR / FRD content / Mode B / CAP-008 / API-390 / API-513 changes.
+- **B2-09 Queue Architecture Rationalization (2026-08-01):** Governance-only —
+  CAP-007 SoT = API-040 (deferred build); Visit Queue KEEP; API-513 KEEP Aggregate;
+  API-390 ≠ FR-040. Evidence:
+  `deploy/evidence/B2-09_Queue_Architecture_Rationalization_20260801.md`.
+  No Backend / Frontend / OpenAPI / BR / FRD / Mode B / CAP-008 changes.
+- **B2-08 Capability Portfolio Rationalization (2026-08-01):** Governance-only —
+  dispositions Remain / Stay Deferred / Merge candidate for CAP-001…008;
+  roadmap B2-09…B2-13. Evidence:
+  `deploy/evidence/B2-08_Capability_Portfolio_Rationalization_20260801.md`.
+  No feature / BR / OpenAPI / Backend / Frontend / Mode B / OIDC / CAP-008 reopen.
+- **B2-07 Repository & Capability Alignment (2026-08-01):** Governance/docs only —
+  Capability Register CAP-002/003/005 → Implemented (Sprint slice evidence);
+  `TRACEABILITY_MATRIX.md` re-synced (TRC-L-011…016); FRD/Traceability/Blueprint
+  README metadata; evidence `deploy/evidence/B2-07_Repository_Capability_Alignment_20260801.md`.
+  No feature / BR / OpenAPI / Backend / Frontend / Mode B / OIDC changes. Tag `v1.0.0`
+  remains **unproven** in this clone (report only — not created).
+- **CAP-008 SoT Closure (2026-08-01):** Documentation-only sync — FRD-CM-B2-001 → LOCKED;
+  OpenAPI `cm-case-management.v1.yaml` → **1.0.0** Implemented (lab); Capability Register
+  CAP-008 → Implemented (lab); `traceability.yaml` TRC-L-011…016. Evidence:
+  `deploy/evidence/CAP-008_SoT_Closure_20260801.md`. No feature / BR / Mode B / OIDC changes.
+- **CAP-008 Program Closure (2026-08-01):** ARB pack GOV-CAP008-CLOSE-* —
+  `18 Architecture Governance/ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md`.
+  Decision **PROGRAM CLOSED** (Mode A lab). No OpenAPI / Backend / Frontend / BR edits in
+  the program-closure cut. Roadmap reset: `ai/sprint/CAP008_ROADMAP_RESET_v1.0.md`.
+- Post-`v1.2.0-rc.1`: Production Readiness re-run 2026-08-01 still **NO-GO** (REL-SEC-001).
+  Non-AuthN hygiene + backup/recovery evidence closed; bilateral IdP/OIDC remains hard blocker
+  (`deploy/evidence/PROD_CFG_CLOSURE_v1.2.0_20260801.md`,
+  `deploy/evidence/FINAL_RELEASE_REVIEW_v1.2.0_20260801.md`). Final tag `v1.2.0` **not**
+  authorized. Draft notes: `docs/releases/v1.2.0.md`. UAT pack: `docs/releases/UAT_PACKAGE_v1.2.0.md`.
+- Hotfixes and approved change requests use new SemVer PATCH or new `rc.N` per versioning policy.
 
 ## [1.2.0-rc.1] - 2026-08-01
 
 ### Notes
 
 - Mode A **CAP-008 Case Management** Release Candidate `v1.2.0-rc.1` (lab / Batch-2 Mode A).
-- Authorized ref (B-2 Option B pattern): `feature/cm-batch1-s2-persistence` @
+- Authorized ref (B-2 Option B pattern): annotated tag `v1.2.0-rc.1` @
+  `6890f50d8243ba30589a3d88f0c0efcef791ce01` (`6890f50`). Source freeze ancestor:
   `b7d8e2cee864263ff92a1941a9181a629ce46550` (`b7d8e2c`).
 - Assessment: `deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md` — **PASS (lab)**.
+- SoT Closure (docs only, 2026-08-01): `deploy/evidence/CAP-008_SoT_Closure_20260801.md` —
+  FRD-CM-B2-001 LOCKED; OpenAPI `cm-case-management.v1.yaml` **1.0.0** Implemented (lab).
 - Scope: internal/lab DEV validation of CAP-008 Mode A (FR-001…FR-006) — **not** Production /
   Mode B / Enterprise Platform / Notification·Assignment·SLA·Event engines.
 - Alembic head for this RC: `0046_cm_case_management`.

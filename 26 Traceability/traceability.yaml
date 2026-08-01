@@ -1,4 +1,4 @@
-version: 0.10
+version: 0.12
 id: TRC-DATA-001
 # 2026-07-21 (DEC-006, Sprint-02A contract freeze): API-003/API-004 merged normative
 # (case-service.v1.yaml v1.4.0), EVT-002/EVT-003 payloads frozen. TRC-L-003/TRC-L-004
@@ -17,6 +17,18 @@ id: TRC-DATA-001
 # Semantik kolom `events`: seluruh event yang menjadi kontrak FR tersebut,
 # baik yang di-produce maupun di-consume oleh FR itu (lihat producer/consumer
 # di `08 Event Catalog/events/events.yaml` untuk arah alirannya).
+# 2026-08-01 (CAP-008 SoT Closure): TRC-L-011…016 added for Mode A CAP-008
+# (FRD-CM-B2-001 LOCKED; API-530…535 Implemented lab; REL-RC-001 PASS).
+# Trace IDs FR-CM-B2-001…006 avoid collision with Sprint FR-001…006.
+# EVT Aggregate CAP-008 remain unspecified (empty events arrays).
+# Formal TC-catalog IDs deferred — lab evidence cited in description.
+# 2026-08-01 (B2-12 CAP-007 FRD Lock): FRD-006 LOCKED under DEC-CAP007-BQ-001;
+# TRC-L-008 description updated; status remains Planned until implementation.
+# 2026-08-01 (B2-13 API-040 Normative Closure): API-040 → dashboard-queues.v1.yaml
+# 1.0.0 normative; draft superseded. TRC-L-008 remains Planned until code (freeze pattern).
+# 2026-08-01 (B2-14 CAP-007 Engineering): TRC-L-008 Planned → Approved — API-040
+# implemented in implementation/backend + Queue Dashboard FE (API-040 only).
+# No new TRC links invented.
 links:
   - id: TRC-L-009
     domain: Core Platform
@@ -105,7 +117,15 @@ links:
     tests: [TC-030]
     sprint: Sprint-03
     status: Planned
-    description: Emit SLA breach when threshold exceeded
+    description: >-
+      Emit SLA breach when threshold exceeded (CAP-006). FRD-005 LOCKED v0.2
+      (B2-16 / DEC-CAP006-BQ-001). ADR-CAP006-001 Accepted v2.0 — mechanism
+      class Hybrid (B2-20); Time Source mandatory (ARC-CAP006-001); conceptual
+      Runtime Architecture Accepted (ARC-CAP006-002, B2-21); B2-22 Non-Invent
+      Gate = ADDITIONAL ARCHITECTURE REQUIRED; B2-23 Time Source fulfillment
+      pattern NOT SPECIFIED; concrete runtime Deferred. EVT-004 Planned; no
+      FR-030 engine yet. api: [] until contract-first surface is approved.
+      TC-030 Planned.
   - id: TRC-L-008
     domain: Dashboard
     bp: BP-006
@@ -115,8 +135,14 @@ links:
     events: []
     tests: [TC-040]
     sprint: Sprint-03
-    status: Planned
-    description: Operational queue dashboard for supervisors
+    status: Approved
+    description: >-
+      Operational queue dashboard for supervisors (CAP-007). FRD-006 LOCKED
+      (B2-12). API-040 NORMATIVE dashboard-queues.v1.yaml 1.0.0 (B2-13).
+      DEC-CAP007-BQ-001 applied. B2-14 Implemented: GET /v1/dashboard/queues in
+      implementation/backend (permission dashboard:read); FE Queue Dashboard
+      via API-040 only (not API-390/API-513). TC-040 API suite
+      tests/test_dashboard_queues_api040.py.
   - id: TRC-L-010
     domain: ECMF
     bp: BP-001
@@ -128,6 +154,84 @@ links:
     sprint: Sprint-03B
     status: Approved
     description: Paginated, filterable list of cases (status/priority/caseType/assigneeId), fixed sort createdAt desc
+  - id: TRC-L-011
+    domain: ECMF
+    bp: BP-001
+    br: BR-004
+    fr: FR-CM-B2-001
+    api: [API-530]
+    events: []
+    tests: []
+    sprint: Mode-A-CAP-008
+    status: Approved
+    description: >-
+      CAP-008 Mode A Create Case (FRD-CM-B2-001 FR-001). Lab evidence
+      backend/tests/test_cm_case_mode_a.py; REL-RC-001 PASS; tag v1.2.0-rc.1
+  - id: TRC-L-012
+    domain: ECMF
+    bp: BP-001
+    br: BR-004
+    fr: FR-CM-B2-002
+    api: [API-531]
+    events: []
+    tests: []
+    sprint: Mode-A-CAP-008
+    status: Approved
+    description: >-
+      CAP-008 Mode A Add Case to existing Complaint (FRD-CM-B2-001 FR-002).
+      Lab suite test_cm_case_mode_a.py; REL-RC-001 PASS
+  - id: TRC-L-013
+    domain: ECMF
+    bp: BP-001
+    br: BR-017
+    fr: FR-CM-B2-003
+    api: [API-532]
+    events: []
+    tests: []
+    sprint: Mode-A-CAP-008
+    status: Approved
+    description: >-
+      CAP-008 Mode A View Case (FRD-CM-B2-001 FR-003). Lab suite
+      test_cm_case_mode_a.py; REL-RC-001 PASS
+  - id: TRC-L-014
+    domain: ECMF
+    bp: BP-001
+    br: BR-001
+    fr: FR-CM-B2-004
+    api: [API-533]
+    events: []
+    tests: []
+    sprint: Mode-A-CAP-008
+    status: Approved
+    description: >-
+      CAP-008 Mode A Update Case Status (FRD-CM-B2-001 FR-004). Lab suite
+      test_cm_case_mode_a.py; REL-RC-001 PASS
+  - id: TRC-L-015
+    domain: ECMF
+    bp: BP-001
+    br: BR-008
+    fr: FR-CM-B2-005
+    api: [API-534]
+    events: []
+    tests: []
+    sprint: Mode-A-CAP-008
+    status: Approved
+    description: >-
+      CAP-008 Mode A Resolve Case (FRD-CM-B2-001 FR-005). Lab suite
+      test_cm_case_mode_a.py; REL-RC-001 PASS
+  - id: TRC-L-016
+    domain: ECMF
+    bp: BP-001
+    br: BR-008
+    fr: FR-CM-B2-006
+    api: [API-535]
+    events: []
+    tests: []
+    sprint: Mode-A-CAP-008
+    status: Approved
+    description: >-
+      CAP-008 Mode A Close Case (FRD-CM-B2-001 FR-006). Lab suite
+      test_cm_case_mode_a.py; REL-RC-001 PASS
 
 artifacts:
   bp:
@@ -146,6 +250,8 @@ artifacts:
     BR-006: Dashboard views are role and org scoped
     BR-007: Case create/read requires authenticated permission cases:create or cases:read
     BR-008: Significant writes persist immutable append-only audit record in same transaction
+    # CM Aggregate namespace (BR-CM-CAT-001) — used by CAP-008 TRC-L-011…016; not Sprint BR-00x
+    BR-017: Timeline — human-readable chronological projection of significant Case/Complaint events (BR-CM-CAT-001)
   fr:
     FR-001: Create complaint case linked to customer
     FR-001c: Persist immutable audit record on successful create
@@ -159,6 +265,12 @@ artifacts:
     FR-005: List cases, paginated and filtered (status/priority/caseType/assigneeId)
     FR-006: View case activity timeline / audit history
     FR-007: Append-only internal case notes
+    FR-CM-B2-001: CAP-008 Mode A Create Case (FRD-CM-B2-001 FR-001)
+    FR-CM-B2-002: CAP-008 Mode A Add Case (FRD-CM-B2-001 FR-002)
+    FR-CM-B2-003: CAP-008 Mode A View Case (FRD-CM-B2-001 FR-003)
+    FR-CM-B2-004: CAP-008 Mode A Update Case Status (FRD-CM-B2-001 FR-004)
+    FR-CM-B2-005: CAP-008 Mode A Resolve Case (FRD-CM-B2-001 FR-005)
+    FR-CM-B2-006: CAP-008 Mode A Close Case (FRD-CM-B2-001 FR-006)
   api:
     API-001: POST /v1/cases
     API-002: GET /v1/cases/{caseId}
@@ -170,6 +282,12 @@ artifacts:
     API-008: POST /v1/cases/{caseId}/notes
     API-010: GET /v1/customers/{customerId}
     API-040: GET /v1/dashboard/queues
+    API-530: POST /api/v1/cm/cases (CAP-008 Mode A)
+    API-531: POST /api/v1/cm/complaints/{complaintId}/cases (CAP-008 Mode A)
+    API-532: GET /api/v1/cm/cases/{caseId} (CAP-008 Mode A)
+    API-533: PATCH /api/v1/cm/cases/{caseId}/status (CAP-008 Mode A)
+    API-534: POST /api/v1/cm/cases/{caseId}/resolve (CAP-008 Mode A)
+    API-535: POST /api/v1/cm/cases/{caseId}/close (CAP-008 Mode A)
   events:
     EVT-001: CaseCreated
     EVT-002: CaseAssigned

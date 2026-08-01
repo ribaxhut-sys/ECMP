@@ -122,6 +122,7 @@ Review process lives under `reviews/` (not a separate top-level folder):
 
 ## Related
 - `../05 Architecture Decision Records`
+- CAP-006 evaluation mechanism: [`../05 Architecture Decision Records/ADR-CAP006-001_Evaluation_Mechanism.md`](../05%20Architecture%20Decision%20Records/ADR-CAP006-001_Evaluation_Mechanism.md) (**Accepted** v2.0 — Hybrid). Time Source: [`../05 Architecture Decision Records/ARC-CAP006-001_Time_Source.md`](../05%20Architecture%20Decision%20Records/ARC-CAP006-001_Time_Source.md) (**Accepted** requirement concept). Runtime Architecture: [`../05 Architecture Decision Records/ARC-CAP006-002_Runtime_Architecture.md`](../05%20Architecture%20Decision%20Records/ARC-CAP006-002_Runtime_Architecture.md) (B2-21). B2-22 Non-Invent Gate: **ADDITIONAL ARCHITECTURE REQUIRED**. B2-23: [`../deploy/evidence/B2-23_CAP-006_Time_Source_Fulfillment_Pattern_Decision_20260801.md`](../deploy/evidence/B2-23_CAP-006_Time_Source_Fulfillment_Pattern_Decision_20260801.md) — **FULFILLMENT PATTERN NOT SPECIFIED**.
 - `../00 Repository Guide`
 - `../17 Compliance`
 - `../24 Templates`
@@ -147,6 +148,14 @@ Review process lives under `reviews/` (not a separate top-level folder):
 - [`ECMP_PROGRAM_EP_BILATERAL_PROFILE_REVIEW_PACK_v0.1.md`](./ECMP_PROGRAM_EP_BILATERAL_PROFILE_REVIEW_PACK_v0.1.md) — EP bilateral review pack (awaiting countersign)
 - [`ECMP_PROGRAM_MODE_A_NEXT_WORK_PRIORITY_v0.1.md`](./ECMP_PROGRAM_MODE_A_NEXT_WORK_PRIORITY_v0.1.md) — Mode A engineering priority note
 - [`ECMP_PROGRAM_MODE_A_M3C_Module_Lab_COMPLETE_Evidence_Pack_v1.0.md`](./ECMP_PROGRAM_MODE_A_M3C_Module_Lab_COMPLETE_Evidence_Pack_v1.0.md) — Mode A Batch-1 **lab COMPLETE** evidence (GOV-MODEA-M3C-001; not Mode B / real-customer prod)
+- [`ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md`](./ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md) — **CAP-008 Mode A PROGRAM CLOSED** (GOV-CAP008-CLOSE-*; lab RC + SoT; not Production / Mode B)
+- B2-07 Repository & Capability Alignment — [`../deploy/evidence/B2-07_Repository_Capability_Alignment_20260801.md`](../deploy/evidence/B2-07_Repository_Capability_Alignment_20260801.md) (GOV-B2-07-ALIGN-001; metadata sync only)
+- B2-08 Capability Portfolio Rationalization — [`../deploy/evidence/B2-08_Capability_Portfolio_Rationalization_20260801.md`](../deploy/evidence/B2-08_Capability_Portfolio_Rationalization_20260801.md) (GOV-B2-08-PORTFOLIO-001; dispositions + roadmap; no code)
+- B2-09 Queue Architecture Rationalization — [`../deploy/evidence/B2-09_Queue_Architecture_Rationalization_20260801.md`](../deploy/evidence/B2-09_Queue_Architecture_Rationalization_20260801.md) (GOV-B2-09-QUEUE-001; CAP-007 SoT = API-040; multi-lane KEEP)
+- B2-10 CAP-007 Definition of Ready — [`../deploy/evidence/B2-10_CAP-007_Definition_of_Ready_20260801.md`](../deploy/evidence/B2-10_CAP-007_Definition_of_Ready_20260801.md) (GOV-B2-10-DOR-001; **NOT READY** — Continue Draft)
+- B2-11 CAP-007 Business Decision Closure — [`../deploy/evidence/B2-11_CAP-007_Business_Decision_Closure_20260801.md`](../deploy/evidence/B2-11_CAP-007_Business_Decision_Closure_20260801.md) (GOV-B2-11-BQ-001 / DEC-CAP007-BQ-001; **BUSINESS DECISION READY**)
+- B2-12 CAP-007 FRD Lock & Governance Closure — [`../deploy/evidence/B2-12_CAP-007_FRD_Lock_Governance_Closure_20260801.md`](../deploy/evidence/B2-12_CAP-007_FRD_Lock_Governance_Closure_20260801.md) (GOV-B2-12-LOCK-001; FRD **LOCKED**; eng **NOT READY**)
+- B2-13 API-040 Normative Closure — [`../deploy/evidence/B2-13_API-040_Normative_Closure_20260801.md`](../deploy/evidence/B2-13_API-040_Normative_Closure_20260801.md) (GOV-B2-13-API040-001; API-040 **NORMATIVE** 1.0.0)
 - [`ECMP_PROGRAM_ENTERPRISE_PROFILES_001_Subordinate_Profiles_Draft_Pack_v0.1.md`](./ECMP_PROGRAM_ENTERPRISE_PROFILES_001_Subordinate_Profiles_Draft_Pack_v0.1.md) — Draft pack: Binding / Entitlement / Org-Sync profiles (Mode B CLOSED)
 - [`ECMP_PROGRAM_MODE_B_ORG_GAP_PREREQUISITE_v1.0.md`](./ECMP_PROGRAM_MODE_B_ORG_GAP_PREREQUISITE_v1.0.md) — audit **K-7**: three-level org gap = Mode B unlock prerequisite
 - [`ECMP_PROGRAM_AUDIT_K5_FailClosed_Subordination_v1.0.md`](./ECMP_PROGRAM_AUDIT_K5_FailClosed_Subordination_v1.0.md) — audit **K-5**: ADR-016/017/018 fail-closed subordination (Accepted with Conditions under BOARD-006)

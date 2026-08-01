@@ -22,9 +22,15 @@
 | TRC-L-004 | ECMF | BP-002 | BR-001 | FR-004 | API-004 | EVT-003, EVT-005 | TC-004 | Sprint-02 | Approved |
 | TRC-L-005 | CRM | BP-003 | BR-003 | FR-010 | API-010 | — | TC-010 | Sprint-02 | Planned |
 | TRC-L-006 | Notification | BP-004 | BR-004 | FR-020 | — | EVT-001, EVT-002 | TC-020 | Sprint-02 | Approved |
-| TRC-L-007 | KPI | BP-005 | BR-005 | FR-030 | — | EVT-004, EVT-001, EVT-003, EVT-005, EVT-007 | TC-030 | Sprint-03 | Planned |
-| TRC-L-008 | Dashboard | BP-006 | BR-006 | FR-040 | API-040 | — | TC-040 | Sprint-03 | Planned |
+| TRC-L-007 | KPI | BP-005 | BR-005 | FR-030 | — | EVT-004, EVT-001, EVT-003, EVT-005, EVT-007 | TC-030 | Sprint-03 | Planned (FRD-005 LOCKED; Hybrid + ARC-CAP006-001/002; B2-22 ADDITIONAL ARCHITECTURE REQUIRED; B2-23 FULFILLMENT PATTERN NOT SPECIFIED; concrete Deferred; engine not Implemented) |
+| TRC-L-008 | Dashboard | BP-006 | BR-006 | FR-040 | API-040 | — | TC-040 | Sprint-03 | Approved |
 | TRC-L-010 | ECMF | BP-001 | BR-007 | FR-005 | API-005 | — | TC-006 | Sprint-03B | Approved |
+| TRC-L-011 | ECMF | BP-001 | BR-004 | FR-CM-B2-001 | API-530 | — | — | Mode-A-CAP-008 | Approved |
+| TRC-L-012 | ECMF | BP-001 | BR-004 | FR-CM-B2-002 | API-531 | — | — | Mode-A-CAP-008 | Approved |
+| TRC-L-013 | ECMF | BP-001 | BR-017 | FR-CM-B2-003 | API-532 | — | — | Mode-A-CAP-008 | Approved |
+| TRC-L-014 | ECMF | BP-001 | BR-001 | FR-CM-B2-004 | API-533 | — | — | Mode-A-CAP-008 | Approved |
+| TRC-L-015 | ECMF | BP-001 | BR-008 | FR-CM-B2-005 | API-534 | — | — | Mode-A-CAP-008 | Approved |
+| TRC-L-016 | ECMF | BP-001 | BR-008 | FR-CM-B2-006 | API-535 | — | — | Mode-A-CAP-008 | Approved |
 
 ## Artifact Dictionary
 
@@ -45,6 +51,7 @@
 - `BR-006`: Dashboard views are role and org scoped
 - `BR-007`: Case create/read requires authenticated permission cases:create or cases:read
 - `BR-008`: Significant writes persist immutable append-only audit record in same transaction
+- `BR-017`: Timeline — human-readable chronological projection of significant Case/Complaint events (BR-CM-CAT-001)
 
 ### FR
 - `FR-001`: Create complaint case linked to customer
@@ -59,6 +66,12 @@
 - `FR-005`: List cases, paginated and filtered (status/priority/caseType/assigneeId)
 - `FR-006`: View case activity timeline / audit history
 - `FR-007`: Append-only internal case notes
+- `FR-CM-B2-001`: CAP-008 Mode A Create Case (FRD-CM-B2-001 FR-001)
+- `FR-CM-B2-002`: CAP-008 Mode A Add Case (FRD-CM-B2-001 FR-002)
+- `FR-CM-B2-003`: CAP-008 Mode A View Case (FRD-CM-B2-001 FR-003)
+- `FR-CM-B2-004`: CAP-008 Mode A Update Case Status (FRD-CM-B2-001 FR-004)
+- `FR-CM-B2-005`: CAP-008 Mode A Resolve Case (FRD-CM-B2-001 FR-005)
+- `FR-CM-B2-006`: CAP-008 Mode A Close Case (FRD-CM-B2-001 FR-006)
 
 ### API
 - `API-001`: POST /v1/cases
@@ -71,6 +84,12 @@
 - `API-008`: POST /v1/cases/{caseId}/notes
 - `API-010`: GET /v1/customers/{customerId}
 - `API-040`: GET /v1/dashboard/queues
+- `API-530`: POST /api/v1/cm/cases (CAP-008 Mode A)
+- `API-531`: POST /api/v1/cm/complaints/{complaintId}/cases (CAP-008 Mode A)
+- `API-532`: GET /api/v1/cm/cases/{caseId} (CAP-008 Mode A)
+- `API-533`: PATCH /api/v1/cm/cases/{caseId}/status (CAP-008 Mode A)
+- `API-534`: POST /api/v1/cm/cases/{caseId}/resolve (CAP-008 Mode A)
+- `API-535`: POST /api/v1/cm/cases/{caseId}/close (CAP-008 Mode A)
 
 ### EVENTS
 - `EVT-001`: CaseCreated

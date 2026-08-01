@@ -117,6 +117,19 @@ Mode B / Batch-2 / enterprise customer remain **CLOSED** (C-B6-1).
 | 0.1n | 2026-07-31 | **M3c DONE** — Mode A Module Lab COMPLETE Evidence Pack (GOV-MODEA-M3C-001); focus §5 retarget |
 | 0.1o | 2026-07-31 | **M3d DONE** — API-513 `complaintId` on later-review (EX-G); Alembic 0045; FE deep-link |
 | 0.1p | 2026-07-31 | **Keep-green PASS** — Batch-1 BE 85; FE Aggregate 37; M1 auth-routes + unit; M6 ops script `--help` |
+| 0.1q | 2026-08-01 | **CAP-008 Program CLOSED** — ARB pack GOV-CAP008-CLOSE-*; Roadmap Reset `ai/sprint/CAP008_ROADMAP_RESET_v1.0.md`. Batch-2 Mode A Case delivery no longer future work. Mode B remains CLOSED. |
+
+---
+
+## 8. CAP-008 disposition (post Program Closure)
+
+| Item | Disposition |
+|---|---|
+| CAP-008 Mode A Create/Add/View/Status/Resolve/Close | **PROGRAM CLOSED** — do not reopen under this queue |
+| Roadmap | `../../ai/sprint/CAP008_ROADMAP_RESET_v1.0.md` |
+| Closure index | `ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md` |
+
+Mode B / enterprise customer remain **CLOSED** (C-B6-1).
 
 ---
 

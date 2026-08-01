@@ -4,12 +4,12 @@
 | Field | Value |
 |---|---|
 | ID | TRC-000 |
-| Version | 0.2 |
+| Version | 0.3 |
 | Owner | BA Lead / QA Lead |
 | Reviewer | Compliance |
 | Approver | Architecture Board |
-| Status | 🟡 Draft |
-| Last Review | 2026-07-22 |
+| Status | 🟡 Draft (YAML authoritative; matrix synced) |
+| Last Review | 2026-08-01 |
 | Next Review | 2027-01-21 |
 
 ## Purpose
@@ -20,14 +20,14 @@ Menelusuri hubungan Requirement → Business Rule → FRD → API/Event → Test
 - Reviewers: Product Owners, Architecture, Compliance
 
 ## Status
-Draft
+Draft — authoritative machine SoT = `traceability.yaml` (v0.11). Human matrix = `TRACEABILITY_MATRIX.md` (regenerated via `python3 tools/sync_traceability_md.py`). B2-07 re-synced TRC-L-011…016 (CAP-008).
 
 ## Minimum Contents (v1)
 - [x] Traceability matrix starter
 - [x] Decision Traceability Matrix (DTM-001) — architecture decisions ↔ ADR/EA/HOST
 - [ ] Coverage report process
-- [ ] ID conventions across artifacts
-- [ ] Update rule on every approved change
+- [x] ID conventions across artifacts (partial — dual BR namespace Sprint vs CM noted in B2-07)
+- [x] Update rule on every approved change (`sync_traceability_md.py`)
 
 ## ID Conventions
 - Blueprint capability/item: `BP-xxx`
@@ -52,7 +52,9 @@ BP → BR → FRD → API/Event → Test Case → UAT scenario (acceptance subse
 - `ECMP_RTM_Complaint_Management_Batch1_v1.0_Validation_Report.md` — RTM validation extract
 - `ECMP_RTM_Complaint_Management_Batch1_v1.0_Coverage_Summary.md` — Coverage summary extract
 - **CAP-008** Case Management Batch-2 Mode A BCS — `../docs/product/CAP-008_Case_Management_Business_Capability_Specification_v1.0.md` (Residual BQ ZERO; FRD Batch-2 prerequisite READY; DEC-MODEA-B2-001)
+- **CAP-008 TRC links:** `TRC-L-011`…`TRC-L-016` in `traceability.yaml` / `TRACEABILITY_MATRIX.md` (FR-CM-B2-001…006 ↔ API-530…535; Approved; lab suite citation — formal TC-catalog IDs deferred)
 - Decision pack: `../18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`
+- B2-07 alignment evidence: `../deploy/evidence/B2-07_Repository_Capability_Alignment_20260801.md`
 - `UAT_SCENARIO_TRACEABILITY.md` — UAT ↔ TC ↔ pytest (Sprint-09)
 - `../13 Test Strategy/ECMP_UAT_Plan_v0.2.md` — UAT-001 v0.2
 - `../02 Business Rules`

@@ -8,7 +8,7 @@
 | Reviewer | QA / Ops / Security |
 | Approver | PMO |
 | Status | 🟢 Active (canonical release entry point) |
-| Last Review | 2026-07-30 |
+| Last Review | 2026-08-01 |
 | Next Review | 2027-01-30 |
 | Task | TASK-PLATFORM-SECMIG-P6-004 / P6-005 |
 
@@ -84,6 +84,24 @@ Hub: [`../docs/deployment/README.md`](../docs/deployment/README.md).
 - Board Action Register: [`../deploy/evidence/BOARD_ACTION_REGISTER.md`](../deploy/evidence/BOARD_ACTION_REGISTER.md)
 - RC Final Checklist (blank approvals): [`../deploy/evidence/RC_FINAL_CHECKLIST.md`](../deploy/evidence/RC_FINAL_CHECKLIST.md)
 - Executive Status: [`../deploy/evidence/EXECUTIVE_STATUS.md`](../deploy/evidence/EXECUTIVE_STATUS.md)
+
+### CAP-008 Mode A → v1.2.0 Production Readiness (2026-08-01)
+
+- Lab RC: annotated tag `v1.2.0-rc.1` @ `6890f50` — REL-RC-001 PASS  
+  [`../deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md`](../deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md)
+- **SoT Closure (docs):** [`../deploy/evidence/CAP-008_SoT_Closure_20260801.md`](../deploy/evidence/CAP-008_SoT_Closure_20260801.md) — FRD LOCKED · OpenAPI 1.0.0 Implemented (lab)
+- **Program Closure:** [`../18 Architecture Governance/ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md`](../18%20Architecture%20Governance/ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md) — **PROGRAM CLOSED** (Mode A lab)
+- REL-SEC-001 (prod): **NO-GO** (re-run; AuthN/OIDC hard block) —  
+  [`../deploy/evidence/REL_SEC_001_v1.2.0_Assessment_20260801.md`](../deploy/evidence/REL_SEC_001_v1.2.0_Assessment_20260801.md)
+- Config closure (partial): [`../deploy/evidence/PROD_CFG_CLOSURE_v1.2.0_20260801.md`](../deploy/evidence/PROD_CFG_CLOSURE_v1.2.0_20260801.md)
+- Backup / recovery evidence: [`../deploy/evidence/OPS_BAK_EVID_v1.2.0_20260801.md`](../deploy/evidence/OPS_BAK_EVID_v1.2.0_20260801.md) · [`../deploy/evidence/OPS_RCV_EVID_v1.2.0_20260801.md`](../deploy/evidence/OPS_RCV_EVID_v1.2.0_20260801.md)
+- REL-APR ops evidence: [`../deploy/evidence/REL_APR_OPS_EVID_v1.2.0_20260801.md`](../deploy/evidence/REL_APR_OPS_EVID_v1.2.0_20260801.md)
+- Evidence pack: [`../deploy/evidence/REL_EVID_001_v1.2.0_Evidence_Pack_20260801.md`](../deploy/evidence/REL_EVID_001_v1.2.0_Evidence_Pack_20260801.md)
+- Final review: [`../deploy/evidence/FINAL_RELEASE_REVIEW_v1.2.0_20260801.md`](../deploy/evidence/FINAL_RELEASE_REVIEW_v1.2.0_20260801.md)
+- PRR: [`../docs/releases/PRODUCTION_READINESS_REVIEW_v1.2.0.md`](../docs/releases/PRODUCTION_READINESS_REVIEW_v1.2.0.md)
+- UAT pack: [`../docs/releases/UAT_PACKAGE_v1.2.0.md`](../docs/releases/UAT_PACKAGE_v1.2.0.md)
+- Draft release notes: [`../docs/releases/v1.2.0.md`](../docs/releases/v1.2.0.md)
+- **B2-07 Repository Alignment (docs):** [`../deploy/evidence/B2-07_Repository_Capability_Alignment_20260801.md`](../deploy/evidence/B2-07_Repository_Capability_Alignment_20260801.md) — Capability Register / traceability sync; **no** new tags
 
 ### Core release mechanics
 
