@@ -19,7 +19,9 @@ Before implementation in Cursor/Claude:
 4. Update sprint status/notes at end of work
 
 ## Active Sprint
-**Post Sprint-02B / menuju G2 → Sprint-03** — G1 **EXITED** (DEC-006 Accepted; verified 2026-08-01 di `deploy/evidence/G1_Exit_Verified_20260801.md`). Assign/status kontrak beku (409). Customer 360 tetap deferred (ACR-002). Berikutnya: G2 mini-gate + SLA/list residual / SIT Mode A — **bukan** Mode B (Board C-7 CLOSED). Lihat `Sprint-02.md` + `IMPLEMENTATION_ROADMAP_v0.1.md`.
+**G2 EXITED (Mode A)** — DEC-021 (2026-08-01). G1 exited earlier (DEC-006).  
+Berikutnya: residual Sprint-03 hanya bila DoD memerlukannya (FR-040 / FR-030 event-clock **setelah** broker re-eval), SIT dual-SoT (`Mode_A_SIT_SoT_Choice_20260801.md`), dan **U-5** sign-off manusia.  
+Customer 360 (API-010) & Mode B tetap deferred/CLOSED. Lihat `REGRESSION_PACK_G2.md` + `DEV_RUNBOOK.md`.
 
 ## Vocabulary Map
 | Term | Meaning |

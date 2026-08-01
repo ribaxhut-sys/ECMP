@@ -38,11 +38,15 @@ def _normalize(path: str) -> str:
     return re.sub(r"\{[^}]+\}", "{}", path)
 
 
+# Root operational probes (OpenAPI `servers` override — outside /v1).
+_ROOT_OPS = frozenset({"/live", "/ready", "/health", "/version"})
+
+
 def _catalog_operations(catalog: dict) -> dict[tuple[str, str], dict]:
-    """Catalog paths are relative to the /v1 server (except /health* at root)."""
+    """Catalog paths are relative to the /v1 server (except root ops)."""
     ops = {}
     for path, item in catalog["paths"].items():
-        full = path if path.startswith("/health") else f"/v1{path}"
+        full = path if path in _ROOT_OPS or path.startswith("/health") else f"/v1{path}"
         for method, op in item.items():
             if method in HTTP_METHODS:
                 ops[(_normalize(full), method)] = op
