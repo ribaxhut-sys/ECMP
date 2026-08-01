@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -27,9 +28,9 @@ import {
 } from "@/shared/ui";
 
 const CLASSIFICATION_OPTIONS = [
-  { value: "customer_evidence", label: "Customer evidence" },
-  { value: "internal_evidence", label: "Internal evidence" },
-  { value: "official_letter", label: "Official letter" },
+  { value: "customer_evidence", label: "classificationCustomerEvidence" },
+  { value: "internal_evidence", label: "classificationInternalEvidence" },
+  { value: "official_letter", label: "classificationOfficialLetter" },
 ] as const;
 
 const ACCEPT_MIME =
@@ -49,6 +50,7 @@ export function StagingAttachmentsPanel({
   disabled = false,
   onStagingTokenResolved,
 }: StagingAttachmentsPanelProps) {
+  const t = useTranslations("complaints");
   const { hasPermission } = useAuth();
   const canUpload =
     hasPermission("attachment:create") || hasPermission("*");
@@ -95,7 +97,7 @@ export function StagingAttachmentsPanel({
             ? err.message
             : err instanceof Error
               ? err.message
-              : "Unable to upload attachment.",
+              : t("unableToUploadAttachment"),
         );
       } finally {
         setUploading(false);
@@ -114,7 +116,7 @@ export function StagingAttachmentsPanel({
     if (!voidTargetId || !canVoid || disabled) return;
     const reason = normalizeCmBatch1VoidReason(voidReason);
     if (!reason) {
-      setError("Void reason is required (logical void, not delete).");
+      setError(t("voidReasonRequired"));
       return;
     }
     setVoidingId(voidTargetId);
@@ -134,7 +136,7 @@ export function StagingAttachmentsPanel({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to void attachment.",
+            : t("unableToVoidAttachment"),
       );
     } finally {
       setVoidingId(null);
@@ -147,8 +149,8 @@ export function StagingAttachmentsPanel({
     return (
       <Alert
         tone="info"
-        title="Attachments unavailable"
-        description="You need attachment:create to stage evidence on this create path."
+        title={t("attachmentsUnavailable")}
+        description={t("stageEvidencePermission")}
       />
     );
   }
@@ -156,23 +158,22 @@ export function StagingAttachmentsPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Attachments (staged)</CardTitle>
+        <CardTitle>{t("stagedAttachments")}</CardTitle>
         <CardDescription>
-          SCR-CM-004 / FR-004 — upload evidence before commit. Void is logical
-          (API-512 / BR-012), not physical delete. Dual SoT Aggregate path only.
+          {t("stagedAttachmentsDescription")}
         </CardDescription>
       </CardHeader>
       <CardBody className="space-y-4">
         {error ? (
-          <Alert tone="danger" title="Attachment error" description={error} />
+          <Alert tone="danger" title={t("attachmentError")} description={error} />
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-end">
           <Select
             name="attachmentClassification"
             id="attachmentClassification"
-            label="Classification"
-            options={[...CLASSIFICATION_OPTIONS]}
+            label={t("classification")}
+            options={CLASSIFICATION_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
             value={classification}
             onChange={(event) =>
               setClassification(
@@ -189,7 +190,7 @@ export function StagingAttachmentsPanel({
               accept={ACCEPT_MIME}
               disabled={disabled || uploading}
               onChange={(event) => void onFileChange(event)}
-              aria-label="Choose file to stage"
+              aria-label={t("chooseFile")}
             />
             <Button
               type="button"
@@ -197,13 +198,12 @@ export function StagingAttachmentsPanel({
               onClick={onPick}
               loading={uploading}
               disabled={disabled || uploading}
-              aria-label="Upload staged attachment"
+              aria-label={t("uploadStagedAttachment")}
             >
-              {uploading ? "Uploading…" : "Upload file"}
+              {uploading ? t("uploading") : t("uploadFile")}
             </Button>
             <p className="text-xs text-ecmp-muted">
-              PDF, JPEG, PNG, WebP, MP4, or plain text — max 10 MB (Batch-1
-              policy).
+              {t("filePolicy")}
             </p>
           </div>
         </div>
@@ -216,11 +216,11 @@ export function StagingAttachmentsPanel({
             <Input
               id="stagingVoidReason"
               name="stagingVoidReason"
-              label="Void reason"
+              label={t("voidReason")}
               value={voidReason}
               onChange={(event) => setVoidReason(event.target.value)}
               disabled={disabled || voidingId !== null}
-              hint="Required — BR-012 void-with-reason"
+              hint={t("voidReasonHint")}
             />
             <div className="flex flex-wrap gap-2">
               <Button
@@ -231,31 +231,27 @@ export function StagingAttachmentsPanel({
                   setVoidReason("");
                 }}
                 disabled={voidingId !== null}
-              >
-                Cancel
-              </Button>
+              >{t("cancel")}              </Button>
               <Button
                 type="button"
                 onClick={() => void onConfirmVoid()}
                 loading={voidingId !== null}
                 disabled={disabled || voidingId !== null}
-                aria-label="Confirm void staged attachment"
-              >
-                Confirm void
-              </Button>
+                aria-label={t("confirmVoid")}
+              >{t("confirmVoid")}              </Button>
             </div>
           </div>
         ) : null}
 
         {visible.length === 0 ? (
           <p className="text-sm text-ecmp-muted" data-testid="staging-empty">
-            No staged attachments yet. Optional before create.
+            {t("noStagedAttachments")}
           </p>
         ) : (
           <ul
             className="divide-y divide-ecmp-border rounded-md border border-ecmp-border"
             data-testid="staging-list"
-            aria-label="Staged attachments"
+            aria-label={t("stagedAttachmentsAria")}
           >
             {visible.map((item) => (
               <li
@@ -283,9 +279,9 @@ export function StagingAttachmentsPanel({
                       setVoidReason("");
                       setError(null);
                     }}
-                    aria-label={`Void ${item.originalName}`}
+                    aria-label={t("voidNamed", { name: item.originalName })}
                   >
-                    Void
+                    {t("void")}
                   </Button>
                 ) : null}
               </li>

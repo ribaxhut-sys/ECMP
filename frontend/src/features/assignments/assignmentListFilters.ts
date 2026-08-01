@@ -6,44 +6,7 @@ import type {
   SortOrder,
 } from "@/lib/api/types";
 
-export const STATUS_FILTER_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "NEW", label: "New" },
-  { value: "ASSIGNED", label: "Assigned" },
-  { value: "IN_PROGRESS", label: "In progress" },
-  { value: "PENDING", label: "Pending" },
-  { value: "ESCALATED", label: "Escalated" },
-  { value: "RESOLVED", label: "Resolved" },
-  { value: "CLOSED", label: "Closed" },
-] as const;
-
-export const PRIORITY_FILTER_OPTIONS = [
-  { value: "", label: "All priorities" },
-  { value: "LOW", label: "Low" },
-  { value: "MEDIUM", label: "Medium" },
-  { value: "HIGH", label: "High" },
-  { value: "CRITICAL", label: "Critical" },
-] as const;
-
-export const SORT_FIELD_OPTIONS: { value: ComplaintSortField; label: string }[] =
-  [
-    { value: "createdAt", label: "Created at" },
-    { value: "updatedAt", label: "Updated at" },
-    { value: "priority", label: "Priority" },
-    { value: "status", label: "Status" },
-    { value: "slaDueDate", label: "SLA due date" },
-  ];
-
-export const SORT_ORDER_OPTIONS: { value: SortOrder; label: string }[] = [
-  { value: "desc", label: "Descending" },
-  { value: "asc", label: "Ascending" },
-];
-
-export const PAGE_SIZE_OPTIONS = [
-  { value: "10", label: "10 / page" },
-  { value: "20", label: "20 / page" },
-  { value: "50", label: "50 / page" },
-] as const;
+/** Filter option labels are built in the view via useTranslations. */
 
 const SORT_FIELDS = new Set<ComplaintSortField>([
   "createdAt",

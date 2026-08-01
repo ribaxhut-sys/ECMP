@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -37,6 +38,7 @@ export function CmBatch1BoundAttachmentsCard({
   complaintId: string;
   allowVoid?: boolean;
 }) {
+  const t = useTranslations("complaints");
   const { hasPermission } = useAuth();
   const canRead =
     hasPermission("attachment:read") || hasPermission("*");
@@ -67,7 +69,7 @@ export function CmBatch1BoundAttachmentsCard({
       setError(
         err instanceof ApiError
           ? err.message
-          : "Unable to load Aggregate attachments.",
+          : t("unableToLoadAggregateAttachments"),
       );
     } finally {
       setLoading(false);
@@ -82,7 +84,7 @@ export function CmBatch1BoundAttachmentsCard({
     if (!voidTargetId || !canVoid) return;
     const reason = normalizeCmBatch1VoidReason(voidReason);
     if (!reason) {
-      setError("Void reason is required (logical void, not delete).");
+      setError(t("voidReasonRequired"));
       return;
     }
     setVoidingId(voidTargetId);
@@ -102,7 +104,7 @@ export function CmBatch1BoundAttachmentsCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to void attachment.",
+            : t("unableToVoidAttachment"),
       );
     } finally {
       setVoidingId(null);
@@ -113,8 +115,8 @@ export function CmBatch1BoundAttachmentsCard({
     return (
       <Alert
         tone="info"
-        title="Attachments"
-        description="You need attachment:read to view bound evidence on this confirmation."
+        title={t("boundAttachments")}
+        description={t("noAttachmentReadPermission")}
       />
     );
   }
@@ -124,10 +126,9 @@ export function CmBatch1BoundAttachmentsCard({
   return (
     <Card data-testid="cm-batch1-bound-attachments">
       <CardHeader>
-        <CardTitle>Bound attachments</CardTitle>
+        <CardTitle>{t("boundAttachments")}</CardTitle>
         <CardDescription>
-          SCR-CM-005 companion — evidence bound on create (API-509). Void uses
-          API-512 (logical).
+          {t("boundAttachmentsDescription")}
         </CardDescription>
       </CardHeader>
       <CardBody className="space-y-4">
@@ -136,7 +137,7 @@ export function CmBatch1BoundAttachmentsCard({
         {!loading && error ? (
           <Alert
             tone="danger"
-            title="Could not load attachments"
+            title={t("couldNotLoadAttachments")}
             description={error}
           />
         ) : null}
@@ -149,11 +150,11 @@ export function CmBatch1BoundAttachmentsCard({
             <Input
               id="boundVoidReason"
               name="boundVoidReason"
-              label="Void reason"
+              label={t("voidReason")}
               value={voidReason}
               onChange={(event) => setVoidReason(event.target.value)}
               disabled={voidingId !== null}
-              hint="Required — BR-012 void-with-reason"
+              hint={t("voidReasonHint")}
             />
             <div className="flex flex-wrap gap-2">
               <Button
@@ -164,37 +165,33 @@ export function CmBatch1BoundAttachmentsCard({
                   setVoidReason("");
                 }}
                 disabled={voidingId !== null}
-              >
-                Cancel
-              </Button>
+              >{t("cancel")}              </Button>
               <Button
                 type="button"
                 onClick={() => void onConfirmVoid()}
                 loading={voidingId !== null}
                 disabled={voidingId !== null}
-                aria-label="Confirm void bound attachment"
-              >
-                Confirm void
-              </Button>
+                aria-label={t("confirmVoid")}
+              >{t("confirmVoid")}              </Button>
             </div>
           </div>
         ) : null}
 
         {!loading && !error && visible.length === 0 ? (
           <p className="text-sm text-ecmp-muted" data-testid="bound-empty">
-            {cmBatch1AttachmentListLabel(0)}
+            {t(cmBatch1AttachmentListLabel(0))}
           </p>
         ) : null}
 
         {!loading && !error && visible.length > 0 ? (
           <>
             <p className="text-sm text-ecmp-muted">
-              {cmBatch1AttachmentListLabel(visible.length)}
+              {t(cmBatch1AttachmentListLabel(visible.length), { count: visible.length })}
             </p>
             <ul
               className="divide-y divide-ecmp-border rounded-md border border-ecmp-border"
               data-testid="bound-list"
-              aria-label="Bound attachments"
+              aria-label={t("boundAttachmentsAria")}
             >
               {visible.map((item) => (
                 <li
@@ -222,9 +219,9 @@ export function CmBatch1BoundAttachmentsCard({
                         setVoidReason("");
                         setError(null);
                       }}
-                      aria-label={`Void ${item.originalName}`}
+                      aria-label={t("voidNamed", { name: item.originalName })}
                     >
-                      Void
+                      {t("void")}
                     </Button>
                   ) : null}
                 </li>

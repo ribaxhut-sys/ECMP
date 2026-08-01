@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { CmCase } from "@/lib/api/cmCase";
 import {
   Card,
@@ -18,6 +19,7 @@ export function CaseSummaryCard({
   caseData: CmCase;
   href?: string;
 }) {
+  const t = useTranslations("cases");
   const detailHref =
     href ?? `/complaints/cm/cases/${encodeURIComponent(caseData.caseId)}`;
 
@@ -33,28 +35,26 @@ export function CaseSummaryCard({
       <CardBody className="space-y-3">
         <dl className="grid gap-2 text-[length:var(--ecmp-font-body-size)] sm:grid-cols-2">
           <div>
-            <dt className="text-ecmp-text-secondary">Type</dt>
+            <dt className="text-ecmp-text-secondary">{t("type")}</dt>
             <dd>{caseData.caseType}</dd>
           </div>
           <div>
-            <dt className="text-ecmp-text-secondary">Priority</dt>
+            <dt className="text-ecmp-text-secondary">{t("priority")}</dt>
             <dd>{caseData.priority}</dd>
           </div>
           <div>
-            <dt className="text-ecmp-text-secondary">Unit</dt>
+            <dt className="text-ecmp-text-secondary">{t("unit")}</dt>
             <dd>{caseData.owningUnitId ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-ecmp-text-secondary">Customer</dt>
+            <dt className="text-ecmp-text-secondary">{t("customer")}</dt>
             <dd className="truncate">{caseData.customerId}</dd>
           </div>
         </dl>
         <Link
           href={detailHref}
           className="inline-flex min-h-[44px] items-center rounded-[var(--ecmp-radius-sm)] border border-ecmp-border bg-ecmp-secondary px-3 text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-secondary-foreground hover:opacity-90"
-        >
-          View case
-        </Link>
+        >{t("view")}        </Link>
       </CardBody>
     </Card>
   );

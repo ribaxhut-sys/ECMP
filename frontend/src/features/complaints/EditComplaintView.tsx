@@ -3,11 +3,13 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type ChangeEvent,
   type FormEvent,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -35,6 +37,10 @@ import {
   Textarea,
 } from "@/shared/ui";
 import {
+  resolveApiErrorMessage,
+  translateValidationErrors,
+} from "@/shared/i18n/resolveApiErrorMessage";
+import {
   CHANNEL_OPTIONS,
   PRIORITY_OPTIONS,
   formFromComplaint,
@@ -46,6 +52,11 @@ import {
 
 export function EditComplaintView({ complaintId }: { complaintId: string }) {
   const router = useRouter();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tPriority = useTranslations("priority");
+  const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canUpdate = hasPermission("complaints:update") || hasPermission("*");
 
@@ -77,9 +88,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
           setNotFound(true);
         } else {
           setLoadError(
-            err instanceof ApiError
-              ? err.message
-              : "Unable to load complaint.",
+            resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoadDetail"),
           );
         }
       } finally {
@@ -89,7 +98,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [complaintId]);
+  }, [complaintId, t, tCommon, tErrors]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +134,19 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
     [],
   );
 
+  const priorityOptions = useMemo(
+    () => PRIORITY_OPTIONS.map(({ value }) => ({ value, label: tPriority(value) })),
+    [tPriority],
+  );
+  const channelOptions = useMemo(
+    () =>
+      CHANNEL_OPTIONS.map(({ value }) => ({
+        value,
+        label: t(`channel${value.charAt(0)}${value.slice(1).toLowerCase()}`),
+      })),
+    [t],
+  );
+
   function onTextChange(
     key: keyof EditComplaintFormValues,
   ): (
@@ -146,7 +168,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
     setSubmitError(null);
 
     const nextErrors = validateEditComplaintForm(values);
-    setErrors(nextErrors);
+    setErrors(translateValidationErrors(nextErrors, tValidation));
     if (Object.keys(nextErrors).length > 0) {
       const firstKey = Object.keys(nextErrors)[0];
       const el = firstKey ? document.getElementById(firstKey) : null;
@@ -163,11 +185,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
       router.push(`/complaints/${res.data.id}`);
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Unable to update complaint.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToUpdate"),
       );
     } finally {
       setSubmitting(false);
@@ -178,11 +196,11 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Edit Complaint"
+          title={t("editTitle")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Edit" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("editTitle") },
           ]}
         />
         <Skeleton rows={8} />
@@ -194,23 +212,23 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Edit Complaint"
+          title={t("editTitle")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Edit" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("editTitle") },
           ]}
         />
         <Empty
-          title="404"
-          description="Complaint not found."
+          title={t("notFoundTitle")}
+          description={t("complaintNotFound")}
           action={
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints")}
             >
-              Back to Complaint List
+              {t("backToList")}
             </Button>
           }
         />
@@ -222,16 +240,16 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Edit Complaint"
+          title={t("editTitle")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Edit" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("editTitle") },
           ]}
         />
         <ErrorState
-          title="Could not load complaint"
-          message={loadError ?? "Unexpected error."}
+          title={t("couldNotLoadComplaint")}
+          message={loadError ?? tCommon("unexpectedErrorDescription")}
           onRetry={() => router.push(`/complaints/${complaintId}`)}
         />
       </PageContainer>
@@ -242,25 +260,25 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Edit Complaint"
+          title={t("editTitle")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
             { label: complaint.complaintNumber, href: `/complaints/${complaint.id}` },
-            { label: "Edit" },
+            { label: t("editTitle") },
           ]}
         />
         <Alert
           tone="warning"
-          title="Edit not permitted"
-          description="Your account does not have complaints:update permission."
+          title={t("editNotPermittedTitle")}
+          description={t("editNotPermittedDescription")}
         />
         <Button
           type="button"
           variant="outline"
           onClick={() => router.push(`/complaints/${complaint.id}`)}
         >
-          Back to Detail
+          {t("backToDetail")}
         </Button>
       </PageContainer>
     );
@@ -274,35 +292,35 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title={`Edit ${complaint.complaintNumber}`}
+        title={t("editTitleWithNumber", { number: complaint.complaintNumber })}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title"), href: "/complaints" },
           { label: complaint.complaintNumber, href: `/complaints/${complaint.id}` },
-          { label: "Edit" },
+          { label: t("editTitle") },
         ]}
-        description="Update mutable fields only. Status changes use dedicated workflow APIs."
+        description={t("editComplaintDescription")}
       />
 
       <form
         noValidate
         onSubmit={(event) => void onSubmit(event)}
-        aria-label="Edit complaint form"
+        aria-label={t("editFormAriaLabel")}
         className="space-y-6"
       >
         {submitError ? (
           <Alert
             tone="danger"
-            title="Could not update complaint"
+            title={t("couldNotUpdate")}
             description={submitError}
           />
         ) : null}
 
         <Card>
           <CardHeader>
-            <CardTitle>Complaint Information</CardTitle>
+            <CardTitle>{t("complaintInformation")}</CardTitle>
             <CardDescription>
-              Subject, description, and priority (API-204).
+              {t("editComplaintInformationDescription")}
             </CardDescription>
           </CardHeader>
           <CardBody>
@@ -311,7 +329,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
                 <Input
                   name="subject"
                   id="subject"
-                  label="Subject"
+                  label={t("subject")}
                   required
                   maxLength={200}
                   value={values.subject}
@@ -322,9 +340,9 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
               <Select
                 name="priority"
                 id="priority"
-                label="Priority"
+                label={tCommon("priority")}
                 required
-                options={[...PRIORITY_OPTIONS]}
+                options={priorityOptions}
                 value={values.priority}
                 onChange={onTextChange("priority")}
                 error={errors.priority}
@@ -333,7 +351,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
                 <Textarea
                   name="description"
                   id="description"
-                  label="Description"
+                  label={t("description")}
                   required
                   rows={5}
                   maxLength={5000}
@@ -349,16 +367,16 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Location & classification</CardTitle>
+            <CardTitle>{t("locationAndClassification")}</CardTitle>
           </CardHeader>
           <CardBody>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Select
                 name="branchId"
                 id="branchId"
-                label="Branch"
+                label={t("branch")}
                 placeholder={
-                  branchesLoading ? "Loading branches…" : "Select branch"
+                  branchesLoading ? t("loadingBranches") : t("selectBranchPlaceholder")
                 }
                 options={branchOptions}
                 value={values.branchId}
@@ -369,9 +387,9 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
               <Select
                 name="channel"
                 id="channel"
-                label="Channel"
-                placeholder="Select channel (optional)"
-                options={[...CHANNEL_OPTIONS]}
+                label={t("channel")}
+                placeholder={t("selectChannelOptional")}
+                options={channelOptions}
                 value={values.channel}
                 onChange={onTextChange("channel")}
                 error={errors.channel}
@@ -379,7 +397,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
               <Input
                 name="category"
                 id="category"
-                label="Category"
+                label={t("category")}
                 maxLength={64}
                 value={values.category}
                 onChange={onTextChange("category")}
@@ -391,8 +409,8 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
 
         <Alert
           tone="info"
-          title="Not editable here"
-          description="Customer, complaint number, and status are immutable on this screen. Use status / assignment workflows for lifecycle changes."
+          title={t("notEditableTitle")}
+          description={t("notEditableDescription")}
         />
 
         <div className="flex flex-col-reverse gap-3 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
@@ -402,10 +420,10 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
             disabled={submitting}
             onClick={() => router.push(`/complaints/${complaint.id}`)}
           >
-            Cancel
+            {tCommon("cancel")}
           </Button>
           <Button type="submit" loading={submitting}>
-            {submitting ? "Saving…" : "Save changes"}
+            {submitting ? tCommon("saving") : t("saveChanges")}
           </Button>
         </div>
       </form>

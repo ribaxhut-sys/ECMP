@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ApiError,
   resolveCmCase,
@@ -24,9 +25,9 @@ import {
 } from "./caseForms";
 
 const ACTION_OPTIONS: { value: CmCaseResolveAction; label: string }[] = [
-  { value: "ACCEPT", label: "Accept (→ RESOLVED)" },
-  { value: "PROPOSE", label: "Propose (pending approval)" },
-  { value: "REJECT", label: "Reject proposal" },
+  { value: "ACCEPT", label: "actionAccept" },
+  { value: "PROPOSE", label: "actionPropose" },
+  { value: "REJECT", label: "actionReject" },
 ];
 
 export function ResolveCaseDialog({
@@ -40,6 +41,8 @@ export function ResolveCaseDialog({
   caseId: string;
   onResolved?: (caseData: CmCase) => void;
 }) {
+  const t = useTranslations("cases");
+  const tValidation = useTranslations("validation");
   const [values, setValues] = useState(emptyResolveCaseForm());
   const [fieldErrors, setFieldErrors] = useState<
     ReturnType<typeof validateResolveCaseForm>
@@ -77,7 +80,7 @@ export function ResolveCaseDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : "Unable to resolve case.",
+        err instanceof ApiError ? err.message : t("resolveFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -88,16 +91,12 @@ export function ResolveCaseDialog({
     <Modal
       open={open}
       onClose={handleClose}
-      title="Resolve Case"
+      title={t("resolveTitle")}
       size="lg"
       footer={
         <>
-          <Button variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button onClick={submit} loading={submitting}>
-            Submit resolution
-          </Button>
+          <Button variant="ghost" onClick={handleClose} disabled={submitting}>{t("back")}          </Button>
+          <Button onClick={submit} loading={submitting}>{t("submitResolution")}          </Button>
         </>
       }
     >
@@ -105,48 +104,48 @@ export function ResolveCaseDialog({
         {submitError ? (
           <Alert
             tone="danger"
-            title="Resolve failed"
+            title={t("resolveFailed")}
             description={submitError}
           />
         ) : null}
         <Select
           name="action"
-          label="Action"
+          label={t("action")}
           value={values.action}
           onChange={(e) =>
             setField("action", e.target.value as CmCaseResolveAction)
           }
-          options={ACTION_OPTIONS}
+          options={ACTION_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
         />
         <Textarea
           name="comment"
-          label="Comment (required)"
+          label={t("commentRequired")}
           value={values.comment}
           onChange={(e) => setField("comment", e.target.value)}
-          error={fieldErrors.comment}
+          error={fieldErrors.comment ? tValidation(fieldErrors.comment) : undefined}
           required
         />
         {values.action !== "REJECT" ? (
           <>
             <Input
               name="resolutionCode"
-              label="Resolution code"
+              label={t("resolutionCode")}
               value={values.resolutionCode}
               onChange={(e) => setField("resolutionCode", e.target.value)}
-              error={fieldErrors.resolutionCode}
+              error={fieldErrors.resolutionCode ? tValidation(fieldErrors.resolutionCode) : undefined}
               required
             />
             <Input
               name="summary"
-              label="Summary"
+              label={t("summary")}
               value={values.summary}
               onChange={(e) => setField("summary", e.target.value)}
-              error={fieldErrors.summary}
+              error={fieldErrors.summary ? tValidation(fieldErrors.summary) : undefined}
               required
             />
             <Textarea
               name="detail"
-              label="Detail"
+              label={t("detailLabel")}
               value={values.detail}
               onChange={(e) => setField("detail", e.target.value)}
             />
@@ -154,10 +153,10 @@ export function ResolveCaseDialog({
         ) : (
           <Textarea
             name="rejectionReason"
-            label="Rejection reason"
+            label={t("rejectionReason")}
             value={values.rejectionReason}
             onChange={(e) => setField("rejectionReason", e.target.value)}
-            error={fieldErrors.rejectionReason}
+            error={fieldErrors.rejectionReason ? tValidation(fieldErrors.rejectionReason) : undefined}
             required
           />
         )}

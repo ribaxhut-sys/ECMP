@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchCmCase, type CmCase } from "@/lib/api";
@@ -27,6 +28,7 @@ import { rememberCaseId } from "./caseSessionRegistry";
 import { allowedStatusTargets, canClose, canResolve } from "./caseStatus";
 
 export function CaseDetailView({ caseId }: { caseId: string }) {
+  const t = useTranslations("cases");
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
@@ -55,7 +57,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     } catch (err) {
       setData(null);
       setError(
-        err instanceof ApiError ? err.message : "Unable to load case.",
+        err instanceof ApiError ? err.message : t("unableToLoad"),
       );
     } finally {
       setLoading(false);
@@ -75,16 +77,16 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Case"
+          title={t("title")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Case" },
+            { label: t("back"), href: "/dashboard" },
+            { label: t("confirmation"), href: "/complaints" },
+            { label: t("title") },
           ]}
         />
         <Empty
-          title="Permission denied"
-          description="complaints:read is required to view a case."
+          title={t("accessDenied")}
+          description={t("readPermission")}
         />
       </PageContainer>
     );
@@ -98,20 +100,20 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title={data?.caseNumber ?? "Case"}
+        title={data?.caseNumber ?? t("title")}
         description={data?.subject}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
+          { label: t("back"), href: "/dashboard" },
+          { label: t("confirmation"), href: "/complaints" },
           ...(data
             ? [
                 {
-                  label: "Cases",
+                  label: t("list"),
                   href: `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases`,
                 },
               ]
             : []),
-          { label: data?.caseNumber ?? "Detail" },
+          { label: data?.caseNumber ?? t("detailFallback") },
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -124,24 +126,16 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                     `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases`,
                   )
                 }
-              >
-                Case list
-              </Button>
+              >{t("caseList")}              </Button>
             ) : null}
             {showStatus ? (
-              <Button type="button" onClick={() => setStatusOpen(true)}>
-                Update status
-              </Button>
+              <Button type="button" onClick={() => setStatusOpen(true)}>{t("updateStatus")}              </Button>
             ) : null}
             {showResolve ? (
-              <Button type="button" onClick={() => setResolveOpen(true)}>
-                Resolve
-              </Button>
+              <Button type="button" onClick={() => setResolveOpen(true)}>{t("resolve")}              </Button>
             ) : null}
             {showClose ? (
-              <Button type="button" onClick={() => setCloseOpen(true)}>
-                Close case
-              </Button>
+              <Button type="button" onClick={() => setCloseOpen(true)}>{t("close")}              </Button>
             ) : null}
           </div>
         }
@@ -149,7 +143,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
 
       {loading ? <Skeleton rows={6} /> : null}
       {!loading && error ? (
-        <ErrorState title="Unable to load case" message={error} />
+        <ErrorState title={t("unableToLoad")} message={error} />
       ) : null}
 
       {!loading && data ? (
@@ -159,7 +153,10 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
               <div className="space-y-1">
                 <CardTitle>{data.caseNumber}</CardTitle>
                 <CardDescription>
-                  Case ID {data.caseId} · Complaint {data.complaintId}
+                  {t("identitySummary", {
+                    caseId: data.caseId,
+                    complaintId: data.complaintId,
+                  })}
                 </CardDescription>
               </div>
               <CaseStatusBadge status={data.status} />
@@ -167,46 +164,46 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             <CardBody>
               <dl className="grid gap-3 text-[length:var(--ecmp-font-body-size)] sm:grid-cols-2">
                 <div>
-                  <dt className="text-ecmp-text-secondary">Type</dt>
+                  <dt className="text-ecmp-text-secondary">{t("type")}</dt>
                   <dd>{data.caseType}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Priority</dt>
+                  <dt className="text-ecmp-text-secondary">{t("priority")}</dt>
                   <dd>{data.priority}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Category</dt>
+                  <dt className="text-ecmp-text-secondary">{t("category")}</dt>
                   <dd>{data.category ?? "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Owning unit</dt>
+                  <dt className="text-ecmp-text-secondary">{t("owningUnit")}</dt>
                   <dd>{data.owningUnitId ?? "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Customer</dt>
+                  <dt className="text-ecmp-text-secondary">{t("customer")}</dt>
                   <dd className="font-mono text-xs">{data.customerId}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Created</dt>
+                  <dt className="text-ecmp-text-secondary">{t("createdAt")}</dt>
                   <dd>{data.createdAt}</dd>
                 </div>
                 <div className="sm:col-span-2">
-                  <dt className="text-ecmp-text-secondary">Subject</dt>
+                  <dt className="text-ecmp-text-secondary">{t("subject")}</dt>
                   <dd>{data.subject}</dd>
                 </div>
                 <div className="sm:col-span-2">
-                  <dt className="text-ecmp-text-secondary">Description</dt>
+                  <dt className="text-ecmp-text-secondary">{t("description")}</dt>
                   <dd className="whitespace-pre-wrap">{data.description}</dd>
                 </div>
                 {data.cancelReason ? (
                   <div>
-                    <dt className="text-ecmp-text-secondary">Cancel reason</dt>
+                    <dt className="text-ecmp-text-secondary">{t("cancelReason")}</dt>
                     <dd>{data.cancelReason}</dd>
                   </div>
                 ) : null}
                 {data.closedAt ? (
                   <div>
-                    <dt className="text-ecmp-text-secondary">Closed at</dt>
+                    <dt className="text-ecmp-text-secondary">{t("closedAt")}</dt>
                     <dd>{data.closedAt}</dd>
                   </div>
                 ) : null}
@@ -217,7 +214,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           {data.resolution ? (
             <Card>
               <CardHeader>
-                <CardTitle>Resolution</CardTitle>
+                <CardTitle>{t("resolution")}</CardTitle>
                 <CardDescription>
                   {data.resolution.status} · {data.resolution.resolutionCode}
                 </CardDescription>
@@ -230,7 +227,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                   </p>
                 ) : null}
                 <p className="text-ecmp-text-secondary">
-                  Comment: {data.resolution.comment}
+                  {t("comment")}: {data.resolution.comment}
                 </p>
               </CardBody>
             </Card>
@@ -239,8 +236,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           {!canUpdate ? (
             <Alert
               tone="info"
-              title="Read only"
-              description="complaints:update is required to change status, resolve, or close."
+              title={t("readOnly")}
+              description={t("updatePermission")}
             />
           ) : null}
         </>
@@ -254,7 +251,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             caseData={data}
             onUpdated={(next) => {
               setData(next);
-              showSuccess(`Status updated to ${next.status}.`);
+              showSuccess(t("statusUpdated", { status: next.status }));
             }}
           />
           <ResolveCaseDialog
@@ -263,7 +260,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             caseId={data.caseId}
             onResolved={(next) => {
               setData(next);
-              showSuccess(`Case ${next.caseNumber} resolved (${next.status}).`);
+              showSuccess(t("caseCreated", { number: next.caseNumber, status: next.status }));
             }}
           />
           <CloseCaseDialog
@@ -272,7 +269,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             caseId={data.caseId}
             onClosed={(next) => {
               setData(next);
-              showSuccess(`Case ${next.caseNumber} closed.`);
+              showSuccess(t("closed", { number: next.caseNumber }));
             }}
           />
         </>
@@ -281,7 +278,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       <Toast
         open={toastOpen}
         onClose={() => setToastOpen(false)}
-        title="Success"
+        title={t("success")}
         description={toastMessage}
         tone="success"
       />

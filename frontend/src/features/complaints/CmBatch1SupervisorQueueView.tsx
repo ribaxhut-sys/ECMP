@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -53,6 +54,8 @@ function formatWhen(value: string | null | undefined): string {
  * Status/reason are contract pass-through (no meaning rewrite).
  */
 export function CmBatch1SupervisorQueueView() {
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
 
@@ -82,7 +85,7 @@ export function CmBatch1SupervisorQueueView() {
       setError(
         err instanceof ApiError
           ? err.message
-          : "Unable to load supervisor queue",
+          : t("unableToLoadQueue"),
       );
     } finally {
       setLoading(false);
@@ -98,14 +101,14 @@ export function CmBatch1SupervisorQueueView() {
   const laterColumns: TableColumn<CmBatch1LaterReviewWorkItem>[] = [
     {
       key: "workItemId",
-      header: "Work item",
+      header: t("workItem"),
       cell: (row) => (
         <span className="font-mono text-sm">{row.workItemId}</span>
       ),
     },
     {
       key: "complaintId",
-      header: "Complaint",
+      header: t("title"),
       cell: (row) =>
         row.complaintId ? (
           <Link
@@ -120,36 +123,38 @@ export function CmBatch1SupervisorQueueView() {
     },
     {
       key: "customerId",
-      header: "Customer",
+      header: t("customer"),
       cell: (row) => row.customerId,
     },
     {
       key: "reason",
-      header: "Reason",
+      header: t("reason"),
       cell: (row) => (
         <span className="inline-flex flex-wrap items-center gap-1">
           <Badge tone={cmBatch1LaterReviewReasonTone(row.reason)}>
-            {cmBatch1LaterReviewReasonLabel(row.reason)}
+            {(row.reason ?? "").trim()
+              ? cmBatch1LaterReviewReasonLabel(row.reason)
+              : t("emptyReason")}
           </Badge>
           {cmBatch1LaterReviewReasonIsUnknown(row.reason) ? (
-            <Badge tone="neutral">unknown type</Badge>
+            <Badge tone="neutral">{t("unknownType")}</Badge>
           ) : null}
         </span>
       ),
     },
     {
       key: "status",
-      header: "Status",
+      header: t("status"),
       cell: (row) => cmBatch1SupervisorStatusLabel(row.status),
     },
     {
       key: "ageHours",
-      header: "Age (h)",
+      header: t("ageHours"),
       cell: (row) => String(row.ageHours),
     },
     {
       key: "createdAt",
-      header: "Created",
+      header: t("createdAt"),
       cell: (row) => formatWhen(row.createdAt),
     },
   ];
@@ -157,7 +162,7 @@ export function CmBatch1SupervisorQueueView() {
   const agingColumns: TableColumn<CmBatch1AgingComplaintItem>[] = [
     {
       key: "complaintNumber",
-      header: "Complaint",
+      header: t("title"),
       cell: (row) => (
         <Link
           href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
@@ -169,32 +174,32 @@ export function CmBatch1SupervisorQueueView() {
     },
     {
       key: "customerId",
-      header: "Customer",
+      header: t("customer"),
       cell: (row) => row.customerId,
     },
     {
       key: "status",
-      header: "Status",
+      header: t("status"),
       cell: (row) => cmBatch1SupervisorStatusLabel(row.status),
     },
     {
       key: "subject",
-      header: "Subject",
+      header: t("subject"),
       cell: (row) => row.subject ?? "—",
     },
     {
       key: "priority",
-      header: "Priority",
+      header: t("priority"),
       cell: (row) => row.priority ?? "—",
     },
     {
       key: "caseCreated",
-      header: "Case",
-      cell: (row) => (row.caseCreated ? "yes" : "false"),
+      header: t("caseCreatedColumn"),
+      cell: (row) => (row.caseCreated ? tCommon("yes") : tCommon("no")),
     },
     {
       key: "ageHours",
-      header: "Age (h)",
+      header: t("ageHours"),
       cell: (row) => (
         <Badge
           tone={
@@ -209,7 +214,7 @@ export function CmBatch1SupervisorQueueView() {
     },
     {
       key: "createdAt",
-      header: "Registered",
+      header: t("registered"),
       cell: (row) => formatWhen(row.createdAt),
     },
   ];
@@ -218,16 +223,16 @@ export function CmBatch1SupervisorQueueView() {
     return (
       <PageContainer>
         <PageHeader
-          title="Batch-1 supervisor queue"
+          title={t("batchSupervisorQueue")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Supervisor queue" },
+            { label: t("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("batchSupervisorQueue") },
           ]}
         />
         <Empty
-          title="Access restricted"
-          description="complaints:read is required to view later-review and aging items."
+          title={t("accessRestricted")}
+          description={t("noPermissionToView")}
         />
       </PageContainer>
     );
@@ -236,22 +241,22 @@ export function CmBatch1SupervisorQueueView() {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Batch-1 supervisor queue"
+        title={t("batchSupervisorQueue")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
-          { label: "Supervisor queue" },
+          { label: t("home"), href: "/dashboard" },
+          { label: t("title"), href: "/complaints" },
+          { label: t("batchSupervisorQueue") },
         ]}
-        description="Later-review work items and Complaints without Case past the aging threshold (Aggregate /api/v1/cm). Read-only — Case create stays Batch 2. API-513 uses limit cap only (no offset pagination)."
+        description={t("laterReviewDescription")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-sm">
-              <span className="text-ecmp-text-secondary">Aging ≥</span>
+              <span className="text-ecmp-text-secondary">{t("agingThreshold")}</span>
               <select
                 className="rounded border border-ecmp-border bg-ecmp-surface px-2 py-1"
                 value={agingHours}
                 onChange={(e) => setAgingHours(Number(e.target.value))}
-                aria-label="Aging threshold hours"
+                aria-label={t("agingThreshold")}
               >
                 <option value={24}>24h</option>
                 <option value={48}>48h</option>
@@ -260,32 +265,28 @@ export function CmBatch1SupervisorQueueView() {
               </select>
             </label>
             <Button type="button" variant="secondary" onClick={() => void load()}>
-              Refresh
+              {tCommon("refresh")}
             </Button>
           </div>
         }
       />
 
       {error ? (
-        <ErrorState title="Unable to load queue" message={error} />
+        <ErrorState title={t("unableToLoadQueue")} message={error} />
       ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>Later-review work items</CardTitle>
-          <CardDescription>
-            Degraded duplicate check (FR-003 E1) and failed attachment bind
-            (FR-004 E8). OPEN items only. Reason/status pass-through from
-            API-513.
-          </CardDescription>
+          <CardTitle>{t("laterReviewItems")}</CardTitle>
+          <CardDescription>{t("laterReviewDescription")}</CardDescription>
         </CardHeader>
         <CardBody>
           {loading && !data ? (
             <Skeleton className="h-32 w-full" />
           ) : !data?.laterReviewItems.length ? (
             <Empty
-              title="No open later-review items"
-              description="Queue is empty for the current filter."
+              title={t("noOpenLaterReview")}
+              description={t("queueEmptyForFilter")}
             />
           ) : (
             <Table
@@ -299,10 +300,9 @@ export function CmBatch1SupervisorQueueView() {
 
       <Card>
         <CardHeader>
-          <CardTitle>No-Case aging</CardTitle>
+          <CardTitle>{t("noCaseAging")}</CardTitle>
           <CardDescription>
-            REGISTERED Aggregate Complaints older than {threshold}h without Case
-            (FR-001 A4 / D-02). Follow-up is Batch 2 — not Mode A Case create.
+            {t("noCaseAgingDescription", { hours: threshold })}
           </CardDescription>
         </CardHeader>
         <CardBody>
@@ -310,8 +310,8 @@ export function CmBatch1SupervisorQueueView() {
             <Skeleton className="h-32 w-full" />
           ) : !data?.agingComplaints.length ? (
             <Empty
-              title="No aging Complaints"
-              description="No REGISTERED items past the selected threshold."
+              title={t("noAgingComplaints")}
+              description={t("noRegisteredPastThreshold")}
             />
           ) : (
             <Table
@@ -325,9 +325,7 @@ export function CmBatch1SupervisorQueueView() {
 
       {data ? (
         <p className="text-xs text-ecmp-text-secondary">
-          Snapshot as of {formatWhen(data.asOf)} · threshold{" "}
-          {data.agingThresholdHours}h · later-review{" "}
-          {data.laterReviewItems.length} · aging {data.agingComplaints.length}
+          {t("snapshotAsOf", { date: formatWhen(data.asOf), hours: data.agingThresholdHours, later: data.laterReviewItems.length, aging: data.agingComplaints.length })}
         </p>
       ) : null}
     </PageContainer>

@@ -21,8 +21,44 @@ import {
   resolveLocale,
   type AppLocale,
 } from "@/i18n/config";
+import fallbackIdMessages from "../../../messages/id.json";
 
 type Messages = Record<string, unknown>;
+
+/** Resolve nested message path; never return the raw key path to the UI. */
+function lookupMessage(
+  messages: Messages,
+  namespace: string | undefined,
+  key: string,
+): string | undefined {
+  const parts = [
+    ...(namespace ? namespace.split(".") : []),
+    ...key.split("."),
+  ].filter(Boolean);
+  let node: unknown = messages;
+  for (const part of parts) {
+    if (!node || typeof node !== "object") return undefined;
+    node = (node as Record<string, unknown>)[part];
+  }
+  return typeof node === "string" ? node : undefined;
+}
+
+function createMessageFallback(activeMessages: Messages) {
+  return ({
+    namespace,
+    key,
+  }: {
+    namespace?: string;
+    key: string;
+    error?: unknown;
+  }): string => {
+    return (
+      lookupMessage(activeMessages, namespace, key) ??
+      lookupMessage(fallbackIdMessages as Messages, namespace, key) ??
+      "…"
+    );
+  };
+}
 
 interface LocaleContextValue {
   locale: AppLocale;
@@ -180,6 +216,7 @@ export function LocaleProvider({
         locale={locale}
         messages={messages}
         timeZone="Asia/Jakarta"
+        getMessageFallback={createMessageFallback(messages)}
       >
         {children}
       </NextIntlClientProvider>

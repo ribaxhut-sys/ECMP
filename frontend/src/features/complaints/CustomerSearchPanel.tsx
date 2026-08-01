@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import {
   ApiError,
   confirmCmBatch1Customer,
@@ -10,6 +11,7 @@ import {
   type CmBatch1CustomerCandidate,
   type CmBatch1VerificationStatus,
 } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
   Button,
@@ -26,12 +28,6 @@ export type CustomerKeyType =
   | "customerNumber"
   | "identityNumber"
   | "referenceNumber";
-
-const KEY_TYPE_OPTIONS = [
-  { value: "customerNumber", label: "Customer number" },
-  { value: "identityNumber", label: "Identity number" },
-  { value: "referenceNumber", label: "Reference number" },
-] as const;
 
 export interface CustomerSearchPanelProps {
   confirmedCustomerId: string;
@@ -54,6 +50,9 @@ export function CustomerSearchPanel({
   onCleared,
   disabled = false,
 }: CustomerSearchPanelProps) {
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const [keyType, setKeyType] = useState<CustomerKeyType>("customerNumber");
   const [keyValue, setKeyValue] = useState("");
   const [searching, setSearching] = useState(false);
@@ -69,6 +68,15 @@ export function CustomerSearchPanel({
   const [profile360, setProfile360] =
     useState<CmBatch1Customer360Response | null>(null);
   const [loading360, setLoading360] = useState(false);
+
+  const keyTypeOptions = useMemo(
+    () => [
+      { value: "customerNumber", label: t("customerNumber") },
+      { value: "identityNumber", label: t("identityNumber") },
+      { value: "referenceNumber", label: t("referenceNumber") },
+    ],
+    [t],
+  );
 
   const resetSearchState = useCallback(() => {
     setStatus(null);
@@ -93,9 +101,8 @@ export function CustomerSearchPanel({
     } catch (err) {
       setProfile360(null);
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to load Batch-1 Customer 360.",
+        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+          t("unableToLoadCustomer360"),
       );
     } finally {
       setLoading360(false);
@@ -106,7 +113,7 @@ export function CustomerSearchPanel({
     event.preventDefault();
     const value = keyValue.trim();
     if (!value) {
-      setError("Enter a search key.");
+      setError(t("enterSearchKey"));
       return;
     }
 
@@ -144,18 +151,17 @@ export function CustomerSearchPanel({
         data.enumerationOutcome === "blocked" ||
         data.verificationStatus === "blocked"
       ) {
-        setError("Customer search is blocked by enumeration protection.");
+        setError(t("searchBlocked"));
       } else if (data.verificationStatus === "not_found") {
-        setError("No customer matched that key.");
+        setError(t("noCustomerMatched"));
       } else if (data.verificationStatus === "degraded") {
-        setError(
-          "Customer search is degraded. Confirm only if a candidate is still shown.",
-        );
+        setError(t("searchDegraded"));
       }
     } catch (err) {
       resetSearchState();
       setError(
-        err instanceof ApiError ? err.message : "Customer search failed.",
+        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+          t("searchFailed"),
       );
     } finally {
       setSearching(false);
@@ -168,7 +174,7 @@ export function CustomerSearchPanel({
       candidates.find((c) => c.customerId)?.customerId ||
       "";
     if (!customerId) {
-      setError("Select a customer candidate before confirming.");
+      setError(t("selectCandidateBeforeConfirm"));
       return;
     }
 
@@ -185,9 +191,8 @@ export function CustomerSearchPanel({
       await load360(customerId);
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to confirm customer.",
+        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+          t("unableToConfirmCustomer"),
       );
     } finally {
       setConfirming(false);
@@ -199,22 +204,28 @@ export function CustomerSearchPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle id="section-customer-search">Customer search</CardTitle>
-        <CardDescription>
-          SCR-CM-002 — search with exactly one key type, then confirm to lock
-          CustomerId. Lab stub examples: CN-10001 / ID-10001 / REF-10001.
-        </CardDescription>
+        <CardTitle id="section-customer-search">
+          {t("customerSearchTitle")}
+        </CardTitle>
+        <CardDescription>{t("customerSearchDescription")}</CardDescription>
       </CardHeader>
       <CardBody className="space-y-4">
         {error ? (
-          <Alert tone="warning" title="Customer search" description={error} />
+          <Alert
+            tone="warning"
+            title={t("customerSearchAlertTitle")}
+            description={error}
+          />
         ) : null}
 
         {locked ? (
           <Alert
             tone="success"
-            title="Customer confirmed"
-            description={`${confirmedDisplayName} (${confirmedCustomerId}) is locked for this create. Search again clears the lock.`}
+            title={t("customerConfirmed")}
+            description={t("customerConfirmedDescription", {
+              name: confirmedDisplayName,
+              id: confirmedCustomerId,
+            })}
           />
         ) : null}
 
@@ -226,8 +237,8 @@ export function CustomerSearchPanel({
           <Select
             name="keyType"
             id="keyType"
-            label="Key type"
-            options={KEY_TYPE_OPTIONS}
+            label={t("keyType")}
+            options={keyTypeOptions}
             value={keyType}
             onChange={(event) => {
               setKeyType(event.target.value as CustomerKeyType);
@@ -238,7 +249,7 @@ export function CustomerSearchPanel({
           <Input
             name="keyValue"
             id="keyValue"
-            label="Key value"
+            label={t("keyValue")}
             required
             value={keyValue}
             onChange={(event) => {
@@ -247,16 +258,16 @@ export function CustomerSearchPanel({
             }}
             disabled={disabled || searching}
             autoComplete="off"
-            hint="Exactly one key type is sent to API-502"
+            hint={t("keyValueHint")}
           />
           <div className="flex items-end gap-2">
             <Button
               type="submit"
               loading={searching}
               disabled={disabled}
-              aria-label="Search customer"
+              aria-label={t("searchCustomerAria")}
             >
-              {searching ? "Searching…" : "Search"}
+              {searching ? t("searching") : tCommon("search")}
             </Button>
             {locked ? (
               <Button
@@ -265,7 +276,7 @@ export function CustomerSearchPanel({
                 onClick={clearConfirmation}
                 disabled={disabled}
               >
-                Clear
+                {tCommon("clear")}
               </Button>
             ) : null}
           </div>
@@ -273,15 +284,18 @@ export function CustomerSearchPanel({
 
         {status ? (
           <p className="text-sm text-ecmp-text-secondary">
-            Status: <span className="font-medium text-ecmp-text-primary">{status}</span>
-            {enumerationOutcome ? ` · enumeration: ${enumerationOutcome}` : ""}
-            {asOf ? ` · as of ${asOf}` : ""}
+            {t("statusLabel")}:{" "}
+            <span className="font-medium text-ecmp-text-primary">{status}</span>
+            {enumerationOutcome
+              ? ` · ${t("enumerationLabel")}: ${enumerationOutcome}`
+              : ""}
+            {asOf ? ` · ${t("asOfLabel")} ${asOf}` : ""}
           </p>
         ) : null}
 
         {candidates.length > 0 ? (
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Candidates</legend>
+            <legend className="text-sm font-medium">{t("candidates")}</legend>
             <ul className="space-y-2">
               {candidates.map((c) => (
                 <li key={c.customerId}>
@@ -313,7 +327,7 @@ export function CustomerSearchPanel({
                 loading={confirming}
                 disabled={disabled || !selectedCandidateId}
               >
-                {confirming ? "Confirming…" : "Confirm customer"}
+                {confirming ? t("confirming") : t("confirmCustomer")}
               </Button>
             ) : null}
           </fieldset>
@@ -321,28 +335,36 @@ export function CustomerSearchPanel({
 
         {locked && (loading360 || profile360) ? (
           <div className="rounded border border-ecmp-border p-3 text-sm">
-            <h3 className="font-medium">Batch-1 Customer 360 (minimum)</h3>
+            <h3 className="font-medium">{t("customer360Title")}</h3>
             {loading360 ? (
-              <p className="mt-2 text-ecmp-text-secondary">Loading profile…</p>
+              <p className="mt-2 text-ecmp-text-secondary">
+                {t("loadingProfile")}
+              </p>
             ) : null}
             {profile360 ? (
               <dl className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                 <div>
-                  <dt className="text-ecmp-text-secondary">Complaint count</dt>
+                  <dt className="text-ecmp-text-secondary">
+                    {t("complaintCount")}
+                  </dt>
                   <dd className="font-medium">{profile360.complaintCount}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Active complaints</dt>
+                  <dt className="text-ecmp-text-secondary">
+                    {t("activeComplaints")}
+                  </dt>
                   <dd className="font-medium">
                     {profile360.activeComplaints?.length ?? 0}
                   </dd>
                 </div>
                 <div className="md:col-span-2">
-                  <dt className="text-ecmp-text-secondary">asOf</dt>
+                  <dt className="text-ecmp-text-secondary">{t("asOfLabel")}</dt>
                   <dd className="font-mono text-xs">{profile360.asOf}</dd>
                 </div>
                 <div className="md:col-span-2">
-                  <dt className="text-ecmp-text-secondary">Profile (read-only)</dt>
+                  <dt className="text-ecmp-text-secondary">
+                    {t("profileReadOnly")}
+                  </dt>
                   <dd>
                     <pre className="mt-1 max-h-40 overflow-auto rounded bg-ecmp-secondary-muted p-2 text-xs">
                       {JSON.stringify(profile360.profile ?? {}, null, 2)}

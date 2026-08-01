@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ApiError,
   downloadAttachment,
@@ -17,14 +18,14 @@ import {
 import { Alert, Button } from "@/shared/ui";
 import { getPreviewKind, type PreviewKind } from "./fileTypes";
 
-function mapLoadError(error: unknown): string {
+function mapLoadError(error: unknown, t: (key: string) => string): string {
   if (error instanceof ApiError) {
-    if (error.status === 404) return "Attachment not found (404).";
-    if (error.status === 403) return "You do not have permission to view this file (403).";
-    if (error.status === 500) return "Server error while loading file (500).";
-    return error.message || "Failed to load file.";
+    if (error.status === 404) return t("notFound404");
+    if (error.status === 403) return t("noPermissionToViewFile403");
+    if (error.status === 500) return t("serverErrorLoadingFile500");
+    return error.message || t("failedToLoadFile");
   }
-  return "Failed to load file.";
+  return t("failedToLoadFile");
 }
 
 export interface AttachmentViewerProps {
@@ -42,6 +43,7 @@ export function AttachmentViewer({
   open,
   onClose,
 }: AttachmentViewerProps) {
+  const t = useTranslations("attachments");
   const kind: PreviewKind = getPreviewKind(
     attachment.mimeType,
     attachment.extension,
@@ -64,7 +66,7 @@ export function AttachmentViewer({
 
   const loadPreview = useCallback(async () => {
     if (kind === "unsupported") {
-      setError("Preview not supported for this file type.");
+      setError(t("previewNotSupportedDescription"));
       setLoading(false);
       return;
     }
@@ -77,7 +79,7 @@ export function AttachmentViewer({
       urlRef.current = url;
       setObjectUrl(url);
     } catch (err) {
-      setError(mapLoadError(err));
+      setError(mapLoadError(err, t));
     } finally {
       setLoading(false);
     }
@@ -123,7 +125,7 @@ export function AttachmentViewer({
       anchor.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(mapLoadError(err));
+      setError(mapLoadError(err, t));
     }
   }, [attachment.originalName, attachment.id]);
 
@@ -134,13 +136,13 @@ export function AttachmentViewer({
       const opened = window.open(url, "_blank", "noopener,noreferrer");
       if (!opened) {
         URL.revokeObjectURL(url);
-        setError("Popup blocked. Allow popups to open in a new tab.");
+        setError(t("popupBlocked"));
         return;
       }
       // Revoke after the new tab has a chance to load.
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
-      setError(mapLoadError(err));
+      setError(mapLoadError(err, t));
     }
   }, [attachment.id]);
 
@@ -151,12 +153,12 @@ export function AttachmentViewer({
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
-      aria-label={`Preview ${attachment.originalName}`}
+      aria-label={t("previewAriaLabel", { name: attachment.originalName })}
       data-testid="attachment-viewer"
     >
       <button
         type="button"
-        aria-label="Close preview overlay"
+        aria-label={t("closePreviewOverlay")}
         className="absolute inset-0 bg-ecmp-overlay"
         onClick={onClose}
       />
@@ -177,7 +179,7 @@ export function AttachmentViewer({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label="Zoom out"
+                  aria-label={t("zoomOut")}
                   onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
                   className="!min-h-[44px] !min-w-[44px] px-0"
                 >
@@ -190,7 +192,7 @@ export function AttachmentViewer({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label="Zoom in"
+                  aria-label={t("zoomIn")}
                   onClick={() => setZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
                   className="!min-h-[44px] !min-w-[44px] px-0"
                 >
@@ -205,7 +207,7 @@ export function AttachmentViewer({
               onClick={() => void handleOpenTab()}
               leftIcon={<IconExternalLink />}
             >
-              <span className="hidden sm:inline">New tab</span>
+              <span className="hidden sm:inline">{t("newTab")}</span>
             </Button>
             <Button
               type="button"
@@ -214,13 +216,13 @@ export function AttachmentViewer({
               onClick={() => void handleDownload()}
               leftIcon={<IconDownload />}
             >
-              <span className="hidden sm:inline">Download</span>
+              <span className="hidden sm:inline">{t("download")}</span>
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              aria-label="Close preview"
+              aria-label={t("closePreview")}
               onClick={onClose}
               className="!min-h-[44px] !min-w-[44px] px-0"
             >
@@ -233,7 +235,7 @@ export function AttachmentViewer({
           {loading ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-ecmp-text-secondary">
               <IconSpinner className="size-8" />
-              <p>Loading preview…</p>
+              <p>{t("loadingPreview")}</p>
             </div>
           ) : null}
 
@@ -243,11 +245,11 @@ export function AttachmentViewer({
                 tone={error.includes("not supported") ? "warning" : "danger"}
                 title={
                   error.includes("not supported")
-                    ? "Preview not supported"
-                    : "Preview failed"
+                    ? t("previewNotSupported")
+                    : t("previewFailed")
                 }
                 description={error}
-                actionLabel="Download file"
+                actionLabel={t("downloadFile")}
                 onAction={() => void handleDownload()}
               />
             </div>
@@ -268,7 +270,7 @@ export function AttachmentViewer({
 
           {!loading && !error && kind === "pdf" && objectUrl ? (
             <iframe
-              title={`PDF preview — ${attachment.originalName}`}
+              title={t("pdfPreviewTitle", { name: attachment.originalName })}
               src={objectUrl}
               className="h-[70vh] w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-white"
               data-testid="attachment-pdf-preview"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type {
   CmBatch1DuplicateCheckResponse,
   CmBatch1DuplicateDecision,
@@ -30,6 +31,8 @@ export function DuplicateWarningPanel({
   onClose,
   onDecide,
 }: DuplicateWarningPanelProps) {
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
   const [survivingId, setSurvivingId] = useState("");
   const [justification, setJustification] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -49,14 +52,12 @@ export function DuplicateWarningPanel({
   ): Promise<void> {
     setLocalError(null);
     if (decision === "link_existing" && !effectiveSurviving) {
-      setLocalError("Select or enter a surviving complaint ID to link.");
+      setLocalError(t("selectSurvivingToLink"));
       return;
     }
     if (decision === "override") {
       if (justification.trim().length < 20) {
-        setLocalError(
-          "Override justification must be at least 20 characters.",
-        );
+        setLocalError(t("overrideJustificationMin"));
         return;
       }
     }
@@ -73,7 +74,7 @@ export function DuplicateWarningPanel({
     <Modal
       open={open}
       onClose={busy ? () => undefined : onClose}
-      title="Possible duplicate complaints"
+      title={t("duplicateModalTitle")}
       size="lg"
       footer={
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
@@ -83,7 +84,7 @@ export function DuplicateWarningPanel({
             disabled={busy}
             onClick={onClose}
           >
-            Cancel
+            {tCommon("cancel")}
           </Button>
           <Button
             type="button"
@@ -92,7 +93,7 @@ export function DuplicateWarningPanel({
             loading={busy}
             onClick={() => void decide("recommend_only")}
           >
-            Recommend existing only
+            {t("recommendExistingOnly")}
           </Button>
           <Button
             type="button"
@@ -101,7 +102,7 @@ export function DuplicateWarningPanel({
             loading={busy}
             onClick={() => void decide("link_existing")}
           >
-            Link to existing
+            {t("linkToExisting")}
           </Button>
           <Button
             type="button"
@@ -109,7 +110,7 @@ export function DuplicateWarningPanel({
             loading={busy}
             onClick={() => void decide("override")}
           >
-            Override & create new
+            {t("overrideAndCreate")}
           </Button>
         </div>
       }
@@ -117,28 +118,34 @@ export function DuplicateWarningPanel({
       <div className="space-y-4 text-sm">
         <Alert
           tone="warning"
-          title="Duplicate warning"
-          description="Candidates matched Batch-1 policy. You may link or override with justification. Case create is not available in Batch 1."
+          title={t("duplicateWarningTitle")}
+          description={t("duplicateWarningDescription")}
         />
 
         {result?.degraded ? (
           <Alert
             tone="info"
-            title="Degraded check"
+            title={t("degradedCheckTitle")}
             description={
               result.laterReviewWorkItemId
-                ? `Duplicate check degraded. Later-review work item: ${result.laterReviewWorkItemId}`
-                : "Duplicate check degraded; proceed carefully."
+                ? t("degradedCheckWithWorkItem", {
+                    id: result.laterReviewWorkItemId,
+                  })
+                : t("degradedCheckGeneric")
             }
           />
         ) : null}
 
         {localError ? (
-          <Alert tone="danger" title="Decision blocked" description={localError} />
+          <Alert
+            tone="danger"
+            title={t("decisionBlocked")}
+            description={localError}
+          />
         ) : null}
 
         {candidates.length === 0 ? (
-          <p className="text-ecmp-text-secondary">No candidate details returned.</p>
+          <p className="text-ecmp-text-secondary">{t("noCandidateDetails")}</p>
         ) : (
           <ul className="max-h-48 space-y-2 overflow-auto">
             {candidates.map((c, index) => {
@@ -168,7 +175,9 @@ export function DuplicateWarningPanel({
                     disabled={busy}
                   >
                     {number ?? id}
-                    {score != null ? ` · score ${score}` : ""}
+                    {score != null
+                      ? ` · ${t("scoreLabel", { score })}`
+                      : ""}
                     {subject ? ` · ${subject}` : ""}
                   </button>
                 </li>
@@ -180,22 +189,22 @@ export function DuplicateWarningPanel({
         <Input
           name="survivingComplaintId"
           id="survivingComplaintId"
-          label="Surviving complaint ID (for link)"
+          label={t("survivingComplaintIdLabel")}
           value={survivingId || effectiveSurviving}
           onChange={(event) => setSurvivingId(event.target.value)}
           disabled={busy}
-          hint="Click a candidate above or paste an Aggregate complaint ID"
+          hint={t("survivingComplaintIdHint")}
         />
 
         <Textarea
           name="overrideJustification"
           id="overrideJustification"
-          label="Override justification"
+          label={t("overrideJustificationLabel")}
           rows={3}
           value={justification}
           onChange={(event) => setJustification(event.target.value)}
           disabled={busy}
-          hint="Required for override (min. 20 characters)"
+          hint={t("overrideJustificationHint")}
         />
       </div>
     </Modal>

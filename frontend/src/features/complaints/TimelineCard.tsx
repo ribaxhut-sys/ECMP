@@ -89,6 +89,46 @@ function activityIcon(type: TimelineActivityType): string {
   }
 }
 
+function activityTypeLabelKey(type: TimelineActivityType): string {
+  switch (type) {
+    case "CREATED":
+      return "activityTypeCreated";
+    case "ASSIGNED":
+      return "activityTypeAssigned";
+    case "STATUS_CHANGED":
+      return "activityTypeStatusChanged";
+    case "PRIORITY_CHANGED":
+      return "activityTypePriorityChanged";
+    case "SLA":
+      return "activityTypeSla";
+    default:
+      return "activityTypeOther";
+  }
+}
+
+function slaSummaryKey(eventType: string): string | null {
+  switch (eventType) {
+    case "sla.assignment.breached":
+      return "activitySlaAssignmentBreached";
+    case "sla.appointment.breached":
+      return "activitySlaAppointmentBreached";
+    case "sla.escalation.breached":
+      return "activitySlaEscalationBreached";
+    case "sla.resolution.breached":
+      return "activitySlaResolutionBreached";
+    case "sla.assignment.completed":
+      return "activitySlaAssignmentCompleted";
+    case "sla.appointment.completed":
+      return "activitySlaAppointmentCompleted";
+    case "sla.escalation.completed":
+      return "activitySlaEscalationCompleted";
+    case "sla.resolution.completed":
+      return "activitySlaResolutionCompleted";
+    default:
+      return null;
+  }
+}
+
 export function TimelineCard({
   complaintId,
   refreshKey = 0,
@@ -101,22 +141,30 @@ export function TimelineCard({
   const locale = useLocale();
 
   function activityMessage(entry: TimelineEntry): string {
-    const summary = entry.summary?.trim();
-    if (summary) return summary;
-    switch (activityType(entry)) {
-      case "CREATED":
-        return t("activityCreated");
-      case "ASSIGNED":
-        return t("activityAssigned");
-      case "PRIORITY_CHANGED":
-        return t("activityPriorityChanged");
-      case "STATUS_CHANGED":
-        return t("activityStatusChanged");
-      case "SLA":
-        return t("activitySlaChanged");
-      default:
-        return t("activityGeneric");
+    const type = activityType(entry);
+
+    if (type === "SLA") {
+      const slaKey = slaSummaryKey(entry.eventType);
+      if (slaKey) return t(slaKey);
+      return t("activitySlaChanged");
     }
+
+    if (type === "CREATED") return t("activityCreated");
+    if (type === "PRIORITY_CHANGED") return t("activityPriorityChanged");
+    if (type === "STATUS_CHANGED") return t("activityStatusChanged");
+    if (type === "ASSIGNED") {
+      const assignee =
+        typeof entry.metadata?.assigneeName === "string"
+          ? entry.metadata.assigneeName.trim()
+          : typeof entry.metadata?.toAssigneeName === "string"
+            ? entry.metadata.toAssigneeName.trim()
+            : "";
+      if (assignee) return t("activityAssignedTo", { name: assignee });
+      // Prefer localized label over English API summary ("Assigned to …").
+      return t("activityAssigned");
+    }
+
+    return t("activityGeneric");
   }
 
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
@@ -184,7 +232,7 @@ export function TimelineCard({
                     className={cn(
                       "relative z-[1] flex size-8 shrink-0 items-center justify-center rounded-full border border-ecmp-border bg-ecmp-surface text-sm font-semibold text-ecmp-text-primary",
                     )}
-                    title={type}
+                    title={t(activityTypeLabelKey(type))}
                   >
                     {activityIcon(type)}
                   </span>

@@ -1,18 +1,22 @@
 "use client";
 
 import { Suspense, use } from "react";
+import { useTranslations } from "next-intl";
 import { CmBatch1ConfirmationView } from "@/features/complaints";
 import { PageContainer, PageHeader, Skeleton } from "@/shared/ui";
 
 function ConfirmationFallback() {
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Complaint registered"
+        title={t("registeredTitle")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
-          { label: "Confirmation" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title"), href: "/complaints" },
+          { label: t("confirmation") },
         ]}
       />
       <Skeleton rows={5} />

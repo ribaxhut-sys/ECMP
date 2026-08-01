@@ -39,19 +39,20 @@ export function createEmptyComplaintForm(
   };
 }
 
+/** Values only — labels come from useTranslations in the view. */
 export const PRIORITY_OPTIONS = [
-  { value: "LOW", label: "Low" },
-  { value: "MEDIUM", label: "Medium" },
-  { value: "HIGH", label: "High" },
-  { value: "CRITICAL", label: "Critical" },
+  { value: "LOW" },
+  { value: "MEDIUM" },
+  { value: "HIGH" },
+  { value: "CRITICAL" },
 ] as const;
 
 export const CHANNEL_OPTIONS = [
-  { value: "CALL", label: "Call" },
-  { value: "EMAIL", label: "Email" },
-  { value: "BRANCH", label: "Branch" },
-  { value: "WEB", label: "Web" },
-  { value: "OTHER", label: "Other" },
+  { value: "CALL" },
+  { value: "EMAIL" },
+  { value: "BRANCH" },
+  { value: "WEB" },
+  { value: "OTHER" },
 ] as const;
 
 const UUID_RE =
@@ -61,7 +62,10 @@ function isUuid(value: string): boolean {
   return UUID_RE.test(value.trim());
 }
 
-/** Client-side validation aligned with ComplaintCreateRequest (API-201). */
+/**
+ * Client-side validation aligned with ComplaintCreateRequest (API-201).
+ * Returns `validation.*` message keys (not localized strings).
+ */
 export function validateCreateComplaintForm(
   values: CreateComplaintFormValues,
 ): CreateComplaintFieldErrors {
@@ -69,54 +73,54 @@ export function validateCreateComplaintForm(
 
   const customerId = values.customerId.trim();
   if (!customerId) {
-    errors.customerId = "Select a customer.";
+    errors.customerId = "selectCustomer";
   } else if (!isUuid(customerId)) {
-    errors.customerId = "Selected customer ID is invalid.";
+    errors.customerId = "customerIdInvalid";
   }
 
   if (!values.customerName.trim()) {
-    errors.customerName = "Customer name is required.";
+    errors.customerName = "customerNameRequired";
   }
 
   const subject = values.subject.trim();
   if (!subject) {
-    errors.subject = "Subject is required.";
+    errors.subject = "subjectRequired";
   } else if (subject.length > 200) {
-    errors.subject = "Subject must be 200 characters or fewer.";
+    errors.subject = "subjectMax";
   }
 
   const description = values.description.trim();
   if (!description) {
-    errors.description = "Description is required.";
+    errors.description = "descriptionRequired";
   } else if (description.length > 5000) {
-    errors.description = "Description must be 5000 characters or fewer.";
+    errors.description = "descriptionMax";
   }
 
   if (!values.priority) {
-    errors.priority = "Priority is required.";
+    errors.priority = "priorityRequired";
   }
 
   const branchId = values.branchId.trim();
   if (!branchId) {
-    errors.branchId = "Select a branch.";
+    errors.branchId = "selectBranch";
   } else if (!isUuid(branchId)) {
-    errors.branchId = "Selected branch ID is invalid.";
+    errors.branchId = "branchIdInvalid";
   }
 
   const channel = values.channel.trim();
   if (channel.length > 32) {
-    errors.channel = "Channel must be 32 characters or fewer.";
+    errors.channel = "channelMax";
   }
 
   const category = values.category.trim();
   if (category.length > 64) {
-    errors.category = "Category must be 64 characters or fewer.";
+    errors.category = "categoryMax";
   }
 
   if (values.reportedAt) {
     const parsed = new Date(values.reportedAt);
     if (Number.isNaN(parsed.getTime())) {
-      errors.reportedAt = "Enter a valid date and time.";
+      errors.reportedAt = "invalidDateTime";
     }
   }
 
@@ -151,6 +155,7 @@ export function toCreateComplaintRequest(
 /**
  * Client-side validation for CM Batch-1 Aggregate create (API-500).
  * Category + channel required; customerId is opaque string (not UUID-only).
+ * Returns `validation.*` message keys (not localized strings).
  */
 export function validateCmBatch1CreateForm(
   values: CreateComplaintFormValues,
@@ -159,41 +164,41 @@ export function validateCmBatch1CreateForm(
 
   const customerId = values.customerId.trim();
   if (!customerId) {
-    errors.customerId = "Select a customer.";
+    errors.customerId = "selectCustomer";
   } else if (customerId.length > 128) {
-    errors.customerId = "Customer ID must be 128 characters or fewer.";
+    errors.customerId = "customerIdMax";
   }
 
   if (!values.customerName.trim()) {
-    errors.customerName = "Customer name is required.";
+    errors.customerName = "customerNameRequired";
   }
 
   const subject = values.subject.trim();
   if (!subject) {
-    errors.subject = "Subject is required.";
+    errors.subject = "subjectRequired";
   } else if (subject.length > 200) {
-    errors.subject = "Subject must be 200 characters or fewer.";
+    errors.subject = "subjectMax";
   }
 
   const description = values.description.trim();
   if (!description) {
-    errors.description = "Description is required.";
+    errors.description = "descriptionRequired";
   } else if (description.length > 5000) {
-    errors.description = "Description must be 5000 characters or fewer.";
+    errors.description = "descriptionMax";
   }
 
   const category = values.category.trim();
   if (!category) {
-    errors.category = "Category is required.";
+    errors.category = "categoryRequired";
   } else if (category.length > 64) {
-    errors.category = "Category must be 64 characters or fewer.";
+    errors.category = "categoryMax";
   }
 
   const channel = values.channel.trim();
   if (!channel) {
-    errors.channel = "Channel is required.";
+    errors.channel = "channelRequired";
   } else if (channel.length > 32) {
-    errors.channel = "Channel must be 32 characters or fewer.";
+    errors.channel = "channelMax";
   }
 
   if (values.priority) {
@@ -202,7 +207,7 @@ export function validateCmBatch1CreateForm(
 
   const branchId = values.branchId.trim();
   if (branchId && !isUuid(branchId)) {
-    errors.branchId = "Selected branch ID is invalid.";
+    errors.branchId = "branchIdInvalid";
   }
 
   return errors;

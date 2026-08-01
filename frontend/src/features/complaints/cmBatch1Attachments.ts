@@ -43,8 +43,8 @@ export function cmBatch1AttachmentListLabel(
   const voidedHidden = options?.voidedHidden ?? true;
   if (count <= 0) {
     return voidedHidden
-      ? "No bound attachments"
-      : "No attachments";
+      ? "attachmentCountNone"
+      : "noItems";
   }
-  return count === 1 ? "1 attachment" : `${count} attachments`;
+  return count === 1 ? "attachmentCountOne" : "attachmentCountMany";
 }

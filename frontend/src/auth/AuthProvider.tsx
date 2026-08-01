@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiLogin(username, password);
       const me = await loadMe();
       if (!me) {
-        throw new Error("Failed to load user profile");
+        throw new Error("PROFILE_LOAD_FAILED");
       }
       return me;
     },

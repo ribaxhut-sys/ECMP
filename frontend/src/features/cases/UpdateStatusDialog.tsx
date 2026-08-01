@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ApiError,
   updateCmCaseStatus,
@@ -36,6 +37,8 @@ export function UpdateStatusDialog({
   caseData: CmCase;
   onUpdated?: (caseData: CmCase) => void;
 }) {
+  const t = useTranslations("cases");
+  const tValidation = useTranslations("validation");
   const targets = allowedStatusTargets(caseData.status);
   const [values, setValues] = useState(
     emptyUpdateStatusForm({
@@ -89,7 +92,7 @@ export function UpdateStatusDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : "Unable to update status.",
+        err instanceof ApiError ? err.message : t("updateFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -100,19 +103,15 @@ export function UpdateStatusDialog({
     <Modal
       open={open}
       onClose={handleClose}
-      title="Update Case Status"
+      title={t("updateStatusTitle")}
       footer={
         <>
-          <Button variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button>
+          <Button variant="ghost" onClick={handleClose} disabled={submitting}>{t("back")}          </Button>
           <Button
             onClick={submit}
             loading={submitting}
             disabled={targets.length === 0}
-          >
-            Update status
-          </Button>
+          >{t("updateStatus")}          </Button>
         </>
       }
     >
@@ -120,44 +119,44 @@ export function UpdateStatusDialog({
         {submitError ? (
           <Alert
             tone="danger"
-            title="Update failed"
+            title={t("updateFailed")}
             description={submitError}
           />
         ) : null}
         {targets.length === 0 ? (
           <Alert
             tone="warning"
-            title="No transitions"
-            description={`No Mode A status transitions available from ${caseData.status}. Use Resolve or Close when applicable.`}
+            title={t("noTransitions")}
+            description={t("noTransitionsDescription", { status: caseData.status })}
           />
         ) : (
           <>
             <Select
               name="toStatus"
-              label="Target status"
+              label={t("targetStatus")}
               value={values.toStatus}
               onChange={(e) =>
                 setField("toStatus", e.target.value as CmCaseStatus | "")
               }
               options={targets.map((t) => ({ value: t, label: t }))}
-              placeholder="Select status"
-              error={fieldErrors.toStatus}
+              placeholder={t("selectStatus")}
+              error={fieldErrors.toStatus ? tValidation(fieldErrors.toStatus) : undefined}
             />
             {(values.toStatus === "ASSIGNED" ||
               caseData.status === "CREATED") && (
               <Input
                 name="destinationUnitId"
-                label="Destination unit"
+                label={t("destinationUnit")}
                 value={values.destinationUnitId}
                 onChange={(e) => setField("destinationUnitId", e.target.value)}
-                error={fieldErrors.destinationUnitId}
+                error={fieldErrors.destinationUnitId ? tValidation(fieldErrors.destinationUnitId) : undefined}
               />
             )}
             {values.toStatus === "CANCELLED" ? (
               <>
                 <Select
                   name="cancelReason"
-                  label="Cancel reason"
+                  label={t("cancelReason")}
                   value={values.cancelReason}
                   onChange={(e) =>
                     setField(
@@ -165,15 +164,15 @@ export function UpdateStatusDialog({
                       e.target.value as UpdateStatusFormValues["cancelReason"],
                     )
                   }
-                  options={CANCEL_REASON_OPTIONS}
-                  error={fieldErrors.cancelReason}
+                  options={CANCEL_REASON_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
+                  error={fieldErrors.cancelReason ? tValidation(fieldErrors.cancelReason) : undefined}
                 />
                 <Textarea
                   name="reason"
-                  label="Reason"
+                  label={t("reason")}
                   value={values.reason}
                   onChange={(e) => setField("reason", e.target.value)}
-                  error={fieldErrors.reason}
+                  error={fieldErrors.reason ? tValidation(fieldErrors.reason) : undefined}
                 />
               </>
             ) : null}

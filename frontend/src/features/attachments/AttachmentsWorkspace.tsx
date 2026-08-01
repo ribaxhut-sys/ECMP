@@ -2,6 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AttachmentList } from "@/features/attachments";
 import {
@@ -24,6 +25,7 @@ function parseIds(raw: string | null): string[] {
 }
 
 export function AttachmentsWorkspace() {
+  const t = useTranslations("attachments");
   const router = useRouter();
   const searchParams = useSearchParams();
   const idsFromQuery = useMemo(
@@ -46,17 +48,17 @@ export function AttachmentsWorkspace() {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Attachments"
+        title={t("title")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Attachments" },
+          { label: t("home"), href: "/dashboard" },
+          { label: t("title") },
         ]}
-        description="Preview images and PDFs, download files, or open them in a new tab. Bytes are loaded only when you preview or download."
+        description={t("workspaceDescription")}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>Load by attachment ID</CardTitle>
+          <CardTitle>{t("loadByIdTitle")}</CardTitle>
         </CardHeader>
         <CardBody>
           <form
@@ -67,40 +69,36 @@ export function AttachmentsWorkspace() {
               <label
                 htmlFor="attachment-ids"
                 className="text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary"
-              >
-                Attachment UUID(s)
-              </label>
+              >{t("attachmentUuidsLabel")}              </label>
               <Input
                 id="attachment-ids"
                 name="ids"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="uuid-1, uuid-2"
+                placeholder={t("idsPlaceholder")}
                 autoComplete="off"
               />
             </div>
-            <Button type="submit" variant="primary">
-              Load
-            </Button>
+            <Button type="submit" variant="primary">{t("load")}            </Button>
           </form>
           <p className="mt-3 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-            Uses existing APIs only:{" "}
+            {t("apiHintPrefix")}{" "}
             <code className="rounded bg-ecmp-secondary-muted px-1">
               GET /api/v1/attachments/&#123;id&#125;
             </code>{" "}
-            and{" "}
+            {t("apiHintJoin")}{" "}
             <code className="rounded bg-ecmp-secondary-muted px-1">
               GET /api/v1/attachments/&#123;id&#125;/download
             </code>
-            . There is no list-by-object endpoint in this task.
+            . {t("noListEndpointNote")}
           </p>
         </CardBody>
       </Card>
 
       <AttachmentList
         attachmentIds={idsFromQuery}
-        emptyTitle="No attachment IDs"
-        emptyDescription="Enter one or more attachment UUIDs above to load cards for preview and download."
+        emptyTitle={t("noAttachmentIds")}
+        emptyDescription={t("noAttachmentIdsDescription")}
       />
     </PageContainer>
   );

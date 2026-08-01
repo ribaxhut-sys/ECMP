@@ -6,13 +6,34 @@ import {
   isAppLocale,
   type AppLocale,
 } from "./config";
+import fallbackIdMessages from "../../messages/id.json";
+
+type Messages = Record<string, unknown>;
 
 async function loadMessages(locale: AppLocale) {
   try {
-    return (await import(`../../messages/${locale}.json`)).default;
+    return (await import(`../../messages/${locale}.json`)).default as Messages;
   } catch {
-    return (await import(`../../messages/${DEFAULT_LOCALE}.json`)).default;
+    return (await import(`../../messages/${DEFAULT_LOCALE}.json`))
+      .default as Messages;
   }
+}
+
+function lookupMessage(
+  messages: Messages,
+  namespace: string | undefined,
+  key: string,
+): string | undefined {
+  const parts = [
+    ...(namespace ? namespace.split(".") : []),
+    ...key.split("."),
+  ].filter(Boolean);
+  let node: unknown = messages;
+  for (const part of parts) {
+    if (!node || typeof node !== "object") return undefined;
+    node = (node as Record<string, unknown>)[part];
+  }
+  return typeof node === "string" ? node : undefined;
 }
 
 export default getRequestConfig(async () => {
@@ -24,8 +45,21 @@ export default getRequestConfig(async () => {
     ? cookieLocale
     : DEFAULT_LOCALE;
 
+  const messages = await loadMessages(locale);
+
   return {
     locale,
-    messages: await loadMessages(locale),
+    messages,
+    // Never surface raw key paths in the UI (L10-09R).
+    getMessageFallback: ({
+      namespace,
+      key,
+    }: {
+      namespace?: string;
+      key: string;
+    }) =>
+      lookupMessage(messages, namespace, key) ??
+      lookupMessage(fallbackIdMessages as Messages, namespace, key) ??
+      "…",
   };
 });

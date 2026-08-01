@@ -1,18 +1,22 @@
 "use client";
 
 import { Suspense, use } from "react";
+import { useTranslations } from "next-intl";
 import { CaseDetailView } from "@/features/cases";
 import { PageContainer, PageHeader, Skeleton } from "@/shared/ui";
 
 function CaseDetailFallback() {
+  const tCases = useTranslations("cases");
+  const tCommon = useTranslations("common");
+  const tNav = useTranslations("nav");
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Case"
+        title={tCases("title")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
-          { label: "Case" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: tNav("complaints"), href: "/complaints" },
+          { label: tCases("title") },
         ]}
       />
       <Skeleton rows={6} />

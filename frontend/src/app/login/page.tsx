@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
-import { ApiError } from "@/lib/api";
 import { AuthLayout } from "@/shared/layouts";
 import {
   Alert,
@@ -17,12 +16,14 @@ import {
   Loading,
 } from "@/shared/ui";
 import { LanguageSwitcher } from "@/shared/i18n";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 export default function LoginPage() {
   const router = useRouter();
   const { status, login, user } = useAuth();
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +48,10 @@ export default function LoginPage() {
       // AuthProvider updates user asynchronously via loadMe inside login.
       // Redirect is handled by the authenticated effect above after me loads.
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : t("loginFailed");
-      setError(message);
+      setError(
+        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+          t("loginFailed"),
+      );
     } finally {
       setSubmitting(false);
     }

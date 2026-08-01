@@ -3,11 +3,13 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type ChangeEvent,
   type FormEvent,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -18,6 +20,10 @@ import {
   type Branch,
   type CmBatch1DuplicateCheckResponse,
 } from "@/lib/api";
+import {
+  resolveApiErrorMessage,
+  translateValidationErrors,
+} from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
   Button,
@@ -37,11 +43,9 @@ import { CustomerSearchPanel } from "./CustomerSearchPanel";
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { StagingAttachmentsPanel } from "./StagingAttachmentsPanel";
 import {
-  CHANNEL_OPTIONS,
   createEmptyComplaintForm,
   newCmBatch1IdempotencyKey,
   newCmBatch1StagingToken,
-  PRIORITY_OPTIONS,
   toCmBatch1CreateRequest,
   validateCmBatch1CreateForm,
   type CreateComplaintFieldErrors,
@@ -55,6 +59,11 @@ import {
  */
 export function CreateComplaintView() {
   const router = useRouter();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tPriority = useTranslations("priority");
+  const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
   const { user, hasPermission } = useAuth();
   const canCreate = hasPermission("complaints:create");
   const agentBranchId = user?.branchId ?? null;
@@ -79,6 +88,27 @@ export function CreateComplaintView() {
   >(null);
   const [stagingToken, setStagingToken] = useState(() =>
     newCmBatch1StagingToken(),
+  );
+
+  const priorityOptions = useMemo(
+    () => [
+      { value: "LOW", label: tPriority("LOW") },
+      { value: "MEDIUM", label: tPriority("MEDIUM") },
+      { value: "HIGH", label: tPriority("HIGH") },
+      { value: "CRITICAL", label: tPriority("CRITICAL") },
+    ],
+    [tPriority],
+  );
+
+  const channelOptions = useMemo(
+    () => [
+      { value: "CALL", label: t("channelCall") },
+      { value: "EMAIL", label: t("channelEmail") },
+      { value: "BRANCH", label: t("channelBranch") },
+      { value: "WEB", label: t("channelWeb") },
+      { value: "OTHER", label: t("channelOther") },
+    ],
+    [t],
   );
 
   useEffect(() => {
@@ -106,9 +136,8 @@ export function CreateComplaintView() {
       } catch (err) {
         if (!cancelled) {
           setBranchesError(
-            err instanceof ApiError
-              ? err.message
-              : "Unable to load branches.",
+            resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+              t("unableToLoadBranches"),
           );
         }
       } finally {
@@ -118,7 +147,7 @@ export function CreateComplaintView() {
     return () => {
       cancelled = true;
     };
-  }, [agentBranchId, canCreate]);
+  }, [agentBranchId, canCreate, t, tCommon, tErrors]);
 
   const updateField = useCallback(
     <K extends keyof CreateComplaintFormValues>(
@@ -170,23 +199,23 @@ export function CreateComplaintView() {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Create Complaint"
+          title={t("create")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Create" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: tCommon("create") },
           ]}
         />
         <Empty
-          title="Access restricted"
-          description="You need the complaints:create permission to register a complaint."
+          title={tCommon("accessRestricted")}
+          description={t("createAccessRestrictedDescription")}
           action={
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints")}
             >
-              Back to Complaints
+              {t("backToList")}
             </Button>
           }
         />
@@ -232,7 +261,10 @@ export function CreateComplaintView() {
     setSubmitError(null);
     setInfoMessage(null);
 
-    const nextErrors = validateCmBatch1CreateForm(values);
+    const nextErrors = translateValidationErrors(
+      validateCmBatch1CreateForm(values),
+      tValidation,
+    );
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       const firstKey = Object.keys(nextErrors)[0];
@@ -263,13 +295,10 @@ export function CreateComplaintView() {
 
       await createAggregate(null);
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Unable to create complaint.";
-      setSubmitError(message);
+      setSubmitError(
+        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+          t("unableToCreate"),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -290,16 +319,14 @@ export function CreateComplaintView() {
           survivingComplaintId: payload.survivingComplaintId,
         });
         setDuplicateOpen(false);
-        setInfoMessage(
-          "Recommendation recorded: continue on the existing complaint. Case create is Batch 2 — not available here.",
-        );
+        setInfoMessage(t("recommendOnlyRecorded"));
         return;
       }
 
       if (payload.decision === "link_existing") {
         const surviving = payload.survivingComplaintId?.trim();
         if (!surviving) {
-          setSubmitError("Surviving complaint ID is required to link.");
+          setSubmitError(t("survivingIdRequired"));
           return;
         }
         await recordCmBatch1DuplicateDecision({
@@ -315,7 +342,6 @@ export function CreateComplaintView() {
 
       if (payload.decision === "override") {
         const justification = payload.justification?.trim() ?? "";
-        // Create path (API-500) records override + audit when justification is present.
         setOverrideJustification(justification);
         setDuplicateOpen(false);
         setSubmitting(true);
@@ -333,15 +359,12 @@ export function CreateComplaintView() {
           customerId: values.customerId.trim(),
         });
         setDuplicateOpen(false);
-        setSubmitError("Create is blocked by duplicate policy.");
+        setSubmitError(t("createBlockedByDuplicate"));
       }
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Unable to record duplicate decision.",
+        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+          t("unableToRecordDuplicateDecision"),
       );
     } finally {
       setDuplicateBusy(false);
@@ -356,37 +379,37 @@ export function CreateComplaintView() {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Create Complaint"
+        title={t("create")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
-          { label: "Create" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title"), href: "/complaints" },
+          { label: tCommon("create") },
         ]}
-        description="Batch-1 Aggregate intake (/api/v1/cm): search & confirm customer, duplicate check, then register. Dual SoT — not listed on foundation /api/v1/complaints."
+        description={t("batch1IntakeDescription")}
       />
 
       <form
         noValidate
         onSubmit={(event) => void onSubmit(event)}
-        aria-label="Create complaint form"
+        aria-label={t("createFormAriaLabel")}
         className="space-y-6"
       >
         {submitError ? (
           <Alert
             tone="danger"
-            title="Could not create complaint"
+            title={t("couldNotCreate")}
             description={submitError}
           />
         ) : null}
 
         {infoMessage ? (
-          <Alert tone="info" title="Notice" description={infoMessage} />
+          <Alert tone="info" title={t("notice")} description={infoMessage} />
         ) : null}
 
         {branchesError ? (
           <Alert
             tone="danger"
-            title="Could not load branches"
+            title={t("couldNotLoadBranches")}
             description={branchesError}
           />
         ) : null}
@@ -402,11 +425,11 @@ export function CreateComplaintView() {
         {(errors.customerId || errors.customerName) && !values.customerId ? (
           <Alert
             tone="danger"
-            title="Customer required"
+            title={t("customerRequiredTitle")}
             description={
               errors.customerId ||
               errors.customerName ||
-              "Confirm a customer before creating."
+              t("confirmCustomerBeforeCreating")
             }
           />
         ) : null}
@@ -414,11 +437,10 @@ export function CreateComplaintView() {
         <Card>
           <CardHeader>
             <CardTitle id="section-complaint-info">
-              Complaint Information
+              {t("complaintInformation")}
             </CardTitle>
             <CardDescription>
-              Subject, narrative, category, and channel (API-500 required
-              fields).
+              {t("complaintInformationDescription")}
             </CardDescription>
           </CardHeader>
           <CardBody>
@@ -426,12 +448,12 @@ export function CreateComplaintView() {
               aria-labelledby="section-complaint-info"
               className="grid grid-cols-1 gap-4 md:grid-cols-2"
             >
-              <legend className="sr-only">Complaint Information</legend>
+              <legend className="sr-only">{t("complaintInformation")}</legend>
               <div className="md:col-span-2">
                 <Input
                   name="subject"
                   id="subject"
-                  label="Subject"
+                  label={t("subject")}
                   required
                   maxLength={200}
                   value={values.subject}
@@ -444,9 +466,9 @@ export function CreateComplaintView() {
               <Select
                 name="priority"
                 id="priority"
-                label="Priority"
-                placeholder="Select priority (optional)"
-                options={PRIORITY_OPTIONS}
+                label={t("priority")}
+                placeholder={t("selectPriorityOptional")}
+                options={priorityOptions}
                 value={values.priority}
                 onChange={onTextChange("priority")}
                 error={errors.priority}
@@ -454,10 +476,10 @@ export function CreateComplaintView() {
               <Select
                 name="channel"
                 id="channel"
-                label="Channel"
+                label={t("channel")}
                 required
-                placeholder="Select channel"
-                options={CHANNEL_OPTIONS}
+                placeholder={t("selectChannel")}
+                options={channelOptions}
                 value={values.channel}
                 onChange={onTextChange("channel")}
                 error={errors.channel}
@@ -466,7 +488,7 @@ export function CreateComplaintView() {
               <Input
                 name="category"
                 id="category"
-                label="Category"
+                label={t("category")}
                 required
                 maxLength={64}
                 value={values.category}
@@ -479,7 +501,7 @@ export function CreateComplaintView() {
                 <Textarea
                   name="description"
                   id="description"
-                  label="Description"
+                  label={t("description")}
                   required
                   rows={5}
                   maxLength={5000}
@@ -487,7 +509,10 @@ export function CreateComplaintView() {
                   onChange={onTextChange("description")}
                   error={errors.description}
                   aria-required="true"
-                  hint={`${values.description.trim().length}/5000`}
+                  hint={t("charCounter", {
+                    count: values.description.trim().length,
+                    max: 5000,
+                  })}
                 />
               </div>
             </fieldset>
@@ -496,24 +521,23 @@ export function CreateComplaintView() {
 
         <Card>
           <CardHeader>
-            <CardTitle id="section-location">Recording unit</CardTitle>
-            <CardDescription>
-              Optional recording unit (branch) mapped to Aggregate
-              recordingUnitId.
-            </CardDescription>
+            <CardTitle id="section-location">{t("recordingUnit")}</CardTitle>
+            <CardDescription>{t("recordingUnitDescription")}</CardDescription>
           </CardHeader>
           <CardBody>
             <fieldset
               aria-labelledby="section-location"
               className="grid grid-cols-1 gap-4 md:grid-cols-2"
             >
-              <legend className="sr-only">Recording unit</legend>
+              <legend className="sr-only">{t("recordingUnit")}</legend>
               <Select
                 name="branchId"
                 id="branchId"
-                label="Branch"
+                label={t("branch")}
                 placeholder={
-                  branchesLoading ? "Loading branches…" : "Select branch"
+                  branchesLoading
+                    ? t("loadingBranches")
+                    : t("selectBranchPlaceholder")
                 }
                 options={branchOptions}
                 value={values.branchId}
@@ -522,8 +546,8 @@ export function CreateComplaintView() {
                 disabled={branchesLoading || branchOptions.length === 0}
                 hint={
                   branchOptions.length === 0 && !branchesLoading
-                    ? "No active branches available"
-                    : "Optional — Mode A lab branches"
+                    ? t("noActiveBranches")
+                    : t("optionalLabBranches")
                 }
               />
             </fieldset>
@@ -533,8 +557,8 @@ export function CreateComplaintView() {
         {overrideJustification ? (
           <Alert
             tone="warning"
-            title="Duplicate override armed"
-            description="Create will proceed with the recorded override justification."
+            title={t("duplicateOverrideArmed")}
+            description={t("duplicateOverrideArmedDescription")}
           />
         ) : null}
 
@@ -550,17 +574,17 @@ export function CreateComplaintView() {
             variant="outline"
             onClick={onCancel}
             disabled={submitting || duplicateBusy}
-            aria-label="Cancel and return to complaints"
+            aria-label={t("cancelAriaLabel")}
           >
-            Cancel
+            {tCommon("cancel")}
           </Button>
           <Button
             type="submit"
             loading={submitting}
             disabled={duplicateBusy}
-            aria-label="Create complaint"
+            aria-label={t("createAriaLabel")}
           >
-            {submitting ? "Creating…" : "Create Complaint"}
+            {submitting ? t("creating") : t("create")}
           </Button>
         </div>
       </form>

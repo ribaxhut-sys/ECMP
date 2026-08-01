@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Fragment } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 import { IconChevronRight } from "@/shared/icons";
 
@@ -14,10 +17,12 @@ export interface BreadcrumbProps {
 }
 
 export function Breadcrumb({ items, className }: BreadcrumbProps) {
+  const t = useTranslations("common");
+
   if (items.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className={cn("min-w-0", className)}>
+    <nav aria-label={t("breadcrumb")} className={cn("min-w-0", className)}>
       <ol className="flex flex-wrap items-center gap-1 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;

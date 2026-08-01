@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchCmCase, type CmCase } from "@/lib/api";
@@ -24,6 +25,7 @@ import { listKnownCaseIds, rememberCaseId } from "./caseSessionRegistry";
  * hydrates each via GET /api/v1/cm/cases/{caseId}.
  */
 export function CaseListView({ complaintId }: { complaintId: string }) {
+  const t = useTranslations("cases");
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
@@ -53,7 +55,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         loaded.push(res.data);
       } catch (err) {
         failures.push(
-          err instanceof ApiError ? `${id}: ${err.message}` : `${id}: failed`,
+          err instanceof ApiError ? `${id}: ${err.message}` : `${id}: ${t("unableToLoad")}`,
         );
       }
     }
@@ -70,7 +72,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
 
   function onCreated(caseData: CmCase) {
     rememberCaseId(complaintId, caseData.caseId);
-    setToastMessage(`Case ${caseData.caseNumber} created.`);
+    setToastMessage(t("created", { number: caseData.caseNumber }));
     setToastOpen(true);
     void reload();
   }
@@ -79,16 +81,16 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Cases"
+          title={t("title")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Cases" },
+            { label: t("back"), href: "/dashboard" },
+            { label: t("confirmation"), href: "/complaints" },
+            { label: t("title") },
           ]}
         />
         <Empty
-          title="Permission denied"
-          description="complaints:read is required to view cases."
+          title={t("accessDenied")}
+          description={t("readPermission")}
         />
       </PageContainer>
     );
@@ -97,16 +99,16 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Cases"
-        description={`Complaint ${complaintId} — CAP-008 Mode A (session-known cases; no List API).`}
+        title={t("title")}
+        description={t("modeADescription", { id: complaintId })}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
+          { label: t("back"), href: "/dashboard" },
+          { label: t("confirmation"), href: "/complaints" },
           {
-            label: "Confirmation",
+            label: t("confirmation"),
             href: `/complaints/cm/${encodeURIComponent(complaintId)}`,
           },
-          { label: "Cases" },
+          { label: t("title") },
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -118,21 +120,15 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
                   `/complaints/cm/${encodeURIComponent(complaintId)}`,
                 )
               }
-            >
-              Back
-            </Button>
+            >{t("back")}            </Button>
             {canCreate ? (
               <>
-                <Button type="button" onClick={() => setCreateOpen(true)}>
-                  Create Case
-                </Button>
+                <Button type="button" onClick={() => setCreateOpen(true)}>{t("create")}                </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={() => setAddOpen(true)}
-                >
-                  Add Case
-                </Button>
+                >{t("add")}                </Button>
               </>
             ) : null}
           </div>
@@ -141,16 +137,16 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
 
       {loading ? <Skeleton rows={4} /> : null}
       {error ? (
-        <ErrorState title="Unable to load cases" message={error} />
+        <ErrorState title={t("unableToLoadList")} message={error} />
       ) : null}
       {!loading && !error && cases.length === 0 ? (
         <Empty
-          title="No cases in this session"
-          description="Mode A has no Case List API. Create or Add a Case, or open a Case by ID from confirmation."
+          title={t("noSessionCases")}
+          description={t("noSessionCasesDescription")}
           action={
             canCreate ? (
               <Button type="button" onClick={() => setCreateOpen(true)}>
-                Create Case
+                {t("create")}
               </Button>
             ) : undefined
           }
@@ -167,8 +163,8 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
       {!canCreate ? (
         <Alert
           tone="info"
-          title="Create restricted"
-          description="Create/Add Case requires complaints:create permission."
+          title={t("createRestricted")}
+          description={t("createPermission")}
         />
       ) : null}
 
@@ -189,7 +185,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
       <Toast
         open={toastOpen}
         onClose={() => setToastOpen(false)}
-        title="Success"
+        title={t("success")}
         description={toastMessage}
         tone="success"
       />

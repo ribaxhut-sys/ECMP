@@ -34,27 +34,27 @@ export function emptyCreateCaseForm(): CreateCaseFormValues {
 }
 
 export const CASE_PRIORITY_OPTIONS = [
-  { value: "LOW", label: "Low" },
-  { value: "MEDIUM", label: "Medium" },
-  { value: "HIGH", label: "High" },
-  { value: "CRITICAL", label: "Critical" },
+  { value: "LOW", label: "low" },
+  { value: "MEDIUM", label: "medium" },
+  { value: "HIGH", label: "high" },
+  { value: "CRITICAL", label: "critical" },
 ] as const;
 
 export const CANCEL_REASON_OPTIONS: { value: CmCaseCancelReason; label: string }[] =
   [
-    { value: "DUPLICATE", label: "Duplicate" },
-    { value: "WRONG_INPUT", label: "Wrong Input" },
-    { value: "CUSTOMER_CANCELLATION", label: "Customer Cancellation" },
+    { value: "DUPLICATE", label: "cancelReasonOptionDuplicate" },
+    { value: "WRONG_INPUT", label: "cancelReasonOptionWrongInput" },
+    { value: "CUSTOMER_CANCELLATION", label: "cancelReasonOptionCustomerCancellation" },
   ];
 
 export function validateCreateCaseForm(
   values: CreateCaseFormValues,
 ): CreateCaseFieldErrors {
   const errors: CreateCaseFieldErrors = {};
-  if (!values.caseType.trim()) errors.caseType = "Case type is required.";
-  if (!values.subject.trim()) errors.subject = "Subject is required.";
-  if (!values.description.trim()) errors.description = "Description is required.";
-  if (!values.priority.trim()) errors.priority = "Priority is required.";
+  if (!values.caseType.trim()) errors.caseType = "caseTypeRequired";
+  if (!values.subject.trim()) errors.subject = "subjectRequired";
+  if (!values.description.trim()) errors.description = "descriptionRequired";
+  if (!values.priority.trim()) errors.priority = "priorityRequired";
   return errors;
 }
 
@@ -115,16 +115,16 @@ export function validateUpdateStatusForm(
   values: UpdateStatusFormValues,
 ): UpdateStatusFieldErrors {
   const errors: UpdateStatusFieldErrors = {};
-  if (!values.toStatus) errors.toStatus = "Target status is required.";
+  if (!values.toStatus) errors.toStatus = "targetStatusRequired";
   if (values.toStatus === "ASSIGNED" && !values.destinationUnitId.trim()) {
-    errors.destinationUnitId = "Destination unit is required for ASSIGNED.";
+    errors.destinationUnitId = "destinationUnitRequired";
   }
   if (values.toStatus === "CANCELLED") {
     if (!values.cancelReason) {
-      errors.cancelReason = "Cancel reason is required (BQ-014).";
+      errors.cancelReason = "cancelReasonRequired";
     }
     if (!values.reason.trim()) {
-      errors.reason = "Reason text is required for cancel.";
+      errors.reason = "cancelReasonTextRequired";
     }
   }
   return errors;
@@ -169,15 +169,15 @@ export function validateResolveCaseForm(
   values: ResolveCaseFormValues,
 ): ResolveCaseFieldErrors {
   const errors: ResolveCaseFieldErrors = {};
-  if (!values.comment.trim()) errors.comment = "Comment is required (BQ-010).";
+  if (!values.comment.trim()) errors.comment = "commentRequired";
   if (values.action === "PROPOSE" || values.action === "ACCEPT") {
     if (!values.resolutionCode.trim()) {
-      errors.resolutionCode = "Resolution code is required.";
+      errors.resolutionCode = "resolutionCodeRequired";
     }
-    if (!values.summary.trim()) errors.summary = "Summary is required.";
+    if (!values.summary.trim()) errors.summary = "summaryRequired";
   }
   if (values.action === "REJECT" && !values.rejectionReason.trim()) {
-    errors.rejectionReason = "Rejection reason is required.";
+    errors.rejectionReason = "rejectionReasonRequired";
   }
   return errors;
 }

@@ -9,6 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -28,6 +29,7 @@ import type {
   Priority,
   Resolution,
 } from "@/lib/api/types";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Badge,
   Button,
@@ -46,12 +48,6 @@ import {
 } from "@/shared/ui";
 import { ResolutionRowActions } from "./ResolutionRowActions";
 import {
-  ESCALATED_FILTER_OPTIONS,
-  PAGE_SIZE_OPTIONS,
-  PRIORITY_FILTER_OPTIONS,
-  SORT_FIELD_OPTIONS,
-  SORT_ORDER_OPTIONS,
-  STATUS_FILTER_OPTIONS,
   defaultResolutionFilters,
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -66,10 +62,10 @@ type RowEnrichment = {
   escalation: Escalation | null;
 };
 
-function formatWhen(value: string | null | undefined): string {
+function formatWhen(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(value));
@@ -124,6 +120,14 @@ export function ResolutionListView() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const locale = useLocale();
+  const t = useTranslations("resolutions");
+  const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
+  const tStatus = useTranslations("status");
+  const tPriority = useTranslations("priority");
+  const tComplaints = useTranslations("complaints");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
 
@@ -225,7 +229,7 @@ export function ResolutionListView() {
     async (next: ResolutionListFilters) => {
       if (!canRead) {
         setLoading(false);
-        setError("You do not have permission to view resolutions.");
+        setError(t("noPermission"));
         setErrorCode("FORBIDDEN");
         setRows([]);
         return;
@@ -250,20 +254,16 @@ export function ResolutionListView() {
         setHasNext(false);
         setHasPrevious(false);
         if (err instanceof ApiError) {
-          setError(err.message);
+          setError(resolveApiErrorMessage(err, tErrors, tCommon));
           setErrorCode(err.code);
         } else {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load resolutions.",
-          );
+          setError(resolveApiErrorMessage(err, tErrors, tCommon));
         }
       } finally {
         setLoading(false);
       }
     },
-    [canRead, enrichRows],
+    [canRead, enrichRows, t, tCommon, tErrors],
   );
 
   useEffect(() => {
@@ -297,16 +297,77 @@ export function ResolutionListView() {
     return map;
   }, [branches]);
 
-  const branchOptions = [
-    { value: "", label: "All branches" },
-    ...branches.map((b) => ({ value: b.id, label: b.name })),
-  ];
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: "", label: tTable("allStatuses") },
+      ...(["NEW", "ASSIGNED", "IN_PROGRESS", "PENDING", "ESCALATED", "RESOLVED", "CLOSED"] as const).map(
+        (value) => ({ value, label: tStatus(value) }),
+      ),
+    ],
+    [tStatus, tTable],
+  );
+
+  const priorityFilterOptions = useMemo(
+    () => [
+      { value: "", label: tTable("allPriorities") },
+      ...(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map((value) => ({
+        value,
+        label: tPriority(value),
+      })),
+    ],
+    [tPriority, tTable],
+  );
+
+  const escalatedFilterOptions = useMemo(
+    () => [
+      { value: "", label: t("anyEscalation") },
+      { value: "true", label: t("escalatedOnly") },
+      { value: "false", label: t("notEscalated") },
+    ],
+    [t],
+  );
+
+  const sortFieldOptions = useMemo(
+    () => [
+      { value: "createdAt", label: tTable("sortCreatedAt") },
+      { value: "updatedAt", label: tTable("sortUpdatedAt") },
+      { value: "priority", label: tTable("sortPriority") },
+      { value: "status", label: tTable("sortStatus") },
+      { value: "slaDueDate", label: tTable("sortSlaDueDate") },
+    ],
+    [tTable],
+  );
+
+  const sortOrderOptions = useMemo(
+    () => [
+      { value: "desc", label: tTable("sortOrderDesc") },
+      { value: "asc", label: tTable("sortOrderAsc") },
+    ],
+    [tTable],
+  );
+
+  const pageSizeOptions = useMemo(
+    () =>
+      [10, 20, 50].map((count) => ({
+        value: String(count),
+        label: tTable("perPage", { count }),
+      })),
+    [tTable],
+  );
+
+  const branchOptions = useMemo(
+    () => [
+      { value: "", label: t("allBranches") },
+      ...branches.map((b) => ({ value: b.id, label: b.name })),
+    ],
+    [branches, t],
+  );
 
   const columns = useMemo<TableColumn<Complaint>[]>(
     () => [
       {
         key: "complaint",
-        header: "Complaint",
+        header: t("complaintColumn"),
         cell: (row) => (
           <div className="min-w-0 space-y-1">
             <Link
@@ -323,55 +384,55 @@ export function ResolutionListView() {
       },
       {
         key: "status",
-        header: "Status",
+        header: tComplaints("status"),
         cell: (row) => (
           <Badge tone={statusTone(row.status)}>
-            {row.status.replaceAll("_", " ")}
+            {tStatus(row.status)}
           </Badge>
         ),
       },
       {
         key: "assignee",
-        header: "Assignee",
-        cell: (row) => enrichment[row.id]?.assigneeName?.trim() || "—",
+        header: t("assigneeColumn"),
+        cell: (row) => enrichment[row.id]?.assigneeName?.trim() || tCommon("emDash"),
       },
       {
         key: "resolutionStatus",
-        header: "Resolution",
+        header: t("resolutionColumn"),
         cell: (row) => {
           const has = Boolean(enrichment[row.id]?.resolution);
           return (
             <Badge tone={has ? "success" : "neutral"}>
-              {has ? "Submitted" : "None"}
+              {has ? t("submitted") : t("none")}
             </Badge>
           );
         },
       },
       {
         key: "resolvedAt",
-        header: "Resolved at",
+        header: t("resolvedAtColumn"),
         cell: (row) =>
-          formatWhen(enrichment[row.id]?.resolution?.resolvedAt),
+          formatWhen(enrichment[row.id]?.resolution?.resolvedAt, locale),
       },
       {
         key: "finalResolution",
-        header: "Final resolution",
+        header: t("finalResolutionColumn"),
         cell: (row) => {
           const final = enrichment[row.id]?.finalResolution;
-          if (!final) return "—";
+          if (!final) return tCommon("emDash");
           return (
             <Badge tone="success">
-              {final.status.replaceAll("_", " ")}
+              {tStatus(final.status)}
             </Badge>
           );
         },
       },
       {
         key: "escalation",
-        header: "Escalation",
+        header: t("escalationColumn"),
         cell: (row) => {
           const esc = enrichment[row.id]?.escalation;
-          if (!esc) return "—";
+          if (!esc) return tCommon("emDash");
           return (
             <Badge
               tone={
@@ -382,27 +443,27 @@ export function ResolutionListView() {
                     : "warning"
               }
             >
-              {esc.status.replaceAll("_", " ")}
+              {tStatus(esc.status)}
             </Badge>
           );
         },
       },
       {
         key: "branch",
-        header: "Branch",
+        header: t("branchColumn"),
         cell: (row) =>
-          (row.branchId && branchNameById.get(row.branchId)) || "—",
+          (row.branchId && branchNameById.get(row.branchId)) || tCommon("emDash"),
       },
       {
         key: "priority",
-        header: "Priority",
+        header: tComplaints("priority"),
         cell: (row) => (
-          <Badge tone={priorityTone(row.priority)}>{row.priority}</Badge>
+          <Badge tone={priorityTone(row.priority)}>{tPriority(row.priority)}</Badge>
         ),
       },
       {
         key: "actions",
-        header: "Actions",
+        header: tCommon("actions"),
         hideOnMobile: false,
         cell: (row) => {
           const meta = enrichment[row.id];
@@ -414,7 +475,7 @@ export function ResolutionListView() {
                 variant="outline"
                 onClick={() => router.push(`/complaints/${row.id}`)}
               >
-                Open
+                {t("openRow")}
               </Button>
               <ResolutionRowActions
                 row={{
@@ -434,26 +495,30 @@ export function ResolutionListView() {
         },
       },
     ],
-    [branchNameById, enrichment, refresh, router],
+    [branchNameById, enrichment, locale, refresh, router, t, tCommon, tComplaints, tPriority, tStatus],
   );
 
   const rangeLabel =
     totalItems === 0
-      ? "0 results"
-      : `Showing ${(filters.page - 1) * filters.pageSize + 1}–${Math.min(filters.page * filters.pageSize, totalItems)} of ${totalItems}`;
+      ? t("zeroResults")
+      : tCommon("showingItems", {
+          from: (filters.page - 1) * filters.pageSize + 1,
+          to: Math.min(filters.page * filters.pageSize, totalItems),
+          total: totalItems,
+        });
 
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Resolutions"
+        title={t("title")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Resolutions" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title") },
         ]}
-        description="Submit resolutions, final resolutions, escalations, and closures. Open a row for complaint detail."
+        description={t("listDescription")}
         actions={
           <Button type="button" variant="outline" onClick={refresh}>
-            Refresh
+            {tCommon("refresh")}
           </Button>
         }
       />
@@ -463,13 +528,13 @@ export function ResolutionListView() {
           <form
             onSubmit={onSubmitFilters}
             className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
-            aria-label="Resolution search filters"
+            aria-label={t("searchFiltersAriaLabel")}
           >
             <div className="md:col-span-2 xl:col-span-2">
               <Input
                 name="keyword"
-                label="Search"
-                placeholder="Number, subject, description…"
+                label={tCommon("search")}
+                placeholder={t("searchPlaceholder")}
                 value={draft.keyword}
                 onChange={(e) =>
                   setDraft((prev) => ({ ...prev, keyword: e.target.value }))
@@ -479,8 +544,8 @@ export function ResolutionListView() {
             </div>
             <Select
               name="status"
-              label="Status"
-              options={[...STATUS_FILTER_OPTIONS]}
+              label={tComplaints("status")}
+              options={statusFilterOptions}
               value={draft.status}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, status: e.target.value }))
@@ -488,8 +553,8 @@ export function ResolutionListView() {
             />
             <Select
               name="priority"
-              label="Priority"
-              options={[...PRIORITY_FILTER_OPTIONS]}
+              label={tComplaints("priority")}
+              options={priorityFilterOptions}
               value={draft.priority}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, priority: e.target.value }))
@@ -497,7 +562,7 @@ export function ResolutionListView() {
             />
             <Select
               name="branchId"
-              label="Branch"
+              label={t("branchColumn")}
               options={branchOptions}
               value={draft.branchId}
               onChange={(e) =>
@@ -506,8 +571,8 @@ export function ResolutionListView() {
             />
             <Select
               name="escalated"
-              label="Escalation"
-              options={[...ESCALATED_FILTER_OPTIONS]}
+              label={t("escalationColumn")}
+              options={escalatedFilterOptions}
               value={draft.escalated}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, escalated: e.target.value }))
@@ -515,8 +580,8 @@ export function ResolutionListView() {
             />
             <Select
               name="sort"
-              label="Sort by"
-              options={SORT_FIELD_OPTIONS}
+              label={tTable("sortBy")}
+              options={sortFieldOptions}
               value={draft.sort}
               onChange={(e) =>
                 setDraft((prev) => ({
@@ -527,8 +592,8 @@ export function ResolutionListView() {
             />
             <Select
               name="order"
-              label="Order"
-              options={SORT_ORDER_OPTIONS}
+              label={tTable("order")}
+              options={sortOrderOptions}
               value={draft.order}
               onChange={(e) =>
                 setDraft((prev) => ({
@@ -539,8 +604,8 @@ export function ResolutionListView() {
             />
             <Select
               name="pageSize"
-              label="Page size"
-              options={[...PAGE_SIZE_OPTIONS]}
+              label={tTable("pageSize")}
+              options={pageSizeOptions}
               value={String(draft.pageSize)}
               onChange={(e) =>
                 setDraft((prev) => ({
@@ -550,9 +615,9 @@ export function ResolutionListView() {
               }
             />
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-end md:col-span-2 xl:col-span-4">
-              <Button type="submit">Apply filters</Button>
+              <Button type="submit">{tCommon("apply")}</Button>
               <Button type="button" variant="outline" onClick={onResetFilters}>
-                Reset
+                {tCommon("reset")}
               </Button>
             </div>
           </form>
@@ -563,7 +628,7 @@ export function ResolutionListView() {
 
       {!loading && error ? (
         <ErrorState
-          title="Unable to load resolutions"
+          title={t("unableToLoad")}
           message={error}
           code={errorCode}
           onRetry={() => void load(filters)}
@@ -572,15 +637,15 @@ export function ResolutionListView() {
 
       {!loading && !error && rows.length === 0 ? (
         <Empty
-          title="No resolutions found"
-          description="Try adjusting filters, or open the complaint queue."
+          title={t("noItems")}
+          description={t("noItemsDescription")}
           action={
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/queue")}
             >
-              Open queue
+              {t("openQueue")}
             </Button>
           }
         />
@@ -592,15 +657,16 @@ export function ResolutionListView() {
             <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
               <span>{rangeLabel}</span>
               <span>
-                Page {filters.page}
-                {totalPages > 0 ? ` of ${totalPages}` : ""}
+                {totalPages > 0
+                  ? tCommon("pageOf", { page: filters.page, totalPages })
+                  : t("pageLabel", { page: filters.page })}
               </span>
             </div>
             <Table
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
-              caption="Resolution list"
+              caption={t("caption")}
             />
             <div className="flex flex-col-reverse gap-2 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
               <Button
@@ -614,7 +680,7 @@ export function ResolutionListView() {
                   })
                 }
               >
-                Previous
+                {tCommon("previous")}
               </Button>
               <Button
                 type="button"
@@ -624,7 +690,7 @@ export function ResolutionListView() {
                   applyFilters({ ...filters, page: filters.page + 1 })
                 }
               >
-                Next
+                {tCommon("next")}
               </Button>
             </div>
           </CardBody>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -22,6 +23,7 @@ import {
   Table,
   type TableColumn,
 } from "@/shared/ui";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 type ConfirmTarget = {
   user: UserRef;
@@ -49,6 +51,15 @@ function printTemporaryPassword(payload: {
   fullName: string;
   temporaryPassword: string;
   message: string;
+  labels: {
+    documentTitle: string;
+    heading: string;
+    showOnce: string;
+    showOnceDescription: string;
+    user: string;
+    temporaryPassword: string;
+    printed: string;
+  };
 }): void {
   const win = window.open("", "_blank", "noopener,noreferrer,width=640,height=480");
   if (!win) return;
@@ -59,10 +70,10 @@ function printTemporaryPassword(payload: {
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;");
   win.document.write(`<!doctype html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8" />
-  <title>ECMP temporary password</title>
+  <title>${escaped(payload.labels.documentTitle)}</title>
   <style>
     body { font-family: system-ui, sans-serif; padding: 2rem; color: #0f172a; }
     h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
@@ -74,13 +85,12 @@ function printTemporaryPassword(payload: {
   </style>
 </head>
 <body>
-  <h1>ECMP — Temporary password</h1>
-  <p class="warn"><strong>Show once.</strong> Store securely and share out-of-band.
-  The user must change this password on next login.</p>
-  <p><strong>User:</strong> ${escaped(payload.fullName)} (${escaped(payload.username)})</p>
-  <p><strong>Temporary password</strong><br /><span class="pw">${escaped(payload.temporaryPassword)}</span></p>
+  <h1>${escaped(payload.labels.heading)}</h1>
+  <p class="warn"><strong>${escaped(payload.labels.showOnce)}</strong> ${escaped(payload.labels.showOnceDescription)}</p>
+  <p><strong>${escaped(payload.labels.user)}:</strong> ${escaped(payload.fullName)} (${escaped(payload.username)})</p>
+  <p><strong>${escaped(payload.labels.temporaryPassword)}</strong><br /><span class="pw">${escaped(payload.temporaryPassword)}</span></p>
   <p class="meta">${escaped(payload.message)}</p>
-  <p class="meta">Printed ${escaped(new Date().toISOString())}</p>
+  <p class="meta">${escaped(payload.labels.printed)} ${escaped(new Date().toISOString())}</p>
   <script>window.onload = function () { window.print(); };</script>
 </body>
 </html>`);
@@ -88,6 +98,9 @@ function printTemporaryPassword(payload: {
 }
 
 export function UserManagement() {
+  const t = useTranslations("users");
+  const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const { userId, hasPermission } = useAuth();
   const canRead = hasPermission("users:read");
   const canReset = hasPermission("users:reset_password");
@@ -117,14 +130,12 @@ export function UserManagement() {
     } catch (err) {
       setRows([]);
       setLoadError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to load users.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoad"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead]);
+  }, [canRead, t, tCommon, tErrors]);
 
   useEffect(() => {
     void load();
@@ -158,13 +169,11 @@ export function UserManagement() {
       setRevealed({ user: confirmTarget.user, result });
       setConfirmTarget(null);
       setActionSuccess(
-        `Password reset for ${confirmTarget.user.username}. Audit event password.admin_reset recorded. Share the temporary password now — it will not be shown again.`,
+        t("passwordResetSuccess", { username: confirmTarget.user.username }),
       );
     } catch (err) {
       setActionError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to reset password.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToResetPassword"),
       );
       setConfirmTarget(null);
     } finally {
@@ -179,15 +188,15 @@ export function UserManagement() {
       await navigator.clipboard.writeText(value);
       setCopied(true);
     } catch {
-      setActionError("Unable to copy to clipboard. Select and copy manually.");
+      setActionError(t("unableToCopyPassword"));
     }
   }
 
   if (!canRead) {
     return (
       <Empty
-        title="Access restricted"
-        description="You need the users:read permission to view user administration."
+        title={t("accessRestricted")}
+        description={t("accessRestrictedDescription")}
       />
     );
   }
@@ -195,7 +204,7 @@ export function UserManagement() {
   const columns: TableColumn<UserRef>[] = [
     {
       key: "username",
-      header: "Username",
+      header: t("username"),
       cell: (row) => (
         <div>
           <div className="font-medium text-ecmp-text-primary">{row.username}</div>
@@ -207,32 +216,32 @@ export function UserManagement() {
     },
     {
       key: "email",
-      header: "Email",
+      header: t("email"),
       cell: (row) => row.email,
     },
     {
       key: "role",
-      header: "Role",
+      header: t("role"),
       cell: (row) => row.roleCode ?? row.roleName ?? "—",
     },
     {
       key: "status",
-      header: "Status",
+      header: tCommon("status"),
       cell: (row) => (
         <Badge tone={row.isActive ? "success" : "neutral"}>
-          {row.isActive ? "Active" : "Inactive"}
+          {row.isActive ? tCommon("active") : tCommon("inactive")}
         </Badge>
       ),
     },
     {
       key: "lastLogin",
-      header: "Last login",
+      header: t("lastLogin"),
       hideOnMobile: true,
       cell: (row) => formatWhen(row.lastLoginAt),
     },
     {
       key: "actions",
-      header: "Actions",
+      header: tCommon("actions"),
       cell: (row) => {
         if (!canReset) {
           return (
@@ -249,14 +258,14 @@ export function UserManagement() {
             disabled={!row.isActive || isSelf}
             title={
               isSelf
-                ? "Use Change Password for your own account"
+                ? t("resetOwnPasswordHint")
                 : row.isActive
-                  ? "Reset password and force change on next login"
-                  : "Inactive users cannot be reset"
+                  ? t("resetPasswordHint")
+                  : t("inactiveResetHint")
             }
             onClick={() => openConfirm(row)}
           >
-            Reset password
+            {t("resetPassword")}
           </Button>
         );
       },
@@ -270,22 +279,22 @@ export function UserManagement() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-[length:var(--ecmp-font-title-size)] font-semibold text-ecmp-text-primary">
-                User administration
+                {t("title")}
               </h2>
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                Reset a user password (API-413). The temporary password is shown once.
+                {t("managementDescription")}
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => void load()}>
-              Refresh
+              {tCommon("refresh")}
             </Button>
           </div>
 
           {actionError ? (
-            <Alert tone="danger" title="Action failed" description={actionError} />
+            <Alert tone="danger" title={t("actionFailed")} description={actionError} />
           ) : null}
           {actionSuccess ? (
-            <Alert tone="success" title="Password reset" description={actionSuccess} />
+            <Alert tone="success" title={t("resetPassword")} description={actionSuccess} />
           ) : null}
 
           {loading ? (
@@ -296,9 +305,9 @@ export function UserManagement() {
             </div>
           ) : loadError ? (
             <ErrorState
-              title="Unable to load users"
+              title={t("unableToLoad")}
               message={loadError}
-              actionLabel="Retry"
+              actionLabel={tCommon("retry")}
               onRetry={() => void load()}
             />
           ) : (
@@ -306,8 +315,8 @@ export function UserManagement() {
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
-              caption="ECMP users"
-              emptyMessage="No users found."
+              caption={t("title")}
+              emptyMessage={t("noUsersFound")}
             />
           )}
         </CardBody>
@@ -316,14 +325,14 @@ export function UserManagement() {
       <Modal
         open={confirmTarget != null}
         onClose={closeConfirm}
-        title="Confirm password reset"
+        title={t("confirmResetTitle")}
         footer={
           <>
             <Button variant="outline" onClick={closeConfirm} disabled={resetting}>
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button variant="danger" loading={resetting} onClick={() => void confirmReset()}>
-              {resetting ? "Resetting…" : "Reset password"}
+              {resetting ? t("resetting") : t("resetPassword")}
             </Button>
           </>
         }
@@ -332,11 +341,11 @@ export function UserManagement() {
           <div className="space-y-3">
             <Alert
               tone="warning"
-              title="This cannot be undone from the UI"
-              description="A temporary password will be generated, all refresh sessions revoked, and the user must change their password on next login. The temporary password is shown only once."
+              title={t("resetWarningTitle")}
+              description={t("resetWarningDescription")}
             />
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-              Reset password for{" "}
+              {t("resetPasswordFor")}{" "}
               <strong>{confirmTarget.user.fullName}</strong> (
               {confirmTarget.user.username} / {confirmTarget.user.email})?
             </p>
@@ -347,7 +356,7 @@ export function UserManagement() {
       <Modal
         open={revealed != null}
         onClose={closeRevealed}
-        title="Temporary password (show once)"
+        title={t("temporaryPasswordTitle")}
         footer={
           <>
             <Button
@@ -359,16 +368,25 @@ export function UserManagement() {
                   fullName: revealed.user.fullName,
                   temporaryPassword: revealed.result.temporaryPassword,
                   message: revealed.result.message,
+                  labels: {
+                    documentTitle: t("temporaryPasswordTitle"),
+                    heading: t("temporaryPasswordTitle"),
+                    showOnce: t("printShowOnce"),
+                    showOnceDescription: t("printShowOnceDescription"),
+                    user: tCommon("user"),
+                    temporaryPassword: t("temporaryPassword"),
+                    printed: t("printedAt"),
+                  },
                 });
               }}
             >
-              Print
+              {t("print")}
             </Button>
             <Button variant="secondary" onClick={() => void copyTemporaryPassword()}>
-              {copied ? "Copied" : "Copy"}
+              {copied ? t("copied") : t("copy")}
             </Button>
             <Button variant="primary" onClick={closeRevealed}>
-              Done — I saved it
+              {t("doneSaved")}
             </Button>
           </>
         }
@@ -377,15 +395,15 @@ export function UserManagement() {
           <div className="space-y-4">
             <Alert
               tone="warning"
-              title="Visible only in this dialog"
-              description="Closing this dialog permanently hides the temporary password. It is not stored in the UI and cannot be retrieved again."
+              title={t("temporaryPasswordWarningTitle")}
+              description={t("temporaryPasswordWarningDescription")}
             />
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              User: <strong className="text-ecmp-text-primary">{revealed.user.username}</strong>
+              {tCommon("user")}: <strong className="text-ecmp-text-primary">{revealed.user.username}</strong>
             </p>
             <div>
               <p className="mb-2 text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                Temporary password
+                {t("temporaryPassword")}
               </p>
               <code
                 className="block break-all rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-3 py-3 font-mono text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"

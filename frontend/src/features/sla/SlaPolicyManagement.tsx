@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -32,9 +33,9 @@ import {
   Textarea,
   type TableColumn,
 } from "@/shared/ui";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   createEmptySlaPolicyForm,
-  formatTargetMinutes,
   toSlaPolicyCreateRequest,
   validateSlaPolicyForm,
   type SlaPolicyFieldErrors,
@@ -42,6 +43,10 @@ import {
 } from "./slaPolicyForm";
 
 export function SlaPolicyManagement() {
+  const t = useTranslations("settings");
+  const tCommon = useTranslations("common");
+  const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("sla:read");
   const canManage = hasPermission("sla:manage");
@@ -74,14 +79,12 @@ export function SlaPolicyManagement() {
     } catch (err) {
       setPolicies([]);
       setLoadError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to load SLA policies.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoadPolicies"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead]);
+  }, [canRead, t, tCommon, tErrors]);
 
   useEffect(() => {
     void load();
@@ -107,7 +110,33 @@ export function SlaPolicyManagement() {
     setActionError(null);
     setActionSuccess(null);
     const errors = validateSlaPolicyForm(values);
-    setFieldErrors(errors);
+    const fieldLabels: Partial<Record<keyof SlaPolicyFormValues, string>> = {
+      assignmentTargetMinutes: t("assignmentTargetFieldLabel"),
+      appointmentTargetMinutes: t("appointmentTargetFieldLabel"),
+      resolutionTargetMinutes: t("resolutionTargetFieldLabel"),
+      escalationTargetMinutes: t("escalationTargetFieldLabel"),
+      overallTargetMinutes: t("overallTargetFieldLabel"),
+    };
+    setFieldErrors(
+      Object.fromEntries(
+        Object.entries(errors).map(([field, key]) => {
+          const label = fieldLabels[field as keyof SlaPolicyFormValues];
+          if (key === "required" && label) {
+            return [field, tValidation("required", { field: label })];
+          }
+          if (key === "fieldWholeNumber" && label) {
+            return [field, tValidation("fieldWholeNumber", { field: label })];
+          }
+          if (key === "fieldAtLeast" && label) {
+            return [field, tValidation("fieldAtLeast", { field: label, min: 1 })];
+          }
+          if (key === "policyNameMax") {
+            return [field, tValidation(key, { max: 100 })];
+          }
+          return [field, tValidation(key!)];
+        }),
+      ),
+    );
     if (Object.keys(errors).length > 0) return;
 
     setSubmitting(true);
@@ -115,11 +144,11 @@ export function SlaPolicyManagement() {
       await createSlaPolicy(toSlaPolicyCreateRequest(values));
       setValues(createEmptySlaPolicyForm());
       setShowCreate(false);
-      setActionSuccess("Policy created. Activate it to apply to future complaints.");
+      setActionSuccess(t("policyCreatedSuccess"));
       await load();
     } catch (err) {
       setActionError(
-        err instanceof ApiError ? err.message : "Unable to create policy.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToCreatePolicy"),
       );
     } finally {
       setSubmitting(false);
@@ -133,11 +162,11 @@ export function SlaPolicyManagement() {
     setActivatingId(policy.id);
     try {
       await activateSlaPolicy(policy.id);
-      setActionSuccess(`“${policy.name}” is now the active SLA policy.`);
+      setActionSuccess(t("nowActiveMessage", { name: policy.name }));
       await load();
     } catch (err) {
       setActionError(
-        err instanceof ApiError ? err.message : "Unable to activate policy.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToActivatePolicy"),
       );
     } finally {
       setActivatingId(null);
@@ -147,8 +176,8 @@ export function SlaPolicyManagement() {
   if (!canRead) {
     return (
       <Empty
-        title="Access restricted"
-        description="You need the sla:read permission to view SLA policies."
+        title={tCommon("accessRestricted")}
+        description={t("accessRestrictedSla")}
       />
     );
   }
@@ -156,7 +185,7 @@ export function SlaPolicyManagement() {
   const columns: TableColumn<SlaPolicy>[] = [
     {
       key: "name",
-      header: "Name",
+      header: t("nameColumn"),
       cell: (row) => (
         <div className="space-y-1">
           <div className="font-medium text-ecmp-text-primary">{row.name}</div>
@@ -170,44 +199,44 @@ export function SlaPolicyManagement() {
     },
     {
       key: "assignment",
-      header: "Assignment Target",
-      cell: (row) => formatTargetMinutes(row.assignmentTargetMinutes),
+      header: t("assignmentTargetColumn"),
+      cell: (row) => formatTargetMinutes(row.assignmentTargetMinutes, t),
     },
     {
       key: "appointment",
-      header: "Appointment Target",
-      cell: (row) => formatTargetMinutes(row.appointmentTargetMinutes),
+      header: t("appointmentTargetColumn"),
+      cell: (row) => formatTargetMinutes(row.appointmentTargetMinutes, t),
     },
     {
       key: "resolution",
-      header: "Resolution Target",
-      cell: (row) => formatTargetMinutes(row.resolutionTargetMinutes),
+      header: t("resolutionTargetColumn"),
+      cell: (row) => formatTargetMinutes(row.resolutionTargetMinutes, t),
     },
     {
       key: "escalation",
-      header: "Escalation Target",
-      cell: (row) => formatTargetMinutes(row.escalationTargetMinutes),
+      header: t("escalationTargetColumn"),
+      cell: (row) => formatTargetMinutes(row.escalationTargetMinutes, t),
     },
     {
       key: "overall",
-      header: "Overall Target",
-      cell: (row) => formatTargetMinutes(row.overallTargetMinutes),
+      header: t("overallTargetColumn"),
+      cell: (row) => formatTargetMinutes(row.overallTargetMinutes, t),
     },
     {
       key: "active",
-      header: "Status",
+      header: tCommon("status"),
       cell: (row) =>
         row.isActive ? (
           <Badge tone="success" data-testid="sla-policy-active-badge">
-            Active
+            {tCommon("active")}
           </Badge>
         ) : (
-          <Badge tone="neutral">Inactive</Badge>
+          <Badge tone="neutral">{tCommon("inactive")}</Badge>
         ),
     },
     {
       key: "actions",
-      header: "Actions",
+      header: tCommon("actions"),
       hideOnMobile: !canManage,
       cell: (row) =>
         canManage && !row.isActive ? (
@@ -218,7 +247,7 @@ export function SlaPolicyManagement() {
             disabled={activatingId === row.id}
             onClick={() => void onActivate(row)}
           >
-            {activatingId === row.id ? "Activating…" : "Activate"}
+            {activatingId === row.id ? t("activating") : t("activate")}
           </Button>
         ) : (
           <span className="text-ecmp-text-secondary">—</span>
@@ -231,10 +260,9 @@ export function SlaPolicyManagement() {
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
-            <CardTitle>SLA Policy Management</CardTitle>
+            <CardTitle>{t("managementTitle")}</CardTitle>
             <CardDescription>
-              Configure reusable target durations for lifecycle stages. Only one
-              policy may be active. Changes apply to future complaints only.
+              {t("managementDescription")}
             </CardDescription>
           </div>
           {canManage ? (
@@ -246,7 +274,7 @@ export function SlaPolicyManagement() {
                 setActionSuccess(null);
               }}
             >
-              {showCreate ? "Cancel" : "Create Policy"}
+              {showCreate ? tCommon("cancel") : t("createPolicy")}
             </Button>
           ) : null}
         </CardHeader>
@@ -254,14 +282,14 @@ export function SlaPolicyManagement() {
           {actionError ? (
             <Alert
               tone="danger"
-              title="Action failed"
+              title={t("actionFailed")}
               description={actionError}
             />
           ) : null}
           {actionSuccess ? (
             <Alert
               tone="success"
-              title="Success"
+              title={tCommon("success")}
               description={actionSuccess}
             />
           ) : null}
@@ -274,7 +302,7 @@ export function SlaPolicyManagement() {
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input
-                  label="Name"
+                  label={t("name")}
                   value={values.name}
                   onChange={(e) => onFieldChange("name", e)}
                   error={fieldErrors.name}
@@ -283,14 +311,14 @@ export function SlaPolicyManagement() {
                 />
                 <div className="sm:col-span-2">
                   <Textarea
-                    label="Description"
+                    label={t("descriptionLabel")}
                     value={values.description}
                     onChange={(e) => onFieldChange("description", e)}
                     rows={2}
                   />
                 </div>
                 <Input
-                  label="Assignment Target (minutes)"
+                  label={t("assignmentTargetLabel")}
                   inputMode="numeric"
                   value={values.assignmentTargetMinutes}
                   onChange={(e) => onFieldChange("assignmentTargetMinutes", e)}
@@ -298,7 +326,7 @@ export function SlaPolicyManagement() {
                   required
                 />
                 <Input
-                  label="Appointment Target (minutes)"
+                  label={t("appointmentTargetLabel")}
                   inputMode="numeric"
                   value={values.appointmentTargetMinutes}
                   onChange={(e) => onFieldChange("appointmentTargetMinutes", e)}
@@ -306,7 +334,7 @@ export function SlaPolicyManagement() {
                   required
                 />
                 <Input
-                  label="Resolution Target (minutes)"
+                  label={t("resolutionTargetLabel")}
                   inputMode="numeric"
                   value={values.resolutionTargetMinutes}
                   onChange={(e) => onFieldChange("resolutionTargetMinutes", e)}
@@ -314,7 +342,7 @@ export function SlaPolicyManagement() {
                   required
                 />
                 <Input
-                  label="Escalation Target (minutes)"
+                  label={t("escalationTargetLabel")}
                   inputMode="numeric"
                   value={values.escalationTargetMinutes}
                   onChange={(e) => onFieldChange("escalationTargetMinutes", e)}
@@ -322,7 +350,7 @@ export function SlaPolicyManagement() {
                   required
                 />
                 <Input
-                  label="Overall Target (minutes)"
+                  label={t("overallTargetLabel")}
                   inputMode="numeric"
                   value={values.overallTargetMinutes}
                   onChange={(e) => onFieldChange("overallTargetMinutes", e)}
@@ -335,7 +363,7 @@ export function SlaPolicyManagement() {
                   type="submit"
                   disabled={submitting}
                 >
-                  {submitting ? "Creating…" : "Save Policy"}
+                  {submitting ? t("creating") : t("savePolicy")}
                 </Button>
               </div>
             </form>
@@ -343,7 +371,7 @@ export function SlaPolicyManagement() {
 
           {loadError ? (
             <ErrorState
-              title="Unable to load policies"
+              title={t("unableToLoadPolicies")}
               message={loadError}
               onRetry={() => void load()}
             />
@@ -356,12 +384,22 @@ export function SlaPolicyManagement() {
               columns={columns}
               rows={policies}
               getRowKey={(row) => row.id}
-              caption="SLA policies"
-              emptyMessage="No SLA policies yet. Create one to define target durations."
+              caption={t("slaPoliciesCaption")}
+              emptyMessage={t("noPoliciesTableMessage")}
             />
           ) : null}
         </CardBody>
       </Card>
     </div>
   );
+}
+
+function formatTargetMinutes(
+  minutes: number,
+  t: ReturnType<typeof useTranslations<"settings">>,
+): string {
+  if (minutes < 60 || minutes % 60 !== 0) {
+    return t("minutesShort", { count: minutes });
+  }
+  return t("hoursShort", { count: minutes / 60 });
 }

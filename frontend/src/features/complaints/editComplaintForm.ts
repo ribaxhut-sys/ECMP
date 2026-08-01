@@ -33,7 +33,7 @@ export function formFromComplaint(complaint: Complaint): EditComplaintFormValues
   };
 }
 
-/** Client-side validation aligned with ComplaintUpdateRequest (API-204). */
+/** Client-side validation aligned with ComplaintUpdateRequest (API-204). Returns i18n keys. */
 export function validateEditComplaintForm(
   values: EditComplaintFormValues,
 ): EditComplaintFieldErrors {
@@ -41,35 +41,35 @@ export function validateEditComplaintForm(
 
   const subject = values.subject.trim();
   if (!subject) {
-    errors.subject = "Subject is required.";
+    errors.subject = "subjectRequired";
   } else if (subject.length > 200) {
-    errors.subject = "Subject must be 200 characters or fewer.";
+    errors.subject = "subjectMax";
   }
 
   const description = values.description.trim();
   if (!description) {
-    errors.description = "Description is required.";
+    errors.description = "descriptionRequired";
   } else if (description.length > 5000) {
-    errors.description = "Description must be 5000 characters or fewer.";
+    errors.description = "descriptionMax";
   }
 
   if (!values.priority) {
-    errors.priority = "Priority is required.";
+    errors.priority = "priorityRequired";
   }
 
   const branchId = values.branchId.trim();
   if (branchId && !UUID_RE.test(branchId)) {
-    errors.branchId = "Selected branch ID is invalid.";
+    errors.branchId = "branchIdInvalid";
   }
 
   const channel = values.channel.trim();
   if (channel.length > 32) {
-    errors.channel = "Channel must be 32 characters or fewer.";
+    errors.channel = "channelMax";
   }
 
   const category = values.category.trim();
   if (category.length > 64) {
-    errors.category = "Category must be 64 characters or fewer.";
+    errors.category = "categoryMax";
   }
 
   return errors;

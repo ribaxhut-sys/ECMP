@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { ApiError, addCmCase, createCmCase, type CmCase } from "@/lib/api";
 import {
   Alert,
@@ -34,6 +35,8 @@ export function CreateCaseDialog({
   mode?: "create" | "add";
   onCreated?: (caseData: CmCase) => void;
 }) {
+  const t = useTranslations("cases");
+  const tValidation = useTranslations("validation");
   const [values, setValues] = useState<CreateCaseFormValues>(emptyCreateCaseForm());
   const [fieldErrors, setFieldErrors] = useState<
     ReturnType<typeof validateCreateCaseForm>
@@ -88,7 +91,7 @@ export function CreateCaseDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : "Unable to create case.",
+        err instanceof ApiError ? err.message : t("unableToLoad"),
       );
     } finally {
       setSubmitting(false);
@@ -99,67 +102,65 @@ export function CreateCaseDialog({
     <Modal
       open={open}
       onClose={handleClose}
-      title={mode === "add" ? "Add Case" : "Create Case"}
+      title={mode === "add" ? t("add") : t("create")}
       size="lg"
       footer={
         <>
-          <Button variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button>
+          <Button variant="ghost" onClick={handleClose} disabled={submitting}>{t("back")}          </Button>
           <Button onClick={submit} loading={submitting}>
-            {mode === "add" ? "Add Case" : "Create Case"}
+            {mode === "add" ? t("add") : t("create")}
           </Button>
         </>
       }
     >
       <ModalSection className="space-y-4">
         {submitError ? (
-          <Alert tone="danger" title="Create failed" description={submitError} />
+          <Alert tone="danger" title={t("unableToLoad")} description={submitError} />
         ) : null}
         <Input
           name="caseType"
-          label="Case type"
+          label={t("caseType")}
           value={values.caseType}
           onChange={(e) => setField("caseType", e.target.value)}
-          error={fieldErrors.caseType}
+          error={fieldErrors.caseType ? tValidation(fieldErrors.caseType) : undefined}
           required
         />
         <Input
           name="category"
-          label="Category"
+          label={t("category")}
           value={values.category}
           onChange={(e) => setField("category", e.target.value)}
         />
         <Input
           name="subject"
-          label="Subject"
+          label={t("subject")}
           value={values.subject}
           onChange={(e) => setField("subject", e.target.value)}
-          error={fieldErrors.subject}
+          error={fieldErrors.subject ? tValidation(fieldErrors.subject) : undefined}
           required
         />
         <Textarea
           name="description"
-          label="Description"
+          label={t("description")}
           value={values.description}
           onChange={(e) => setField("description", e.target.value)}
-          error={fieldErrors.description}
+          error={fieldErrors.description ? tValidation(fieldErrors.description) : undefined}
           required
         />
         <Select
           name="priority"
-          label="Priority"
+          label={t("priority")}
           value={values.priority}
           onChange={(e) => setField("priority", e.target.value)}
-          options={[...CASE_PRIORITY_OPTIONS]}
-          error={fieldErrors.priority}
+          options={CASE_PRIORITY_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
+          error={fieldErrors.priority ? tValidation(fieldErrors.priority) : undefined}
         />
         <Input
           name="destinationUnitId"
-          label="Destination unit (optional → ASSIGNED)"
+          label={t("destinationUnitOptional")}
           value={values.destinationUnitId}
           onChange={(e) => setField("destinationUnitId", e.target.value)}
-          hint="Leave empty for CREATED. Unit assignment only (BQ-006)."
+          hint={t("destinationUnitHint")}
         />
       </ModalSection>
     </Modal>

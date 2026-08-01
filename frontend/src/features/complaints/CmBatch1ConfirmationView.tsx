@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -32,6 +33,9 @@ export function CmBatch1ConfirmationView({
 }: {
   complaintId: string;
 }) {
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tCases = useTranslations("cases");
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canRead =
@@ -58,7 +62,7 @@ export function CmBatch1ConfirmationView({
           setError(
             err instanceof ApiError
               ? err.message
-              : "Unable to load Aggregate complaint.",
+              : t("couldNotLoadComplaint"),
           );
         }
       } finally {
@@ -74,24 +78,22 @@ export function CmBatch1ConfirmationView({
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Complaint registered"
+          title={t("complaintRegistered")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Confirmation" },
+            { label: t("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("confirmation") },
           ]}
         />
         <Empty
-          title="Access restricted"
-          description="You need complaints:read or complaints:create to view this confirmation."
+          title={t("accessRestricted")}
+          description={t("confirmationAccessDescription")}
           action={
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints")}
-            >
-              Back to Complaints
-            </Button>
+            >{t("backToComplaints")}            </Button>
           }
         />
       </PageContainer>
@@ -101,77 +103,76 @@ export function CmBatch1ConfirmationView({
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Complaint registered"
+        title={t("complaintRegistered")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
-          { label: "Confirmation" },
+          { label: t("home"), href: "/dashboard" },
+          { label: t("title"), href: "/complaints" },
+          { label: t("confirmation") },
         ]}
-        description="Batch-1 Aggregate confirmation (API-501). No Case is created at intake."
+        description={t("confirmationDescription")}
       />
 
       {loading ? <Skeleton rows={5} /> : null}
 
       {!loading && error ? (
-        <Alert tone="danger" title="Could not load complaint" description={error} />
+        <Alert tone="danger" title={t("couldNotLoadComplaint")} description={error} />
       ) : null}
 
       {!loading && data ? (
         <>
           <Alert
             tone="success"
-            title="Registered"
-            description={`Complaint ${data.complaintNumber} is REGISTERED on the Aggregate SoT. It will not appear on the foundation list (/api/v1/complaints) until dual-SoT convergence.`}
+            title={t("createdSuccess")}
+            description={t("registeredDescription", { number: data.complaintNumber })}
           />
           <Card>
             <CardHeader>
-              <CardTitle>Registration details</CardTitle>
+              <CardTitle>{t("registrationDetails")}</CardTitle>
               <CardDescription>
-                Status is fixed to REGISTERED; caseCreated is always false for
-                Batch-1 intake.
+                {t("registrationDetailsDescription")}
               </CardDescription>
             </CardHeader>
             <CardBody>
               <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                 <div>
-                  <dt className="text-ecmp-text-secondary">Complaint number</dt>
+                  <dt className="text-ecmp-text-secondary">{t("complaintNumber")}</dt>
                   <dd className="font-medium">{data.complaintNumber}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Complaint ID</dt>
+                  <dt className="text-ecmp-text-secondary">{t("complaintId")}</dt>
                   <dd className="font-mono text-xs">{data.complaintId}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Status</dt>
+                  <dt className="text-ecmp-text-secondary">{t("status")}</dt>
                   <dd className="font-medium">{data.status}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Customer ID</dt>
+                  <dt className="text-ecmp-text-secondary">{t("customerId")}</dt>
                   <dd className="font-mono text-xs">{data.customerId}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Case created</dt>
-                  <dd>{data.caseCreated ? "Yes" : "No"}</dd>
+                  <dt className="text-ecmp-text-secondary">{tCases("title")}</dt>
+                  <dd>{data.caseCreated ? tCommon("yes") : tCommon("no")}</dd>
                 </div>
                 <div>
-                  <dt className="text-ecmp-text-secondary">Replayed (idempotent)</dt>
-                  <dd>{data.replayed ? "Yes" : "No"}</dd>
+                  <dt className="text-ecmp-text-secondary">{t("replayed")}</dt>
+                  <dd>{data.replayed ? tCommon("yes") : tCommon("no")}</dd>
                 </div>
                 {data.category ? (
                   <div>
-                    <dt className="text-ecmp-text-secondary">Category</dt>
+                    <dt className="text-ecmp-text-secondary">{t("category")}</dt>
                     <dd>{data.category}</dd>
                   </div>
                 ) : null}
                 {data.channel ? (
                   <div>
-                    <dt className="text-ecmp-text-secondary">Channel</dt>
+                    <dt className="text-ecmp-text-secondary">{t("channel")}</dt>
                     <dd>{data.channel}</dd>
                   </div>
                 ) : null}
                 {data.subject ? (
                   <div className="md:col-span-2">
-                    <dt className="text-ecmp-text-secondary">Subject</dt>
+                    <dt className="text-ecmp-text-secondary">{t("subject")}</dt>
                     <dd>{data.subject}</dd>
                   </div>
                 ) : null}
@@ -187,23 +188,17 @@ export function CmBatch1ConfirmationView({
                   `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases`,
                 )
               }
-            >
-              Manage cases
-            </Button>
+            >{t("manageCases")}            </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints/new")}
-            >
-              Register another
-            </Button>
+            >{t("registerAnother")}            </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints")}
-            >
-              Back to foundation list
-            </Button>
+            >{t("backToFoundationList")}            </Button>
           </div>
         </>
       ) : null}

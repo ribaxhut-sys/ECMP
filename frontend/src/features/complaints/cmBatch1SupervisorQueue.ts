@@ -53,7 +53,7 @@ export function isKnownCmBatch1LaterReviewReason(reason: string): boolean {
  */
 export function cmBatch1LaterReviewReasonLabel(reason: string): string {
   const raw = (reason ?? "").trim();
-  if (!raw) return "(empty reason)";
+  if (!raw) return "";
   if (isKnownCmBatch1LaterReviewReason(raw)) return raw;
   return raw;
 }

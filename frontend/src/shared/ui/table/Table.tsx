@@ -1,4 +1,7 @@
+"use client";
+
 import type { HTMLAttributes, ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 
 export interface TableColumn<T> {
@@ -27,14 +30,16 @@ export function Table<T>({
   rows,
   getRowKey,
   caption,
-  emptyMessage = "No records found.",
+  emptyMessage,
   className,
   ...props
 }: TableProps<T>) {
+  const t = useTranslations("table");
+
   if (rows.length === 0) {
     return (
       <p className="rounded-[var(--ecmp-radius-md)] border border-dashed border-ecmp-border px-4 py-8 text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-        {emptyMessage}
+        {emptyMessage ?? t("empty")}
       </p>
     );
   }
