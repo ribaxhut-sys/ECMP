@@ -26,6 +26,7 @@ from app.modules.complaint_context.models import (
 from app.modules.complaints.repository import ComplaintRepository
 from app.modules.routing import ComplaintRoute, ComplaintRoutingService
 from app.modules.sla.repository import SlaRepository
+from app.core.user_messages import m
 
 
 def _complaint_snapshot(complaint: Complaint) -> ComplaintSnapshot:
@@ -93,14 +94,14 @@ def _resolve_routing(
         source_type = ComplaintSourceType(complaint.source_type)
     except ValueError as exc:
         raise ValidationAppError(
-            "Complaint has an unsupported sourceType",
+            m("complaint.unsupported_source_type"),
             details={"sourceType": complaint.source_type},
         ) from exc
     try:
         target_type = ComplaintTargetType(complaint.target_type)
     except ValueError as exc:
         raise ValidationAppError(
-            "Complaint has an unsupported targetType",
+            m("complaint.unsupported_target_type"),
             details={"targetType": complaint.target_type},
         ) from exc
 
@@ -136,7 +137,7 @@ class ComplaintContextService:
         """Assemble an immutable operational context for ``complaint_id``."""
         complaint = self._complaints.get_by_id(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         assignment = self._assignments.get_current_assignment(complaint_id)
         sla_row = self._sla.get_by_complaint_id(complaint_id)

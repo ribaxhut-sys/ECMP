@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from app.core.errors import ValidationAppError
 from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
+from app.core.user_messages import m
 
 
 @dataclass(slots=True)
@@ -56,7 +57,7 @@ class Attachment:
             AggregateType(aggregate_type)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported aggregate type: {aggregate_type}",
+                f"tipe agregat tidak didukung: {aggregate_type}",
                 details={
                     "aggregateType": aggregate_type,
                     "allowed": [a.value for a in AggregateType],
@@ -67,7 +68,7 @@ class Attachment:
             AttachmentStatus(status)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported attachment status: {status}",
+                f"status lampiran tidak didukung: {status}",
                 details={
                     "status": status,
                     "allowed": [s.value for s in AttachmentStatus],
@@ -77,42 +78,42 @@ class Attachment:
         cleaned_file = (file_name or "").strip()
         if not cleaned_file:
             raise ValidationAppError(
-                "file_name is required",
+                m("storage.file_name_required"),
                 details={"fileName": file_name},
             )
         cleaned_original = (original_name or "").strip()
         if not cleaned_original:
             raise ValidationAppError(
-                "original_name is required",
+                m("storage.original_name_required"),
                 details={"originalName": original_name},
             )
         cleaned_mime = (mime_type or "").strip().lower()
         if not cleaned_mime:
             raise ValidationAppError(
-                "mime_type is required",
+                m("storage.mime_type_required"),
                 details={"mimeType": mime_type},
             )
         if size_bytes < 1:
             raise ValidationAppError(
-                "size_bytes must be >= 1",
+                m("storage.size_bytes_min"),
                 details={"sizeBytes": size_bytes},
             )
         cleaned_checksum = (checksum_sha256 or "").strip().lower()
         if len(cleaned_checksum) != 64:
             raise ValidationAppError(
-                "checksum_sha256 must be a 64-char hex digest",
+                m("storage.checksum_sha256_format"),
                 details={"checksumSha256": checksum_sha256},
             )
         cleaned_path = (storage_path or "").strip()
         if not cleaned_path:
             raise ValidationAppError(
-                "storage_path is required",
+                m("storage.storage_path_required"),
                 details={"storagePath": storage_path},
             )
         cleaned_provider = (storage_provider or "").strip()
         if not cleaned_provider:
             raise ValidationAppError(
-                "storage_provider is required",
+                m("storage.storage_provider_required"),
                 details={"storageProvider": storage_provider},
             )
 
@@ -140,7 +141,7 @@ class Attachment:
     def mark_available(self) -> None:
         if self.status == AttachmentStatus.DELETED.value:
             raise ValidationAppError(
-                "deleted attachments cannot become AVAILABLE",
+                m("attachment.deleted_cannot_become_available"),
                 details={"id": str(self.id), "status": self.status},
             )
         self.status = AttachmentStatus.AVAILABLE.value
@@ -148,7 +149,7 @@ class Attachment:
     def mark_failed(self) -> None:
         if self.status == AttachmentStatus.DELETED.value:
             raise ValidationAppError(
-                "deleted attachments cannot become FAILED",
+                m("attachment.deleted_cannot_become_failed"),
                 details={"id": str(self.id), "status": self.status},
             )
         self.status = AttachmentStatus.FAILED.value

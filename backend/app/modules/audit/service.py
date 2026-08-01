@@ -17,6 +17,7 @@ from app.core.secrets import REDACTED, redact_mapping
 from app.modules.audit.models import SystemAuditLog
 from app.modules.audit.repository import AuditRepository
 from app.modules.audit.schemas import AuditLogResponse
+from app.core.user_messages import m
 
 
 def redact_sensitive(value: Any) -> Any:
@@ -56,22 +57,22 @@ class AuditService:
         entity = (entity_type or "").strip()
         if not event:
             raise ValidationAppError(
-                "event_type is required",
+                m("config.event_type_required"),
                 details={"eventType": event_type},
             )
         if len(event) > 100:
             raise ValidationAppError(
-                "event_type max length is 100",
+                m("config.event_type_max_length"),
                 details={"eventType": event_type},
             )
         if not entity:
             raise ValidationAppError(
-                "entity_type is required",
+                m("config.entity_type_required"),
                 details={"entityType": entity_type},
             )
         if len(entity) > 100:
             raise ValidationAppError(
-                "entity_type max length is 100",
+                m("config.entity_type_max_length"),
                 details={"entityType": entity_type},
             )
 
@@ -110,7 +111,7 @@ class AuditService:
     def get(self, audit_id: uuid.UUID) -> AuditLogResponse:
         row = self._repo.get_by_id(audit_id)
         if row is None:
-            raise NotFoundError("Audit log not found")
+            raise NotFoundError(m("audit.not_found"))
         return _to_response(row)
 
     def list(
@@ -129,7 +130,7 @@ class AuditService:
             self._validate_action(action)
         if date_from is not None and date_to is not None and date_from > date_to:
             raise ValidationAppError(
-                "date_from must be <= date_to",
+                m("config.date_from_lte_date_to_snake"),
                 details={"dateFrom": date_from.isoformat(), "dateTo": date_to.isoformat()},
             )
         rows = self._repo.list(
@@ -151,7 +152,7 @@ class AuditService:
             return AuditAction(value).value
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported audit action: {action}",
+                f"aksi audit tidak didukung: {action}",
                 details={
                     "action": str(action),
                     "allowed": [a.value for a in AuditAction],

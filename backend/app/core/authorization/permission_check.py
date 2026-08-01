@@ -17,6 +17,7 @@ from app.core.authorization.principal import Principal
 from app.core.errors import PermissionDeniedError
 from app.db.session import get_db_session
 from app.modules.audit.security_events import SecurityEventType, write_security_event
+from app.core.user_messages import m
 
 
 def check_permissions(principal: Principal, *required: str) -> None:
@@ -24,7 +25,7 @@ def check_permissions(principal: Principal, *required: str) -> None:
     missing = [perm for perm in required if not principal.has_permission(perm)]
     if missing:
         raise PermissionDeniedError(
-            "Permission denied",
+            m("common.forbidden"),
             details={"missingPermissions": missing},
         )
 
@@ -33,7 +34,7 @@ def check_roles(principal: Principal, *roles: str) -> None:
     """Raise :class:`PermissionDeniedError` when principal has none of the roles."""
     if not principal.has_any_role(*roles):
         raise PermissionDeniedError(
-            "Permission denied",
+            m("common.forbidden"),
             details={"requiredRoles": list(roles)},
         )
 

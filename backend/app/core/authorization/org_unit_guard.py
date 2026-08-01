@@ -14,6 +14,7 @@ from app.core.authorization.principal import Principal
 from app.core.config import Settings, get_settings
 from app.core.errors import OrgScopeDeniedError
 from app.core.logging import get_logger, log_extra
+from app.core.user_messages import m
 
 logger = get_logger("app.authz.org_scope")
 
@@ -139,7 +140,7 @@ class OrgUnitGuard:
                 resource_org=resource_org,
             )
             raise OrgScopeDeniedError(
-                "Organization scope denied: missing orgUnitId claim",
+                m("org.scope_missing_org_unit_claim"),
                 details=_public_denial_details("missing_org_unit_claim"),
             )
 
@@ -151,7 +152,7 @@ class OrgUnitGuard:
                 resource_org=None,
             )
             raise OrgScopeDeniedError(
-                "Organization scope denied: resource has no organization unit",
+                m("org.scope_resource_no_org_unit"),
                 details=_public_denial_details("missing_resource_org_unit"),
             )
 
@@ -163,7 +164,7 @@ class OrgUnitGuard:
                 resource_org=resource_org,
             )
             raise OrgScopeDeniedError(
-                "Organization scope denied",
+                m("common.org_scope_denied"),
                 details=_public_denial_details("org_unit_mismatch"),
             )
 

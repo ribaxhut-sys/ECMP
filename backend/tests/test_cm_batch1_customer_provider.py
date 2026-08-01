@@ -181,7 +181,7 @@ def test_di_swappable_without_business_code_change() -> None:
         store=store,
         strict_master=True,
     )
-    with pytest.raises(ValidationAppError, match="unavailable"):
+    with pytest.raises(ValidationAppError, match="tidak tersedia"):
         enterprise_svc.search_customer(
             CustomerSearchRequest(customerNumber="CN-10001"),
             principal_key="di-2",

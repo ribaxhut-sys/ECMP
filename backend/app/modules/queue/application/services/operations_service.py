@@ -148,7 +148,7 @@ class QueueOperationsApplicationService:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {queue_id}",
+                f"antrian tidak ditemukan: {queue_id}",
             )
         return queue
 
@@ -157,7 +157,7 @@ class QueueOperationsApplicationService:
         if ticket is None:
             raise QueueApplicationError(
                 "TICKET_NOT_FOUND",
-                f"ticket not found: {ticket_id}",
+                f"tiket tidak ditemukan: {ticket_id}",
             )
         return ticket
 

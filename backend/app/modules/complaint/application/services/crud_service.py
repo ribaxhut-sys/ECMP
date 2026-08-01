@@ -22,6 +22,7 @@ from app.modules.complaint.domain.models import (
     ComplaintStatus,
 )
 from app.modules.complaint.domain.repositories import ComplaintRepository
+from app.core.user_messages import m
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +68,7 @@ class ComplaintCrudApplicationService:
         if data.status is not ComplaintStatus.OPEN:
             raise ComplaintApplicationError(
                 "INVALID_COMPLAINT_STATUS",
-                "new complaints must start in OPEN status",
+                m("complaint.new_must_start_open"),
             )
         now = data.created_at or datetime.now(timezone.utc)
         try:
@@ -154,7 +155,7 @@ class ComplaintCrudApplicationService:
         if not deleted:
             raise ComplaintApplicationError(
                 "COMPLAINT_NOT_FOUND",
-                f"complaint not found: {complaint_id}",
+                f"pengaduan tidak ditemukan: {complaint_id}",
             )
 
     async def _require_complaint(self, complaint_id: uuid.UUID) -> Complaint:
@@ -162,7 +163,7 @@ class ComplaintCrudApplicationService:
         if complaint is None:
             raise ComplaintApplicationError(
                 "COMPLAINT_NOT_FOUND",
-                f"complaint not found: {complaint_id}",
+                f"pengaduan tidak ditemukan: {complaint_id}",
             )
         return complaint
 

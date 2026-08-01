@@ -144,7 +144,7 @@ def test_tc_cm_fr002_07_two_keys_rejected(service: CmBatch1Service) -> None:
             CustomerSearchRequest(customerNumber="CN-10001", identityNumber="ID-10001"),
             principal_key="p1",
         )
-    assert "Exactly one" in exc.value.message
+    assert "Tepat satu" in exc.value.message
 
 
 def test_tc_cm_fr002_08_enumeration_blocks(service: CmBatch1Service) -> None:
@@ -178,7 +178,7 @@ def test_tc_cm_fr001_confirm_lock_required_on_create(
     service: CmBatch1Service,
 ) -> None:
     """TD-CM-001 / EX-D / FR-002 AC1 — create without confirm is rejected."""
-    with pytest.raises(ValidationAppError, match="confirmed/locked"):
+    with pytest.raises(ValidationAppError, match="dikonfirmasi/dikunci"):
         service.create_complaint(
             CreateComplaintBatch1Request(
                 customerId="CUST-10001",

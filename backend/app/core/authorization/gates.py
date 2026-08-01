@@ -13,6 +13,7 @@ from fastapi import Depends
 from app.core.authorization.permission_check import require_permissions
 from app.core.authorization.principal import Principal
 from app.core.errors import PermissionDeniedError
+from app.core.user_messages import m
 
 
 def require_supervisor_assign(
@@ -22,7 +23,7 @@ def require_supervisor_assign(
 ) -> Principal:
     """Assign endpoint gate: permission complaints:assign + SUPERVISOR role."""
     if not principal.has_any_role("SUPERVISOR"):
-        raise PermissionDeniedError("Only Supervisor can assign complaints")
+        raise PermissionDeniedError(m("complaint.only_supervisor_assign"))
     return principal
 
 
@@ -33,7 +34,7 @@ def require_supervisor_escalate(
 ) -> Principal:
     """Escalate endpoint gate: permission complaints:escalate + SUPERVISOR role."""
     if not principal.has_any_role("SUPERVISOR", "BRANCH_SUPERVISOR"):
-        raise PermissionDeniedError("Only Supervisor can escalate complaints")
+        raise PermissionDeniedError(m("complaint.only_supervisor_escalate"))
     return principal
 
 
@@ -54,7 +55,7 @@ def require_escalation_review(
     """API-303/304 gate: escalations:review + HO Scheduler or Admin."""
     if not principal.has_any_role(*_ESCALATION_REVIEW_ROLES):
         raise PermissionDeniedError(
-            "Only Head Office Scheduler or Admin can review escalations"
+            m("escalation.only_scheduler_admin_review")
         )
     return principal
 
@@ -75,7 +76,7 @@ def require_appointment_complete(
     """API-308 gate: appointments:complete + HO Engineer or Admin."""
     if not principal.has_any_role(*_APPOINTMENT_COMPLETE_ROLES):
         raise PermissionDeniedError(
-            "Only Head Office Engineer or Admin can complete appointments"
+            m("appointment.only_engineer_admin_complete")
         )
     return principal
 
@@ -88,7 +89,7 @@ def require_final_resolution(
     """API-310 gate: appointments:complete + HO Engineer or Admin."""
     if not principal.has_any_role(*_APPOINTMENT_COMPLETE_ROLES):
         raise PermissionDeniedError(
-            "Only Head Office Engineer or Admin can submit final resolution"
+            m("resolution.only_engineer_admin_submit")
         )
     return principal
 
@@ -109,7 +110,7 @@ def require_complaint_close(
     """API-312 gate: complaints:close + Branch Supervisor or Head Office Admin."""
     if not principal.has_any_role(*_COMPLAINT_CLOSE_ROLES):
         raise PermissionDeniedError(
-            "Only Branch Supervisor or Head Office Admin can close complaints"
+            m("complaint.only_supervisor_admin_close")
         )
     return principal
 
@@ -128,6 +129,6 @@ def require_escalation_close(
     """API-313 gate: escalations:close + Head Office Admin only."""
     if not principal.has_any_role(*_ESCALATION_CLOSE_ROLES):
         raise PermissionDeniedError(
-            "Only Head Office Admin can close escalations"
+            m("escalation.only_admin_close")
         )
     return principal

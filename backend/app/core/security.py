@@ -13,6 +13,7 @@ from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 
 from app.core.config import Settings
+from app.core.user_messages import m
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -80,9 +81,9 @@ def decode_access_token(token: str, settings: Settings) -> dict[str, Any]:
             algorithms=[settings.jwt_algorithm],
         )
     except PyJWTError as exc:
-        raise ValueError("Invalid or expired token") from exc
+        raise ValueError(m("auth.invalid_token")) from exc
     if payload.get("type") not in (None, "access"):
-        raise ValueError("Invalid or expired token")
+        raise ValueError(m("auth.invalid_token"))
     return payload
 
 

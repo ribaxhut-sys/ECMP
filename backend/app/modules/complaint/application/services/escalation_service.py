@@ -76,7 +76,7 @@ class ComplaintEscalationApplicationService:
         if current is None:
             raise ComplaintApplicationError(
                 "ESCALATION_NOT_FOUND",
-                f"no current escalation for complaint: {complaint_id}",
+                f"tidak ada eskalasi saat ini untuk pengaduan: {complaint_id}",
             )
         return EscalationDto.from_domain(current)
 
@@ -93,7 +93,7 @@ class ComplaintEscalationApplicationService:
         if complaint is None:
             raise ComplaintApplicationError(
                 "COMPLAINT_NOT_FOUND",
-                f"complaint not found: {complaint_id}",
+                f"pengaduan tidak ditemukan: {complaint_id}",
             )
         return complaint
 

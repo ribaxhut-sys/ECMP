@@ -27,7 +27,7 @@ class GetQueueTicketsHandler:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {query.queue_id}",
+                f"antrian tidak ditemukan: {query.queue_id}",
             )
         tickets = self._state.list_tickets(query.queue_id)
         return tuple(QueueTicketDto.from_domain(t) for t in tickets)

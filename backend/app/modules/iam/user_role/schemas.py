@@ -1,6 +1,7 @@
 """User-Role Assignment API contracts (camelCase) — TASK-036."""
 
 from __future__ import annotations
+from app.core.user_messages import m
 
 import uuid
 
@@ -18,5 +19,5 @@ class UserRolesReplaceRequest(BaseModel):
     @classmethod
     def no_duplicates(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
         if len(value) != len(set(value)):
-            raise ValueError("roleIds must not contain duplicates")
+            raise ValueError(m("config.role_ids_no_duplicates"))
         return value

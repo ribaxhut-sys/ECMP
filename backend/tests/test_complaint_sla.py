@@ -13,6 +13,7 @@ import pytest
 import yaml
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from app.core.user_messages import field_errors_from_validation
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
@@ -339,16 +340,12 @@ def _foundation_app(
     async def validation_error_handler(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        field_errors: dict[str, Any] = {}
-        for err in exc.errors():
-            loc = err.get("loc", ())
-            key = ".".join(str(part) for part in loc if part != "body")
-            field_errors[key or "body"] = err.get("msg")
+        field_errors = field_errors_from_validation(exc.errors())
         return JSONResponse(
             status_code=422,
             content=_error_body(
                 "VALIDATION_ERROR",
-                "Request validation failed",
+                "Validasi permintaan gagal.",
                 field_errors or None,
             ),
         )

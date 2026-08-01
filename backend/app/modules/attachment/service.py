@@ -22,6 +22,7 @@ from app.modules.attachment.infrastructure.storage_provider import StorageProvid
 from app.modules.attachment.repository import AttachmentRepository
 from app.modules.attachment.schemas import AttachmentResponse
 from app.modules.settings.service import SettingsService
+from app.core.user_messages import m
 
 # Setting keys (seeded by migration 0017; root path updated in 0035).
 SETTING_STORAGE_PROVIDER = "storage.provider"
@@ -76,12 +77,12 @@ def build_storage_provider(settings: SettingsService) -> StorageProvider:
         ).strip()
         if not root:
             raise ValidationAppError(
-                "storage.root.path must not be empty",
+                m("storage.root_path_not_empty"),
                 details={"key": SETTING_STORAGE_ROOT_PATH},
             )
         return LocalStorageProvider(root)
     raise ValidationAppError(
-        f"unsupported storage provider: {provider}",
+        f"penyedia storage tidak didukung: {provider}",
         details={"key": SETTING_STORAGE_PROVIDER, "value": provider},
     )
 
@@ -90,7 +91,7 @@ def sanitize_filename(raw_name: str | None) -> str:
     """Strip path components and unsafe characters from a client filename."""
     if raw_name is None or not raw_name.strip():
         raise ValidationAppError(
-            "filename is required",
+            m("storage.filename_required"),
             details={"filename": raw_name},
         )
     name = PurePosixPath(raw_name.replace("\\", "/")).name
@@ -99,7 +100,7 @@ def sanitize_filename(raw_name: str | None) -> str:
     name = name.replace("..", "_")
     if not name or name in {".", ".."}:
         raise ValidationAppError(
-            "filename is invalid after sanitization",
+            m("storage.filename_invalid_sanitized"),
             details={"filename": raw_name},
         )
     if len(name) > 255:
@@ -115,7 +116,7 @@ def _extension_of(filename: str) -> str | None:
         return None
     if len(suffix) > 20:
         raise ValidationAppError(
-            "file extension is too long",
+            m("storage.file_extension_too_long"),
             details={"extension": suffix},
         )
     return suffix
@@ -174,7 +175,7 @@ class AttachmentService:
             AggregateType(aggregate_type)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported aggregate type: {aggregate_type}",
+                f"tipe agregat tidak didukung: {aggregate_type}",
                 details={
                     "aggregateType": aggregate_type,
                     "allowed": [a.value for a in AggregateType],
@@ -187,7 +188,7 @@ class AttachmentService:
 
         if not data:
             raise ValidationAppError(
-                "file must not be empty",
+                m("storage.file_empty"),
                 details={"sizeBytes": 0},
             )
 
@@ -197,19 +198,19 @@ class AttachmentService:
             )
             if max_mb < 1:
                 raise ValidationAppError(
-                    "storage.max.upload.mb must be >= 1",
+                    m("storage.max_upload_mb_min"),
                     details={"key": SETTING_MAX_UPLOAD_MB, "value": max_mb},
                 )
             max_bytes = max_mb * 1024 * 1024
         elif max_bytes < 1:
             raise ValidationAppError(
-                "max_bytes must be >= 1",
+                m("storage.max_bytes_min"),
                 details={"maxBytes": max_bytes},
             )
         size_bytes = len(data)
         if size_bytes > max_bytes:
             raise ValidationAppError(
-                "file exceeds maximum upload size",
+                m("storage.file_exceeds_max_size"),
                 details={
                     "sizeBytes": size_bytes,
                     "maxBytes": max_bytes,
@@ -219,7 +220,7 @@ class AttachmentService:
         allowed = allowed_mime_types or self._allowed_mime_types()
         if mime_type not in allowed:
             raise ValidationAppError(
-                "mime type is not allowed",
+                m("storage.mime_not_allowed"),
                 details={"mimeType": mime_type, "allowed": sorted(allowed)},
             )
 
@@ -227,7 +228,7 @@ class AttachmentService:
         if expected_exts is not None:
             if extension is None or extension not in expected_exts:
                 raise ValidationAppError(
-                    "file extension does not match mime type",
+                    m("storage.file_extension_mismatch"),
                     details={
                         "extension": extension,
                         "mimeType": mime_type,
@@ -292,7 +293,7 @@ class AttachmentService:
             AggregateType(aggregate_type)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported aggregate type: {aggregate_type}",
+                f"tipe agregat tidak didukung: {aggregate_type}",
                 details={
                     "aggregateType": aggregate_type,
                     "allowed": [a.value for a in AggregateType],
@@ -332,7 +333,7 @@ class AttachmentService:
                 AggregateType(aggregate_type)
             except ValueError as exc:
                 raise ValidationAppError(
-                    f"unsupported aggregate type: {aggregate_type}",
+                    f"tipe agregat tidak didukung: {aggregate_type}",
                     details={
                         "aggregateType": aggregate_type,
                         "allowed": [a.value for a in AggregateType],
@@ -385,7 +386,7 @@ class AttachmentService:
     ) -> Attachment:
         entity = self._repo.get(attachment_id, include_deleted=include_deleted)
         if entity is None:
-            raise NotFoundError("Attachment not found")
+            raise NotFoundError(m("attachment.not_found"))
         return entity
 
     def _allowed_mime_types(self) -> set[str]:
@@ -394,14 +395,14 @@ class AttachmentService:
         )
         if not isinstance(raw, list) or not raw:
             raise ValidationAppError(
-                "storage.allowed.mime must be a non-empty JSON array",
+                m("storage.allowed_mime_non_empty_array"),
                 details={"key": SETTING_ALLOWED_MIME},
             )
         allowed: set[str] = set()
         for item in raw:
             if not isinstance(item, str) or not item.strip():
                 raise ValidationAppError(
-                    "storage.allowed.mime entries must be non-empty strings",
+                    m("storage.allowed_mime_empty_strings"),
                     details={"key": SETTING_ALLOWED_MIME, "value": item},
                 )
             allowed.add(item.strip().lower())

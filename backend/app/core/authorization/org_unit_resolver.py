@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import NotFoundError
 from app.models import Branch, Complaint
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
+from app.core.user_messages import m
 
 
 class OrgUnitResolver:
@@ -39,7 +40,7 @@ class OrgUnitResolver:
         """Map legacy Complaint → Branch.code (org unit key)."""
         row = self._session.get(Complaint, complaint_id)
         if row is None or row.deleted_at is not None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         if row.branch_id is None:
             return None
         branch = self._session.get(Branch, row.branch_id)
@@ -51,7 +52,7 @@ class OrgUnitResolver:
         """Map CM Batch 1 complaint → recordingUnitId from ComplaintCreated outbox."""
         aggregate_id = str(complaint_id).strip()
         if not aggregate_id:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         row: CmBatch1ComplaintORM | None = None
         try:
@@ -59,7 +60,7 @@ class OrgUnitResolver:
         except ValueError:
             row = None
         if row is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         stmt = (
             select(CmBatch1OutboxORM.payload_json)

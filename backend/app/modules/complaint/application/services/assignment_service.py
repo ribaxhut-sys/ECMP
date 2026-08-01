@@ -239,7 +239,7 @@ class ComplaintAssignmentApplicationService:
 
                 "ASSIGNMENT_NOT_FOUND",
 
-                f"no active assignment for complaint: {complaint_id}",
+                f"tidak ada penugasan aktif untuk pengaduan: {complaint_id}",
 
             )
 
@@ -273,7 +273,7 @@ class ComplaintAssignmentApplicationService:
 
                 "COMPLAINT_NOT_FOUND",
 
-                f"complaint not found: {complaint_id}",
+                f"pengaduan tidak ditemukan: {complaint_id}",
 
             )
 

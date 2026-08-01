@@ -1,6 +1,7 @@
 """Role-Permission Matrix API contracts (camelCase) — TASK-035."""
 
 from __future__ import annotations
+from app.core.user_messages import m
 
 import uuid
 
@@ -18,5 +19,5 @@ class RolePermissionsReplaceRequest(BaseModel):
     @classmethod
     def no_duplicates(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
         if len(value) != len(set(value)):
-            raise ValueError("permissionIds must not contain duplicates")
+            raise ValueError(m("config.permission_ids_no_duplicates"))
         return value

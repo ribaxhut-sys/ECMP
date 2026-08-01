@@ -13,6 +13,7 @@ from app.modules.settings.models import Setting
 from app.modules.settings.registry import SettingsKey
 from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.schemas import SettingResponse, SettingUpdateRequest
+from app.core.user_messages import m
 
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 _TRUE_VALUES = frozenset({"true", "1", "yes", "on"})
@@ -26,7 +27,7 @@ def _normalize_bool_storage(raw: str) -> str:
     if token in _FALSE_VALUES:
         return "false"
     raise ValidationAppError(
-        "value must be a boolean (true/false)",
+        m("config.value_boolean"),
         details={"value": raw},
     )
 
@@ -44,7 +45,7 @@ def _validate_and_normalize(value: str, value_type: str) -> str:
             int(cleaned)
         except ValueError as exc:
             raise ValidationAppError(
-                "value must be an integer",
+                m("config.value_integer"),
                 details={"value": value},
             ) from exc
         return cleaned
@@ -57,7 +58,7 @@ def _validate_and_normalize(value: str, value_type: str) -> str:
             parsed = json.loads(value)
         except json.JSONDecodeError as exc:
             raise ValidationAppError(
-                "value must be valid JSON",
+                m("config.value_json"),
                 details={"value": value, "error": str(exc)},
             ) from exc
         return json.dumps(parsed, separators=(",", ":"), ensure_ascii=False)
@@ -69,7 +70,7 @@ def _validate_and_normalize(value: str, value_type: str) -> str:
         parsed = urlparse(cleaned)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValidationAppError(
-                "value must be an http(s) URL",
+                m("config.value_http_url"),
                 details={"value": value},
             )
         return cleaned
@@ -80,13 +81,13 @@ def _validate_and_normalize(value: str, value_type: str) -> str:
             return ""
         if not _EMAIL_RE.match(cleaned):
             raise ValidationAppError(
-                "value must be a valid email address",
+                m("config.value_email"),
                 details={"value": value},
             )
         return cleaned
 
     raise ValidationAppError(
-        f"unsupported value_type: {value_type}",
+        f"value_type tidak didukung: {value_type}",
         details={"valueType": value_type},
     )
 
@@ -116,7 +117,7 @@ class SettingsService:
         if row is None:
             if default is not None:
                 return default
-            raise NotFoundError(f"Setting not found: {key}")
+            raise NotFoundError(f"Pengaturan tidak ditemukan: {key}")
         return row.value
 
     def get_int(self, key: str | SettingsKey, *, default: int | None = None) -> int:
@@ -124,12 +125,12 @@ class SettingsService:
         if row is None:
             if default is not None:
                 return default
-            raise NotFoundError(f"Setting not found: {key}")
+            raise NotFoundError(f"Pengaturan tidak ditemukan: {key}")
         try:
             return int(row.value.strip())
         except ValueError as exc:
             raise ValidationAppError(
-                f"setting {key} is not an integer",
+                f"pengaturan {key} bukan bilangan bulat",
                 details={"key": str(key), "value": row.value},
             ) from exc
 
@@ -138,14 +139,14 @@ class SettingsService:
         if row is None:
             if default is not None:
                 return default
-            raise NotFoundError(f"Setting not found: {key}")
+            raise NotFoundError(f"Pengaturan tidak ditemukan: {key}")
         token = row.value.strip().lower()
         if token in _TRUE_VALUES:
             return True
         if token in _FALSE_VALUES:
             return False
         raise ValidationAppError(
-            f"setting {key} is not a boolean",
+            f"pengaturan {key} bukan boolean",
             details={"key": str(key), "value": row.value},
         )
 
@@ -156,12 +157,12 @@ class SettingsService:
         if row is None:
             if default is not None:
                 return default
-            raise NotFoundError(f"Setting not found: {key}")
+            raise NotFoundError(f"Pengaturan tidak ditemukan: {key}")
         try:
             return json.loads(row.value)
         except json.JSONDecodeError as exc:
             raise ValidationAppError(
-                f"setting {key} is not valid JSON",
+                f"pengaturan {key} bukan JSON valid",
                 details={"key": str(key), "value": row.value},
             ) from exc
 
@@ -178,5 +179,5 @@ class SettingsService:
     def _require(self, key: str | SettingsKey) -> Setting:
         row = self._repo.get_by_key(str(key))
         if row is None:
-            raise NotFoundError(f"Setting not found: {key}")
+            raise NotFoundError(f"Pengaturan tidak ditemukan: {key}")
         return row

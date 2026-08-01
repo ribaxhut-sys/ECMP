@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from app.core.config import Settings
 from app.core.errors import RateLimitedError
+from app.core.user_messages import m
 
 
 @dataclass
@@ -34,7 +35,7 @@ class LoginAttemptGuard:
             if state.locked_until > now:
                 retry_after = max(1, int(state.locked_until - now))
                 raise RateLimitedError(
-                    "Too many login attempts; try again later",
+                    m("auth.rate_limited_login"),
                     details={"retryAfterSeconds": retry_after},
                 )
             if state.locked_until and state.locked_until <= now:

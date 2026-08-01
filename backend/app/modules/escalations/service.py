@@ -26,34 +26,35 @@ from app.modules.escalations.schemas import (
     EscalationReviewRequest,
     EscalationReviewResult,
 )
+from app.core.user_messages import m
 
 ALLOWED_STATUSES = frozenset(
     {ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS}
 )
 REJECTED_STATUSES: dict[str, str] = {
-    ComplaintStatus.NEW: "NEW complaints cannot be escalated",
-    ComplaintStatus.RESOLVED: "RESOLVED complaints cannot be escalated",
-    ComplaintStatus.CLOSED: "CLOSED complaints cannot be escalated",
+    ComplaintStatus.NEW: m("escalation.rejected_new"),
+    ComplaintStatus.RESOLVED: m("escalation.rejected_resolved"),
+    ComplaintStatus.CLOSED: m("escalation.rejected_closed"),
 }
 TARGET_STATUS = ComplaintStatus.ESCALATED
 ESCALATION_RECORD_STATUS = "OPEN"
 TARGET_CLOSED_STATUS = EscalationRequestStatus.CLOSED
 
 NOT_IN_PROGRESS_MESSAGE = (
-    "Complaint must be IN_PROGRESS before requesting escalation."
+    m("complaint.must_be_in_progress_escalation")
 )
 HAS_RESOLUTION_MESSAGE = (
-    "Complaint already has a resolution and cannot be escalated."
+    m("complaint.has_resolution_cannot_escalate")
 )
-HAS_ACTIVE_ESCALATION_MESSAGE = "Complaint already has an active escalation."
-NOT_REQUESTED_MESSAGE = "Only REQUESTED escalations can be reviewed."
-ALREADY_REVIEWED_MESSAGE = "Escalation has already been reviewed."
-ALREADY_CLOSED_MESSAGE = "Escalation is already CLOSED."
+HAS_ACTIVE_ESCALATION_MESSAGE = m("complaint.already_has_escalation")
+NOT_REQUESTED_MESSAGE = m("escalation.only_requested_review")
+ALREADY_REVIEWED_MESSAGE = m("escalation.already_reviewed")
+ALREADY_CLOSED_MESSAGE = m("escalation.already_closed")
 COMPLAINT_NOT_CLOSED_MESSAGE = (
-    "Related Complaint must be CLOSED before closing the escalation."
+    m("escalation.related_complaint_must_be_closed")
 )
 FINAL_RESOLUTION_REQUIRED_MESSAGE = (
-    "Final Resolution must exist before closing the escalation."
+    m("escalation.final_resolution_required_close")
 )
 
 
@@ -93,7 +94,7 @@ class EscalationService:
     ) -> EscalateComplaintResult:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         status = complaint.status
         if status in REJECTED_STATUSES:
@@ -103,26 +104,26 @@ class EscalationService:
             )
         if status not in ALLOWED_STATUSES:
             raise InvalidStateError(
-                "Complaint cannot be escalated in its current status",
+                m("complaint.cannot_escalate_status"),
                 details={"status": status, "allowed": sorted(ALLOWED_STATUSES)},
             )
 
         if payload.escalated_to_user_id is not None:
             if not self._repo.user_exists(payload.escalated_to_user_id):
                 raise ValidationAppError(
-                    "Escalation target user not found or inactive",
+                    m("escalation.target_user_not_found"),
                     details={"escalatedToUserId": str(payload.escalated_to_user_id)},
                 )
         if payload.escalated_to_role_id is not None:
             if not self._repo.role_exists(payload.escalated_to_role_id):
                 raise ValidationAppError(
-                    "Escalation target role not found or inactive",
+                    m("escalation.target_role_not_found"),
                     details={"escalatedToRoleId": str(payload.escalated_to_role_id)},
                 )
         if payload.escalated_from_user_id is not None:
             if not self._repo.user_exists(payload.escalated_from_user_id):
                 raise ValidationAppError(
-                    "Escalation source user not found or inactive",
+                    m("escalation.source_user_not_found"),
                     details={"escalatedFromUserId": str(payload.escalated_from_user_id)},
                 )
 
@@ -202,7 +203,7 @@ class EscalationService:
         """API-301 — create Escalation Request (status REQUESTED; no review)."""
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         if complaint.status != ComplaintStatus.IN_PROGRESS:
             raise ValidationAppError(
@@ -297,7 +298,7 @@ class EscalationService:
     ) -> EscalationReviewResult:
         row = self._repo.get_by_id(escalation_id)
         if row is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
 
         if row.status in {
             EscalationRequestStatus.APPROVED,
@@ -315,7 +316,7 @@ class EscalationService:
 
         complaint = self._repo.get_complaint(row.complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         now = datetime.now(UTC)
         row.status = target_status
@@ -401,7 +402,7 @@ class EscalationService:
         """API-313 — Explicit Escalation Closure after Complaint Closure (TASK-020)."""
         row = self._repo.get_by_id(escalation_id)
         if row is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
 
         if (
             row.status == EscalationRequestStatus.CLOSED
@@ -414,7 +415,7 @@ class EscalationService:
 
         complaint = self._repo.get_complaint(row.complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         if complaint.status != ComplaintStatus.CLOSED:
             raise ValidationAppError(
@@ -432,7 +433,7 @@ class EscalationService:
         closer = self._repo.get_user(actor_user_id)
         if closer is None:
             raise ValidationAppError(
-                "Closer not found or inactive",
+                m("complaint.closer_not_found"),
                 details={"closedBy": str(actor_user_id)},
             )
 
@@ -489,7 +490,7 @@ class EscalationService:
         """API-302 — get escalation by id."""
         row = self._repo.get_by_id(escalation_id)
         if row is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
         active = self._repo.get_active_appointment(escalation_id)
         summary = to_summary(active) if active is not None else None
         return _to_response(row, active_appointment=summary)
@@ -499,7 +500,7 @@ class EscalationService:
     ) -> EscalationResponse | None:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         active = self._repo.get_active_escalation(complaint_id)
         if active is None:
             return None
@@ -512,7 +513,7 @@ class EscalationService:
     ) -> EscalationResponse | None:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         latest = self._repo.get_latest_request_escalation(complaint_id)
         if latest is None:
             return None
@@ -523,7 +524,7 @@ class EscalationService:
     def list_escalations(self, complaint_id: uuid.UUID) -> list[EscalationResponse]:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         rows = self._repo.list_escalations(complaint_id)
         result: list[EscalationResponse] = []
         for row in rows:

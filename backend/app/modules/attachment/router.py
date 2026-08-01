@@ -31,6 +31,7 @@ from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentReposi
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import Batch1AttachmentResponse
+from app.core.user_messages import m
 
 router = APIRouter(prefix="/api/v1/attachments", tags=["Attachments"])
 complaint_attachments_router = APIRouter(
@@ -105,7 +106,7 @@ async def upload_attachment(
 
     if aggregate_type is None or aggregate_id is None:
         raise ValidationAppError(
-            "aggregateType and aggregateId are required for platform upload",
+            m("storage.aggregate_type_id_required"),
             details={},
         )
     result_platform = service.upload(

@@ -160,7 +160,7 @@ def test_replace_rejects_unknown_role() -> None:
     repo = MagicMock()
     repo.get_role.return_value = None
     service = DataScopeService(repo)
-    with pytest.raises(NotFoundError, match="Role not found"):
+    with pytest.raises(NotFoundError, match="Peran tidak ditemukan"):
         service.replace_role_scopes(
             uuid.uuid4(), DataScopeReplaceRequest(scopes=[])
         )

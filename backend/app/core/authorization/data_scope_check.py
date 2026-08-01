@@ -20,6 +20,7 @@ from app.core.errors import DataScopeDeniedError
 from app.db.session import get_db_session
 from app.modules.iam.data_scope.models import ScopeType
 from app.modules.iam.data_scope_resolver import DataScopeResolver, EffectiveScope
+from app.core.user_messages import m
 
 
 def resolve_effective_scope(
@@ -47,7 +48,7 @@ def check_data_scope(
     if scope.scope_types & set(normalized):
         return
     raise DataScopeDeniedError(
-        "Data scope denied",
+        m("common.data_scope_denied"),
         details={
             "requiredScopeTypes": list(normalized),
             "orGlobal": True,

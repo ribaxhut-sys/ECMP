@@ -102,7 +102,7 @@ def test_api_error_response_includes_retry_after_header() -> None:
     @app.get("/__p5_005_rate_limited")
     def _rate_limited() -> None:
         raise RateLimitedError(
-            "Too many attempts; try again later",
+            "Terlalu banyak percobaan. Coba lagi nanti.",
             details={"retryAfterSeconds": 17, "enumerationOutcome": "blocked"},
         )
 
@@ -125,7 +125,7 @@ def test_api_error_without_retry_after_seconds_omits_header() -> None:
 
     @app.get("/__p5_005_unauthenticated")
     def _unauth() -> None:
-        raise UnauthenticatedError("Unauthenticated")
+        raise UnauthenticatedError("Autentikasi diperlukan.")
 
     with TestClient(app) as client:
         response = client.get("/__p5_005_unauthenticated")
@@ -225,7 +225,7 @@ def test_rate_limited_json_body_contract_unchanged() -> None:
     @app.get("/limited")
     def _limited() -> None:
         raise RateLimitedError(
-            "Too many login attempts; try again later",
+            "Terlalu banyak percobaan masuk. Coba lagi nanti.",
             details={"retryAfterSeconds": 9},
         )
 
@@ -236,6 +236,6 @@ def test_rate_limited_json_body_contract_unchanged() -> None:
     assert response.headers["Retry-After"] == "9"
     assert response.json() == {
         "code": "RATE_LIMITED",
-        "message": "Too many login attempts; try again later",
+        "message": "Terlalu banyak percobaan masuk. Coba lagi nanti.",
         "details": {"retryAfterSeconds": 9},
     }

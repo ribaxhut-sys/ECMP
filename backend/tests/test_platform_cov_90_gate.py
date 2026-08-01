@@ -448,9 +448,9 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         antivirus=antivirus,
         config_provider=DefaultAttachmentConfigProvider(),
     )
-    with pytest.raises(ValidationAppError, match="closed"):
+    with pytest.raises(ValidationAppError, match="ditutup"):
         svc.ensure_staging_token("STG-1", actor_id="u1")
-    with pytest.raises(ValidationAppError, match="expired"):
+    with pytest.raises(ValidationAppError, match="kedaluwarsa"):
         svc.ensure_staging_token("STG-2", actor_id="u1")
 
     with pytest.raises(ValidationAppError, match="CaseId"):
@@ -462,7 +462,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
             actor_id="u1",
             case_id="CASE-1",
         )
-    with pytest.raises(ValidationAppError, match="classification"):
+    with pytest.raises(ValidationAppError, match="[Kk]lasifikasi"):
         svc.upload(
             data=b"x",
             filename="a.pdf",
@@ -470,7 +470,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
             classification="not-allowed",
             actor_id="u1",
         )
-    with pytest.raises(ValidationAppError, match="mime type"):
+    with pytest.raises(ValidationAppError, match="[Tt]ipe MIME|tipe mime"):
         svc.upload(
             data=b"x",
             filename="a.bin",
@@ -478,7 +478,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
             classification="customer_evidence",
             actor_id="u1",
         )
-    with pytest.raises(ValidationAppError, match="empty"):
+    with pytest.raises(ValidationAppError, match="kosong"):
         svc.upload(
             data=b"",
             filename="a.pdf",
@@ -496,7 +496,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         complaints=complaints,
         config_provider=tiny,
     )
-    with pytest.raises(ValidationAppError, match="exceeds"):
+    with pytest.raises(ValidationAppError, match="melebihi"):
         tiny_svc.upload(
             data=b"ab",
             filename="a.pdf",
@@ -505,7 +505,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
             actor_id="u1",
         )
 
-    with pytest.raises(ValidationAppError, match="security scan"):
+    with pytest.raises(ValidationAppError, match="pemindaian keamanan"):
         svc.upload(
             data=b"pdf-bytes",
             filename="a.pdf",
@@ -544,7 +544,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         expires_at=datetime.now(UTC) + timedelta(hours=1),
         staging_token="STG-OK",
     )
-    with pytest.raises(ConflictError, match="Duplicate"):
+    with pytest.raises(ConflictError, match="[Dd]uplikat|Checksum"):
         svc.upload(
             data=b"pdf-bytes",
             filename="a.pdf",
@@ -556,7 +556,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
 
     complaints.get.return_value = None
     repo.find_by_checksum.return_value = None
-    with pytest.raises(NotFoundError, match="Complaint"):
+    with pytest.raises(NotFoundError, match="Pengaduan"):
         svc.upload(
             data=b"pdf-bytes",
             filename="a.pdf",
@@ -567,14 +567,14 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         )
 
     repo.get_staging.return_value = None
-    with pytest.raises(NotFoundError, match="Staging"):
+    with pytest.raises(NotFoundError, match="[Ss]taging"):
         svc.bind_staging_to_complaint(
             staging_token="missing",
             complaint_id=str(uuid.uuid4()),
             actor_id="u1",
         )
     repo.get_staging.return_value = SimpleNamespace(status="CLOSED", staging_token="x")
-    with pytest.raises(ValidationAppError, match="not open"):
+    with pytest.raises(ValidationAppError, match="tidak terbuka"):
         svc.bind_staging_to_complaint(
             staging_token="x",
             complaint_id=str(uuid.uuid4()),
@@ -582,7 +582,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         )
     repo.get_staging.return_value = SimpleNamespace(status="OPEN", staging_token="x")
     complaints.get.return_value = None
-    with pytest.raises(NotFoundError, match="Complaint"):
+    with pytest.raises(NotFoundError, match="Pengaduan"):
         svc.bind_staging_to_complaint(
             staging_token="x",
             complaint_id=str(uuid.uuid4()),
@@ -590,7 +590,7 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         )
 
     repo.get.return_value = None
-    with pytest.raises(NotFoundError, match="Attachment"):
+    with pytest.raises(NotFoundError, match="Lampiran"):
         svc.history("ATT-missing")
 
     # abandon idle when action disabled

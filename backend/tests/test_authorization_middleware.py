@@ -96,7 +96,7 @@ def test_check_permissions_denied() -> None:
         check_permissions(principal, "complaints:read")
     assert exc.value.status_code == 403
     assert exc.value.code == "FORBIDDEN"
-    assert exc.value.message == "Permission denied"
+    assert exc.value.message == "Anda tidak memiliki izin untuk tindakan ini."
     assert isinstance(exc.value, ForbiddenError)
 
 
@@ -133,7 +133,7 @@ def test_require_roles_dependency() -> None:
     denied = Principal(user_id=uuid.uuid4(), roles=("AGENT",))
     with pytest.raises(PermissionDeniedError) as exc:
         gate(principal=denied, request=request, session=session)
-    assert exc.value.message == "Permission denied"
+    assert exc.value.message == "Anda tidak memiliki izin untuk tindakan ini."
 
 
 def test_check_roles_denied() -> None:
@@ -172,7 +172,7 @@ def test_check_data_scope_denied() -> None:
         check_data_scope(scope, "BRANCH")
     assert exc.value.status_code == 403
     assert exc.value.code == "DATA_SCOPE_DENIED"
-    assert exc.value.message == "Data scope denied"
+    assert exc.value.message == "Akses data ditolak karena di luar cakupan wewenang Anda."
     assert isinstance(exc.value, ForbiddenError)
 
 

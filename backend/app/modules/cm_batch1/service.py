@@ -52,6 +52,7 @@ from app.modules.cm_batch1.side_effects import (
     SideEffectRecorder,
 )
 from app.modules.cm_batch1.store import STORE, Batch1Store
+from app.core.user_messages import m
 
 
 class CmBatch1StoreProtocol(Protocol):
@@ -193,14 +194,14 @@ class CmBatch1Service:
         provided = [(name, value) for name, value in keys if value and value.strip()]
         if len(provided) != 1:
             raise ValidationAppError(
-                "Exactly one customer key type must be supplied",
+                m("customer.exactly_one_key_type"),
                 details={"provided": [n for n, _ in provided]},
             )
 
         outcome, delay = self._guard.check(principal_key)
         if outcome in {"blocked", "alerted"}:
             raise RateLimitedError(
-                "Customer search temporarily blocked by enumeration protection",
+                m("customer.search_blocked_enumeration"),
                 details={"enumerationOutcome": outcome, "retryAfterSeconds": delay},
             )
         if outcome == "delayed" and delay > 0:
@@ -220,7 +221,7 @@ class CmBatch1Service:
         if lookup.status == CustomerLookupStatus.UNAVAILABLE:
             if self.strict_master:
                 raise ValidationAppError(
-                    "Master Customer unavailable (Strict mode)",
+                    m("customer.master_unavailable_strict"),
                     details={"verificationStatus": "degraded"},
                 )
             return CustomerSearchResponse(
@@ -286,9 +287,9 @@ class CmBatch1Service:
     ) -> ConfirmCustomerResponse:
         lookup = self._customers.get_minimal_customer(customer_id)
         if lookup.status == CustomerLookupStatus.UNAVAILABLE:
-            raise NotFoundError("Customer not found in Master Customer")
+            raise NotFoundError(m("customer.not_in_master"))
         if lookup.status != CustomerLookupStatus.FOUND or lookup.customer is None:
-            raise NotFoundError("Customer not found in Master Customer")
+            raise NotFoundError(m("customer.not_in_master"))
         self._store.confirm(principal_key, customer_id)
         self._store.commit()
         return ConfirmCustomerResponse(
@@ -300,7 +301,7 @@ class CmBatch1Service:
     def customer_360_minimum(self, customer_id: str) -> Customer360Batch1Response:
         lookup = self._customers.get_minimal_customer(customer_id)
         if lookup.status != CustomerLookupStatus.FOUND or lookup.customer is None:
-            raise NotFoundError("Customer not found")
+            raise NotFoundError(m("customer.not_found"))
         row = lookup.customer
         active = self._store.list_active_for_customer(customer_id)
         as_of = self._as_of()
@@ -327,7 +328,7 @@ class CmBatch1Service:
 
     def reject_master_write_back(self) -> None:
         raise ValidationAppError(
-            "Customer Master write-back is forbidden (ADR-002 / BR-002)",
+            m("customer.master_writeback_forbidden"),
             details={"operation": "write"},
         )
 
@@ -339,7 +340,7 @@ class CmBatch1Service:
         emit_side_effects: bool = True,
     ) -> DuplicateCheckResponse:
         if not body.customer_id or not body.customer_id.strip():
-            raise ValidationAppError("customerId is required")
+            raise ValidationAppError(m("complaint.customer_id_required"))
 
         customer_id = body.customer_id.strip()
         cfg = self._dup_config
@@ -420,7 +421,7 @@ class CmBatch1Service:
         allowed = {"link_existing", "override", "recommend_only", "blocked"}
         if decision not in allowed:
             raise ValidationAppError(
-                "Invalid duplicate decision",
+                m("duplicate.invalid_decision"),
                 details={"allowed": sorted(allowed)},
             )
 
@@ -437,24 +438,24 @@ class CmBatch1Service:
         if decision == "link_existing":
             if not surviving:
                 raise ValidationAppError(
-                    "survivingComplaintId is required for link_existing",
+                    m("duplicate.surviving_id_required_link"),
                     details={"decision": decision},
                 )
             existing = self._store.get(surviving)
             if existing is None:
-                raise NotFoundError("Surviving Complaint not found")
+                raise NotFoundError(m("duplicate.surviving_complaint_not_found"))
             customer_id = customer_id or existing.customer_id
 
         elif decision == "override":
             if not customer_id:
                 raise ValidationAppError(
-                    "customerId is required for override",
+                    m("complaint.customer_id_required_override"),
                     details={"decision": decision},
                 )
             justification = (body.justification or "").strip()
             if len(justification) < cfg.minimum_justification_length:
                 raise ValidationAppError(
-                    "Override justification is required (Reason Required)",
+                    m("duplicate.override_justification_reason_required"),
                     details={
                         "minimumLength": cfg.minimum_justification_length,
                         "decision": decision,
@@ -468,7 +469,7 @@ class CmBatch1Service:
                     customer_id = existing.customer_id
             if not customer_id:
                 raise ValidationAppError(
-                    "customerId is required for blocked",
+                    m("complaint.customer_id_required_blocked"),
                     details={"decision": decision},
                 )
             hard_block = True
@@ -477,11 +478,11 @@ class CmBatch1Service:
             if surviving:
                 existing = self._store.get(surviving)
                 if existing is None:
-                    raise NotFoundError("Surviving Complaint not found")
+                    raise NotFoundError(m("duplicate.surviving_complaint_not_found"))
                 customer_id = customer_id or existing.customer_id
             if not customer_id:
                 raise ValidationAppError(
-                    "customerId is required for recommend_only",
+                    m("complaint.customer_id_required_recommend_only"),
                     details={"decision": decision},
                 )
 
@@ -558,7 +559,7 @@ class CmBatch1Service:
         status = (work_item_status or "OPEN").strip().upper() or "OPEN"
         if status not in {"OPEN", "ALL", "CLOSED"}:
             raise ValidationAppError(
-                "workItemStatus must be OPEN, CLOSED, or ALL",
+                m("config.work_item_status_values"),
                 details={"workItemStatus": work_item_status},
             )
         hours = max(1, min(int(aging_hours), 8760))
@@ -631,7 +632,7 @@ class CmBatch1Service:
 
         if any(c.get("hardBlock") for c in check.candidates):
             raise ValidationAppError(
-                "Hard Block: duplicate policy prevents new Complaint create",
+                m("duplicate.hard_block_create"),
                 details={
                     "duplicateCheckResult": "blocked",
                     "candidates": check.candidates,
@@ -641,7 +642,7 @@ class CmBatch1Service:
         justification = (body.duplicate_override_justification or "").strip()
         if len(justification) < cfg.minimum_justification_length:
             raise ValidationAppError(
-                "Duplicate Warning: override justification is required",
+                m("duplicate.override_justification_required"),
                 details={
                     "duplicateCheckResult": "warned",
                     "minimumLength": cfg.minimum_justification_length,
@@ -677,7 +678,7 @@ class CmBatch1Service:
         authorize_replay: Callable[[str], None] | None = None,
     ) -> ComplaintBatch1Response:
         if not request_id or not request_id.strip():
-            raise ValidationAppError("Request Id (Idempotency-Key) is required")
+            raise ValidationAppError(m("common.idempotency_key_required"))
 
         cleaned_request_id = request_id.strip()
         cleaned_channel = (
@@ -698,20 +699,20 @@ class CmBatch1Service:
             )
 
         if not body.customer_id.strip():
-            raise ValidationAppError("customerId is required")
+            raise ValidationAppError(m("complaint.customer_id_required"))
 
         # TD-CM-001 / EX-D / FR-002 AC1 — confirm lock required before new create.
         lock_principal = (principal_key or actor_id or "").strip()
         if not lock_principal:
             raise ValidationAppError(
-                "principal key is required to enforce customer confirm lock",
+                m("complaint.principal_key_required_confirm_lock"),
                 details={"field": "principalKey"},
             )
         locked_customer_id = self._store.get_confirmed(lock_principal)
         customer_id = body.customer_id.strip()
         if locked_customer_id is None or locked_customer_id != customer_id:
             raise ValidationAppError(
-                "CustomerId must be confirmed/locked for this actor before create",
+                m("customer.id_must_be_confirmed"),
                 details={
                     "customerId": customer_id,
                     "lockedCustomerId": locked_customer_id,
@@ -722,14 +723,14 @@ class CmBatch1Service:
         existence = self._customers.exists(body.customer_id)
         if existence.status == CustomerLookupStatus.UNAVAILABLE and self.strict_master:
             raise ValidationAppError(
-                "Master Customer unavailable (Strict mode) — create rejected"
+                m("customer.master_unavailable_create_rejected")
             )
         if (
             existence.status == CustomerLookupStatus.NOT_FOUND
             and self.strict_master
         ):
             raise ValidationAppError(
-                "customerId must be a verified Master Customer id",
+                m("complaint.customer_id_verified_master"),
                 details={"customerId": body.customer_id},
             )
 
@@ -844,7 +845,7 @@ class CmBatch1Service:
     def get_complaint(self, complaint_id: str) -> ComplaintBatch1Response:
         row = self._store.get(complaint_id)
         if row is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         return self._to_complaint_response(row, replayed=False)
 
     @staticmethod

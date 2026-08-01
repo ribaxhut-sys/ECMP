@@ -22,6 +22,7 @@ from app.modules.resolutions.schemas import (
     ResolveComplaintResult,
 )
 from app.modules.resolutions.service import ResolutionService
+from app.core.user_messages import m
 
 router = APIRouter(prefix="/api/v1/complaints", tags=["Resolutions"])
 
@@ -64,7 +65,7 @@ def get_complaint_resolution(
     _ = principal
     current = service.get_current(id)
     if current is None:
-        raise NotFoundError("Resolution not found")
+        raise NotFoundError(m("resolution.generic_not_found"))
     return DataResponse(data=current)
 
 
@@ -105,5 +106,5 @@ def get_final_resolution(
     _ = principal
     current = service.get_final_resolution(id)
     if current is None:
-        raise NotFoundError("Final resolution not found")
+        raise NotFoundError(m("resolution.not_found"))
     return DataResponse(data=current)

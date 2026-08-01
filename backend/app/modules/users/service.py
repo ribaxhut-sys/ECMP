@@ -36,6 +36,7 @@ from app.modules.users.schemas import (
     UserStatusUpdateRequest,
     UserUpdateRequest,
 )
+from app.core.user_messages import m
 
 
 def _to_response(user: User) -> UserResponse:
@@ -74,7 +75,7 @@ class UserService:
     def _ensure_role(self, role_id: uuid.UUID) -> None:
         if not self._repo.role_exists(role_id):
             raise ValidationAppError(
-                "Role not found or inactive",
+                m("iam.role_not_found_or_inactive"),
                 details={"roleId": str(role_id)},
             )
 
@@ -97,7 +98,7 @@ class UserService:
             return
         if not self._repo.branch_exists(branch_id):
             raise ValidationAppError(
-                "Branch not found or inactive",
+                m("branch.not_found_or_inactive"),
                 details={"branchId": str(branch_id)},
             )
 
@@ -106,7 +107,7 @@ class UserService:
     ) -> None:
         if self._repo.username_exists(username, exclude_user_id=exclude_user_id):
             raise ConflictError(
-                "Username already exists",
+                m("user.username_exists"),
                 details={"username": username},
             )
 
@@ -115,7 +116,7 @@ class UserService:
     ) -> None:
         if self._repo.email_exists(email, exclude_user_id=exclude_user_id):
             raise ConflictError(
-                "Email already exists",
+                m("user.email_exists"),
                 details={"email": email},
             )
 
@@ -163,7 +164,7 @@ class UserService:
     def get(self, user_id: uuid.UUID) -> UserResponse:
         user = self._repo.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
         return _to_response(user)
 
     def list(
@@ -176,10 +177,10 @@ class UserService:
         branch_id: uuid.UUID | None = None,
     ) -> tuple[list[UserResponse], int]:
         if page < 1:
-            raise ValidationAppError("page must be >= 1", details={"page": page})
+            raise ValidationAppError(m("config.page_min"), details={"page": page})
         if page_size < 1 or page_size > 100:
             raise ValidationAppError(
-                "pageSize must be between 1 and 100",
+                m("config.page_size_range"),
                 details={"pageSize": page_size},
             )
         items, total = self._repo.list_page(
@@ -201,7 +202,7 @@ class UserService:
     ) -> UserResponse:
         user = self._repo.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
 
         changes = payload.model_dump(exclude_unset=True)
         previous_role_id = user.role_id
@@ -269,7 +270,7 @@ class UserService:
         """Soft activate/deactivate via is_active — never hard-deletes."""
         user = self._repo.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
 
         now = datetime.now(UTC)
         user.is_active = payload.is_active
@@ -289,7 +290,7 @@ class UserService:
     ) -> ChangePasswordResponse:
         user = self._repo.get_by_id(user_id)
         if user is None or not user.is_active:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
         if not user.password_hash:
             write_password_audit(
                 self._repo.session,
@@ -301,7 +302,7 @@ class UserService:
                 commit=True,
             )
             raise ValidationAppError(
-                "Current password is incorrect",
+                m("auth.current_password_incorrect"),
                 details={"field": "currentPassword"},
             )
 
@@ -316,7 +317,7 @@ class UserService:
                 commit=True,
             )
             raise ValidationAppError(
-                "Current password is incorrect",
+                m("auth.current_password_incorrect"),
                 details={"field": "currentPassword"},
             )
 
@@ -362,13 +363,13 @@ class UserService:
     ) -> PreferredLanguageUpdateResponse:
         if language not in SUPPORTED_LANGUAGES:
             raise ValidationAppError(
-                "preferredLanguage must be one of: id, en",
+                m("config.preferred_language_values"),
                 details={"preferredLanguage": language},
             )
 
         user = self._repo.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
 
         user.preferred_language = language
         user.updated_at = datetime.now(UTC)
@@ -387,7 +388,7 @@ class UserService:
     ) -> AdminResetPasswordResponse:
         user = self._repo.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
 
         temporary = generate_temporary_password(
             length=max(16, self._settings.password_min_length)

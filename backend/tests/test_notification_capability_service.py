@@ -100,7 +100,7 @@ def test_retry_rejects_when_limit_reached() -> None:
     repo = MagicMock()
     repo.get_queue_by_id.return_value = row
     service = NotificationService(repository=repo, settings=_settings(max_retry=3))
-    with pytest.raises(ValidationAppError, match="retry limit"):
+    with pytest.raises(ValidationAppError, match="[Bb]atas percobaan"):
         service.retry(row.id)
 
 

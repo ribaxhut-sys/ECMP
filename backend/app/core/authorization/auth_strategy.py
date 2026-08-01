@@ -23,6 +23,7 @@ from app.core.errors import ForbiddenError, UnauthenticatedError
 from app.core.security import decode_access_token
 from app.models import User
 from app.modules.iam.permission_resolver import PermissionResolver
+from app.core.user_messages import m
 
 # Paths allowed while ``force_password_change`` is true (dev mode only).
 _FORCE_PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(
@@ -79,21 +80,21 @@ class DevAuthenticationStrategy(AuthenticationStrategy):
         credentials: HTTPAuthorizationCredentials | None,
     ) -> tuple[uuid.UUID, tuple[str, ...], dict[str, Any]]:
         if credentials is None or credentials.scheme.lower() != "bearer":
-            raise UnauthenticatedError("Bearer token required")
+            raise UnauthenticatedError(m("auth.bearer_required"))
 
         try:
             payload = decode_access_token(credentials.credentials, self._settings)
         except ValueError as exc:
-            raise UnauthenticatedError("Invalid or expired token") from exc
+            raise UnauthenticatedError(m("auth.invalid_token")) from exc
 
         subject = payload.get("sub")
         if not subject:
-            raise UnauthenticatedError("Token missing subject")
+            raise UnauthenticatedError(m("auth.token_missing_subject"))
 
         try:
             user_id = uuid.UUID(str(subject))
         except ValueError as exc:
-            raise UnauthenticatedError("Token subject must be a UUID") from exc
+            raise UnauthenticatedError(m("auth.token_subject_must_be_uuid")) from exc
 
         roles = tuple(_as_string_list(payload.get("roles")))
         return user_id, roles, payload
@@ -123,7 +124,7 @@ class DevAuthenticationStrategy(AuthenticationStrategy):
         )
         if force and request_path and request_path not in _FORCE_PASSWORD_CHANGE_ALLOWED_PATHS:
             raise ForbiddenError(
-                "Password change required before accessing the application",
+                m("auth.password_change_required"),
                 code="PASSWORD_CHANGE_REQUIRED",
                 details={"forcePasswordChange": True},
             )
@@ -164,21 +165,21 @@ class JwtAuthenticationStrategy(AuthenticationStrategy):
         credentials: HTTPAuthorizationCredentials | None,
     ) -> tuple[uuid.UUID, tuple[str, ...], dict[str, Any]]:
         if credentials is None or credentials.scheme.lower() != "bearer":
-            raise UnauthenticatedError("Bearer token required")
+            raise UnauthenticatedError(m("auth.bearer_required"))
 
         try:
             payload = self._validator.validate(credentials.credentials)
         except ValueError as exc:
-            raise UnauthenticatedError("Invalid or expired token") from exc
+            raise UnauthenticatedError(m("auth.invalid_token")) from exc
 
         subject = payload.get("sub")
         if not subject:
-            raise UnauthenticatedError("Token missing subject")
+            raise UnauthenticatedError(m("auth.token_missing_subject"))
 
         try:
             user_id = uuid.UUID(str(subject))
         except ValueError as exc:
-            raise UnauthenticatedError("Token subject must be a UUID") from exc
+            raise UnauthenticatedError(m("auth.token_subject_must_be_uuid")) from exc
 
         idp_roles = _as_string_list(payload.get("roles"))
         roles = self._role_mapper.map_many(idp_roles)

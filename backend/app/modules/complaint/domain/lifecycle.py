@@ -54,7 +54,7 @@ def assert_transition(current: ComplaintStatus, new_status: ComplaintStatus) -> 
     if not can_transition(current, new_status):
         raise ComplaintDomainError(
             "INVALID_COMPLAINT_TRANSITION",
-            f"invalid complaint status transition: "
+            f"transisi status pengaduan tidak valid: "
             f"{current.value} → {new_status.value}",
         )
 

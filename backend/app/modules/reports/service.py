@@ -13,6 +13,7 @@ from app.modules.reports.schemas import (
     ReportSummaryData,
     StatusCount,
 )
+from app.core.user_messages import m
 
 
 def _ensure_utc(value: datetime) -> datetime:
@@ -34,7 +35,7 @@ def _validate_filters(
         and normalized_from > normalized_to
     ):
         raise ValidationAppError(
-            "dateFrom must be less than or equal to dateTo",
+            m("config.date_from_lte_date_to"),
             details={
                 "dateFrom": normalized_from.isoformat(),
                 "dateTo": normalized_to.isoformat(),

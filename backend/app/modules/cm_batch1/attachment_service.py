@@ -36,6 +36,7 @@ from app.modules.cm_batch1.side_effects import (
     NoOpSideEffectRecorder,
     SideEffectRecorder,
 )
+from app.core.user_messages import m
 
 logger = get_logger("app.modules.cm_batch1.attachment")
 
@@ -86,12 +87,12 @@ class CmBatch1AttachmentService:
             return token
         if existing.status != "OPEN":
             raise ValidationAppError(
-                "Staging token is closed",
+                m("staging.token_closed"),
                 details={"stagingToken": token, "status": existing.status},
             )
         if existing.expires_at < datetime.now(UTC):
             raise ValidationAppError(
-                "Staging token has expired",
+                m("staging.token_expired"),
                 details={"stagingToken": token},
             )
         return token
@@ -114,14 +115,14 @@ class CmBatch1AttachmentService:
         if case_id and str(case_id).strip():
             # Batch 1 has no Case — membership invariant fails closed (FR-004 E7 / AC-09).
             raise ValidationAppError(
-                "CaseId is not supported in Batch 1 attachment upload",
+                m("attachment.case_id_not_supported"),
                 details={"caseId": case_id},
             )
 
         classification_clean = (classification or "").strip()
         if classification_clean not in cfg.allowed_classifications:
             raise ValidationAppError(
-                "classification is not allowed",
+                m("complaint.classification_not_allowed"),
                 details={
                     "classification": classification,
                     "allowed": sorted(cfg.allowed_classifications),
@@ -131,17 +132,17 @@ class CmBatch1AttachmentService:
         mime_type = (content_type or "").strip().lower() or "application/octet-stream"
         if mime_type not in cfg.allowed_mime_types:
             raise ValidationAppError(
-                "mime type is not allowed",
+                m("storage.mime_not_allowed"),
                 details={
                     "mimeType": mime_type,
                     "allowed": sorted(cfg.allowed_mime_types),
                 },
             )
         if not data:
-            raise ValidationAppError("file must not be empty", details={"sizeBytes": 0})
+            raise ValidationAppError(m("storage.file_empty"), details={"sizeBytes": 0})
         if len(data) > cfg.max_file_size_bytes:
             raise ValidationAppError(
-                "file exceeds maximum upload size",
+                m("storage.file_exceeds_max_size"),
                 details={
                     "sizeBytes": len(data),
                     "maxBytes": cfg.max_file_size_bytes,
@@ -155,13 +156,13 @@ class CmBatch1AttachmentService:
             )
             if not scan.clean:
                 raise ValidationAppError(
-                    "Attachment rejected by security scan",
+                    m("attachment.security_scan_rejected"),
                     details={"engine": scan.engine, "detail": scan.detail},
                 )
 
         if cfg.checksum_algorithm.upper() != "SHA-256":
             raise ValidationAppError(
-                "Unsupported checksum algorithm",
+                m("attachment.unsupported_checksum_algorithm"),
                 details={"checksumAlgorithm": cfg.checksum_algorithm},
             )
         checksum = hashlib.sha256(data).hexdigest()
@@ -169,7 +170,7 @@ class CmBatch1AttachmentService:
             prior = self._repo.find_by_checksum(checksum)
             if prior is not None:
                 raise ConflictError(
-                    "Duplicate attachment checksum",
+                    m("attachment.duplicate_checksum"),
                     details={
                         "checksumSha256": checksum,
                         "existingAttachmentId": prior.id,
@@ -185,7 +186,7 @@ class CmBatch1AttachmentService:
         if complaint_id and complaint_id.strip():
             complaint = self._complaints.get(complaint_id.strip())
             if complaint is None:
-                raise NotFoundError("Complaint not found")
+                raise NotFoundError(m("complaint.not_found"))
             complaint_uuid = uuid.UUID(complaint.complaint_id)
             complaint_customer_id = complaint.customer_id
             status = ATTACHMENT_STATUS_ACTIVE
@@ -204,10 +205,10 @@ class CmBatch1AttachmentService:
         if supersedes_attachment_id:
             prior_batch = self._repo.get(supersedes_attachment_id.strip())
             if prior_batch is None:
-                raise NotFoundError("Superseded attachment not found")
+                raise NotFoundError(m("attachment.superseded_not_found"))
             if prior_batch.status in {ATTACHMENT_STATUS_VOID, ATTACHMENT_STATUS_SUPERSEDED}:
                 raise ValidationAppError(
-                    "Cannot supersede void or already superseded attachment",
+                    m("attachment.cannot_supersede_void"),
                     details={"status": prior_batch.status},
                 )
             supersedes_uuid = uuid.UUID(prior_batch.id)
@@ -297,7 +298,7 @@ class CmBatch1AttachmentService:
                 )
                 self._complaints.commit()
             raise ValidationAppError(
-                "Attachment metadata bind failed; platform attachment compensated",
+                m("attachment.metadata_bind_failed"),
                 details={"platformAttachmentId": str(platform.id), "error": str(exc)},
             ) from exc
 
@@ -312,15 +313,15 @@ class CmBatch1AttachmentService:
     ) -> list[Batch1AttachmentResponse]:
         session = self._repo.get_staging(staging_token)
         if session is None:
-            raise NotFoundError("Staging token not found")
+            raise NotFoundError(m("staging.token_not_found"))
         if session.status != "OPEN":
             raise ValidationAppError(
-                "Staging token is not open",
+                m("staging.token_not_open"),
                 details={"status": session.status},
             )
         complaint = self._complaints.get(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         rows = self._repo.list_by_staging_token(staging_token)
         results: list[Batch1AttachmentResponse] = []
@@ -370,10 +371,10 @@ class CmBatch1AttachmentService:
         surviving = body.surviving_complaint_id.strip()
         session = self._repo.get_staging(token)
         if session is None:
-            raise NotFoundError("Staging token not found")
+            raise NotFoundError(m("staging.token_not_found"))
         complaint = self._complaints.get(surviving)
         if complaint is None:
-            raise NotFoundError("Surviving Complaint not found")
+            raise NotFoundError(m("duplicate.surviving_complaint_not_found"))
 
         rows = self._repo.list_by_staging_token(token)
         transferred: list[Batch1AttachmentResponse] = []
@@ -424,13 +425,13 @@ class CmBatch1AttachmentService:
         self, complaint_id: str
     ) -> list[Batch1AttachmentResponse]:
         if self._complaints.get(complaint_id) is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         return [self._to_response(r) for r in self._repo.list_by_complaint(complaint_id)]
 
     def get(self, attachment_id: str) -> Batch1AttachmentResponse:
         row = self._repo.get(attachment_id)
         if row is None:
-            raise NotFoundError("Attachment not found")
+            raise NotFoundError(m("attachment.not_found"))
         return self._to_response(row)
 
     def try_get(
@@ -467,15 +468,15 @@ class CmBatch1AttachmentService:
         reason_clean = (reason or "").strip()
         if not reason_clean:
             raise ValidationAppError(
-                "void reason is required (void-with-reason)",
+                m("attachment.void_reason_required"),
                 details={"attachmentId": attachment_id},
             )
         row = self._repo.get(attachment_id)
         if row is None:
-            raise NotFoundError("Attachment not found")
+            raise NotFoundError(m("attachment.not_found"))
         if row.status == ATTACHMENT_STATUS_VOID:
             raise ConflictError(
-                "Attachment already void",
+                m("attachment.already_void"),
                 details={"attachmentId": attachment_id},
             )
         self._attachments.soft_delete(
@@ -551,7 +552,7 @@ class CmBatch1AttachmentService:
 
     def history(self, attachment_id: str) -> list[dict]:
         if self._repo.get(attachment_id) is None:
-            raise NotFoundError("Attachment not found")
+            raise NotFoundError(m("attachment.not_found"))
         return [
             {
                 "id": h.id,

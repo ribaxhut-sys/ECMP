@@ -35,7 +35,7 @@ class OpenQueueHandler:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {command.queue_id}",
+                f"antrian tidak ditemukan: {command.queue_id}",
             )
         updated = self._domain.with_queue_status(queue, QueueStatus.OPEN)
         self._state.replace_queue(updated)

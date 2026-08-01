@@ -116,7 +116,7 @@ def test_replace_rejects_missing_role() -> None:
     repo.get_roles_by_ids.return_value = []
 
     service = UserRoleService(repo)
-    with pytest.raises(NotFoundError, match="roles not found"):
+    with pytest.raises(NotFoundError, match="peran tidak ditemukan"):
         service.replace_roles(
             user.id, UserRolesReplaceRequest(roleIds=[uuid.uuid4()])
         )
@@ -127,7 +127,7 @@ def test_replace_rejects_unknown_user() -> None:
     repo = MagicMock()
     repo.get_user.return_value = None
     service = UserRoleService(repo)
-    with pytest.raises(NotFoundError, match="User not found"):
+    with pytest.raises(NotFoundError, match="Pengguna tidak ditemukan"):
         service.replace_roles(
             uuid.uuid4(), UserRolesReplaceRequest(roleIds=[])
         )
@@ -142,7 +142,7 @@ def test_assign_rejects_duplicate() -> None:
     repo.get_link.return_value = _link(user.id, role.id)
 
     service = UserRoleService(repo)
-    with pytest.raises(ConflictError, match="already assigned"):
+    with pytest.raises(ConflictError, match="sudah ditetapkan"):
         service.assign_role(user.id, role.id, actor_roles=("ADMIN",))
 
 
@@ -155,7 +155,7 @@ def test_remove_missing_link() -> None:
     repo.get_link.return_value = None
 
     service = UserRoleService(repo)
-    with pytest.raises(NotFoundError, match="link not found"):
+    with pytest.raises(NotFoundError, match="[Tt]autan"):
         service.remove_role(user.id, role.id)
 
 

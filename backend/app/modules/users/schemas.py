@@ -1,6 +1,7 @@
 """User API contracts (camelCase, aligned with OpenAPI)."""
 
 from __future__ import annotations
+from app.core.user_messages import m
 
 import re
 import uuid
@@ -28,7 +29,7 @@ class UserCreateRequest(BaseModel):
     def normalize_username(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @field_validator("email")
@@ -36,7 +37,7 @@ class UserCreateRequest(BaseModel):
     def normalize_email(cls, value: str) -> str:
         cleaned = value.strip().lower()
         if not _EMAIL_RE.match(cleaned):
-            raise ValueError("invalid email format")
+            raise ValueError(m("validation.invalid_email"))
         return cleaned
 
     @field_validator("full_name")
@@ -44,16 +45,16 @@ class UserCreateRequest(BaseModel):
     def strip_full_name(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str) -> str:
         if value.strip() != value:
-            raise ValueError("must not have leading or trailing whitespace")
+            raise ValueError(m("validation.no_edge_whitespace"))
         if not value.strip():
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return value
 
 
@@ -74,7 +75,7 @@ class UserUpdateRequest(BaseModel):
             return None
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @field_validator("email")
@@ -84,7 +85,7 @@ class UserUpdateRequest(BaseModel):
             return None
         cleaned = value.strip().lower()
         if not _EMAIL_RE.match(cleaned):
-            raise ValueError("invalid email format")
+            raise ValueError(m("validation.invalid_email"))
         return cleaned
 
     @field_validator("full_name")
@@ -94,7 +95,7 @@ class UserUpdateRequest(BaseModel):
             return None
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @field_validator("password")
@@ -103,16 +104,16 @@ class UserUpdateRequest(BaseModel):
         if value is None:
             return None
         if value.strip() != value:
-            raise ValueError("must not have leading or trailing whitespace")
+            raise ValueError(m("validation.no_edge_whitespace"))
         if not value.strip():
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return value
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> UserUpdateRequest:
         provided = self.model_dump(exclude_unset=True)
         if not provided:
-            raise ValueError("at least one field must be provided")
+            raise ValueError(m("validation.at_least_one_field"))
         return self
 
 
@@ -165,14 +166,14 @@ class ChangePasswordRequest(BaseModel):
     @model_validator(mode="after")
     def passwords_match(self) -> ChangePasswordRequest:
         if self.new_password != self.confirm_password:
-            raise ValueError("newPassword and confirmPassword must match")
+            raise ValueError(m("validation.new_password_confirm_mismatch"))
         return self
 
 
 class ChangePasswordResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    message: str = "Password changed successfully."
+    message: str = m("auth.password_changed")
 
 
 class AdminResetPasswordResponse(BaseModel):

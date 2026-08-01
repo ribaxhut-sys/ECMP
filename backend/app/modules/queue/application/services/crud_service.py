@@ -133,7 +133,7 @@ class QueueCrudApplicationService:
         if not isinstance(data.status, QueueStatus):
             raise QueueApplicationError(
                 "INVALID_QUEUE_STATUS",
-                f"invalid queue status: {data.status!r}",
+                f"status antrian tidak valid: {data.status!r}",
             )
         queue = Queue(
             queue_id=data.queue_id or uuid.uuid4(),
@@ -194,7 +194,7 @@ class QueueCrudApplicationService:
         if not deleted:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {queue_id}",
+                f"antrian tidak ditemukan: {queue_id}",
             )
 
     # ----------------------------------------------------------------- Ticket
@@ -270,7 +270,7 @@ class QueueCrudApplicationService:
         if not deleted:
             raise QueueApplicationError(
                 "TICKET_NOT_FOUND",
-                f"ticket not found: {ticket_id}",
+                f"tiket tidak ditemukan: {ticket_id}",
             )
 
     # ---------------------------------------------------------------- Counter
@@ -283,7 +283,7 @@ class QueueCrudApplicationService:
         if not isinstance(data.status, QueueStatus):
             raise QueueApplicationError(
                 "INVALID_QUEUE_STATUS",
-                f"invalid counter status: {data.status!r}",
+                f"status counter tidak valid: {data.status!r}",
             )
         counter = QueueCounter(
             counter_id=data.counter_id or uuid.uuid4(),
@@ -313,7 +313,7 @@ class QueueCrudApplicationService:
         if queue_id is None:
             raise QueueApplicationError(
                 "COUNTER_NOT_FOUND",
-                f"counter not found: {counter_id}",
+                f"counter tidak ditemukan: {counter_id}",
             )
         name = data.name if data.name is not None else counter.name
         status = data.status if data.status is not None else counter.status
@@ -333,7 +333,7 @@ class QueueCrudApplicationService:
         if not deleted:
             raise QueueApplicationError(
                 "COUNTER_NOT_FOUND",
-                f"counter not found: {counter_id}",
+                f"counter tidak ditemukan: {counter_id}",
             )
 
     # ---------------------------------------------------------------- helpers
@@ -343,7 +343,7 @@ class QueueCrudApplicationService:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {queue_id}",
+                f"antrian tidak ditemukan: {queue_id}",
             )
         return queue
 
@@ -352,7 +352,7 @@ class QueueCrudApplicationService:
         if ticket is None:
             raise QueueApplicationError(
                 "TICKET_NOT_FOUND",
-                f"ticket not found: {ticket_id}",
+                f"tiket tidak ditemukan: {ticket_id}",
             )
         return ticket
 
@@ -361,7 +361,7 @@ class QueueCrudApplicationService:
         if counter is None:
             raise QueueApplicationError(
                 "COUNTER_NOT_FOUND",
-                f"counter not found: {counter_id}",
+                f"counter tidak ditemukan: {counter_id}",
             )
         return counter
 

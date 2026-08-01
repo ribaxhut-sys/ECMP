@@ -8,6 +8,7 @@ from app.core.errors import NotFoundError
 from app.models import ComplaintTimeline
 from app.modules.timelines.repository import TimelineRepository
 from app.modules.timelines.schemas import TimelineEntryResponse
+from app.core.user_messages import m
 
 
 def _to_response(row: ComplaintTimeline) -> TimelineEntryResponse:
@@ -35,7 +36,7 @@ class TimelineService:
     def list_timeline(self, complaint_id: uuid.UUID) -> list[TimelineEntryResponse]:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         rows = self._repo.list_by_complaint(complaint_id)
         return [_to_response(row) for row in rows]
 

@@ -50,6 +50,7 @@ from app.modules.complaint.application.services import (
     UnassignComplaintInput,
     UpdateComplaintInput,
 )
+from app.core.user_messages import m
 
 
 class ComplaintController:
@@ -107,7 +108,7 @@ class ComplaintController:
             raise_as_api_error(
                 ComplaintApplicationError(
                     "VALIDATION_ERROR",
-                    "queue_ticket_id is required",
+                    m("queue.ticket_id_required"),
                 )
             )
         try:

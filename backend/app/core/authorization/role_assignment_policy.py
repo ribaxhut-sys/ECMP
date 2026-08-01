@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from app.core.errors import ForbiddenError
+from app.core.user_messages import m
 
 # Canonical family ← concrete role codes (seed / legacy aliases).
 _ROLE_FAMILY_BY_CODE: dict[str, str] = {
@@ -98,6 +99,6 @@ def assert_can_assign_role(
     if target_role_id is not None:
         details["targetRoleId"] = target_role_id
     raise ForbiddenError(
-        "Not allowed to assign this role",
+        m("iam.cannot_assign_role"),
         details=details,
     )

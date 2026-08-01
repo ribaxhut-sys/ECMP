@@ -18,6 +18,7 @@ from app.modules.iam.role.schemas import (
     RoleResponse,
     RoleUpdateRequest,
 )
+from app.core.user_messages import m
 
 _ROLE_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,99}$")
 
@@ -53,7 +54,7 @@ class RoleService:
         code = self._normalize_code(payload.code)
         if self._repo.get_by_code(code) is not None:
             raise ConflictError(
-                f"Role code already exists: {code}",
+                f"Kode peran sudah ada: {code}",
                 details={"code": code},
             )
         now = datetime.now(UTC)
@@ -87,7 +88,7 @@ class RoleService:
         row = self._require(role_id)
         if row.is_system:
             raise ConflictError(
-                "System role cannot be deleted",
+                m("iam.system_role_cannot_delete"),
                 details={"id": str(role_id), "code": row.code, "isSystem": True},
             )
         self._repo.soft_delete(row)
@@ -96,7 +97,7 @@ class RoleService:
     def _require(self, role_id: uuid.UUID) -> Role:
         row = self._repo.get_by_id(role_id)
         if row is None:
-            raise NotFoundError("Role not found")
+            raise NotFoundError(m("iam.role_not_found"))
         return row
 
     @staticmethod
@@ -104,8 +105,7 @@ class RoleService:
         code = raw.strip().upper()
         if not _ROLE_CODE_RE.match(code):
             raise ValidationAppError(
-                "code must be uppercase letters, digits, and underscores "
-                "(max 100; start with a letter)",
+                m("config.code_uppercase_format"),
                 details={"code": raw},
             )
         return code

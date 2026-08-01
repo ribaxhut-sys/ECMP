@@ -14,6 +14,7 @@ from app.modules.assignments.schemas import (
     AssignComplaintResult,
     AssignmentResponse,
 )
+from app.core.user_messages import m
 
 ASSIGNABLE_STATUSES = frozenset(
     {ComplaintStatus.NEW, ComplaintStatus.ASSIGNED}
@@ -65,17 +66,17 @@ class AssignmentService:
     ) -> AssignComplaintResult:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         if complaint.status not in ASSIGNABLE_STATUSES:
             raise InvalidStateError(
-                "Complaint cannot be assigned in its current status",
+                m("complaint.cannot_assign_status"),
                 details={"status": complaint.status},
             )
 
         if not self._repo.user_exists(payload.assignee_id):
             raise ValidationAppError(
-                "Assignee not found or inactive",
+                m("assignment.assignee_not_found"),
                 details={"assigneeId": str(payload.assignee_id)},
             )
 
@@ -88,7 +89,7 @@ class AssignmentService:
             reason = (payload.reason or "").strip() if payload.reason else ""
             if not reason:
                 raise ValidationAppError(
-                    "reason is required for reassignment",
+                    m("assignment.reason_required_reassignment"),
                     details={"reason": "mandatory when reassigning"},
                 )
 
@@ -174,6 +175,6 @@ class AssignmentService:
     def list_assignments(self, complaint_id: uuid.UUID) -> list[AssignmentResponse]:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         rows = self._repo.list_assignments(complaint_id)
         return [_to_response(row) for row in rows]

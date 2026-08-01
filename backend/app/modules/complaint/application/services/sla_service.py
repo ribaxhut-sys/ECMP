@@ -23,6 +23,7 @@ from app.modules.complaint.domain.repositories import (
     ComplaintSlaRepository,
     SLAPolicyRepository,
 )
+from app.core.user_messages import m
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +99,7 @@ class ComplaintSLAApplicationService:
         if active is None:
             raise ComplaintApplicationError(
                 "NO_ACTIVE_SLA",
-                f"no active SLA for complaint: {complaint_id}",
+                f"tidak ada SLA aktif untuk pengaduan: {complaint_id}",
             )
         updated = self._domain.detect_sla_breach(
             active, current_time=data.current_time
@@ -128,7 +129,7 @@ class ComplaintSLAApplicationService:
         if row is None:
             raise ComplaintApplicationError(
                 "SLA_NOT_FOUND",
-                f"no SLA for complaint: {complaint_id}",
+                f"tidak ada SLA untuk pengaduan: {complaint_id}",
             )
         # Refresh breach detection for active SLA on read (no scheduler).
         if row.is_active:
@@ -161,7 +162,7 @@ class ComplaintSLAApplicationService:
         if complaint is None:
             raise ComplaintApplicationError(
                 "COMPLAINT_NOT_FOUND",
-                f"complaint not found: {complaint_id}",
+                f"pengaduan tidak ditemukan: {complaint_id}",
             )
         return complaint
 
@@ -172,7 +173,7 @@ class ComplaintSLAApplicationService:
         if policy is None:
             raise ComplaintApplicationError(
                 "SLA_POLICY_NOT_FOUND",
-                "no default SLA policy configured",
+                m("sla.no_default_policy"),
             )
         return policy
 
@@ -181,7 +182,7 @@ class ComplaintSLAApplicationService:
         if policy is None:
             raise ComplaintApplicationError(
                 "SLA_POLICY_NOT_FOUND",
-                f"SLA policy not found: {policy_id}",
+                f"kebijakan SLA tidak ditemukan: {policy_id}",
             )
         return policy
 

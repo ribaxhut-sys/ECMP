@@ -19,6 +19,7 @@ from app.modules.iam.user_role.models import UserRole
 from app.modules.iam.user_role.repository import UserRoleRepository
 from app.modules.iam.user_role.schemas import UserRolesReplaceRequest
 from app.modules.users.schemas import UserResponse
+from app.core.user_messages import m
 
 
 def _role_response(row: object) -> RoleResponse:
@@ -71,7 +72,7 @@ class UserRoleService:
         self._require_user(user_id)
         role = self._repo.get_role(role_id)
         if role is None:
-            raise NotFoundError("Role not found")
+            raise NotFoundError(m("iam.role_not_found"))
         # UAT-020: same privilege matrix as users create/update.
         assert_can_assign_role(
             actor_roles,
@@ -80,7 +81,7 @@ class UserRoleService:
         )
         if self._repo.get_link(user_id, role_id) is not None:
             raise ConflictError(
-                "Role already assigned to user",
+                m("iam.role_already_assigned"),
                 details={"userId": str(user_id), "roleId": str(role_id)},
             )
         self._repo.add_link(
@@ -97,7 +98,7 @@ class UserRoleService:
         self._require_role(role_id)
         link = self._repo.get_link(user_id, role_id)
         if link is None:
-            raise NotFoundError("User role link not found")
+            raise NotFoundError(m("iam.user_role_not_found"))
         self._repo.delete_link(link)
         self._repo.commit()
         invalidate_iam_user(user_id)
@@ -115,7 +116,7 @@ class UserRoleService:
         desired_ids = list(payload.role_ids)
         if len(desired_ids) != len(set(desired_ids)):
             raise ValidationAppError(
-                "roleIds must not contain duplicates",
+                m("config.role_ids_no_duplicates"),
                 details={"roleIds": [str(i) for i in desired_ids]},
             )
 
@@ -123,7 +124,7 @@ class UserRoleService:
         found_ids = {row.id for row in found}
         missing = [rid for rid in desired_ids if rid not in found_ids]
         if missing:
-            raise NotFoundError("One or more roles not found")
+            raise NotFoundError(m("iam.roles_not_found"))
 
         current_links = self._repo.list_links_for_user(user_id)
         current_ids = {link.role_id for link in current_links}
@@ -156,8 +157,8 @@ class UserRoleService:
 
     def _require_user(self, user_id: uuid.UUID) -> None:
         if self._repo.get_user(user_id) is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
 
     def _require_role(self, role_id: uuid.UUID) -> None:
         if self._repo.get_role(role_id) is None:
-            raise NotFoundError("Role not found")
+            raise NotFoundError(m("iam.role_not_found"))

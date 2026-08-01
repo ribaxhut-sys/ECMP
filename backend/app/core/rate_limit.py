@@ -14,6 +14,7 @@ import time
 from collections import defaultdict, deque
 
 from app.core.errors import RateLimitedError
+from app.core.user_messages import m
 
 
 class FixedWindowRateLimiter:
@@ -39,7 +40,7 @@ class FixedWindowRateLimiter:
             if len(bucket) >= self._limit:
                 retry_after = max(1, int(self._window - (now - bucket[0])) + 1)
                 raise RateLimitedError(
-                    "Too many login attempts. Try again later.",
+                    m("auth.rate_limited_login"),
                     details={"retryAfterSeconds": retry_after},
                 )
             bucket.append(now)

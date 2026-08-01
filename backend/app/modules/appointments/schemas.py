@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import AppointmentCompletionResult
+from app.core.user_messages import m
 
 AppointmentStatusLiteral = Literal["BOOKED", "CHECKED_IN", "COMPLETED", "NO_SHOW"]
 CompletionResultLiteral = Literal["COMPLETED", "PARTIALLY_COMPLETED"]
@@ -24,7 +25,7 @@ def _parse_hhmm(value: str) -> time:
             raise ValueError
         return time(hour=hour, minute=minute)
     except (TypeError, ValueError):
-        raise ValueError("must be HH:MM") from None
+        raise ValueError(m("validation.time_hhmm")) from None
 
 
 class AppointmentCreate(BaseModel):
@@ -56,7 +57,7 @@ class AppointmentCreate(BaseModel):
     @model_validator(mode="after")
     def end_after_start(self) -> AppointmentCreate:
         if self.end_time <= self.start_time:
-            raise ValueError("endTime must be after startTime")
+            raise ValueError(m("validation.end_after_start"))
         return self
 
 

@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from app.core.user_messages import m
 
 NotificationChannelLiteral = Literal[
     "EMAIL", "WHATSAPP", "SMS", "PUSH", "WEBHOOK"
@@ -33,7 +34,7 @@ class NotificationTemplateCreateRequest(BaseModel):
     def strip_required(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("value is required")
+            raise ValueError(m("validation.value_required"))
         return cleaned
 
     @field_validator("subject")
@@ -63,7 +64,7 @@ class NotificationTemplateUpdateRequest(BaseModel):
             return None
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("value is required")
+            raise ValueError(m("validation.value_required"))
         return cleaned
 
     @field_validator("subject")
@@ -106,7 +107,7 @@ class NotificationCreateRequest(BaseModel):
     def strip_required(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("value is required")
+            raise ValueError(m("validation.value_required"))
         return cleaned
 
 

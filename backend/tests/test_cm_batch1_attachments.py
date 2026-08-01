@@ -501,7 +501,7 @@ def test_tc_cm_fr004_03_malware_reject(
         complaints=CmBatch1Repository(db_session),
         antivirus=_RejectingAntivirus(),
     )
-    with pytest.raises(ValidationAppError, match="security scan"):
+    with pytest.raises(ValidationAppError, match="pemindaian keamanan"):
         svc.upload(
             data=b"%PDF-1.4 dirty",
             filename="bad.pdf",

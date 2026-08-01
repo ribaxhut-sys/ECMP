@@ -15,6 +15,7 @@ from app.modules.iam.role.schemas import RoleResponse
 from app.modules.iam.role_permission.models import RolePermission
 from app.modules.iam.role_permission.repository import RolePermissionRepository
 from app.modules.iam.role_permission.schemas import RolePermissionsReplaceRequest
+from app.core.user_messages import m
 
 
 def _permission_response(row: object) -> PermissionResponse:
@@ -52,7 +53,7 @@ class RolePermissionService:
         self._require_permission(permission_id)
         if self._repo.get_link(role_id, permission_id) is not None:
             raise ConflictError(
-                "Permission already assigned to role",
+                m("iam.permission_already_assigned"),
                 details={
                     "roleId": str(role_id),
                     "permissionId": str(permission_id),
@@ -76,7 +77,7 @@ class RolePermissionService:
         self._require_permission(permission_id)
         link = self._repo.get_link(role_id, permission_id)
         if link is None:
-            raise NotFoundError("Role permission link not found")
+            raise NotFoundError(m("iam.role_permission_not_found"))
         self._repo.delete_link(link)
         self._repo.commit()
         invalidate_iam_all()
@@ -90,7 +91,7 @@ class RolePermissionService:
         desired_ids = list(payload.permission_ids)
         if len(desired_ids) != len(set(desired_ids)):
             raise ValidationAppError(
-                "permissionIds must not contain duplicates",
+                m("config.permission_ids_no_duplicates"),
                 details={"permissionIds": [str(i) for i in desired_ids]},
             )
 
@@ -98,7 +99,7 @@ class RolePermissionService:
         found_ids = {row.id for row in found}
         missing = [pid for pid in desired_ids if pid not in found_ids]
         if missing:
-            raise NotFoundError("One or more permissions not found")
+            raise NotFoundError(m("iam.permissions_not_found"))
 
         current_links = self._repo.list_links_for_role(role_id)
         current_ids = {link.permission_id for link in current_links}
@@ -126,8 +127,8 @@ class RolePermissionService:
 
     def _require_role(self, role_id: uuid.UUID) -> None:
         if self._repo.get_role(role_id) is None:
-            raise NotFoundError("Role not found")
+            raise NotFoundError(m("iam.role_not_found"))
 
     def _require_permission(self, permission_id: uuid.UUID) -> None:
         if self._repo.get_permission(permission_id) is None:
-            raise NotFoundError("Permission not found")
+            raise NotFoundError(m("iam.permission_not_found"))

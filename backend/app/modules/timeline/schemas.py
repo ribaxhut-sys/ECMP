@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from app.core.user_messages import m
 
 AggregateTypeLiteral = Literal["Complaint", "Queue", "Notification"]
 ActorTypeLiteral = Literal["USER", "SYSTEM", "SERVICE"]
@@ -32,7 +33,7 @@ class TimelineEntryCreateRequest(BaseModel):
     def strip_required(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("value is required")
+            raise ValueError(m("validation.value_required"))
         return cleaned
 
 

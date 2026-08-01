@@ -42,6 +42,7 @@ from app.modules.auth.schemas import (
 from app.modules.iam.permission_resolver import PermissionResolver
 from app.modules.iam.role.models import Role
 from app.modules.iam.user_role.models import UserRole
+from app.core.user_messages import m
 
 if TYPE_CHECKING:
     from fastapi import Request
@@ -150,9 +151,9 @@ class AuthService:
     def login(self, payload: LoginRequest) -> AuthSession:
         user = self._repo.get_user_by_login(payload.username)
         if user is None or not user.is_active or not user.password_hash:
-            raise UnauthenticatedError("Invalid username or password")
+            raise UnauthenticatedError(m("auth.invalid_credentials"))
         if not verify_password(payload.password, user.password_hash):
-            raise UnauthenticatedError("Invalid username or password")
+            raise UnauthenticatedError(m("auth.invalid_credentials"))
 
         now = datetime.now(UTC)
         user.last_login_at = now
@@ -177,17 +178,17 @@ class AuthService:
 
     def refresh(self, raw_refresh: str | None) -> AuthSession:
         if not raw_refresh:
-            raise UnauthenticatedError("Refresh token required")
+            raise UnauthenticatedError(m("auth.refresh_required"))
 
         existing = self._repo.get_refresh_by_hash(hash_refresh_token(raw_refresh))
         now = datetime.now(UTC)
 
         if existing is None:
-            raise UnauthenticatedError("Invalid or expired refresh token")
+            raise UnauthenticatedError(m("auth.invalid_refresh"))
 
         if existing.revoked_at is not None:
             # Reuse of a rotated/revoked token — reject (family not cascade-killed here).
-            raise UnauthenticatedError("Invalid or expired refresh token")
+            raise UnauthenticatedError(m("auth.invalid_refresh"))
 
         expires = existing.expires_at
         if expires.tzinfo is None:
@@ -195,13 +196,13 @@ class AuthService:
         if expires <= now:
             existing.revoked_at = now
             self._repo.commit()
-            raise UnauthenticatedError("Invalid or expired refresh token")
+            raise UnauthenticatedError(m("auth.invalid_refresh"))
 
         user = self._repo.get_user_by_id(existing.user_id)
         if user is None or not user.is_active:
             existing.revoked_at = now
             self._repo.commit()
-            raise UnauthenticatedError("Invalid or expired refresh token")
+            raise UnauthenticatedError(m("auth.invalid_refresh"))
 
         new_row, new_raw = self._create_refresh_row(user.id)
         existing.revoked_at = now
@@ -249,7 +250,7 @@ class AuthService:
     def me(self, user_id: uuid.UUID) -> AuthMeResponse:
         user = self._repo.get_user_by_id(user_id)
         if user is None or not user.is_active:
-            raise UnauthenticatedError("Authentication required")
+            raise UnauthenticatedError(m("auth.authentication_required"))
         return _to_me(self._repo, user)
 
     def forgot_password(
@@ -336,7 +337,7 @@ class AuthService:
                 commit=True,
             )
             raise ValidationAppError(
-                "Invalid or expired reset token",
+                m("auth.invalid_reset_token"),
                 details={"field": "token", "reason": "invalid"},
             )
 
@@ -351,7 +352,7 @@ class AuthService:
                 commit=True,
             )
             raise ValidationAppError(
-                "Invalid or expired reset token",
+                m("auth.invalid_reset_token"),
                 details={"field": "token", "reason": "reused"},
             )
 
@@ -369,14 +370,14 @@ class AuthService:
                 commit=True,
             )
             raise ValidationAppError(
-                "Invalid or expired reset token",
+                m("auth.invalid_reset_token"),
                 details={"field": "token", "reason": "expired"},
             )
 
         user = self._repo.get_user_by_id(row.user_id)
         if user is None or not user.is_active:
             raise ValidationAppError(
-                "Invalid or expired reset token",
+                m("auth.invalid_reset_token"),
                 details={"field": "token", "reason": "inactive_user"},
             )
 

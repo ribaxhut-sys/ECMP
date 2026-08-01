@@ -117,7 +117,7 @@ def test_replace_rejects_missing_permission() -> None:
     repo.get_permissions_by_ids.return_value = []
 
     service = RolePermissionService(repo)
-    with pytest.raises(NotFoundError, match="permissions not found"):
+    with pytest.raises(NotFoundError, match="izin tidak ditemukan"):
         service.replace_permissions(
             role.id,
             RolePermissionsReplaceRequest(permissionIds=[missing_id]),
@@ -129,7 +129,7 @@ def test_replace_rejects_unknown_role() -> None:
     repo = MagicMock()
     repo.get_role.return_value = None
     service = RolePermissionService(repo)
-    with pytest.raises(NotFoundError, match="Role not found"):
+    with pytest.raises(NotFoundError, match="Peran tidak ditemukan"):
         service.replace_permissions(
             uuid.uuid4(),
             RolePermissionsReplaceRequest(permissionIds=[]),
@@ -145,7 +145,7 @@ def test_assign_rejects_duplicate() -> None:
     repo.get_link.return_value = _link(role.id, perm.id)
 
     service = RolePermissionService(repo)
-    with pytest.raises(ConflictError, match="already assigned"):
+    with pytest.raises(ConflictError, match="sudah ditetapkan"):
         service.assign_permission(role.id, perm.id)
 
 
@@ -158,7 +158,7 @@ def test_remove_missing_link() -> None:
     repo.get_link.return_value = None
 
     service = RolePermissionService(repo)
-    with pytest.raises(NotFoundError, match="link not found"):
+    with pytest.raises(NotFoundError, match="[Tt]autan"):
         service.remove_permission(role.id, perm.id)
 
 

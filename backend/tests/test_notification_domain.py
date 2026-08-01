@@ -75,7 +75,7 @@ def test_retry_limit_exceeded() -> None:
     )
     record.retry_count = 3
     record.status = NotificationQueueStatus.FAILED.value
-    with pytest.raises(ValidationAppError, match="retry limit"):
+    with pytest.raises(ValidationAppError, match="[Bb]atas percobaan"):
         record.retry(max_retry=3)
 
 

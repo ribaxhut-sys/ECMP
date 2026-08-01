@@ -14,6 +14,7 @@ from app.modules.timeline.schemas import (
     TimelineEntryCreateRequest,
     TimelineEntryResponse,
 )
+from app.core.user_messages import m
 
 
 def _to_response(entry: TimelineEntry) -> TimelineEntryResponse:
@@ -88,7 +89,7 @@ class ActivityTimelineService:
     def get(self, entry_id: uuid.UUID) -> TimelineEntryResponse:
         entry = self._repo.get(entry_id)
         if entry is None:
-            raise NotFoundError("Timeline entry not found")
+            raise NotFoundError(m("timeline.not_found"))
         return _to_response(entry)
 
     def list(

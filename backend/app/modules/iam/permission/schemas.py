@@ -1,6 +1,7 @@
 """Permission Management API contracts (camelCase) — TASK-034."""
 
 from __future__ import annotations
+from app.core.user_messages import m
 
 import uuid
 from datetime import datetime
@@ -24,7 +25,7 @@ class PermissionCreateRequest(BaseModel):
     def strip_required(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("value is required")
+            raise ValueError(m("validation.value_required"))
         return cleaned
 
     @field_validator("description")
@@ -52,7 +53,7 @@ class PermissionUpdateRequest(BaseModel):
             return None
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("value is required")
+            raise ValueError(m("validation.value_required"))
         return cleaned
 
     @field_validator("description")
@@ -66,7 +67,7 @@ class PermissionUpdateRequest(BaseModel):
     @model_validator(mode="after")
     def at_least_one_field(self) -> PermissionUpdateRequest:
         if self.name is None and self.description is None and self.is_active is None:
-            raise ValueError("at least one field is required")
+            raise ValueError(m("config.at_least_one_field"))
         return self
 
 

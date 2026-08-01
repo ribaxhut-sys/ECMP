@@ -34,7 +34,7 @@ class RecallTicketHandler:
         if ticket is None:
             raise QueueApplicationError(
                 "TICKET_NOT_FOUND",
-                f"ticket not found: {command.ticket_id}",
+                f"tiket tidak ditemukan: {command.ticket_id}",
             )
         recalled = self._domain.recall_ticket(ticket)
         return QueueTicketDto.from_domain(recalled)

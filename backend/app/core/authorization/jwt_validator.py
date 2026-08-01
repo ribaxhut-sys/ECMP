@@ -11,6 +11,7 @@ import jwt
 from jwt.exceptions import PyJWTError
 
 from app.core.authorization.jwks_cache import JwksCache
+from app.core.user_messages import m
 
 _ALLOWED_ALGORITHMS = ("RS256",)
 _CLOCK_SKEW_SECONDS = 30
@@ -69,4 +70,4 @@ class JwtValidator:
                 },
             )
         except PyJWTError as exc:
-            raise ValueError("Invalid or expired token") from exc
+            raise ValueError(m("auth.invalid_token")) from exc

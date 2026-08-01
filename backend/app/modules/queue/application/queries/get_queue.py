@@ -27,7 +27,7 @@ class GetQueueHandler:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {query.queue_id}",
+                f"antrian tidak ditemukan: {query.queue_id}",
             )
         return QueueDto.from_domain(queue)
 

@@ -38,7 +38,7 @@ class ComplaintDomainService:
         if not isinstance(priority, ComplaintPriority):
             raise ComplaintApplicationError(
                 "INVALID_PRIORITY",
-                f"invalid complaint priority: {priority!r}",
+                f"prioritas pengaduan tidak valid: {priority!r}",
             )
 
     def validate_status(self, status: ComplaintStatus) -> None:
@@ -46,7 +46,7 @@ class ComplaintDomainService:
         if not isinstance(status, ComplaintStatus):
             raise ComplaintApplicationError(
                 "INVALID_COMPLAINT_STATUS",
-                f"invalid complaint status: {status!r}",
+                f"status pengaduan tidak valid: {status!r}",
             )
 
     def transition(

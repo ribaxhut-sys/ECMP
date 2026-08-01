@@ -22,6 +22,7 @@ from app.modules.queue.models import (
     QueueTicket,
     QueueTicketStatus,
 )
+from app.core.user_messages import m
 
 _PRIORITY_RANK: dict[QueuePriority, int] = {
     QueuePriority.VIP: 0,
@@ -78,7 +79,7 @@ class QueueDomainService:
         if queue.status not in allow:
             raise QueueApplicationError(
                 "INVALID_QUEUE_STATUS",
-                f"queue status {queue.status.value} does not allow {action}",
+                f"status antrian {queue.status.value} tidak mengizinkan {action}",
             )
 
     def validate_queue_policy(self, policy: QueuePolicy) -> None:
@@ -86,12 +87,12 @@ class QueueDomainService:
         if not isinstance(policy, QueuePolicy):
             raise QueueApplicationError(
                 "INVALID_QUEUE_POLICY",
-                f"unsupported queue policy: {policy!r}",
+                f"kebijakan antrian tidak didukung: {policy!r}",
             )
         if policy not in (QueuePolicy.FIFO, QueuePolicy.PRIORITY_QUEUE):
             raise QueueApplicationError(
                 "INVALID_QUEUE_POLICY",
-                f"unsupported queue policy: {policy!r}",
+                f"kebijakan antrian tidak didukung: {policy!r}",
             )
 
     def validate_can_issue_ticket(self, queue: Queue) -> None:
@@ -99,12 +100,12 @@ class QueueDomainService:
         if queue.status is QueueStatus.CLOSED:
             raise QueueApplicationError(
                 "QUEUE_CLOSED",
-                "queue is CLOSED; new tickets are rejected",
+                m("queue.closed_new_tickets_rejected"),
             )
         if queue.status is QueueStatus.PAUSED:
             raise QueueApplicationError(
                 "QUEUE_PAUSED",
-                "queue is PAUSED; new tickets are rejected",
+                m("queue.paused_new_tickets_rejected"),
             )
         self.validate_queue_status(
             queue, allow={QueueStatus.OPEN}, action="issue ticket"
@@ -115,12 +116,12 @@ class QueueDomainService:
         if queue.status is QueueStatus.PAUSED:
             raise QueueApplicationError(
                 "QUEUE_PAUSED",
-                "queue is PAUSED; calling is rejected",
+                m("queue.paused_calling_rejected"),
             )
         if queue.status is QueueStatus.CLOSED:
             raise QueueApplicationError(
                 "QUEUE_CLOSED",
-                "queue is CLOSED; calling is rejected",
+                m("queue.closed_calling_rejected"),
             )
         self.validate_queue_status(
             queue, allow={QueueStatus.OPEN}, action="call next ticket"
@@ -134,14 +135,14 @@ class QueueDomainService:
         if ticket_number in existing_numbers:
             raise QueueApplicationError(
                 "DUPLICATE_TICKET_NUMBER",
-                f"ticket number {ticket_number!r} already exists in this queue",
+                f"nomor tiket {ticket_number!r} sudah ada di antrian ini",
             )
 
     def validate_priority(self, priority: QueuePriority) -> None:
         if not isinstance(priority, QueuePriority):
             raise QueueApplicationError(
                 "INVALID_PRIORITY",
-                f"unsupported priority: {priority!r}",
+                f"prioritas tidak didukung: {priority!r}",
             )
 
     def validate_priority_rules(
@@ -176,34 +177,34 @@ class QueueDomainService:
         if ticket.status is QueueTicketStatus.CANCELLED:
             raise QueueApplicationError(
                 "TICKET_CANCELLED",
-                "cancelled ticket cannot be called",
+                m("queue.cancelled_cannot_be_called"),
             )
         if ticket.status is QueueTicketStatus.COMPLETED:
             raise QueueApplicationError(
                 "TICKET_COMPLETED",
-                "completed ticket cannot be called",
+                m("queue.completed_cannot_be_called"),
             )
         if ticket.status is QueueTicketStatus.SKIPPED:
             raise QueueApplicationError(
                 "TICKET_SKIPPED",
-                "skipped ticket cannot be called",
+                m("queue.skipped_cannot_be_called"),
             )
         if ticket.status is not QueueTicketStatus.WAITING:
             raise QueueApplicationError(
                 "INVALID_TICKET_STATUS",
-                f"ticket status {ticket.status.value} cannot be called",
+                f"status tiket {ticket.status.value} tidak dapat dipanggil",
             )
 
     def assert_not_return_to_waiting(self, ticket: QueueTicket) -> None:
         if ticket.status is QueueTicketStatus.COMPLETED:
             raise QueueApplicationError(
                 "TICKET_COMPLETED",
-                "completed ticket cannot return to WAITING",
+                m("queue.completed_cannot_return_waiting"),
             )
         if ticket.status in _TERMINAL_TICKET:
             raise QueueApplicationError(
                 "INVALID_TICKET_TRANSITION",
-                f"ticket status {ticket.status.value} cannot return to WAITING",
+                f"status tiket {ticket.status.value} tidak dapat kembali ke WAITING",
             )
 
     def recall_ticket(self, ticket: QueueTicket) -> QueueTicket:
@@ -211,7 +212,7 @@ class QueueDomainService:
         if ticket.status not in _RECALLABLE:
             raise QueueApplicationError(
                 "INVALID_TICKET_TRANSITION",
-                f"cannot recall ticket in status {ticket.status.value}",
+                f"tidak dapat recall tiket berstatus {ticket.status.value}",
             )
         return ticket
 
@@ -227,7 +228,7 @@ class QueueDomainService:
             self.assert_not_return_to_waiting(ticket)
             raise QueueApplicationError(
                 "INVALID_TICKET_TRANSITION",
-                "tickets are issued as WAITING; re-entry to WAITING is forbidden",
+                m("queue.tickets_issued_waiting_no_reentry"),
             )
         if new_status is QueueTicketStatus.CALLED:
             self.assert_ticket_callable(ticket)
@@ -235,7 +236,7 @@ class QueueDomainService:
             if ticket.status is not QueueTicketStatus.CALLED:
                 raise QueueApplicationError(
                     "INVALID_TICKET_TRANSITION",
-                    f"cannot move ticket to SERVING from {ticket.status.value}",
+                    f"tidak dapat memindahkan tiket ke SERVING dari {ticket.status.value}",
                 )
         elif new_status is QueueTicketStatus.COMPLETED:
             if ticket.status not in (
@@ -244,13 +245,13 @@ class QueueDomainService:
             ):
                 raise QueueApplicationError(
                     "INVALID_TICKET_TRANSITION",
-                    f"cannot complete ticket in status {ticket.status.value}",
+                    f"tidak dapat menyelesaikan tiket berstatus {ticket.status.value}",
                 )
         elif new_status is QueueTicketStatus.CANCELLED:
             if ticket.status is QueueTicketStatus.COMPLETED:
                 raise QueueApplicationError(
                     "INVALID_TICKET_TRANSITION",
-                    "completed ticket cannot be cancelled",
+                    m("queue.completed_cannot_be_cancelled"),
                 )
             if ticket.status in (
                 QueueTicketStatus.CANCELLED,
@@ -258,7 +259,7 @@ class QueueDomainService:
             ):
                 raise QueueApplicationError(
                     "INVALID_TICKET_TRANSITION",
-                    f"ticket already {ticket.status.value}",
+                    f"tiket sudah berstatus {ticket.status.value}",
                 )
             if ticket.status not in (
                 QueueTicketStatus.WAITING,
@@ -267,7 +268,7 @@ class QueueDomainService:
             ):
                 raise QueueApplicationError(
                     "INVALID_TICKET_TRANSITION",
-                    f"cannot cancel ticket in status {ticket.status.value}",
+                    f"tidak dapat membatalkan tiket berstatus {ticket.status.value}",
                 )
         elif new_status is QueueTicketStatus.SKIPPED:
             if ticket.status not in (
@@ -276,12 +277,12 @@ class QueueDomainService:
             ):
                 raise QueueApplicationError(
                     "INVALID_TICKET_TRANSITION",
-                    f"cannot skip ticket in status {ticket.status.value}",
+                    f"tidak dapat melewati tiket berstatus {ticket.status.value}",
                 )
         else:
             raise QueueApplicationError(
                 "INVALID_TICKET_STATUS",
-                f"unknown ticket status: {new_status!r}",
+                f"status tiket tidak dikenal: {new_status!r}",
             )
         _ = now or datetime.now(timezone.utc)
         return replace(ticket, status=new_status)
@@ -290,7 +291,7 @@ class QueueDomainService:
         if not isinstance(status, QueueStatus):
             raise QueueApplicationError(
                 "INVALID_QUEUE_STATUS",
-                f"invalid queue status: {status!r}",
+                f"status antrian tidak valid: {status!r}",
             )
         return replace(queue, status=status)
 

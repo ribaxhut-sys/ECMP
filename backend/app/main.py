@@ -34,6 +34,12 @@ from app.core.secrets import (
     register_runtime_secrets,
     safe_exception_text,
 )
+from app.core.user_messages import (
+    code_message,
+    field_errors_from_validation,
+    localize_legacy,
+    m,
+)
 
 logger = get_logger("app.main")
 
@@ -143,16 +149,12 @@ def create_app() -> FastAPI:
     async def validation_error_handler(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        field_errors: dict[str, Any] = {}
-        for err in exc.errors():
-            loc = err.get("loc", ())
-            key = ".".join(str(part) for part in loc if part != "body")
-            field_errors[key or "body"] = err.get("msg")
+        field_errors = field_errors_from_validation(exc.errors())
         return JSONResponse(
             status_code=400,
             content=_error_body(
                 "VALIDATION_ERROR",
-                "Request validation failed",
+                m("common.validation_failed"),
                 field_errors or None,
             ),
         )
@@ -168,7 +170,10 @@ def create_app() -> FastAPI:
             405: "METHOD_NOT_ALLOWED",
         }
         code = code_map.get(exc.status_code, "HTTP_ERROR")
-        message = exc.detail if isinstance(exc.detail, str) else "Request failed"
+        if isinstance(exc.detail, str):
+            message = localize_legacy(exc.detail, fallback_code=code)
+        else:
+            message = code_message(code)
         return JSONResponse(
             status_code=exc.status_code,
             content=_error_body(code, message),
@@ -179,7 +184,7 @@ def create_app() -> FastAPI:
         logger.exception("unhandled error: %s", safe_exception_text(exc))
         return JSONResponse(
             status_code=500,
-            content=_error_body("INTERNAL_ERROR", "Internal server error"),
+            content=_error_body("INTERNAL_ERROR", m("common.internal_error")),
         )
 
     @application.get("/", include_in_schema=False)

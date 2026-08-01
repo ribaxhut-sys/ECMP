@@ -14,6 +14,7 @@ from app.modules.queue.application.services import (
     get_queue_state,
 )
 from app.modules.queue.models import QueueStatus
+from app.core.user_messages import m
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,12 +36,12 @@ class PauseQueueHandler:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {command.queue_id}",
+                f"antrian tidak ditemukan: {command.queue_id}",
             )
         if queue.status is QueueStatus.CLOSED:
             raise QueueApplicationError(
                 "INVALID_QUEUE_STATUS",
-                "CLOSED queue cannot be paused; open it first",
+                m("queue.closed_cannot_pause"),
             )
         updated = self._domain.with_queue_status(queue, QueueStatus.PAUSED)
         self._state.replace_queue(updated)

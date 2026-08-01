@@ -19,13 +19,14 @@ from app.modules.sla.timeline import (
     timeline_event_for_transition,
     timeline_summary,
 )
+from app.core.user_messages import m
 
 COMPLAINT_DELETE_RESTRICTED_MESSAGE = (
-    "Complaint cannot be deleted while an SLA record exists."
+    m("complaint.cannot_delete_with_sla")
 )
-DUPLICATE_SLA_MESSAGE = "Complaint already has an SLA record."
+DUPLICATE_SLA_MESSAGE = m("complaint.already_has_sla")
 NO_ACTIVE_SLA_POLICY_MESSAGE = (
-    "An active SLA policy is required before creating a complaint."
+    m("sla.policy_required_before_complaint")
 )
 
 
@@ -75,11 +76,11 @@ class SlaService:
         """
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         row = self._repo.get_by_complaint_id(complaint_id)
         if row is None:
-            raise NotFoundError("SLA record not found")
+            raise NotFoundError(m("sla.record_not_found"))
 
         evaluated = self.evaluate_for_complaint(complaint_id, commit=True)
         return evaluated if evaluated is not None else _to_record_response(row)
@@ -308,7 +309,7 @@ class SlaService:
         """
         policy = self._repo.get_policy(policy_id)
         if policy is None:
-            raise NotFoundError("SLA policy not found")
+            raise NotFoundError(m("sla.policy_not_found"))
 
         if policy.is_active:
             return _to_policy_response(policy)

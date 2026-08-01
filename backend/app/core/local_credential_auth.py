@@ -14,13 +14,14 @@ from fastapi import Depends
 
 from app.core.config import Settings, get_settings
 from app.core.errors import ForbiddenError
+from app.core.user_messages import m
 
 
 def assert_local_credential_auth_enabled(settings: Settings) -> None:
     """Fail closed when Mode A local credential AuthN surface is disabled."""
     if not settings.ecmp_local_credential_auth:
         raise ForbiddenError(
-            "Local credential authentication is disabled",
+            m("auth.local_disabled"),
             code="LOCAL_CREDENTIAL_AUTH_DISABLED",
             details={
                 "ecmpLocalCredentialAuth": False,

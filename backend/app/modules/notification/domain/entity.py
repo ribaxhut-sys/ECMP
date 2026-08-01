@@ -13,6 +13,7 @@ from typing import Any, Mapping
 
 from app.core.enums import NotificationChannel, NotificationQueueStatus
 from app.core.errors import ValidationAppError
+from app.core.user_messages import m
 
 
 @dataclass
@@ -57,7 +58,7 @@ class NotificationRecord:
             NotificationChannel(channel)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported notification channel: {channel}",
+                f"kanal notifikasi tidak didukung: {channel}",
                 details={
                     "channel": channel,
                     "allowed": [c.value for c in NotificationChannel],
@@ -88,7 +89,7 @@ class NotificationRecord:
             NotificationQueueStatus.FAILED.value,
         ):
             raise ValidationAppError(
-                "only PENDING or FAILED notifications can enter Sending",
+                m("notification.only_pending_failed_enter_sending"),
                 details={"id": str(self.id), "status": self.status},
             )
         self.status = NotificationQueueStatus.PROCESSING.value
@@ -99,7 +100,7 @@ class NotificationRecord:
             NotificationQueueStatus.PROCESSING.value,
         ):
             raise ValidationAppError(
-                "only PENDING or PROCESSING notifications can be marked Sent",
+                m("notification.only_pending_processing_sent"),
                 details={"id": str(self.id), "status": self.status},
             )
         ts = now or datetime.now(UTC)
@@ -119,7 +120,7 @@ class NotificationRecord:
             NotificationQueueStatus.PROCESSING.value,
         ):
             raise ValidationAppError(
-                "only PENDING or PROCESSING notifications can be marked Failed",
+                m("notification.only_pending_processing_failed"),
                 details={"id": str(self.id), "status": self.status},
             )
         ts = now or datetime.now(UTC)
@@ -132,7 +133,7 @@ class NotificationRecord:
             return
         if self.status != NotificationQueueStatus.PENDING.value:
             raise ValidationAppError(
-                "only PENDING notifications can be cancelled",
+                m("notification.only_pending_cancel"),
                 details={"id": str(self.id), "status": self.status},
             )
         self.status = NotificationQueueStatus.CANCELLED.value
@@ -143,12 +144,12 @@ class NotificationRecord:
             NotificationQueueStatus.PENDING.value,
         ):
             raise ValidationAppError(
-                "only FAILED or PENDING notifications can be retried",
+                m("notification.only_failed_pending_retry"),
                 details={"id": str(self.id), "status": self.status},
             )
         if self.retry_count >= max_retry:
             raise ValidationAppError(
-                "notification retry limit exceeded",
+                m("notification.retry_limit_exceeded"),
                 details={
                     "id": str(self.id),
                     "retryCount": self.retry_count,

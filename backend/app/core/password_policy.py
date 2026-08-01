@@ -7,6 +7,7 @@ from typing import Protocol
 
 from app.core.errors import ValidationAppError
 from app.core.security import verify_password
+from app.core.user_messages import m
 
 
 class PasswordRule(Protocol):
@@ -23,7 +24,7 @@ class MinLengthRule:
         _ = current_hash
         if len(password) < self.min_length:
             raise ValidationAppError(
-                f"Password must be at least {self.min_length} characters",
+                f"Kata sandi minimal {self.min_length} karakter",
                 details={"field": "password", "minLength": self.min_length},
             )
 
@@ -34,12 +35,12 @@ class NotBlankRule:
         _ = current_hash
         if not password or not password.strip():
             raise ValidationAppError(
-                "Password must not be blank",
+                m("auth.password_blank"),
                 details={"field": "password"},
             )
         if password.strip() != password:
             raise ValidationAppError(
-                "Password must not have leading or trailing whitespace",
+                m("auth.password_whitespace"),
                 details={"field": "password"},
             )
 
@@ -49,7 +50,7 @@ class NotSameAsCurrentRule:
     def validate(self, password: str, *, current_hash: str | None = None) -> None:
         if current_hash and verify_password(password, current_hash):
             raise ValidationAppError(
-                "New password must be different from the current password",
+                m("auth.password_must_differ"),
                 details={"field": "password"},
             )
 
@@ -62,7 +63,7 @@ class MaxLengthRule:
         _ = current_hash
         if len(password) > self.max_length:
             raise ValidationAppError(
-                f"Password must be at most {self.max_length} characters",
+                f"Kata sandi maksimal {self.max_length} karakter",
                 details={"field": "password", "maxLength": self.max_length},
             )
 
