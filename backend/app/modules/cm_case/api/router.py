@@ -12,8 +12,8 @@ from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.cm_case.api.schemas import (
     AddCaseRequest,
-    CaseResponse,
     CaseResolutionResponse,
+    CaseResponse,
     CloseCaseRequest,
     CreateCaseRequest,
     ResolveCaseRequest,
