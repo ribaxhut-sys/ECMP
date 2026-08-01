@@ -5,13 +5,13 @@
 | Field | Value |
 |---|---|
 | ID | SEC-RAM-001 |
-| Version | 0.3 |
+| Version | 0.4 |
 | Owner | Security Officer |
 | Reviewer | Tech Lead / Domain PO ECMF |
 | Approver | Business Owner |
-| Status | 🟢 Approved (scope: Sprint-01 slice only) |
-| Last Review | 2026-07-21 |
-| Next Review | 2026-10-21 |
+| Status | 🟢 Approved (Sprint-01 enforced; Sprint-02/03 Planned rows) |
+| Last Review | 2026-08-01 |
+| Next Review | 2027-01-21 |
 
 ## Scope
 Matriks minimal untuk Sprint-01 (per senior review Task 5 & DEC-002). **Hanya** role dan permission yang benar-benar ada di kode. Role/permission lain di luar lingkup gate ini dan TIDAK boleh diimplementasikan tanpa revisi dokumen ini.
@@ -19,6 +19,8 @@ Matriks minimal untuk Sprint-01 (per senior review Task 5 & DEC-002). **Hanya** 
 Versi 0.2 menambahkan bagian **Planned — Sprint-02** sebagai revisi prasyarat yang diminta FRD-002/FRD-003; seluruh isinya berstatus Planned (belum enforced di kode).
 
 Versi 0.3 (Sprint-02A contract freeze, **DEC-006** 2026-07-21): nama permission Sprint-02 **difinalkan** — `cases:assign` dan `cases:status` (kandidat `cases:transition` ditolak; nama mengikuti endpoint API-004 `POST /v1/cases/{caseId}/status`). Definisi beku; status enforcement tetap Planned sampai implementasi Sprint-02B.
+
+Versi 0.4 (B2-12 / **DEC-CAP007-BQ-001** 2026-08-01): Planned Sprint-03 menambahkan pemetaan **`dashboard:read`** → API-040 (CAP-007 / FRD-006 LOCKED). Nama permission **tidak diinvent** — sudah dipakai CAPABILITY-013 / DEC-016. Enforcement API-040 tetap Planned sampai kontrak API-040 normatif + implementasi.
 
 ## Roles
 
@@ -52,6 +54,19 @@ Versi 0.3 (Sprint-02A contract freeze, **DEC-006** 2026-07-21): nama permission 
 | `cases:status` (nama beku, DEC-006) | ❌ | ❌ | ✅ Planned | ❌ | `POST /v1/cases/{caseId}/status` (API-004, contract frozen) | FRD-002 FR-004, BR-001 |
 | `cases:read` | ✅ (implemented) | ✅ Planned | ✅ Planned | ✅ (implemented) | `GET /v1/cases/{caseId}` | FRD-002 |
 | `customers:read` | ✅ Planned — **unmasked** (role CS per BR-CRM-02 baseline) | ✅ Planned — masked | ✅ Planned — masked | ✅ Planned — masked | `GET /v1/customers/{customerId}` (API-010) | FRD-003 FR-010, BR-CRM-02 |
+
+## Planned — Sprint-03 (CAP-007 / FRD-006 — DEC-CAP007-BQ-001)
+
+> **Status: PLANNED — API-040 belum normatif / belum diimplementasi pada path Sprint ECMF.**  
+> Permission code `dashboard:read` sudah ada di matriks RBAC foundation (CAPABILITY-013 / DEC-016). Baris ini hanya memetakan **API-040** CAP-007.
+
+| Permission | CS Agent | Supervisor | Handler | Viewer | Target enforcement | Sumber |
+|---|---|---|---|---|---|---|
+| `dashboard:read` | ❌ | ✅ Planned (unit-scoped) | ❌ | ❌ | `GET /v1/dashboard/queues` (API-040) | FRD-006 FR-040, DEC-CAP007-BQ-001 §2/§4, DEC-016 |
+
+Catatan Sprint-03:
+- Actor v0.1 = **Supervisor unit-scoped only**; Manager/Executive deferred (DEC-CAP007-BQ-001 §4).
+- Tidak menambah permission baru selain `dashboard:read`.
 
 Catatan:
 - Masking BR-CRM-02 (baseline DEC-004): field kontak pelanggan (phone/email) **dimask** untuk role non-CS; role CS Agent melihat unmasked (need-to-know).

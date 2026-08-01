@@ -6,14 +6,18 @@
 | Title | Case Management — FRD Batch 2 Mode A (CAP-008) |
 | Filename | `ECMP_FRD_Case_Management_Batch2_v1.0.md` |
 | Version | 1.0 |
-| Document Status | **Draft v1.0** |
+| Document Status | 🔒 **LOCKED** — Mode A CAP-008 SoT (lab RC `v1.2.0-rc.1`) |
 | Owner | Business Analyst / Domain PO ECMF |
 | Reviewer | Solution Architect, Operations Lead, Compliance |
 | Approver | Business Owner / Architecture Board |
 | Module | Complaint Management Module only |
 | Capability | **CAP-008** |
 | Batch | Batch-2 Mode A |
+| Locked | 2026-08-01 |
 | Last Review | 2026-08-01 |
+| Related OpenAPI | `07 API Catalog/openapi/cm-case-management.v1.yaml` **1.0.0** (API-530…535) — Implemented (lab) |
+| Related RC | `deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md` — PASS (lab) |
+| Related SoT Closure | `deploy/evidence/CAP-008_SoT_Closure_20260801.md` |
 | Related BCS | `docs/product/CAP-008_Case_Management_Business_Capability_Specification_v1.0.md` (v1.2) — LOCKED |
 | Related BR | `02 Business Rules/ECMP_Business_Rules_Complaint_Management_Module_v1.0.md` (BR-CM-CAT-001) — LOCKED |
 | Related Transition Matrix | BR-CM-CAT-001 Case Aggregate Transition Matrix — LOCKED |
@@ -55,7 +59,7 @@
 |---|---|
 | ID | FRD-CM-B2-001 |
 | Filename | ECMP_FRD_Case_Management_Batch2_v1.0.md |
-| Status | Draft v1.0 |
+| Status | 🔒 **LOCKED** |
 | Capability | CAP-008 |
 | SoT Case status (Aggregate) | BR-CM-CAT-001 Definition B (DEC-BQ001 O3) |
 | SoT Case status (Sprint) | DOM-ECMF-003 — **not interchangeable** |
@@ -67,7 +71,8 @@
 - No Out-of-Scope capabilities as acceptance
 - Authorization is ECMP-internal
 - ECMP is not Customer Master SoR
-- API / EVT catalog IDs for Aggregate CAP-008 Case slice: **NOT SPECIFIED** (do not silently map to Sprint `API-001…` / `EVT-001…`)
+- API catalog IDs for Aggregate CAP-008 Case slice: **API-530…535** (`cm-case-management.v1.yaml` v1.0.0) — **not** Sprint `API-001…`
+- EVT catalog IDs Aggregate CAP-008: **NOT SPECIFIED** (matrix business event names ≠ EVT IDs; do not silently map to Sprint `EVT-001…`)
 
 ### 1.3 Locked prerequisites (read-only)
 
@@ -81,15 +86,17 @@
 | Transition Matrix | LOCKED |
 | Operational Specification | LOCKED |
 
-### 1.4 Explicit non-goals of this authoring
+### 1.4 Explicit non-goals of this LOCK
 
-Governance LOCK of this FRD · OpenAPI design · Event Catalog design · Implementation · Mode B · Identity redesign.
+Event Catalog design (EVT IDs remain **NOT SPECIFIED**) · Mode B · Identity redesign · Business Rules changes · CAP-008 BCS redesign · Production promote / OIDC.
+
+> **SoT Closure 2026-08-01:** FRD status → **LOCKED**; OpenAPI Aggregate CAP-008 synchronized to Implemented (lab). No FR body redesign; no business scope change.
 
 ---
 
 ## 2. Purpose
 
-Provide the **Draft v1.0** Functional Requirements for Batch-2 Mode A Case Management under the Complaint Aggregate (**CAP-008**), enabling:
+Provide the **LOCKED** Functional Requirements for Batch-2 Mode A Case Management under the Complaint Aggregate (**CAP-008**), enabling:
 
 1. Create Case under an existing Complaint
 2. Add Case to an existing Complaint
@@ -381,12 +388,9 @@ DEC-MODEA-B2-001 (BQ-002…006, BQ-011); DEC-BQ001 O3; CTO D-02 / BQ-011; DEC-02
 | BR | BR-004, BR-016, BR-017 |
 | DEC/BQ | DEC-MODEA-B2-001; BQ-002…006,011; DEC-BQ001 O3 |
 | AC | AC-01, AC-02, AC-04, AC-05, AC-05b, AC-17, AC-18 |
-| API / EVT | **NOT SPECIFIED** |
-| TC | **NOT SPECIFIED** |
-
----
-
-### FR-002 Add Case to Existing Complaint
+| API | API-530 |
+| EVT | **NOT SPECIFIED** |
+| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
 
 #### Purpose
 
@@ -471,8 +475,9 @@ DEC-MODEA-B2-001 (BQ-003); CTO D-02 (duplicate recommend path; Case create defer
 | BR | BR-004, BR-014, BR-016, BR-017 |
 | DEC/BQ | BQ-003; D-02 |
 | AC | AC-03, AC-04 |
-| API / EVT | **NOT SPECIFIED** |
-| TC | **NOT SPECIFIED** |
+| API | API-531 |
+| EVT | **NOT SPECIFIED** |
+| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
 
 ---
 
@@ -567,8 +572,9 @@ DEC-BQ001 O3 (Aggregate Case vocabulary on display); DEC-020 (do not confuse wit
 | BR | BR-017; BR-004; BR-012 (read) |
 | DEC/BQ | DEC-BQ001 O3; DEC-020 |
 | AC | AC-06, AC-07, AC-08 |
-| API / EVT | **NOT SPECIFIED** (API-525/526 Planned = FRD-CM-002 path — not CAP-008 Mode A contract) |
-| TC | **NOT SPECIFIED** |
+| API | API-532 (Mode A CAP-008). Do **not** equate to API-525/526 Planned (FRD-CM-002) |
+| EVT | **NOT SPECIFIED** |
+| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
 
 ---
 
@@ -688,8 +694,9 @@ DEC-BQ001 O3; DEC-MODEA-B2-001 (BQ-001/006/009/014).
 | AC | AC-09, AC-10, AC-11, AC-11b, AC-11c |
 | Namespace | Do not overwrite **FRD-CM-001 FR-004 Attachment Upload** |
 | Non-scope | Non-status attribute mutation after create = **NOT SPECIFIED** as Mode A FR |
-| API / EVT | **NOT SPECIFIED** |
-| TC | **NOT SPECIFIED** |
+| API | API-533 |
+| EVT | **NOT SPECIFIED** |
+| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
 
 ---
 
@@ -803,8 +810,9 @@ DEC-MODEA-B2-001 (BQ-008, BQ-010); DEC-F4 deferred (Escalation OOS for CAP-008 M
 | BR | BR-008, BR-013, BR-012, BR-016, BR-017 |
 | DEC/BQ | BQ-008, BQ-010 |
 | AC | AC-12, AC-13 |
-| API / EVT | **NOT SPECIFIED** (API-523 Planned = FRD-CM-002 / DEC-F4 — do not silently equate) |
-| TC | **NOT SPECIFIED** |
+| API | API-534 (Mode A CAP-008). Do **not** silently equate to API-523 Planned (FRD-CM-002 / DEC-F4) |
+| EVT | **NOT SPECIFIED** |
+| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
 
 ---
 
@@ -918,8 +926,9 @@ DEC-MODEA-B2-001 (BQ-007, BQ-008).
 | BR / Matrix | `RESOLVED→CLOSED`; Appendix C |
 | DEC/BQ | BQ-007, BQ-008 |
 | AC | AC-14, AC-15, AC-16 |
-| API / EVT | **NOT SPECIFIED** |
-| TC | **NOT SPECIFIED** |
+| API | API-535 |
+| EVT | **NOT SPECIFIED** |
+| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
 
 ---
 
@@ -1018,9 +1027,16 @@ Catalog from CAP-008 BCS §9 + Mode A locks (cross-FR).
 
 ### 10.2 API / Event / Test
 
-| FR | API Catalog | Event Catalog | Test Case |
-|---|---|---|---|
-| FR-001…FR-006 | **NOT SPECIFIED** | **NOT SPECIFIED** (matrix business event names ≠ EVT IDs) | **NOT SPECIFIED** |
+| FR (document-local) | Trace ID | API Catalog | Event Catalog | Test evidence |
+|---|---|---|---|---|
+| FR-001 Create Case | FR-CM-B2-001 | API-530 | **NOT SPECIFIED** | `backend/tests/test_cm_case_mode_a.py` (REL-RC-001) |
+| FR-002 Add Case | FR-CM-B2-002 | API-531 | **NOT SPECIFIED** | same lab suite |
+| FR-003 View Case | FR-CM-B2-003 | API-532 | **NOT SPECIFIED** | same lab suite |
+| FR-004 Update Case Status | FR-CM-B2-004 | API-533 | **NOT SPECIFIED** | same lab suite |
+| FR-005 Resolve Case | FR-CM-B2-005 | API-534 | **NOT SPECIFIED** | same lab suite |
+| FR-006 Close Case | FR-CM-B2-006 | API-535 | **NOT SPECIFIED** | same lab suite |
+
+OpenAPI SoT: `07 API Catalog/openapi/cm-case-management.v1.yaml` v1.0.0. Formal TC-catalog IDs = deferred (not invented).
 
 ### 10.3 Locked source artifacts (read-only for this authoring)
 
@@ -1113,9 +1129,9 @@ See FR-006 Preconditions. Normative minimum = #1–#4. Items #5–#8 = **NOT SPE
 | 2 | Comment/Attachment required at Close moment | **NOT SPECIFIED** |
 | 3 | Category evidence required at Close moment | **NOT SPECIFIED** |
 | 4 | Checklist Case items beyond #1–#4 | **NOT SPECIFIED** |
-| 5 | OpenAPI Aggregate CAP-008 for FR-001…006 | **NOT SPECIFIED** |
+| 5 | OpenAPI Aggregate CAP-008 for FR-001…006 | **SPECIFIED** — API-530…535 / `cm-case-management.v1.yaml` v1.0.0 (SoT Closure 2026-08-01) |
 | 6 | EVT catalog IDs Aggregate CAP-008 | **NOT SPECIFIED** |
-| 7 | Test Case IDs CAP-008 | **NOT SPECIFIED** |
+| 7 | Formal TC-catalog IDs CAP-008 | **Deferred** — lab evidence `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); IDs not invented |
 | 8 | Non-status Case attribute mutation after create | **NOT SPECIFIED** |
 | 9 | Mode A Resolve from `PENDING`/`ESCALATED` | **NOT SPECIFIED** as delivery path |
 | 10 | DEC-F4 `result_visibility` on CAP-008 Mode A | **NOT SPECIFIED** / OUT |
@@ -1128,3 +1144,4 @@ See FR-006 Preconditions. Normative minimum = #1–#4. Items #5–#8 = **NOT SPE
 | Version | Date | Author | Change |
 |---|---|---|---|
 | 1.0 | 2026-08-01 | ECMP Functional Specification Author | Draft v1.0 complete authoring from locked CAP-008, BR-CM-CAT, Transition Matrix, DEC-MODEA-B2-001, DEC-BQ001 O3, and locked Operational Specification (embedded). Status = Draft v1.0. NOT SPECIFIED copied without invention. BR/CAP/Matrix/DEC not modified. |
+| 1.0 LOCKED | 2026-08-01 | Architecture Review Board (SoT Closure) | Status → **LOCKED**. Sync API-530…535 + lab test suite refs to match RC-validated implementation. EVT IDs remain NOT SPECIFIED. No FR redesign; no BR/BCS/scope/Mode B change. Evidence: `deploy/evidence/CAP-008_SoT_Closure_20260801.md`. |

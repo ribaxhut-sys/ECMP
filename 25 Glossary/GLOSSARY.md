@@ -1,55 +1,121 @@
-# ECMP Glossary (Starter)
+# ECMP Official Glossary (Language Freeze)
 
 | Field | Value |
 |---|---|
 | ID | GLS-001 |
-| Version | 0.3 |
-| Owner | Business Analyst |
-| Reviewer | Domain PO / Architecture |
+| Version | 1.0 (L10-04 Freeze) |
+| Owner | Language Review Board / Business Analyst |
+| Reviewer | UX Writer / Terminology Manager / Architecture |
 | Approver | Business Owner |
-| Status | 🟢 Approved (baseline) |
-| Last Review | 2026-07-21 |
-| Next Review | 2027-01-21 |
+| Status | 🟢 Frozen |
+| Last Review | 2026-08-01 |
+| Next Review | 2027-02-01 |
+| Sprint | L10-04 Official Terminology & Glossary Freeze |
 
-| Term | Definition | Notes |
-|---|---|---|
-| ECMP | **Enterprise Complaint Management Platform** — platform pengelolaan complaint & inquiry pelanggan end-to-end (ekspansi resmi per Blueprint v2.1 §1, SoT bisnis per DEC-001) | Bukan Customer Master SoR (BR-003 / BR-CRM-01); ekspansi lama yang memakai kata "Customer" adalah keliru |
-| Case | Unit kerja penanganan di ECMP yang merepresentasikan inquiry atau complaint | Generic transactional unit |
-| Complaint | Case yang menyatakan ketidakpuasan/masalah terhadap produk/layanan | Subtype of Case |
-| Inquiry | Case berupa permintaan informasi/klarifikasi tanpa klaim ketidakpuasan | Subtype of Case |
-| Customer | Individu/entitas pelanggan yang direferensikan dari sistem master | ECMP is not SoR |
-| Assignment | Penunjukan Case ke petugas/unit penanganan | Can be reassigned |
-| Escalation | Kenaikan penanganan ke level/role lebih tinggi karena rule/SLA/severityitas | May be auto or manual |
-| Priority | Tingkat urgensi penanganan Case | Biasanya memengaruhi SLA |
-| Severity | Tingkat dampak bisnis/teknis dari isu | Jangan disamakan otomatis dengan Priority |
-| SLA | Batas waktu layanan yang disepakati untuk tahapan/penyelesaian Case | Dihitung otomatis |
-| KPI | Indikator kinerja layanan/organisasi yang diukur dari data operasional | E.g. overdue rate |
-| Interaction | Catatan kontak/interaksi dengan pelanggan | Ditautkan ke Customer/Case |
-| Channel | Media masuk/interaksi (email, call, app, dll.) | App channel generally out of core scope |
-| Root Cause | Penyebab utama masalah yang diidentifikasi saat/setelah resolusi | Required on certain closures |
-| Resolution | Hasil penanganan yang menutup Case | Evidence may be required |
-| Reopen | Membuka kembali Case yang sudah closed sesuai aturan role | Restricted action |
-| Audit Trail | Jejak perubahan/aktivitas yang tidak dapat dihapus | Core Platform concern |
-| Configuration First | Prinsip mengubah proses via konfigurasi sebelum ubah kode | Architecture principle |
-| REGISTERED | Status awal Case setelah create sukses (FR-001a) | Status set baseline — `20 Domain Architecture/ECMF/CASE_STATE_MACHINE.md` |
-| ASSIGNED | Status Case setelah di-assign ke handler/unit (FR-003) | Status set baseline |
-| IN_PROGRESS | Status Case sedang dikerjakan oleh assignee | Status set baseline |
-| PENDING_REVIEW | Status Case menunggu review/approval sebelum closure | Status set baseline |
-| CLOSED | Status Case selesai dengan resolusi (dan evidence bila dipersyaratkan) | Status set baseline; emit EVT-005 |
-| REOPENED | Status Case yang dibuka kembali setelah closed, dalam window 30 hari (BR-ECMF-07 baseline) | Status set baseline; emit EVT-007 |
-| Case Type | Klasifikasi Case: `COMPLAINT` \| `INQUIRY` | Enum tertutup (FRD-001 §7) |
-| Priority (enum) | Nilai prioritas Case: `LOW` \| `MEDIUM` \| `HIGH` \| `CRITICAL` | Enum tertutup (FRD-001 §7); memengaruhi SLA |
-| Business Action | Aksi bermakna bisnis terhadap Case (create, assign, status change, close, reopen) yang wajib diaudit dan dapat memicu event | Lihat BR-008, BR-ECMF-01 |
-| Transactional Outbox | Pola menulis event ke tabel `outbox` dalam transaksi yang sama dengan perubahan data, lalu dipublikasikan asinkron | G0 deliverable (DEC-002); menjamin konsistensi event |
-| Write-Audit | Audit record immutable yang dipersist dalam transaksi yang sama dengan write signifikan | Wajib per FR-001c/BR-008; read-audit ditunda (DEC-002) |
-| Error Envelope | Format respons error standar `{code, message, details?}` | Selaras OpenAPI; berlaku 400/401/403/404 |
-| CaseCreated (EVT-001) | Event saat case teregistrasi | Producer ECMF; SoT `08 Event Catalog/events/events.yaml` |
-| CaseAssigned (EVT-002) | Event saat case di-assign/reassign | Producer ECMF |
-| StatusChanged (EVT-003) | Event saat transisi status valid terjadi | Producer ECMF |
-| SLABreached (EVT-004) | Event saat ambang SLA terlampaui | Producer KPI |
-| CaseClosed (EVT-005) | Event saat case ditutup | Producer ECMF |
-| ConfigChanged (EVT-006) | Event saat konfigurasi efektif berubah | Producer Administration |
-| CaseReopened (EVT-007) | Event saat case closed dibuka kembali | Producer ECMF; status Proposed |
-| Bounded Context | Batas model domain di mana istilah/aturan berlaku konsisten (per domain ECMP: Core Platform, CRM, ECMF, KPI, Dashboard, Notification, Administration) | DDD term; lihat `20 Domain Architecture` |
-| Aggregate | Klaster entitas dengan satu root (mis. Case sebagai aggregate root atas activity/status history) yang menjadi unit konsistensi transaksi | DDD term |
-| Branch / Head Office / Work Order / Schedule Slot | **Out of scope per DEC-001** — konsep dari brief discovery yang tidak ada di Blueprint v2.1; dilarang dimodelkan (schema, endpoint, event) sampai revisi Blueprint di-approve | Lihat `27 Project Decisions/DEC-001` |
+## Purpose
+
+Satu istilah bisnis/UI = satu padanan Bahasa Indonesia resmi, diambil **hanya** dari bukti yang sudah ada di repositori (`frontend/messages/id.json`, `backend/app/core/user_messages.py`, glosarium bisnis sebelumnya). Tidak menambah konsep bisnis baru.
+
+## Scope
+
+- User-facing UI, validasi, notifikasi, pesan API ke pengguna, dokumentasi yang ditampilkan ke operator.
+- Di luar freeze: nama kode/permission (`complaints:read`), enum status teknis (`IN_PROGRESS`), event ID (`EVT-001`), komentar developer, log internal.
+
+## Official Terminology Table
+
+| English | Official Indonesian | Definition | Repository Evidence | Status |
+|---|---|---|---|---|
+| ECMP | ECMP | Enterprise Complaint Management Platform — modul pengaduan enterprise | `common.appName`; Blueprint / DEC-001 | FROZEN |
+| Enterprise Complaint Management Platform | Platform Manajemen Pengaduan Enterprise | Nama lengkap produk untuk UI | `common.appFullName` | FROZEN |
+| Complaint | Pengaduan | Ketidakpuasan/masalah pelanggan yang ditangani modul komplain | `nav.complaints`, `complaints.title`, pesan `complaint.*` | FROZEN |
+| Case | Case | Unit kerja penanganan (inquiry/complaint); istilah produk dipinjam, **bukan** “Kasus” | `cases.title` = “Case”; GLOSS-001 historis | FROZEN |
+| Inquiry | Inquiry | Case permintaan informasi (subtype); token domain tetap Inquiry bila muncul sebagai tipe | GLOSS-001; FRD Case Type | FROZEN |
+| Queue | Antrian | Antrian kerja pengaduan | `nav.queue`, `queue.title` | FROZEN |
+| Assignment | Penugasan | Penunjukan pengaduan/Case ke petugas/unit | `nav.assignments`, `assignments` | FROZEN |
+| Escalation | Eskalasi | Kenaikan penanganan ke level/peran lebih tinggi | `complaints.escalationCard`, pesan `escalation.*` | FROZEN |
+| Resolution | Resolusi | Hasil penanganan / penyelesaian | `nav.resolutions`, `resolutions` | FROZEN |
+| Attachment | Lampiran | Bukti/berkas terlampir pada pengaduan/Case | `nav.attachments`, `attachments.title` | FROZEN |
+| User | Pengguna | Akun orang yang memakai ECMP | `common.user`, `nav.users`, `users.title` | FROZEN |
+| Username | Nama pengguna | Identitas login pengguna | `users.username`, `auth.usernameOrEmail` | FROZEN |
+| Role | Peran | Peran otorisasi internal modul | `users.role`, `validation.roleRequired` | FROZEN |
+| Permission | Izin | Hak melakukan tindakan (bukan frasa “Hak Akses”) | `errors.forbidden`, hampir semua `*Permission*` di `id.json` | FROZEN |
+| Settings | Pengaturan | Administrasi & konfigurasi sistem | `nav.settings`, `settings.title` | FROZEN |
+| Dashboard | Dasbor | Ringkasan operasional | `nav.dashboard` | FROZEN |
+| Reports | Laporan | Halaman/laporan KPI operasional | `nav.reports` | FROZEN |
+| Customer | Pelanggan | Referensi pelanggan (bukan SoR ECMP) | `validation.customerRequired`, GLOSS-001 / BR-003 | FROZEN |
+| Branch | Cabang | Unit cabang organisasi | `users.branch`, `validation.branchRequired` | FROZEN |
+| Head Office | Kantor Pusat | Level organisasi pusat (dalam salinan UI) | `complaints.notClosedPermissionHint` | FROZEN |
+| Channel | Kanal | Media masuk pengaduan | `validation.channelRequired` | FROZEN |
+| Priority | Prioritas | Tingkat urgensi | `common.priority`, `priority.*` | FROZEN |
+| Status | Status | Keadaan siklus hidup (label UI boleh diterjemahkan; kode enum tetap EN) | `common.status`, `status.*` | FROZEN |
+| SLA | SLA | Batas waktu layanan (singkatan dipertahankan) | `settings.slaPolicies`, `table.allSla` | FROZEN |
+| KPI | KPI | Indikator kinerja (singkatan dipertahankan) | GLOSS-001 | FROZEN |
+| Appointment | Janji temu | Janji pertemuan penanganan (UI) | `complaints.appointmentCard`, `stageAppointment` | FROZEN |
+| Password | Kata sandi | Kredensial rahasia pengguna | `auth.password`, `users.password` | FROZEN |
+| Email | Email | Alamat surel (dipertahankan) | `auth.email` | FROZEN |
+| Subject | Subjek | Judul singkat pengaduan/Case | `validation.subjectRequired` | FROZEN |
+| Description | Deskripsi | Uraian narasi | `validation.descriptionRequired` | FROZEN |
+| Category | Kategori | Klasifikasi isi | `cases.category` | FROZEN |
+| Root Cause | Akar masalah | Penyebab utama | `complaints.rootCauseRequired` | FROZEN |
+| Comment | Komentar | Catatan komentar pada aksi | `cases.comment` | FROZEN |
+| Timeline | Linimasa / Timeline | Jejak aktivitas (ikut label UI setempat bila ada) | konteks modul timeline | FROZEN |
+| Audit Trail | Jejak audit | Rekaman aktivitas tidak terhapus | GLOSS-001 | FROZEN |
+| Save | Simpan | Menyimpan data | `common.save` | FROZEN |
+| Save changes | Simpan perubahan | Menyimpan perubahan form | `complaints.saveChanges` | FROZEN |
+| Cancel | Batal | Membatalkan aksi UI | `common.cancel` | FROZEN |
+| Delete | Hapus | Menghapus entitas (bukan clear filter) | `common.delete` | FROZEN |
+| Edit | Ubah | Mengubah data | `common.edit` | FROZEN |
+| Create | Buat | Membuat entitas baru | `common.create` | FROZEN |
+| Update | Perbarui | Memperbarui data | `common.update` | FROZEN |
+| Search | Cari | Pencarian | `common.search` | FROZEN |
+| Filter | Filter | Penyaringan (dipertahankan) | `common.filter` | FROZEN |
+| Reset | Atur ulang | Mengembalikan kontrol/filter/kata sandi sesuai konteks | `common.reset`, `auth.resetPassword*` | FROZEN |
+| Refresh | Muat ulang | Memuat ulang data | `common.refresh` | FROZEN |
+| Retry | Coba lagi | Mengulang percobaan | `common.retry` | FROZEN |
+| Close | Tutup | Menutup dialog atau menutup Case/pengaduan sesuai konteks | `common.close`, `cases.close` | FROZEN |
+| Confirm | Konfirmasi | Mengonfirmasi aksi | `common.confirm` | FROZEN |
+| Submit | Kirim | Mengirim formulir/aksi | `common.submit` | FROZEN |
+| View | Lihat | Melihat detail | `common.view` | FROZEN |
+| Back | Kembali | Navigasi kembali | `common.back` | FROZEN |
+| Home | Beranda | Halaman awal | `common.home` | FROZEN |
+| Sign in / Login | Masuk | Autentikasi masuk | `auth.signIn`, `nav` terkait | FROZEN |
+| Log out / Sign out | Keluar | Mengakhiri sesi | `auth.logout`, `auth.signOut` | FROZEN |
+| Required (field) | Wajib diisi | Validasi field wajib | `validation.required`, `framework.field_required` | FROZEN |
+| Loading | Memuat | Indikator muat | `common.loading` | FROZEN |
+| Actions | Tindakan | Kolom/aksi tersedia | `common.actions` | FROZEN |
+| Yes / No | Ya / Tidak | Boolean UI | `common.yes`, `common.no` | FROZEN |
+| Active / Inactive | Aktif / Nonaktif | Status aktifitas | `common.active`, `users.deactivate` | FROZEN |
+| Severity | Severity | Dampak teknis/bisnis; **jangan** disamakan otomatis dengan Prioritas | GLOSS-001 | FROZEN |
+| Reopen | Buka kembali | Membuka Case/pengaduan yang sudah ditutup (sesuai aturan) | GLOSS-001 | FROZEN |
+
+## Explicit Rejected Synonyms (UI)
+
+| Jangan dipakai (UI) | Pakai |
+|---|---|
+| Komplain | Pengaduan |
+| Kasus (sebagai label Case) | Case |
+| Queue (label UI) | Antrian |
+| Attachment (label UI) | Lampiran |
+| User (label UI) | Pengguna |
+| Role (label UI) | Peran |
+| Permission / Hak Akses (label UI) | Izin |
+| Settings (label UI) | Pengaturan |
+| Logout (label UI) | Keluar |
+| Harus diisi (untuk required field) | Wajib diisi |
+| Appointment (label UI) | Janji temu |
+
+## Status Enum Tokens (keep English in data/API)
+
+`NEW`, `ASSIGNED`, `IN_PROGRESS`, `PENDING`, `ESCALATED`, `RESOLVED`, `CLOSED`, `REQUESTED`, `APPROVED`, `REJECTED`, `BOOKED`, `CHECKED_IN`, `COMPLETED`, `ON_TIME`, `BREACHED`, dll. — kode tetap Inggris; label tampilan mengikuti namespace `status.*` di `messages/id.json`.
+
+## Governance Rules
+
+1. Satu konsep bisnis = satu istilah Indonesia resmi (tabel di atas).
+2. Dilarang menciptakan sinonim UI baru di luar tabel freeze.
+3. Kode teknis (permission string, enum, event ID, path API) tetap Inggris.
+4. Perubahan istilah resmi membutuhkan review LRB + dampak ke `messages/id.json` / `user_messages.py` / dokumentasi pengguna.
+5. `docs/business/glossary.md` adalah mirror; SoT = berkas ini.
+
+## Known Alignment Debt
+
+Ditutup pada Sprint L10-06 (Language Freeze Closure): salinan “kasus”, pesan “Appointment”, dan `common.clear` vs `common.delete` telah diselaraskan ke GLS-001.

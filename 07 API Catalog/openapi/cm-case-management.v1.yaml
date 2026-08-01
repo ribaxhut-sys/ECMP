@@ -1,15 +1,17 @@
 openapi: 3.1.0
 info:
   title: ECMP Case Management Batch-2 Mode A API
-  version: 1.0.0-draft
+  version: 1.0.0
   summary: Aggregate Case Management contracts for CAP-008 / FRD-CM-B2-001 Mode A
   description: |
     OpenAPI contract for Complaint Management Module — Case Management Batch-2 Mode A.
 
     **Capability:** CAP-008
-    **FRD:** FRD-CM-B2-001 (`ECMP_FRD_Case_Management_Batch2_v1.0.md`) Draft v1.0 COMPLETE
+    **FRD:** FRD-CM-B2-001 (`ECMP_FRD_Case_Management_Batch2_v1.0.md`) 🔒 LOCKED
     **BR SoT:** BR-CM-CAT-001 (LOCKED) — Case Aggregate Transition Matrix
     **Decisions:** DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; CTO D-02 / BQ-011
+    **Implementation:** root `backend/app/modules/cm_case/` — Implemented (lab); REL-RC-001 PASS; tag `v1.2.0-rc.1`
+    **SoT Closure:** `deploy/evidence/CAP-008_SoT_Closure_20260801.md` (2026-08-01)
 
     **Namespace:** `/api/v1/cm` Aggregate (DEC-020). Not interchangeable with:
     - Sprint case-service `/v1/cases` (DOM-ECMF-003)
@@ -31,8 +33,7 @@ info:
     (FRD: NOT SPECIFIED as Mode A requirement).
 
     **Out of scope:** Notification Engine · Assignment Engine · SLA Engine · Identity
-    redesign · Mode B · Customer Merge · Dashboard · Reporting · AI · implementation /
-    database / frontend.
+    redesign · Mode B · Customer Merge · Dashboard · Reporting · AI.
 
     **AuthZ permission codes for CAP-008:** NOT SPECIFIED in repository beyond
     ECMP-internal authorization and FRD actor matrix. Security scheme reuses
@@ -48,7 +49,8 @@ info:
   x-ecmp-related-dec:
     - DEC-BQ001
     - DEC-020
-  x-ecmp-status: Draft — contract only (not implemented)
+  x-ecmp-status: Implemented (lab) — normative for Mode A CAP-008
+  x-ecmp-rc: v1.2.0-rc.1
   x-ecmp-ownership: CM Aggregate Case Management Batch-2 Mode A
 
 servers:

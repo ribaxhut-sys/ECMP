@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | FRD-000 |
-| Version | 0.3 |
+| Version | 0.4 |
 | Owner | Business Analyst |
 | Reviewer | QA / Architect |
 | Approver | Business Owner |
-| Status | 🟢 ECMF slice Approved; multi-domain Draft |
-| Last Review | 2026-07-21 |
+| Status | 🟢 ECMF slice Approved; FRD-005/006 LOCKED; multi-domain Draft remainder; CM Batch-1/Batch-2 LOCKED |
+| Last Review | 2026-08-01 |
 | Next Review | 2027-01-21 |
 
 ## Purpose
@@ -20,30 +20,41 @@ Spesifikasi kebutuhan fungsional (FRD) per domain/modul ECMP.
 - [x] `ECMP_FRD_ECMF_Lifecycle_v0.1.md` (FRD-002 — 🟡 Draft; FR-003/FR-004)
 - [x] `ECMP_FRD_CRM_Customer360_v0.1.md` (FRD-003 — 🟡 Draft; FR-010)
 - [x] `ECMP_FRD_Notification_v0.1.md` (FRD-004 — 🟡 Draft; FR-020)
-- [x] `ECMP_FRD_KPI_SLA_v0.1.md` (FRD-005 — 🟡 Draft; FR-030)
-- [x] `ECMP_FRD_Dashboard_Queue_v0.1.md` (FRD-006 — 🟡 Draft; FR-040)
+- [x] `ECMP_FRD_KPI_SLA_v0.1.md` (FRD-005 — 🔒 **LOCKED** v0.2; FR-030; DEC-CAP006-BQ-001; CAP-006)
+- [x] `ECMP_FRD_Dashboard_Queue_v0.1.md` (FRD-006 — 🔒 **LOCKED** v0.2; FR-040; DEC-CAP007-BQ-001; CAP-007)
 - [x] `ECMP_FRD_Administration_v0.1.md` (FRD-007 — 🟡 Draft; FR-050..FR-063: user/role/permission process, workflow/SLA/calendar/escalation/template/master-data/audit-config/settings, versioning + approval)
 - [x] `ECMP_FRD_Complaint_Management_Batch1_v1.0.md` (FRD-CM-001 — Draft v1.0; superseded by v1.1)
 - [x] `ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (FRD-CM-001 — 🔒 **LOCKED**; Batch 1 SoT: FR-001…FR-004; CTO D-01…D-08; Claude Delta Review + CTO Approval complete; Case create deferred Batch 2)
 - [x] `ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1.md` (FRD-CM-ESC-OUTLINE-001 — Outline; FR content superseded by Draft below)
 - [x] `ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1.md` (FRD-CM-002 — 🟡 **Draft**; FR-CM-010…015; DEC-F4; API-520…526; EVT-CM-040…044)
-- [x] `ECMP_FRD_Case_Management_Batch2_v1.0.md` (FRD-CM-B2-001 — **Draft v1.0**; CAP-008 Mode A FR-001…FR-006; Residual BQ ZERO; Operational Specification embedded LOCKED; Appendix E NOT SPECIFIED register)
+- [x] `ECMP_FRD_Case_Management_Batch2_v1.0.md` (FRD-CM-B2-001 — 🔒 **LOCKED**; CAP-008 Mode A FR-001…FR-006; API-530…535; Residual BQ ZERO; SoT Closure 2026-08-01)
 
-> FRD Draft artifacts (FRD-002..007) **belum DoR**. FRD-CM-001 v1.1 is **LOCKED** as Complaint Aggregate Batch 1 SoT. Per **DEC-020** (Accepted): dual SoT under controlled coexistence — Aggregate intake uses `/api/v1/cm` (FRD-CM-001); foundation lifecycle remains `/api/v1/complaints`. Sprint delivery IDs MUST NOT be silently overwritten. **OQ-CM-B1-001 Closed**.
+> FRD Draft artifacts (FRD-002..004, FRD-007) **belum DoR**. **FRD-005** and **FRD-006** are **LOCKED**. FRD-CM-001 v1.1 is **LOCKED** as Complaint Aggregate Batch 1 SoT. Per **DEC-020** (Accepted): dual SoT under controlled coexistence — Aggregate intake uses `/api/v1/cm` (FRD-CM-001); foundation lifecycle remains `/api/v1/complaints`. Sprint delivery IDs MUST NOT be silently overwritten. **OQ-CM-B1-001 Closed**.
 >
 > **DEC-F4** (escalation visibility / return / result audience) is recorded under `18 Architecture Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md` and amends BR-CM-CAT-001 Draft BR-007/BR-008. It does **not** change FRD-CM-001 Batch 1; consume DEC-F4 in Batch 2+ FRD covering Escalation/Resolution.
 >
 > **DEC-MODEA-B2-001** (2026-08-01): Mode A Delivery Baseline BQs for Case Management (**CAP-008**) all **LOCKED**; Residual BQ **ZERO**. BCS: `../docs/product/CAP-008_Case_Management_Business_Capability_Specification_v1.0.md`.
 >
-> **FRD-CM-B2-001** (2026-08-01): `ECMP_FRD_Case_Management_Batch2_v1.0.md` **Draft v1.0** complete (FR-001…FR-006 Mode A CAP-008). OpenAPI / EVT catalog / TC IDs Aggregate CAP-008 = **NOT SPECIFIED**.
+> **FRD-CM-B2-001** (2026-08-01 SoT Closure): `ECMP_FRD_Case_Management_Batch2_v1.0.md` **LOCKED**. OpenAPI API-530…535 Implemented (lab). EVT catalog IDs Aggregate CAP-008 = **NOT SPECIFIED**. Formal TC-catalog IDs deferred (lab suite `test_cm_case_mode_a.py`).
 
 ## Planned
 - [ ] FRD Core Platform
-- [x] FRD Complaint Management Batch 2 Mode A (CAP-008) — **Draft v1.0** as FRD-CM-B2-001
+- [x] FRD Complaint Management Batch 2 Mode A (CAP-008) — **LOCKED** as FRD-CM-B2-001
 - [x] FRD-CM-002 Escalation & Resolution Draft (DEC-F4) — awaiting Architecture Board countersign for LOCK path
 
 ## Folder Status Note
-**ECMF slice Approved; multi-domain Draft** (2026-07-21).
+**ECMF slice Approved; multi-domain Draft** (2026-07-21). CM Aggregate Batch-1 (FRD-CM-001 v1.1) and Batch-2 Mode A (FRD-CM-B2-001) **LOCKED** (2026-08-01). Metadata classification sync: B2-07.
+
+## FRD Classification (repository metadata — B2-07)
+
+| Classification | Artifacts |
+|---|---|
+| **LOCKED** | `ECMP_FRD_ECMF_v0.1.md` (Approved); `ECMP_Use_Cases_ECMF_v0.1.md` (Approved); `ECMP_FRD_Complaint_Management_Batch1_v1.1.md`; `ECMP_FRD_Case_Management_Batch2_v1.0.md`; `ECMP_FRD_Dashboard_Queue_v0.1.md` (FRD-006 v0.2 — B2-12 / DEC-CAP007-BQ-001); `ECMP_FRD_KPI_SLA_v0.1.md` (FRD-005 v0.2 — B2-16 / DEC-CAP006-BQ-001) |
+| **DRAFT** | `ECMP_FRD_ECMF_Lifecycle_v0.1.md`; `ECMP_FRD_CRM_Customer360_v0.1.md`; `ECMP_FRD_Notification_v0.1.md`; `ECMP_FRD_Administration_v0.1.md`; `ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1.md` |
+| **SUPERSEDED** | `ECMP_FRD_Complaint_Management_Batch1_v1.0.md` (by v1.1); `ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1.md` (outline → FRD-CM-002 Draft) |
+| **PLANNED** | FRD Core Platform (checkbox above; no file yet) |
+
+No FRD **business content** rewritten in B2-07 — classification / README metadata only.
 
 ## Naming
 `ECMP_FRD_<Domain>_vX.Y.md|docx`

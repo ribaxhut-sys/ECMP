@@ -6,7 +6,7 @@
 | Capability ID | **CAP-008** (former working ID `CAP-02` — retired to avoid collision with `CAP-002`) |
 | Title | Case Management — Business Capability Specification |
 | Version | 1.2 |
-| Status | 🟢 BUSINESS LOCK READY · Residual BQ **ZERO** · FRD Batch-2 prerequisite **READY** |
+| Status | 🟢 BUSINESS LOCK READY · Residual BQ **ZERO** · FRD-CM-B2-001 🔒 **LOCKED** |
 | Batch | Batch-2 Mode A |
 | Owner | Product Owner / Business Analyst / Solution Architect (Product Team) |
 | Reviewer | Domain PO ECMF, Operations Lead, Compliance |
