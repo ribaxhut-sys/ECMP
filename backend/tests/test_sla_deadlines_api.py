@@ -239,7 +239,7 @@ def test_create_rejected_without_active_policy(
     assert response.status_code == 400, response.text
     body = response.json()
     assert body["code"] == "VALIDATION_ERROR"
-    assert "active SLA policy" in body["message"]
+    assert "Kebijakan SLA aktif" in body["message"]
 
 
 def test_existing_deadlines_unchanged_after_policy_switch(

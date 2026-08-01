@@ -97,7 +97,7 @@ def test_invalid_routes_rejected(
             target_type=target,
             target_id=uuid.uuid4(),
         )
-    assert "Invalid complaint route" in str(exc.value)
+    assert "Rute pengaduan tidak valid." in str(exc.value)
 
 
 def test_legacy_customer_branch_null_target_allowed(
@@ -125,7 +125,7 @@ def test_non_legacy_route_requires_target_id(
             target_type=ComplaintTargetType.HEAD_OFFICE,
             target_id=None,
         )
-    assert "targetId is required" in str(exc.value)
+    assert "targetId diperlukan" in str(exc.value)
 
 
 def test_complaint_route_is_immutable(routing: ComplaintRoutingService) -> None:
@@ -197,4 +197,4 @@ def test_complaint_service_rejects_invalid_route() -> None:
             ),
             actor_user_id=uuid.uuid4(),
         )
-    assert "Invalid complaint route" in str(exc.value)
+    assert "Rute pengaduan tidak valid." in str(exc.value)

@@ -139,7 +139,7 @@ def test_create_rejects_when_notifications_disabled() -> None:
     service = NotificationService(
         repository=MagicMock(), settings=_settings(enabled=False)
     )
-    with pytest.raises(ValidationAppError, match="disabled"):
+    with pytest.raises(ValidationAppError, match="dinonaktifkan"):
         service.create(
             NotificationCreateRequest(
                 templateCode="COMPLAINT_ASSIGNED",

@@ -192,7 +192,7 @@ def test_cannot_delete_system_role(
 
     resp = client.delete(f"/api/v1/roles/{system.id}", headers=headers)
     assert resp.status_code == 409, resp.text
-    assert "System role" in resp.json()["message"]
+    assert "Peran sistem" in resp.json()["message"]
 
 
 def test_role_rbac_forbidden_without_permission(

@@ -100,7 +100,7 @@ def test_change_status_invalid_returns_400_validation() -> None:
             ComplaintStatusChangeRequest(status=ComplaintStatus.RESOLVED),
             actor_user_id=uuid.uuid4(),
         )
-    assert "Invalid status transition" in exc.value.message
+    assert "Transisi status tidak valid" in exc.value.message
     assert exc.value.status_code == 400
     repo.add_timeline.assert_not_called()
     repo.commit.assert_not_called()

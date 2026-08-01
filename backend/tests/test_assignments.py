@@ -102,7 +102,7 @@ def test_reassignment_requires_reason() -> None:
             AssignComplaintRequest(assigneeId=uuid.uuid4()),
             actor_user_id=uuid.uuid4(),
         )
-    assert "reason" in exc.value.message.lower()
+    assert "alasan" in exc.value.message.lower()
     repo.close_assignment.assert_not_called()
 
 

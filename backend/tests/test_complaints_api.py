@@ -389,4 +389,4 @@ def test_create_rejects_invalid_route(
     )
     assert response.status_code == 400
     assert response.json()["code"] == "VALIDATION_ERROR"
-    assert "Invalid complaint route" in response.json()["message"]
+    assert "Rute pengaduan tidak valid" in response.json()["message"]

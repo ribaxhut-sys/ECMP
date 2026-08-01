@@ -142,7 +142,7 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
             uploaded_by=None,
         )
 
-    with pytest.raises(ValidationAppError, match="aggregate"):
+    with pytest.raises(ValidationAppError, match="agregat"):
         svc.upload(
             aggregate_type="Invoice",
             aggregate_id=aggregate_id,

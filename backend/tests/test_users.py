@@ -262,7 +262,7 @@ def test_create_missing_role_rejected() -> None:
             actor_user_id=uuid.uuid4(),
             actor_roles=_ADMIN_ACTOR,
         )
-    assert "Role" in exc.value.message
+    assert "Peran" in exc.value.message
 
 
 def test_get_user_not_found() -> None:

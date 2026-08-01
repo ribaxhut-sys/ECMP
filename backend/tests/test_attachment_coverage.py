@@ -91,14 +91,14 @@ def test_build_storage_provider_rejects_unknown_and_empty_root(tmp_path: Path) -
         SETTING_STORAGE_PROVIDER: "s3",
         SETTING_STORAGE_ROOT_PATH: "x",
     }.get(key, default or "")
-    with pytest.raises(ValidationAppError, match="unsupported"):
+    with pytest.raises(ValidationAppError, match="tidak didukung"):
         build_storage_provider(settings)
 
     settings.get_string.side_effect = lambda key, default=None: {
         SETTING_STORAGE_PROVIDER: "local",
         SETTING_STORAGE_ROOT_PATH: "  ",
     }.get(key, default or "")
-    with pytest.raises(ValidationAppError, match="empty"):
+    with pytest.raises(ValidationAppError, match="kosong"):
         build_storage_provider(settings)
 
     settings.get_string.side_effect = lambda key, default=None: {
@@ -199,7 +199,7 @@ def test_service_list_for_complaint_and_db_failure_cleanup(tmp_path: Path) -> No
     assert len(data) == 1
     assert meta.total_items == 1
 
-    with pytest.raises(ValidationAppError, match="aggregate"):
+    with pytest.raises(ValidationAppError, match="agregat"):
         svc.list(aggregate_type="Invoice")
 
     repo.add.side_effect = RuntimeError("db down")

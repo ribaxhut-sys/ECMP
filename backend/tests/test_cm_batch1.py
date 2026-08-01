@@ -623,7 +623,7 @@ def test_tc_cm_fr003_03_override_without_reason_rejected(
             ),
             actor_id="a",
         )
-    assert "Reason Required" in exc.value.message or "justification" in exc.value.message.lower()
+    assert "Justifikasi" in exc.value.message or "alasan" in exc.value.message.lower()
 
 
 def test_tc_cm_fr003_04_override_with_justification(

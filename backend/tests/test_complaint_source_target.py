@@ -163,7 +163,7 @@ def test_service_create_rejects_unknown_branch_source() -> None:
             ),
             actor_user_id=uuid.uuid4(),
         )
-    assert "Branch not found" in str(exc.value)
+    assert "Cabang tidak ditemukan" in str(exc.value)
 
 
 def test_service_create_customer_target_branch_sets_branch_id() -> None:
