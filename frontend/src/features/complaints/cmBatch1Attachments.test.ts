@@ -40,8 +40,8 @@ describe("formatCmBatch1AttachmentBytes", () => {
 
 describe("cmBatch1AttachmentListLabel", () => {
   it("labels counts", () => {
-    expect(cmBatch1AttachmentListLabel(0)).toBe("No bound attachments");
-    expect(cmBatch1AttachmentListLabel(1)).toBe("1 attachment");
-    expect(cmBatch1AttachmentListLabel(3)).toBe("3 attachments");
+    expect(cmBatch1AttachmentListLabel(0)).toBe("attachmentCountNone");
+    expect(cmBatch1AttachmentListLabel(1)).toBe("attachmentCountOne");
+    expect(cmBatch1AttachmentListLabel(3)).toBe("attachmentCountMany");
   });
 });

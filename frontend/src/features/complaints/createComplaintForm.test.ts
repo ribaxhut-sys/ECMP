@@ -57,7 +57,7 @@ describe("validateCreateComplaintForm", () => {
       description: "Cannot print invoices",
       priority: "HIGH",
     });
-    expect(errors.customerId).toMatch(/invalid/i);
+    expect(errors.customerId).toBe("customerIdInvalid");
   });
 
   it("rejects subject and description over catalog limits", () => {
@@ -69,8 +69,8 @@ describe("validateCreateComplaintForm", () => {
       description: "y".repeat(5001),
       priority: "MEDIUM",
     });
-    expect(errors.subject).toMatch(/200/);
-    expect(errors.description).toMatch(/5000/);
+    expect(errors.subject).toBe("subjectMax");
+    expect(errors.description).toBe("descriptionMax");
   });
 });
 
