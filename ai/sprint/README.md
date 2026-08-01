@@ -19,7 +19,7 @@ Before implementation in Cursor/Claude:
 4. Update sprint status/notes at end of work
 
 ## Active Sprint
-**Sprint-02B** — Assign/status/events/notification stub (**implementation** against DEC-006 frozen contracts; see `Sprint-02.md` + `IMPLEMENTATION_ROADMAP_v0.1.md`)
+**Post Sprint-02B / menuju G2 → Sprint-03** — G1 **EXITED** (DEC-006 Accepted; verified 2026-08-01 di `deploy/evidence/G1_Exit_Verified_20260801.md`). Assign/status kontrak beku (409). Customer 360 tetap deferred (ACR-002). Berikutnya: G2 mini-gate + SLA/list residual / SIT Mode A — **bukan** Mode B (Board C-7 CLOSED). Lihat `Sprint-02.md` + `IMPLEMENTATION_ROADMAP_v0.1.md`.
 
 ## Vocabulary Map
 | Term | Meaning |
