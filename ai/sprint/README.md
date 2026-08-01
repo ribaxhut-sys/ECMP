@@ -34,7 +34,9 @@ Customer 360 (API-010) & Mode B tetap deferred/CLOSED. Lihat `REGRESSION_PACK_G2
 
 ## Implementation Roadmap
 Forward roadmap (Sprint-02 → Sprint-03 → SIT/UAT, epics/stories/critical path):
-[`IMPLEMENTATION_ROADMAP_v0.1.md`](./IMPLEMENTATION_ROADMAP_v0.1.md)
+[`IMPLEMENTATION_ROADMAP_v0.1.md`](./IMPLEMENTATION_ROADMAP_v0.1.md) — historical foundation planning.
+
+**CAP-008 Mode A:** **PROGRAM CLOSED** — use [`CAP008_ROADMAP_RESET_v1.0.md`](./CAP008_ROADMAP_RESET_v1.0.md) (do not schedule further CAP-008 Create…Close delivery).
 
 ## Implementation Readiness
 Before treating Sprint-01 as coding-authorized for a team, follow:
