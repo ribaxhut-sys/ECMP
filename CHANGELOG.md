@@ -19,12 +19,13 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 ### Notes
 
 - Mode A **CAP-008 Case Management** Release Candidate `v1.2.0-rc.1` (lab / Batch-2 Mode A).
-- Authorized ref (B-2 Option B pattern): `feature/cm-batch1-s2-persistence` — freeze tip recorded in
-  `deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md`.
+- Authorized ref (B-2 Option B pattern): `feature/cm-batch1-s2-persistence` @
+  `b7d8e2cee864263ff92a1941a9181a629ce46550` (`b7d8e2c`).
+- Assessment: `deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md` — **PASS (lab)**.
 - Scope: internal/lab DEV validation of CAP-008 Mode A (FR-001…FR-006) — **not** Production /
   Mode B / Enterprise Platform / Notification·Assignment·SLA·Event engines.
 - Alembic head for this RC: `0046_cm_case_management`.
-- Annotated tag prepared; create only when REL-RC-001 Go and working tree clean.
+- Annotated tag `v1.2.0-rc.1` (never move tags).
 
 ### Added
 
