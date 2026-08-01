@@ -52,6 +52,7 @@ def require_user(authorization: Annotated[str | None, Header()] = None) -> dict:
                 "cases:read",
                 "cases:create",
                 "cases:notes:create",
+                "dashboard:read",
             },
             "orgUnitId": "UNIT-01",
             "supervisedUnitIds": {"UNIT-01"},
@@ -67,7 +68,12 @@ def require_user(authorization: Annotated[str | None, Header()] = None) -> dict:
         # Supervisor of a different unit — exercises BR-002 cross-unit 403.
         return {
             "userId": "supervisor.other",
-            "permissions": {"cases:assign", "cases:read", "cases:notes:create"},
+            "permissions": {
+                "cases:assign",
+                "cases:read",
+                "cases:notes:create",
+                "dashboard:read",
+            },
             "orgUnitId": "UNIT-99",
             "supervisedUnitIds": {"UNIT-99"},
         }

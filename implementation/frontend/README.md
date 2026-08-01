@@ -28,15 +28,15 @@ Backend must be running on `http://localhost:8000`. The Vite dev server proxies 
 |---|---|---|
 | `dev-token` | `cs.agent.1` | `cases:create`, `cases:read` |
 | `dev-readonly-token` | `viewer.1` | `cases:read` |
-| `dev-supervisor-token` | `supervisor.1` | `cases:assign`, `cases:read`, `cases:create` (+ supervised `UNIT-01`) |
+| `dev-supervisor-token` | `supervisor.1` | `cases:assign`, `cases:read`, `cases:create`, `dashboard:read` (+ supervised `UNIT-01`) |
 | `dev-handler-token` | `USR-2001` | `cases:status`, `cases:read` |
 | `dev-noperm-token` | `noperm.1` | (none) |
-| `dev-foreign-supervisor-token` | `supervisor.other` | `cases:assign`, `cases:read` (+ supervised `UNIT-99`) |
+| `dev-foreign-supervisor-token` | `supervisor.other` | `cases:assign`, `cases:read`, `dashboard:read` (+ supervised `UNIT-99`) |
 
 ## Known limitations (not bugs)
 
 - **Auth stub** — token acquisition is unresolved (`ADR-013` item 7). `AuthContext` reads `VITE_DEV_TOKEN`; there is no login screen.
-- **No queue screen** — `Back to queue` links to `/` (placeholder). Do not invent a list page here.
+- **Queue + CAP-007 dashboard** — Case queue at `/` uses API-005; Operational queues panel uses API-040 when `dashboard:read` is present (B2-14). Not API-390 / API-513.
 - **No live updates** — case state updates only on load or after a successful/409 action (Screen Spec §8).
 - **Activity timeline** — placeholder only; no audit-log read API.
 - **Customer panel** — degraded to `customerId` + `customerVerified` (API-010 deferred).

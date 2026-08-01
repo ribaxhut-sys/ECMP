@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ApiError, isApiError } from '../../api/errors'
+import type { CaseStatus } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { AsyncPanel } from '../../components/AsyncPanel'
 import { ErrorBanner } from '../../components/ErrorBanner'
 import { LoadingSkeleton } from '../../components/LoadingSkeleton'
 import { CaseQueueTable } from './components/CaseQueueTable'
+import { DashboardQueuesPanel } from './components/DashboardQueuesPanel'
 import { PaginationControls } from './components/PaginationControls'
 import { QueueFilterBar } from './components/QueueFilterBar'
 import {
@@ -16,10 +18,12 @@ import {
   type CaseQueueFilters,
 } from './filters'
 import { useCaseQueue } from './hooks/useCaseQueue'
+import { useDashboardQueues } from './hooks/useDashboardQueues'
 import styles from './CaseQueueWorkspace.module.css'
 
 export function CaseQueueWorkspace() {
-  const { onUnauthenticated } = useAuth()
+  const { onUnauthenticated, hasPermission } = useAuth()
+  const canReadDashboard = hasPermission('dashboard:read')
   const [searchParams, setSearchParams] = useSearchParams()
   const [validationHint, setValidationHint] = useState<string | null>(null)
 
@@ -29,6 +33,7 @@ export function CaseQueueWorkspace() {
   )
 
   const query = useCaseQueue(filters)
+  const dashboardQuery = useDashboardQueues(canReadDashboard)
 
   const writeFilters = useCallback(
     (next: CaseQueueFilters, options?: { replace?: boolean }) => {
@@ -61,6 +66,13 @@ export function CaseQueueWorkspace() {
       pageSize: filters.pageSize,
     })
   }, [filters.pageSize, writeFilters])
+
+  const selectDashboardStatus = useCallback(
+    (status: CaseStatus) => {
+      patchFilters({ status, page: 1 })
+    },
+    [patchFilters],
+  )
 
   useEffect(() => {
     if (!query.isError || !isApiError(query.error)) return
@@ -138,6 +150,33 @@ export function CaseQueueWorkspace() {
           Browse and open cases. Sorted by created date (newest first).
         </p>
       </header>
+
+      {canReadDashboard && dashboardQuery.data ? (
+        <DashboardQueuesPanel
+          asOf={dashboardQuery.data.asOf}
+          queues={dashboardQuery.data.queues}
+          onSelectStatus={selectDashboardStatus}
+        />
+      ) : null}
+
+      {canReadDashboard && dashboardQuery.isError ? (
+        <div className={styles.inlineError}>
+          <ErrorBanner
+            title="Unable to load operational queues"
+            message={
+              isApiError(dashboardQuery.error)
+                ? dashboardQuery.error.message
+                : 'Dashboard aggregates could not be loaded.'
+            }
+            action={{
+              label: 'Retry',
+              onClick: () => {
+                void dashboardQuery.refetch()
+              },
+            }}
+          />
+        </div>
+      ) : null}
 
       <QueueFilterBar
         filters={filters}

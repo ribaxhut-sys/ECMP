@@ -31,6 +31,7 @@ from app.schemas import (
     CaseStatus,
     CaseTimeline,
     CaseType,
+    DashboardQueuesResponse,
     Error,
     NoteCreateRequest,
     Priority,
@@ -193,6 +194,25 @@ def version():
         "environment": settings.env(),
         "git_tree_state": settings.git_tree_state(),
     }
+
+
+@app.get(
+    "/v1/dashboard/queues",
+    response_model=DashboardQueuesResponse,
+    responses={**ERROR_RESPONSES},
+    summary="Operational queue dashboard",
+    tags=["Dashboard"],
+)
+def get_dashboard_queues(
+    user: dict = Depends(need("dashboard:read")),
+    session: Session = Depends(get_session),
+):
+    """API-040 / FR-040 / CAP-007 — normative dashboard-queues.v1.yaml 1.0.0.
+
+    Read-only (BR-DASH-03). Unit-scoped Supervisor aggregates (BR-006).
+    Does not use API-390 or API-513.
+    """
+    return service.get_dashboard_queues(session, user)
 
 
 @app.get(

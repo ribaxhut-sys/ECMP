@@ -57,8 +57,14 @@ Endpoint produk di bawah `/v1`.
 ## Auth (slice — lihat ADR-007 + Limitations Register)
 - `Authorization: Bearer <ECMP_DEV_TOKEN>` → CS Agent (`cases:create`, `cases:read`)
 - `Authorization: Bearer <ECMP_DEV_READONLY_TOKEN>` → Viewer (`cases:read`)
+- `Authorization: Bearer <ECMP_DEV_SUPERVISOR_TOKEN>` → Supervisor (`cases:assign`, `cases:read`, `cases:create`, `dashboard:read`; supervised `UNIT-01`)
 - `Authorization: Bearer <ECMP_DEV_NOPERM_TOKEN>` → principal tanpa permission (untuk uji 403)
 - 401 = autentikasi gagal; 403 = tanpa permission. DEV/CI only.
+
+## CAP-007 / API-040 (B2-14)
+- `GET /v1/dashboard/queues` — aggregates unit-scoped (permission `dashboard:read`); kontrak `../../07 API Catalog/openapi/dashboard-queues.v1.yaml` 1.0.0.
+- Tes: `tests/test_dashboard_queues_api040.py` (TC-040).
+- Tidak memakai API-390 / API-513.
 
 ## Audit & Events (G0)
 - Create case menulis `cases` + `audit_log` (BR-008/FR-001c) + `outbox` (EVT-001) dalam **satu transaksi**.
@@ -69,8 +75,7 @@ Endpoint produk di bawah `/v1`.
 ## Tests & lint
 ```bash
 pip install -r requirements-dev.txt
-pytest -q            # 37 tes: happy path, 401/403, validasi/boundary, envelope 404/405/500,
-                     # atomicity+rollback, drain outbox, konformansi kontrak vs spec, unit service
+pytest -q
 ruff check app tests
 ```
 - Skema tes dibuat via `alembic upgrade head` (bukan `create_all`) — drift model vs migrasi
