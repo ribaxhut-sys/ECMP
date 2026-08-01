@@ -17,15 +17,7 @@
 	handle /health* {
 		reverse_proxy backend:8000
 	}
-	handle /docs* {
-		reverse_proxy backend:8000
-	}
-	handle /redoc* {
-		reverse_proxy backend:8000
-	}
-	handle /openapi.json {
-		reverse_proxy backend:8000
-	}
+	# W-S04 closed 2026-08-01: do not expose /docs /redoc /openapi.json on public edge
 
 	# Next.js frontend
 	handle {

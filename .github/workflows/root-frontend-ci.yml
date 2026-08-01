@@ -9,11 +9,12 @@ name: Root Frontend CI
 
 on:
   push:
-    branches: [main, master, "feature/**", "release/**"]
+    branches: [main, master, "feature/**", "release/**", "chore/**"]
     paths:
       - "frontend/**"
       - ".github/workflows/root-frontend-ci.yml"
   pull_request:
+    branches: [main, master, "feature/**"]
     paths:
       - "frontend/**"
       - ".github/workflows/root-frontend-ci.yml"
