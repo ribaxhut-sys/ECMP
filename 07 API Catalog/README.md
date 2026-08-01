@@ -40,6 +40,14 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | — | GET /health | Legacy informational health (prefer /live + /ready) | None | 🟢 Implemented (deprecated) |
 | — | GET /version | Release provenance (git_commit, branch, build_time) — R6-01 | None | 🟢 Implemented |
 
+### dashboard-queues v1 — [`openapi/dashboard-queues.v1.yaml`](./openapi/dashboard-queues.v1.yaml) **1.0.0** — CAP-007 / FRD-006 🔒 LOCKED
+
+> **B2-13 NORMATIVE · B2-14 Implemented.** Promoted from `drafts/dashboard-queues.v1.draft.yaml` (now `x-status: superseded`). Sprint ECMF Case SoT; permission `dashboard:read`. Runtime: `implementation/backend` `GET /v1/dashboard/queues` + FE Queue Dashboard (API-040 only).
+
+| API ID | Method & Endpoint | Description | Auth | Status |
+|---|---|---|---|---|
+| API-040 | GET /v1/dashboard/queues | Operational case queue dashboard (FR-040; Supervisor unit-scoped) | bearerAuth, permission `dashboard:read` | 🟢 Implemented (B2-14) |
+
 ### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
 
 > **DEC-020:** Canonical foundation / Sprint delivery lifecycle namespace (`/api/v1/complaints`). Controlled coexistence with Aggregate `/api/v1/cm` — not interchangeable. Retirement requires a separate Cutover DEC.
@@ -204,18 +212,18 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟢 Implemented (lab; shared void semantics) |
 | API-513 | API-CM-B1-014 | GET /api/v1/cm/supervisor/queue | FR-001 | 🟢 Implemented (lab; later-review + no-Case aging visibility) |
 
-### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0-draft** — FRD-CM-B2-001 / CAP-008 Mode A
+### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0** — FRD-CM-B2-001 🔒 LOCKED / CAP-008 Mode A
 
-> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…535** (logical **API-CM-B2-001…006**). Contract only — not implemented. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A.
+> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…535** (logical **API-CM-B2-001…006**). **Implemented (lab)** — root `backend/app/modules/cm_case/`; REL-RC-001 PASS; annotated tag `v1.2.0-rc.1` @ `6890f50`. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A. SoT Closure: `../deploy/evidence/CAP-008_SoT_Closure_20260801.md`.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
-| API-530 | API-CM-B2-001 | POST /api/v1/cm/cases | FR-001 Create Case | 🟡 Draft (contract) |
-| API-531 | API-CM-B2-002 | POST /api/v1/cm/complaints/{complaintId}/cases | FR-002 Add Case | 🟡 Draft (contract) |
-| API-532 | API-CM-B2-003 | GET /api/v1/cm/cases/{caseId} | FR-003 View Case | 🟡 Draft (contract) |
-| API-533 | API-CM-B2-004 | PATCH /api/v1/cm/cases/{caseId}/status | FR-004 Update Case Status | 🟡 Draft (contract) |
-| API-534 | API-CM-B2-005 | POST /api/v1/cm/cases/{caseId}/resolve | FR-005 Resolve Case | 🟡 Draft (contract) |
-| API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟡 Draft (contract) |
+| API-530 | API-CM-B2-001 | POST /api/v1/cm/cases | FR-001 Create Case | 🟢 Implemented (lab) |
+| API-531 | API-CM-B2-002 | POST /api/v1/cm/complaints/{complaintId}/cases | FR-002 Add Case | 🟢 Implemented (lab) |
+| API-532 | API-CM-B2-003 | GET /api/v1/cm/cases/{caseId} | FR-003 View Case | 🟢 Implemented (lab) |
+| API-533 | API-CM-B2-004 | PATCH /api/v1/cm/cases/{caseId}/status | FR-004 Update Case Status | 🟢 Implemented (lab) |
+| API-534 | API-CM-B2-005 | POST /api/v1/cm/cases/{caseId}/resolve | FR-005 Resolve Case | 🟢 Implemented (lab) |
+| API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟢 Implemented (lab) |
 
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 
@@ -616,12 +624,16 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API ID | Method & Endpoint | Description | Draft spec | Status |
 |---|---|---|---|---|
 | API-010 | GET /v1/customers/{customerId} | Customer reference read (CRM) — **ditunda, lihat ACR-002** | [`drafts/customer-read.v1.draft.yaml`](./openapi/drafts/customer-read.v1.draft.yaml) | Deferred |
-| API-040 | GET /v1/dashboard/queues | Dashboard queues (Sprint-03) | [`drafts/dashboard-queues.v1.draft.yaml`](./openapi/drafts/dashboard-queues.v1.draft.yaml) | Planned |
+| API-040 | GET /v1/dashboard/queues | Dashboard queues (CAP-007; FRD-006 LOCKED; DEC-CAP007-BQ-001) | [`dashboard-queues.v1.yaml`](./openapi/dashboard-queues.v1.yaml) **1.0.0** | 🟢 Implemented (B2-14) |
 
 > **Label gate:** G1 = gate masuk Sprint-02 (lihat `13 Test Strategy`); "Sprint-02 / gate G1" merujuk hal yang sama.
 
 ### Candidate (FRD-007 Administration — belum ada draft spec)
 Kandidat API Administration/Core Platform **API-050..API-059** (admin-config: reference data, workflow/SLA config, calendars, escalation, templates, change-requests, versions, settings, audit-config) dan **API-060..API-062** (Core Platform SoT: users, roles, role-permission) didefinisikan di [`../03 Functional Requirements/ECMP_FRD_Administration_v0.1.md`](../03%20Functional%20Requirements/ECMP_FRD_Administration_v0.1.md) §8. Status **Candidate** — belum boleh dibuat draft normatif sebelum FRD-007 DoR; draft OpenAPI wajib dibuat di `openapi/drafts/` sebelum implementasi (contract-first).
+
+> **2026-08-01 (B2-14):** API-040 Implemented in `implementation/backend` + FE Queue Dashboard. OpenAPI schema unchanged. Evidence: `../deploy/evidence/B2-14_CAP-007_Engineering_Implementation_20260801.md`.
+>
+> **2026-08-01 (B2-13):** API-040 promoted to normative `dashboard-queues.v1.yaml` **1.0.0**. Draft superseded. No schema/endpoint invent. Evidence: `../deploy/evidence/B2-13_API-040_Normative_Closure_20260801.md`.
 
 ### Konvensi `openapi/drafts/`
 File di `openapi/drafts/` (penamaan `<nama>.v<major>.draft.yaml`, `info.version: *-draft`, `x-status: draft`) adalah **skeleton non-normatif**: bahan review contract-first untuk memenuhi entry gate G1 ("OpenAPI merged sebelum kode"). Draft menjadi normatif **hanya setelah** direview dan di-merge ke spec berversi (mis. `case-service.v1.yaml`) di gate G1. Katalog/generator hanya mencakup spec normatif — draft tidak dihitung sebagai kontrak yang boleh diimplementasikan.

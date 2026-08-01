@@ -1,134 +1,15 @@
 openapi: 3.0.3
 info:
-  title: ECMP Dashboard & Case List API (DRAFT)
-  version: 0.1.0-draft
+  title: ECMP Dashboard & Case List API (SUPERSEDED DRAFT)
+  version: 0.1.1-draft
   description: |
-    **DRAFT — non-normative.** This skeleton becomes normative only after review and
-    merge into a versioned spec at gate G1 ("OpenAPI merged sebelum kode",
-    Test Strategy §3 / DEC-002). Do NOT implement against this file.
+    **SUPERSEDED** — B2-13 promoted API-040 to normative
+    `../dashboard-queues.v1.yaml` **1.0.0**.
 
-    Scope:
-    - API-040 GET /v1/dashboard/queues (FR-040, FRD-006): operational queue view,
-      role & org scoped (BR-006), strictly read-only (BR-DASH-03), Sprint-03.
-
-    **2026-07-22 (Sprint-03B):** API-005 GET /v1/cases (list, formerly drafted here)
-    has been merged into `case-service.v1.yaml` v1.5.0 as the normative contract
-    and implemented. Removed from this draft to avoid two sources for the same
-    operation.
-    Versioning per ADR-006: URL prefix /v1. Error responses use the Error envelope
-    {code, message, details?}. All timestamps ISO-8601 UTC; payload fields camelCase.
+    Do not implement against this draft. Paths emptied to avoid dual SoT
+    (same pattern as superseded `case-actions.v1.yaml`).
   x-frd: FRD-006
-x-status: draft
-servers:
-  - url: http://localhost:8000/v1
-    description: Local development
-  - url: https://api.example.local/ecmp/v1
-    description: Example deployed base
-tags:
-  - name: Dashboard
-    description: Operational queue dashboard (read-only)
-paths:
-  /dashboard/queues:
-    get:
-      summary: Operational queue dashboard (DRAFT)
-      operationId: getDashboardQueues
-      x-ear-id: API-040
-      x-fr: FR-040
-      tags: [Dashboard]
-      description: |
-        DRAFT. Aggregated case queues for supervisors/managers (FR-040, BP-006):
-        - Role & org scoped (BR-006 / BR-DASH-01/04): a Supervisor of unit U sees
-          only unit U queues; Manager/Executive sees aggregates within their scope.
-        - Strictly read-only (BR-DASH-03): no mutation is reachable from any
-          dashboard endpoint, permanently.
-        - Aggregates must reconcile with source data; non-real-time data is flagged
-          via the `asOf` timestamp (BR-DASH-02).
-        Requires a dashboard read permission (name to be fixed in the SEC-RAM-001
-        revision for Sprint-03).
-      responses:
-        "200":
-          description: Queue aggregates within the caller's role/org scope
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DashboardQueuesResponse"
-              examples:
-                supervisorUnitView:
-                  value:
-                    asOf: "2026-07-21T09:30:00Z"
-                    queues:
-                      - unitId: "UNIT-01"
-                        status: REGISTERED
-                        count: 5
-                        oldestCreatedAt: "2026-07-20T02:10:00Z"
-                      - unitId: "UNIT-01"
-                        status: IN_PROGRESS
-                        count: 12
-                        oldestCreatedAt: "2026-07-18T11:45:00Z"
-        "401":
-          description: Missing or invalid token (code=UNAUTHENTICATED)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "403":
-          description: Authenticated but missing dashboard permission (code=FORBIDDEN)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      description: |
-        Target: JWT signed by IdP (ADR-007 target phase).
-        Slice phase (DEV/CI only): static env token; claims {userId, permissions[]}.
-        401 = authentication failure; 403 = missing permission.
-  schemas:
-    CaseStatus:
-      type: string
-      enum: [REGISTERED, ASSIGNED, IN_PROGRESS, PENDING_REVIEW, CLOSED, REOPENED]
-      description: Full baseline status set per DOM-ECMF-003
-    QueueEntry:
-      type: object
-      required: [unitId, status, count]
-      properties:
-        unitId:
-          type: string
-        status:
-          $ref: "#/components/schemas/CaseStatus"
-        count:
-          type: integer
-          minimum: 0
-        oldestCreatedAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: createdAt of the oldest case in the bucket (UTC); null when count = 0
-    DashboardQueuesResponse:
-      type: object
-      required: [asOf, queues]
-      properties:
-        asOf:
-          type: string
-          format: date-time
-          description: Data freshness timestamp, UTC (BR-DASH-02 — lag must be visible)
-        queues:
-          type: array
-          items:
-            $ref: "#/components/schemas/QueueEntry"
-    Error:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: string
-        message:
-          type: string
-        details:
-          type: object
-          additionalProperties: true
-security:
-  - bearerAuth: []
+  x-decision: DEC-CAP007-BQ-001
+  x-superseded-by: ../dashboard-queues.v1.yaml
+x-status: superseded
+paths: {}
