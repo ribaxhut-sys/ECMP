@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime, timezone
 
+from app.core.user_messages import m
 from app.modules.queue.application.services.errors import QueueApplicationError
 from app.modules.queue.domain.ticket_number import (
     PrefixSequenceTicketNumberGenerator,
@@ -22,7 +23,6 @@ from app.modules.queue.models import (
     QueueTicket,
     QueueTicketStatus,
 )
-from app.core.user_messages import m
 
 _PRIORITY_RANK: dict[QueuePriority, int] = {
     QueuePriority.VIP: 0,

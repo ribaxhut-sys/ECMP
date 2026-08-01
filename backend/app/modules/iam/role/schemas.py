@@ -1,12 +1,13 @@
 """Role Management API contracts (camelCase) — TASK-033."""
 
 from __future__ import annotations
-from app.core.user_messages import m
 
 import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.core.user_messages import m
 
 
 class RoleCreateRequest(BaseModel):

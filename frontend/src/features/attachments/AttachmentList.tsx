@@ -67,7 +67,7 @@ export function AttachmentList({
     } finally {
       setLoading(false);
     }
-  }, [canRead]);
+  }, [canRead, t]);
 
   const idsKey = (attachmentIds ?? []).join(",");
 

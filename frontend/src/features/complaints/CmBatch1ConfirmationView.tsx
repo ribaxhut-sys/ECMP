@@ -72,7 +72,7 @@ export function CmBatch1ConfirmationView({
     return () => {
       cancelled = true;
     };
-  }, [canRead, complaintId]);
+  }, [canRead, complaintId, t]);
 
   if (!canRead) {
     return (

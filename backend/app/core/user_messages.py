@@ -36,9 +36,7 @@ MESSAGES: dict[str, str] = {
     "auth.invalid_token": "Token tidak valid atau sudah kedaluwarsa.",
     "auth.local_disabled": "Autentikasi kredensial lokal dinonaktifkan.",
     "auth.password_blank": "Kata sandi tidak boleh kosong.",
-    "auth.password_change_required": (
-        "Anda harus mengubah kata sandi sebelum mengakses aplikasi."
-    ),
+    "auth.password_change_required": ("Anda harus mengubah kata sandi sebelum mengakses aplikasi."),
     "auth.password_changed": "Kata sandi berhasil diubah.",
     "auth.password_must_differ": "Kata sandi baru harus berbeda dari kata sandi saat ini.",
     "auth.password_reset_ok": "Kata sandi berhasil direset.",
@@ -63,8 +61,7 @@ MESSAGES: dict[str, str] = {
     "common.validation_failed": "Validasi permintaan gagal.",
     # --- Organization scope ---
     "org.scope_missing_org_unit_claim": (
-        "Akses ditolak karena di luar cakupan organisasi Anda: "
-        "klaim orgUnitId tidak ditemukan."
+        "Akses ditolak karena di luar cakupan organisasi Anda: klaim orgUnitId tidak ditemukan."
     ),
     "org.scope_resource_no_org_unit": (
         "Akses ditolak karena di luar cakupan organisasi Anda: "
@@ -173,9 +170,7 @@ MESSAGES: dict[str, str] = {
     "escalation.source_user_not_found": (
         "Pengguna sumber eskalasi tidak ditemukan atau tidak aktif."
     ),
-    "escalation.target_role_not_found": (
-        "Peran target eskalasi tidak ditemukan atau tidak aktif."
-    ),
+    "escalation.target_role_not_found": ("Peran target eskalasi tidak ditemukan atau tidak aktif."),
     "escalation.target_user_not_found": (
         "Pengguna target eskalasi tidak ditemukan atau tidak aktif."
     ),
@@ -227,21 +222,23 @@ MESSAGES: dict[str, str] = {
     "resolution.only_when_resolved_or_closed": (
         "Resolusi hanya diizinkan ketika status RESOLVED atau CLOSED."
     ),
-    "resolution.resolved_by_must_match_user": "resolvedBy harus sesuai dengan pengguna terautentikasi.",
+    "resolution.resolved_by_must_match_user": (
+        "resolvedBy harus sesuai dengan pengguna terautentikasi."
+    ),
     # --- Assignment ---
     "assignment.active_cannot_have_released_at": (
         "Penugasan aktif tidak boleh memiliki released_at."
     ),
-    "assignment.active_not_belong_complaint": (
-        "Penugasan aktif tidak termasuk pengaduan ini."
-    ),
+    "assignment.active_not_belong_complaint": ("Penugasan aktif tidak termasuk pengaduan ini."),
     "assignment.already_has_active": (
         "Pengaduan sudah memiliki penugasan aktif; gunakan penugasan ulang."
     ),
     "assignment.already_inactive": "Penugasan sudah tidak aktif.",
     "assignment.assignee_not_found": "Penerima tugas tidak ditemukan atau tidak aktif.",
     "assignment.inactive_requires_released_at": "Penugasan tidak aktif memerlukan released_at.",
-    "assignment.no_active_to_reassign": "Pengaduan tidak memiliki penugasan aktif untuk penugasan ulang.",
+    "assignment.no_active_to_reassign": (
+        "Pengaduan tidak memiliki penugasan aktif untuk penugasan ulang."
+    ),
     "assignment.no_active_to_unassign": "Pengaduan tidak memiliki penugasan aktif untuk unassign.",
     "assignment.reason_required_reassignment": "Alasan wajib diisi untuk penugasan ulang.",
     # --- SLA ---
@@ -253,7 +250,9 @@ MESSAGES: dict[str, str] = {
     "sla.cannot_start_on_closed": "Tidak dapat memulai SLA pada pengaduan berstatus CLOSED.",
     "sla.inactive_requires_completed_at": "SLA tidak aktif memerlukan completed_at.",
     "sla.no_active_to_complete": "Pengaduan tidak memiliki SLA aktif untuk diselesaikan.",
-    "sla.non_breached_cannot_have_breached_at": "SLA non-breached tidak boleh memiliki breached_at.",
+    "sla.non_breached_cannot_have_breached_at": (
+        "SLA non-breached tidak boleh memiliki breached_at."
+    ),
     "sla.no_default_policy": "Tidak ada kebijakan SLA default yang dikonfigurasi.",
     "sla.policy_not_found": "Kebijakan SLA tidak ditemukan.",
     "sla.policy_required_before_complaint": (
@@ -289,9 +288,7 @@ MESSAGES: dict[str, str] = {
     "attachment.cannot_supersede_void": (
         "Tidak dapat supersede lampiran void atau yang sudah di-supersede."
     ),
-    "attachment.case_id_not_supported": (
-        "CaseId tidak didukung pada unggahan lampiran Batch 1."
-    ),
+    "attachment.case_id_not_supported": ("CaseId tidak didukung pada unggahan lampiran Batch 1."),
     "attachment.duplicate_checksum": "Checksum lampiran duplikat.",
     "attachment.file_not_in_storage": "Berkas lampiran tidak ditemukan di storage.",
     "attachment.metadata_bind_failed": (
@@ -304,20 +301,14 @@ MESSAGES: dict[str, str] = {
     "attachment.deleted_cannot_become_available": (
         "Lampiran terhapus tidak dapat menjadi AVAILABLE."
     ),
-    "attachment.deleted_cannot_become_failed": (
-        "Lampiran terhapus tidak dapat menjadi FAILED."
-    ),
+    "attachment.deleted_cannot_become_failed": ("Lampiran terhapus tidak dapat menjadi FAILED."),
     "attachment.void_reason_required": "Alasan pembatalan wajib diisi.",
     # --- Storage / upload ---
     "storage.aggregate_type_id_required": (
         "aggregateType dan aggregateId diperlukan untuk unggahan platform."
     ),
-    "storage.allowed_mime_empty_strings": (
-        "Entri storage.allowed.mime harus string non-kosong."
-    ),
-    "storage.allowed_mime_non_empty_array": (
-        "storage.allowed.mime harus array JSON non-kosong."
-    ),
+    "storage.allowed_mime_empty_strings": ("Entri storage.allowed.mime harus string non-kosong."),
+    "storage.allowed_mime_non_empty_array": ("storage.allowed.mime harus array JSON non-kosong."),
     "storage.checksum_sha256_format": "checksum_sha256 harus digest hex 64 karakter.",
     "storage.file_empty": "Berkas tidak boleh kosong.",
     "storage.file_exceeds_max_size": "Berkas melebihi ukuran unggahan maksimum.",
@@ -398,9 +389,7 @@ MESSAGES: dict[str, str] = {
     # --- Config / settings validation ---
     "config.at_least_one_field": "Setidaknya satu field diperlukan.",
     "config.code_module_prefix_match": "Awalan modul code harus sesuai dengan field module.",
-    "config.code_uppercase_format": (
-        "code harus huruf kapital, digit, dan underscore."
-    ),
+    "config.code_uppercase_format": ("code harus huruf kapital, digit, dan underscore."),
     "config.code_module_action_format": "code harus sesuai format module:action.",
     "config.date_from_lte_date_to": "dateFrom harus <= dateTo.",
     "config.date_from_lte_date_to_snake": "date_from harus <= date_to.",
@@ -408,9 +397,7 @@ MESSAGES: dict[str, str] = {
     "config.entity_type_max_length": "Panjang maksimum entity_type adalah 100.",
     "config.event_type_required": "event_type diperlukan.",
     "config.event_type_max_length": "Panjang maksimum event_type adalah 100.",
-    "config.module_lowercase_format": (
-        "module harus huruf kecil, digit, dan underscore."
-    ),
+    "config.module_lowercase_format": ("module harus huruf kecil, digit, dan underscore."),
     "config.page_min": "page harus >= 1.",
     "config.page_size_range": "pageSize harus antara 1 dan 100.",
     "config.permission_ids_no_duplicates": "permissionIds tidak boleh mengandung duplikat.",
@@ -434,18 +421,12 @@ MESSAGES: dict[str, str] = {
     "validation.invalid_email": "Format email tidak valid.",
     "validation.no_edge_whitespace": "Tidak boleh diawali atau diakhiri spasi.",
     "validation.at_least_one_field": "Minimal satu bidang wajib diisi.",
-    "validation.password_confirm_mismatch": (
-        "Kata sandi dan konfirmasi kata sandi harus sama."
-    ),
-    "validation.new_password_confirm_mismatch": (
-        "Kata sandi baru dan konfirmasi harus sama."
-    ),
+    "validation.password_confirm_mismatch": ("Kata sandi dan konfirmasi kata sandi harus sama."),
+    "validation.new_password_confirm_mismatch": ("Kata sandi baru dan konfirmasi harus sama."),
     "validation.name_required": "Nama wajib diisi.",
     "validation.time_hhmm": "Harus berformat HH:MM.",
     "validation.end_after_start": "endTime harus setelah startTime.",
-    "escalation.target_required": (
-        "escalatedToUserId atau escalatedToRoleId wajib diisi."
-    ),
+    "escalation.target_required": ("escalatedToUserId atau escalatedToRoleId wajib diisi."),
     "complaint.route_fields_all_required": (
         "sourceType, sourceId, targetType, dan targetId wajib diisi jika salah satu diisi."
     ),
@@ -539,9 +520,7 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "Complaint already has an SLA record.": "complaint.already_has_sla",
     "Complaint already has an active escalation.": "complaint.already_has_escalation",
     "Complaint cannot be assigned in its current status": "complaint.cannot_assign_status",
-    "Complaint cannot be deleted while an SLA record exists.": (
-        "complaint.cannot_delete_with_sla"
-    ),
+    "Complaint cannot be deleted while an SLA record exists.": ("complaint.cannot_delete_with_sla"),
     "Complaint cannot be escalated in its current status": "complaint.cannot_escalate_status",
     "Complaint has an unsupported sourceType": "complaint.unsupported_source_type",
     "Complaint has an unsupported status": "complaint.unsupported_status",
@@ -721,7 +700,9 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "completed ticket cannot be cancelled": "queue.completed_cannot_be_cancelled",
     "completed ticket cannot return to WAITING": "queue.completed_cannot_return_waiting",
     "current escalation cannot have released_at set": "escalation.current_cannot_have_released_at",
-    "current escalation does not belong to this complaint": "escalation.current_not_belong_complaint",
+    "current escalation does not belong to this complaint": (
+        "escalation.current_not_belong_complaint"
+    ),
     "customerId is required": "complaint.customer_id_required",
     "customerId is required for blocked": "complaint.customer_id_required_blocked",
     "customerId is required for override": "complaint.customer_id_required_override",
@@ -782,7 +763,9 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "queue is PAUSED; new tickets are rejected": "queue.paused_new_tickets_rejected",
     "queue_ticket_id is required": "queue.ticket_id_required",
     "reason is required for reassignment": "assignment.reason_required_reassignment",
-    "resolution cannot be changed after complaint is CLOSED": "resolution.cannot_change_after_closed",
+    "resolution cannot be changed after complaint is CLOSED": (
+        "resolution.cannot_change_after_closed"
+    ),
     "resolution is only allowed when status is RESOLVED or CLOSED": (
         "resolution.only_when_resolved_or_closed"
     ),
@@ -829,10 +812,16 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "must be HH:MM": "validation.time_hhmm",
     "endTime must be after startTime": "validation.end_after_start",
     "escalatedToUserId or escalatedToRoleId is required": "escalation.target_required",
-    "sourceType, sourceId, targetType, and targetId are all required when any is provided": "complaint.route_fields_all_required",
-    "customerId must match sourceId when sourceType is CUSTOMER": "complaint.customer_source_mismatch",
+    "sourceType, sourceId, targetType, and targetId are all required when any is provided": (
+        "complaint.route_fields_all_required"
+    ),
+    "customerId must match sourceId when sourceType is CUSTOMER": (
+        "complaint.customer_source_mismatch"
+    ),
     "branchId must match targetId when targetType is BRANCH": "complaint.branch_target_mismatch",
-    "customerId is required when source/target fields are omitted": "complaint.customer_required_when_route_omitted",
+    "customerId is required when source/target fields are omitted": (
+        "complaint.customer_required_when_route_omitted"
+    ),
     "value is required": "validation.value_required",
     "Not Found": "http.not_found",
     "Method Not Allowed": "http.method_not_allowed",
@@ -852,7 +841,6 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "Invalid UUID": "framework.uuid_invalid",
     "invalid datetime format": "framework.datetime_invalid",
     "invalid date format": "framework.date_invalid",
-
 }
 
 
@@ -1014,4 +1002,3 @@ def field_errors_from_validation(
         key = ".".join(str(part) for part in loc if part != "body")
         field_errors[key or "body"] = localize_framework_validation_error(err)
     return field_errors
-

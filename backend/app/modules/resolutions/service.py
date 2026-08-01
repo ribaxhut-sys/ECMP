@@ -13,6 +13,7 @@ from app.core.enums import (
     TimelineEvent,
 )
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import ComplaintResolution
 from app.modules.resolutions.repository import ResolutionRepository
 from app.modules.resolutions.schemas import (
@@ -23,7 +24,6 @@ from app.modules.resolutions.schemas import (
     ResolveComplaintRequest,
     ResolveComplaintResult,
 )
-from app.core.user_messages import m
 
 RESOLVABLE_STATUS = ComplaintStatus.IN_PROGRESS
 TARGET_STATUS = ComplaintStatus.RESOLVED

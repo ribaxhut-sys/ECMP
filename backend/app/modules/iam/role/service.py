@@ -11,6 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.iam.role.models import Role
 from app.modules.iam.role.repository import RoleRepository
 from app.modules.iam.role.schemas import (
@@ -18,7 +19,6 @@ from app.modules.iam.role.schemas import (
     RoleResponse,
     RoleUpdateRequest,
 )
-from app.core.user_messages import m
 
 _ROLE_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,99}$")
 

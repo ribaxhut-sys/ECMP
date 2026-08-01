@@ -74,7 +74,7 @@ export function CmBatch1BoundAttachmentsCard({
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId]);
+  }, [canRead, complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -109,7 +109,7 @@ export function CmBatch1BoundAttachmentsCard({
     } finally {
       setVoidingId(null);
     }
-  }, [canVoid, voidReason, voidTargetId]);
+  }, [canVoid, voidReason, voidTargetId, t]);
 
   if (!canRead) {
     return (

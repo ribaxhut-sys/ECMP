@@ -7,12 +7,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.user_messages import m
 from app.modules.iam.data_scope.models import (
     ScopeType,
     scope_forbids_value,
     scope_requires_value,
 )
-from app.core.user_messages import m
 
 
 def _normalize_scope_value(value: str | None) -> str | None:

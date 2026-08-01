@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from app.core.user_messages import m
 
 SlaStatusLiteral = Literal["PENDING", "ON_TIME", "BREACHED", "COMPLETED"]

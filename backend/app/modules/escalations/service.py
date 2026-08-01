@@ -11,6 +11,7 @@ from app.core.enums import (
     TimelineEvent,
 )
 from app.core.errors import InvalidStateError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import ComplaintEscalation
 from app.modules.appointments.schemas import AppointmentSummary
 from app.modules.appointments.service import to_summary
@@ -26,7 +27,6 @@ from app.modules.escalations.schemas import (
     EscalationReviewRequest,
     EscalationReviewResult,
 )
-from app.core.user_messages import m
 
 ALLOWED_STATUSES = frozenset(
     {ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS}

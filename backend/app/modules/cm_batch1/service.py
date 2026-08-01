@@ -13,6 +13,7 @@ from app.core.errors import (
     RateLimitedError,
     ValidationAppError,
 )
+from app.core.user_messages import m
 from app.integrations.customer import (
     CustomerLookupStatus,
     CustomerProvider,
@@ -52,7 +53,6 @@ from app.modules.cm_batch1.side_effects import (
     SideEffectRecorder,
 )
 from app.modules.cm_batch1.store import STORE, Batch1Store
-from app.core.user_messages import m
 
 
 class CmBatch1StoreProtocol(Protocol):

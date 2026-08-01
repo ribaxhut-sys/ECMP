@@ -11,6 +11,7 @@ from app.core.enums import (
     TimelineEvent,
 )
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import Appointment
 from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
@@ -25,7 +26,6 @@ from app.modules.appointments.schemas import (
     AppointmentResponse,
     AppointmentSummary,
 )
-from app.core.user_messages import m
 
 NOT_APPROVED_MESSAGE = m("escalation.must_be_approved_for_booking")
 HAS_ACTIVE_APPOINTMENT_MESSAGE = m("escalation.has_active_appointment")

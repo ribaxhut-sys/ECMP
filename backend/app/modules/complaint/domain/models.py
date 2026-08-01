@@ -17,8 +17,8 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Mapping
 
-from app.modules.complaint.domain.errors import ComplaintDomainError
 from app.core.user_messages import m
+from app.modules.complaint.domain.errors import ComplaintDomainError
 
 
 class ComplaintStatus(StrEnum):

@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  ApiError,
   checkCmBatch1Duplicates,
   createCmBatch1Complaint,
   fetchBranches,

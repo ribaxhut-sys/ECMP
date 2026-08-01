@@ -16,9 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
+from app.core.user_messages import m
 from app.models import Branch, Complaint
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
-from app.core.user_messages import m
 
 
 class OrgUnitResolver:

@@ -7,6 +7,7 @@ from typing import Any
 
 from app.core.errors import NotFoundError
 from app.core.schemas import PageMeta
+from app.core.user_messages import m
 from app.modules.timeline.domain.entity import TimelineEntry
 from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
@@ -14,7 +15,6 @@ from app.modules.timeline.schemas import (
     TimelineEntryCreateRequest,
     TimelineEntryResponse,
 )
-from app.core.user_messages import m
 
 
 def _to_response(entry: TimelineEntry) -> TimelineEntryResponse:

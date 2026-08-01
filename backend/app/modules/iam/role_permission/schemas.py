@@ -1,11 +1,12 @@
 """Role-Permission Matrix API contracts (camelCase) — TASK-035."""
 
 from __future__ import annotations
-from app.core.user_messages import m
 
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.core.user_messages import m
 
 
 class RolePermissionsReplaceRequest(BaseModel):

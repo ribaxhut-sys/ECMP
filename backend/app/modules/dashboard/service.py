@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.core.errors import ValidationAppError
+from app.core.user_messages import m
 from app.modules.complaints.service import ComplaintService
 from app.modules.dashboard.domain.dto import DashboardFilters, TrendPeriod
 from app.modules.dashboard.providers.complaint_provider import (
@@ -33,7 +34,6 @@ from app.modules.kpi.service import KpiService
 from app.modules.settings.registry import SettingsKey
 from app.modules.settings.service import SettingsService
 from app.modules.timelines.service import TimelineService
-from app.core.user_messages import m
 
 _DEFAULT_RECENT_LIMIT = 10
 _SYSTEM_ACTOR = "SYSTEM"

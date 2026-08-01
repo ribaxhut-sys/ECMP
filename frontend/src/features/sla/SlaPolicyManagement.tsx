@@ -10,7 +10,6 @@ import {
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  ApiError,
   activateSlaPolicy,
   createSlaPolicy,
   fetchSlaPolicies,

@@ -18,6 +18,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.core.user_messages import m
 from app.models import User
 from app.modules.auth.password_helpers import (
     revoke_all_refresh_tokens,
@@ -36,7 +37,6 @@ from app.modules.users.schemas import (
     UserStatusUpdateRequest,
     UserUpdateRequest,
 )
-from app.core.user_messages import m
 
 
 def _to_response(user: User) -> UserResponse:

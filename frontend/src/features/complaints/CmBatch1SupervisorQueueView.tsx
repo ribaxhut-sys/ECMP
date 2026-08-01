@@ -90,7 +90,7 @@ export function CmBatch1SupervisorQueueView() {
     } finally {
       setLoading(false);
     }
-  }, [agingHours, canRead]);
+  }, [agingHours, canRead, t]);
 
   useEffect(() => {
     void load();

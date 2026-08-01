@@ -1,7 +1,6 @@
 """User API contracts (camelCase, aligned with OpenAPI)."""
 
 from __future__ import annotations
-from app.core.user_messages import m
 
 import re
 import uuid
@@ -9,6 +8,8 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.core.user_messages import m
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

@@ -77,6 +77,14 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
   repository evidence. Evidence:
   `deploy/evidence/B2-15_CAP-006_Business_Decision_Closure_20260801.md`.
   No Backend / Frontend / OpenAPI / BR / invent scheduler or SLA algorithm.
+- **B2-14 CAP-007 Engineering Implementation (2026-08-01):** Implemented CAP-007 /
+  FR-040 against normative API-040 only — `GET /v1/dashboard/queues` (permission
+  `dashboard:read`) in Sprint ECMF tree (`implementation/backend`,
+  `implementation/frontend`); TC-040 API + FE unit coverage. Verdict
+  **CAP-007 ENGINEERING COMPLETE**. Evidence:
+  `deploy/evidence/B2-14_CAP-007_Engineering_Implementation_20260801.md`.
+  No BR / FRD / OpenAPI invent; no CAP-008 Aggregate; no Queue Service;
+  no API-390 / API-513; no Mode B.
 - **B2-13 API-040 Normative Closure (2026-08-01):** Contract governance only —
   promoted API-040 to `07 API Catalog/openapi/dashboard-queues.v1.yaml` **1.0.0**;
   draft superseded. Evidence:
@@ -125,6 +133,40 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
   `deploy/evidence/FINAL_RELEASE_REVIEW_v1.2.0_20260801.md`). Final tag `v1.2.0` **not**
   authorized. Draft notes: `docs/releases/v1.2.0.md`. UAT pack: `docs/releases/UAT_PACKAGE_v1.2.0.md`.
 - Hotfixes and approved change requests use new SemVer PATCH or new `rc.N` per versioning policy.
+
+### Added
+
+- CAP-007 / API-040 engineering (B2-14 / `ef3341b`): `GET /v1/dashboard/queues` with
+  `dashboard:read`, response DTOs, unit-scoped aggregates on Sprint ECMF Case SoT;
+  FE `DashboardQueuesPanel` + Case queue workspace wiring; tests
+  `implementation/backend/tests/test_dashboard_queues_api040.py` and
+  `DashboardQueuesPanel.test.tsx`.
+- Backend localization catalog (`2fc473d`): `backend/app/core/user_messages.py`
+  (ID user-facing envelope defaults + keyed domain messages); authz / modules /
+  error paths migrate off inline English strings.
+- Frontend runtime localization (`2e43c98`): expanded `frontend/messages/{en,id}.json`;
+  LocaleProvider / next-intl request fallbacks; feature surfaces migrate to message
+  keys; `resolveApiErrorMessage` for API envelope display.
+- Language audit tooling (`261b845`): `frontend/scripts/uat-language-audit.mjs`
+  (Playwright UAT scan for English leftovers on a running stack).
+- CAP-008 architecture synchronization (`483b1a8`): as-built reference
+  `19 Reference Architecture/ECMP_RA_CAP008_Mode_A_v1.0.md`; roadmap reset artifact
+  `ai/sprint/CAP008_ROADMAP_RESET_v1.0.md` (program remains CLOSED — no reopen).
+
+### Changed
+
+- API-040 OpenAPI promotion (B2-13 / `ae32080`): normative catalog file
+  `07 API Catalog/openapi/dashboard-queues.v1.yaml` **1.0.0**; draft path
+  superseded (see B2-13 note — contract governance cut; no Backend/Frontend in
+  that cut).
+- CAP-007 documentation synchronization (`b4973d3`): FRD-006 / related FRD README
+  metadata, SEC-RAM, TC catalog, Glossary, and product/domain pointers aligned to
+  post–B2-13 CAP-007 state (no BR/OpenAPI invent in this cut).
+- Production deploy template synchronization (`c5c685b`): `.env.prod.example`
+  defaults aligned to `APP_VERSION` / `IMAGE_TAG` `1.2.0-rc.1` plus required
+  AuthN/OIDC placeholder keys (bilateral contract still required); 
+  `docker-compose.prod.yml` accepts legacy `CADDY_ACME_EMAIL`. Does **not**
+  change REL-SEC / Production Readiness / FINAL_RELEASE_REVIEW verdicts.
 
 ## [1.2.0-rc.1] - 2026-08-01
 

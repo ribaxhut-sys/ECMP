@@ -14,6 +14,7 @@ from typing import Any
 
 from app.core.enums import NotificationChannel, NotificationQueueStatus
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.notification.domain.entity import NotificationRecord
 from app.modules.notification.infrastructure.providers import (
     NotificationProvider,
@@ -30,7 +31,6 @@ from app.modules.notification.schemas import (
     NotificationTemplateUpdateRequest,
 )
 from app.modules.settings.service import SettingsService
-from app.core.user_messages import m
 
 # Setting keys (seeded by migration 0018; not hardcoded operational values).
 SETTING_ENABLED = "notification.enabled"

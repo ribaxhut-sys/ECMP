@@ -17,6 +17,7 @@ from app.core.auth import Principal, require_permissions
 from app.core.enums import AuditAction
 from app.core.errors import ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
+from app.core.user_messages import m
 from app.db.session import get_db_session
 from app.modules.attachment.permissions import (
     ATTACHMENT_CREATE,
@@ -31,7 +32,6 @@ from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentReposi
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import Batch1AttachmentResponse
-from app.core.user_messages import m
 
 router = APIRouter(prefix="/api/v1/attachments", tags=["Attachments"])
 complaint_attachments_router = APIRouter(

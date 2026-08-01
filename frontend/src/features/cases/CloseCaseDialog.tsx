@@ -18,7 +18,6 @@ export function CloseCaseDialog({
   onClosed?: (caseData: CmCase) => void;
 }) {
   const t = useTranslations("cases");
-  const tValidation = useTranslations("validation");
   const [note, setNote] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import {
-  ApiError,
   confirmCmBatch1Customer,
   fetchCmBatch1Customer360,
   searchCmBatch1Customer,

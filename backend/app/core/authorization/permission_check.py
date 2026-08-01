@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 from app.core.authorization.authentication import get_current_principal
 from app.core.authorization.principal import Principal
 from app.core.errors import PermissionDeniedError
+from app.core.user_messages import m
 from app.db.session import get_db_session
 from app.modules.audit.security_events import SecurityEventType, write_security_event
-from app.core.user_messages import m
 
 
 def check_permissions(principal: Principal, *required: str) -> None:

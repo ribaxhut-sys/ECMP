@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.logging import get_logger
+from app.core.user_messages import m
 from app.modules.attachment.domain.enums import AggregateType
 from app.modules.attachment.service import AttachmentService, sanitize_filename
 from app.modules.cm_batch1 import event_factory as events
@@ -36,7 +37,6 @@ from app.modules.cm_batch1.side_effects import (
     NoOpSideEffectRecorder,
     SideEffectRecorder,
 )
-from app.core.user_messages import m
 
 logger = get_logger("app.modules.cm_batch1.attachment")
 

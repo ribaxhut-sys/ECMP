@@ -9,13 +9,13 @@ from __future__ import annotations
 import uuid
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.iam.permission.schemas import PermissionResponse
 from app.modules.iam.permission_cache import invalidate_iam_all
 from app.modules.iam.role.schemas import RoleResponse
 from app.modules.iam.role_permission.models import RolePermission
 from app.modules.iam.role_permission.repository import RolePermissionRepository
 from app.modules.iam.role_permission.schemas import RolePermissionsReplaceRequest
-from app.core.user_messages import m
 
 
 def _permission_response(row: object) -> PermissionResponse:

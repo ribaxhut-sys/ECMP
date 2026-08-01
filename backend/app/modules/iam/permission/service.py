@@ -11,6 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.iam.permission.models import Permission
 from app.modules.iam.permission.repository import PermissionRepository
 from app.modules.iam.permission.schemas import (
@@ -18,7 +19,6 @@ from app.modules.iam.permission.schemas import (
     PermissionResponse,
     PermissionUpdateRequest,
 )
-from app.core.user_messages import m
 
 # module:action — lowercase alphanumeric / underscore segments.
 _PERMISSION_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}:[a-z][a-z0-9_]{0,63}$")

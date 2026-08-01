@@ -21,9 +21,9 @@ from app.core.authorization.role_mapper import RoleMapper
 from app.core.config import Settings
 from app.core.errors import ForbiddenError, UnauthenticatedError
 from app.core.security import decode_access_token
+from app.core.user_messages import m
 from app.models import User
 from app.modules.iam.permission_resolver import PermissionResolver
-from app.core.user_messages import m
 
 # Paths allowed while ``force_password_change`` is true (dev mode only).
 _FORCE_PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(

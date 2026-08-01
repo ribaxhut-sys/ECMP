@@ -12,6 +12,7 @@ from collections.abc import Sequence
 
 from app.core.authorization.role_assignment_policy import assert_can_assign_role
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import User
 from app.modules.iam.permission_cache import invalidate_iam_user
 from app.modules.iam.role.schemas import RoleResponse
@@ -19,7 +20,6 @@ from app.modules.iam.user_role.models import UserRole
 from app.modules.iam.user_role.repository import UserRoleRepository
 from app.modules.iam.user_role.schemas import UserRolesReplaceRequest
 from app.modules.users.schemas import UserResponse
-from app.core.user_messages import m
 
 
 def _role_response(row: object) -> RoleResponse:

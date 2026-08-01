@@ -16,6 +16,7 @@ from app.core.enums import (
 )
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.status_transitions import can_transition
+from app.core.user_messages import m
 from app.models import Complaint
 from app.modules.complaint_context import ComplaintContext, ComplaintContextService
 from app.modules.complaint_events import (
@@ -37,7 +38,6 @@ from app.modules.event_dispatcher import DispatchResult, EventDispatcher
 from app.modules.routing import ComplaintRoute, ComplaintRoutingService
 from app.modules.sla.repository import SlaRepository
 from app.modules.sla.service import SlaService
-from app.core.user_messages import m
 
 CLOSABLE_STATUS = ComplaintStatus.IN_PROGRESS
 TARGET_CLOSED_STATUS = ComplaintStatus.CLOSED

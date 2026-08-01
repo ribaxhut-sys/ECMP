@@ -12,6 +12,7 @@ from fastapi import Response, status
 
 from app.core.request_context import RequestContext
 from app.core.schemas import DataResponse
+from app.core.user_messages import m
 from app.modules.complaint.api.exception_handlers import raise_as_api_error
 from app.modules.complaint.api.requests import (
     AssignRequest,
@@ -50,7 +51,6 @@ from app.modules.complaint.application.services import (
     UnassignComplaintInput,
     UpdateComplaintInput,
 )
-from app.core.user_messages import m
 
 
 class ComplaintController:

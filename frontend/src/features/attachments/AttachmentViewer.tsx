@@ -83,7 +83,7 @@ export function AttachmentViewer({
     } finally {
       setLoading(false);
     }
-  }, [attachment.id, kind, revoke]);
+  }, [attachment.id, kind, revoke, t]);
 
   useEffect(() => {
     if (!open) {
@@ -127,7 +127,7 @@ export function AttachmentViewer({
     } catch (err) {
       setError(mapLoadError(err, t));
     }
-  }, [attachment.originalName, attachment.id]);
+  }, [attachment.originalName, attachment.id, t]);
 
   const handleOpenTab = useCallback(async () => {
     try {
@@ -144,7 +144,7 @@ export function AttachmentViewer({
     } catch (err) {
       setError(mapLoadError(err, t));
     }
-  }, [attachment.id]);
+  }, [attachment.id, t]);
 
   if (!open || typeof document === "undefined") return null;
 

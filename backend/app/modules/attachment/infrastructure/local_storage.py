@@ -11,8 +11,8 @@ from pathlib import Path, PurePosixPath
 from typing import BinaryIO
 
 from app.core.errors import NotFoundError, ValidationAppError
-from app.modules.attachment.infrastructure.storage_provider import StorageProvider
 from app.core.user_messages import m
+from app.modules.attachment.infrastructure.storage_provider import StorageProvider
 
 
 class LocalStorageProvider(StorageProvider):

@@ -9,11 +9,11 @@ from urllib.parse import urlparse
 
 from app.core.enums import SettingValueType
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.settings.models import Setting
 from app.modules.settings.registry import SettingsKey
 from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.schemas import SettingResponse, SettingUpdateRequest
-from app.core.user_messages import m
 
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 _TRUE_VALUES = frozenset({"true", "1", "yes", "on"})

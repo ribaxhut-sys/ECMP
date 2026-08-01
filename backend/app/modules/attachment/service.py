@@ -15,6 +15,7 @@ from pathlib import PurePosixPath
 
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.schemas import PageMeta
+from app.core.user_messages import m
 from app.modules.attachment.domain.entity import Attachment
 from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
 from app.modules.attachment.infrastructure.local_storage import LocalStorageProvider
@@ -22,7 +23,6 @@ from app.modules.attachment.infrastructure.storage_provider import StorageProvid
 from app.modules.attachment.repository import AttachmentRepository
 from app.modules.attachment.schemas import AttachmentResponse
 from app.modules.settings.service import SettingsService
-from app.core.user_messages import m
 
 # Setting keys (seeded by migration 0017; root path updated in 0035).
 SETTING_STORAGE_PROVIDER = "storage.provider"

@@ -10,6 +10,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.iam.data_scope.models import (
     DataScope,
     ScopeType,
@@ -24,7 +25,6 @@ from app.modules.iam.data_scope.schemas import (
     DataScopeUpdateRequest,
 )
 from app.modules.iam.permission_cache import invalidate_iam_all
-from app.core.user_messages import m
 
 
 def _to_response(row: DataScope) -> DataScopeResponse:

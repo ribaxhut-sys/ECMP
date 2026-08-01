@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from app.core.user_messages import m
 from app.modules.queue.application.dto import QueueDto
 from app.modules.queue.application.services import (
     InMemoryQueueState,
@@ -14,7 +15,6 @@ from app.modules.queue.application.services import (
     get_queue_state,
 )
 from app.modules.queue.models import QueueStatus
-from app.core.user_messages import m
 
 
 @dataclass(frozen=True, slots=True)

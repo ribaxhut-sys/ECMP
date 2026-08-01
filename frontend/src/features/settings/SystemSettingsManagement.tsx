@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { ApiError, fetchSettings, updateSetting } from "@/lib/api";
+import { fetchSettings, updateSetting } from "@/lib/api";
 import type { Setting } from "@/lib/api/types";
 import {
   Alert,

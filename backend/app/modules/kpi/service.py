@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.errors import ValidationAppError
+from app.core.user_messages import m
 from app.models import SlaRecord
 from app.modules.kpi.repository import KpiRepository
 from app.modules.kpi.schemas import (
@@ -13,7 +14,6 @@ from app.modules.kpi.schemas import (
     KpiSummaryResponse,
     SlaStageKpiCounts,
 )
-from app.core.user_messages import m
 
 
 def _ensure_utc(value: datetime) -> datetime:

@@ -64,7 +64,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
       setError(failures.join("; "));
     }
     setLoading(false);
-  }, [canRead, complaintId]);
+  }, [canRead, complaintId, t]);
 
   useEffect(() => {
     void reload();

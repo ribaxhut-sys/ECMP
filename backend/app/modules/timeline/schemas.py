@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from app.core.user_messages import m
 
 AggregateTypeLiteral = Literal["Complaint", "Queue", "Notification"]

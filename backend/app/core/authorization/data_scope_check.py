@@ -17,10 +17,10 @@ from sqlalchemy.orm import Session
 from app.core.authorization.authentication import get_current_principal
 from app.core.authorization.principal import Principal
 from app.core.errors import DataScopeDeniedError
+from app.core.user_messages import m
 from app.db.session import get_db_session
 from app.modules.iam.data_scope.models import ScopeType
 from app.modules.iam.data_scope_resolver import DataScopeResolver, EffectiveScope
-from app.core.user_messages import m
 
 
 def resolve_effective_scope(

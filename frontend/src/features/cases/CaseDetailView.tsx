@@ -62,7 +62,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [canRead, caseId]);
+  }, [canRead, caseId, t]);
 
   useEffect(() => {
     void reload();

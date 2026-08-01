@@ -53,7 +53,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const mapError = (error: unknown): string => {
+  const mapError = useCallback((error: unknown): string => {
     if (error instanceof ApiError) {
       if (error.status === 404) return t("notFound404");
       if (error.status === 403) return t("permissionDenied403");
@@ -61,7 +61,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
       return error.message;
     }
     return t("actionFailed");
-  };
+  }, [t]);
 
   const handleDownload = useCallback(async () => {
     setBusy(true);
@@ -81,7 +81,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
     } finally {
       setBusy(false);
     }
-  }, [attachment.originalName, attachment.id]);
+  }, [attachment.originalName, attachment.id, mapError]);
 
   const handleOpenTab = useCallback(async () => {
     setBusy(true);
@@ -101,7 +101,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
     } finally {
       setBusy(false);
     }
-  }, [attachment.id]);
+  }, [attachment.id, mapError, t]);
 
   return (
     <>

@@ -14,7 +14,6 @@ import pytest
 import yaml
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from app.core.user_messages import field_errors_from_validation
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
@@ -22,6 +21,7 @@ from app.core.auth import Principal, get_current_principal
 from app.core.errors import ApiError
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import ErrorResponse
+from app.core.user_messages import field_errors_from_validation
 from app.modules.complaint.api import complaint_foundation_router
 from app.modules.complaint.api.dependencies import (
     get_complaint_assignment_service,

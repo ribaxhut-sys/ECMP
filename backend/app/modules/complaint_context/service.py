@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import ComplaintSourceType, ComplaintTargetType
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import Complaint, ComplaintAssignment, SlaRecord
 from app.modules.assignments.repository import AssignmentRepository
 from app.modules.complaint_context.models import (
@@ -26,7 +27,6 @@ from app.modules.complaint_context.models import (
 from app.modules.complaints.repository import ComplaintRepository
 from app.modules.routing import ComplaintRoute, ComplaintRoutingService
 from app.modules.sla.repository import SlaRepository
-from app.core.user_messages import m
 
 
 def _complaint_snapshot(complaint: Complaint) -> ComplaintSnapshot:

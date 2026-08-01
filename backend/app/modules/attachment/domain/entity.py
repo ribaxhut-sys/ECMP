@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from app.core.errors import ValidationAppError
-from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
 from app.core.user_messages import m
+from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
 
 
 @dataclass(slots=True)

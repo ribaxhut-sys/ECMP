@@ -109,6 +109,7 @@ export function StagingAttachmentsPanel({
       disabled,
       onStagingTokenResolved,
       stagingToken,
+      t,
     ],
   );
 
@@ -141,7 +142,7 @@ export function StagingAttachmentsPanel({
     } finally {
       setVoidingId(null);
     }
-  }, [canVoid, disabled, voidReason, voidTargetId]);
+  }, [canVoid, disabled, voidReason, voidTargetId, t]);
 
   const visible = items.filter((item) => item.status !== "VOID");
 

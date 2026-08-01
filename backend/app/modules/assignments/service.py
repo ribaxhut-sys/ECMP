@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from app.core.enums import ComplaintStatus, TimelineEvent
 from app.core.errors import InvalidStateError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import ComplaintAssignment
 from app.modules.assignments.repository import AssignmentRepository
 from app.modules.assignments.schemas import (
@@ -14,7 +15,6 @@ from app.modules.assignments.schemas import (
     AssignComplaintResult,
     AssignmentResponse,
 )
-from app.core.user_messages import m
 
 ASSIGNABLE_STATUSES = frozenset(
     {ComplaintStatus.NEW, ComplaintStatus.ASSIGNED}

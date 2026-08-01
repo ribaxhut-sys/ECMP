@@ -23,6 +23,7 @@ from app.core.security import (
     hash_refresh_token,
     verify_password,
 )
+from app.core.user_messages import m
 from app.models import PasswordResetToken, RefreshToken, User
 from app.modules.auth.password_helpers import (
     revoke_all_refresh_tokens,
@@ -42,7 +43,6 @@ from app.modules.auth.schemas import (
 from app.modules.iam.permission_resolver import PermissionResolver
 from app.modules.iam.role.models import Role
 from app.modules.iam.user_role.models import UserRole
-from app.core.user_messages import m
 
 if TYPE_CHECKING:
     from fastapi import Request

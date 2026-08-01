@@ -14,7 +14,7 @@
 
 ## Program closure
 
-- Index: [`../../18 Architecture Governance/ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md`](../../18%20Architecture%20Governance/ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md)
+- Index: `18 Architecture Governance/ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md` (repository path; outside MkDocs `docs/`)
 - Decision: **PROGRAM CLOSED** — GOV-CAP008-CLOSE-010
 
 ## Retired working IDs

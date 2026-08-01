@@ -20,7 +20,6 @@ import pytest
 import yaml
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from app.core.user_messages import field_errors_from_validation
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
@@ -31,6 +30,7 @@ from app.core.config import get_settings
 from app.core.errors import ApiError, InvalidStateError, NotFoundError, ValidationAppError
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import ErrorResponse
+from app.core.user_messages import field_errors_from_validation
 from app.db.async_session import _to_async_url
 from app.db.base import Base
 from app.modules.complaint.api import complaint_foundation_router

@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from app.core.request_context import RequestContext
+from app.core.user_messages import m
 from app.modules.complaint.application.dto import ComplaintDto
 from app.modules.complaint.application.services.domain_service import (
     ComplaintDomainService,
@@ -22,7 +23,6 @@ from app.modules.complaint.domain.models import (
     ComplaintStatus,
 )
 from app.modules.complaint.domain.repositories import ComplaintRepository
-from app.core.user_messages import m
 
 
 @dataclass(frozen=True, slots=True)

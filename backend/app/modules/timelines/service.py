@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 
 from app.core.errors import NotFoundError
+from app.core.user_messages import m
 from app.models import ComplaintTimeline
 from app.modules.timelines.repository import TimelineRepository
 from app.modules.timelines.schemas import TimelineEntryResponse
-from app.core.user_messages import m
 
 
 def _to_response(row: ComplaintTimeline) -> TimelineEntryResponse:

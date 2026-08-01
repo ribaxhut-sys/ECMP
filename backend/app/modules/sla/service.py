@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.sla.evaluation import evaluate_statuses
 from app.modules.sla.repository import SlaRepository
 from app.modules.sla.schemas import (
@@ -19,7 +20,6 @@ from app.modules.sla.timeline import (
     timeline_event_for_transition,
     timeline_summary,
 )
-from app.core.user_messages import m
 
 COMPLAINT_DELETE_RESTRICTED_MESSAGE = (
     m("complaint.cannot_delete_with_sla")

@@ -9,8 +9,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import ComplaintStatus, EscalationReasonCode
-from app.modules.appointments.schemas import AppointmentSummary
 from app.core.user_messages import m
+from app.modules.appointments.schemas import AppointmentSummary
 
 EscalationReasonCodeLiteral = Literal[
     "SPECIALIST_REQUIRED",

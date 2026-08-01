@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import Principal, require_final_resolution, require_permissions
 from app.core.errors import NotFoundError
 from app.core.schemas import DataResponse
+from app.core.user_messages import m
 from app.db.session import get_db_session
 from app.modules.resolutions.repository import ResolutionRepository
 from app.modules.resolutions.schemas import (
@@ -22,7 +23,6 @@ from app.modules.resolutions.schemas import (
     ResolveComplaintResult,
 )
 from app.modules.resolutions.service import ResolutionService
-from app.core.user_messages import m
 
 router = APIRouter(prefix="/api/v1/complaints", tags=["Resolutions"])
 
