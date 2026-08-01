@@ -15,43 +15,7 @@
 
 ## Changed Files
 
-- `07 API Catalog/README.md`
-- `07 API Catalog/openapi/complaint-service.v1.yaml`
-- `Sprint-09_Audit_Report.docx`
-- `Sprint-10_RC1_Audit_Report.docx`
-- `ai-platform/orchestrator/last_route.md`
-- `ai-platform/telemetry/runs/route_20260722T003522Z.json`
-- `ai-platform/telemetry/runs/route_20260722T023306Z.json`
-- `ai-platform/telemetry/runs/route_20260722T030432Z.json`
-- `ai-platform/telemetry/runs/route_20260722T114414Z.json`
-- `ai-platform/telemetry/runs/route_20260722T120803Z.json`
-- `ai-platform/telemetry/runs/route_20260723T002813Z.json`
-- `ai-platform/telemetry/runs/route_20260723T013830Z.json`
-- `ai-platform/telemetry/runs/route_20260723T023809Z.json`
-- `ai-platform/telemetry/runs/route_20260723T034709Z.json`
-- `ai-platform/telemetry/runs/route_20260723T035716Z.json`
-- `ai-platform/telemetry/runs/route_20260723T040449Z.json`
-- `ai/orchestrator/last_route.md`
-- `backend/alembic/versions/0006_escalation_review.py`
-- `backend/app/core/auth.py`
-- `backend/app/core/enums.py`
-- `backend/app/core/rbac.py`
-- `backend/app/models/__init__.py`
-- `backend/app/modules/escalations/repository.py`
-- `backend/app/modules/escalations/router.py`
-- `backend/app/modules/escalations/schemas.py`
-- `backend/app/modules/escalations/service.py`
-- `backend/tests/test_escalation_review.py`
-- `docs/verification/task012-escalation-review-desktop.png`
-- `docs/verification/task012-escalation-review-mobile.png`
-- `docs/verification/task012_uat.py`
-- `frontend/src/features/complaints/ComplaintDetailView.tsx`
-- `frontend/src/features/complaints/EscalationCard.tsx`
-- `frontend/src/features/complaints/TimelineCard.tsx`
-- `frontend/src/lib/api/escalations.ts`
-- `frontend/src/lib/api/index.ts`
-- `frontend/src/lib/api/types.ts`
-- `frontend/tsconfig.tsbuildinfo`
+- `CHANGELOG.md`
 
 ## Review Lanes
 
@@ -65,50 +29,16 @@
 - —
 
 ### documentation
-- `ai-platform/orchestrator/last_route.md`
-- `ai/orchestrator/last_route.md`
-- `docs/verification/task012-escalation-review-desktop.png`
-- `docs/verification/task012-escalation-review-mobile.png`
-- `docs/verification/task012_uat.py`
+- `CHANGELOG.md`
 
 ### api_events
-- `07 API Catalog/README.md`
-- `07 API Catalog/openapi/complaint-service.v1.yaml`
+- —
 
 ### implementation
 - —
 
 ### other
-- `Sprint-09_Audit_Report.docx`
-- `Sprint-10_RC1_Audit_Report.docx`
-- `ai-platform/telemetry/runs/route_20260722T003522Z.json`
-- `ai-platform/telemetry/runs/route_20260722T023306Z.json`
-- `ai-platform/telemetry/runs/route_20260722T030432Z.json`
-- `ai-platform/telemetry/runs/route_20260722T114414Z.json`
-- `ai-platform/telemetry/runs/route_20260722T120803Z.json`
-- `ai-platform/telemetry/runs/route_20260723T002813Z.json`
-- `ai-platform/telemetry/runs/route_20260723T013830Z.json`
-- `ai-platform/telemetry/runs/route_20260723T023809Z.json`
-- `ai-platform/telemetry/runs/route_20260723T034709Z.json`
-- `ai-platform/telemetry/runs/route_20260723T035716Z.json`
-- `ai-platform/telemetry/runs/route_20260723T040449Z.json`
-- `backend/alembic/versions/0006_escalation_review.py`
-- `backend/app/core/auth.py`
-- `backend/app/core/enums.py`
-- `backend/app/core/rbac.py`
-- `backend/app/models/__init__.py`
-- `backend/app/modules/escalations/repository.py`
-- `backend/app/modules/escalations/router.py`
-- `backend/app/modules/escalations/schemas.py`
-- `backend/app/modules/escalations/service.py`
-- `backend/tests/test_escalation_review.py`
-- `frontend/src/features/complaints/ComplaintDetailView.tsx`
-- `frontend/src/features/complaints/EscalationCard.tsx`
-- `frontend/src/features/complaints/TimelineCard.tsx`
-- `frontend/src/lib/api/escalations.ts`
-- `frontend/src/lib/api/index.ts`
-- `frontend/src/lib/api/types.ts`
-- `frontend/tsconfig.tsbuildinfo`
+- —
 
 ## Mandatory Checks
 

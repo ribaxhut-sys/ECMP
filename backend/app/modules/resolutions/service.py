@@ -13,6 +13,7 @@ from app.core.enums import (
     TimelineEvent,
 )
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import ComplaintResolution
 from app.modules.resolutions.repository import ResolutionRepository
 from app.modules.resolutions.schemas import (
@@ -26,22 +27,22 @@ from app.modules.resolutions.schemas import (
 
 RESOLVABLE_STATUS = ComplaintStatus.IN_PROGRESS
 TARGET_STATUS = ComplaintStatus.RESOLVED
-NOT_IN_PROGRESS_MESSAGE = "Complaint must be IN_PROGRESS before resolving."
+NOT_IN_PROGRESS_MESSAGE = m("complaint.must_be_in_progress_resolve")
 
 FINAL_RESOLUTION_ELIGIBLE_STATUS = ComplaintStatus.IN_PROGRESS
 NOT_IN_PROGRESS_FOR_FINAL_MESSAGE = (
-    "Complaint must be IN_PROGRESS before submitting final resolution."
+    m("complaint.must_be_in_progress_final")
 )
 APPOINTMENT_NOT_COMPLETED_MESSAGE = (
-    "Appointment must be COMPLETED before submitting final resolution."
+    m("appointment.must_be_completed_for_final_resolution")
 )
 APPOINTMENT_NO_SHOW_MESSAGE = (
-    "Final resolution is not allowed when appointment is NO_SHOW."
+    m("resolution.not_allowed_no_show")
 )
 APPOINTMENT_REQUIRED_MESSAGE = (
-    "An appointment is required before submitting final resolution."
+    m("appointment.required_before_final_resolution")
 )
-ALREADY_FINAL_RESOLUTION_MESSAGE = "Final resolution has already been submitted."
+ALREADY_FINAL_RESOLUTION_MESSAGE = m("resolution.already_submitted")
 # Placeholder category for resolution-row scaffolding (complaint stays IN_PROGRESS).
 _FINAL_RESOLUTION_CATEGORY = "SOLVED"
 
@@ -94,7 +95,7 @@ class ResolutionService:
     def get_current(self, complaint_id: uuid.UUID) -> ResolutionResponse | None:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         current = self._repo.get_current_resolution(complaint_id)
         if current is None:
             return None
@@ -105,7 +106,7 @@ class ResolutionService:
     ) -> FinalResolutionResponse | None:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         row = self._repo.get_final_resolution(complaint_id)
         if row is None:
             return None
@@ -120,7 +121,7 @@ class ResolutionService:
     ) -> ResolveComplaintResult:
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         if complaint.status != RESOLVABLE_STATUS:
             raise ValidationAppError(
@@ -131,7 +132,7 @@ class ResolutionService:
         resolved_by = payload.resolved_by or actor_user_id
         if payload.resolved_by is not None and payload.resolved_by != actor_user_id:
             raise ValidationAppError(
-                "resolvedBy must match the authenticated user",
+                m("resolution.resolved_by_must_match_user"),
                 details={
                     "resolvedBy": str(payload.resolved_by),
                     "actorUserId": str(actor_user_id),
@@ -141,7 +142,7 @@ class ResolutionService:
         resolver = self._repo.get_user(resolved_by)
         if resolver is None:
             raise ValidationAppError(
-                "Resolver not found or inactive",
+                m("resolution.resolver_not_found"),
                 details={"resolvedBy": str(resolved_by)},
             )
 
@@ -231,7 +232,7 @@ class ResolutionService:
         """API-310 — Final Resolution after appointment COMPLETED (DEC-011)."""
         complaint = self._repo.get_complaint(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         if complaint.status != FINAL_RESOLUTION_ELIGIBLE_STATUS:
             raise ValidationAppError(
@@ -279,12 +280,12 @@ class ResolutionService:
 
         escalation = self._repo.get_escalation(appointment.escalation_id)
         if escalation is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
 
         submitter = self._repo.get_user(actor_user_id)
         if submitter is None:
             raise ValidationAppError(
-                "Submitter not found or inactive",
+                m("complaint.submitter_not_found"),
                 details={"submittedBy": str(actor_user_id)},
             )
 

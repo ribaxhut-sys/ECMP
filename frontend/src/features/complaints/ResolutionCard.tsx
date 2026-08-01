@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -12,6 +13,7 @@ import type {
   Resolution,
   ResolutionCategory,
 } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -25,36 +27,14 @@ import {
   Toast,
 } from "@/shared/ui";
 
-const CATEGORY_OPTIONS: ReadonlyArray<{
-  value: ResolutionCategory;
-  label: string;
-}> = [
-  { value: "SOLVED", label: "Solved" },
-  { value: "WORKAROUND", label: "Workaround" },
-  { value: "DUPLICATE", label: "Duplicate" },
-  { value: "INVALID_REQUEST", label: "Invalid Request" },
-  { value: "USER_ERROR", label: "User Error" },
-  { value: "THIRD_PARTY", label: "Third Party" },
+const CATEGORY_VALUES: readonly ResolutionCategory[] = [
+  "SOLVED",
+  "WORKAROUND",
+  "DUPLICATE",
+  "INVALID_REQUEST",
+  "USER_ERROR",
+  "THIRD_PARTY",
 ];
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-function categoryLabel(value: ResolutionCategory): string {
-  return (
-    CATEGORY_OPTIONS.find((option) => option.value === value)?.label ??
-    value.replaceAll("_", " ")
-  );
-}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -79,7 +59,16 @@ export function ResolutionCard({
   onResolved?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tCategory = useTranslations("resolutionCategory");
+  const locale = useLocale();
   const canUpdate = hasPermission("complaints:update");
+
+  const categoryOptions = CATEGORY_VALUES.map((value) => ({
+    value,
+    label: tCategory(value),
+  }));
 
   const [resolution, setResolution] = useState<Resolution | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,13 +102,13 @@ export function ResolutionCard({
             ? err.message
             : err instanceof Error
               ? err.message
-              : "Unable to load resolution.",
+              : t("unableToLoadResolution"),
         );
       }
     } finally {
       setLoading(false);
     }
-  }, [complaintId]);
+  }, [complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -130,9 +119,9 @@ export function ResolutionCard({
     setSubmitError(null);
 
     const nextErrors: typeof fieldErrors = {};
-    if (!category) nextErrors.category = "Category is required.";
-    if (!rootCause.trim()) nextErrors.rootCause = "Root cause is required.";
-    if (!notes.trim()) nextErrors.notes = "Resolution notes are required.";
+    if (!category) nextErrors.category = t("categoryRequired");
+    if (!rootCause.trim()) nextErrors.rootCause = t("rootCauseRequired");
+    if (!notes.trim()) nextErrors.notes = t("resolutionNotesRequired");
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -156,7 +145,7 @@ export function ResolutionCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Resolve failed.",
+            : t("resolveFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -169,65 +158,67 @@ export function ResolutionCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Resolution</CardTitle>
+          <CardTitle>{t("resolutionCard")}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Loading resolution…
+              {t("loadingResolution")}
             </p>
           ) : loadError ? (
             <Alert
               tone="danger"
-              title="Could not load resolution"
+              title={t("couldNotLoadResolution")}
               description={loadError}
-              actionLabel="Retry"
+              actionLabel={tCommon("retry")}
               onAction={() => void load()}
             />
           ) : resolution ? (
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <DetailField
-                label="Category"
-                value={categoryLabel(resolution.resolutionCategory)}
+                label={t("category")}
+                value={tCategory(resolution.resolutionCategory)}
               />
               <DetailField
-                label="Resolved By"
-                value={resolution.resolvedByName?.trim() || "—"}
+                label={t("resolvedBy")}
+                value={resolution.resolvedByName?.trim() || tCommon("emDash")}
               />
-              <DetailField label="Root Cause" value={resolution.rootCause} />
+              <DetailField label={t("rootCause")} value={resolution.rootCause} />
               <DetailField
-                label="Resolved At"
-                value={formatWhen(resolution.resolvedAt)}
+                label={t("resolvedAt")}
+                value={formatDateTime(resolution.resolvedAt, locale)}
               />
               <div className="sm:col-span-2">
-                <DetailField label="Notes" value={resolution.resolutionNotes} />
+                <DetailField
+                  label={t("resolutionNotes")}
+                  value={resolution.resolutionNotes}
+                />
               </div>
             </dl>
           ) : showForm ? null : (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              No resolution recorded yet.
+              {t("noResolutionYet")}
             </p>
           )}
 
           {showForm ? (
             <form className="space-y-4 border-t border-ecmp-border pt-4" onSubmit={onSubmit}>
               <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                Complete the resolution form to move this complaint to RESOLVED.
-                Closing requires a resolution first.
+                {t("resolutionFormHint")}
               </p>
               {submitError ? (
                 <Alert
                   tone="danger"
-                  title="Resolve failed"
+                  title={t("resolveFailed")}
                   description={submitError}
                 />
               ) : null}
               <Select
-                label="Category"
+                label={t("category")}
                 name="resolutionCategory"
                 required
-                placeholder="Select category"
-                options={CATEGORY_OPTIONS}
+                placeholder={t("selectCategoryPlaceholder")}
+                options={categoryOptions}
                 value={category}
                 error={fieldErrors.category}
                 onChange={(event) =>
@@ -235,7 +226,7 @@ export function ResolutionCard({
                 }
               />
               <Input
-                label="Root Cause"
+                label={t("rootCause")}
                 name="rootCause"
                 required
                 value={rootCause}
@@ -243,7 +234,7 @@ export function ResolutionCard({
                 onChange={(event) => setRootCause(event.target.value)}
               />
               <Textarea
-                label="Resolution Notes"
+                label={t("resolutionNotes")}
                 name="resolutionNotes"
                 required
                 rows={4}
@@ -253,7 +244,7 @@ export function ResolutionCard({
               />
               <div className="flex justify-end">
                 <Button type="submit" variant="primary" disabled={submitting}>
-                  {submitting ? "Resolving…" : "Resolve"}
+                  {submitting ? t("resolving") : t("recordResolution")}
                 </Button>
               </div>
             </form>
@@ -264,8 +255,8 @@ export function ResolutionCard({
         open={toastOpen}
         onClose={() => setToastOpen(false)}
         tone="success"
-        title="Complaint resolved"
-        description="Status is now RESOLVED."
+        title={t("complaintResolved")}
+        description={t("statusNowResolved")}
       />
     </>
   );

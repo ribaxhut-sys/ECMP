@@ -8,8 +8,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.core.logging import get_logger
-from app.modules.execution.planner import ExecutionPlanner
 from app.modules.execution.models import ExecutionPlan
+from app.modules.execution.planner import ExecutionPlanner
 from app.modules.execution.store import ExecutionPlanStore
 from app.modules.workflow.models import WorkflowInstance
 

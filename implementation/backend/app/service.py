@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.domain import workflow
@@ -200,6 +201,58 @@ def list_cases(
         "pageSize": page_size,
         "totalItems": total_items,
     }
+
+
+def _supervisor_unit_scope(user: dict) -> set[str]:
+    """CAP-007 v0.1: Supervisor unit scope (DEC-CAP007-BQ-001 §4 / BR-006)."""
+    supervised = set(user.get("supervisedUnitIds") or set())
+    org = user.get("orgUnitId")
+    if org:
+        supervised.add(org)
+    return {u for u in supervised if u}
+
+
+def get_dashboard_queues(session: Session, user: dict) -> dict:
+    """API-040 / FR-040: operational case queue aggregates (read-only).
+
+    Case SoT = Sprint ECMF ``cases`` + DOM-ECMF-003 (DEC-CAP007-BQ-001 §1).
+    Scoped to the caller's supervised/org unit(s). Cases without unitId are
+    excluded (not yet attributable to a unit). Response shape matches
+    ``dashboard-queues.v1.yaml`` (unwrapped ``asOf`` + ``queues``).
+    """
+    units = _supervisor_unit_scope(user)
+    as_of = _utcnow()
+    if not units:
+        return {"asOf": as_of, "queues": []}
+
+    rows = (
+        session.query(
+            CaseModel.unit_id,
+            CaseModel.status,
+            func.count().label("count"),
+            func.min(CaseModel.created_at).label("oldest_created_at"),
+        )
+        .filter(CaseModel.unit_id.in_(units))
+        .group_by(CaseModel.unit_id, CaseModel.status)
+        .order_by(CaseModel.unit_id.asc(), CaseModel.status.asc())
+        .all()
+    )
+
+    queues = [
+        {
+            "unitId": row.unit_id,
+            "status": row.status,
+            "count": int(row.count),
+            "oldestCreatedAt": (
+                _as_utc(row.oldest_created_at)
+                if row.oldest_created_at is not None
+                else None
+            ),
+        }
+        for row in rows
+        if row.unit_id is not None
+    ]
+    return {"asOf": as_of, "queues": queues}
 
 
 def _assert_assign_org_scope(case: CaseModel, user: dict, target_unit_id: str) -> None:

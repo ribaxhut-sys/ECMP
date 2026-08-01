@@ -57,22 +57,19 @@ Event → Match Rule/Template → Recipients → Deliver → Log → Retry if fa
 ## Objective
 Notifikasi event-driven dengan template, routing, delivery log, dan retry. Opt-in: hanya event yang dikonfigurasi eksplisit yang memicu notifikasi (BR-NOTIF-01 → delivery BR-004).
 
+**TASK-047 (Notification Domain Foundation):** first in-process consumer of
+`EventDispatcher`. Builds immutable `Notification` objects from Complaint
+lifecycle events. **No channel delivery** in this task.
+
+**CAPABILITY-009:** Persisted notification requests (`notification_queue`) with
+lifecycle Pending → Sending (`PROCESSING`) → Sent / Failed / Cancelled,
+stub `NotificationProvider`, REST retry/process (API-356/357), and
+`NotificationPersistenceHandler` (Complaint unchanged). Real SMTP / WhatsApp /
+SMS / Push / webhook remain out of scope.
+
 ## Bounded Context
 Konteks Messaging/Delivery: subscribe domain events → match rule/template → resolve recipients dinamis (role/assignment/organisasi, bukan daftar statis — BR-NOTIF-02) → deliver → log.
 
-## In Scope
-- Event subscription/routing (configurable, BR-004)
-- Templates
-- Multi-channel delivery, phase-based (in-app/email dulu; email gateway opsional)
-- Delivery logs wajib disimpan (BR-NOTIF-03) + retry saat gagal (BR-NOTIF-04)
-
-## Out of Scope
-- Menghasilkan domain event bisnis; menentukan isi/aturan bisnis case
-
-## Key Components
-- Event Subscriber (idempotent consumer), Notification Rule engine, Template renderer, Recipient Resolver, Delivery Adapter (in-app/email), Delivery Log + Retry scheduler.
-
-## Key Flows
-Event → Match Rule/Template → Resolve Recipients → Deliver → Log → Retry b
+TASK-047 scope is narrower: **consume → build Notifica
 
 _…truncated…_

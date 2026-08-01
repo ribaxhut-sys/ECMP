@@ -11,6 +11,7 @@ from app.core.enums import (
     TimelineEvent,
 )
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import Appointment
 from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
@@ -26,21 +27,21 @@ from app.modules.appointments.schemas import (
     AppointmentSummary,
 )
 
-NOT_APPROVED_MESSAGE = "Escalation must be APPROVED before booking an appointment."
-HAS_ACTIVE_APPOINTMENT_MESSAGE = "Escalation already has an active appointment."
-ENGINEER_NOT_FOUND_MESSAGE = "Assigned engineer not found or inactive."
-OVERLAP_MESSAGE = "Appointment overlaps an existing booking for this engineer."
-NOT_BOOKED_MESSAGE = "Only BOOKED appointments can be checked in."
-ALREADY_CHECKED_IN_MESSAGE = "Appointment has already been checked in."
-NOT_CHECKED_IN_MESSAGE = "Only CHECKED_IN appointments can be completed."
-ALREADY_COMPLETED_MESSAGE = "Appointment has already been completed."
-NOT_BOOKED_FOR_NO_SHOW_MESSAGE = "Only BOOKED appointments can be marked as no-show."
-ALREADY_NO_SHOW_MESSAGE = "Appointment has already been marked as no-show."
+NOT_APPROVED_MESSAGE = m("escalation.must_be_approved_for_booking")
+HAS_ACTIVE_APPOINTMENT_MESSAGE = m("escalation.has_active_appointment")
+ENGINEER_NOT_FOUND_MESSAGE = m("appointment.engineer_not_found")
+OVERLAP_MESSAGE = m("appointment.overlap_booking")
+NOT_BOOKED_MESSAGE = m("appointment.only_booked_check_in")
+ALREADY_CHECKED_IN_MESSAGE = m("appointment.already_checked_in")
+NOT_CHECKED_IN_MESSAGE = m("appointment.only_checked_in_complete")
+ALREADY_COMPLETED_MESSAGE = m("appointment.already_completed")
+NOT_BOOKED_FOR_NO_SHOW_MESSAGE = m("appointment.only_booked_no_show")
+ALREADY_NO_SHOW_MESSAGE = m("appointment.already_no_show")
 NO_SHOW_AFTER_CHECK_IN_MESSAGE = (
-    "Cannot mark no-show: appointment is already checked in."
+    m("appointment.no_show_already_checked_in")
 )
 NO_SHOW_AFTER_COMPLETED_MESSAGE = (
-    "Cannot mark no-show: appointment is already completed."
+    m("appointment.no_show_already_completed")
 )
 
 
@@ -73,7 +74,7 @@ class AppointmentService:
         """API-305 — book appointment on APPROVED escalation."""
         escalation = self._repo.get_escalation(escalation_id)
         if escalation is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
 
         if escalation.status != EscalationRequestStatus.APPROVED:
             raise ValidationAppError(
@@ -115,7 +116,7 @@ class AppointmentService:
 
         complaint = self._repo.get_complaint(escalation.complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         now = datetime.now(UTC)
         appointment = Appointment(
@@ -176,7 +177,7 @@ class AppointmentService:
         """API-307 — customer check-in for BOOKED appointment."""
         row = self._repo.get_by_id(appointment_id)
         if row is None:
-            raise NotFoundError("Appointment not found")
+            raise NotFoundError(m("appointment.not_found"))
 
         if row.status == AppointmentStatus.CHECKED_IN or row.checked_in_at is not None:
             raise ValidationAppError(
@@ -191,11 +192,11 @@ class AppointmentService:
 
         escalation = self._repo.get_escalation(row.escalation_id)
         if escalation is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
 
         complaint = self._repo.get_complaint(escalation.complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         now = datetime.now(UTC)
         row.status = AppointmentStatus.CHECKED_IN
@@ -247,7 +248,7 @@ class AppointmentService:
         """API-308 — complete CHECKED_IN appointment."""
         row = self._repo.get_by_id(appointment_id)
         if row is None:
-            raise NotFoundError("Appointment not found")
+            raise NotFoundError(m("appointment.not_found"))
 
         if row.status == AppointmentStatus.COMPLETED or row.completed_at is not None:
             raise ValidationAppError(
@@ -262,11 +263,11 @@ class AppointmentService:
 
         escalation = self._repo.get_escalation(row.escalation_id)
         if escalation is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
 
         complaint = self._repo.get_complaint(escalation.complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         now = datetime.now(UTC)
         row.status = AppointmentStatus.COMPLETED
@@ -327,7 +328,7 @@ class AppointmentService:
         """API-309 — mark BOOKED appointment as customer no-show."""
         row = self._repo.get_by_id(appointment_id)
         if row is None:
-            raise NotFoundError("Appointment not found")
+            raise NotFoundError(m("appointment.not_found"))
 
         if row.status == AppointmentStatus.NO_SHOW or row.no_show_at is not None:
             raise ValidationAppError(
@@ -358,11 +359,11 @@ class AppointmentService:
 
         escalation = self._repo.get_escalation(row.escalation_id)
         if escalation is None:
-            raise NotFoundError("Escalation not found")
+            raise NotFoundError(m("escalation.not_found"))
 
         complaint = self._repo.get_complaint(escalation.complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         now = datetime.now(UTC)
         row.status = AppointmentStatus.NO_SHOW
@@ -410,7 +411,7 @@ class AppointmentService:
         """API-306 — get appointment by id."""
         row = self._repo.get_by_id(appointment_id)
         if row is None:
-            raise NotFoundError("Appointment not found")
+            raise NotFoundError(m("appointment.not_found"))
         return _to_response(row)
 
     def get_active_summary(

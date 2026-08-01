@@ -58,20 +58,36 @@ def test_correlation_id_defaults_to_request_id(client):
     assert res.headers.get("X-Correlation-ID") == "req-only-1"
 
 
-def test_health_liveness_unchanged_shape(client):
+def test_live_liveness_shape(client):
+    res = client.get("/live")
+    assert res.status_code == 200
+    body = res.json()
+    assert body == {"status": "ok", "service": "ecmp-case-service"}
+
+
+def test_legacy_health_informational(client):
     res = client.get("/health")
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "ok"
     assert body["service"] == "ecmp-case-service"
-    assert "sprint" in body
+    assert body["database"] in {"up", "down"}
+
+
+def test_version_provenance_shape(client):
+    res = client.get("/version")
+    assert res.status_code == 200
+    body = res.json()
+    for key in ("version", "git_commit", "branch", "build_time", "environment"):
+        assert key in body
 
 
 def test_readiness_ok(client):
-    res = client.get("/health/ready")
+    res = client.get("/ready")
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "ready"
+    assert body["checks"]["startup"] == "ok"
     assert body["checks"]["database"] == "ok"
 
 
@@ -84,11 +100,12 @@ def test_readiness_fails_when_db_unreachable(monkeypatch, client):
     )
     reset_engine()
     try:
-        res = client.get("/health/ready")
+        res = client.get("/ready")
         assert res.status_code == 503
         body = res.json()
         assert body["status"] == "not_ready"
         assert body["checks"]["database"] == "fail"
+        assert body["checks"]["startup"] == "ok"
     finally:
         monkeypatch.setenv("ECMP_DATABASE_URL", original)
         reset_engine()

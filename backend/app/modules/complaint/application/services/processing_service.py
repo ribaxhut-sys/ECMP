@@ -110,7 +110,7 @@ class ComplaintProcessingApplicationService:
         if complaint is None:
             raise ComplaintApplicationError(
                 "COMPLAINT_NOT_FOUND",
-                f"complaint not found: {complaint_id}",
+                f"pengaduan tidak ditemukan: {complaint_id}",
             )
         return complaint
 

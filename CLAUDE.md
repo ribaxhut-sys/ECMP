@@ -73,7 +73,7 @@ kontrak nyata sudah diperoleh.
 Folder bernomor `00`–`27` adalah dokumentasi arsitektur (EAR). Yang sering dipakai:
 
 - `02 Business Rules`, `03 Functional Requirements` — sumber kebenaran perilaku
-- `04 Solution Architecture`, `05 Architecture Decision Records` — ADR-014/015 di sini
+- `04 Solution Architecture`, `05 Architecture Decision Records` — ADR-014 (Business Module v1.4), ADR-015 (Identity Contract v1.3); Mode B Closed (C-7)
 - `13 Test Strategy`, `14 Deployment Standards`, `15 Operations Runbook`
 - `16 Release Management`, `18 Architecture Governance`, `26 Traceability`
 
@@ -81,9 +81,10 @@ Kode:
 
 - `backend/` — FastAPI + SQLAlchemy + Alembic (Python 3.13, ruff line-length 100)
 - `frontend/` — Next.js + TypeScript
-- `deploy/proxy/` — Caddy dan nginx
-- `deploy/vps/` — bootstrap VPS + panduan Claude Code di server
+- `deploy/proxy/` — Caddy dan nginx (lab override + certs)
+- `deploy/README.md` (+ evidence pack) — operasi lab/VPS / bootstrap & panduan Claude Code di server (folder `deploy/vps/` **BELUM ADA** sebagai tree terpisah)
 - `scripts/validate-production-config.py` — validator konfigurasi fail-fast
+- `scripts/release/` — helper rilis
 
 ---
 
@@ -113,7 +114,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 - **`.env` tidak pernah di-commit.** Sudah di-gitignore; jangan pernah dilonggarkan.
 - Jangan menulis token API, password, atau kunci apa pun ke dalam file di repo ini —
   termasuk ke dalam dokumentasi atau contoh.
-- `.env.production.example` hanya template; semua nilainya placeholder.
+- `.env.production.example` / `.env.prod.example` hanya template; semua nilainya placeholder.
 - Saat menampilkan isi `.env` untuk diagnosis, ambil hanya kunci non-rahasia
   (`ECMP_DOMAIN`, `ENVIRONMENT`, `ECMP_AUTH_MODE`, `IMAGE_TAG`, dsb).
 
@@ -136,9 +137,9 @@ PostgreSQL 16 · backend · frontend. Backend dan frontend **dibangun dari sourc
 (`build: context:`), jadi deployment memerlukan repo lengkap di host — tidak bisa lewat
 API yang hanya mengirim isi compose.
 
-VPS: Hostinger, `srv1869401.hstgr.cloud`. User aplikasi `ecmp` (grup `sudo` + `docker`).
-ufw mengizinkan 80/443, SSH di-rate-limit. Firewall hPanel adalah lapisan terpisah —
-keduanya harus mengizinkan. Panduan lengkap: `deploy/vps/README.md`.
+VPS lab (contoh): Hostinger, `srv1869401.hstgr.cloud`. User aplikasi `ecmp` (grup `sudo` + `docker`) bila di-provision demikian.
+ufw mengizinkan 80/443, SSH di-rate-limit. Firewall hPanel / panel host adalah lapisan terpisah —
+keduanya harus mengizinkan. Panduan: `deploy/README.md`, `deploy/proxy/README.md` (bukan `deploy/vps/` — tree terpisah belum ada).
 
 Ambil snapshot hPanel sebelum deploy produksi pertama.
 

@@ -10,6 +10,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.iam.data_scope.models import (
     DataScope,
     ScopeType,
@@ -84,7 +85,7 @@ class DataScopeService:
             is not None
         ):
             raise ConflictError(
-                "Data scope already exists for role",
+                m("iam.data_scope_exists"),
                 details={
                     "roleId": str(payload.role_id),
                     "scopeType": scope_type,
@@ -123,7 +124,7 @@ class DataScopeService:
         existing = self._repo.get_by_key(row.role_id, scope_type, scope_value)
         if existing is not None and existing.id != row.id:
             raise ConflictError(
-                "Data scope already exists for role",
+                m("iam.data_scope_exists"),
                 details={
                     "roleId": str(row.role_id),
                     "scopeType": scope_type,
@@ -154,7 +155,7 @@ class DataScopeService:
             normalized.append(pair)
         if len(normalized) != len(set(normalized)):
             raise ValidationAppError(
-                "scopes must not contain duplicates",
+                m("config.scopes_no_duplicates"),
                 details={
                     "scopes": [
                         {"scopeType": t, "scopeValue": v} for t, v in normalized
@@ -182,9 +183,9 @@ class DataScopeService:
     def _require(self, scope_id: uuid.UUID) -> DataScope:
         row = self._repo.get_by_id(scope_id)
         if row is None:
-            raise NotFoundError("Data scope not found")
+            raise NotFoundError(m("iam.data_scope_not_found"))
         return row
 
     def _require_role(self, role_id: uuid.UUID) -> None:
         if self._repo.get_role(role_id) is None:
-            raise NotFoundError("Role not found")
+            raise NotFoundError(m("iam.role_not_found"))

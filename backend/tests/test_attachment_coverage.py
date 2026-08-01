@@ -91,14 +91,14 @@ def test_build_storage_provider_rejects_unknown_and_empty_root(tmp_path: Path) -
         SETTING_STORAGE_PROVIDER: "s3",
         SETTING_STORAGE_ROOT_PATH: "x",
     }.get(key, default or "")
-    with pytest.raises(ValidationAppError, match="unsupported"):
+    with pytest.raises(ValidationAppError, match="tidak didukung"):
         build_storage_provider(settings)
 
     settings.get_string.side_effect = lambda key, default=None: {
         SETTING_STORAGE_PROVIDER: "local",
         SETTING_STORAGE_ROOT_PATH: "  ",
     }.get(key, default or "")
-    with pytest.raises(ValidationAppError, match="empty"):
+    with pytest.raises(ValidationAppError, match="kosong"):
         build_storage_provider(settings)
 
     settings.get_string.side_effect = lambda key, default=None: {
@@ -199,7 +199,7 @@ def test_service_list_for_complaint_and_db_failure_cleanup(tmp_path: Path) -> No
     assert len(data) == 1
     assert meta.total_items == 1
 
-    with pytest.raises(ValidationAppError, match="aggregate"):
+    with pytest.raises(ValidationAppError, match="agregat"):
         svc.list(aggregate_type="Invoice")
 
     repo.add.side_effect = RuntimeError("db down")
@@ -273,9 +273,15 @@ def test_router_handlers_call_service() -> None:
 
     upload_file.read = _read
 
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = None
+    batch1.try_get.return_value = None
+    batch1.resolve_platform_attachment_id.side_effect = lambda aid: aid
+
     created = asyncio.run(
         upload_attachment(
             service=svc,
+            batch1=batch1,
             principal=principal,
             aggregate_type="Complaint",
             aggregate_id=entity.aggregate_id,
@@ -284,19 +290,31 @@ def test_router_handlers_call_service() -> None:
     )
     assert created.data.id == entity.id
 
-    assert get_attachment(entity.id, svc, principal).data.id == entity.id
+    assert get_attachment(entity.id, svc, batch1, principal).data.id == entity.id
     listed = list_attachments(svc, principal)
     assert listed.meta.total_items == 1
-    dl = download_attachment(entity.id, svc, principal)
+    dl = download_attachment(entity.id, svc, batch1, principal)
     assert dl.body == b"%PDF"
 
-    complaint_listed = list_complaint_attachments(entity.aggregate_id, svc, principal)
-    assert complaint_listed.meta.total_items == 1
+    with patch(
+        "app.modules.attachment.router.CmBatch1Repository"
+    ) as repo_cls:
+        repo_cls.return_value.get.return_value = None
+        complaint_listed = list_complaint_attachments(
+            entity.aggregate_id,
+            svc,
+            batch1,
+            session=MagicMock(),
+            principal=principal,
+        )
+        assert complaint_listed.meta.total_items == 1
 
     request = MagicMock()
     session = MagicMock()
     with patch("app.modules.attachment.router.write_audit") as audit:
-        result = delete_attachment(entity.id, request, session, svc, principal)
+        result = delete_attachment(
+            entity.id, request, session, svc, batch1, principal
+        )
         assert result.status_code == 204
         audit.assert_called_once()
         svc.soft_delete.assert_called_once_with(entity.id)

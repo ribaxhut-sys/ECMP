@@ -39,7 +39,7 @@ class IssueTicketHandler:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {command.queue_id}",
+                f"antrian tidak ditemukan: {command.queue_id}",
             )
         self._domain.validate_can_issue_ticket(queue)
         self._domain.validate_priority_rules(queue.policy, command.priority)

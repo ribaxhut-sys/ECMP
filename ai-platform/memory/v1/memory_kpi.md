@@ -62,21 +62,19 @@ Mengukur service performance dan SLA compliance dari event operasional — bukan
 ## Bounded Context
 Konteks Measurement: konsumsi domain events → hitung metric/SLA → hasilkan Performance Fact yang traceable ke transaksi sumber (BR-KPI-04). KPI tidak mengubah data transaksional.
 
+**TASK-051 (KPI Projection Foundation):** in-process `KpiProjection`
+read model updated only from Complaint events via `EventDispatcher`.
+No aggregate reads, no `ComplaintService` calls, no HTTP projection API,
+no persistence.
+
 ## In Scope
 - Metric definitions dan targets (wajib formula, owner, periode — BR-KPI-01; perubahan via governance konfigurasi — BR-KPI-02)
 - SLA calculation dari status history/SLA clock
 - Breach detection → emit EVT-004 SLABreached
+- TASK-051: in-memory KPI projection from ComplaintCreated…Escalated
 
 ## Out of Scope
 - Visualisasi (milik Dashboard); definisi SLA parameter (milik Administration — SLA Config)
-
-## Key Components
-- Event Ingestor (idempotent consumer), SLA Calculator, Breach Detector, Performance Fact store, Metric Registry.
-
-## Key Flows
-Event masuk → update SLA clock/status fact → deteksi breach → emit EVT-004 → finalisasi lead time saat CaseClosed; restart clock saat CaseReopened.
-
-## Data Ownership
-Metric Definition, Target,
+- TASK-051: HTTP projection API, DB/materia
 
 _…truncated…_

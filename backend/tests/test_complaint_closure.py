@@ -243,5 +243,10 @@ def test_require_complaint_close_rejects_missing_permission() -> None:
         permissions=frozenset({"complaints:read"}),
     )
     gate = require_permissions("complaints:close")
+    request = MagicMock()
+    request.state = SimpleNamespace(request_id="unit-req-1")
+    request.headers = {}
+    request.url.path = "/unit"
+    request.client = None
     with pytest.raises(ForbiddenError):
-        gate(principal)
+        gate(principal=principal, request=request, session=MagicMock())

@@ -1,5 +1,13 @@
 # ECMP Sprint-08 — Production Readiness: Implementation Plan
 
+> **Historical (P6-003):** This plan targeted the **legacy** pack under `implementation/backend/`.
+> Canonical production/ops stack is root **`backend/`** + `docs/deployment/` +
+> `15 Operations Runbook/` Backup & Recovery guides (OPS-BAK-001 / OPS-RST-001 / OPS-DR-001 /
+> OPS-RCV-001). Gap rows below that say restore drill **MISSING** are **obsolete** — a DEV scratch
+> drill PASS exists (`15 Operations Runbook/evidence/restore-drill-20260722/`). Shared-env drill
+> remains Planned. Application probes are foundation **`/live`** / **`/ready`**, not `/health`.
+> Do not implement schedulers/WAL/PITR from this historical plan without a new authorized task.
+
 Engineering plan only — no code. Grounded in reading actual source (`app/settings.py`, `app/main.py`,
 `app/db.py`, `app/auth.py`, CI workflows) and the repo's own governance documents (ADR-010, TS-001,
 DEP-001, SEC-STD-001, OPS-DR-001), not on assumptions about what a "production readiness" sprint

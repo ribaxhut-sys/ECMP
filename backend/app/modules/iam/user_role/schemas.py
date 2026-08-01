@@ -6,6 +6,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.user_messages import m
+
 
 class UserRolesReplaceRequest(BaseModel):
     """API-352 replace user roles (full set)."""
@@ -18,5 +20,5 @@ class UserRolesReplaceRequest(BaseModel):
     @classmethod
     def no_duplicates(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
         if len(value) != len(set(value)):
-            raise ValueError("roleIds must not contain duplicates")
+            raise ValueError(m("config.role_ids_no_duplicates"))
         return value

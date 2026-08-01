@@ -11,20 +11,14 @@ HTTP, or queues.
 
 from __future__ import annotations
 
-
-
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Mapping
-
-
 
 from app.core.logging import get_logger
 from app.modules.execution.lifecycle import ExecutionLifecycle, ExecutionStateMachine
 from app.modules.execution.run_store import ExecutionRunStore
 from app.modules.execution.runtime_models import ExecutionRun, ExecutionRunStatus
-
-
 
 logger = get_logger(__name__)
 

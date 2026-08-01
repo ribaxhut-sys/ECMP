@@ -14,40 +14,21 @@ Assignment does not mutate Complaint lifecycle status.
 
 from __future__ import annotations
 
-
-
 import uuid
-
 from dataclasses import dataclass
-
 from datetime import datetime
 
-
-
 from app.core.request_context import RequestContext
-
 from app.modules.complaint.application.dto import AssignmentDto
-
 from app.modules.complaint.application.services.domain_service import (
-
     ComplaintDomainService,
-
 )
-
 from app.modules.complaint.application.services.errors import ComplaintApplicationError
-
 from app.modules.complaint.domain.models import AssigneeType, Complaint
-
 from app.modules.complaint.domain.repositories import (
-
     AssignmentRepository,
-
     ComplaintRepository,
-
 )
-
-
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,7 +239,7 @@ class ComplaintAssignmentApplicationService:
 
                 "ASSIGNMENT_NOT_FOUND",
 
-                f"no active assignment for complaint: {complaint_id}",
+                f"tidak ada penugasan aktif untuk pengaduan: {complaint_id}",
 
             )
 
@@ -292,7 +273,7 @@ class ComplaintAssignmentApplicationService:
 
                 "COMPLAINT_NOT_FOUND",
 
-                f"complaint not found: {complaint_id}",
+                f"pengaduan tidak ditemukan: {complaint_id}",
 
             )
 

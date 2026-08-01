@@ -77,3 +77,24 @@ def allowed_origins() -> list[str]:
 
 def log_level() -> str:
     return os.getenv("ECMP_LOG_LEVEL", "INFO").upper()
+
+
+def release_version() -> str:
+    """App version string for GET /version (build ARG or fallback to OpenAPI version)."""
+    return os.getenv("ECMP_RELEASE_VERSION", "1.7.0")
+
+
+def git_commit() -> str:
+    return os.getenv("ECMP_GIT_COMMIT", "unknown")
+
+
+def git_branch() -> str:
+    return os.getenv("ECMP_GIT_BRANCH", "unknown")
+
+
+def build_time() -> str:
+    return os.getenv("ECMP_BUILD_TIME", "unknown")
+
+
+def git_tree_state() -> str:
+    return os.getenv("ECMP_GIT_TREE_STATE", "unknown")

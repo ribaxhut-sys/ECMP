@@ -17,6 +17,7 @@ from app.core.enums import (
     ComplaintTargetType,
 )
 from app.core.errors import ValidationAppError
+from app.core.user_messages import m
 
 # Default supported (source_type, target_type) → receiver_type pairs.
 # Future routes are added here only — not in Complaint / Assignment services.
@@ -69,7 +70,7 @@ class ComplaintRoutingService:
         key = (source_type, target_type)
         if key not in _DEFAULT_ROUTES:
             raise ValidationAppError(
-                "Invalid complaint route.",
+                m("complaint.invalid_route"),
                 details={
                     "sourceType": source_type.value,
                     "targetType": target_type.value,
@@ -92,7 +93,7 @@ class ComplaintRoutingService:
 
         if target_id is None:
             raise ValidationAppError(
-                "targetId is required for this route.",
+                m("complaint.target_id_required"),
                 details={
                     "sourceType": source_type.value,
                     "targetType": target_type.value,

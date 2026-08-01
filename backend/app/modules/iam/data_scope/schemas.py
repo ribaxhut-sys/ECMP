@@ -7,6 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.user_messages import m
 from app.modules.iam.data_scope.models import (
     ScopeType,
     scope_forbids_value,
@@ -58,7 +59,7 @@ class DataScopeReplaceRequest(BaseModel):
     def no_duplicates(self) -> DataScopeReplaceRequest:
         keys = [(item.scope_type, item.scope_value) for item in self.scopes]
         if len(keys) != len(set(keys)):
-            raise ValueError("scopes must not contain duplicates")
+            raise ValueError(m("config.scopes_no_duplicates"))
         return self
 
 
@@ -101,7 +102,7 @@ class DataScopeUpdateRequest(BaseModel):
     @model_validator(mode="after")
     def at_least_one_field(self) -> DataScopeUpdateRequest:
         if self.scope_type is None and "scope_value" not in self.model_fields_set:
-            raise ValueError("at least one field is required")
+            raise ValueError(m("config.at_least_one_field"))
         return self
 
 

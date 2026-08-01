@@ -26,13 +26,13 @@ export function createEmptySlaPolicyForm(): SlaPolicyFormValues {
   };
 }
 
-function parsePositiveInt(raw: string, label: string): string | null {
+function parsePositiveInt(raw: string): string | null {
   const trimmed = raw.trim();
-  if (!trimmed) return `${label} is required.`;
-  if (!/^\d+$/.test(trimmed)) return `${label} must be a whole number.`;
+  if (!trimmed) return "required";
+  if (!/^\d+$/.test(trimmed)) return "fieldWholeNumber";
   const value = Number(trimmed);
   if (!Number.isFinite(value) || value < 1) {
-    return `${label} must be at least 1.`;
+    return "fieldAtLeast";
   }
   return null;
 }
@@ -44,25 +44,22 @@ export function validateSlaPolicyForm(
 
   const name = values.name.trim();
   if (!name) {
-    errors.name = "Name is required.";
+    errors.name = "policyNameRequired";
   } else if (name.length > 100) {
-    errors.name = "Name must be 100 characters or fewer.";
+    errors.name = "policyNameMax";
   }
 
-  const fields: Array<{
-    key: keyof SlaPolicyFormValues;
-    label: string;
-  }> = [
-    { key: "assignmentTargetMinutes", label: "Assignment target" },
-    { key: "appointmentTargetMinutes", label: "Appointment target" },
-    { key: "resolutionTargetMinutes", label: "Resolution target" },
-    { key: "escalationTargetMinutes", label: "Escalation target" },
-    { key: "overallTargetMinutes", label: "Overall target" },
+  const fields: Array<keyof SlaPolicyFormValues> = [
+    "assignmentTargetMinutes",
+    "appointmentTargetMinutes",
+    "resolutionTargetMinutes",
+    "escalationTargetMinutes",
+    "overallTargetMinutes",
   ];
 
   for (const field of fields) {
-    const message = parsePositiveInt(values[field.key], field.label);
-    if (message) errors[field.key] = message;
+    const message = parsePositiveInt(values[field]);
+    if (message) errors[field] = message;
   }
 
   return errors;
@@ -81,13 +78,4 @@ export function toSlaPolicyCreateRequest(
     escalationTargetMinutes: Number(values.escalationTargetMinutes.trim()),
     overallTargetMinutes: Number(values.overallTargetMinutes.trim()),
   };
-}
-
-export function formatTargetMinutes(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  if (minutes % 60 === 0) {
-    const hours = minutes / 60;
-    return hours === 1 ? "1 hr" : `${hours} hrs`;
-  }
-  return `${minutes} min`;
 }

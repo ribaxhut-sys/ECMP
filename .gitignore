@@ -32,7 +32,11 @@ htmlcov/
 
 # Databases / local artifacts
 *.db
+*.sqlite
 *.sqlite3
+
+# Coverage / local probe dumps
+*_cov_*.txt
 
 # Docs site
 site/
@@ -40,6 +44,10 @@ site/
 # Frontend coverage / telemetry noise
 implementation/frontend/coverage/
 implementation/frontend/dist/
+*.tsbuildinfo
+
+# AI platform local orchestrator telemetry
+ai-platform/telemetry/runs/route_*.json
 
 # keep metrics history tracked; ignore local venv only
 
@@ -48,7 +56,18 @@ backups/
 .env
 .env.*
 !.env.example
+!.env.production.example
+
+# Local Compose secret injection (SIT / shared activation — never commit)
+docker-compose.override.yml
 
 # Local attachment blobs (TASK-029 LocalStorageProvider)
 backend/data/attachments/
+
+# Local S3 migrate/smoke artifacts (dumps, reports)
+backend/_s3_migrate_artifacts/
+backend/_s3_migrate_live.py
+backend/_s3_smoke_live.py
+backend/_tmp_*.py
+backend/_tmp_*.txt
 

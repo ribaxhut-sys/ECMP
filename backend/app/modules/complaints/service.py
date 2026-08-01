@@ -16,6 +16,7 @@ from app.core.enums import (
 )
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.status_transitions import can_transition
+from app.core.user_messages import m
 from app.models import Complaint
 from app.modules.complaint_context import ComplaintContext, ComplaintContextService
 from app.modules.complaint_events import (
@@ -41,14 +42,14 @@ from app.modules.sla.service import SlaService
 CLOSABLE_STATUS = ComplaintStatus.IN_PROGRESS
 TARGET_CLOSED_STATUS = ComplaintStatus.CLOSED
 NOT_IN_PROGRESS_FOR_CLOSE_MESSAGE = (
-    "Complaint must be IN_PROGRESS before closing."
+    m("complaint.must_be_in_progress_close")
 )
-ALREADY_CLOSED_MESSAGE = "Complaint is already CLOSED."
+ALREADY_CLOSED_MESSAGE = m("complaint.already_closed")
 FINAL_RESOLUTION_REQUIRED_MESSAGE = (
-    "Final Resolution must exist before closing the complaint."
+    m("complaint.final_resolution_required_close")
 )
 ESCALATION_REQUIRED_MESSAGE = (
-    "Escalation must exist before closing the complaint."
+    m("escalation.must_exist_before_close_complaint")
 )
 
 
@@ -206,13 +207,13 @@ class ComplaintService:
         if payload.source_type == ComplaintSourceType.CUSTOMER:
             if not self._repo.customer_exists(payload.source_id):
                 raise ValidationAppError(
-                    "Customer not found",
+                    m("customer.not_found"),
                     details={"sourceId": str(payload.source_id)},
                 )
         elif payload.source_type == ComplaintSourceType.BRANCH:
             if not self._repo.branch_exists(payload.source_id):
                 raise ValidationAppError(
-                    "Branch not found",
+                    m("branch.not_found"),
                     details={"sourceId": str(payload.source_id)},
                 )
         elif payload.source_type in {
@@ -222,7 +223,7 @@ class ComplaintService:
             pass
         else:
             raise ValidationAppError(
-                "Unsupported sourceType",
+                m("common.unsupported_source_type"),
                 details={"sourceType": payload.source_type},
             )
 
@@ -231,14 +232,14 @@ class ComplaintService:
                 payload.target_id
             ):
                 raise ValidationAppError(
-                    "Branch not found",
+                    m("branch.not_found"),
                     details={"targetId": str(payload.target_id)},
                 )
         elif payload.target_type == ComplaintTargetType.HEAD_OFFICE:
             pass
         else:
             raise ValidationAppError(
-                "Unsupported targetType",
+                m("common.unsupported_target_type"),
                 details={"targetType": payload.target_type},
             )
 
@@ -248,14 +249,14 @@ class ComplaintService:
             and not self._repo.customer_exists(payload.customer_id)
         ):
             raise ValidationAppError(
-                "Customer not found",
+                m("customer.not_found"),
                 details={"customerId": str(payload.customer_id)},
             )
         if payload.branch_id is not None and not self._repo.branch_exists(
             payload.branch_id
         ):
             raise ValidationAppError(
-                "Branch not found",
+                m("branch.not_found"),
                 details={"branchId": str(payload.branch_id)},
             )
 
@@ -366,7 +367,7 @@ class ComplaintService:
     def get(self, complaint_id: uuid.UUID) -> ComplaintResponse:
         complaint = self._repo.get_by_id(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
         return _to_response(complaint)
 
     def get_context(self, complaint_id: uuid.UUID) -> ComplaintContext:
@@ -388,10 +389,10 @@ class ComplaintService:
         branch_id: uuid.UUID | None = None,
     ) -> tuple[list[ComplaintResponse], int]:
         if page < 1:
-            raise ValidationAppError("page must be >= 1", details={"page": page})
+            raise ValidationAppError(m("config.page_min"), details={"page": page})
         if page_size < 1 or page_size > 100:
             raise ValidationAppError(
-                "pageSize must be between 1 and 100",
+                m("config.page_size_range"),
                 details={"pageSize": page_size},
             )
 
@@ -414,13 +415,13 @@ class ComplaintService:
     ) -> ComplaintResponse:
         complaint = self._repo.get_by_id(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         changes = payload.model_dump(exclude_unset=True)
         if "branch_id" in changes and changes["branch_id"] is not None:
             if not self._repo.branch_exists(changes["branch_id"]):
                 raise ValidationAppError(
-                    "Branch not found",
+                    m("branch.not_found"),
                     details={"branchId": str(changes["branch_id"])},
                 )
 
@@ -479,20 +480,20 @@ class ComplaintService:
         """Validated lifecycle transition — sole path for non-assign status changes."""
         complaint = self._repo.get_by_id(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         try:
             current = ComplaintStatus(complaint.status)
         except ValueError as exc:
             raise ValidationAppError(
-                "Complaint has an unsupported status",
+                m("complaint.unsupported_status"),
                 details={"status": complaint.status},
             ) from exc
 
         target = payload.status
         if current == target:
             raise ValidationAppError(
-                "Invalid status transition.",
+                m("common.invalid_status_transition"),
                 details={
                     "fromStatus": current.value,
                     "toStatus": target.value,
@@ -502,7 +503,7 @@ class ComplaintService:
 
         if not can_transition(current, target):
             raise ValidationAppError(
-                "Invalid status transition.",
+                m("common.invalid_status_transition"),
                 details={
                     "fromStatus": current.value,
                     "toStatus": target.value,
@@ -597,7 +598,7 @@ class ComplaintService:
         """API-312 — Explicit Complaint Closure after Final Resolution (TASK-019)."""
         complaint = self._repo.get_by_id(complaint_id)
         if complaint is None:
-            raise NotFoundError("Complaint not found")
+            raise NotFoundError(m("complaint.not_found"))
 
         if complaint.status == ComplaintStatus.CLOSED or complaint.closed_at is not None:
             raise ValidationAppError(
@@ -628,7 +629,7 @@ class ComplaintService:
         closer = self._repo.get_user(actor_user_id)
         if closer is None:
             raise ValidationAppError(
-                "Closer not found or inactive",
+                m("complaint.closer_not_found"),
                 details={"closedBy": str(actor_user_id)},
             )
 

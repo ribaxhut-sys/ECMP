@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, closeComplaint } from "@/lib/api";
 import type { Complaint } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -15,18 +17,6 @@ import {
   Textarea,
   Toast,
 } from "@/shared/ui";
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -49,6 +39,10 @@ export function CloseComplaintCard({
   onClosed?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tStatus = useTranslations("status");
+  const locale = useLocale();
   const canClose = hasPermission("complaints:close");
   const canRead = hasPermission("complaints:read");
 
@@ -77,7 +71,7 @@ export function CloseComplaintCard({
     if (!canClose || isClosed) return;
     const trimmed = notes.trim();
     if (!trimmed) {
-      setNotesError("Closure notes are required.");
+      setNotesError(t("closureNotesRequired"));
       return;
     }
     setNotesError(null);
@@ -90,9 +84,7 @@ export function CloseComplaintCard({
       onClosed?.();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to close complaint.",
+        err instanceof ApiError ? err.message : t("unableToCloseComplaint"),
       );
     } finally {
       setSubmitting(false);
@@ -107,41 +99,39 @@ export function CloseComplaintCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Close Complaint</CardTitle>
+          <CardTitle>{t("closeCard")}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
           {isClosed ? (
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <DetailField label="Status" value="CLOSED" />
+              <DetailField label={t("status")} value={tStatus("CLOSED")} />
               <DetailField
-                label="Closed at"
-                value={formatWhen(complaint.closedAt)}
+                label={t("closedAt")}
+                value={formatDateTime(complaint.closedAt, locale)}
               />
               <DetailField
-                label="Closure notes"
-                value={complaint.closureNotes?.trim() || "—"}
+                label={t("closureNotes")}
+                value={complaint.closureNotes?.trim() || tCommon("emDash")}
               />
               <DetailField
-                label="Closed by"
-                value={complaint.closedBy?.trim() || "—"}
+                label={t("closedBy")}
+                value={complaint.closedBy?.trim() || tCommon("emDash")}
               />
             </dl>
           ) : canClose ? (
             <>
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                Officially close this complaint after Final Resolution.
-                Escalation remains open; this does not auto-close escalation.
+                {t("closeComplaintHint")}
               </p>
               <div className="flex justify-end">
                 <Button type="button" onClick={openDialog}>
-                  Close Complaint
+                  {t("closeCard")}
                 </Button>
               </div>
             </>
           ) : (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Complaint is not closed. Only Branch Supervisor or Head Office
-              Admin can close.
+              {t("notClosedPermissionHint")}
             </p>
           )}
         </CardBody>
@@ -150,7 +140,7 @@ export function CloseComplaintCard({
       <Modal
         open={dialogOpen}
         onClose={closeDialog}
-        title="Close complaint?"
+        title={t("closeComplaintConfirm")}
         size="sm"
         footer={
           <>
@@ -160,7 +150,7 @@ export function CloseComplaintCard({
               disabled={submitting}
               onClick={closeDialog}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
@@ -168,18 +158,17 @@ export function CloseComplaintCard({
               disabled={submitting}
               onClick={() => void confirmClose()}
             >
-              {submitting ? "Closing…" : "Confirm Close"}
+              {submitting ? t("closing") : t("confirmClose")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            Confirm official closure. Complaint status becomes CLOSED.
-            Escalation is not closed.
+            {t("confirmClosureHint")}
           </p>
           {submitError ? (
-            <Alert tone="danger" title="Close failed">
+            <Alert tone="danger" title={t("closeFailed")}>
               {submitError}
             </Alert>
           ) : null}
@@ -188,7 +177,7 @@ export function CloseComplaintCard({
               htmlFor="closure-notes"
               className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
             >
-              Closure notes
+              {t("closureNotes")}
             </label>
             <Textarea
               id="closure-notes"
@@ -211,8 +200,8 @@ export function CloseComplaintCard({
         open={toastOpen}
         onClose={() => setToastOpen(false)}
         tone="success"
-        title="Complaint closed"
-        description="Status is CLOSED. Escalation was not closed."
+        title={t("complaintClosed")}
+        description={t("complaintClosedHint")}
       />
     </>
   );

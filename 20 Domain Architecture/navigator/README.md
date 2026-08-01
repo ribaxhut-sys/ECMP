@@ -22,8 +22,4 @@ Ask: **Masuk ke domain <NAME>** → buka file navigator domain tersebut.
 | KPI | [kpi.md](./kpi.md) |
 | Dashboard | [dashboard.md](./dashboard.md) |
 | Notification | [notification.md](./notification.md) |
-| Workflow | [workflow.md](./workflow.md) |
-| Execution | [execution.md](./execution.md) |
-| Delivery | [delivery.md](./delivery.md) |
-| Queue | [queue.md](./queue.md) |
 | Core Platform | [core-platform.md](./core-platform.md) |

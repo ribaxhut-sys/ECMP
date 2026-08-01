@@ -1,0 +1,958 @@
+=== TASK-007-02 Backend CI mirror ===
+Timestamp UTC: 20260801T042922Z
+Python: Python 3.13.14
+DATABASE_URL=postgresql+psycopg://ecmp:ecmp_ci@127.0.0.1:55432/ecmp_test
+Workflow: .github/workflows/backend-ci.yml
+
+
+===== STEP: Install dependencies =====
+CMD: bash -lc python -m pip install --upgrade pip && pip install -r requirements-dev.txt
+Requirement already satisfied: pip in /usr/local/lib/python3.13/site-packages (26.1.2)
+Collecting pip
+  Downloading pip-26.2-py3-none-any.whl.metadata (4.6 kB)
+Downloading pip-26.2-py3-none-any.whl (1.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 18.6 MB/s  0:00:00
+Installing collected packages: pip
+  Attempting uninstall: pip
+    Found existing installation: pip 26.1.2
+    Uninstalling pip-26.1.2:
+      Successfully uninstalled pip-26.1.2
+Successfully installed pip-26.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+Collecting fastapi==0.140.0 (from -r /workspace/backend/requirements.txt (line 2))
+  Downloading fastapi-0.140.0-py3-none-any.whl.metadata (27 kB)
+Collecting starlette==1.3.1 (from -r /workspace/backend/requirements.txt (line 3))
+  Downloading starlette-1.3.1-py3-none-any.whl.metadata (6.4 kB)
+Collecting uvicorn==0.35.0 (from uvicorn[standard]==0.35.0->-r /workspace/backend/requirements.txt (line 4))
+  Downloading uvicorn-0.35.0-py3-none-any.whl.metadata (6.5 kB)
+Collecting sqlalchemy==2.0.41 (from -r /workspace/backend/requirements.txt (line 5))
+  Downloading sqlalchemy-2.0.41-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (9.6 kB)
+Collecting alembic==1.16.4 (from -r /workspace/backend/requirements.txt (line 6))
+  Downloading alembic-1.16.4-py3-none-any.whl.metadata (7.3 kB)
+Collecting psycopg==3.2.13 (from psycopg[binary]==3.2.13->-r /workspace/backend/requirements.txt (line 7))
+  Downloading psycopg-3.2.13-py3-none-any.whl.metadata (4.5 kB)
+Collecting pydantic==2.11.7 (from -r /workspace/backend/requirements.txt (line 8))
+  Downloading pydantic-2.11.7-py3-none-any.whl.metadata (67 kB)
+Collecting pydantic-settings==2.10.1 (from -r /workspace/backend/requirements.txt (line 9))
+  Downloading pydantic_settings-2.10.1-py3-none-any.whl.metadata (3.4 kB)
+Collecting PyJWT==2.13.0 (from PyJWT[crypto]==2.13.0->-r /workspace/backend/requirements.txt (line 10))
+  Downloading pyjwt-2.13.0-py3-none-any.whl.metadata (3.4 kB)
+Collecting passlib==1.7.4 (from passlib[bcrypt]==1.7.4->-r /workspace/backend/requirements.txt (line 11))
+  Downloading passlib-1.7.4-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting bcrypt==4.0.1 (from -r /workspace/backend/requirements.txt (line 12))
+  Downloading bcrypt-4.0.1-cp36-abi3-manylinux_2_28_x86_64.whl.metadata (9.0 kB)
+Collecting python-multipart==0.0.32 (from -r /workspace/backend/requirements.txt (line 13))
+  Downloading python_multipart-0.0.32-py3-none-any.whl.metadata (2.1 kB)
+Collecting httpx==0.28.1 (from -r /workspace/backend/requirements.txt (line 14))
+  Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+Collecting pytest==9.0.3 (from -r requirements-dev.txt (line 8))
+  Downloading pytest-9.0.3-py3-none-any.whl.metadata (7.6 kB)
+Collecting pytest-cov==6.2.1 (from -r requirements-dev.txt (line 9))
+  Downloading pytest_cov-6.2.1-py3-none-any.whl.metadata (30 kB)
+Collecting pytest-asyncio==1.3.0 (from -r requirements-dev.txt (line 10))
+  Downloading pytest_asyncio-1.3.0-py3-none-any.whl.metadata (4.1 kB)
+Collecting ruff==0.12.5 (from -r requirements-dev.txt (line 13))
+  Downloading ruff-0.12.5-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (25 kB)
+Collecting openapi-spec-validator==0.7.2 (from -r requirements-dev.txt (line 16))
+  Downloading openapi_spec_validator-0.7.2-py3-none-any.whl.metadata (5.7 kB)
+Collecting PyYAML==6.0.2 (from -r requirements-dev.txt (line 17))
+  Downloading PyYAML-6.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+Collecting pip-audit==2.9.0 (from -r requirements-dev.txt (line 20))
+  Downloading pip_audit-2.9.0-py3-none-any.whl.metadata (27 kB)
+Collecting typing-extensions>=4.8.0 (from fastapi==0.140.0->-r /workspace/backend/requirements.txt (line 2))
+  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting typing-inspection>=0.4.2 (from fastapi==0.140.0->-r /workspace/backend/requirements.txt (line 2))
+  Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting annotated-doc>=0.0.2 (from fastapi==0.140.0->-r /workspace/backend/requirements.txt (line 2))
+  Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+Collecting anyio<5,>=3.6.2 (from starlette==1.3.1->-r /workspace/backend/requirements.txt (line 3))
+  Downloading anyio-4.14.2-py3-none-any.whl.metadata (4.6 kB)
+Collecting click>=7.0 (from uvicorn==0.35.0->uvicorn[standard]==0.35.0->-r /workspace/backend/requirements.txt (line 4))
+  Downloading click-8.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting h11>=0.8 (from uvicorn==0.35.0->uvicorn[standard]==0.35.0->-r /workspace/backend/requirements.txt (line 4))
+  Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+Collecting greenlet>=1 (from sqlalchemy==2.0.41->-r /workspace/backend/requirements.txt (line 5))
+  Downloading greenlet-3.5.4-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.8 kB)
+Collecting Mako (from alembic==1.16.4->-r /workspace/backend/requirements.txt (line 6))
+  Downloading mako-1.3.12-py3-none-any.whl.metadata (2.9 kB)
+Collecting annotated-types>=0.6.0 (from pydantic==2.11.7->-r /workspace/backend/requirements.txt (line 8))
+  Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.33.2 (from pydantic==2.11.7->-r /workspace/backend/requirements.txt (line 8))
+  Downloading pydantic_core-2.33.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+Collecting python-dotenv>=0.21.0 (from pydantic-settings==2.10.1->-r /workspace/backend/requirements.txt (line 9))
+  Downloading python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+Collecting certifi (from httpx==0.28.1->-r /workspace/backend/requirements.txt (line 14))
+  Downloading certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)
+Collecting httpcore==1.* (from httpx==0.28.1->-r /workspace/backend/requirements.txt (line 14))
+  Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+Collecting idna (from httpx==0.28.1->-r /workspace/backend/requirements.txt (line 14))
+  Downloading idna-3.18-py3-none-any.whl.metadata (6.1 kB)
+Collecting iniconfig>=1.0.1 (from pytest==9.0.3->-r requirements-dev.txt (line 8))
+  Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+Collecting packaging>=22 (from pytest==9.0.3->-r requirements-dev.txt (line 8))
+  Downloading packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+Collecting pluggy<2,>=1.5 (from pytest==9.0.3->-r requirements-dev.txt (line 8))
+  Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting pygments>=2.7.2 (from pytest==9.0.3->-r requirements-dev.txt (line 8))
+  Downloading pygments-2.20.0-py3-none-any.whl.metadata (2.5 kB)
+Collecting coverage>=7.5 (from coverage[toml]>=7.5->pytest-cov==6.2.1->-r requirements-dev.txt (line 9))
+  Downloading coverage-7.15.2-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (8.6 kB)
+Collecting jsonschema<5.0.0,>=4.18.0 (from openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading jsonschema-4.26.0-py3-none-any.whl.metadata (7.6 kB)
+Collecting jsonschema-path<0.4.0,>=0.3.1 (from openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading jsonschema_path-0.3.4-py3-none-any.whl.metadata (4.3 kB)
+Collecting lazy-object-proxy<2.0.0,>=1.7.1 (from openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading lazy_object_proxy-1.12.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (5.1 kB)
+Collecting openapi-schema-validator<0.7.0,>=0.6.0 (from openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading openapi_schema_validator-0.6.3-py3-none-any.whl.metadata (5.4 kB)
+Collecting CacheControl>=0.13.0 (from CacheControl[filecache]>=0.13.0->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading cachecontrol-0.14.4-py3-none-any.whl.metadata (3.1 kB)
+Collecting cyclonedx-python-lib<10,>=5 (from pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading cyclonedx_python_lib-9.1.0-py3-none-any.whl.metadata (6.5 kB)
+Collecting pip-api>=0.0.28 (from pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading pip_api-0.0.34-py3-none-any.whl.metadata (6.6 kB)
+Collecting pip-requirements-parser>=32.0.0 (from pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading pip_requirements_parser-32.0.1-py3-none-any.whl.metadata (9.3 kB)
+Collecting requests>=2.31.0 (from pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading requests-2.34.2-py3-none-any.whl.metadata (4.8 kB)
+Collecting rich>=12.4 (from pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading rich-15.0.0-py3-none-any.whl.metadata (18 kB)
+Collecting toml>=0.10 (from pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading toml-0.10.2-py2.py3-none-any.whl.metadata (7.1 kB)
+Collecting platformdirs>=4.2.0 (from pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading platformdirs-4.11.0-py3-none-any.whl.metadata (5.5 kB)
+Collecting psycopg-binary==3.2.13 (from psycopg[binary]==3.2.13->-r /workspace/backend/requirements.txt (line 7))
+  Downloading psycopg_binary-3.2.13-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.9 kB)
+Collecting cryptography>=3.4.0 (from PyJWT[crypto]==2.13.0->-r /workspace/backend/requirements.txt (line 10))
+  Downloading cryptography-50.0.0-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (4.3 kB)
+Collecting httptools>=0.6.3 (from uvicorn[standard]==0.35.0->-r /workspace/backend/requirements.txt (line 4))
+  Downloading httptools-0.8.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (3.5 kB)
+Collecting uvloop>=0.15.1 (from uvicorn[standard]==0.35.0->-r /workspace/backend/requirements.txt (line 4))
+  Downloading uvloop-0.22.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (4.9 kB)
+Collecting watchfiles>=0.13 (from uvicorn[standard]==0.35.0->-r /workspace/backend/requirements.txt (line 4))
+  Downloading watchfiles-1.2.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+Collecting websockets>=10.4 (from uvicorn[standard]==0.35.0->-r /workspace/backend/requirements.txt (line 4))
+  Downloading websockets-17.0.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (6.3 kB)
+Collecting license-expression<31,>=30 (from cyclonedx-python-lib<10,>=5->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading license_expression-30.4.4-py3-none-any.whl.metadata (11 kB)
+Collecting packageurl-python<2,>=0.11 (from cyclonedx-python-lib<10,>=5->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading packageurl_python-0.17.6-py3-none-any.whl.metadata (5.1 kB)
+Collecting py-serializable<3.0.0,>=2.0.0 (from cyclonedx-python-lib<10,>=5->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading py_serializable-2.1.0-py3-none-any.whl.metadata (4.3 kB)
+Collecting sortedcontainers<3.0.0,>=2.4.0 (from cyclonedx-python-lib<10,>=5->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl.metadata (10 kB)
+Collecting attrs>=22.2.0 (from jsonschema<5.0.0,>=4.18.0->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading attrs-26.1.0-py3-none-any.whl.metadata (8.8 kB)
+Collecting jsonschema-specifications>=2023.03.6 (from jsonschema<5.0.0,>=4.18.0->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl.metadata (2.9 kB)
+Collecting referencing>=0.28.4 (from jsonschema<5.0.0,>=4.18.0->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading referencing-0.37.0-py3-none-any.whl.metadata (2.8 kB)
+Collecting rpds-py>=0.25.0 (from jsonschema<5.0.0,>=4.18.0->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.1 kB)
+Collecting pathable<0.5.0,>=0.4.1 (from jsonschema-path<0.4.0,>=0.3.1->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading pathable-0.4.4-py3-none-any.whl.metadata (1.8 kB)
+Collecting referencing>=0.28.4 (from jsonschema<5.0.0,>=4.18.0->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading referencing-0.36.2-py3-none-any.whl.metadata (2.8 kB)
+Collecting boolean.py>=4.0 (from license-expression<31,>=30->cyclonedx-python-lib<10,>=5->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading boolean_py-5.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting rfc3339-validator (from openapi-schema-validator<0.7.0,>=0.6.0->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading rfc3339_validator-0.1.4-py2.py3-none-any.whl.metadata (1.5 kB)
+Collecting defusedxml<0.8.0,>=0.7.1 (from py-serializable<3.0.0,>=2.0.0->cyclonedx-python-lib<10,>=5->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading defusedxml-0.7.1-py2.py3-none-any.whl.metadata (32 kB)
+Collecting charset_normalizer<4,>=2 (from requests>=2.31.0->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading charset_normalizer-3.4.9-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (41 kB)
+Collecting urllib3<3,>=1.26 (from requests>=2.31.0->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading urllib3-2.7.0-py3-none-any.whl.metadata (6.9 kB)
+Collecting msgpack<2.0.0,>=0.5.2 (from CacheControl>=0.13.0->CacheControl[filecache]>=0.13.0->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading msgpack-1.2.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (8.3 kB)
+Collecting filelock>=3.8.0 (from CacheControl[filecache]>=0.13.0->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading filelock-3.32.2-py3-none-any.whl.metadata (2.0 kB)
+Collecting cffi>=2.0.0 (from cryptography>=3.4.0->PyJWT[crypto]==2.13.0->-r /workspace/backend/requirements.txt (line 10))
+  Downloading cffi-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.5 kB)
+Collecting pycparser (from cffi>=2.0.0->cryptography>=3.4.0->PyJWT[crypto]==2.13.0->-r /workspace/backend/requirements.txt (line 10))
+  Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+Requirement already satisfied: pip in /usr/local/lib/python3.13/site-packages (from pip-api>=0.0.28->pip-audit==2.9.0->-r requirements-dev.txt (line 20)) (26.2)
+Collecting pyparsing (from pip-requirements-parser>=32.0.0->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading pyparsing-3.3.2-py3-none-any.whl.metadata (5.8 kB)
+Collecting markdown-it-py>=2.2.0 (from rich>=12.4->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading markdown_it_py-4.2.0-py3-none-any.whl.metadata (7.4 kB)
+Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=12.4->pip-audit==2.9.0->-r requirements-dev.txt (line 20))
+  Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+Collecting MarkupSafe>=0.9.2 (from Mako->alembic==1.16.4->-r /workspace/backend/requirements.txt (line 6))
+  Downloading markupsafe-3.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+Collecting six (from rfc3339-validator->openapi-schema-validator<0.7.0,>=0.6.0->openapi-spec-validator==0.7.2->-r requirements-dev.txt (line 16))
+  Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Downloading fastapi-0.140.0-py3-none-any.whl (130 kB)
+Downloading starlette-1.3.1-py3-none-any.whl (73 kB)
+Downloading uvicorn-0.35.0-py3-none-any.whl (66 kB)
+Downloading sqlalchemy-2.0.41-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.2/3.2 MB 22.3 MB/s  0:00:00
+Downloading alembic-1.16.4-py3-none-any.whl (247 kB)
+Downloading psycopg-3.2.13-py3-none-any.whl (206 kB)
+Downloading pydantic-2.11.7-py3-none-any.whl (444 kB)
+Downloading pydantic_settings-2.10.1-py3-none-any.whl (45 kB)
+Downloading pyjwt-2.13.0-py3-none-any.whl (31 kB)
+Downloading passlib-1.7.4-py2.py3-none-any.whl (525 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 525.6/525.6 kB 21.6 MB/s  0:00:00
+Downloading bcrypt-4.0.1-cp36-abi3-manylinux_2_28_x86_64.whl (593 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 593.7/593.7 kB 25.3 MB/s  0:00:00
+Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+Downloading pytest-9.0.3-py3-none-any.whl (375 kB)
+Downloading pytest_cov-6.2.1-py3-none-any.whl (24 kB)
+Downloading pytest_asyncio-1.3.0-py3-none-any.whl (15 kB)
+Downloading ruff-0.12.5-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.9/12.9 MB 30.7 MB/s  0:00:00
+Downloading openapi_spec_validator-0.7.2-py3-none-any.whl (39 kB)
+Downloading PyYAML-6.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (759 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 759.5/759.5 kB 26.9 MB/s  0:00:00
+Downloading pip_audit-2.9.0-py3-none-any.whl (58 kB)
+Downloading psycopg_binary-3.2.13-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 23.5 MB/s  0:00:00
+Downloading pydantic_core-2.33.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 28.5 MB/s  0:00:00
+Downloading anyio-4.14.2-py3-none-any.whl (125 kB)
+Downloading cyclonedx_python_lib-9.1.0-py3-none-any.whl (374 kB)
+Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+Downloading jsonschema_path-0.3.4-py3-none-any.whl (14 kB)
+Downloading lazy_object_proxy-1.12.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (71 kB)
+Downloading license_expression-30.4.4-py3-none-any.whl (120 kB)
+Downloading openapi_schema_validator-0.6.3-py3-none-any.whl (8.8 kB)
+Downloading packageurl_python-0.17.6-py3-none-any.whl (36 kB)
+Downloading pathable-0.4.4-py3-none-any.whl (9.6 kB)
+Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+Downloading py_serializable-2.1.0-py3-none-any.whl (23 kB)
+Downloading defusedxml-0.7.1-py2.py3-none-any.whl (25 kB)
+Downloading referencing-0.36.2-py3-none-any.whl (26 kB)
+Downloading requests-2.34.2-py3-none-any.whl (73 kB)
+Downloading charset_normalizer-3.4.9-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (223 kB)
+Downloading idna-3.18-py3-none-any.whl (65 kB)
+Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl (29 kB)
+Downloading urllib3-2.7.0-py3-none-any.whl (131 kB)
+Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+Downloading boolean_py-5.0-py3-none-any.whl (26 kB)
+Downloading cachecontrol-0.14.4-py3-none-any.whl (22 kB)
+Downloading msgpack-1.2.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (416 kB)
+Downloading certifi-2026.7.22-py3-none-any.whl (136 kB)
+Downloading click-8.4.2-py3-none-any.whl (119 kB)
+Downloading coverage-7.15.2-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (255 kB)
+Downloading cryptography-50.0.0-cp311-abi3-manylinux_2_34_x86_64.whl (4.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 15.1 MB/s  0:00:00
+Downloading cffi-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
+Downloading filelock-3.32.2-py3-none-any.whl (98 kB)
+Downloading greenlet-3.5.4-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (624 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 624.0/624.0 kB 28.0 MB/s  0:00:00
+Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+Downloading httptools-0.8.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (486 kB)
+Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+Downloading packaging-26.2-py3-none-any.whl (100 kB)
+Downloading pip_api-0.0.34-py3-none-any.whl (120 kB)
+Downloading pip_requirements_parser-32.0.1-py3-none-any.whl (35 kB)
+Downloading platformdirs-4.11.0-py3-none-any.whl (23 kB)
+Downloading pygments-2.20.0-py3-none-any.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 18.1 MB/s  0:00:00
+Downloading python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+Downloading rich-15.0.0-py3-none-any.whl (310 kB)
+Downloading markdown_it_py-4.2.0-py3-none-any.whl (91 kB)
+Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+Downloading rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (365 kB)
+Downloading toml-0.10.2-py2.py3-none-any.whl (16 kB)
+Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Downloading uvloop-0.22.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (4.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 33.3 MB/s  0:00:00
+Downloading watchfiles-1.2.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (454 kB)
+Downloading websockets-17.0.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (220 kB)
+Downloading mako-1.3.12-py3-none-any.whl (78 kB)
+Downloading markupsafe-3.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+Downloading pyparsing-3.3.2-py3-none-any.whl (122 kB)
+Downloading rfc3339_validator-0.1.4-py2.py3-none-any.whl (3.5 kB)
+Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Installing collected packages: sortedcontainers, passlib, boolean.py, websockets, uvloop, urllib3, typing-extensions, toml, six, ruff, rpds-py, PyYAML, python-multipart, python-dotenv, pyparsing, PyJWT, pygments, pycparser, psycopg-binary, psycopg, pluggy, platformdirs, pip-api, pathable, packaging, packageurl-python, msgpack, mdurl, MarkupSafe, license-expression, lazy-object-proxy, iniconfig, idna, httptools, h11, greenlet, filelock, defusedxml, coverage, click, charset_normalizer, certifi, bcrypt, attrs, annotated-types, annotated-doc, uvicorn, typing-inspection, sqlalchemy, rfc3339-validator, requests, referencing, pytest, pydantic-core, py-serializable, pip-requirements-parser, markdown-it-py, Mako, httpcore, cffi, anyio, watchfiles, starlette, rich, pytest-cov, pytest-asyncio, pydantic, jsonschema-specifications, jsonschema-path, httpx, cyclonedx-python-lib, cryptography, CacheControl, alembic, pydantic-settings, jsonschema, fastapi, pip-audit, openapi-schema-validator, openapi-spec-validator
+
+Successfully installed CacheControl-0.14.4 Mako-1.3.12 MarkupSafe-3.0.3 PyJWT-2.13.0 PyYAML-6.0.2 alembic-1.16.4 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.14.2 attrs-26.1.0 bcrypt-4.0.1 boolean.py-5.0 certifi-2026.7.22 cffi-2.1.0 charset_normalizer-3.4.9 click-8.4.2 coverage-7.15.2 cryptography-50.0.0 cyclonedx-python-lib-9.1.0 defusedxml-0.7.1 fastapi-0.140.0 filelock-3.32.2 greenlet-3.5.4 h11-0.16.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.28.1 idna-3.18 iniconfig-2.3.0 jsonschema-4.26.0 jsonschema-path-0.3.4 jsonschema-specifications-2025.9.1 lazy-object-proxy-1.12.0 license-expression-30.4.4 markdown-it-py-4.2.0 mdurl-0.1.2 msgpack-1.2.1 openapi-schema-validator-0.6.3 openapi-spec-validator-0.7.2 packageurl-python-0.17.6 packaging-26.2 passlib-1.7.4 pathable-0.4.4 pip-api-0.0.34 pip-audit-2.9.0 pip-requirements-parser-32.0.1 platformdirs-4.11.0 pluggy-1.6.0 psycopg-3.2.13 psycopg-binary-3.2.13 py-serializable-2.1.0 pycparser-3.0 pydantic-2.11.7 pydantic-core-2.33.2 pydantic-settings-2.10.1 pygments-2.20.0 pyparsing-3.3.2 pytest-9.0.3 pytest-asyncio-1.3.0 pytest-cov-6.2.1 python-dotenv-1.2.2 python-multipart-0.0.32 referencing-0.36.2 requests-2.34.2 rfc3339-validator-0.1.4 rich-15.0.0 rpds-py-2026.6.3 ruff-0.12.5 six-1.17.0 sortedcontainers-2.4.0 sqlalchemy-2.0.41 starlette-1.3.1 toml-0.10.2 typing-extensions-4.16.0 typing-inspection-0.4.2 urllib3-2.7.0 uvicorn-0.35.0 uvloop-0.22.1 watchfiles-1.2.0 websockets-17.0.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+EXIT: 0
+
+===== STEP: Show Ruff config source =====
+CMD: bash -lc 
+  python -c "import pathlib; p=pathlib.Path("pyproject.toml"); assert p.is_file(), "missing backend/pyproject.toml"; print(p.resolve())"
+  ruff check --show-settings app 2>&1 | head -n 40
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import pathlib; p=pathlib.Path(pyproject.toml); assert p.is_file(), missing
+                                   ^^^^^^^^^
+NameError: name 'pyproject' is not defined
+Resolved settings for: "/workspace/backend/app/__init__.py"
+Settings path: "/workspace/backend/pyproject.toml"
+
+# General Settings
+cache_dir = "/workspace/backend/.ruff_cache"
+fix = false
+fix_only = false
+output_format = full
+show_fixes = false
+unsafe_fixes = hint
+
+# File Resolver Settings
+file_resolver.exclude = [
+	".bzr",
+	".direnv",
+	".eggs",
+	".git",
+	".git-rewrite",
+	".hg",
+	".ipynb_checkpoints",
+	".mypy_cache",
+	".nox",
+	".pants.d",
+	".pyenv",
+	".pytest_cache",
+	".pytype",
+	".ruff_cache",
+	".svn",
+	".tox",
+	".venv",
+	".vscode",
+	"__pypackages__",
+	"_build",
+	"buck-out",
+	"dist",
+	"node_modules",
+	"site-packages",
+	"venv",
+]
+file_resolver.extend_exclude = []
+EXIT: 0
+
+===== STEP: Lint backend (ruff) =====
+CMD: ruff check app tests
+All checks passed!
+EXIT: 0
+
+===== STEP: Validate OpenAPI contracts =====
+CMD: bash -lc 
+  cd /workspace
+  python - <<"PY"
+from pathlib import Path
+import yaml
+from openapi_spec_validator import validate
+specs = sorted(Path("07 API Catalog/openapi").rglob("*.yaml"))
+assert specs, "no OpenAPI specs found"
+for spec in specs:
+    validate(yaml.safe_load(spec.read_text(encoding="utf-8")))
+    print(f"OK {spec}")
+PY
+
+OK 07 API Catalog/openapi/case-actions.v1.yaml
+OK 07 API Catalog/openapi/case-service.v1.yaml
+OK 07 API Catalog/openapi/complaint-domain-service.v1.yaml
+OK 07 API Catalog/openapi/complaint-management-batch1.v1.yaml
+OK 07 API Catalog/openapi/complaint-management-esc-res.v1.yaml
+OK 07 API Catalog/openapi/complaint-service.v1.yaml
+OK 07 API Catalog/openapi/drafts/customer-read.v1.draft.yaml
+OK 07 API Catalog/openapi/drafts/dashboard-queues.v1.draft.yaml
+OK 07 API Catalog/openapi/queue-service.v1.yaml
+EXIT: 0
+
+===== STEP: Run migrations (Alembic) =====
+CMD: alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_ecmp_v1_schema, Initial ECMP v1.0 schema.
+INFO  [alembic.runtime.migration] Running upgrade 0001_ecmp_v1_schema -> 0002_audit_logs, Add append-only audit_logs table for complaint create/update auditing.
+INFO  [alembic.runtime.migration] Running upgrade 0002_audit_logs -> 0003_refresh_tokens, Add refresh_tokens table for rotating refresh sessions.
+INFO  [alembic.runtime.migration] Running upgrade 0003_refresh_tokens -> 0004_complaint_resolutions, Add complaint_resolutions table (TASK-010).
+INFO  [alembic.runtime.migration] Running upgrade 0004_complaint_resolutions -> 0005_complaint_escalations, Add Escalation Request fields to complaint_escalations (TASK-011).
+INFO  [alembic.runtime.migration] Running upgrade 0005_complaint_escalations -> 0006_escalation_review, Add Escalation Review fields (TASK-012).
+INFO  [alembic.runtime.migration] Running upgrade 0006_escalation_review -> 0007_appointments, Add appointments table (TASK-014).
+INFO  [alembic.runtime.migration] Running upgrade 0007_appointments -> 0008_appointment_checkin, Add appointment check-in fields (TASK-015).
+INFO  [alembic.runtime.migration] Running upgrade 0008_appointment_checkin -> 0009_appointment_completion, Add appointment completion fields and HO Engineer role (TASK-016).
+INFO  [alembic.runtime.migration] Running upgrade 0009_appointment_completion -> 0010_appointment_no_show, Add appointment no-show fields (TASK-017).
+INFO  [alembic.runtime.migration] Running upgrade 0010_appointment_no_show -> 0011_final_resolution, Add final resolution fields to complaint_resolutions (TASK-018).
+INFO  [alembic.runtime.migration] Running upgrade 0011_final_resolution -> 0012_complaint_closure, Add complaint closure fields (TASK-019).
+INFO  [alembic.runtime.migration] Running upgrade 0012_complaint_closure -> 0013_escalation_closure, Add escalation closure fields (TASK-020).
+INFO  [alembic.runtime.migration] Running upgrade 0013_escalation_closure -> 0014_sla_foundation, Add sla_records foundation table (TASK-021).
+INFO  [alembic.runtime.migration] Running upgrade 0014_sla_foundation -> 0015_sla_policy, Add sla_policies configuration table (TASK-022).
+INFO  [alembic.runtime.migration] Running upgrade 0015_sla_policy -> 0016_settings, Add settings table + seed defaults (TASK-028).
+INFO  [alembic.runtime.migration] Running upgrade 0016_settings -> 0017_attachments, Replace complaint-bound attachments with generic platform attachments + storage settings (TASK-029).
+INFO  [alembic.runtime.migration] Running upgrade 0017_attachments -> 0018_notification, Add notification templates + queue tables and seed notification settings (TASK-030).
+INFO  [alembic.runtime.migration] Running upgrade 0018_notification -> 0019_audit, Rename legacy audit_logs and create platform audit_logs (TASK-031).
+INFO  [alembic.runtime.migration] Running upgrade 0019_audit -> 0020_roles, Evolve roles table for Role Management (TASK-033).
+INFO  [alembic.runtime.migration] Running upgrade 0020_roles -> 0021_permissions, Create permissions table for Permission Management (TASK-034).
+INFO  [alembic.runtime.migration] Running upgrade 0021_permissions -> 0022_role_permissions, Create role_permissions junction table (TASK-035).
+INFO  [alembic.runtime.migration] Running upgrade 0022_role_permissions -> 0023_user_roles, Create user_roles junction table (TASK-036).
+INFO  [alembic.runtime.migration] Running upgrade 0023_user_roles -> 0024_data_scopes, Create data_scopes table (TASK-037).
+INFO  [alembic.runtime.migration] Running upgrade 0024_data_scopes -> 0025_permission_resolver, Seed runtime permission matrix + backfill user_roles (TASK-038).
+INFO  [alembic.runtime.migration] Running upgrade 0025_permission_resolver -> 0026_complaint_source_target, Complaint multi-source / multi-target (TASK-042 / DEC-018).
+INFO  [alembic.runtime.migration] Running upgrade 0026_complaint_source_target -> 0027_queue_persistence, Add Queue persistence tables (TASK-063).
+INFO  [alembic.runtime.migration] Running upgrade 0027_queue_persistence -> 0028_complaint_domain_foundation, Add Complaint Domain Foundation table (CAPABILITY-004).
+INFO  [alembic.runtime.migration] Running upgrade 0028_complaint_domain_foundation -> 0029_complaint_processing, Add Complaint resolution columns (CAPABILITY-005).
+INFO  [alembic.runtime.migration] Running upgrade 0029_complaint_processing -> 0030_complaint_assignment, Add Complaint Assignment table (CAPABILITY-006).
+INFO  [alembic.runtime.migration] Running upgrade 0030_complaint_assignment -> 0031_complaint_escalation, Add Complaint Escalation table (CAPABILITY-007).
+INFO  [alembic.runtime.migration] Running upgrade 0031_complaint_escalation -> 0032_complaint_sla, Add Complaint SLA foundation tables (CAPABILITY-008).
+INFO  [alembic.runtime.migration] Running upgrade 0032_complaint_sla -> 0033_notification_domain, CAPABILITY-009 — extend notification_queue for domain Notification fields.
+INFO  [alembic.runtime.migration] Running upgrade 0033_notification_domain -> 0034_timeline_entries, CAPABILITY-010 — reusable timeline_entries table (append-only activity history).
+INFO  [alembic.runtime.migration] Running upgrade 0034_timeline_entries -> 0035_attachment_domain, CAPABILITY-011 — evolve attachments to aggregate-bound domain model.
+INFO  [alembic.runtime.migration] Running upgrade 0035_attachment_domain -> 0036_search_indexes, CAPABILITY-012 — search support indexes on complaints (no search tables).
+INFO  [alembic.runtime.migration] Running upgrade 0036_search_indexes -> 0037_password_management, Identity & Password Management — force_password_change + password_reset_tokens.
+INFO  [alembic.runtime.migration] Running upgrade 0037_password_management -> 0038_preferred_language, User preferred_language — drives email/API message localization.
+INFO  [alembic.runtime.migration] Running upgrade 0038_preferred_language -> 0039_admin_rbac_repair, Repair ADMIN role_permissions matrix (R6-02 / Task 6).
+INFO  [alembic.runtime.migration] Running upgrade 0039_admin_rbac_repair -> 0040_cm_batch1_persistence, CM Batch 1 Aggregate persistence tables (S2 Task 01).
+INFO  [alembic.runtime.migration] Running upgrade 0040_cm_batch1_persistence -> 0041_cm_batch1_duplicate, CM Batch 1 FR-003 duplicate decision / later-review tables (S2 Task 02).
+INFO  [alembic.runtime.migration] Running upgrade 0041_cm_batch1_duplicate -> 0042_cm_batch1_attachment, CM Batch 1 FR-004 attachment business metadata tables (S2 Task 03).
+INFO  [alembic.runtime.migration] Running upgrade 0042_cm_batch1_attachment -> 0043_cm_batch1_foundation, CM Batch 1 event outbox (S2 Task 04) — persist only, no publisher.
+INFO  [alembic.runtime.migration] Running upgrade 0043_cm_batch1_foundation -> 0044_admin_rbac_repair, Repair ADMIN role_permissions matrix (TD-OPS-003).
+INFO  [alembic.runtime.migration] Running upgrade 0044_admin_rbac_repair -> 0045_cm_b1_lr_complaint_id, Add nullable complaint_id to cm_batch1_later_review_items (M3d / EX-G).
+EXIT: 0
+
+===== STEP: Run tests against PostgreSQL (coverage gate) =====
+CMD: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=90
+...............................................sss...................... [  5%]
+...sss.................................................................. [ 10%]
+........................................................................ [ 16%]
+........................................................................ [ 21%]
+........................................................................ [ 27%]
+........................................................................ [ 32%]
+........................................................................ [ 37%]
+........................................................................ [ 43%]
+........................................................................ [ 48%]
+........................................................................ [ 54%]
+........................................................................ [ 59%]
+........................................................................ [ 64%]
+.s...................................................................... [ 70%]
+........................................................................ [ 75%]
+........................................................................ [ 81%]
+........................................................................ [ 86%]
+........................................................................ [ 91%]
+........................................................................ [ 97%]
+....................................                                     [100%]
+=============================== warnings summary ===============================
+../../usr/local/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /usr/local/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_auth.py: 6 warnings
+tests/test_branches_api.py: 1 warning
+tests/test_complaints_api.py: 8 warnings
+tests/test_dashboard_api.py: 2 warnings
+tests/test_dashboard_capability013_api.py: 2 warnings
+tests/test_data_scope_api.py: 6 warnings
+tests/test_kpi_api.py: 2 warnings
+tests/test_notification_api.py: 5 warnings
+tests/test_password_management.py: 12 warnings
+tests/test_permission_api.py: 3 warnings
+tests/test_role_api.py: 3 warnings
+tests/test_role_permission_api.py: 5 warnings
+tests/test_search_api.py: 2 warnings
+tests/test_secmig_p5_keys.py: 1 warning
+tests/test_secmig_p5_security_smoke.py: 1 warning
+tests/test_settings_api.py: 6 warnings
+tests/test_sla_breach_api.py: 2 warnings
+tests/test_sla_deadlines_api.py: 3 warnings
+tests/test_sla_timeline_api.py: 2 warnings
+tests/test_timeline_api.py: 3 warnings
+tests/test_user_role_api.py: 5 warnings
+  /usr/local/lib/python3.13/site-packages/jwt/api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 23 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+tests/test_auth.py: 1 warning
+tests/test_branches_api.py: 1 warning
+tests/test_complaints_api.py: 8 warnings
+tests/test_dashboard_api.py: 3 warnings
+tests/test_dashboard_capability013_api.py: 2 warnings
+tests/test_data_scope_api.py: 6 warnings
+tests/test_kpi_api.py: 2 warnings
+tests/test_notification_api.py: 6 warnings
+tests/test_password_management.py: 12 warnings
+tests/test_permission_api.py: 3 warnings
+tests/test_role_api.py: 3 warnings
+tests/test_role_permission_api.py: 6 warnings
+tests/test_search_api.py: 2 warnings
+tests/test_secmig_p5_keys.py: 1 warning
+tests/test_secmig_p5_security_smoke.py: 1 warning
+tests/test_settings_api.py: 5 warnings
+tests/test_sla_breach_api.py: 2 warnings
+tests/test_sla_deadlines_api.py: 3 warnings
+tests/test_sla_timeline_api.py: 2 warnings
+tests/test_timeline_api.py: 3 warnings
+tests/test_user_role_api.py: 5 warnings
+  /usr/local/lib/python3.13/site-packages/jwt/api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 23 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    decoded = self.decode_complete(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.13.14-final-0 _______________
+
+Name                                                                         Stmts   Miss Branch BrPart  Cover   Missing
+------------------------------------------------------------------------------------------------------------------------
+app/__init__.py                                                                  1      0      0      0   100%
+app/api/__init__.py                                                              0      0      0      0   100%
+app/api/health.py                                                               61      2      8      2    94%   105->113, 106-107
+app/api/router.py                                                               76      0      0      0   100%
+app/api/version.py                                                              16      0      0      0   100%
+app/core/__init__.py                                                             2      0      0      0   100%
+app/core/auth.py                                                                 3      0      0      0   100%
+app/core/authorization/__init__.py                                              13      0      0      0   100%
+app/core/authorization/auth_strategy.py                                        120     15     28      8    84%   41, 43, 46, 60, 68, 91, 95-96, 167, 176, 180-181, 217, 231-233
+app/core/authorization/authentication.py                                        36     10      8      0    59%   56-65
+app/core/authorization/data_scope_check.py                                      30      0      6      0   100%
+app/core/authorization/gates.py                                                 38      6     14      0    81%   55-59, 76-80
+app/core/authorization/jwks_cache.py                                            79     25     22      7    66%   24-36, 50, 66, 78-80, 86, 90, 93, 96, 99-100, 102
+app/core/authorization/jwt_validator.py                                         34      3      6      1    90%   38, 55-56
+app/core/authorization/org_unit_guard.py                                        67      6     24      4    89%   24, 39, 42-43, 78, 123
+app/core/authorization/org_unit_resolver.py                                     53      8     14      4    82%   47, 54, 59-60, 76, 79-80, 91
+app/core/authorization/permission_check.py                                      35      0      4      0   100%
+app/core/authorization/pipeline.py                                               6      0      0      0   100%
+app/core/authorization/principal.py                                             16      0      0      0   100%
+app/core/authorization/role_assignment_policy.py                                29      3     12      3    85%   59, 69, 81
+app/core/authorization/role_mapper.py                                           44      3     24      4    90%   54, 57->52, 65, 81
+app/core/client_ip.py                                                           14      0      8      1    95%   38->42
+app/core/config.py                                                             260     16    106     15    91%   68, 253, 285-286, 294-295, 342->344, 385, 394, 414, 542, 551, 559, 567, 637, 690, 699, 733->747
+app/core/enums.py                                                              105      0      0      0   100%
+app/core/errors.py                                                              39      0      0      0   100%
+app/core/i18n_messages.py                                                       19      0      4      0   100%
+app/core/keys/__init__.py                                                        5      0      0      0   100%
+app/core/keys/bootstrap.py                                                      22      2      4      2    85%   28->40, 54-56
+app/core/keys/models.py                                                         51      6     22      6    81%   78, 80, 82, 84, 88->94, 95-96
+app/core/keys/registry.py                                                       67     10     22      4    82%   54-55, 67-70, 147, 151-152, 153->157, 155
+app/core/local_credential_auth.py                                               11      0      2      0   100%
+app/core/logging.py                                                             46      1     16      1    97%   33
+app/core/middleware.py                                                          42      0      8      0   100%
+app/core/operational_security.py                                                13      0      6      0   100%
+app/core/password_policy.py                                                     45      2     14      3    92%   41, 64, 78->exit
+app/core/rate_limit.py                                                          43     17     16      3    53%   24, 26, 38, 48-52, 61-70
+app/core/rbac.py                                                                15      0      4      0   100%
+app/core/request_context/__init__.py                                             5      0      0      0   100%
+app/core/request_context/application/__init__.py                                 2      0      0      0   100%
+app/core/request_context/application/context_factory.py                          8      0      0      0   100%
+app/core/request_context/domain/__init__.py                                      2      0      0      0   100%
+app/core/request_context/domain/request_context.py                              15      0      0      0   100%
+app/core/request_context/infrastructure/__init__.py                              3      0      0      0   100%
+app/core/request_context/infrastructure/fastapi_provider.py                     13      0      0      0   100%
+app/core/request_context/infrastructure/headers.py                               9      0      0      0   100%
+app/core/runtime_state.py                                                        8      0      0      0   100%
+app/core/schemas.py                                                             18      0      0      0   100%
+app/core/secrets.py                                                            120     19     44     10    82%   96-97, 98->107, 103->105, 124, 130-131, 134, 140, 143-144, 146, 149->151, 160, 163, 186, 218-220, 225-227
+app/core/security.py                                                            47      3      6      2    91%   38, 54, 85
+app/core/status_transitions.py                                                   7      1      0      0    86%   32
+app/db/__init__.py                                                               4      0      0      0   100%
+app/db/async_session.py                                                         68      0     20      1    99%   130->132
+app/db/base.py                                                                  20      0      0      0   100%
+app/db/session.py                                                               38      4      4      1    88%   26, 79-81
+app/dependencies/__init__.py                                                    16      2      0      0    88%   53, 58
+app/dependencies/events.py                                                     152     15     40     10    82%   104->108, 120->124, 136->140, 152->156, 168->172, 184->188, 200->204, 216->220, 232-236, 248->252, 264->274, 286-290, 302-306, 318-322, 331-333
+app/integrations/__init__.py                                                     0      0      0      0   100%
+app/integrations/customer/__init__.py                                            8      0      0      0   100%
+app/integrations/customer/enterprise_adapter.py                                 23      0      0      0   100%
+app/integrations/customer/factory.py                                            13      0      4      0   100%
+app/integrations/customer/masking.py                                             5      0      2      0   100%
+app/integrations/customer/provider.py                                           10      0      0      0   100%
+app/integrations/customer/stub_adapter.py                                       42      1     22      2    95%   87, 104->109
+app/integrations/customer/types.py                                              25      0      0      0   100%
+app/main.py                                                                     90      3     10      2    95%   119, 179-180, 195->197
+app/models/__init__.py                                                         240      0      0      0   100%
+app/modules/__init__.py                                                          0      0      0      0   100%
+app/modules/appointments/__init__.py                                             0      0      0      0   100%
+app/modules/appointments/repository.py                                          50      0      2      0   100%
+app/modules/appointments/router.py                                              35      0      0      0   100%
+app/modules/appointments/schemas.py                                            135      8     14      6    91%   24, 26-27, 52, 59, 74, 99, 115
+app/modules/appointments/service.py                                            164     13     50      8    89%   59, 76, 118, 194, 198, 265, 269, 361, 365, 419-422
+app/modules/assignments/__init__.py                                              0      0      0      0   100%
+app/modules/assignments/repository.py                                           54      7      6      2    85%   60-69, 83-87, 126->130, 128->130
+app/modules/assignments/router.py                                               26      0      0      0   100%
+app/modules/assignments/schemas.py                                              35      1      2      1    95%   24
+app/modules/assignments/service.py                                              67      8     20      3    85%   50, 68, 77, 175-179
+app/modules/attachment/__init__.py                                               3      0      0      0   100%
+app/modules/attachment/domain/__init__.py                                        3      0      0      0   100%
+app/modules/attachment/domain/entity.py                                         71      1     22      1    98%   121
+app/modules/attachment/domain/enums.py                                          11      0      0      0   100%
+app/modules/attachment/infrastructure/__init__.py                                3      0      0      0   100%
+app/modules/attachment/infrastructure/local_storage.py                          73      5     14      3    91%   23, 65, 88-89, 98
+app/modules/attachment/infrastructure/storage_provider.py                       17      0      0      0   100%
+app/modules/attachment/models.py                                                24      0      0      0   100%
+app/modules/attachment/permissions.py                                            4      0      0      0   100%
+app/modules/attachment/registration.py                                           9      0      0      0   100%
+app/modules/attachment/repository.py                                            76      6     14      4    87%   67->69, 84->86, 86->88, 88->91, 143-150
+app/modules/attachment/router.py                                                78      9     12      5    84%   44, 50, 107, 169, 172, 231-236, 282-283
+app/modules/attachment/schemas.py                                               22      0      0      0   100%
+app/modules/attachment/service.py                                              167     17     46      9    88%   115, 117, 199, 205, 227->238, 247-249, 271, 275-276, 293-294, 308, 314-317, 381, 403
+app/modules/audit/__init__.py                                                    0      0      0      0   100%
+app/modules/audit/hooks.py                                                      30      2      6      2    89%   35, 40
+app/modules/audit/models.py                                                     24      0      0      0   100%
+app/modules/audit/permissions.py                                                 2      0      0      0   100%
+app/modules/audit/repository.py                                                 35     16     12      0    40%   24, 40-54
+app/modules/audit/router.py                                                     24      5      0      0    79%   26, 54-55, 81-82
+app/modules/audit/schemas.py                                                    21      0      0      0   100%
+app/modules/audit/security_events.py                                            68      2     28      5    93%   54, 56, 73->77, 75->73, 133->136
+app/modules/audit/service.py                                                    64      8     22      8    81%   58, 63, 68, 73, 82, 84, 86, 114
+app/modules/auth/__init__.py                                                     0      0      0      0   100%
+app/modules/auth/login_protection.py                                            59      2     16      2    95%   42, 53
+app/modules/auth/password_helpers.py                                            29      0      2      1    97%   78->exit
+app/modules/auth/repository.py                                                  51      3      2      1    92%   92, 111-112
+app/modules/auth/router.py                                                      79      0     10      3    97%   100->118, 122->124, 143->146
+app/modules/auth/schemas.py                                                     75      5     10      5    88%   22, 29, 72, 96, 102
+app/modules/auth/service.py                                                    167     19     44     12    84%   65-68, 87-88, 153, 186, 194, 196-198, 202-204, 232, 235->exit, 252, 298->306, 360, 378
+app/modules/branches/__init__.py                                                 0      0      0      0   100%
+app/modules/branches/repository.py                                              17      2      2      1    84%   27-28
+app/modules/branches/router.py                                                  18      0      0      0   100%
+app/modules/branches/schemas.py                                                  8      0      0      0   100%
+app/modules/branches/service.py                                                  9      0      0      0   100%
+app/modules/cm_batch1/__init__.py                                                1      0      0      0   100%
+app/modules/cm_batch1/antivirus.py                                              13      0      0      0   100%
+app/modules/cm_batch1/attachment_config.py                                      21      0      0      0   100%
+app/modules/cm_batch1/attachment_repository.py                                 105      9      6      2    90%   99, 106-111, 161-162, 169-174, 193-194, 198->200
+app/modules/cm_batch1/attachment_service.py                                    227     36     86     16    81%   97, 152->162, 168->180, 207, 209, 227-228, 282-299, 329, 373, 376, 382, 427, 433, 439-440, 445-446, 452-458, 469, 475, 477, 516->515, 540->542
+app/modules/cm_batch1/domain_events.py                                          22      0      0      0   100%
+app/modules/cm_batch1/duplicate_config.py                                       20      1      2      1    91%   52
+app/modules/cm_batch1/duplicate_engine.py                                       50      3     16      6    86%   36, 112->122, 126->136, 158, 170, 220->198
+app/modules/cm_batch1/entities.py                                               86      0      0      0   100%
+app/modules/cm_batch1/enumeration.py                                            60      4     18      2    92%   56-57, 69-70
+app/modules/cm_batch1/event_factory.py                                          77      1     14      4    95%   149->170, 196->200, 320->343, 365
+app/modules/cm_batch1/exceptions.py                                             12      0      2      1    93%   32->37
+app/modules/cm_batch1/master_customer.py                                        43      3     14      3    89%   46, 52, 61
+app/modules/cm_batch1/models.py                                                130      0      0      0   100%
+app/modules/cm_batch1/ops_hygiene.py                                            26      3      2      1    86%   26, 45-46
+app/modules/cm_batch1/outbox_repository.py                                      46      2      2      0    96%   76-77
+app/modules/cm_batch1/repository.py                                            200     52     60     10    72%   151, 167, 177-178, 194, 196, 215, 225-226, 242, 246, 257-258, 294, 308, 317-323, 327-338, 423-442, 566-580, 585-592, 607-614
+app/modules/cm_batch1/router.py                                                 95     16     18      5    81%   46-47, 60-61, 117-118, 130-131, 192->194, 199, 202->204, 217-225, 249-251, 334->339
+app/modules/cm_batch1/schemas.py                                               147      0      0      0   100%
+app/modules/cm_batch1/service.py                                               252     33    104     23    83%   216, 226, 289, 291, 303, 342, 422, 439, 445, 450, 455->488, 466-468, 470, 477->482, 480, 483, 560, 643, 655-659, 663-667, 680, 706, 724, 731, 847
+app/modules/cm_batch1/side_effects.py                                           60      3     14      3    92%   73->79, 76-77, 106, 126->125
+app/modules/cm_batch1/store.py                                                 160     11     48     11    88%   64, 71, 101, 113, 132, 140, 182-191, 194->211, 200, 216, 340->342
+app/modules/complaint/__init__.py                                                2      0      0      0   100%
+app/modules/complaint/api/__init__.py                                            2      0      0      0   100%
+app/modules/complaint/api/controllers/__init__.py                              171     35     10      4    78%   74, 81, 88, 95, 126-127, 135-139, 148-149, 192-193, 203-204, 235-236, 252-253, 292-293, 311-312, 333-334, 375-376, 403-404, 419-420, 430-431
+app/modules/complaint/api/dependencies/__init__.py                              29     13      0      0    55%   36-44, 52, 63, 75, 87, 99
+app/modules/complaint/api/exception_handlers/__init__.py                        21      1      8      1    93%   63
+app/modules/complaint/api/requests/__init__.py                                 137      9     10      3    89%   62-64, 70, 76-78, 117, 179
+app/modules/complaint/api/responses/__init__.py                                 70      0      0      0   100%
+app/modules/complaint/api/routers/__init__.py                                   10      0      0      0   100%
+app/modules/complaint/api/routers/complaints.py                                 80      1      0      0    99%   131
+app/modules/complaint/api/routers/tickets.py                                    22      0      0      0   100%
+app/modules/complaint/api/validators/__init__.py                                 9      0      2      0   100%
+app/modules/complaint/application/__init__.py                                    2      0      0      0   100%
+app/modules/complaint/application/dto/__init__.py                                2      0      0      0   100%
+app/modules/complaint/application/dto/models.py                                 86      5      0      0    94%   44, 80, 125, 185, 250
+app/modules/complaint/application/services/__init__.py                           9      0      0      0   100%
+app/modules/complaint/application/services/assignment_service.py                72      1      4      1    97%   272
+app/modules/complaint/application/services/crud_service.py                      87      7     10      2    91%   68, 95-97, 140-141, 155
+app/modules/complaint/application/services/domain_service.py                    86     14      6      2    83%   47, 72, 79-80, 91-92, 117-118, 188-189, 237-238, 249-250
+app/modules/complaint/application/services/errors.py                             7      0      0      0   100%
+app/modules/complaint/application/services/escalation_service.py                48      1      6      1    96%   94
+app/modules/complaint/application/services/processing_service.py                59      1      6      2    95%   88->93, 111
+app/modules/complaint/application/services/sla_service.py                       93     12     22      8    81%   99, 127, 129, 134->143, 142, 153-157, 162, 170, 182
+app/modules/complaint/application/services/wiring.py                             7      1      0      0    86%   15
+app/modules/complaint/domain/__init__.py                                         5      0      0      0   100%
+app/modules/complaint/domain/errors.py                                           7      0      0      0   100%
+app/modules/complaint/domain/lifecycle.py                                       20      3      8      3    79%   35, 44, 53
+app/modules/complaint/domain/models.py                                         334     41    108     32    83%   85, 91, 123, 155, 177, 182, 195, 201->204, 212, 251, 266, 271, 279, 287, 317, 321, 332, 379, 384, 389, 394, 410, 421, 429, 488, 494, 531-532, 582->exit, 637, 664, 669, 702-703, 724, 731, 736, 792, 799, 817-818, 828, 833
+app/modules/complaint/domain/repositories.py                                    58      0      0      0   100%
+app/modules/complaint/infrastructure/__init__.py                                18      4      0      0    78%   40, 45, 50, 55
+app/modules/complaint/infrastructure/mappers/__init__.py                         5      0      0      0   100%
+app/modules/complaint/infrastructure/mappers/assignment_mapper.py               21      0      0      0   100%
+app/modules/complaint/infrastructure/mappers/complaint_mapper.py                32      1      2      1    94%   25
+app/modules/complaint/infrastructure/mappers/escalation_mapper.py               20      0      0      0   100%
+app/modules/complaint/infrastructure/mappers/sla_mapper.py                      26      0      0      0   100%
+app/modules/complaint/infrastructure/orm/__init__.py                             2      0      0      0   100%
+app/modules/complaint/infrastructure/orm/models.py                              68      0      0      0   100%
+app/modules/complaint/infrastructure/repositories/__init__.py                    5      0      0      0   100%
+app/modules/complaint/infrastructure/repositories/assignment_repository.py      42      0      6      0   100%
+app/modules/complaint/infrastructure/repositories/complaint_repository.py       44      8      4      2    79%   32, 38, 47-56, 61-70
+app/modules/complaint/infrastructure/repositories/escalation_repository.py      42      0      6      0   100%
+app/modules/complaint/infrastructure/repositories/sla_repository.py             66      0     12      0   100%
+app/modules/complaint_context/__init__.py                                        3      0      0      0   100%
+app/modules/complaint_context/models.py                                         70      0      0      0   100%
+app/modules/complaint_context/service.py                                        50      4      2      0    92%   94-95, 101-102
+app/modules/complaint_events/__init__.py                                         3      0      0      0   100%
+app/modules/complaint_events/factory.py                                         40      1      2      1    95%   54
+app/modules/complaint_events/models.py                                          41      0      0      0   100%
+app/modules/complaints/__init__.py                                               0      0      0      0   100%
+app/modules/complaints/repository.py                                            79     17     10      5    75%   56-61, 67-76, 82-93, 102-122, 138, 198, 200, 202, 204
+app/modules/complaints/router.py                                                52      4      0      0    92%   163-170
+app/modules/complaints/schemas.py                                              136     14     36     13    83%   46, 63, 65, 66->68, 68->70, 84, 94, 97->100, 104, 126, 129, 136, 151-154, 195
+app/modules/complaints/service.py                                              228     21     76     19    86%   163-164, 224, 233, 240, 250, 257, 289, 369, 391, 393, 417, 421-422, 437, 452->468, 486-487, 494, 521->528, 529, 579->586, 623, 630
+app/modules/customers/__init__.py                                                0      0      0      0   100%
+app/modules/customers/repository.py                                             17      0      2      0   100%
+app/modules/customers/router.py                                                 18      4      0      0    78%   23, 39-41
+app/modules/customers/schemas.py                                                10      0      0      0   100%
+app/modules/customers/service.py                                                 9      3      0      0    67%   11, 20-21
+app/modules/dashboard/__init__.py                                                5      0      0      0   100%
+app/modules/dashboard/domain/__init__.py                                         2      0      0      0   100%
+app/modules/dashboard/domain/dto.py                                             58      0      0      0   100%
+app/modules/dashboard/permissions.py                                             2      0      0      0   100%
+app/modules/dashboard/projection_handler.py                                     18      1      2      0    95%   27
+app/modules/dashboard/projection_models.py                                      18      1      0      0    94%   33
+app/modules/dashboard/projection_registration.py                                11      1      2      1    85%   27
+app/modules/dashboard/projection_store.py                                       67      4     16      4    90%   88, 114-115, 117->124, 122
+app/modules/dashboard/providers/__init__.py                                      5      0      0      0   100%
+app/modules/dashboard/providers/complaint_provider.py                           59      0     14      0   100%
+app/modules/dashboard/providers/notification_provider.py                        23      0      6      0   100%
+app/modules/dashboard/providers/queue_provider.py                               37      0     10      0   100%
+app/modules/dashboard/providers/sla_provider.py                                 30      0      8      1    97%   90->92
+app/modules/dashboard/registration.py                                           20      0      0      0   100%
+app/modules/dashboard/router.py                                                 47      0      0      0   100%
+app/modules/dashboard/schemas.py                                                76      0      0      0   100%
+app/modules/dashboard/service.py                                                86      0     14      0   100%
+app/modules/delivery/__init__.py                                                 4      0      0      0   100%
+app/modules/delivery/engine.py                                                  30      1      4      0    97%   47
+app/modules/delivery/models.py                                                  44      0      0      0   100%
+app/modules/delivery/validator.py                                               83      7     38      8    88%   44, 59, 66-68, 84->81, 95, 106, 125
+app/modules/email/__init__.py                                                   43      0      4      0   100%
+app/modules/email/service.py                                                     0      0      0      0   100%
+app/modules/escalations/__init__.py                                              0      0      0      0   100%
+app/modules/escalations/repository.py                                           71      0      0      0   100%
+app/modules/escalations/router.py                                               44      0      0      0   100%
+app/modules/escalations/schemas.py                                             122      5     12      5    93%   42, 71, 78, 142, 169
+app/modules/escalations/service.py                                             188     41     60     10    73%   96, 105, 110->116, 117-118, 123-124, 205, 318, 417, 434, 493-495, 500-508, 513-521, 524-533
+app/modules/event_dispatcher/__init__.py                                         4      0      0      0   100%
+app/modules/event_dispatcher/dispatcher.py                                      38      0      4      0   100%
+app/modules/event_dispatcher/handler.py                                          6      0      0      0   100%
+app/modules/event_dispatcher/result.py                                          16      0      0      0   100%
+app/modules/execution/__init__.py                                               14      0      0      0   100%
+app/modules/execution/dispatch_models.py                                        26      0      0      0   100%
+app/modules/execution/dispatch_validator.py                                     31      3     14      3    87%   78, 86, 94
+app/modules/execution/dispatcher.py                                             40      3      6      1    91%   74, 90, 200
+app/modules/execution/engine.py                                                 51      8     12      3    79%   73, 79, 99, 103, 171-175, 181
+app/modules/execution/lifecycle.py                                              38      3      6      2    89%   32, 109, 113
+app/modules/execution/models.py                                                 41      0      0      0   100%
+app/modules/execution/planner.py                                                21      0      4      0   100%
+app/modules/execution/registry.py                                               25      4      4      2    79%   24, 26, 33, 46
+app/modules/execution/run_store.py                                              39     10     18      3    67%   30, 39-47, 54, 69
+app/modules/execution/runtime.py                                                27      1      4      0    97%   93
+app/modules/execution/runtime_models.py                                         55      0      0      0   100%
+app/modules/execution/store.py                                                  25      5      6      3    74%   21, 28->27, 30, 36, 39, 42
+app/modules/execution/workflow_producer.py                                      28      2      2      0    93%   32, 36
+app/modules/iam/__init__.py                                                      0      0      0      0   100%
+app/modules/iam/data_scope/__init__.py                                           0      0      0      0   100%
+app/modules/iam/data_scope/models.py                                            29      0      0      0   100%
+app/modules/iam/data_scope/permissions.py                                        3      0      0      0   100%
+app/modules/iam/data_scope/repository.py                                        43     10      6      2    71%   24, 34-42, 55->57, 58, 70-71, 84
+app/modules/iam/data_scope/router.py                                            29      0      0      0   100%
+app/modules/iam/data_scope/schemas.py                                           71      4     14      4    91%   19, 82, 84, 104
+app/modules/iam/data_scope/service.py                                           85     24     22      5    71%   39, 46, 65, 94-106, 120, 123-138, 141-144, 156
+app/modules/iam/data_scope_resolver.py                                          58      1      4      0    98%   114
+app/modules/iam/permission/__init__.py                                           0      0      0      0   100%
+app/modules/iam/permission/models.py                                            13      0      0      0   100%
+app/modules/iam/permission/permissions.py                                        5      0      0      0   100%
+app/modules/iam/permission/repository.py                                        37      3      6      2    88%   47, 49, 72
+app/modules/iam/permission/router.py                                            44      0      0      0   100%
+app/modules/iam/permission/schemas.py                                           62      6     12      6    84%   27, 34, 52, 55, 62, 69
+app/modules/iam/permission/service.py                                           69      1     18      2    97%   85->87, 130
+app/modules/iam/permission_cache.py                                            157     10     10      1    93%   50, 61, 161, 165, 174, 183, 206, 236, 270, 296
+app/modules/iam/permission_resolver.py                                          37      0      4      0   100%
+app/modules/iam/role/__init__.py                                                 0      0      0      0   100%
+app/modules/iam/role/models.py                                                  14      0      0      0   100%
+app/modules/iam/role/permissions.py                                              5      0      0      0   100%
+app/modules/iam/role/repository.py                                              35      3      4      2    87%   36, 38, 59
+app/modules/iam/role/router.py                                                  44      0      0      0   100%
+app/modules/iam/role/schemas.py                                                 60      6     12      6    83%   26, 33, 51, 54, 61, 68
+app/modules/iam/role/service.py                                                 55      0     14      1    99%   76->78
+app/modules/iam/role_permission/__init__.py                                      0      0      0      0   100%
+app/modules/iam/role_permission/models.py                                       14      0      0      0   100%
+app/modules/iam/role_permission/permissions.py                                   3      0      0      0   100%
+app/modules/iam/role_permission/repository.py                                   45      5      4      1    88%   73, 93-94, 100, 114
+app/modules/iam/role_permission/router.py                                       36      0      0      0   100%
+app/modules/iam/role_permission/schemas.py                                      12      0      2      0   100%
+app/modules/iam/role_permission/service.py                                      69     10     16      4    84%   61-70, 80-83, 92, 133
+app/modules/iam/user_role/__init__.py                                            0      0      0      0   100%
+app/modules/iam/user_role/models.py                                             14      0      0      0   100%
+app/modules/iam/user_role/permissions.py                                         3      0      0      0   100%
+app/modules/iam/user_role/repository.py                                         45      5      4      1    88%   67, 87-88, 94, 108
+app/modules/iam/user_role/router.py                                             36      0      0      0   100%
+app/modules/iam/user_role/schemas.py                                            12      0      2      0   100%
+app/modules/iam/user_role/service.py                                            80     11     20      5    84%   74, 86-91, 101-104, 117, 163
+app/modules/kpi/__init__.py                                                      5      0      0      0   100%
+app/modules/kpi/projection_handler.py                                           18      1      2      0    95%   27
+app/modules/kpi/projection_models.py                                            19      1      0      0    95%   34
+app/modules/kpi/projection_registration.py                                      11      1      2      1    85%   27
+app/modules/kpi/projection_store.py                                             76     11     28      4    86%   64-71, 116-117, 119->127, 125, 128->131
+app/modules/kpi/repository.py                                                   39      1     10      1    96%   30
+app/modules/kpi/router.py                                                       20      0      0      0   100%
+app/modules/kpi/schemas.py                                                      19      0      0      0   100%
+app/modules/kpi/service.py                                                      30      1      4      1    94%   20
+app/modules/notification/__init__.py                                            15      0      0      0   100%
+app/modules/notification/delivery_factory.py                                    21      2      4      2    84%   56, 60
+app/modules/notification/delivery_memory.py                                     15      2      0      0    87%   18, 30
+app/modules/notification/delivery_models.py                                     24      1      0      0    96%   47
+app/modules/notification/domain/__init__.py                                      2      0      0      0   100%
+app/modules/notification/domain/entity.py                                       67      5     14      5    88%   90, 101, 121, 132, 145
+app/modules/notification/event_models.py                                        34      1      0      0    97%   58
+app/modules/notification/factory.py                                             42      4     10      3    87%   56-59, 121, 127
+app/modules/notification/handler.py                                             39      5      4      1    86%   46, 50, 54, 60-68
+app/modules/notification/infrastructure/__init__.py                              2      0      0      0   100%
+app/modules/notification/infrastructure/providers.py                            22      0      2      0   100%
+app/modules/notification/intent_factory.py                                      38      3      8      1    91%   118-119, 134
+app/modules/notification/intent_memory.py                                       13      1      0      0    92%   24
+app/modules/notification/intent_models.py                                       32      1      0      0    97%   56
+app/modules/notification/mappers.py                                             28      0     10      0   100%
+app/modules/notification/memory.py                                              13      1      0      0    92%   24
+app/modules/notification/models.py                                              33      0      0      0   100%
+app/modules/notification/permissions.py                                          5      0      0      0   100%
+app/modules/notification/persistence_handler.py                                 33      8      6      3    72%   29, 31, 42-51, 73-84
+app/modules/notification/registration.py                                        18      0      6      1    96%   52->55
+app/modules/notification/repository.py                                          45      2      4      2    92%   37, 67->69, 84
+app/modules/notification/router.py                                              72      0      0      0   100%
+app/modules/notification/schemas.py                                             93      8     12      4    87%   36, 63, 66, 72-75, 109
+app/modules/notification/service.py                                            182     11     34      9    91%   157, 183, 238->240, 257, 316, 338->340, 376, 382, 388, 398-399, 411-412
+app/modules/provider_contract/__init__.py                                        3      0      0      0   100%
+app/modules/provider_contract/exceptions.py                                     22      3      6      2    82%   37, 52, 58
+app/modules/provider_contract/models.py                                        101      9     24      6    88%   41, 70, 73-74, 109, 153, 157, 161, 165
+app/modules/provider_executor/__init__.py                                        4      0      0      0   100%
+app/modules/provider_executor/executor.py                                       29      1      4      0    97%   48
+app/modules/provider_executor/models.py                                         28      0      0      0   100%
+app/modules/provider_executor/validator.py                                      28      1     12      1    95%   52
+app/modules/queue/__init__.py                                                    2      0      0      0   100%
+app/modules/queue/api/__init__.py                                                2      0      0      0   100%
+app/modules/queue/api/controllers/__init__.py                                    4      0      0      0   100%
+app/modules/queue/api/controllers/counter_controller.py                         37      8      0      0    78%   43-44, 54-55, 73-74, 84-85
+app/modules/queue/api/controllers/queue_controller.py                           60     13      2      1    77%   40, 59-60, 70-71, 102-103, 113-114, 124-125, 135-136
+app/modules/queue/api/controllers/ticket_controller.py                          86     13      4      1    84%   37, 65-66, 106-107, 135-136, 148-149, 170-171, 181-182
+app/modules/queue/api/dependencies/__init__.py                                  23     10      0      0    57%   31-39, 47, 60
+app/modules/queue/api/exception_handlers/__init__.py                            21      1      8      1    93%   62
+app/modules/queue/api/requests/__init__.py                                       4      0      0      0   100%
+app/modules/queue/api/requests/counter.py                                       22      1      2      1    92%   37
+app/modules/queue/api/requests/queue.py                                         38      6      4      0    76%   48-50, 55-57
+app/modules/queue/api/requests/ticket.py                                        10      0      0      0   100%
+app/modules/queue/api/responses/__init__.py                                      4      0      0      0   100%
+app/modules/queue/api/responses/counter.py                                      14      0      0      0   100%
+app/modules/queue/api/responses/queue.py                                        16      0      0      0   100%
+app/modules/queue/api/responses/ticket.py                                       17      0      0      0   100%
+app/modules/queue/api/routers/__init__.py                                       16      0      0      0   100%
+app/modules/queue/api/routers/counters.py                                       34      0      0      0   100%
+app/modules/queue/api/routers/queues.py                                         45      0      0      0   100%
+app/modules/queue/api/routers/tickets.py                                        64      0      0      0   100%
+app/modules/queue/api/schemas/__init__.py                                        3      0      0      0   100%
+app/modules/queue/api/validators/__init__.py                                     9      0      2      0   100%
+app/modules/queue/application/__init__.py                                        5      0      0      0   100%
+app/modules/queue/application/commands/__init__.py                              11      0      0      0   100%
+app/modules/queue/application/commands/call_next_ticket.py                      26      1      4      1    93%   36
+app/modules/queue/application/commands/cancel_ticket.py                         21      1      2      1    91%   36
+app/modules/queue/application/commands/close_queue.py                           21      1      2      1    91%   36
+app/modules/queue/application/commands/complete_ticket.py                       21      1      2      1    91%   36
+app/modules/queue/application/commands/create_queue.py                          23      0      0      0   100%
+app/modules/queue/application/commands/issue_ticket.py                          30      1      2      1    94%   40
+app/modules/queue/application/commands/open_queue.py                            21      1      2      1    91%   36
+app/modules/queue/application/commands/pause_queue.py                           23      2      4      2    85%   36, 41
+app/modules/queue/application/commands/recall_ticket.py                         19      1      2      1    90%   35
+app/modules/queue/application/commands/skip_ticket.py                           21      1      2      1    91%   36
+app/modules/queue/application/dto/__init__.py                                    2      0      0      0   100%
+app/modules/queue/application/dto/models.py                                     44      4      0      0    91%   48, 83, 105, 112
+app/modules/queue/application/queries/__init__.py                                4      0      0      0   100%
+app/modules/queue/application/queries/get_queue.py                              17      1      2      1    89%   28
+app/modules/queue/application/queries/get_queue_tickets.py                      18      1      2      1    90%   28
+app/modules/queue/application/queries/get_waiting_tickets.py                    21      1      2      1    91%   36
+app/modules/queue/application/services/__init__.py                               7      0      0      0   100%
+app/modules/queue/application/services/crud_service.py                         180     13     24     11    88%   104, 134, 195, 216-217, 256-257, 260->262, 271, 284, 314, 334, 353, 362
+app/modules/queue/application/services/domain_service.py                       104     20     62     17    75%   79, 87, 92, 105, 121, 142, 182, 187, 192, 203-204, 228, 235-236, 251, 259, 268, 277-282, 291
+app/modules/queue/application/services/errors.py                                 7      0      0      0   100%
+app/modules/queue/application/services/operations_service.py                    94      4      8      3    93%   82-83, 149, 158
+app/modules/queue/application/services/state.py                                 60     14      6      3    74%   27-32, 47, 59, 69, 83-84, 87-88, 91
+app/modules/queue/application/services/wiring.py                                11      2      0      0    82%   14, 20
+app/modules/queue/domain/__init__.py                                             2      0      0      0   100%
+app/modules/queue/domain/ticket_number.py                                       25      4      6      2    81%   30, 32, 38, 42
+app/modules/queue/infrastructure/__init__.py                                    13      0      0      0   100%
+app/modules/queue/interfaces/__init__.py                                         2      0      0      0   100%
+app/modules/queue/interfaces/repositories.py                                    42      0      0      0   100%
+app/modules/queue/mappers/__init__.py                                            2      0      0      0   100%
+app/modules/queue/mappers/queue_mapper.py                                       48      4      0      0    92%   117-120
+app/modules/queue/models.py                                                     92      6     18      6    89%   61, 67, 91, 95, 131, 166
+app/modules/queue/orm/__init__.py                                                2      0      0      0   100%
+app/modules/queue/orm/models.py                                                 41      0      0      0   100%
+app/modules/queue/repositories/__init__.py                                       4      0      0      0   100%
+app/modules/queue/repositories/queue_counter_repository.py                      45      0      6      0   100%
+app/modules/queue/repositories/queue_repository.py                              40      1      4      1    95%   38
+app/modules/queue/repositories/queue_ticket_repository.py                       44      5      4      1    83%   30-33, 38
+app/modules/reports/__init__.py                                                  0      0      0      0   100%
+app/modules/reports/repository.py                                               33      0      6      0   100%
+app/modules/reports/router.py                                                   27      0      0      0   100%
+app/modules/reports/schemas.py                                                  24      0      0      0   100%
+app/modules/reports/service.py                                                  35      1      4      1    95%   20
+app/modules/resolutions/__init__.py                                              0      0      0      0   100%
+app/modules/resolutions/repository.py                                           59      0      2      1    98%   132->135
+app/modules/resolutions/router.py                                               37      0      4      0   100%
+app/modules/resolutions/schemas.py                                              64      2      4      2    94%   36, 76
+app/modules/resolutions/service.py                                             129     21     36      7    81%   68-78, 97, 101, 106-112, 143, 153, 251, 282, 286
+app/modules/routing/__init__.py                                                  2      0      0      0   100%
+app/modules/routing/service.py                                                  37      1      8      0    98%   149
+app/modules/search/__init__.py                                                   4      0      0      0   100%
+app/modules/search/domain/__init__.py                                            3      0      0      0   100%
+app/modules/search/domain/enums.py                                              11      0      0      0   100%
+app/modules/search/domain/filters.py                                            47      0     22      0   100%
+app/modules/search/permissions.py                                                2      0      0      0   100%
+app/modules/search/providers/__init__.py                                         3      0      0      0   100%
+app/modules/search/providers/base.py                                             8      0      0      0   100%
+app/modules/search/providers/complaint.py                                       68      0     28      0   100%
+app/modules/search/registration.py                                               6      0      0      0   100%
+app/modules/search/router.py                                                    24      0      0      0   100%
+app/modules/search/schemas.py                                                   33      0      0      0   100%
+app/modules/search/service.py                                                   12      0      0      0   100%
+app/modules/settings/__init__.py                                                 0      0      0      0   100%
+app/modules/settings/models.py                                                  13      0      0      0   100%
+app/modules/settings/registry.py                                                20      0      0      0   100%
+app/modules/settings/repository.py                                              29      1      0      0    97%   20
+app/modules/settings/router.py                                                  28      0      0      0   100%
+app/modules/settings/schemas.py                                                 21      0      0      0   100%
+app/modules/settings/service.py                                                120     17     46      9    82%   26-28, 68, 80, 88, 119, 127, 130-131, 141, 145-147, 159, 162-163
+app/modules/sla/__init__.py                                                      0      0      0      0   100%
+app/modules/sla/evaluation.py                                                   36      1     10      1    96%   17
+app/modules/sla/hooks.py                                                         8      0      0      0   100%
+app/modules/sla/repository.py                                                  104      5     12      5    91%   178, 212, 264, 284, 300
+app/modules/sla/router.py                                                       31      6      0      0    81%   59-60, 75-76, 91-92
+app/modules/sla/schemas.py                                                      58      2      4      2    94%   53, 60
+app/modules/sla/service.py                                                     103      6     34      6    91%   42, 82, 102-103, 150-151, 294->297, 318->321
+app/modules/sla/timeline.py                                                     26      2     12      3    87%   78, 85->80, 87
+app/modules/timeline/__init__.py                                                 4      0      0      0   100%
+app/modules/timeline/domain/__init__.py                                          3      0      0      0   100%
+app/modules/timeline/domain/entity.py                                           41      3      8      2    90%   72->84, 75-76, 86
+app/modules/timeline/domain/enums.py                                            24      0      0      0   100%
+app/modules/timeline/handler.py                                                 34      6      6      2    80%   47, 50, 91-102
+app/modules/timeline/models.py                                                  21      0      0      0   100%
+app/modules/timeline/permissions.py                                              3      0      0      0   100%
+app/modules/timeline/registration.py                                            10      0      2      0   100%
+app/modules/timeline/repository.py                                              46      3      8      3    89%   76->78, 78->80, 81, 105, 116
+app/modules/timeline/router.py                                                  34      0      0      0   100%
+app/modules/timeline/schemas.py                                                 38      1      2      1    95%   35
+app/modules/timeline/service.py                                                 35      0      4      0   100%
+app/modules/timelines/__init__.py                                                0      0      0      0   100%
+app/modules/timelines/repository.py                                             19      0      0      0   100%
+app/modules/timelines/router.py                                                 18      0      0      0   100%
+app/modules/timelines/schemas.py                                                35      2      8      2    91%   36, 45
+app/modules/timelines/service.py                                                23      1      4      1    93%   45
+app/modules/transport/__init__.py                                                5      0      0      0   100%
+app/modules/transport/adapter.py                                                15      0      0      0   100%
+app/modules/transport/models.py                                                 19      0      0      0   100%
+app/modules/transport/registry.py                                               45      6     16      2    87%   19, 39, 46-48, 68
+app/modules/transport/selector.py                                               31      1      6      1    95%   42
+app/modules/users/__init__.py                                                    0      0      0      0   100%
+app/modules/users/repository.py                                                 82      1     20      6    93%   43, 134->136, 136->138, 138->141, 163->167, 165->167
+app/modules/users/router.py                                                     52     13      2      0    72%   93-98, 116-124, 141-142, 159-167, 182-183
+app/modules/users/schemas.py                                                   140      7     32      7    92%   31, 56, 74, 77, 94, 104, 108
+app/modules/users/service.py                                                   163     19     50     12    83%   98-99, 167, 178-192, 204, 210, 215->219, 220, 272, 292, 294-303, 364, 371, 390
+app/modules/workflow/__init__.py                                                 8      0      0      0   100%
+app/modules/workflow/engine.py                                                  41      3      4      0    93%   55-60
+app/modules/workflow/factory.py                                                  8      0      0      0   100%
+app/modules/workflow/handler.py                                                 34      1      6      0    98%   45
+app/modules/workflow/models.py                                                  50      1      0      0    98%   94
+app/modules/workflow/registration.py                                            16      0      2      0   100%
+app/modules/workflow/registry.py                                                25      1      4      1    93%   26
+app/modules/workflow/store.py                                                   25      0      6      0   100%
+------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                        17547   1285   2934    639    90%
+FAIL Required test coverage of 90% not reached. Total coverage: 89.86%
+1325 passed, 7 skipped, 158 warnings in 123.00s (0:02:02)
+EXIT: 0
+
+===== STEP: Audit runtime dependencies (pip-audit) =====
+CMD: pip-audit -r requirements.txt
+No known vulnerabilities found
+
+EXIT: 0
+
+===== OVERALL EXIT: 0 =====

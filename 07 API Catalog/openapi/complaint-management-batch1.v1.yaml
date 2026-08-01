@@ -1,0 +1,667 @@
+openapi: 3.0.3
+info:
+  title: ECMP Complaint Management Batch 1 API
+  version: 1.0.0-planned
+  description: |
+    OpenAPI for Complaint Management Module Batch 1 (FRD-CM-001 v1.1 LOCKED).
+    Scope: FR-001…FR-004 only. No Case create.
+    Ownership: `/api/v1/cm` Aggregate namespace (DEC-020 Accepted).
+    Implementation status: Implemented (lab) for FR-001…FR-004 (API-500…513) on durable
+    `cm_batch1_*` persistence (Alembic 0040…0043). Residual lab exceptions remain under
+    EPIC-CM-B1-OPS / EX pack — not a Batch-2 or Mode B unlock.
+    Logical IDs API-CM-B1-xxx map to catalog IDs API-500…API-513.
+    Controlled coexistence with foundation `/api/v1/complaints` (complaint-service) —
+    namespaces MUST NOT be treated as interchangeable (DEC-020). Cutover/retirement
+    requires a separate Board Decision.
+  x-ecmp-frd: FRD-CM-001
+  x-ecmp-rtm: RTM-CM-B1-001
+  x-ecmp-dec: DEC-020
+  x-ecmp-status: Implemented (lab) — coexistence per DEC-020
+  x-ecmp-ownership: CM Batch 1 Aggregate (`backend/app/modules/cm_batch1/`)
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: Batch1-Registration
+    description: FR-001 Complaint Registration (no Case)
+  - name: Batch1-Customer
+    description: FR-002 Customer Search
+  - name: Batch1-Duplicate
+    description: FR-003 Duplicate Detection
+  - name: Batch1-Attachment
+    description: FR-004 Attachment Upload / Transfer
+paths:
+  /api/v1/cm/complaints:
+    post:
+      summary: Create Complaint (idempotent; no Case)
+      operationId: cmB1CreateComplaint
+      x-ear-id: API-500
+      x-ecmp-logical-id: API-CM-B1-001
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates Complaint Aggregate with status REGISTERED.
+        MUST NOT create Case (CTO D-02).
+        Requires Request Id; Channel Message Id when channel-sourced (D-03).
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/ChannelMessageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComplaintBatch1Request"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "200":
+          description: Idempotent replay — original outcome returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}:
+    get:
+      summary: Get Complaint confirmation/detail
+      operationId: cmB1GetComplaint
+      x-ear-id: API-501
+      x-ecmp-logical-id: API-CM-B1-002
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "404":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/customers/search:
+    post:
+      summary: Search Customer by exactly one key type
+      operationId: cmB1SearchCustomer
+      x-ear-id: API-502
+      x-ecmp-logical-id: API-CM-B1-003
+      x-ecmp-fr: FR-002
+      tags: [Batch1-Customer]
+      security:
+        - bearerAuth: []
+      description: |
+        Exactly one of customerNumber | identityNumber | referenceNumber.
+        Enumeration protection MUST apply (D-04). Fail-closed if unavailable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerSearchRequest"
+      responses:
+        "200":
+          description: Search result (may be empty / delayed / blocked per policy)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerSearchResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/customers/confirm:
+    post:
+      summary: Confirm / lock CustomerId in session context
+      operationId: cmB1ConfirmCustomer
+      x-ear-id: API-503
+      x-ecmp-logical-id: API-CM-B1-004
+      x-ecmp-fr: FR-002
+      tags: [Batch1-Customer]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId]
+              properties:
+                customerId:
+                  type: string
+      responses:
+        "200":
+          description: CustomerId locked for create context
+        "400":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/customers/{customerId}/batch1-360:
+    get:
+      summary: Batch 1 Customer 360 minimum
+      operationId: cmB1Customer360Minimum
+      x-ear-id: API-504
+      x-ecmp-logical-id: API-CM-B1-005
+      x-ecmp-fr: FR-002
+      tags: [Batch1-Customer]
+      security:
+        - bearerAuth: []
+      description: Profile + Active Complaints + Complaint Count + asOf (D-05). Not full 360.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Batch 1 minimum view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer360Batch1Response"
+  /api/v1/cm/duplicates/check:
+    post:
+      summary: Check duplicate Complaint candidates
+      operationId: cmB1CheckDuplicates
+      x-ear-id: API-505
+      x-ecmp-logical-id: API-CM-B1-006
+      x-ecmp-fr: FR-003
+      tags: [Batch1-Duplicate]
+      security:
+        - bearerAuth: []
+      description: Detect/warn only. MUST NOT create Case.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DuplicateCheckRequest"
+      responses:
+        "200":
+          description: Candidates / warning / degraded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DuplicateCheckResponse"
+  /api/v1/cm/duplicates/decisions:
+    post:
+      summary: Record duplicate decision / linkage
+      operationId: cmB1RecordDuplicateDecision
+      x-ear-id: API-506
+      x-ecmp-logical-id: API-CM-B1-007
+      x-ecmp-fr: FR-003
+      tags: [Batch1-Duplicate]
+      security:
+        - bearerAuth: []
+      description: |
+        Allowed decisions: link_existing | override | recommend_only | blocked.
+        Add Case is forbidden in Batch 1.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DuplicateDecisionRequest"
+      responses:
+        "200":
+          description: Decision recorded
+        "400":
+          $ref: "#/components/responses/Error"
+  /api/v1/attachments:
+    post:
+      summary: Upload attachment (Batch 1 semantics)
+      operationId: cmB1UploadAttachment
+      x-ear-id: API-507
+      x-ecmp-logical-id: API-CM-B1-008
+      x-ecmp-fr: FR-004
+      x-ecmp-aligns-with: API-323
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      description: |
+        Aligns with existing API-323 path. Batch 1 requires integrity hash,
+        void-not-delete, and Aggregate anchor rules per FR-004 / BR-012.
+      responses:
+        "201":
+          description: Uploaded / staged
+        "400":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/attachments/transfer:
+    post:
+      summary: Transfer staged attachments to surviving Complaint
+      operationId: cmB1TransferStagedAttachments
+      x-ear-id: API-508
+      x-ecmp-logical-id: API-CM-B1-009
+      x-ecmp-fr: FR-004
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      description: D-06 staged evidence transfer. MUST NOT discard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stagingToken, survivingComplaintId]
+              properties:
+                stagingToken:
+                  type: string
+                survivingComplaintId:
+                  type: string
+      responses:
+        "200":
+          description: Transferred
+        "400":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/supervisor/queue:
+    get:
+      summary: Supervisor later-review and no-Case aging visibility
+      operationId: cmB1GetSupervisorQueue
+      x-ear-id: API-513
+      x-ecmp-logical-id: API-CM-B1-014
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Read-only supervisor visibility (Mode A / Batch 1).
+        Returns OPEN later-review work items (FR-003 E1 degraded duplicate;
+        FR-004 E8 failed bind) and REGISTERED Complaints without Case past
+        the aging threshold (FR-001 A4 / D-02 — awaiting Batch 2 Case create).
+        MUST NOT create Case. Resolve/close of work items is out of this slice.
+      parameters:
+        - name: workItemStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OPEN, ALL]
+            default: OPEN
+          description: Filter later-review work items.
+        - name: agingHours
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8760
+            default: 24
+          description: |
+            Lab default threshold (hours) for no-Case aging flag.
+            Production SLA remains OQ-CM-B1-004 / Batch 2.
+            Inclusion: createdAt <= asOf - agingHours (inclusive boundary).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+          description: |
+            Cap on laterReviewItems and agingComplaints each.
+            Offset/cursor pagination is out of this contract (Mode A visibility).
+      responses:
+        "200":
+          description: Supervisor queue snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupervisorQueueResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /api/v1/complaints/{id}/attachments:
+    get:
+      summary: List attachments for Complaint
+      operationId: cmB1ListComplaintAttachments
+      x-ear-id: API-509
+      x-ecmp-logical-id: API-CM-B1-010
+      x-ecmp-fr: FR-004
+      x-ecmp-aligns-with: API-387
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Attachment list
+  /api/v1/attachments/{id}:
+    get:
+      summary: Get attachment metadata
+      operationId: cmB1GetAttachmentMetadata
+      x-ear-id: API-510
+      x-ecmp-logical-id: API-CM-B1-011
+      x-ecmp-fr: FR-004
+      x-ecmp-aligns-with: API-324
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Metadata including integrity hash
+    delete:
+      summary: Logical void (not physical delete)
+      operationId: cmB1VoidAttachment
+      x-ear-id: API-512
+      x-ecmp-logical-id: API-CM-B1-013
+      x-ecmp-fr: FR-004
+      x-ecmp-aligns-with: API-326
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      description: Semantics MUST match BR-012 void-with-reason (not hard delete).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Voided
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/attachments/{id}/download:
+    get:
+      summary: Download attachment bytes
+      operationId: cmB1DownloadAttachment
+      x-ear-id: API-511
+      x-ecmp-logical-id: API-CM-B1-012
+      x-ecmp-fr: FR-004
+      x-ecmp-aligns-with: API-325
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    RequestId:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Request Id for create idempotency (D-03). Generation authority = OQ-CM-B1-013.
+    ChannelMessageId:
+      name: X-Channel-Message-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Required when channel-sourced create.
+    ComplaintId:
+      name: complaintId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error envelope
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              details:
+                type: object
+                additionalProperties: true
+  schemas:
+    CreateComplaintBatch1Request:
+      type: object
+      required: [customerId, category, channel, subject, description]
+      properties:
+        customerId:
+          type: string
+        category:
+          type: string
+        priority:
+          type: string
+        channel:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        recordingUnitId:
+          type: string
+        duplicateOverrideJustification:
+          type: string
+        stagingToken:
+          type: string
+          description: Optional staged attachments from create session
+    ComplaintBatch1Response:
+      type: object
+      required: [complaintId, complaintNumber, status, customerId]
+      properties:
+        complaintId:
+          type: string
+        complaintNumber:
+          type: string
+        status:
+          type: string
+          enum: [REGISTERED]
+        customerId:
+          type: string
+        caseCreated:
+          type: boolean
+          enum: [false]
+          description: Batch 1 MUST always be false
+        replayed:
+          type: boolean
+        duplicateCheckResult:
+          type: string
+    CustomerSearchRequest:
+      type: object
+      description: Supply exactly one key
+      properties:
+        customerNumber:
+          type: string
+        identityNumber:
+          type: string
+        referenceNumber:
+          type: string
+    CustomerSearchResponse:
+      type: object
+      properties:
+        verificationStatus:
+          type: string
+        customerId:
+          type: string
+          nullable: true
+        asOf:
+          type: string
+          format: date-time
+        candidates:
+          type: array
+          items:
+            type: object
+        enumerationOutcome:
+          type: string
+          enum: [allowed, delayed, blocked, alerted]
+    Customer360Batch1Response:
+      type: object
+      required: [customerId, profile, activeComplaints, complaintCount, asOf]
+      properties:
+        customerId:
+          type: string
+        profile:
+          type: object
+        activeComplaints:
+          type: array
+          items:
+            type: object
+        complaintCount:
+          type: integer
+        asOf:
+          type: string
+          format: date-time
+    DuplicateCheckRequest:
+      type: object
+      required: [customerId]
+      properties:
+        customerId:
+          type: string
+        category:
+          type: string
+        subject:
+          type: string
+        channel:
+          type: string
+    DuplicateCheckResponse:
+      type: object
+      properties:
+        warning:
+          type: boolean
+        candidates:
+          type: array
+          items:
+            type: object
+        degraded:
+          type: boolean
+        laterReviewWorkItemId:
+          type: string
+          nullable: true
+    DuplicateDecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [link_existing, override, recommend_only, blocked]
+        survivingComplaintId:
+          type: string
+        justification:
+          type: string
+        stagingToken:
+          type: string
+    SupervisorQueueResponse:
+      type: object
+      required:
+        [laterReviewItems, agingComplaints, agingThresholdHours, asOf]
+      properties:
+        laterReviewItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/LaterReviewWorkItem"
+        agingComplaints:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgingComplaintItem"
+        agingThresholdHours:
+          type: integer
+        asOf:
+          type: string
+          format: date-time
+    LaterReviewWorkItem:
+      type: object
+      required: [workItemId, customerId, reason, status, createdAt, ageHours]
+      properties:
+        workItemId:
+          type: string
+        customerId:
+          type: string
+        complaintId:
+          type: string
+          nullable: true
+          description: |
+            Optional Aggregate Complaint id when known (EX-G / FR-004 E8 bind
+            failure). Null for pre-create degraded duplicate review (FR-003 E1).
+        reason:
+          type: string
+          description: |
+            Lab reasons include duplicate_check_degraded, attachment_bind_failed.
+        status:
+          type: string
+          enum: [OPEN, CLOSED]
+        createdAt:
+          type: string
+          format: date-time
+        ageHours:
+          type: number
+    AgingComplaintItem:
+      type: object
+      required:
+        [
+          complaintId,
+          complaintNumber,
+          customerId,
+          status,
+          createdAt,
+          ageHours,
+          caseCreated,
+        ]
+      properties:
+        complaintId:
+          type: string
+        complaintNumber:
+          type: string
+        customerId:
+          type: string
+        status:
+          type: string
+        subject:
+          type: string
+        priority:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        ageHours:
+          type: number
+        caseCreated:
+          type: boolean
+          enum: [false]

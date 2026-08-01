@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -16,6 +17,7 @@ import {
   type UserRef,
 } from "@/lib/api";
 import type { Assignment } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -27,26 +29,6 @@ import {
   Toast,
 } from "@/shared/ui";
 
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-function roleLabel(user: UserRef): string {
-  return user.roleName?.trim() || user.roleCode?.trim() || "—";
-}
-
-function userOptionLabel(user: UserRef): string {
-  return `${user.fullName} — ${roleLabel(user)}`;
-}
-
 export function AssignmentCard({
   complaintId,
   onAssigned,
@@ -55,7 +37,18 @@ export function AssignmentCard({
   onAssigned?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const canAssign = hasPermission("complaints:assign");
+
+  function roleLabel(user: UserRef): string {
+    return user.roleName?.trim() || user.roleCode?.trim() || tCommon("emDash");
+  }
+
+  function userOptionLabel(user: UserRef): string {
+    return `${user.fullName} — ${roleLabel(user)}`;
+  }
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [users, setUsers] = useState<UserRef[]>([]);
@@ -77,9 +70,7 @@ export function AssignmentCard({
       const usersPromise = canAssign
         ? fetchUsers({ pageSize: 100, isActive: true }).catch((err) => {
             setUsersError(
-              err instanceof ApiError
-                ? err.message
-                : "Unable to load users.",
+              err instanceof ApiError ? err.message : t("unableToLoadUsers"),
             );
             return null;
           })
@@ -103,13 +94,13 @@ export function AssignmentCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to load assignment.",
+            : t("unableToLoadAssignment"),
       );
       setAssignment(null);
     } finally {
       setLoading(false);
     }
-  }, [canAssign, complaintId]);
+  }, [canAssign, complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -121,6 +112,7 @@ export function AssignmentCard({
         value: user.id,
         label: userOptionLabel(user),
       })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [users],
   );
 
@@ -129,7 +121,7 @@ export function AssignmentCard({
     setSubmitError(null);
 
     if (!selectedId) {
-      setSubmitError("Select an assignee.");
+      setSubmitError(t("selectAssignee"));
       return;
     }
 
@@ -145,7 +137,7 @@ export function AssignmentCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Assign failed.",
+            : t("assignFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -156,32 +148,32 @@ export function AssignmentCard({
   const assigneeDisplay =
     assignment?.assigneeName?.trim() ||
     users.find((u) => u.id === assignment?.assigneeId)?.fullName ||
-    "—";
+    tCommon("emDash");
 
   return (
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Assignment</CardTitle>
+          <CardTitle>{t("assignmentCard")}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Loading assignment…
+              {t("loadingAssignment")}
             </p>
           ) : loadError ? (
             <Alert
               tone="danger"
-              title="Could not load assignment"
+              title={t("couldNotLoadAssignment")}
               description={loadError}
-              actionLabel="Retry"
+              actionLabel={tCommon("retry")}
               onAction={() => void load()}
             />
           ) : assignment ? (
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="min-w-0 space-y-1">
                 <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                  Assignee
+                  {t("assignee")}
                 </dt>
                 <dd className="break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                   {assigneeDisplay}
@@ -189,10 +181,10 @@ export function AssignmentCard({
               </div>
               <div className="min-w-0 space-y-1">
                 <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                  Assigned At
+                  {t("assignedAt")}
                 </dt>
                 <dd className="break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                  {formatWhen(assignment.assignedAt)}
+                  {formatDateTime(assignment.assignedAt, locale)}
                 </dd>
               </div>
             </dl>
@@ -201,29 +193,29 @@ export function AssignmentCard({
               {usersError ? (
                 <Alert
                   tone="danger"
-                  title="Could not load users"
+                  title={t("couldNotLoadUsers")}
                   description={usersError}
                 />
               ) : null}
               <Select
-                label="Assignee"
+                label={t("assignee")}
                 name="assigneeId"
                 required
-                placeholder="Select User"
+                placeholder={t("selectUser")}
                 value={selectedId}
                 options={options}
                 disabled={submitting || options.length === 0}
                 onChange={(e) => setSelectedId(e.target.value)}
                 error={
                   !usersError && options.length === 0
-                    ? "No active users available."
+                    ? t("noActiveUsersAvailable")
                     : undefined
                 }
               />
               {submitError ? (
                 <Alert
                   tone="danger"
-                  title="Assign failed"
+                  title={t("assignFailed")}
                   description={submitError}
                 />
               ) : null}
@@ -232,13 +224,13 @@ export function AssignmentCard({
                   type="submit"
                   disabled={submitting || !selectedId || options.length === 0}
                 >
-                  {submitting ? "Assigning…" : "Assign"}
+                  {submitting ? t("assigning") : t("assign")}
                 </Button>
               </div>
             </form>
           ) : (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Unassigned
+              {t("unassigned")}
             </p>
           )}
         </CardBody>
@@ -246,8 +238,8 @@ export function AssignmentCard({
 
       <Toast
         open={toastOpen}
-        title="Complaint assigned"
-        description="Assignee saved successfully."
+        title={t("complaintAssigned")}
+        description={t("assigneeSaved")}
         onClose={() => setToastOpen(false)}
       />
     </>

@@ -68,7 +68,7 @@ def test_delete_rejects_system_role() -> None:
     repo.get_by_id.return_value = _role(is_system=True, code="ADMIN")
     service = RoleService(repo)
 
-    with pytest.raises(ConflictError, match="System role"):
+    with pytest.raises(ConflictError, match="Peran sistem"):
         service.delete(uuid.uuid4())
     repo.soft_delete.assert_not_called()
 

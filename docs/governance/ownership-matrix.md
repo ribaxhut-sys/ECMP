@@ -1,4 +1,4 @@
-﻿# Ownership Matrix
+# Ownership Matrix
 
 | Field | Value |
 |---|---|
@@ -10,6 +10,8 @@
 | Status | 🟡 Draft |
 | Last Review | 2026-07-21 |
 | Next Review | 2027-01-21 |
+
+> **2026-07-31:** Code/namespace ownership appendix added for DEC-020 dual SoT (Mode A). See canonical file section “Code / namespace ownership”.
 
 The ownership matrix (EAR-STD-004, 🟢 Approved, approved by CIO/Program Sponsor) assigns an **owner role, backup, and primary reviewer** to every numbered folder 00–27. Examples:
 

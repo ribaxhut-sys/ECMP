@@ -1,0 +1,32 @@
+# ECMP edge — pengaduan.layanankami.tech
+# TLS via Let's Encrypt (needs DNS A → this VPS first).
+
+{
+	email {$CADDY_ACME_EMAIL}
+}
+
+{$ECMP_DOMAIN} {
+	encode gzip
+
+	# Backend API (FastAPI already serves /api/v1/...)
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# OpenAPI / health (optional ops access behind same host)
+	handle /health* {
+		reverse_proxy backend:8000
+	}
+	# W-S04 closed 2026-08-01: do not expose /docs /redoc /openapi.json on public edge
+
+	# Next.js frontend
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

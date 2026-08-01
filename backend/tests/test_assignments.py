@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.errors import ForbiddenError, InvalidStateError, ValidationAppError
 from app.core.auth import Principal, require_supervisor_assign
+from app.core.errors import ForbiddenError, InvalidStateError, ValidationAppError
 from app.modules.assignments.schemas import AssignComplaintRequest
 from app.modules.assignments.service import AssignmentService
 
@@ -102,7 +102,7 @@ def test_reassignment_requires_reason() -> None:
             AssignComplaintRequest(assigneeId=uuid.uuid4()),
             actor_user_id=uuid.uuid4(),
         )
-    assert "reason" in exc.value.message.lower()
+    assert "alasan" in exc.value.message.lower()
     repo.close_assignment.assert_not_called()
 
 

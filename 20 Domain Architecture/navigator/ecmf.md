@@ -77,12 +77,8 @@
 - `ADR-011` — `05 Architecture Decision Records/ECMP_ADR_011_Frontend_Deferral_v1.0.md`
 - `ADR-012` — `05 Architecture Decision Records/ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md`
 - `ADR-013` — `05 Architecture Decision Records/ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md`
-
-## Project Decisions
-
-- `DEC-018` — Multi-Source & Multi-Target Complaint (`27 Project Decisions/DEC-018_Multi_Source_Multi_Target_Complaint_TASK042_v1.0.md`)
-- Routing Architecture — `20 Domain Architecture/ECMF/COMPLAINT_ROUTING.md` (TASK-043)
-- Complaint Context — `20 Domain Architecture/ECMF/COMPLAINT_CONTEXT.md` (TASK-044)
+- `ADR-014` — `05 Architecture Decision Records/ECMP_ADR_014_ECMP_Enterprise_Business_Module_v1.2.md`
+- `ADR-015` — `05 Architecture Decision Records/ECMP_ADR_015_Enterprise_Identity_Contract_v1.1.md`
 
 ## Coverage
 

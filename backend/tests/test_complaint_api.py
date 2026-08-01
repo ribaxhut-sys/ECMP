@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -29,12 +30,11 @@ from app.core.config import get_settings
 from app.core.errors import ApiError, InvalidStateError, NotFoundError, ValidationAppError
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import ErrorResponse
+from app.core.user_messages import field_errors_from_validation
 from app.db.async_session import _to_async_url
 from app.db.base import Base
 from app.modules.complaint.api import complaint_foundation_router
 from app.modules.complaint.api.controllers import ComplaintController
-from unittest.mock import MagicMock
-
 from app.modules.complaint.api.dependencies import (
     get_complaint_assignment_service,
     get_complaint_crud_service,
@@ -261,16 +261,12 @@ def _foundation_app(
     async def validation_error_handler(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        field_errors: dict[str, Any] = {}
-        for err in exc.errors():
-            loc = err.get("loc", ())
-            key = ".".join(str(part) for part in loc if part != "body")
-            field_errors[key or "body"] = err.get("msg")
+        field_errors = field_errors_from_validation(exc.errors())
         return JSONResponse(
             status_code=422,
             content=_error_body(
                 "VALIDATION_ERROR",
-                "Request validation failed",
+                "Validasi permintaan gagal.",
                 field_errors or None,
             ),
         )

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from app.core.config import Settings
 from app.core.errors import RateLimitedError
+from app.core.user_messages import m
 
 
 @dataclass
@@ -34,14 +35,15 @@ class LoginAttemptGuard:
             if state.locked_until > now:
                 retry_after = max(1, int(state.locked_until - now))
                 raise RateLimitedError(
-                    "Too many login attempts; try again later",
+                    m("auth.rate_limited_login"),
                     details={"retryAfterSeconds": retry_after},
                 )
             if state.locked_until and state.locked_until <= now:
                 # Lock expired — reset counter for a fresh window.
                 self._states.pop(key, None)
 
-    def record_failure(self, key: str) -> None:
+    def record_failure(self, key: str) -> bool:
+        """Record a failed attempt. Returns True when this call starts a lockout."""
         now = time.monotonic()
         with self._lock:
             state = self._states.get(key)
@@ -49,10 +51,12 @@ class LoginAttemptGuard:
                 state = _AttemptState()
                 self._states[key] = state
             if state.locked_until > now:
-                return
+                return False
             state.failures += 1
             if state.failures >= self.max_failures:
                 state.locked_until = now + self.lockout_seconds
+                return True
+            return False
 
     def reset(self, key: str) -> None:
         with self._lock:

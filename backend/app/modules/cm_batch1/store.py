@@ -1,0 +1,359 @@
+"""In-memory Aggregate store for CM Batch 1 unit tests / S1 compatibility.
+
+Production path uses :class:`CmBatch1Repository` (SQLAlchemy).
+"""
+
+from __future__ import annotations
+
+import itertools
+import uuid
+from datetime import UTC, datetime
+from threading import Lock
+
+from app.modules.cm_batch1.entities import (
+    ComplaintAggregate,
+    DuplicateDecisionRecord,
+    IdempotencyRecord,
+    LaterReviewWorkItem,
+)
+from app.modules.cm_batch1.exceptions import ReplayConflict
+
+
+class Batch1Store:
+    """Process-local in-memory implementation of the Batch 1 store protocol."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._complaints: dict[str, ComplaintAggregate] = {}
+        self._by_number: dict[str, str] = {}
+        self._idempotency: dict[str, IdempotencyRecord] = {}
+        self._channel_msg: dict[str, IdempotencyRecord] = {}
+        self._confirmed: dict[str, str] = {}
+        self._decisions: list[DuplicateDecisionRecord] = []
+        self._later_reviews: list[LaterReviewWorkItem] = []
+        self._seq = itertools.count(1)
+        self.force_degraded: bool = False
+
+    def reset(self) -> None:
+        with self._lock:
+            self._complaints.clear()
+            self._by_number.clear()
+            self._idempotency.clear()
+            self._channel_msg.clear()
+            self._confirmed.clear()
+            self._decisions.clear()
+            self._later_reviews.clear()
+            self._seq = itertools.count(1)
+            self.force_degraded = False
+
+    def commit(self) -> None:
+        """No-op — retained for protocol parity with persistent repository."""
+
+    def confirm(self, principal_key: str, customer_id: str) -> None:
+        with self._lock:
+            self._confirmed[principal_key] = customer_id
+
+    def get_confirmed(self, principal_key: str) -> str | None:
+        with self._lock:
+            return self._confirmed.get(principal_key)
+
+    def get_idempotent(self, request_id: str) -> ComplaintAggregate | None:
+        with self._lock:
+            rec = self._idempotency.get(request_id)
+            if rec is None:
+                return None
+            return self._complaints.get(rec.complaint_id)
+
+    def get_by_channel_message(self, message_id: str) -> ComplaintAggregate | None:
+        with self._lock:
+            rec = self._channel_msg.get(message_id)
+            if rec is None:
+                return None
+            return self._complaints.get(rec.complaint_id)
+
+    def resolve_create_keys(
+        self,
+        request_id: str,
+        channel_message_id: str | None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            by_req_rec = self._idempotency.get(request_id)
+            by_req = (
+                self._complaints.get(by_req_rec.complaint_id)
+                if by_req_rec is not None
+                else None
+            )
+            by_ch = None
+            if channel_message_id:
+                by_ch_rec = self._channel_msg.get(channel_message_id)
+                if by_ch_rec is not None:
+                    by_ch = self._complaints.get(by_ch_rec.complaint_id)
+            if by_req is not None and by_ch is not None:
+                if by_req.complaint_id != by_ch.complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "channelMessageId": channel_message_id,
+                            "requestComplaintId": by_req.complaint_id,
+                            "channelComplaintId": by_ch.complaint_id,
+                        }
+                    )
+                return by_req
+            if by_req is not None:
+                return by_req
+            if by_ch is not None:
+                return by_ch
+            return None
+
+    def ensure_request_alias(self, request_id: str, complaint_id: str) -> None:
+        with self._lock:
+            existing = self._idempotency.get(request_id)
+            if existing is not None:
+                if existing.complaint_id != complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "requestComplaintId": existing.complaint_id,
+                            "canonicalComplaintId": complaint_id,
+                        }
+                    )
+                return
+            self._idempotency[request_id] = IdempotencyRecord(
+                key=request_id, complaint_id=complaint_id
+            )
+
+    def ensure_channel_alias(
+        self, channel_message_id: str, complaint_id: str
+    ) -> None:
+        with self._lock:
+            existing = self._channel_msg.get(channel_message_id)
+            if existing is not None:
+                if existing.complaint_id != complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "channelMessageId": channel_message_id,
+                            "channelComplaintId": existing.complaint_id,
+                            "canonicalComplaintId": complaint_id,
+                        }
+                    )
+                return
+            self._channel_msg[channel_message_id] = IdempotencyRecord(
+                key=channel_message_id, complaint_id=complaint_id
+            )
+
+    def get(self, complaint_id: str) -> ComplaintAggregate | None:
+        with self._lock:
+            return self._complaints.get(complaint_id)
+
+    def list_active_for_customer(self, customer_id: str) -> list[ComplaintAggregate]:
+        with self._lock:
+            return [
+                c
+                for c in self._complaints.values()
+                if c.customer_id == customer_id and c.status != "CLOSED"
+            ]
+
+    def create(
+        self,
+        *,
+        customer_id: str,
+        category: str,
+        channel: str,
+        subject: str,
+        description: str,
+        priority: str,
+        created_by: str | None,
+        request_id: str,
+        channel_message_id: str | None,
+    ) -> tuple[ComplaintAggregate, bool]:
+        with self._lock:
+            by_req_rec = self._idempotency.get(request_id)
+            by_req = (
+                self._complaints.get(by_req_rec.complaint_id)
+                if by_req_rec is not None
+                else None
+            )
+            by_ch = None
+            if channel_message_id:
+                by_ch_rec = self._channel_msg.get(channel_message_id)
+                if by_ch_rec is not None:
+                    by_ch = self._complaints.get(by_ch_rec.complaint_id)
+            if by_req is not None and by_ch is not None:
+                if by_req.complaint_id != by_ch.complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "channelMessageId": channel_message_id,
+                            "requestComplaintId": by_req.complaint_id,
+                            "channelComplaintId": by_ch.complaint_id,
+                        }
+                    )
+                return by_req, False
+            if by_req is not None:
+                # Bind channel_message_id alias to canonical request owner.
+                if channel_message_id:
+                    existing_ch = self._channel_msg.get(channel_message_id)
+                    if (
+                        existing_ch is not None
+                        and existing_ch.complaint_id != by_req.complaint_id
+                    ):
+                        raise ReplayConflict(
+                            diagnostic_details={
+                                "requestId": request_id,
+                                "channelMessageId": channel_message_id,
+                                "requestComplaintId": by_req.complaint_id,
+                                "channelComplaintId": existing_ch.complaint_id,
+                            }
+                        )
+                    self._channel_msg[channel_message_id] = IdempotencyRecord(
+                        key=channel_message_id, complaint_id=by_req.complaint_id
+                    )
+                return by_req, False
+            if by_ch is not None:
+                # Bind request_id alias to canonical channel owner (R3).
+                existing_alias = self._idempotency.get(request_id)
+                if existing_alias is not None and existing_alias.complaint_id != by_ch.complaint_id:
+                    raise ReplayConflict(
+                        diagnostic_details={
+                            "requestId": request_id,
+                            "requestComplaintId": existing_alias.complaint_id,
+                            "channelComplaintId": by_ch.complaint_id,
+                        }
+                    )
+                self._idempotency[request_id] = IdempotencyRecord(
+                    key=request_id, complaint_id=by_ch.complaint_id
+                )
+                return by_ch, False
+
+            n = next(self._seq)
+            complaint_id = str(uuid.uuid4())
+            complaint_number = f"CM-{n:08d}"
+            row = ComplaintAggregate(
+                complaint_id=complaint_id,
+                complaint_number=complaint_number,
+                customer_id=customer_id,
+                category=category,
+                channel=channel,
+                subject=subject,
+                description=description,
+                priority=priority,
+                created_by=created_by,
+                case_created=False,
+            )
+            self._complaints[complaint_id] = row
+            self._by_number[complaint_number] = complaint_id
+            self._idempotency[request_id] = IdempotencyRecord(
+                key=request_id, complaint_id=complaint_id
+            )
+            if channel_message_id:
+                self._channel_msg[channel_message_id] = IdempotencyRecord(
+                    key=channel_message_id, complaint_id=complaint_id
+                )
+            return row, True
+
+    def find_duplicate_candidates(
+        self,
+        *,
+        customer_id: str,
+        since: datetime,
+        limit: int,
+    ) -> list[ComplaintAggregate]:
+        if self.force_degraded:
+            raise RuntimeError("duplicate index unavailable")
+        with self._lock:
+            rows = [
+                c
+                for c in self._complaints.values()
+                if c.customer_id == customer_id and c.created_at >= since
+            ]
+            rows.sort(key=lambda c: c.created_at, reverse=True)
+            return rows[:limit]
+
+    def save_duplicate_decision(
+        self,
+        *,
+        customer_id: str,
+        decision: str,
+        surviving_complaint_id: str | None,
+        source_complaint_id: str | None,
+        justification: str | None,
+        staging_token: str | None,
+        warning: bool,
+        hard_block: bool,
+        policy_version: str,
+        candidate_snapshot: str | None,
+        actor_id: str | None,
+        later_review_work_item_id: str | None,
+    ) -> DuplicateDecisionRecord:
+        with self._lock:
+            rec = DuplicateDecisionRecord(
+                decision_id=str(uuid.uuid4()),
+                customer_id=customer_id,
+                decision=decision,
+                surviving_complaint_id=surviving_complaint_id,
+                source_complaint_id=source_complaint_id,
+                justification=justification,
+                staging_token=staging_token,
+                warning=warning,
+                hard_block=hard_block,
+                policy_version=policy_version,
+                candidate_snapshot=candidate_snapshot,
+                actor_id=actor_id,
+                later_review_work_item_id=later_review_work_item_id,
+                created_at=datetime.now(UTC),
+                case_created=False,
+            )
+            self._decisions.append(rec)
+            return rec
+
+    def get_duplicate_history(
+        self, *, customer_id: str, limit: int = 50
+    ) -> list[DuplicateDecisionRecord]:
+        with self._lock:
+            rows = [d for d in self._decisions if d.customer_id == customer_id]
+            rows.sort(key=lambda d: d.created_at, reverse=True)
+            return rows[:limit]
+
+    def create_later_review_work_item(
+        self, *, customer_id: str, reason: str, complaint_id: str | None = None
+    ) -> str:
+        with self._lock:
+            work_item_id = f"LR-{uuid.uuid4().hex[:12].upper()}"
+            self._later_reviews.append(
+                LaterReviewWorkItem(
+                    work_item_id=work_item_id,
+                    customer_id=customer_id,
+                    reason=reason,
+                    status="OPEN",
+                    created_at=datetime.now(UTC),
+                    complaint_id=(complaint_id.strip() if complaint_id else None)
+                    or None,
+                )
+            )
+            return work_item_id
+
+    def list_later_review_items(
+        self, *, status: str | None = "OPEN", limit: int = 100
+    ) -> list[LaterReviewWorkItem]:
+        with self._lock:
+            rows = list(self._later_reviews)
+            if status and status != "ALL":
+                rows = [r for r in rows if r.status == status]
+            rows.sort(key=lambda r: r.created_at)
+            return rows[:limit]
+
+    def list_aging_without_case(
+        self, *, older_than: datetime, limit: int = 100
+    ) -> list[ComplaintAggregate]:
+        with self._lock:
+            rows = [
+                c
+                for c in self._complaints.values()
+                if not c.case_created and c.created_at <= older_than
+            ]
+            rows.sort(key=lambda c: c.created_at)
+            return rows[:limit]
+
+
+# Retained for rare process-local fallbacks / migrations; router uses DB repo.
+STORE = Batch1Store()

@@ -15,28 +15,29 @@ export const STATUS_TRANSITIONS: Record<
 };
 
 export interface StatusAction {
-  label: string;
+  labelKey: string;
   target: ComplaintStatus;
 }
 
 /**
- * UI action labels for allowed PATCH /status transitions.
- * Assign stays on Assignment card; Resolve stays on Resolution form (API-225).
+ * UI action label keys (translated via the "complaints" namespace) for allowed
+ * PATCH /status transitions. Assign stays on Assignment card; Resolve stays on
+ * Resolution form (API-225).
  */
 export function statusActionsFor(
   status: ComplaintStatus,
 ): readonly StatusAction[] {
   switch (status) {
     case "ASSIGNED":
-      return [{ label: "Start Progress", target: "IN_PROGRESS" }];
+      return [{ labelKey: "startProgress", target: "IN_PROGRESS" }];
     case "IN_PROGRESS":
-      return [{ label: "Mark Pending", target: "PENDING" }];
+      return [{ labelKey: "markPending", target: "PENDING" }];
     case "PENDING":
-      return [{ label: "Resume", target: "IN_PROGRESS" }];
+      return [{ labelKey: "resume", target: "IN_PROGRESS" }];
     case "RESOLVED":
       return [
-        { label: "Close", target: "CLOSED" },
-        { label: "Reopen", target: "IN_PROGRESS" },
+        { labelKey: "closeComplaint", target: "CLOSED" },
+        { labelKey: "reopen", target: "IN_PROGRESS" },
       ];
     default:
       return [];

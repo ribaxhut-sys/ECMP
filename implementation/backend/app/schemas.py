@@ -21,6 +21,22 @@ CaseStatus = Literal[
 ]
 
 
+class QueueEntry(BaseModel):
+    """API-040 queue bucket (dashboard-queues.v1.yaml QueueEntry)."""
+
+    unitId: str
+    status: CaseStatus
+    count: int = Field(ge=0)
+    oldestCreatedAt: datetime | None = None
+
+
+class DashboardQueuesResponse(BaseModel):
+    """API-040 GET /v1/dashboard/queues response (normative, unwrapped)."""
+
+    asOf: datetime
+    queues: list[QueueEntry]
+
+
 class CaseCreateRequest(BaseModel):
     customerId: str = Field(min_length=1, max_length=64)
     caseType: CaseType

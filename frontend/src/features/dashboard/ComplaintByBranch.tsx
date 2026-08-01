@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import type { BranchCount } from "@/lib/api/types";
 import {
   Card,
@@ -10,28 +13,6 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 
-const columns: TableColumn<BranchCount>[] = [
-  {
-    key: "branch",
-    header: "Branch",
-    cell: (row) => row.branchName ?? "Unassigned",
-  },
-  {
-    key: "code",
-    header: "Code",
-    cell: (row) => (
-      <span className="text-ecmp-text-secondary">{row.branchCode ?? "—"}</span>
-    ),
-  },
-  {
-    key: "total",
-    header: "Total",
-    headerClassName: "text-right",
-    className: "text-right tabular-nums font-medium",
-    cell: (row) => row.total,
-  },
-];
-
 export function ComplaintByBranch({
   rows,
   loading,
@@ -39,11 +20,39 @@ export function ComplaintByBranch({
   rows: BranchCount[] | null;
   loading: boolean;
 }) {
+  const t = useTranslations("dashboard");
+  const tComplaints = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+
+  const columns: TableColumn<BranchCount>[] = [
+    {
+      key: "branch",
+      header: tComplaints("branch"),
+      cell: (row) => row.branchName ?? t("unknownBranch"),
+    },
+    {
+      key: "code",
+      header: t("branchCode"),
+      cell: (row) => (
+        <span className="text-ecmp-text-secondary">
+          {row.branchCode ?? tCommon("emDash")}
+        </span>
+      ),
+    },
+    {
+      key: "total",
+      header: t("total"),
+      headerClassName: "text-right",
+      className: "text-right tabular-nums font-medium",
+      cell: (row) => row.total,
+    },
+  ];
+
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Complaint by Branch</CardTitle>
+          <CardTitle>{t("byBranch")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Skeleton rows={4} />
@@ -56,12 +65,12 @@ export function ComplaintByBranch({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Complaint by Branch</CardTitle>
+          <CardTitle>{t("byBranch")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Empty
-            title="No branch data"
-            description="No branch activity yet."
+            title={t("noBranchData")}
+            description={t("noBranchDataDescription")}
           />
         </CardBody>
       </Card>
@@ -71,15 +80,15 @@ export function ComplaintByBranch({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Complaint by Branch</CardTitle>
+        <CardTitle>{t("byBranch")}</CardTitle>
       </CardHeader>
       <CardBody>
         <Table
           columns={columns}
           rows={rows}
           getRowKey={(row, index) => row.branchId ?? `unassigned-${index}`}
-          caption="Complaints by branch"
-          emptyMessage="No branch activity yet."
+          caption={t("byBranch")}
+          emptyMessage={t("noBranchDataDescription")}
         />
       </CardBody>
     </Card>

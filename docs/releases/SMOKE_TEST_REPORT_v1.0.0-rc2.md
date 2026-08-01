@@ -1,10 +1,15 @@
 # ECMP Smoke Test Report — v1.0.0-rc2
 
+> **Historical evidence artifact** for tag `v1.0.0-rc2`. Probe `/health` in this
+> report is dated evidence; live foundation ops use `/live` + `/ready`
+> ([`../deployment/README.md`](../deployment/README.md)).
+
 | Field | Value |
 |---|---|
 | ID | SMOKE-RPT-RC2 |
 | Version | **1.0.0-rc2** |
 | Date | 2026-07-25 |
+| Status | ⚫ Historical |
 | Environment | Local Compose (`ecmp-postgres`, `ecmp-backend`, `ecmp-frontend`) |
 | Executor | Release Engineering (Sprint R3) |
 | Scope | Backend · Frontend · Database · Authentication · Complaint workflow · Queue workflow |

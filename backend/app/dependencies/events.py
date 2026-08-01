@@ -28,62 +28,33 @@ no handler execution / no send / no providers).
 
 from __future__ import annotations
 
-
-
 from app.modules.dashboard.projection_registration import (
-
     register_dashboard_projection_handler,
-
 )
-
 from app.modules.dashboard.projection_store import DashboardProjectionStore
-
 from app.modules.delivery.engine import DeliveryEngine
-
 from app.modules.event_dispatcher import EventDispatcher
-
-from app.modules.transport.registry import TransportRegistry
-
-from app.modules.transport.selector import TransportSelector
-
-from app.modules.provider_executor.executor import ProviderExecutor
-
 from app.modules.execution.dispatcher import ExecutionDispatcher
 from app.modules.execution.engine import ExecutionEngine
-
 from app.modules.execution.planner import ExecutionPlanner
-
 from app.modules.execution.registry import ExecutionRegistry
-
 from app.modules.execution.run_store import ExecutionRunStore
-
 from app.modules.execution.runtime import ExecutionRuntime
-
 from app.modules.execution.store import ExecutionPlanStore
-
 from app.modules.execution.workflow_producer import WorkflowExecutionProducer
-
 from app.modules.kpi.projection_registration import register_kpi_projection_handler
-
 from app.modules.kpi.projection_store import KpiProjectionStore
-
 from app.modules.notification.delivery_memory import InMemoryNotificationDeliveryStore
-
 from app.modules.notification.intent_memory import InMemoryNotificationIntentStore
-
 from app.modules.notification.memory import InMemoryNotificationStore
-
 from app.modules.notification.registration import register_notification_handler
-
+from app.modules.provider_executor.executor import ProviderExecutor
 from app.modules.timeline.registration import register_timeline_handler
-
+from app.modules.transport.registry import TransportRegistry
+from app.modules.transport.selector import TransportSelector
 from app.modules.workflow.registration import register_workflow_handler
-
 from app.modules.workflow.registry import WorkflowRegistry
-
 from app.modules.workflow.store import WorkflowInstanceStore
-
-
 
 _dispatcher: EventDispatcher | None = None
 

@@ -1,0 +1,77 @@
+# ECMP v1.0.0 — Nginx site template (alternative to Caddy).
+# Official nginx image renders /etc/nginx/templates/*.template → conf.d via envsubst.
+# Required env: ECMP_DOMAIN
+# TLS certs expected at:
+#   /etc/nginx/certs/fullchain.pem
+#   /etc/nginx/certs/privkey.pem
+#
+# ACME / certbot is operator-managed (unlike Caddy automatic HTTPS).
+# Security headers already emitted by FastAPI are NOT duplicated.
+# Proxy adds Strict-Transport-Security only.
+
+upstream ecmp_backend {
+    server backend:8000;
+    keepalive 32;
+}
+
+upstream ecmp_frontend {
+    server frontend:3000;
+    keepalive 32;
+}
+
+# HTTP → HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${ECMP_DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${ECMP_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # HSTS — proxy-owned
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+    # Backend API + probes
+    location ~ ^/(api/|live$|ready$|health$|version$|openapi\.json$|docs|redoc) {
+        proxy_pass http://ecmp_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Connection "";
+        proxy_read_timeout 60s;
+    }
+
+    # Frontend (WebSocket Upgrade supported for Next.js)
+    location / {
+        proxy_pass http://ecmp_frontend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 60s;
+    }
+}

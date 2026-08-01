@@ -1,0 +1,290 @@
+===== STEP: npm_audit_warn =====
+CMD: npm audit --audit-level=high
+# npm audit report
+
+postcss  <=8.5.17
+Severity: high
+PostCSS has XSS via Unescaped </style> in its CSS Stringify Output - https://github.com/advisories/GHSA-qx2v-qp2m-jg93
+PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments - https://github.com/advisories/GHSA-6g55-p6wh-862q
+PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure - https://github.com/advisories/GHSA-r28c-9q8g-f849
+fix available via `npm audit fix --force`
+Will install next@9.3.3, which is a breaking change
+node_modules/next/node_modules/postcss
+  next  9.3.4-canary.0 - 16.3.0-preview.7
+  Depends on vulnerable versions of postcss
+  Depends on vulnerable versions of sharp
+  node_modules/next
+    next-intl  <=0.0.0-package-boundaries-1 || >=0.0.2
+    Depends on vulnerable versions of next
+    node_modules/next-intl
+
+sharp  <0.35.0
+Severity: high
+sharp inherited vulnerabilities in libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591 - https://github.com/advisories/GHSA-f88m-g3jw-g9cj
+fix available via `npm audit fix --force`
+Will install next@9.3.3, which is a breaking change
+node_modules/sharp
+
+vitest  <3.2.6
+Severity: critical
+When Vitest UI server is listening, arbitrary file can be read and executed - https://github.com/advisories/GHSA-5xrq-8626-4rwp
+fix available via `npm audit fix`
+node_modules/vitest
+  @vitest/coverage-v8  <=3.2.5
+  Depends on vulnerable versions of vitest
+  node_modules/@vitest/coverage-v8
+
+6 vulnerabilities (1 moderate, 3 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+EXIT: 1
+===== STEP: typecheck =====
+CMD: npm run typecheck
+
+> ecmp-frontend@1.0.0 typecheck
+> tsc --noEmit
+
+EXIT: 0
+===== STEP: lint =====
+CMD: npm run lint
+
+> ecmp-frontend@1.0.0 lint
+> eslint . --max-warnings 0
+
+EXIT: 0
+===== STEP: check_auth_routes =====
+CMD: env ECMP_FRONTEND_DEPLOY_MODE=standalone npm run check:auth-routes
+
+> ecmp-frontend@1.0.0 check:auth-routes
+> node scripts/check-mode-a-credential-routes.mjs
+
+Mode A credential routes (FE-ARCH §5.3 / ADR-014):
+  [PRESENT] src/app/login/page.tsx
+  [PRESENT] src/app/forgot-password/page.tsx
+  [PRESENT] src/app/reset-password/page.tsx
+  [PRESENT] src/app/change-password/page.tsx
+  [PRESENT] src/app/(app)/profile/security/change-password/page.tsx
+OK (standalone): 5/5 Mode A credential route(s) present — allowed for Mode A delivery.
+Note: set ECMP_FRONTEND_DEPLOY_MODE=enterprise to hard-fail when any of these remain (Mode B builds).
+EXIT: 0
+===== STEP: check_auth_routes_enterprise_guard =====
+CMD: npm run check:auth-routes:enterprise-guard
+
+> ecmp-frontend@1.0.0 check:auth-routes:enterprise-guard
+> node scripts/check-mode-a-credential-routes.mjs --self-test
+
+Mode A credential routes (FE-ARCH §5.3 / ADR-014):
+  [PRESENT] src/app/login/page.tsx
+  [PRESENT] src/app/forgot-password/page.tsx
+  [PRESENT] src/app/reset-password/page.tsx
+  [PRESENT] src/app/change-password/page.tsx
+  [PRESENT] src/app/(app)/profile/security/change-password/page.tsx
+FAIL (enterprise): Mode A credential routes must not ship in Mode B / enterprise builds (ADR-014 / AEN-03 / audit K-3).
+  - src/app/login/page.tsx
+  - src/app/forgot-password/page.tsx
+  - src/app/reset-password/page.tsx
+  - src/app/change-password/page.tsx
+  - src/app/(app)/profile/security/change-password/page.tsx
+Remove or exclude these routes before an enterprise production build, or keep ECMP_FRONTEND_DEPLOY_MODE=standalone for Mode A only.
+SELF-TEST OK: enterprise profile correctly hard-fails while Mode A credential routes remain.
+EXIT: 0
+===== STEP: check_auth_routes_unit =====
+CMD: npm run check:auth-routes:unit
+
+> ecmp-frontend@1.0.0 check:auth-routes:unit
+> node --test scripts/check-mode-a-credential-routes.test.mjs
+
+TAP version 13
+# Mode A credential routes (FE-ARCH §5.3 / ADR-014):
+#   [PRESENT] src/app/login/page.tsx
+#   [PRESENT] src/app/forgot-password/page.tsx
+#   [PRESENT] src/app/reset-password/page.tsx
+#   [PRESENT] src/app/change-password/page.tsx
+#   [PRESENT] src/app/(app)/profile/security/change-password/page.tsx
+# OK (standalone): 5/5 Mode A credential route(s) present — allowed for Mode A delivery.
+# Note: set ECMP_FRONTEND_DEPLOY_MODE=enterprise to hard-fail when any of these remain (Mode B builds).
+# Mode A credential routes (FE-ARCH §5.3 / ADR-014):
+#   [PRESENT] src/app/login/page.tsx
+#   [PRESENT] src/app/forgot-password/page.tsx
+#   [PRESENT] src/app/reset-password/page.tsx
+#   [PRESENT] src/app/change-password/page.tsx
+#   [PRESENT] src/app/(app)/profile/security/change-password/page.tsx
+# FAIL (enterprise): Mode A credential routes must not ship in Mode B / enterprise builds (ADR-014 / AEN-03 / audit K-3).
+#   - src/app/login/page.tsx
+#   - src/app/forgot-password/page.tsx
+#   - src/app/reset-password/page.tsx
+#   - src/app/change-password/page.tsx
+#   - src/app/(app)/profile/security/change-password/page.tsx
+# Remove or exclude these routes before an enterprise production build, or keep ECMP_FRONTEND_DEPLOY_MODE=standalone for Mode A only.
+# Subtest: inventories all Mode A credential pages as present while Mode B is CLOSED
+ok 1 - inventories all Mode A credential pages as present while Mode B is CLOSED
+  ---
+  duration_ms: 1.794529
+  ...
+# Subtest: resolveMode prefers --mode flag
+ok 2 - resolveMode prefers --mode flag
+  ---
+  duration_ms: 0.183628
+  ...
+# Subtest: checkStandalone allows present Mode A routes
+ok 3 - checkStandalone allows present Mode A routes
+  ---
+  duration_ms: 1.421045
+  ...
+# Subtest: checkEnterprise hard-fails while Mode A credential routes remain
+ok 4 - checkEnterprise hard-fails while Mode A credential routes remain
+  ---
+  duration_ms: 2.684071
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 72.459382
+EXIT: 0
+===== STEP: test_coverage =====
+CMD: npm run test:coverage
+
+> ecmp-frontend@1.0.0 test:coverage
+> vitest run --coverage
+
+
+ RUN  v3.2.4 /opt/ECMP/frontend
+      Coverage enabled with v8
+
+ ✓ src/features/complaints/createComplaintForm.test.ts (12 tests) 6ms
+ ✓ src/features/complaints/CmBatch1BoundAttachmentsCard.test.tsx (3 tests) 218ms
+ ✓ src/features/complaints/StagingAttachmentsPanel.test.tsx (2 tests) 271ms
+ ✓ src/features/complaints/CmBatch1SupervisorQueueView.test.tsx (2 tests) 181ms
+ ✓ src/lib/api/cmBatch1.upload.test.ts (3 tests) 15ms
+ ✓ src/features/complaints/cmBatch1SupervisorQueue.test.ts (5 tests) 6ms
+ ✓ src/lib/api/cmBatch1.test.ts (4 tests) 4ms
+ ✓ src/features/complaints/cmBatch1Attachments.test.ts (5 tests) 5ms
+ ✓ src/features/reports/loadReportsData.test.ts (2 tests) 6ms
+ ✓ src/lib/api/dualSotNamespaces.test.ts (4 tests) 5ms
+ ✓ src/features/attachments/fileTypes.test.ts (5 tests) 3ms
+ ✓ src/shared/layouts/app-layout/nav.test.ts (4 tests) 7ms
+ ✓ src/features/complaints/statusTransitions.test.ts (5 tests) 4ms
+ ✓ src/features/dashboard/quickActionConfig.test.ts (3 tests) 4ms
+ ✓ src/features/reports/reportSummaryStats.test.ts (2 tests) 3ms
+ ✓ src/features/auth/routes.test.ts (1 test) 3ms
+ ✓ src/shared/utils/cn.test.ts (3 tests) 3ms
+ ✓ src/features/auth/passwordPolicy.test.ts (1 test) 4ms
+
+ Test Files  18 passed (18)
+      Tests  66 passed (66)
+   Start at  04:24:20
+   Duration  17.52s (transform 624ms, setup 1.37s, collect 1.70s, tests 747ms, environment 8.24s, prepare 1.41s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   88.55 |    79.53 |   94.87 |   88.55 |                   
+ ...es/attachments |   83.07 |    82.14 |      80 |   83.07 |                   
+  fileTypes.ts     |   83.07 |    82.14 |      80 |   83.07 | 49,54-63          
+ features/auth     |     100 |      100 |     100 |     100 |                   
+  ...wordPolicy.ts |     100 |      100 |     100 |     100 |                   
+  routes.ts        |     100 |      100 |     100 |     100 |                   
+ ...res/complaints |   83.58 |    73.52 |   95.45 |   83.58 |                   
+  ...ttachments.ts |   97.05 |     90.9 |     100 |   97.05 | 47                
+  ...visorQueue.ts |   94.02 |    69.56 |     100 |   94.02 | 68-69,91-92       
+  ...plaintForm.ts |   76.38 |    68.62 |      90 |   76.38 | ...54-255,268-269 
+  ...ransitions.ts |    93.1 |    66.66 |     100 |    93.1 | 34,36             
+ ...ures/dashboard |     100 |      100 |     100 |     100 |                   
+  ...tionConfig.ts |     100 |      100 |     100 |     100 |                   
+ features/reports  |     100 |       85 |     100 |     100 |                   
+  ...eportsData.ts |     100 |    66.66 |     100 |     100 | 36-38             
+  ...mmaryStats.ts |     100 |      100 |     100 |     100 |                   
+ lib/api           |     100 |      100 |     100 |     100 |                   
+  ...h1Contract.ts |     100 |      100 |     100 |     100 |                   
+  ...Namespaces.ts |     100 |      100 |     100 |     100 |                   
+ ...uts/app-layout |     100 |      100 |     100 |     100 |                   
+  nav.ts           |     100 |      100 |     100 |     100 |                   
+ shared/utils      |     100 |      100 |     100 |     100 |                   
+  cn.ts            |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------
+EXIT: 0
+===== STEP: test_a11y_warn =====
+CMD: npm run test:a11y
+
+> ecmp-frontend@1.0.0 test:a11y
+> vitest run --config vitest.a11y.config.ts
+
+
+ RUN  v3.2.4 /opt/ECMP/frontend
+
+ ✓ src/shared/ui/shared-ui.a11y.test.tsx (5 tests) 212ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  04:24:38
+   Duration  1.53s (transform 176ms, setup 92ms, collect 484ms, tests 212ms, environment 389ms, prepare 77ms)
+
+EXIT: 0
+===== STEP: build =====
+CMD: npm run build
+
+> ecmp-frontend@1.0.0 build
+> next build
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+   ▲ Next.js 15.5.21
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 18.0s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/22) ...
+   Generating static pages (5/22) 
+   Generating static pages (10/22) 
+   Generating static pages (16/22) 
+ ✓ Generating static pages (22/22)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                      127 B         103 kB
+├ ƒ /_not-found                            993 B         103 kB
+├ ƒ /assignments                         5.06 kB         158 kB
+├ ƒ /attachments                          1.2 kB         157 kB
+├ ƒ /change-password                       127 B         103 kB
+├ ƒ /complaints                            503 B         183 kB
+├ ƒ /complaints/[id]                       640 B         183 kB
+├ ƒ /complaints/[id]/edit                  487 B         183 kB
+├ ƒ /complaints/cm/[id]                    648 B         183 kB
+├ ƒ /complaints/cm/supervisor              507 B         183 kB
+├ ƒ /complaints/new                        260 B         183 kB
+├ ƒ /dashboard                           4.18 kB         157 kB
+├ ƒ /forgot-password                     1.31 kB         159 kB
+├ ƒ /login                               1.28 kB         159 kB
+├ ƒ /profile                              3.9 kB         153 kB
+├ ƒ /profile/security                      534 B         150 kB
+├ ƒ /profile/security/change-password    1.29 kB         154 kB
+├ ƒ /queue                               5.27 kB         158 kB
+├ ƒ /reports                             2.11 kB         155 kB
+├ ƒ /reset-password                      1.57 kB         159 kB
+├ ƒ /resolutions                         5.89 kB         158 kB
+├ ƒ /settings                            5.53 kB         158 kB
+└ ƒ /users                               2.99 kB         155 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/255-722982ef6755e1fb.js       46.2 kB
+  ├ chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB
+  └ other shared chunks (total)          1.99 kB
+
+
+ƒ  (Dynamic)  server-rendered on demand
+
+EXIT: 0

@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.enums import AppointmentStatus
 from app.models import (
     Appointment,
     Complaint,
@@ -19,7 +20,6 @@ from app.models import (
     Role,
     User,
 )
-from app.core.enums import AppointmentStatus
 
 # Active = blocks a new Escalation Request. REQUESTED pending review;
 # APPROVED awaiting / with appointment; legacy OPEN.

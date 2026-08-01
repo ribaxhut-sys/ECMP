@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { Button, Card, CardBody, CardHeader, CardTitle, Empty } from "@/shared/ui";
 import { QUICK_ACTIONS } from "./quickActionConfig";
 
 export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
   const router = useRouter();
+  const t = useTranslations("dashboard");
   const { hasPermission } = useAuth();
   const actions = QUICK_ACTIONS.filter((action) =>
     hasPermission(action.permission),
@@ -43,14 +45,14 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quick Actions</CardTitle>
+        <CardTitle>{t("quickActions")}</CardTitle>
       </CardHeader>
       <CardBody>
         <div id="quick-actions" />
         {actions.length === 0 ? (
           <Empty
-            title="No actions"
-            description="No actions available for your permissions."
+            title={t("noActions")}
+            description={t("noActionsDescription")}
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -61,14 +63,14 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
                 variant="outline"
                 fullWidth
                 onClick={() => handleAction(action.id)}
-                title={action.description}
+                title={t(action.descriptionKey)}
                 className="h-auto !min-h-[44px] flex-col items-start gap-1 px-4 py-3 text-left whitespace-normal"
               >
                 <span className="block text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
-                  {action.label}
+                  {t(action.labelKey)}
                 </span>
                 <span className="block text-[length:var(--ecmp-font-caption-size)] font-normal text-ecmp-text-secondary">
-                  {action.description}
+                  {t(action.descriptionKey)}
                 </span>
               </Button>
             ))}

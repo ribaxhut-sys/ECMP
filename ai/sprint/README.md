@@ -19,7 +19,9 @@ Before implementation in Cursor/Claude:
 4. Update sprint status/notes at end of work
 
 ## Active Sprint
-**Sprint-02B** — Assign/status/events/notification stub (**implementation** against DEC-006 frozen contracts; see `Sprint-02.md` + `IMPLEMENTATION_ROADMAP_v0.1.md`)
+**G2 EXITED (Mode A)** — DEC-021 (2026-08-01). G1 exited earlier (DEC-006).  
+Berikutnya: residual Sprint-03 hanya bila DoD memerlukannya (FR-040 / FR-030 event-clock **setelah** broker re-eval), SIT dual-SoT (`Mode_A_SIT_SoT_Choice_20260801.md`), dan **U-5** sign-off manusia.  
+Customer 360 (API-010) & Mode B tetap deferred/CLOSED. Lihat `REGRESSION_PACK_G2.md` + `DEV_RUNBOOK.md`.
 
 ## Vocabulary Map
 | Term | Meaning |
@@ -32,7 +34,9 @@ Before implementation in Cursor/Claude:
 
 ## Implementation Roadmap
 Forward roadmap (Sprint-02 → Sprint-03 → SIT/UAT, epics/stories/critical path):
-[`IMPLEMENTATION_ROADMAP_v0.1.md`](./IMPLEMENTATION_ROADMAP_v0.1.md)
+[`IMPLEMENTATION_ROADMAP_v0.1.md`](./IMPLEMENTATION_ROADMAP_v0.1.md) — historical foundation planning.
+
+**CAP-008 Mode A:** **PROGRAM CLOSED** — use [`CAP008_ROADMAP_RESET_v1.0.md`](./CAP008_ROADMAP_RESET_v1.0.md) (do not schedule further CAP-008 Create…Close delivery).
 
 ## Implementation Readiness
 Before treating Sprint-01 as coding-authorized for a team, follow:

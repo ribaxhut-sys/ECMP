@@ -8,7 +8,8 @@ from datetime import UTC, datetime
 from typing import Any, Mapping
 
 from app.core.errors import ValidationAppError
-from app.modules.timeline.domain.enums import AggregateType, ActorType
+from app.core.user_messages import m
+from app.modules.timeline.domain.enums import ActorType, AggregateType
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +51,7 @@ class TimelineEntry:
             AggregateType(aggregate_type)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported aggregate type: {aggregate_type}",
+                f"tipe agregat tidak didukung: {aggregate_type}",
                 details={
                     "aggregateType": aggregate_type,
                     "allowed": [a.value for a in AggregateType],
@@ -60,13 +61,13 @@ class TimelineEntry:
         cleaned_type = (event_type or "").strip()
         if not cleaned_type:
             raise ValidationAppError(
-                "event_type is required",
+                m("config.event_type_required"),
                 details={"eventType": event_type},
             )
         cleaned_title = (title or "").strip()
         if not cleaned_title:
             raise ValidationAppError(
-                "title is required",
+                m("config.title_required"),
                 details={"title": title},
             )
         if actor_type is not None:
@@ -74,7 +75,7 @@ class TimelineEntry:
                 ActorType(actor_type)
             except ValueError as exc:
                 raise ValidationAppError(
-                    f"unsupported actor type: {actor_type}",
+                    f"tipe aktor tidak didukung: {actor_type}",
                     details={
                         "actorType": actor_type,
                         "allowed": [a.value for a in ActorType],

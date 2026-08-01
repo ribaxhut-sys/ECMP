@@ -33,7 +33,7 @@ Gunakan template di `../24 Templates/ADR_TEMPLATE.md`.
 
 Sections:
 1. Title
-2. Status (Proposed / Accepted / Superseded / Deprecated)
+2. Status (PROPOSED / ACCEPTED / SUPERSEDED / DEPRECATED / REJECTED — Title Case in body OK)
 3. Context
 4. Decision Drivers
 5. Options Considered
@@ -53,6 +53,13 @@ Example: `ECMP_ADR_001_Use_Event_Driven_Case_Updates_v1.0.md`
 - `../24 Templates`
 - `../27 Project Decisions` (non-ADR decisions only)
 
+## Active Project Decisions (implementation baseline)
+
+| DEC | Title | Status | Notes |
+|---|---|---|---|
+| DEC-019 | Engineering Foundation Canonical Trees | Accepted | Production `backend/` + `frontend/` |
+| **DEC-020** | Complaint Implementation SoT & Namespace Remapping | **Accepted** | Dual SoT; closes OQ-CM-B1-001; orthogonal to PROGRAM-BOARD-004 Accept of ADR-014/015; Mode B remains **CLOSED** |
+
 ## Index
 | ADR | Title | Status |
 |---|---|---|
@@ -67,3 +74,13 @@ Example: `ECMP_ADR_001_Use_Event_Driven_Case_Updates_v1.0.md`
 | 009 | [Message Broker — Deferred (outbox first)](./ECMP_ADR_009_Message_Broker_Deferral_v1.0.md) | Accepted |
 | 010 | [Deployment Platform Baseline (DEV/CI/SIT-UAT; PROD deferred)](./ECMP_ADR_010_Deployment_Platform_Baseline_v1.0.md) | Accepted |
 | 011 | [Frontend — Deferred (API-first)](./ECMP_ADR_011_Frontend_Deferral_v1.0.md) | Accepted |
+| 012 | [Target Authentication Architecture](./ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md) | Accepted |
+| 013 | [Frontend Technology Stack](./ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md) | Accepted (remain active — BR-007) |
+| 014 | [ECMP Enterprise Business Module](./ECMP_ADR_014_ECMP_Enterprise_Business_Module_v1.4.md) | **Accepted with Conditions** (PROGRAM-BOARD-004 **BR-009**); package with ADR-015; Mode B / Batch-2 / enterprise customer **CLOSED** (C-7) |
+| 015 | [Enterprise Identity Contract](./ECMP_ADR_015_Enterprise_Identity_Contract_v1.3.md) | **Accepted with Conditions** (PROGRAM-BOARD-004 **BR-010**); Bilateral Contract (C-3); contract v1.0 unchanged; Mode B **CLOSED** (C-7) |
+| 016 | [Enterprise Protocol & Binding](./ECMP_ADR_016_Enterprise_Protocol_Binding_v1.0.md) | **Accepted with Conditions** (PROGRAM-BOARD-006 **BR-011**; C-B6-1…C-B6-7) — **does not** unlock Mode B |
+| 017 | [Enterprise Entitlement Architecture](./ECMP_ADR_017_Enterprise_Entitlement_Architecture_v1.0.md) | **Accepted with Conditions** (PROGRAM-BOARD-006 **BR-012**; C-B6-1…C-B6-7) — **does not** unlock Mode B |
+| 018 | [Enterprise Organization Synchronization Architecture](./ECMP_ADR_018_Enterprise_Organization_Synchronization_Architecture_v1.0.md) | **Accepted with Conditions** (PROGRAM-BOARD-006 **BR-013**; C-B6-1…C-B6-7) — org-gap = Mode B prerequisite (C-B6-3); **does not** unlock Mode B |
+| CAP006-001 | [Evaluation Mechanism (CAP-006 / FR-030)](./ADR-CAP006-001_Evaluation_Mechanism.md) | **Accepted** (v2.0) — Hybrid; ARC-CAP006-002 Accepted; B2-22 ADDITIONAL ARCHITECTURE REQUIRED; B2-23 **FULFILLMENT PATTERN NOT SPECIFIED**; concrete Deferred; no FR-030 engine auth |
+| ARC-CAP006-001 | [Time Source (Architecture Concept)](./ARC-CAP006-001_Time_Source.md) | **Accepted** (requirement concept) — B2-19; fulfillment pattern **NOT SPECIFIED** (B2-23) |
+| ARC-CAP006-002 | [Runtime Architecture (Architecture Concept)](./ARC-CAP006-002_Runtime_Architecture.md) | **Accepted** (concept) — B2-21; ONE official conceptual CAP-006 runtime; no implementation |

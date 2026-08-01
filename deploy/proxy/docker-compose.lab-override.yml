@@ -1,0 +1,13 @@
+# Lab override — local TLS without public DNS / ACME (NOT for shared production).
+# Swaps in Caddyfile.lab (tls internal) and relaxes ACME_EMAIL.
+#
+#   docker compose -f docker-compose.prod.yml \
+#     -f deploy/proxy/docker-compose.lab-override.yml up -d --build
+
+services:
+  caddy:
+    environment:
+      ECMP_DOMAIN: ${ECMP_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-lab@localhost}
+    volumes:
+      - ./deploy/proxy/Caddyfile.lab:/etc/caddy/Caddyfile:ro

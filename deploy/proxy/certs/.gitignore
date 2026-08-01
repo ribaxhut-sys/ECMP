@@ -1,0 +1,7 @@
+# Place operator-managed TLS PEMs here for docker-compose.prod.nginx.yml:
+#   fullchain.pem
+#   privkey.pem
+#
+# Never commit real certificates or private keys.
+*
+!.gitignore

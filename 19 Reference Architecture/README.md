@@ -24,6 +24,7 @@ Approved baseline — `PATTERNS.md` (REF-001 v0.2) memuat pola dipakai vs pola b
 
 ## Contents
 - `PATTERNS.md` (REF-001) — termasuk aturan dependensi ADR-005, transactional outbox (ADR-009), ACL Customer Master (ADR-002), business action pattern
+- `ECMP_RA_CAP008_Mode_A_v1.0.md` (REF-CAP008-001) — **Baseline** as-built CAP-008 Mode A (program CLOSED; lab)
 
 ## Minimum Contents (v1)
 - [x] Layered Architecture — dengan aturan dependensi + diagram (PATTERNS §1)

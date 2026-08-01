@@ -85,7 +85,7 @@ def test_create_rejects_invalid_code_format() -> None:
 
 def test_create_rejects_module_mismatch() -> None:
     service = PermissionService(MagicMock())
-    with pytest.raises(ValidationAppError, match="module prefix"):
+    with pytest.raises(ValidationAppError, match="[Aa]walan modul|prefiks"):
         service.create(
             PermissionCreateRequest(
                 code="complaint:read",
@@ -103,7 +103,7 @@ def test_delete_rejects_system_permission() -> None:
     )
     service = PermissionService(repo)
 
-    with pytest.raises(ConflictError, match="System permission"):
+    with pytest.raises(ConflictError, match="Izin sistem"):
         service.delete(uuid.uuid4())
     repo.soft_delete.assert_not_called()
 

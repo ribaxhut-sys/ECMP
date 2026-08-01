@@ -3,7 +3,8 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi \
+  && npm install --no-save --no-package-lock lightningcss-linux-x64-musl@1.32.0
 
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -21,10 +22,30 @@ RUN npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
+
+# R6-01: release provenance (passed by compose / build-rc; never hardcode SHA).
+ARG APP_VERSION=1.0.0
+ARG GIT_COMMIT=unknown
+ARG GIT_BRANCH=unknown
+ARG BUILD_TIME=unknown
+ARG GIT_TREE_STATE=unknown
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV APP_VERSION=${APP_VERSION}
+ENV GIT_COMMIT=${GIT_COMMIT}
+ENV GIT_BRANCH=${GIT_BRANCH}
+ENV BUILD_TIME=${BUILD_TIME}
+ENV GIT_TREE_STATE=${GIT_TREE_STATE}
+
+LABEL org.opencontainers.image.title="ecmp-frontend" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}" \
+      org.opencontainers.image.created="${BUILD_TIME}" \
+      ecmp.git.branch="${GIT_BRANCH}" \
+      ecmp.git.tree_state="${GIT_TREE_STATE}"
 
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 

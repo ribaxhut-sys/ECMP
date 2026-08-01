@@ -8,8 +8,11 @@ Invalidates IAM caches via invalidate_iam_user on assignment changes (TASK-041).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
+from app.core.authorization.role_assignment_policy import assert_can_assign_role
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.models import User
 from app.modules.iam.permission_cache import invalidate_iam_user
 from app.modules.iam.role.schemas import RoleResponse
@@ -60,13 +63,25 @@ class UserRoleService:
         ]
 
     def assign_role(
-        self, user_id: uuid.UUID, role_id: uuid.UUID
+        self,
+        user_id: uuid.UUID,
+        role_id: uuid.UUID,
+        *,
+        actor_roles: Sequence[str] = (),
     ) -> list[RoleResponse]:
         self._require_user(user_id)
-        self._require_role(role_id)
+        role = self._repo.get_role(role_id)
+        if role is None:
+            raise NotFoundError(m("iam.role_not_found"))
+        # UAT-020: same privilege matrix as users create/update.
+        assert_can_assign_role(
+            actor_roles,
+            role.code,
+            target_role_id=str(role_id),
+        )
         if self._repo.get_link(user_id, role_id) is not None:
             raise ConflictError(
-                "Role already assigned to user",
+                m("iam.role_already_assigned"),
                 details={"userId": str(user_id), "roleId": str(role_id)},
             )
         self._repo.add_link(
@@ -83,21 +98,25 @@ class UserRoleService:
         self._require_role(role_id)
         link = self._repo.get_link(user_id, role_id)
         if link is None:
-            raise NotFoundError("User role link not found")
+            raise NotFoundError(m("iam.user_role_not_found"))
         self._repo.delete_link(link)
         self._repo.commit()
         invalidate_iam_user(user_id)
         return self.get_user_roles(user_id)
 
     def replace_roles(
-        self, user_id: uuid.UUID, payload: UserRolesReplaceRequest
+        self,
+        user_id: uuid.UUID,
+        payload: UserRolesReplaceRequest,
+        *,
+        actor_roles: Sequence[str] = (),
     ) -> list[RoleResponse]:
         """Replace the full role set for a user (empty list clears all)."""
         self._require_user(user_id)
         desired_ids = list(payload.role_ids)
         if len(desired_ids) != len(set(desired_ids)):
             raise ValidationAppError(
-                "roleIds must not contain duplicates",
+                m("config.role_ids_no_duplicates"),
                 details={"roleIds": [str(i) for i in desired_ids]},
             )
 
@@ -105,7 +124,7 @@ class UserRoleService:
         found_ids = {row.id for row in found}
         missing = [rid for rid in desired_ids if rid not in found_ids]
         if missing:
-            raise NotFoundError("One or more roles not found")
+            raise NotFoundError(m("iam.roles_not_found"))
 
         current_links = self._repo.list_links_for_user(user_id)
         current_ids = {link.role_id for link in current_links}
@@ -113,6 +132,16 @@ class UserRoleService:
 
         to_remove = current_ids - desired_set
         to_add = desired_set - current_ids
+
+        # UAT-020: enforce assignable matrix for newly added roles only.
+        roles_by_id = {row.id: row for row in found}
+        for role_id in sorted(to_add, key=str):
+            role = roles_by_id[role_id]
+            assert_can_assign_role(
+                actor_roles,
+                role.code,
+                target_role_id=str(role_id),
+            )
 
         if to_remove:
             self._repo.delete_links_for_user(user_id, to_remove)
@@ -128,8 +157,8 @@ class UserRoleService:
 
     def _require_user(self, user_id: uuid.UUID) -> None:
         if self._repo.get_user(user_id) is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError(m("user.not_found"))
 
     def _require_role(self, role_id: uuid.UUID) -> None:
         if self._repo.get_role(role_id) is None:
-            raise NotFoundError("Role not found")
+            raise NotFoundError(m("iam.role_not_found"))

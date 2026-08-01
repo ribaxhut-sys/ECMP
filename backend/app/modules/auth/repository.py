@@ -1,4 +1,4 @@
-"""Auth persistence (users + refresh tokens + audit)."""
+"""Auth persistence (users + refresh tokens + audit + password reset tokens)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import AuditLog, RefreshToken, User
+from app.models import AuditLog, PasswordResetToken, RefreshToken, User
 
 
 class AuthRepository:
@@ -36,6 +36,17 @@ class AuthRepository:
         )
         return self._session.scalar(stmt)
 
+    def get_user_by_email(self, email: str) -> User | None:
+        stmt = (
+            select(User)
+            .options(joinedload(User.role))
+            .where(
+                User.deleted_at.is_(None),
+                User.email == email.strip().lower(),
+            )
+        )
+        return self._session.scalar(stmt)
+
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
         stmt = (
             select(User)
@@ -52,6 +63,17 @@ class AuthRepository:
         self._session.add(token)
         self._session.flush()
         return token
+
+    def add_password_reset_token(self, token: PasswordResetToken) -> PasswordResetToken:
+        self._session.add(token)
+        self._session.flush()
+        return token
+
+    def get_password_reset_by_hash(self, token_hash: str) -> PasswordResetToken | None:
+        stmt = select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash
+        )
+        return self._session.scalar(stmt)
 
     def add_audit_log(
         self,
@@ -88,4 +110,3 @@ class AuthRepository:
     def refresh(self, obj: Any) -> Any:
         self._session.refresh(obj)
         return obj
-

@@ -55,6 +55,14 @@ nodes:
   type: ADR
   label: ECMP_ADR_013_Frontend_Technology_Stack_v1.0
   path: D:\ECMP\05 Architecture Decision Records\ECMP_ADR_013_Frontend_Technology_Stack_v1.0.md
+- id: ADR-014
+  type: ADR
+  label: ECMP_ADR_014_ECMP_Enterprise_Business_Module_v1.0
+  path: D:\ECMP\05 Architecture Decision Records\ECMP_ADR_014_ECMP_Enterprise_Business_Module_v1.0.md
+- id: ADR-015
+  type: ADR
+  label: ECMP_ADR_015_Enterprise_Identity_Contract_v1.0
+  path: D:\ECMP\05 Architecture Decision Records\ECMP_ADR_015_Enterprise_Identity_Contract_v1.0.md
 - id: API-001
   type: API
   label: Create case
@@ -251,15 +259,665 @@ nodes:
   label: Reject escalation request
   path: /api/v1/escalations/{id}/reject
   method: POST
+- id: API-305
+  type: API
+  label: Book appointment for approved escalation
+  path: /api/v1/escalations/{id}/appointments
+  method: POST
+- id: API-306
+  type: API
+  label: Get appointment by id
+  path: /api/v1/appointments/{id}
+  method: GET
+- id: API-307
+  type: API
+  label: Check in customer for booked appointment
+  path: /api/v1/appointments/{id}/check-in
+  method: POST
+- id: API-308
+  type: API
+  label: Complete checked-in appointment
+  path: /api/v1/appointments/{id}/complete
+  method: POST
+- id: API-309
+  type: API
+  label: Mark booked appointment as customer no-show
+  path: /api/v1/appointments/{id}/no-show
+  method: POST
+- id: API-310
+  type: API
+  label: Submit final resolution
+  path: /api/v1/complaints/{id}/final-resolution
+  method: POST
+- id: API-311
+  type: API
+  label: Get final resolution
+  path: /api/v1/complaints/{id}/final-resolution
+  method: GET
+- id: API-312
+  type: API
+  label: Close complaint
+  path: /api/v1/complaints/{id}/close
+  method: POST
+- id: API-313
+  type: API
+  label: Close escalation
+  path: /api/v1/escalations/{id}/close
+  method: POST
+- id: API-314
+  type: API
+  label: Get complaint SLA
+  path: /api/v1/complaints/{id}/sla
+  method: GET
+- id: API-315
+  type: API
+  label: List SLA policies
+  path: /api/v1/sla/policies
+  method: GET
+- id: API-316
+  type: API
+  label: Create SLA policy
+  path: /api/v1/sla/policies
+  method: POST
+- id: API-317
+  type: API
+  label: Activate SLA policy
+  path: /api/v1/sla/policies/{id}/activate
+  method: PUT
+- id: API-318
+  type: API
+  label: KPI foundation summary
+  path: /api/v1/kpi/summary
+  method: GET
+- id: API-319
+  type: API
+  label: Dashboard overview composition
+  path: /api/v1/dashboard/overview
+  method: GET
+- id: API-320
+  type: API
+  label: List public settings
+  path: /api/v1/settings/public
+  method: GET
+- id: API-321
+  type: API
+  label: List all settings
+  path: /api/v1/settings
+  method: GET
+- id: API-322
+  type: API
+  label: Update setting value
+  path: /api/v1/settings/{key}
+  method: PUT
+- id: API-323
+  type: API
+  label: Upload attachment
+  path: /api/v1/attachments
+  method: POST
+- id: API-324
+  type: API
+  label: Get attachment metadata
+  path: /api/v1/attachments/{id}
+  method: GET
+- id: API-325
+  type: API
+  label: Download attachment file
+  path: /api/v1/attachments/{id}/download
+  method: GET
+- id: API-326
+  type: API
+  label: Logically delete attachment
+  path: /api/v1/attachments/{id}
+  method: DELETE
+- id: API-327
+  type: API
+  label: List notification templates
+  path: /api/v1/notification/templates
+  method: GET
+- id: API-328
+  type: API
+  label: Create notification template
+  path: /api/v1/notification/templates
+  method: POST
+- id: API-329
+  type: API
+  label: Get notification template
+  path: /api/v1/notification/templates/{id}
+  method: GET
+- id: API-330
+  type: API
+  label: Update notification template
+  path: /api/v1/notification/templates/{id}
+  method: PUT
+- id: API-331
+  type: API
+  label: Soft-delete notification template
+  path: /api/v1/notification/templates/{id}
+  method: DELETE
+- id: API-332
+  type: API
+  label: Enqueue notification
+  path: /api/v1/notifications
+  method: POST
+- id: API-333
+  type: API
+  label: List notification queue
+  path: /api/v1/notifications
+  method: GET
+- id: API-334
+  type: API
+  label: Get notification queue item
+  path: /api/v1/notifications/{id}
+  method: GET
+- id: API-335
+  type: API
+  label: Cancel pending notification
+  path: /api/v1/notifications/{id}/cancel
+  method: POST
+- id: API-336
+  type: API
+  label: List audit logs
+  path: /api/v1/audit
+  method: GET
+- id: API-337
+  type: API
+  label: Get audit log
+  path: /api/v1/audit/{id}
+  method: GET
+- id: API-338
+  type: API
+  label: List roles
+  path: /api/v1/roles
+  method: GET
+- id: API-339
+  type: API
+  label: Create role
+  path: /api/v1/roles
+  method: POST
+- id: API-340
+  type: API
+  label: Get role
+  path: /api/v1/roles/{id}
+  method: GET
+- id: API-341
+  type: API
+  label: Update role
+  path: /api/v1/roles/{id}
+  method: PUT
+- id: API-342
+  type: API
+  label: Delete role
+  path: /api/v1/roles/{id}
+  method: DELETE
+- id: API-343
+  type: API
+  label: List permissions
+  path: /api/v1/permissions
+  method: GET
+- id: API-344
+  type: API
+  label: Create permission
+  path: /api/v1/permissions
+  method: POST
+- id: API-345
+  type: API
+  label: Get permission
+  path: /api/v1/permissions/{id}
+  method: GET
+- id: API-346
+  type: API
+  label: Update permission
+  path: /api/v1/permissions/{id}
+  method: PUT
+- id: API-347
+  type: API
+  label: Delete permission
+  path: /api/v1/permissions/{id}
+  method: DELETE
+- id: API-348
+  type: API
+  label: List role permissions
+  path: /api/v1/roles/{id}/permissions
+  method: GET
+- id: API-349
+  type: API
+  label: Replace role permissions
+  path: /api/v1/roles/{id}/permissions
+  method: PUT
+- id: API-350
+  type: API
+  label: List permission roles
+  path: /api/v1/permissions/{id}/roles
+  method: GET
+- id: API-351
+  type: API
+  label: List user roles
+  path: /api/v1/users/{id}/roles
+  method: GET
+- id: API-352
+  type: API
+  label: Replace user roles
+  path: /api/v1/users/{id}/roles
+  method: PUT
+- id: API-353
+  type: API
+  label: List role users
+  path: /api/v1/roles/{id}/users
+  method: GET
+- id: API-354
+  type: API
+  label: List role data scopes
+  path: /api/v1/roles/{id}/data-scopes
+  method: GET
+- id: API-355
+  type: API
+  label: Replace role data scopes
+  path: /api/v1/roles/{id}/data-scopes
+  method: PUT
+- id: API-356
+  type: API
+  label: Retry failed notification
+  path: /api/v1/notifications/{id}/retry
+  method: POST
+- id: API-357
+  type: API
+  label: Process notification via stub provider
+  path: /api/v1/notifications/{id}/process
+  method: POST
+- id: API-360
+  type: API
+  label: Create queue
+  path: /api/v1/queues
+  method: POST
+- id: API-361
+  type: API
+  label: List queues by organization
+  path: /api/v1/queues
+  method: GET
+- id: API-362
+  type: API
+  label: Get queue by id
+  path: /api/v1/queues/{queueId}
+  method: GET
+- id: API-363
+  type: API
+  label: Update queue
+  path: /api/v1/queues/{queueId}
+  method: PUT
+- id: API-364
+  type: API
+  label: Delete queue
+  path: /api/v1/queues/{queueId}
+  method: DELETE
+- id: API-365
+  type: API
+  label: Issue queue ticket
+  path: /api/v1/queues/{queueId}/tickets
+  method: POST
+- id: API-366
+  type: API
+  label: List tickets for queue
+  path: /api/v1/queues/{queueId}/tickets
+  method: GET
+- id: API-367
+  type: API
+  label: Get ticket by id
+  path: /api/v1/tickets/{ticketId}
+  method: GET
+- id: API-368
+  type: API
+  label: Update ticket
+  path: /api/v1/tickets/{ticketId}
+  method: PUT
+- id: API-369
+  type: API
+  label: Delete ticket
+  path: /api/v1/tickets/{ticketId}
+  method: DELETE
+- id: API-370
+  type: API
+  label: Create queue counter
+  path: /api/v1/queues/{queueId}/counters
+  method: POST
+- id: API-371
+  type: API
+  label: List counters for queue
+  path: /api/v1/queues/{queueId}/counters
+  method: GET
+- id: API-372
+  type: API
+  label: Update counter
+  path: /api/v1/counters/{counterId}
+  method: PUT
+- id: API-373
+  type: API
+  label: Delete counter
+  path: /api/v1/counters/{counterId}
+  method: DELETE
+- id: API-374
+  type: API
+  label: Open queue
+  path: /api/v1/queues/{queueId}/open
+  method: POST
+- id: API-375
+  type: API
+  label: Close queue
+  path: /api/v1/queues/{queueId}/close
+  method: POST
+- id: API-376
+  type: API
+  label: Issue ticket (operation)
+  path: /api/v1/queues/{queueId}/issue-ticket
+  method: POST
+- id: API-377
+  type: API
+  label: Call next ticket
+  path: /api/v1/queues/{queueId}/call-next
+  method: POST
+- id: API-378
+  type: API
+  label: Recall ticket
+  path: /api/v1/tickets/{ticketId}/recall
+  method: POST
+- id: API-379
+  type: API
+  label: Complete ticket
+  path: /api/v1/tickets/{ticketId}/complete
+  method: POST
+- id: API-380
+  type: API
+  label: Skip ticket
+  path: /api/v1/tickets/{ticketId}/skip
+  method: POST
+- id: API-381
+  type: API
+  label: Cancel ticket
+  path: /api/v1/tickets/{ticketId}/cancel
+  method: POST
+- id: API-382
+  type: API
+  label: List activity timeline entries
+  path: /api/v1/timeline
+  method: GET
+- id: API-383
+  type: API
+  label: Get activity timeline entry
+  path: /api/v1/timeline/{id}
+  method: GET
+- id: API-384
+  type: API
+  label: Create timeline entry (internal/testing)
+  path: /api/v1/timeline
+  method: POST
+- id: API-385
+  type: API
+  label: List CAPABILITY-010 timeline for a complaint
+  path: /api/v1/complaints/{id}/activity-timeline
+  method: GET
+- id: API-386
+  type: API
+  label: List attachments
+  path: /api/v1/attachments
+  method: GET
+- id: API-387
+  type: API
+  label: List attachments for a complaint
+  path: /api/v1/complaints/{id}/attachments
+  method: GET
+- id: API-388
+  type: API
+  label: Search and filter complaints
+  path: /api/v1/complaints/search
+  method: GET
+- id: API-389
+  type: API
+  label: Dashboard complaint summary
+  path: /api/v1/dashboard/summary
+  method: GET
+- id: API-390
+  type: API
+  label: Dashboard queue summary
+  path: /api/v1/dashboard/queue
+  method: GET
+- id: API-391
+  type: API
+  label: Dashboard SLA summary
+  path: /api/v1/dashboard/sla
+  method: GET
+- id: API-392
+  type: API
+  label: Dashboard notification summary
+  path: /api/v1/dashboard/notifications
+  method: GET
+- id: API-393
+  type: API
+  label: Dashboard complaint trends
+  path: /api/v1/dashboard/trends
+  method: GET
+- id: API-394
+  type: API
+  label: Dashboard KPI rates
+  path: /api/v1/dashboard/kpi
+  method: GET
+- id: API-395
+  type: API
+  label: List complaints by queue ticket
+  path: /api/v1/tickets/{ticketId}/complaints
+  method: GET
+- id: API-396
+  type: API
+  label: Create complaint for queue ticket
+  path: /api/v1/tickets/{ticketId}/complaints
+  method: POST
+- id: API-397
+  type: API
+  label: Start complaint processing
+  path: /api/v1/complaints/{complaintId}/start
+  method: POST
+- id: API-398
+  type: API
+  label: Resolve complaint
+  path: /api/v1/complaints/{complaintId}/resolve
+  method: POST
+- id: API-399
+  type: API
+  label: Close complaint
+  path: /api/v1/complaints/{complaintId}/close
+  method: POST
+- id: API-400
+  type: API
+  label: Reopen complaint
+  path: /api/v1/complaints/{complaintId}/reopen
+  method: POST
+- id: API-401
+  type: API
+  label: Assign complaint
+  path: /api/v1/complaints/{complaintId}/assign
+  method: POST
+- id: API-402
+  type: API
+  label: Reassign complaint
+  path: /api/v1/complaints/{complaintId}/reassign
+  method: POST
+- id: API-403
+  type: API
+  label: Unassign complaint
+  path: /api/v1/complaints/{complaintId}/unassign
+  method: POST
+- id: API-404
+  type: API
+  label: Get current assignment
+  path: /api/v1/complaints/{complaintId}/assignment
+  method: GET
+- id: API-405
+  type: API
+  label: List assignment history
+  path: /api/v1/complaints/{complaintId}/assignments
+  method: GET
+- id: API-406
+  type: API
+  label: Escalate complaint
+  path: /api/v1/complaints/{complaintId}/escalate
+  method: POST
+- id: API-407
+  type: API
+  label: Get current escalation
+  path: /api/v1/complaints/{complaintId}/escalation
+  method: GET
+- id: API-408
+  type: API
+  label: List escalation history
+  path: /api/v1/complaints/{complaintId}/escalations
+  method: GET
+- id: API-409
+  type: API
+  label: Start complaint SLA
+  path: /api/v1/complaints/{complaintId}/sla/start
+  method: POST
+- id: API-410
+  type: API
+  label: Request password reset
+  path: /api/v1/auth/forgot-password
+  method: POST
+- id: API-411
+  type: API
+  label: Reset password with token
+  path: /api/v1/auth/reset-password
+  method: POST
+- id: API-412
+  type: API
+  label: Change own password
+  path: /api/v1/users/me/change-password
+  method: POST
+- id: API-413
+  type: API
+  label: Admin reset user password
+  path: /api/v1/users/{id}/reset-password
+  method: POST
+- id: API-414
+  type: API
+  label: Update own preferred language
+  path: /api/v1/users/me/preferred-language
+  method: PATCH
+- id: API-500
+  type: API
+  label: Create Complaint (idempotent; no Case)
+  path: /api/v1/cm/complaints
+  method: POST
+- id: API-501
+  type: API
+  label: Get Complaint confirmation/detail
+  path: /api/v1/cm/complaints/{complaintId}
+  method: GET
+- id: API-502
+  type: API
+  label: Search Customer by exactly one key type
+  path: /api/v1/cm/customers/search
+  method: POST
+- id: API-503
+  type: API
+  label: Confirm / lock CustomerId in session context
+  path: /api/v1/cm/customers/confirm
+  method: POST
+- id: API-504
+  type: API
+  label: Batch 1 Customer 360 minimum
+  path: /api/v1/cm/customers/{customerId}/batch1-360
+  method: GET
+- id: API-505
+  type: API
+  label: Check duplicate Complaint candidates
+  path: /api/v1/cm/duplicates/check
+  method: POST
+- id: API-506
+  type: API
+  label: Record duplicate decision / linkage
+  path: /api/v1/cm/duplicates/decisions
+  method: POST
+- id: API-507
+  type: API
+  label: Upload attachment (Batch 1 semantics)
+  path: /api/v1/attachments
+  method: POST
+- id: API-508
+  type: API
+  label: Transfer staged attachments to surviving Complaint
+  path: /api/v1/cm/attachments/transfer
+  method: POST
+- id: API-509
+  type: API
+  label: List attachments for Complaint
+  path: /api/v1/complaints/{id}/attachments
+  method: GET
+- id: API-510
+  type: API
+  label: Get attachment metadata
+  path: /api/v1/attachments/{id}
+  method: GET
+- id: API-511
+  type: API
+  label: Download attachment bytes
+  path: /api/v1/attachments/{id}/download
+  method: GET
+- id: API-512
+  type: API
+  label: Logical void (not physical delete)
+  path: /api/v1/attachments/{id}
+  method: DELETE
+- id: API-520
+  type: API
+  label: Escalate Case Cabang → Pusat
+  path: /api/v1/cm/cases/{caseId}/escalate-to-pusat
+  method: POST
+- id: API-521
+  type: API
+  label: Return escalation to originating branch
+  path: /api/v1/cm/cases/{caseId}/return-escalation
+  method: POST
+- id: API-522
+  type: API
+  label: Pusat handler queue (escalated Cases only)
+  path: /api/v1/cm/pusat/escalated-queue
+  method: GET
+- id: API-523
+  type: API
+  label: Resolve Case (Pusat path requires result_visibility)
+  path: /api/v1/cm/cases/{caseId}/resolve
+  method: POST
+- id: API-524
+  type: API
+  label: Change result_visibility after Resolve
+  path: /api/v1/cm/cases/{caseId}/result-visibility
+  method: PATCH
+- id: API-525
+  type: API
+  label: Get Case with visibility enforcement
+  path: /api/v1/cm/cases/{caseId}
+  method: GET
+- id: API-526
+  type: API
+  label: List/search Cases with visibility enforcement
+  path: /api/v1/cm/cases
+  method: GET
 - id: API-GET-/health
   type: API
-  label: Service liveness check
+  label: Service health (legacy informational)
   path: /health
   method: GET
-- id: API-GET-/health/ready
+- id: API-GET-/live
+  type: API
+  label: Service liveness check
+  path: /live
+  method: GET
+- id: API-GET-/ready
   type: API
   label: Service readiness check
-  path: /health/ready
+  path: /ready
+  method: GET
+- id: API-GET-/version
+  type: API
+  label: Release artifact provenance
+  path: /version
   method: GET
 - id: BG-001
   type: BusinessGoal
@@ -318,6 +976,21 @@ nodes:
 - id: BR-012
   type: BusinessRule
   label: BR-012
+- id: BR-013
+  type: BusinessRule
+  label: BR-013
+- id: BR-014
+  type: BusinessRule
+  label: BR-014
+- id: BR-016
+  type: BusinessRule
+  label: BR-016
+- id: BR-017
+  type: BusinessRule
+  label: BR-017
+- id: BR-018
+  type: BusinessRule
+  label: BR-018
 - id: CAP-001
   type: Capability
   label: Complaint Management
@@ -332,6 +1005,22 @@ nodes:
   type: Document
   label: ECMP_FRD_CRM_Customer360_v0.1.md
   path: 03 Functional Requirements\ECMP_FRD_CRM_Customer360_v0.1.md
+- id: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.0
+  type: Document
+  label: ECMP_FRD_Complaint_Management_Batch1_v1.0.md
+  path: 03 Functional Requirements\ECMP_FRD_Complaint_Management_Batch1_v1.0.md
+- id: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.1
+  type: Document
+  label: ECMP_FRD_Complaint_Management_Batch1_v1.1.md
+  path: 03 Functional Requirements\ECMP_FRD_Complaint_Management_Batch1_v1.1.md
+- id: DOC-ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1
+  type: Document
+  label: ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1.md
+  path: 03 Functional Requirements\ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1.md
+- id: DOC-ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1
+  type: Document
+  label: ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1.md
+  path: 03 Functional Requirements\ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1.md
 - id: DOC-ECMP_FRD_Dashboard_Queue_v0.1
   type: Document
   label: ECMP_FRD_Dashboard_Queue_v0.1.md
@@ -849,467 +1538,758 @@ edges:
 - from: ADR-012
   to: DOM-CORE-PLATFORM
   relation: decided_by
-- from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-057
-  relation: documented_in
-- from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-056
-  relation: documented_in
-- from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-051
-  relation: documented_in
-- from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-063
-  relation: documented_in
+- from: ADR-014
+  to: DOM-CORE-PLATFORM
+  relation: decided_by
+- from: ADR-014
+  to: DOM-ECMF
+  relation: decided_by
+- from: ADR-014
+  to: DOM-NOTIFICATION
+  relation: decided_by
+- from: ADR-014
+  to: DOM-DASHBOARD
+  relation: decided_by
+- from: ADR-014
+  to: DOM-KPI
+  relation: decided_by
+- from: ADR-015
+  to: DOM-CORE-PLATFORM
+  relation: decided_by
+- from: ADR-015
+  to: DOM-ECMF
+  relation: decided_by
+- from: ADR-015
+  to: DOM-NOTIFICATION
+  relation: decided_by
+- from: ADR-015
+  to: DOM-DASHBOARD
+  relation: decided_by
+- from: ADR-015
+  to: DOM-KPI
+  relation: decided_by
 - from: DOC-ECMP_FRD_Administration_v0.1
   to: FR-053
-  relation: documented_in
-- from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-059
   relation: documented_in
 - from: DOC-ECMP_FRD_Administration_v0.1
   to: FR-060
   relation: documented_in
 - from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-052
+  to: FR-059
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-063
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-056
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-055
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
+  to: FR-062
   relation: documented_in
 - from: DOC-ECMP_FRD_Administration_v0.1
   to: FR-054
   relation: documented_in
 - from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-055
-  relation: documented_in
-- from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-058
-  relation: documented_in
-- from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-062
+  to: FR-050
   relation: documented_in
 - from: DOC-ECMP_FRD_Administration_v0.1
   to: FR-061
   relation: documented_in
 - from: DOC-ECMP_FRD_Administration_v0.1
-  to: FR-050
+  to: FR-058
   relation: documented_in
-- from: BR-004
+- from: DOC-ECMP_FRD_Administration_v0.1
   to: FR-057
-  relation: constrains
-- from: BR-004
-  to: FR-056
-  relation: constrains
-- from: BR-004
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
   to: FR-051
-  relation: constrains
-- from: BR-004
-  to: FR-063
-  relation: constrains
-- from: BR-004
-  to: FR-053
-  relation: constrains
-- from: BR-004
-  to: FR-059
-  relation: constrains
-- from: BR-004
-  to: FR-060
-  relation: constrains
-- from: BR-004
+  relation: documented_in
+- from: DOC-ECMP_FRD_Administration_v0.1
   to: FR-052
-  relation: constrains
-- from: BR-004
-  to: FR-054
-  relation: constrains
-- from: BR-004
-  to: FR-055
-  relation: constrains
-- from: BR-004
-  to: FR-058
-  relation: constrains
-- from: BR-004
-  to: FR-062
-  relation: constrains
-- from: BR-004
-  to: FR-061
-  relation: constrains
-- from: BR-004
-  to: FR-050
-  relation: constrains
-- from: BR-012
-  to: FR-057
-  relation: constrains
-- from: BR-012
-  to: FR-056
-  relation: constrains
-- from: BR-012
-  to: FR-051
-  relation: constrains
-- from: BR-012
-  to: FR-063
-  relation: constrains
-- from: BR-012
-  to: FR-053
-  relation: constrains
-- from: BR-012
-  to: FR-059
-  relation: constrains
-- from: BR-012
-  to: FR-060
-  relation: constrains
-- from: BR-012
-  to: FR-052
-  relation: constrains
-- from: BR-012
-  to: FR-054
-  relation: constrains
-- from: BR-012
-  to: FR-055
-  relation: constrains
-- from: BR-012
-  to: FR-058
-  relation: constrains
-- from: BR-012
-  to: FR-062
-  relation: constrains
-- from: BR-012
-  to: FR-061
-  relation: constrains
-- from: BR-012
-  to: FR-050
-  relation: constrains
-- from: BR-005
-  to: FR-057
-  relation: constrains
-- from: BR-005
-  to: FR-056
-  relation: constrains
-- from: BR-005
-  to: FR-051
-  relation: constrains
-- from: BR-005
-  to: FR-063
-  relation: constrains
-- from: BR-005
-  to: FR-053
-  relation: constrains
-- from: BR-005
-  to: FR-059
-  relation: constrains
-- from: BR-005
-  to: FR-060
-  relation: constrains
-- from: BR-005
-  to: FR-052
-  relation: constrains
-- from: BR-005
-  to: FR-054
-  relation: constrains
-- from: BR-005
-  to: FR-055
-  relation: constrains
-- from: BR-005
-  to: FR-058
-  relation: constrains
-- from: BR-005
-  to: FR-062
-  relation: constrains
-- from: BR-005
-  to: FR-061
-  relation: constrains
-- from: BR-005
-  to: FR-050
-  relation: constrains
-- from: BR-001
-  to: FR-057
-  relation: constrains
-- from: BR-001
-  to: FR-056
-  relation: constrains
-- from: BR-001
-  to: FR-051
-  relation: constrains
-- from: BR-001
-  to: FR-063
-  relation: constrains
-- from: BR-001
-  to: FR-053
-  relation: constrains
-- from: BR-001
-  to: FR-059
-  relation: constrains
-- from: BR-001
-  to: FR-060
-  relation: constrains
-- from: BR-001
-  to: FR-052
-  relation: constrains
-- from: BR-001
-  to: FR-054
-  relation: constrains
-- from: BR-001
-  to: FR-055
-  relation: constrains
-- from: BR-001
-  to: FR-058
-  relation: constrains
-- from: BR-001
-  to: FR-062
-  relation: constrains
-- from: BR-001
-  to: FR-061
-  relation: constrains
-- from: BR-001
-  to: FR-050
-  relation: constrains
-- from: BR-003
-  to: FR-057
-  relation: constrains
-- from: BR-003
-  to: FR-056
-  relation: constrains
-- from: BR-003
-  to: FR-051
-  relation: constrains
-- from: BR-003
-  to: FR-063
-  relation: constrains
-- from: BR-003
-  to: FR-053
-  relation: constrains
-- from: BR-003
-  to: FR-059
-  relation: constrains
-- from: BR-003
-  to: FR-060
-  relation: constrains
-- from: BR-003
-  to: FR-052
-  relation: constrains
-- from: BR-003
-  to: FR-054
-  relation: constrains
-- from: BR-003
-  to: FR-055
-  relation: constrains
-- from: BR-003
-  to: FR-058
-  relation: constrains
-- from: BR-003
-  to: FR-062
-  relation: constrains
-- from: BR-003
-  to: FR-061
-  relation: constrains
-- from: BR-003
-  to: FR-050
-  relation: constrains
-- from: BR-007
-  to: FR-057
-  relation: constrains
-- from: BR-007
-  to: FR-056
-  relation: constrains
-- from: BR-007
-  to: FR-051
-  relation: constrains
-- from: BR-007
-  to: FR-063
-  relation: constrains
-- from: BR-007
-  to: FR-053
-  relation: constrains
-- from: BR-007
-  to: FR-059
-  relation: constrains
-- from: BR-007
-  to: FR-060
-  relation: constrains
-- from: BR-007
-  to: FR-052
-  relation: constrains
-- from: BR-007
-  to: FR-054
-  relation: constrains
-- from: BR-007
-  to: FR-055
-  relation: constrains
-- from: BR-007
-  to: FR-058
-  relation: constrains
-- from: BR-007
-  to: FR-062
-  relation: constrains
-- from: BR-007
-  to: FR-061
-  relation: constrains
-- from: BR-007
-  to: FR-050
-  relation: constrains
-- from: BR-008
-  to: FR-057
-  relation: constrains
-- from: BR-008
-  to: FR-056
-  relation: constrains
-- from: BR-008
-  to: FR-051
-  relation: constrains
-- from: BR-008
-  to: FR-063
-  relation: constrains
+  relation: documented_in
 - from: BR-008
   to: FR-053
-  relation: constrains
-- from: BR-008
-  to: FR-059
   relation: constrains
 - from: BR-008
   to: FR-060
   relation: constrains
 - from: BR-008
-  to: FR-052
+  to: FR-059
   relation: constrains
 - from: BR-008
-  to: FR-054
+  to: FR-063
+  relation: constrains
+- from: BR-008
+  to: FR-056
   relation: constrains
 - from: BR-008
   to: FR-055
   relation: constrains
 - from: BR-008
-  to: FR-058
+  to: FR-062
   relation: constrains
 - from: BR-008
-  to: FR-062
+  to: FR-054
+  relation: constrains
+- from: BR-008
+  to: FR-050
   relation: constrains
 - from: BR-008
   to: FR-061
   relation: constrains
 - from: BR-008
-  to: FR-050
+  to: FR-058
   relation: constrains
-- from: BR-010
+- from: BR-008
   to: FR-057
   relation: constrains
-- from: BR-010
-  to: FR-056
-  relation: constrains
-- from: BR-010
+- from: BR-008
   to: FR-051
   relation: constrains
-- from: BR-010
+- from: BR-008
+  to: FR-052
+  relation: constrains
+- from: BR-005
+  to: FR-053
+  relation: constrains
+- from: BR-005
+  to: FR-060
+  relation: constrains
+- from: BR-005
+  to: FR-059
+  relation: constrains
+- from: BR-005
   to: FR-063
+  relation: constrains
+- from: BR-005
+  to: FR-056
+  relation: constrains
+- from: BR-005
+  to: FR-055
+  relation: constrains
+- from: BR-005
+  to: FR-062
+  relation: constrains
+- from: BR-005
+  to: FR-054
+  relation: constrains
+- from: BR-005
+  to: FR-050
+  relation: constrains
+- from: BR-005
+  to: FR-061
+  relation: constrains
+- from: BR-005
+  to: FR-058
+  relation: constrains
+- from: BR-005
+  to: FR-057
+  relation: constrains
+- from: BR-005
+  to: FR-051
+  relation: constrains
+- from: BR-005
+  to: FR-052
   relation: constrains
 - from: BR-010
   to: FR-053
   relation: constrains
 - from: BR-010
-  to: FR-059
-  relation: constrains
-- from: BR-010
   to: FR-060
   relation: constrains
 - from: BR-010
-  to: FR-052
+  to: FR-059
   relation: constrains
 - from: BR-010
-  to: FR-054
+  to: FR-063
+  relation: constrains
+- from: BR-010
+  to: FR-056
   relation: constrains
 - from: BR-010
   to: FR-055
   relation: constrains
 - from: BR-010
-  to: FR-058
+  to: FR-062
   relation: constrains
 - from: BR-010
-  to: FR-062
+  to: FR-054
+  relation: constrains
+- from: BR-010
+  to: FR-050
   relation: constrains
 - from: BR-010
   to: FR-061
   relation: constrains
 - from: BR-010
-  to: FR-050
+  to: FR-058
   relation: constrains
-- from: BR-011
+- from: BR-010
   to: FR-057
   relation: constrains
-- from: BR-011
-  to: FR-056
-  relation: constrains
-- from: BR-011
+- from: BR-010
   to: FR-051
   relation: constrains
-- from: BR-011
+- from: BR-010
+  to: FR-052
+  relation: constrains
+- from: BR-003
+  to: FR-053
+  relation: constrains
+- from: BR-003
+  to: FR-060
+  relation: constrains
+- from: BR-003
+  to: FR-059
+  relation: constrains
+- from: BR-003
   to: FR-063
+  relation: constrains
+- from: BR-003
+  to: FR-056
+  relation: constrains
+- from: BR-003
+  to: FR-055
+  relation: constrains
+- from: BR-003
+  to: FR-062
+  relation: constrains
+- from: BR-003
+  to: FR-054
+  relation: constrains
+- from: BR-003
+  to: FR-050
+  relation: constrains
+- from: BR-003
+  to: FR-061
+  relation: constrains
+- from: BR-003
+  to: FR-058
+  relation: constrains
+- from: BR-003
+  to: FR-057
+  relation: constrains
+- from: BR-003
+  to: FR-051
+  relation: constrains
+- from: BR-003
+  to: FR-052
   relation: constrains
 - from: BR-011
   to: FR-053
   relation: constrains
 - from: BR-011
-  to: FR-059
-  relation: constrains
-- from: BR-011
   to: FR-060
   relation: constrains
 - from: BR-011
-  to: FR-052
+  to: FR-059
   relation: constrains
 - from: BR-011
-  to: FR-054
+  to: FR-063
+  relation: constrains
+- from: BR-011
+  to: FR-056
   relation: constrains
 - from: BR-011
   to: FR-055
   relation: constrains
 - from: BR-011
-  to: FR-058
+  to: FR-062
   relation: constrains
 - from: BR-011
-  to: FR-062
+  to: FR-054
+  relation: constrains
+- from: BR-011
+  to: FR-050
   relation: constrains
 - from: BR-011
   to: FR-061
   relation: constrains
 - from: BR-011
-  to: FR-050
+  to: FR-058
   relation: constrains
-- from: BR-009
+- from: BR-011
   to: FR-057
   relation: constrains
-- from: BR-009
-  to: FR-056
-  relation: constrains
-- from: BR-009
+- from: BR-011
   to: FR-051
   relation: constrains
-- from: BR-009
+- from: BR-011
+  to: FR-052
+  relation: constrains
+- from: BR-004
+  to: FR-053
+  relation: constrains
+- from: BR-004
+  to: FR-060
+  relation: constrains
+- from: BR-004
+  to: FR-059
+  relation: constrains
+- from: BR-004
   to: FR-063
+  relation: constrains
+- from: BR-004
+  to: FR-056
+  relation: constrains
+- from: BR-004
+  to: FR-055
+  relation: constrains
+- from: BR-004
+  to: FR-062
+  relation: constrains
+- from: BR-004
+  to: FR-054
+  relation: constrains
+- from: BR-004
+  to: FR-050
+  relation: constrains
+- from: BR-004
+  to: FR-061
+  relation: constrains
+- from: BR-004
+  to: FR-058
+  relation: constrains
+- from: BR-004
+  to: FR-057
+  relation: constrains
+- from: BR-004
+  to: FR-051
+  relation: constrains
+- from: BR-004
+  to: FR-052
+  relation: constrains
+- from: BR-007
+  to: FR-053
+  relation: constrains
+- from: BR-007
+  to: FR-060
+  relation: constrains
+- from: BR-007
+  to: FR-059
+  relation: constrains
+- from: BR-007
+  to: FR-063
+  relation: constrains
+- from: BR-007
+  to: FR-056
+  relation: constrains
+- from: BR-007
+  to: FR-055
+  relation: constrains
+- from: BR-007
+  to: FR-062
+  relation: constrains
+- from: BR-007
+  to: FR-054
+  relation: constrains
+- from: BR-007
+  to: FR-050
+  relation: constrains
+- from: BR-007
+  to: FR-061
+  relation: constrains
+- from: BR-007
+  to: FR-058
+  relation: constrains
+- from: BR-007
+  to: FR-057
+  relation: constrains
+- from: BR-007
+  to: FR-051
+  relation: constrains
+- from: BR-007
+  to: FR-052
+  relation: constrains
+- from: BR-012
+  to: FR-053
+  relation: constrains
+- from: BR-012
+  to: FR-060
+  relation: constrains
+- from: BR-012
+  to: FR-059
+  relation: constrains
+- from: BR-012
+  to: FR-063
+  relation: constrains
+- from: BR-012
+  to: FR-056
+  relation: constrains
+- from: BR-012
+  to: FR-055
+  relation: constrains
+- from: BR-012
+  to: FR-062
+  relation: constrains
+- from: BR-012
+  to: FR-054
+  relation: constrains
+- from: BR-012
+  to: FR-050
+  relation: constrains
+- from: BR-012
+  to: FR-061
+  relation: constrains
+- from: BR-012
+  to: FR-058
+  relation: constrains
+- from: BR-012
+  to: FR-057
+  relation: constrains
+- from: BR-012
+  to: FR-051
+  relation: constrains
+- from: BR-012
+  to: FR-052
   relation: constrains
 - from: BR-009
   to: FR-053
   relation: constrains
 - from: BR-009
-  to: FR-059
-  relation: constrains
-- from: BR-009
   to: FR-060
   relation: constrains
 - from: BR-009
-  to: FR-052
+  to: FR-059
   relation: constrains
 - from: BR-009
-  to: FR-054
+  to: FR-063
+  relation: constrains
+- from: BR-009
+  to: FR-056
   relation: constrains
 - from: BR-009
   to: FR-055
   relation: constrains
 - from: BR-009
-  to: FR-058
+  to: FR-062
   relation: constrains
 - from: BR-009
-  to: FR-062
+  to: FR-054
+  relation: constrains
+- from: BR-009
+  to: FR-050
   relation: constrains
 - from: BR-009
   to: FR-061
   relation: constrains
 - from: BR-009
+  to: FR-058
+  relation: constrains
+- from: BR-009
+  to: FR-057
+  relation: constrains
+- from: BR-009
+  to: FR-051
+  relation: constrains
+- from: BR-009
+  to: FR-052
+  relation: constrains
+- from: BR-001
+  to: FR-053
+  relation: constrains
+- from: BR-001
+  to: FR-060
+  relation: constrains
+- from: BR-001
+  to: FR-059
+  relation: constrains
+- from: BR-001
+  to: FR-063
+  relation: constrains
+- from: BR-001
+  to: FR-056
+  relation: constrains
+- from: BR-001
+  to: FR-055
+  relation: constrains
+- from: BR-001
+  to: FR-062
+  relation: constrains
+- from: BR-001
+  to: FR-054
+  relation: constrains
+- from: BR-001
   to: FR-050
+  relation: constrains
+- from: BR-001
+  to: FR-061
+  relation: constrains
+- from: BR-001
+  to: FR-058
+  relation: constrains
+- from: BR-001
+  to: FR-057
+  relation: constrains
+- from: BR-001
+  to: FR-051
+  relation: constrains
+- from: BR-001
+  to: FR-052
+  relation: constrains
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.0
+  to: FR-003
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.0
+  to: FR-001
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.0
+  to: FR-004
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.0
+  to: FR-005
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.0
+  to: FR-002
+  relation: documented_in
+- from: BR-018
+  to: FR-003
+  relation: constrains
+- from: BR-018
+  to: FR-001
+  relation: constrains
+- from: BR-018
+  to: FR-004
+  relation: constrains
+- from: BR-018
+  to: FR-005
+  relation: constrains
+- from: BR-018
+  to: FR-002
+  relation: constrains
+- from: BR-014
+  to: FR-003
+  relation: constrains
+- from: BR-014
+  to: FR-001
+  relation: constrains
+- from: BR-014
+  to: FR-004
+  relation: constrains
+- from: BR-014
+  to: FR-005
+  relation: constrains
+- from: BR-014
+  to: FR-002
+  relation: constrains
+- from: BR-006
+  to: FR-003
+  relation: constrains
+- from: BR-006
+  to: FR-001
+  relation: constrains
+- from: BR-006
+  to: FR-004
+  relation: constrains
+- from: BR-006
+  to: FR-005
+  relation: constrains
+- from: BR-006
+  to: FR-002
+  relation: constrains
+- from: BR-016
+  to: FR-003
+  relation: constrains
+- from: BR-016
+  to: FR-001
+  relation: constrains
+- from: BR-016
+  to: FR-004
+  relation: constrains
+- from: BR-016
+  to: FR-005
+  relation: constrains
+- from: BR-016
+  to: FR-002
+  relation: constrains
+- from: BR-013
+  to: FR-003
+  relation: constrains
+- from: BR-013
+  to: FR-001
+  relation: constrains
+- from: BR-013
+  to: FR-004
+  relation: constrains
+- from: BR-013
+  to: FR-005
+  relation: constrains
+- from: BR-013
+  to: FR-002
+  relation: constrains
+- from: BR-008
+  to: FR-003
+  relation: constrains
+- from: BR-008
+  to: FR-001
+  relation: constrains
+- from: BR-008
+  to: FR-004
+  relation: constrains
+- from: BR-008
+  to: FR-005
+  relation: constrains
+- from: BR-008
+  to: FR-002
+  relation: constrains
+- from: BR-017
+  to: FR-003
+  relation: constrains
+- from: BR-017
+  to: FR-001
+  relation: constrains
+- from: BR-017
+  to: FR-004
+  relation: constrains
+- from: BR-017
+  to: FR-005
+  relation: constrains
+- from: BR-017
+  to: FR-002
+  relation: constrains
+- from: BR-010
+  to: FR-003
+  relation: constrains
+- from: BR-010
+  to: FR-001
+  relation: constrains
+- from: BR-010
+  to: FR-004
+  relation: constrains
+- from: BR-010
+  to: FR-005
+  relation: constrains
+- from: BR-010
+  to: FR-002
+  relation: constrains
+- from: BR-003
+  to: FR-003
+  relation: constrains
+- from: BR-003
+  to: FR-001
+  relation: constrains
+- from: BR-003
+  to: FR-004
+  relation: constrains
+- from: BR-003
+  to: FR-005
+  relation: constrains
+- from: BR-003
+  to: FR-002
+  relation: constrains
+- from: BR-011
+  to: FR-003
+  relation: constrains
+- from: BR-011
+  to: FR-001
+  relation: constrains
+- from: BR-011
+  to: FR-004
+  relation: constrains
+- from: BR-011
+  to: FR-005
+  relation: constrains
+- from: BR-011
+  to: FR-002
+  relation: constrains
+- from: BR-004
+  to: FR-003
+  relation: constrains
+- from: BR-004
+  to: FR-001
+  relation: constrains
+- from: BR-004
+  to: FR-004
+  relation: constrains
+- from: BR-004
+  to: FR-005
+  relation: constrains
+- from: BR-004
+  to: FR-002
+  relation: constrains
+- from: BR-007
+  to: FR-003
+  relation: constrains
+- from: BR-007
+  to: FR-001
+  relation: constrains
+- from: BR-007
+  to: FR-004
+  relation: constrains
+- from: BR-002
+  to: FR-001
+  relation: constrains
+- from: BR-002
+  to: FR-004
+  relation: constrains
+- from: BR-002
+  to: FR-005
+  relation: constrains
+- from: BR-002
+  to: FR-002
+  relation: constrains
+- from: BR-012
+  to: FR-003
+  relation: constrains
+- from: BR-012
+  to: FR-001
+  relation: constrains
+- from: BR-012
+  to: FR-004
+  relation: constrains
+- from: BR-012
+  to: FR-005
+  relation: constrains
+- from: BR-012
+  to: FR-002
+  relation: constrains
+- from: BR-001
+  to: FR-003
+  relation: constrains
+- from: BR-001
+  to: FR-005
+  relation: constrains
+- from: BR-001
+  to: FR-002
+  relation: constrains
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.1
+  to: FR-003
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.1
+  to: FR-004
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.1
+  to: FR-001
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Batch1_v1.1
+  to: FR-002
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1
+  to: FR-004
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Escalation_Resolution_Outline_v0.1
+  to: FR-001
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1
+  to: FR-004
+  relation: documented_in
+- from: DOC-ECMP_FRD_Complaint_Management_Escalation_Resolution_v0.1
+  to: FR-001
+  relation: documented_in
+- from: BR-009
+  to: FR-004
+  relation: constrains
+- from: BR-009
+  to: FR-001
+  relation: constrains
+- from: BR-005
+  to: FR-004
+  relation: constrains
+- from: BR-005
+  to: FR-001
   relation: constrains
 - from: DOC-ECMP_FRD_CRM_Customer360_v0.1
   to: FR-010
@@ -1318,20 +2298,14 @@ edges:
   to: FR-003
   relation: documented_in
 - from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
+  to: FR-004
+  relation: documented_in
+- from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
   to: FR-040
   relation: documented_in
 - from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
-  to: FR-004
-  relation: documented_in
-- from: DOC-ECMP_FRD_Dashboard_Queue_v0.1
   to: FR-030
   relation: documented_in
-- from: BR-006
-  to: FR-003
-  relation: constrains
-- from: BR-006
-  to: FR-004
-  relation: constrains
 - from: BR-006
   to: FR-030
   relation: constrains
@@ -1345,24 +2319,12 @@ edges:
   to: FR-030
   relation: documented_in
 - from: BR-008
-  to: FR-003
-  relation: constrains
-- from: BR-008
-  to: FR-004
-  relation: constrains
-- from: BR-008
-  to: FR-030
-  relation: constrains
-- from: BR-002
-  to: FR-004
-  relation: constrains
-- from: BR-002
   to: FR-030
   relation: constrains
 - from: BR-001
-  to: FR-003
+  to: FR-030
   relation: constrains
-- from: BR-001
+- from: BR-002
   to: FR-030
   relation: constrains
 - from: DOC-ECMP_FRD_ECMF_Lifecycle_v0.1
@@ -1377,42 +2339,6 @@ edges:
 - from: DOC-ECMP_FRD_ECMF_v0.1
   to: FR-002
   relation: documented_in
-- from: BR-004
-  to: FR-005
-  relation: constrains
-- from: BR-004
-  to: FR-001
-  relation: constrains
-- from: BR-004
-  to: FR-002
-  relation: constrains
-- from: BR-001
-  to: FR-005
-  relation: constrains
-- from: BR-001
-  to: FR-002
-  relation: constrains
-- from: BR-007
-  to: FR-001
-  relation: constrains
-- from: BR-008
-  to: FR-005
-  relation: constrains
-- from: BR-008
-  to: FR-001
-  relation: constrains
-- from: BR-008
-  to: FR-002
-  relation: constrains
-- from: BR-003
-  to: FR-005
-  relation: constrains
-- from: BR-003
-  to: FR-001
-  relation: constrains
-- from: BR-003
-  to: FR-002
-  relation: constrains
 - from: DOC-ECMP_FRD_ECMF_v0.1
   to: DOM-ECMF
   relation: documented_in
@@ -1422,9 +2348,6 @@ edges:
 - from: DOC-ECMP_FRD_KPI_SLA_v0.1
   to: FR-030
   relation: documented_in
-- from: BR-005
-  to: FR-004
-  relation: constrains
 - from: DOC-ECMP_FRD_Notification_v0.1
   to: FR-020
   relation: documented_in

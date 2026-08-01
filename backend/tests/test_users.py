@@ -9,7 +9,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import (
+    ConflictError,
+    NotFoundError,
+    ValidationAppError,
+)
 from app.core.security import hash_password, verify_password
 from app.modules.users.schemas import (
     UserCreateRequest,
@@ -17,6 +21,8 @@ from app.modules.users.schemas import (
     UserUpdateRequest,
 )
 from app.modules.users.service import UserService
+
+_ADMIN_ACTOR = ("ADMIN",)
 
 
 def _user_row(**overrides: object) -> SimpleNamespace:
@@ -40,6 +46,24 @@ def _user_row(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
+def _create_repo(
+    *,
+    role_id: uuid.UUID,
+    role_code: str = "AGENT",
+    created_id: uuid.UUID | None = None,
+) -> MagicMock:
+    user_id = created_id or uuid.uuid4()
+    repo = MagicMock()
+    repo.username_exists.return_value = False
+    repo.email_exists.return_value = False
+    repo.role_exists.return_value = True
+    repo.get_role_code.return_value = role_code
+    repo.ensure_user_role.return_value = True
+    repo.add.side_effect = lambda user: setattr(user, "id", user_id) or user
+    repo.refresh.side_effect = lambda user: user
+    return repo
+
+
 def test_hash_password_not_plaintext() -> None:
     hashed = hash_password("Secret123")
     assert hashed != "Secret123"
@@ -50,13 +74,7 @@ def test_create_user_hashes_password_and_hides_hash() -> None:
     role_id = uuid.uuid4()
     actor_id = uuid.uuid4()
     created = _user_row(role_id=role_id)
-
-    repo = MagicMock()
-    repo.username_exists.return_value = False
-    repo.email_exists.return_value = False
-    repo.role_exists.return_value = True
-    repo.add.side_effect = lambda user: setattr(user, "id", created.id) or user
-    repo.refresh.side_effect = lambda user: user
+    repo = _create_repo(role_id=role_id, created_id=created.id)
 
     service = UserService(repo)
     result = service.create(
@@ -68,6 +86,7 @@ def test_create_user_hashes_password_and_hides_hash() -> None:
             roleId=role_id,
         ),
         actor_user_id=actor_id,
+        actor_roles=_ADMIN_ACTOR,
     )
 
     assert result.username == "jdoe"
@@ -77,6 +96,132 @@ def test_create_user_hashes_password_and_hides_hash() -> None:
     assert added.password_hash != "Secret123"
     assert verify_password("Secret123", added.password_hash)
     assert added.is_active is True
+    assert added.force_password_change is True
+    repo.ensure_user_role.assert_called_once_with(created.id, role_id)
+    repo.commit.assert_called_once()
+    repo.rollback.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("persona", "role_code"),
+    [
+        ("ADMIN", "ADMIN"),
+        ("SUPERVISOR", "SUPERVISOR"),
+        ("OFFICER", "AGENT"),
+    ],
+)
+def test_create_user_syncs_user_roles_for_persona(
+    persona: str, role_code: str
+) -> None:
+    """UAT-018: Admin / Supervisor / Officer create must insert user_roles."""
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code=role_code, created_id=user_id)
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username=f"{persona.lower()}_user",
+            email=f"{persona.lower()}@example.com",
+            fullName=f"{persona} User",
+            password="Secret123!",
+            roleId=role_id,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    repo.add.assert_called_once()
+    repo.ensure_user_role.assert_called_once_with(user_id, role_id)
+    assert repo.add.call_args.args[0].role_id == role_id
+    repo.commit.assert_called_once()
+
+
+def test_create_user_roles_idempotent_no_duplicate() -> None:
+    """If user_roles already exists, ensure_user_role must not insert again."""
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, created_id=user_id)
+    repo.ensure_user_role.return_value = False  # already present
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username="dup_role_user",
+            email="dup_role@example.com",
+            fullName="Dup Role",
+            password="Secret123!",
+            roleId=role_id,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    repo.ensure_user_role.assert_called_once_with(user_id, role_id)
+    assert repo.ensure_user_role.return_value is False
+    repo.commit.assert_called_once()
+
+
+def test_create_user_rolls_back_when_user_roles_fails() -> None:
+    """Transaction failure on user_roles must roll back the whole create."""
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, created_id=user_id)
+    repo.ensure_user_role.side_effect = RuntimeError("user_roles insert failed")
+
+    with pytest.raises(RuntimeError, match="user_roles insert failed"):
+        UserService(repo).create(
+            UserCreateRequest(
+                username="rollback_user",
+                email="rollback@example.com",
+                fullName="Rollback User",
+                password="Secret123!",
+                roleId=role_id,
+            ),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+
+    repo.add.assert_called_once()
+    repo.ensure_user_role.assert_called_once_with(user_id, role_id)
+    repo.commit.assert_not_called()
+    repo.rollback.assert_called_once()
+
+
+def test_ensure_user_role_skips_duplicate_mapping() -> None:
+    """Repository helper must not insert a second (user_id, role_id) row."""
+    from app.modules.users.repository import UserRepository
+
+    user_id = uuid.uuid4()
+    role_id = uuid.uuid4()
+    existing = SimpleNamespace(id=uuid.uuid4(), user_id=user_id, role_id=role_id)
+
+    session = MagicMock()
+    session.scalar.return_value = existing
+    repo = UserRepository(session)
+
+    inserted = repo.ensure_user_role(user_id, role_id)
+
+    assert inserted is False
+    session.add.assert_not_called()
+
+
+def test_ensure_user_role_inserts_when_missing() -> None:
+    from app.modules.users.repository import UserRepository
+
+    user_id = uuid.uuid4()
+    role_id = uuid.uuid4()
+
+    session = MagicMock()
+    session.scalar.return_value = None
+    repo = UserRepository(session)
+
+    inserted = repo.ensure_user_role(user_id, role_id)
+
+    assert inserted is True
+    session.add.assert_called_once()
+    added = session.add.call_args.args[0]
+    assert added.user_id == user_id
+    assert added.role_id == role_id
+    session.flush.assert_called()
 
 
 def test_create_duplicate_username_conflict() -> None:
@@ -94,6 +239,7 @@ def test_create_duplicate_username_conflict() -> None:
                 roleId=uuid.uuid4(),
             ),
             actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
         )
 
 
@@ -114,8 +260,9 @@ def test_create_missing_role_rejected() -> None:
                 roleId=uuid.uuid4(),
             ),
             actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
         )
-    assert "Role" in exc.value.message
+    assert "Peran" in exc.value.message
 
 
 def test_get_user_not_found() -> None:
@@ -155,4 +302,31 @@ def test_update_requires_unique_email() -> None:
             user.id,
             UserUpdateRequest(email="taken@example.com"),
             actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
         )
+
+
+def test_update_role_syncs_user_roles() -> None:
+    old_role = uuid.uuid4()
+    new_role = uuid.uuid4()
+    user = _user_row(role_id=old_role)
+    repo = MagicMock()
+    repo.get_by_id.return_value = user
+    repo.role_exists.return_value = True
+    repo.get_role_code.return_value = "AGENT"
+    repo.refresh.side_effect = lambda u: u
+
+    UserService(repo).update(
+        user.id,
+        UserUpdateRequest(roleId=new_role),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert user.role_id == new_role
+    repo.sync_primary_user_role.assert_called_once_with(
+        user.id,
+        previous_role_id=old_role,
+        new_role_id=new_role,
+    )
+    repo.commit.assert_called_once()

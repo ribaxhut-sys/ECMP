@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import ComplaintStatus, FinalResolutionStatus
+from app.core.user_messages import m
 
 ResolutionCategory = Literal[
     "SOLVED",
@@ -33,7 +34,7 @@ class ResolveComplaintRequest(BaseModel):
     def strip_required_text(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
 
@@ -73,7 +74,7 @@ class FinalResolutionRequest(BaseModel):
     def strip_final_text(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
 

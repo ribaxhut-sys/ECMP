@@ -10,6 +10,7 @@ Public helpers are unchanged for existing routers:
 Implementation lives under ``app.core.authorization`` as a single pipeline:
 
     Authentication → Permission Resolver → Permission Check
+      → (optional) Org Unit Guard (SECMIG-P4; G1 opt-in)
       → (optional) Data Scope Resolver → Data Scope Check → Endpoint
 
 Login/JWT issuance, PermissionResolver, and DataScopeResolver are not
@@ -20,11 +21,14 @@ from __future__ import annotations
 
 from app.core.authorization import (
     CurrentPrincipal,
+    OrgUnitGuard,
+    OrgUnitResolver,
     Principal,
     authenticate_bearer,
     check_data_scope,
     check_permissions,
     check_roles,
+    enforce_org_scope,
     get_current_principal,
     require_appointment_complete,
     require_complaint_close,
@@ -42,11 +46,14 @@ from app.core.authorization import (
 
 __all__ = [
     "CurrentPrincipal",
+    "OrgUnitGuard",
+    "OrgUnitResolver",
     "Principal",
     "authenticate_bearer",
     "check_data_scope",
     "check_permissions",
     "check_roles",
+    "enforce_org_scope",
     "get_current_principal",
     "require_appointment_complete",
     "require_complaint_close",

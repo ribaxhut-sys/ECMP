@@ -11,6 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.iam.permission.models import Permission
 from app.modules.iam.permission.repository import PermissionRepository
 from app.modules.iam.permission.schemas import (
@@ -59,7 +60,7 @@ class PermissionService:
         self._assert_code_matches_module(code, module)
         if self._repo.get_by_code(code) is not None:
             raise ConflictError(
-                f"Permission code already exists: {code}",
+                f"Kode izin sudah ada: {code}",
                 details={"code": code},
             )
         now = datetime.now(UTC)
@@ -96,7 +97,7 @@ class PermissionService:
         row = self._require(permission_id)
         if row.is_system:
             raise ConflictError(
-                "System permission cannot be deleted",
+                m("iam.system_permission_cannot_delete"),
                 details={
                     "id": str(permission_id),
                     "code": row.code,
@@ -109,7 +110,7 @@ class PermissionService:
     def _require(self, permission_id: uuid.UUID) -> Permission:
         row = self._repo.get_by_id(permission_id)
         if row is None:
-            raise NotFoundError("Permission not found")
+            raise NotFoundError(m("iam.permission_not_found"))
         return row
 
     @staticmethod
@@ -117,8 +118,7 @@ class PermissionService:
         code = raw.strip().lower()
         if not _PERMISSION_CODE_RE.match(code):
             raise ValidationAppError(
-                "code must match module:action "
-                "(lowercase letters, digits, underscores)",
+                m("config.code_module_action_format"),
                 details={"code": raw},
             )
         return code
@@ -128,8 +128,7 @@ class PermissionService:
         module = raw.strip().lower()
         if not _MODULE_RE.match(module):
             raise ValidationAppError(
-                "module must be lowercase letters, digits, and underscores "
-                "(start with a letter)",
+                m("config.module_lowercase_format"),
                 details={"module": raw},
             )
         return module
@@ -139,6 +138,6 @@ class PermissionService:
         prefix, _, _action = code.partition(":")
         if prefix != module:
             raise ValidationAppError(
-                "code module prefix must match module field",
+                m("config.code_module_prefix_match"),
                 details={"code": code, "module": module},
             )

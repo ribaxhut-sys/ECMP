@@ -89,7 +89,7 @@ def test_lifecycle_forbids_open_to_closed() -> None:
     assert not can_transition(ComplaintStatus.OPEN, ComplaintStatus.CLOSED)
     from app.modules.complaint.domain.errors import ComplaintDomainError
 
-    with pytest.raises(ComplaintDomainError, match="invalid complaint status transition"):
+    with pytest.raises(ComplaintDomainError, match="transisi status pengaduan tidak valid"):
         assert_transition(ComplaintStatus.OPEN, ComplaintStatus.CLOSED)
 
 
@@ -173,7 +173,7 @@ def test_start_resolve_close_reopen_on_aggregate() -> None:
     assert imm.value.code == "RESOLUTION_IMMUTABLE"
 
     # reopen only from RESOLVED
-    with pytest.raises(ComplaintDomainError, match="reopen requires RESOLVED"):
+    with pytest.raises(ComplaintDomainError, match="reopen memerlukan status RESOLVED"):
         closed.reopen()
 
     reopened = resolved.reopen(reason="customer disputed")

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from alembic.config import Config
@@ -22,7 +22,9 @@ def test_alembic_chain_includes_notification_domain() -> None:
     script = ScriptDirectory.from_config(cfg)
     revisions = {r.revision for r in script.walk_revisions()}
     assert "0033_notification_domain" in revisions
-    assert "0036_search_indexes" in script.get_heads()
+    assert "0036_search_indexes" in revisions
+    # Head advances after search indexes (0037–0039); notification stays on chain.
+    assert script.get_heads() == ["0046_cm_case_management"]
 
 
 def test_migration_file_defines_required_indexes_and_columns() -> None:

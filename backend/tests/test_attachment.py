@@ -112,7 +112,7 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
     svc = AttachmentService(repo, _settings(root=str(tmp_path)), storage=storage)
     aggregate_id = uuid.uuid4()
 
-    with pytest.raises(ValidationAppError, match="empty"):
+    with pytest.raises(ValidationAppError, match="kosong"):
         svc.upload(
             aggregate_type=AggregateType.COMPLAINT.value,
             aggregate_id=aggregate_id,
@@ -122,7 +122,7 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
             uploaded_by=None,
         )
 
-    with pytest.raises(ValidationAppError, match="mime"):
+    with pytest.raises(ValidationAppError, match="[Mm]IME|[Mm]ime|tipe mime"):
         svc.upload(
             aggregate_type=AggregateType.COMPLAINT.value,
             aggregate_id=aggregate_id,
@@ -132,7 +132,7 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
             uploaded_by=None,
         )
 
-    with pytest.raises(ValidationAppError, match="extension"):
+    with pytest.raises(ValidationAppError, match="[Ee]kstensi"):
         svc.upload(
             aggregate_type=AggregateType.COMPLAINT.value,
             aggregate_id=aggregate_id,
@@ -142,7 +142,7 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
             uploaded_by=None,
         )
 
-    with pytest.raises(ValidationAppError, match="aggregate"):
+    with pytest.raises(ValidationAppError, match="agregat"):
         svc.upload(
             aggregate_type="Invoice",
             aggregate_id=aggregate_id,
@@ -155,7 +155,7 @@ def test_upload_validates_empty_mime_size_extension(tmp_path: Path) -> None:
     svc_small = AttachmentService(
         repo, _settings(max_mb=1, root=str(tmp_path)), storage=storage
     )
-    with pytest.raises(ValidationAppError, match="maximum"):
+    with pytest.raises(ValidationAppError, match="maksimum"):
         svc_small.upload(
             aggregate_type=AggregateType.COMPLAINT.value,
             aggregate_id=aggregate_id,
@@ -246,7 +246,7 @@ def test_allowed_mime_setting_must_be_list(tmp_path: Path) -> None:
     svc = AttachmentService(
         MagicMock(), settings, storage=LocalStorageProvider(str(tmp_path))
     )
-    with pytest.raises(ValidationAppError, match="JSON array"):
+    with pytest.raises(ValidationAppError, match="array JSON"):
         svc.upload(
             aggregate_type=AggregateType.COMPLAINT.value,
             aggregate_id=uuid.uuid4(),

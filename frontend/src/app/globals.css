@@ -64,7 +64,7 @@
   --ecmp-shadow-lg: 0 12px 32px rgb(15 23 42 / 0.12);
 
   /* Typography */
-  --ecmp-font-family: var(--font-ecmp-sans), "Source Sans 3", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --ecmp-font-family: var(--font-ecmp-sans, "Source Sans 3"), "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --ecmp-font-display-size: 2.25rem;
   --ecmp-font-display-line: 1.2;
   --ecmp-font-display-weight: 700;

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | EVT-CAT-001 |
-| Version | 0.6 |
+| Version | 0.7 |
 | Owner | Integration Lead |
 | Reviewer | Solution Architect |
 | Approver | Architecture Board |
@@ -30,6 +30,31 @@
 | EVT-013 | ComplaintResolved | ECMF | Implemented | Standardized ComplaintResolved event shape (TASK-045 factory) |
 | EVT-014 | ComplaintClosed | ECMF | Implemented | Emitted in-process when a Complaint is closed (TASK-045; API-312 path) |
 | EVT-015 | ComplaintEscalated | ECMF | Implemented | Standardized ComplaintEscalated event shape (TASK-045 factory; Escalation module unchanged) |
+| EVT-CM-001 | ComplaintCreated | ECMF | Planned | Batch 1 Aggregate create success (FR-001); status REGISTERED; no Case |
+| EVT-CM-002 | CreateReplayed | ECMF | Planned | Idempotent replay of create (Request Id or Channel Message Id) |
+| EVT-CM-003 | CreateRedirectedToExisting | ECMF | Planned | Create abandoned; actor redirected to existing Complaint (D-06) |
+| EVT-CM-004 | DuplicateCheckOutcomeRecorded | ECMF | Planned | Duplicate check outcome on create path |
+| EVT-CM-005 | NotificationOutboxEnqueued | ECMF | Planned | Opt-in notification enqueued to ECMP outbox after create (ADR-009) |
+| EVT-CM-010 | CustomerValidated | ECMF | Planned | Successful customer search/confirm (FR-002) |
+| EVT-CM-011 | CustomerValidationFailed | ECMF | Planned | not found / ambiguous / degraded / blocked enumeration outcome |
+| EVT-CM-012 | CustomerReferenceEnriched | ECMF | Planned | UNVERIFIED Complaint enriched with verified CustomerId |
+| EVT-CM-020 | DuplicateWarned | ECMF | Planned | Duplicate candidates at or above threshold |
+| EVT-CM-021 | DuplicateOverridden | ECMF | Planned | Authorized override with justification |
+| EVT-CM-022 | DuplicateLinked | ECMF | Planned | Possible-duplicate / related linkage recorded |
+| EVT-CM-023 | DuplicateRedirectedToExisting | ECMF | Planned | Redirect decision to existing Complaint |
+| EVT-CM-024 | DuplicateRecommendedExisting | ECMF | Planned | Recommend continue on existing Complaint; no Case create in Batch 1 |
+| EVT-CM-025 | DuplicateCheckDegraded | ECMF | Planned | Duplicate check unavailable / timeout |
+| EVT-CM-026 | DuplicateLaterReviewEnqueued | ECMF | Planned | Later-review work item for degraded duplicate check |
+| EVT-CM-030 | AttachmentUploaded | ECMF | Planned | Attachment ACTIVE with integrity hash |
+| EVT-CM-031 | AttachmentSuperseded | ECMF | Planned | Prior attachment version superseded |
+| EVT-CM-032 | AttachmentVoided | ECMF | Planned | Void-with-reason (no physical delete) |
+| EVT-CM-033 | AttachmentTransferred | ECMF | Planned | Staged evidence transferred to surviving Complaint (D-06); semantics OQ-CM-B1-014 |
+| EVT-CM-034 | AttachmentAccess | ECMF | Planned | Sensitive attachment download/access audited |
+| EVT-CM-040 | CaseEscalatedToPusat | ECMF | Planned | Case escalated Cabang→Pusat with Escalation Package (DEC-F4 / FR-CM-010) |
+| EVT-CM-041 | CaseEscalationReturned | ECMF | Planned | Pusat returned escalation to originating branch (reason code + note) |
+| EVT-CM-042 | CaseResolvedWithVisibility | ECMF | Planned | Case resolved; includes resultVisibility when Pusat path (DEC-F4) |
+| EVT-CM-043 | ResultVisibilityChanged | ECMF | Planned | Post-resolve result_visibility changed with audit fields |
+| EVT-CM-044 | CaseAccessDenied | ECMF | Planned | Optional security audit when Case read denied by org/result_visibility |
 
 ## Payload Summary
 
@@ -206,3 +231,163 @@
 - `routing`: object
 - `contextReference`: string
 - `payload`: object
+
+### EVT-CM-001 — ComplaintCreated
+- `complaintId`: string
+- `complaintNumber`: string
+- `customerId`: string
+- `status`: string
+- `requestId`: string
+- `channelMessageId`: string
+- `createdAt`: datetime
+- `createdBy`: string
+
+### EVT-CM-002 — CreateReplayed
+- `complaintId`: string
+- `requestId`: string
+- `channelMessageId`: string
+- `replayedAt`: datetime
+- `actorId`: string
+
+### EVT-CM-003 — CreateRedirectedToExisting
+- `survivingComplaintId`: string
+- `stagingToken`: string
+- `actorId`: string
+- `redirectedAt`: datetime
+
+### EVT-CM-004 — DuplicateCheckOutcomeRecorded
+- `complaintId`: string
+- `outcome`: string
+- `policyVersion`: string
+- `recordedAt`: datetime
+
+### EVT-CM-005 — NotificationOutboxEnqueued
+- `complaintId`: string
+- `outboxId`: string
+- `enqueuedAt`: datetime
+
+### EVT-CM-010 — CustomerValidated
+- `customerId`: string
+- `keyType`: string
+- `asOf`: datetime
+- `actorId`: string
+
+### EVT-CM-011 — CustomerValidationFailed
+- `keyType`: string
+- `outcome`: string
+- `actorId`: string
+- `occurredAt`: datetime
+
+### EVT-CM-012 — CustomerReferenceEnriched
+- `complaintId`: string
+- `previousCustomerRef`: string
+- `customerId`: string
+- `enrichedAt`: datetime
+
+### EVT-CM-020 — DuplicateWarned
+- `customerId`: string
+- `candidateCount`: integer
+- `warnedAt`: datetime
+
+### EVT-CM-021 — DuplicateOverridden
+- `complaintId`: string
+- `justificationRef`: string
+- `actorId`: string
+- `overriddenAt`: datetime
+
+### EVT-CM-022 — DuplicateLinked
+- `sourceComplaintId`: string
+- `targetComplaintId`: string
+- `linkType`: string
+- `linkedAt`: datetime
+
+### EVT-CM-023 — DuplicateRedirectedToExisting
+- `survivingComplaintId`: string
+- `actorId`: string
+- `redirectedAt`: datetime
+
+### EVT-CM-024 — DuplicateRecommendedExisting
+- `existingComplaintId`: string
+- `recommendation`: string
+- `recommendedAt`: datetime
+
+### EVT-CM-025 — DuplicateCheckDegraded
+- `degradedFlag`: boolean
+- `reason`: string
+- `occurredAt`: datetime
+
+### EVT-CM-026 — DuplicateLaterReviewEnqueued
+- `workItemId`: string
+- `customerId`: string
+- `enqueuedAt`: datetime
+
+### EVT-CM-030 — AttachmentUploaded
+- `attachmentId`: string
+- `complaintId`: string
+- `integrityHash`: string
+- `uploadedAt`: datetime
+
+### EVT-CM-031 — AttachmentSuperseded
+- `attachmentId`: string
+- `supersededAttachmentId`: string
+- `supersededAt`: datetime
+
+### EVT-CM-032 — AttachmentVoided
+- `attachmentId`: string
+- `reason`: string
+- `voidedAt`: datetime
+- `actorId`: string
+
+### EVT-CM-033 — AttachmentTransferred
+- `attachmentId`: string
+- `fromStagingToken`: string
+- `survivingComplaintId`: string
+- `transferredAt`: datetime
+
+### EVT-CM-034 — AttachmentAccess
+- `attachmentId`: string
+- `actorId`: string
+- `accessedAt`: datetime
+- `classification`: string
+
+### EVT-CM-040 — CaseEscalatedToPusat
+- `caseId`: string
+- `complaintId`: string
+- `fromBranchId`: string
+- `toUnit`: string
+- `reason`: string
+- `escalatedBy`: string
+- `escalatedAt`: datetime
+
+### EVT-CM-041 — CaseEscalationReturned
+- `caseId`: string
+- `complaintId`: string
+- `returnedToBranchId`: string
+- `returnReasonCode`: string
+- `returnNote`: string
+- `returnedBy`: string
+- `returnedAt`: datetime
+
+### EVT-CM-042 — CaseResolvedWithVisibility
+- `caseId`: string
+- `complaintId`: string
+- `resolutionCode`: string
+- `resultVisibility`: string
+- `resolvedBy`: string
+- `resolvedAt`: datetime
+
+### EVT-CM-043 — ResultVisibilityChanged
+- `caseId`: string
+- `complaintId`: string
+- `fromVisibility`: string
+- `toVisibility`: string
+- `changedBy`: string
+- `changedAt`: datetime
+- `changeNote`: string
+
+### EVT-CM-044 — CaseAccessDenied
+- `caseId`: string
+- `actorId`: string
+- `actorBranchId`: string
+- `deniedAt`: datetime
+- `reasonCode`: string

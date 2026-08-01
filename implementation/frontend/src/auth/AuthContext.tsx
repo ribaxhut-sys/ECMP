@@ -44,6 +44,7 @@ const DEV_FIXTURES: Record<string, Omit<AuthClaims, 'token'>> = {
       'cases:read',
       'cases:create',
       'cases:notes:create',
+      'dashboard:read',
     ],
     supervisedUnitIds: ['UNIT-01'],
   },
@@ -59,7 +60,12 @@ const DEV_FIXTURES: Record<string, Omit<AuthClaims, 'token'>> = {
   },
   'dev-foreign-supervisor-token': {
     userId: 'supervisor.other',
-    permissions: ['cases:assign', 'cases:read', 'cases:notes:create'],
+    permissions: [
+      'cases:assign',
+      'cases:read',
+      'cases:notes:create',
+      'dashboard:read',
+    ],
     supervisedUnitIds: ['UNIT-99'],
   },
 }

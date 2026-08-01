@@ -4,6 +4,37 @@ FastAPI application for the Enterprise Complaint Management Platform.
 
 **Version:** `1.0.0`
 
+## Architecture position (read this first)
+
+ECMP is a **Complaint Management business module**, not a standalone identity
+provider. Per ADR-014 v1.4 / ADR-015 v1.3 (*Accepted with Conditions*,
+PROGRAM-BOARD-004):
+
+| Concern | Mode A — Standalone | Mode B — Enterprise (🔴 CLOSED, C-7) |
+|---|---|---|
+| Authentication | ECMP local credentials (HS256) | Enterprise Platform SSO (OIDC RS256) |
+| User directory / password / MFA / session | ECMP | Enterprise Platform |
+| Organization / branch / department | ECMP reference data | Enterprise Platform (ECMP holds references) |
+| **Authorization (roles & permissions)** | **ECMP** | **ECMP** — after the Enterprise Entitlement Gate |
+
+Two rules that hold in **both** modes:
+
+1. **Permissions never come from the token.** They are always resolved from the
+   Core Platform matrix in the database (ADR-008). `RoleMapper` additionally
+   refuses to emit privileged codes (`ADMIN` / `ADMINISTRATOR` / `SUPER_ADMIN`)
+   from IdP claims — enterprise roles do not become ECMP roles (ADR-015 §6).
+2. **Mode divergence terminates at the Identity Adapter.** Domain modules must
+   not branch on deployment mode.
+
+### Relevant switches
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ECMP_AUTH_MODE` | `dev` | `dev` = local HS256, `jwt` = OIDC RS256. Forced to `jwt` in staging/production. |
+| `ECMP_ENTERPRISE_MODE` | `false` | Mode B runtime switch. **Must stay `false` while C-7 is CLOSED.** Requires `ECMP_AUTH_MODE=jwt` and `ECMP_LOCAL_CREDENTIAL_AUTH=false`. |
+| `ECMP_LOCAL_CREDENTIAL_AUTH` | `true` | Mode A credential surface. Startup **fails fast** if `true` in staging/production or under enterprise mode. |
+| `LOG_FORMAT` | `json` | `text` for human-readable local output. |
+
 ## Local (without Docker)
 
 ```bash
@@ -15,7 +46,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Health: `GET http://localhost:8000/health`
+Liveness: `GET http://localhost:8000/live`  
+Readiness: `GET http://localhost:8000/ready` (Docker healthcheck)
+
+### Mode A — Batch-1 attachment ops hygiene (FR-004)
+
+```bash
+python scripts/cm_batch1_ops_hygiene.py probe-storage
+python scripts/cm_batch1_ops_hygiene.py void-abandoned-staging
+python scripts/cm_batch1_ops_hygiene.py all
+```
+
+Runbook: `../15 Operations Runbook/ECMP_CM_Batch1_Staging_TTL_Cleanup_v0.1.md`.  
+Does not add OpenAPI routes; does not unlock Mode B; TD-OPS-002 remains deferred.
+Legacy informational: `GET http://localhost:8000/health`
 
 ## Structure
 

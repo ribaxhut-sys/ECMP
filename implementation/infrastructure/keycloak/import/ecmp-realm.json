@@ -1,0 +1,352 @@
+{
+  "realm": "ecmp",
+  "displayName": "ECMP",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 900,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 28800,
+  "ssoSessionMaxLifespan": 43200,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "oauth2DeviceCodeLifespan": 600,
+  "oauth2DevicePollingInterval": 5,
+  "refreshTokenMaxReuse": 0,
+  "revokeRefreshToken": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "cs_agent",
+        "description": "CS Agent — Role Access Matrix (SEC-RAM-001) / SEC-AUTH-001",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "viewer",
+        "description": "Viewer — Role Access Matrix (SEC-RAM-001) / SEC-AUTH-001",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "supervisor",
+        "description": "Supervisor — Planned role (SEC-RAM-001 Planned) / SEC-AUTH-001",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "handler",
+        "description": "Handler — Planned role (SEC-RAM-001 Planned) / SEC-AUTH-001",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "defaultRoles": [],
+  "clientScopes": [
+    {
+      "name": "ecmp-roles",
+      "description": "Map realm roles to access-token claim roles[] (SEC-AUTH-001 §3)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "ecmp-realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ecmp-audience",
+      "description": "Audience claim aud=ecmp-api (SEC-AUTH-001 §3)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "aud-ecmp-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "ecmp-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ecmp-org-unit",
+      "description": "Optional orgUnitId user attribute mapper (populated at SEC-MIG Phase 4 / gate G1)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "orgUnitId",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "orgUnitId",
+            "claim.name": "orgUnitId",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "ecmp-web",
+      "name": "ECMP Web UI",
+      "description": "Public + PKCE Authorization Code (SEC-AUTH-001 §2.2) — UI deferred ADR-011",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "rootUrl": "http://localhost:5173",
+      "baseUrl": "http://localhost:5173",
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://127.0.0.1:5173/*"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "ecmp-roles",
+        "ecmp-audience",
+        "ecmp-org-unit"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "ecmp-api-docs",
+      "name": "ECMP API Docs / Swagger",
+      "description": "Public + PKCE Authorization Code for developer docs login (SEC-AUTH-001 §2.2)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "rootUrl": "http://localhost:8000",
+      "baseUrl": "http://localhost:8000/docs",
+      "redirectUris": [
+        "http://localhost:8000/*",
+        "http://127.0.0.1:8000/*",
+        "http://localhost:8080/*",
+        "http://127.0.0.1:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8000/*##http://127.0.0.1:8000/*"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "ecmp-roles",
+        "ecmp-audience",
+        "ecmp-org-unit"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "ecmp-ci",
+      "name": "ECMP CI",
+      "description": "Confidential client_credentials for CI smoke tests (SEC-AUTH-001 §2.2) — LOCAL SECRET ONLY",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "ecmp-ci-local-only-change-me",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "frontchannelLogout": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.lifespan": "900"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "ecmp-roles",
+        "ecmp-audience"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "ecmp-svc-core",
+      "name": "ECMP Service — core (baseline)",
+      "description": "Baseline confidential client_credentials for ecmp-svc-* pattern (SEC-AUTH-001 §2.2). Add further ecmp-svc-<domain> clients as realm-as-code revisions. LOCAL SECRET ONLY.",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "ecmp-svc-core-local-only-change-me",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "frontchannelLogout": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.lifespan": "900"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "ecmp-roles",
+        "ecmp-audience"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "ecmp-api",
+      "name": "ECMP API resource (audience)",
+      "description": "Bearer-only resource client representing aud=ecmp-api (SEC-AUTH-001 §3). Not used for interactive login.",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "ecmp-api-local-only-unused",
+      "protocol": "openid-connect",
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": []
+    }
+  ],
+  "users": [
+    {
+      "username": "dev.cs_agent",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dev",
+      "lastName": "CS Agent",
+      "email": "dev.cs_agent@localhost.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dev_cs_agent_local_only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["cs_agent"],
+      "attributes": {
+        "orgUnitId": ["OU-DEV-01"]
+      }
+    },
+    {
+      "username": "dev.viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dev",
+      "lastName": "Viewer",
+      "email": "dev.viewer@localhost.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dev_viewer_local_only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["viewer"],
+      "attributes": {
+        "orgUnitId": ["OU-DEV-01"]
+      }
+    }
+  ]
+}

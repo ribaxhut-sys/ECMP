@@ -12,12 +12,13 @@
 | Next Review | 2027-01-22 |
 
 - ADR Status: Accepted (CTO decision, Sprint-04, 2026-07-22)
+- Repository strategy: Remain active (PROGRAM-ADR-002 BR-007). Future change requires a separate ADR. Do not supersede via FE documentation.
 - Date: 2026-07-22
 - Decision Owners: CTO, Solution Architect
 - Related Domains: All (product UI)
 
 > **Numbering note:** the CTO decision that commissioned this ADR referred to it as "ADR-012," but
-> `ADR-012` is already taken by `ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md` (🟡 Proposed).
+> `ADR-012` is already taken by `ECMP_ADR_012_Target_Authentication_Architecture_v1.0.md` (**Accepted**).
 > This decision is filed as **ADR-013**, the next free slot, to avoid overwriting or renumbering an
 > existing ADR. No content conflict exists between the two — ADR-012 is about auth architecture,
 > this one is about frontend stack.

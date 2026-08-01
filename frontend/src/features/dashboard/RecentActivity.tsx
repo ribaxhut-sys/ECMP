@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import type { DashboardRecentActivityItem } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Card,
   CardBody,
@@ -11,53 +15,6 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 
-function formatWhen(value: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-const columns: TableColumn<DashboardRecentActivityItem>[] = [
-  {
-    key: "eventType",
-    header: "Event Type",
-    cell: (row) => (
-      <span className="font-mono text-[length:var(--ecmp-font-caption-size)]">
-        {row.eventType}
-      </span>
-    ),
-  },
-  {
-    key: "complaintNumber",
-    header: "Complaint Number",
-    cell: (row) => (
-      <Link
-        href={`/complaints?keyword=${encodeURIComponent(row.complaintNumber)}`}
-        className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-      >
-        {row.complaintNumber}
-      </Link>
-    ),
-  },
-  {
-    key: "timestamp",
-    header: "Timestamp",
-    cell: (row) => (
-      <span className="text-ecmp-text-secondary">{formatWhen(row.timestamp)}</span>
-    ),
-  },
-  {
-    key: "actor",
-    header: "Actor",
-    cell: (row) => <span>{row.actor}</span>,
-  },
-];
-
 export function RecentActivity({
   rows,
   loading,
@@ -65,11 +22,52 @@ export function RecentActivity({
   rows: DashboardRecentActivityItem[] | null;
   loading: boolean;
 }) {
+  const t = useTranslations("dashboard");
+  const locale = useLocale();
+
+  const columns: TableColumn<DashboardRecentActivityItem>[] = [
+    {
+      key: "eventType",
+      header: t("eventType"),
+      cell: (row) => (
+        <span className="font-mono text-[length:var(--ecmp-font-caption-size)]">
+          {row.eventType}
+        </span>
+      ),
+    },
+    {
+      key: "complaintNumber",
+      header: t("complaintNumberColumn"),
+      cell: (row) => (
+        <Link
+          href={`/complaints?keyword=${encodeURIComponent(row.complaintNumber)}`}
+          className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+        >
+          {row.complaintNumber}
+        </Link>
+      ),
+    },
+    {
+      key: "timestamp",
+      header: t("timestamp"),
+      cell: (row) => (
+        <span className="text-ecmp-text-secondary">
+          {formatDateTime(row.timestamp, locale)}
+        </span>
+      ),
+    },
+    {
+      key: "actor",
+      header: t("actor"),
+      cell: (row) => <span>{row.actor}</span>,
+    },
+  ];
+
   if (loading) {
     return (
       <Card data-testid="dashboard-recent-activity">
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>{t("recentActivity")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Skeleton rows={5} />
@@ -82,12 +80,12 @@ export function RecentActivity({
     return (
       <Card data-testid="dashboard-recent-activity">
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>{t("recentActivity")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Empty
-            title="No recent activity"
-            description="Latest timeline events will appear here."
+            title={t("noActivity")}
+            description={t("noActivityDescription")}
           />
         </CardBody>
       </Card>
@@ -97,7 +95,7 @@ export function RecentActivity({
   return (
     <Card data-testid="dashboard-recent-activity">
       <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
+        <CardTitle>{t("recentActivity")}</CardTitle>
       </CardHeader>
       <CardBody>
         <Table
@@ -106,8 +104,8 @@ export function RecentActivity({
           getRowKey={(row, index) =>
             `${row.complaintNumber}-${row.eventType}-${row.timestamp}-${index}`
           }
-          caption="Latest timeline events"
-          emptyMessage="No recent activity."
+          caption={t("recentActivity")}
+          emptyMessage={t("noActivityDescription")}
         />
       </CardBody>
     </Card>

@@ -1,0 +1,178 @@
+# ECMP v1.0.0 — production Compose (Release Blocker B3).
+# Recommended reverse proxy: Caddy (automatic HTTPS).
+#
+# Only the reverse proxy publishes host ports (80/443).
+# Backend, frontend, and Postgres stay on the internal Compose network.
+#
+# Usage:
+#   cp .env.production.example .env
+#   # fill secrets + ECMP_DOMAIN + ACME_EMAIL
+#   python scripts/validate-production-config.py --env-file .env --require-production
+#   docker compose -f docker-compose.prod.yml config   # validate
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Lab TLS (no public DNS / ACME):
+#   docker compose -f docker-compose.prod.yml \
+#     -f deploy/proxy/docker-compose.lab-override.yml up -d --build
+#
+# Nginx alternative: docker-compose.prod.nginx.yml (operator-managed certs).
+
+name: ecmp-prod
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  ecmp_pgdata:
+    name: ecmp_prod_pgdata
+  caddy_data:
+    name: ecmp_prod_caddy_data
+  caddy_config:
+    name: ecmp_prod_caddy_config
+  ecmp_attachments:
+    name: ecmp_prod_attachments
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: ecmp-caddy
+    restart: unless-stopped
+    environment:
+      ECMP_DOMAIN: ${ECMP_DOMAIN:?Set ECMP_DOMAIN (public hostname)}
+      # Prefer ACME_EMAIL; accept legacy CADDY_ACME_EMAIL used by lab .env.prod templates.
+      ACME_EMAIL: ${ACME_EMAIL:-${CADDY_ACME_EMAIL:?Set ACME_EMAIL or CADDY_ACME_EMAIL for ACME registration}}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_UDP_PORT:-443}:443/udp"
+    volumes:
+      - ./deploy/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+      - internal
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecmp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecmp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ecmp}
+    # No host ports — internal network only (B3).
+    volumes:
+      - ecmp_pgdata:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecmp} -d ${POSTGRES_DB:-ecmp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-backend:${IMAGE_TAG:-v1.0.0}
+    container_name: ecmp-backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      DEBUG: ${DEBUG:-false}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ecmp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ecmp}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS to https://ECMP_DOMAIN}
+      # Public host + compose DNS name (TrustedHostMiddleware). Set in .env.
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?Set ALLOWED_HOSTS to ECMP_DOMAIN,backend}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      # SECMIG-P6-001 — staging/production must run jwt AuthN (never lab default).
+      ECMP_AUTH_MODE: ${ECMP_AUTH_MODE:?Set ECMP_AUTH_MODE=jwt for production}
+      ECMP_ENV: ${ECMP_ENV:?Set ECMP_ENV=shared for production}
+      # ADR-014 / audit K-3 — Mode A credential AuthN must be off in production.
+      ECMP_LOCAL_CREDENTIAL_AUTH: ${ECMP_LOCAL_CREDENTIAL_AUTH:?Set ECMP_LOCAL_CREDENTIAL_AUTH=false for production}
+      # Mode B runtime — remain false while PROGRAM-BOARD-004 C-7 CLOSED.
+      ECMP_ENTERPRISE_MODE: ${ECMP_ENTERPRISE_MODE:?Set ECMP_ENTERPRISE_MODE=false until Board unlock}
+      OIDC_ISSUER: ${OIDC_ISSUER:?Set OIDC_ISSUER}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:?Set OIDC_JWKS_URL}
+      OIDC_JWKS_CACHE_TTL_SECONDS: ${OIDC_JWKS_CACHE_TTL_SECONDS:-600}
+      LOGIN_RATE_LIMIT_ENABLED: ${LOGIN_RATE_LIMIT_ENABLED:-true}
+      LOGIN_MAX_FAILED_ATTEMPTS: ${LOGIN_MAX_FAILED_ATTEMPTS:-5}
+      LOGIN_LOCKOUT_SECONDS: ${LOGIN_LOCKOUT_SECONDS:-300}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-8}
+      PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-15}
+      PASSWORD_RESET_FRONTEND_BASE_URL: ${PASSWORD_RESET_FRONTEND_BASE_URL:?Set PASSWORD_RESET_FRONTEND_BASE_URL}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-noop}
+      # CM Batch 1 Master Customer — TASK-OPS-03 / EX-A: default stub (synthetic).
+      # enterprise returns UNAVAILABLE until HTTP adapter is approved — do not enable for real customers.
+      CUSTOMER_PROVIDER: ${CUSTOMER_PROVIDER:-stub}
+      CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL: ${CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL:-}
+      # Trust X-Forwarded-* from the Compose reverse proxy only (backend not published).
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+    # No host ports — reachable only via caddy on the internal network.
+    volumes:
+      # Persist attachment blobs (LocalStorageProvider default: storage/attachments).
+      - ecmp_attachments:/app/storage/attachments
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Same public origin as the browser (single-host topology).
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?Set NEXT_PUBLIC_API_BASE_URL to https://$ECMP_DOMAIN}
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-frontend:${IMAGE_TAG:-v1.0.0}
+    container_name: ecmp-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    # No host ports.
+    networks:
+      - internal
+    depends_on:
+      backend:
+        condition: service_healthy

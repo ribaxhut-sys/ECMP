@@ -43,7 +43,7 @@ Semua nilai: baseline ARB 2026-07-21 per DEC-005 — dapat direvisi BO via DEC.
 ## 3. Hubungan ke Konfigurasi & Artefak Lain
 - **SLA Config runtime**: nilai matriks ini diangkat ke SLA Config (Administration); perubahan config efektif memancarkan **EVT-006 ConfigChanged**. Perubahan baseline enterprise tetap via DEC (bukan edit config langsung).
 - **KPI Dictionary** ([`ECMP_KPI_Dictionary_v1.0.md`](./ECMP_KPI_Dictionary_v1.0.md), SLA-001): KPI-ECMF-03 (SLA achievement) dan KPI-ECMF-04 (overdue rate) mengukur pemenuhan target matriks ini.
-- **FR-030 / TC-030** ([`../03 Functional Requirements/ECMP_FRD_KPI_SLA_v0.1.md`](../03%20Functional%20Requirements/ECMP_FRD_KPI_SLA_v0.1.md), FRD-005): deteksi breach dan emisi EVT-004.
+- **FR-030 / TC-030** ([`../03 Functional Requirements/ECMP_FRD_KPI_SLA_v0.1.md`](../03%20Functional%20Requirements/ECMP_FRD_KPI_SLA_v0.1.md), FRD-005 🔒 **LOCKED** v0.2 / DEC-CAP006-BQ-001): deteksi breach dan emisi EVT-004.
 - **NFR Specification** ([`../04 Solution Architecture/ECMP_NFR_Specification_v0.1.md`](../04%20Solution%20Architecture/ECMP_NFR_Specification_v0.1.md), NFR-001): NFR sistem (availability/latency) yang menopang SLA operasional ini.
 
 ## Open Items

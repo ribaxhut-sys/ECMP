@@ -14,8 +14,8 @@
 > Enriched from ontology + traceability + OpenAPI + FRD + ADR.
 
 - Ontology: `ai/ontology/ontology.yaml`
-- Nodes: 135
-- Edges: 306
+- Nodes: 276
+- Edges: 384
 
 Machine source: `ai/knowledge-graph/graph.generated.yaml`
 

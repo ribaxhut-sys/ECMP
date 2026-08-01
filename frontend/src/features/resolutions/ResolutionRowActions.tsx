@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -28,27 +29,21 @@ import {
   Toast,
 } from "@/shared/ui";
 
-const CATEGORY_OPTIONS: ReadonlyArray<{
-  value: ResolutionCategory;
-  label: string;
-}> = [
-  { value: "SOLVED", label: "Solved" },
-  { value: "WORKAROUND", label: "Workaround" },
-  { value: "DUPLICATE", label: "Duplicate" },
-  { value: "INVALID_REQUEST", label: "Invalid Request" },
-  { value: "USER_ERROR", label: "User Error" },
-  { value: "THIRD_PARTY", label: "Third Party" },
+const CATEGORY_VALUES: readonly ResolutionCategory[] = [
+  "SOLVED",
+  "WORKAROUND",
+  "DUPLICATE",
+  "INVALID_REQUEST",
+  "USER_ERROR",
+  "THIRD_PARTY",
 ];
 
-const REASON_CODE_OPTIONS: ReadonlyArray<{
-  value: EscalationReasonCode;
-  label: string;
-}> = [
-  { value: "SPECIALIST_REQUIRED", label: "Specialist required" },
-  { value: "COMPLEX_CASE", label: "Complex case" },
-  { value: "POLICY_EXCEPTION", label: "Policy exception" },
-  { value: "CUSTOMER_REQUEST", label: "Customer request" },
-  { value: "OTHER", label: "Other" },
+const REASON_CODE_VALUES: readonly EscalationReasonCode[] = [
+  "SPECIALIST_REQUIRED",
+  "COMPLEX_CASE",
+  "POLICY_EXCEPTION",
+  "CUSTOMER_REQUEST",
+  "OTHER",
 ];
 
 export type ResolutionRowMeta = {
@@ -89,6 +84,11 @@ export function ResolutionRowActions({
   onChanged?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const t = useTranslations("resolutions");
+  const tCommon = useTranslations("common");
+  const tComplaints = useTranslations("complaints");
+  const tCategory = useTranslations("resolutionCategory");
+  const tReason = useTranslations("escalationReason");
   const canResolve = hasPermission("complaints:update");
   const canFinal = hasPermission("appointments:complete");
   const canEscalate = hasPermission("complaints:update");
@@ -176,12 +176,12 @@ export function ResolutionRowActions({
     try {
       if (action === "resolve") {
         if (!category) {
-          setError("Category is required.");
+          setError(tComplaints("categoryRequired"));
           setSubmitting(false);
           return;
         }
         if (!rootCause.trim() || !resolutionNotes.trim()) {
-          setError("Root cause and resolution notes are required.");
+          setError(t("rootCauseAndNotesRequired"));
           setSubmitting(false);
           return;
         }
@@ -191,10 +191,10 @@ export function ResolutionRowActions({
           resolutionNotes: resolutionNotes.trim(),
           resolvedBy: userId ?? undefined,
         });
-        setToastTitle("Resolution submitted");
+        setToastTitle(t("resolutionSubmitted"));
       } else if (action === "final") {
         if (!finalSummary.trim() || !finalNotes.trim()) {
-          setError("Summary and notes are required.");
+          setError(t("summaryAndNotesRequired"));
           setSubmitting(false);
           return;
         }
@@ -203,15 +203,15 @@ export function ResolutionRowActions({
           notes: finalNotes.trim(),
           followUpRequired,
         });
-        setToastTitle("Final resolution submitted");
+        setToastTitle(tComplaints("finalResolutionSubmitted"));
       } else if (action === "escalate") {
         if (!reasonCode) {
-          setError("Reason code is required.");
+          setError(tComplaints("reasonCodeRequired"));
           setSubmitting(false);
           return;
         }
         if (!reasonDescription.trim() || !diagnosis.trim()) {
-          setError("Reason description and diagnosis are required.");
+          setError(t("reasonDescriptionAndDiagnosisRequired"));
           setSubmitting(false);
           return;
         }
@@ -221,32 +221,32 @@ export function ResolutionRowActions({
           diagnosis: diagnosis.trim(),
           notes: escalateNotes.trim() || null,
         });
-        setToastTitle("Escalation requested");
+        setToastTitle(tComplaints("escalationRequested"));
       } else if (action === "closeEscalation") {
         if (!row.escalation?.id) {
-          setError("No escalation to close.");
+          setError(t("noEscalationToClose"));
           setSubmitting(false);
           return;
         }
         if (!closeNotes.trim()) {
-          setError("Closure notes are required.");
+          setError(tComplaints("closureNotesRequired"));
           setSubmitting(false);
           return;
         }
         await closeEscalationForComplaint(row.escalation.id, {
           notes: closeNotes.trim(),
         });
-        setToastTitle("Escalation closed");
+        setToastTitle(tComplaints("escalationClosed"));
       } else if (action === "closeComplaint") {
         if (!closeNotes.trim()) {
-          setError("Closure notes are required.");
+          setError(tComplaints("closureNotesRequired"));
           setSubmitting(false);
           return;
         }
         await closeComplaintFromResolution(row.id, {
           notes: closeNotes.trim(),
         });
-        setToastTitle("Complaint closed");
+        setToastTitle(tComplaints("complaintClosed"));
       }
       setAction(null);
       setToastOpen(true);
@@ -257,7 +257,7 @@ export function ResolutionRowActions({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Action failed.",
+            : t("actionFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -266,15 +266,15 @@ export function ResolutionRowActions({
 
   const modalTitle =
     action === "resolve"
-      ? "Submit resolution?"
+      ? t("submitResolutionConfirm")
       : action === "final"
-        ? "Submit final resolution?"
+        ? t("submitFinalResolutionConfirm")
         : action === "escalate"
-          ? "Request escalation?"
+          ? t("requestEscalationConfirm")
           : action === "closeEscalation"
-            ? "Close escalation?"
+            ? tComplaints("closeEscalationConfirm")
             : action === "closeComplaint"
-              ? "Close complaint?"
+              ? tComplaints("closeComplaintConfirm")
               : "";
 
   return (
@@ -287,7 +287,7 @@ export function ResolutionRowActions({
             variant="outline"
             onClick={() => openAction("resolve")}
           >
-            Resolve
+            {t("resolveButton")}
           </Button>
         ) : null}
         {showFinal ? (
@@ -297,7 +297,7 @@ export function ResolutionRowActions({
             variant="outline"
             onClick={() => openAction("final")}
           >
-            Final
+            {t("finalButton")}
           </Button>
         ) : null}
         {showEscalate ? (
@@ -307,7 +307,7 @@ export function ResolutionRowActions({
             variant="outline"
             onClick={() => openAction("escalate")}
           >
-            Escalate
+            {tComplaints("escalate")}
           </Button>
         ) : null}
         {showCloseEscalation ? (
@@ -317,7 +317,7 @@ export function ResolutionRowActions({
             variant="ghost"
             onClick={() => openAction("closeEscalation")}
           >
-            Close esc.
+            {t("closeEscButton")}
           </Button>
         ) : null}
         {showCloseComplaint ? (
@@ -327,7 +327,7 @@ export function ResolutionRowActions({
             variant="ghost"
             onClick={() => openAction("closeComplaint")}
           >
-            Close
+            {tCommon("close")}
           </Button>
         ) : null}
       </div>
@@ -345,14 +345,14 @@ export function ResolutionRowActions({
               disabled={submitting}
               onClick={closeAction}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
               disabled={submitting}
               onClick={() => void confirmAction()}
             >
-              {submitting ? "Working…" : "Confirm"}
+              {submitting ? t("working") : tCommon("confirm")}
             </Button>
           </>
         }
@@ -365,14 +365,14 @@ export function ResolutionRowActions({
           {action === "resolve" ? (
             <>
               <Select
-                label="Category"
+                label={tComplaints("category")}
                 name="resolutionCategory"
                 required
-                placeholder="Select category"
+                placeholder={tComplaints("selectCategoryPlaceholder")}
                 value={category}
-                options={CATEGORY_OPTIONS.map((o) => ({
-                  value: o.value,
-                  label: o.label,
+                options={CATEGORY_VALUES.map((value) => ({
+                  value,
+                  label: tCategory(value),
                 }))}
                 disabled={submitting}
                 onChange={(e) =>
@@ -380,7 +380,7 @@ export function ResolutionRowActions({
                 }
               />
               <Input
-                label="Root cause"
+                label={tComplaints("rootCause")}
                 name="rootCause"
                 required
                 value={rootCause}
@@ -389,7 +389,7 @@ export function ResolutionRowActions({
                 onChange={(e) => setRootCause(e.target.value)}
               />
               <Textarea
-                label="Resolution notes"
+                label={tComplaints("resolutionNotes")}
                 name="resolutionNotes"
                 required
                 rows={4}
@@ -404,7 +404,7 @@ export function ResolutionRowActions({
           {action === "final" ? (
             <>
               <Textarea
-                label="Summary"
+                label={tComplaints("summary")}
                 name="summary"
                 required
                 rows={3}
@@ -414,7 +414,7 @@ export function ResolutionRowActions({
                 onChange={(e) => setFinalSummary(e.target.value)}
               />
               <Textarea
-                label="Notes"
+                label={tComplaints("notes")}
                 name="notes"
                 required
                 rows={3}
@@ -431,7 +431,7 @@ export function ResolutionRowActions({
                   disabled={submitting}
                   onChange={(e) => setFollowUpRequired(e.target.checked)}
                 />
-                Follow-up required
+                {tComplaints("followUpRequired")}
               </label>
             </>
           ) : null}
@@ -439,14 +439,14 @@ export function ResolutionRowActions({
           {action === "escalate" ? (
             <>
               <Select
-                label="Reason code"
+                label={tComplaints("reasonCode")}
                 name="reasonCode"
                 required
-                placeholder="Select reason"
+                placeholder={tComplaints("selectReasonPlaceholder")}
                 value={reasonCode}
-                options={REASON_CODE_OPTIONS.map((o) => ({
-                  value: o.value,
-                  label: o.label,
+                options={REASON_CODE_VALUES.map((value) => ({
+                  value,
+                  label: tReason(value),
                 }))}
                 disabled={submitting}
                 onChange={(e) =>
@@ -454,7 +454,7 @@ export function ResolutionRowActions({
                 }
               />
               <Textarea
-                label="Reason description"
+                label={tComplaints("reasonDescription")}
                 name="reasonDescription"
                 required
                 rows={3}
@@ -464,7 +464,7 @@ export function ResolutionRowActions({
                 onChange={(e) => setReasonDescription(e.target.value)}
               />
               <Textarea
-                label="Diagnosis"
+                label={tComplaints("diagnosis")}
                 name="diagnosis"
                 required
                 rows={3}
@@ -474,7 +474,7 @@ export function ResolutionRowActions({
                 onChange={(e) => setDiagnosis(e.target.value)}
               />
               <Textarea
-                label="Notes (optional)"
+                label={t("notesOptionalLabel")}
                 name="notes"
                 rows={2}
                 maxLength={5000}
@@ -487,7 +487,7 @@ export function ResolutionRowActions({
 
           {action === "closeEscalation" || action === "closeComplaint" ? (
             <Textarea
-              label="Closure notes"
+              label={tComplaints("closureNotes")}
               name="notes"
               required
               rows={4}
@@ -499,7 +499,7 @@ export function ResolutionRowActions({
           ) : null}
 
           {error ? (
-            <Alert tone="danger" title="Action failed" description={error} />
+            <Alert tone="danger" title={t("actionFailed")} description={error} />
           ) : null}
         </div>
       </Modal>
@@ -507,7 +507,7 @@ export function ResolutionRowActions({
       <Toast
         open={toastOpen}
         title={toastTitle}
-        description="Resolution list refreshed."
+        description={t("listRefreshed")}
         onClose={() => setToastOpen(false)}
       />
     </>

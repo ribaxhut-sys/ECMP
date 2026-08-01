@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -24,6 +25,7 @@ import type {
   AppointmentCompletionResult,
   Escalation,
 } from "@/lib/api/types";
+import { formatDate, formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -38,40 +40,9 @@ import {
   Toast,
 } from "@/shared/ui";
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-      new Date(`${value}T00:00:00`),
-    );
-  } catch {
-    return value;
-  }
-}
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-function formatTime(value: string | null | undefined): string {
-  if (!value) return "—";
+function formatTime(value: string | null | undefined, emDash: string): string {
+  if (!value) return emDash;
   return value.length >= 5 ? value.slice(0, 5) : value;
-}
-
-function roleLabel(user: UserRef): string {
-  return user.roleName?.trim() || user.roleCode?.trim() || "—";
-}
-
-function userOptionLabel(user: UserRef): string {
-  return `${user.fullName} — ${roleLabel(user)}`;
 }
 
 function DetailField({ label, value }: { label: string; value: string }) {
@@ -91,11 +62,6 @@ function pickApprovedEscalation(rows: Escalation[]): Escalation | null {
   return rows.find((row) => row.status === "APPROVED") ?? null;
 }
 
-const COMPLETION_RESULT_OPTIONS = [
-  { value: "COMPLETED", label: "Completed" },
-  { value: "PARTIALLY_COMPLETED", label: "Partially completed" },
-];
-
 export function AppointmentCard({
   complaintId,
   refreshKey = 0,
@@ -106,8 +72,24 @@ export function AppointmentCard({
   onBooked?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const canManage = hasPermission("escalations:review");
   const canComplete = hasPermission("appointments:complete");
+
+  const COMPLETION_RESULT_OPTIONS = [
+    { value: "COMPLETED", label: t("completed") },
+    { value: "PARTIALLY_COMPLETED", label: t("partiallyCompleted") },
+  ];
+
+  function roleLabel(user: UserRef): string {
+    return user.roleName?.trim() || user.roleCode?.trim() || tCommon("emDash");
+  }
+
+  function userOptionLabel(user: UserRef): string {
+    return `${user.fullName} — ${roleLabel(user)}`;
+  }
 
   const [escalation, setEscalation] = useState<Escalation | null>(null);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -119,10 +101,8 @@ export function AppointmentCard({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
-  const [toastTitle, setToastTitle] = useState("Appointment booked");
-  const [toastDescription, setToastDescription] = useState(
-    "Timeline updated. Escalation remains APPROVED.",
-  );
+  const [toastTitle, setToastTitle] = useState("");
+  const [toastDescription, setToastDescription] = useState("");
 
   const [appointmentDate, setAppointmentDate] = useState("");
   const [startTime, setStartTime] = useState("09:00");
@@ -175,7 +155,7 @@ export function AppointmentCard({
           isActive: true,
         }).catch((err) => {
           setUsersError(
-            err instanceof ApiError ? err.message : "Unable to load users.",
+            err instanceof ApiError ? err.message : t("unableToLoadUsers"),
           );
           return null;
         });
@@ -189,14 +169,14 @@ export function AppointmentCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to load appointment.",
+            : t("unableToLoadAppointment"),
       );
       setEscalation(null);
       setAppointment(null);
     } finally {
       setLoading(false);
     }
-  }, [canManage, complaintId]);
+  }, [canManage, complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -208,6 +188,7 @@ export function AppointmentCard({
         value: user.id,
         label: userOptionLabel(user),
       })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [users],
   );
 
@@ -216,12 +197,12 @@ export function AppointmentCard({
     if (!escalation) return;
 
     const errors: Record<string, string> = {};
-    if (!appointmentDate.trim()) errors.appointmentDate = "Date is required.";
-    if (!startTime.trim()) errors.startTime = "Start time is required.";
-    if (!endTime.trim()) errors.endTime = "End time is required.";
-    if (!engineerId) errors.assignedEngineerId = "Engineer is required.";
+    if (!appointmentDate.trim()) errors.appointmentDate = t("dateRequired");
+    if (!startTime.trim()) errors.startTime = t("startTimeRequired");
+    if (!endTime.trim()) errors.endTime = t("endTimeRequired");
+    if (!engineerId) errors.assignedEngineerId = t("engineerRequired");
     if (startTime && endTime && endTime <= startTime) {
-      errors.endTime = "End time must be after start time.";
+      errors.endTime = t("endTimeAfterStart");
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -238,8 +219,8 @@ export function AppointmentCard({
       });
       const detail = await fetchAppointment(created.data.id);
       setAppointment(detail.data);
-      setToastTitle("Appointment booked");
-      setToastDescription("Timeline updated. Escalation remains APPROVED.");
+      setToastTitle(t("appointmentBooked"));
+      setToastDescription(t("timelineUpdatedEscalationApproved"));
       setToastOpen(true);
       onBooked?.();
       await load();
@@ -249,7 +230,7 @@ export function AppointmentCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to book appointment.",
+            : t("unableToBookAppointment"),
       );
     } finally {
       setSubmitting(false);
@@ -279,8 +260,8 @@ export function AppointmentCard({
       const detail = await fetchAppointment(appointment.id);
       setAppointment(detail.data);
       setCheckInOpen(false);
-      setToastTitle("Customer checked in");
-      setToastDescription("Status is CHECKED_IN. Complaint stays IN PROGRESS.");
+      setToastTitle(t("customerCheckedIn"));
+      setToastDescription(t("statusCheckedInHint"));
       setToastOpen(true);
       onBooked?.();
       await load();
@@ -290,7 +271,7 @@ export function AppointmentCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to check in.",
+            : t("unableToCheckIn"),
       );
     } finally {
       setCheckingIn(false);
@@ -322,10 +303,8 @@ export function AppointmentCard({
       const detail = await fetchAppointment(appointment.id);
       setAppointment(detail.data);
       setCompleteOpen(false);
-      setToastTitle("Appointment completed");
-      setToastDescription(
-        "Status is COMPLETED. Complaint and escalation stay open.",
-      );
+      setToastTitle(t("appointmentCompleted"));
+      setToastDescription(t("statusCompletedHint"));
       setToastOpen(true);
       onBooked?.();
       await load();
@@ -335,7 +314,7 @@ export function AppointmentCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to complete appointment.",
+            : t("unableToCompleteAppointment"),
       );
     } finally {
       setCompleting(false);
@@ -365,10 +344,8 @@ export function AppointmentCard({
       const detail = await fetchAppointment(appointment.id);
       setAppointment(detail.data);
       setNoShowOpen(false);
-      setToastTitle("Customer marked as no-show");
-      setToastDescription(
-        "Status is NO_SHOW. Complaint and escalation stay open.",
-      );
+      setToastTitle(t("customerMarkedNoShow"));
+      setToastDescription(t("statusNoShowHint"));
       setToastOpen(true);
       onBooked?.();
       await load();
@@ -378,7 +355,7 @@ export function AppointmentCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to mark no-show.",
+            : t("unableToMarkNoShow"),
       );
     } finally {
       setMarkingNoShow(false);
@@ -412,47 +389,47 @@ export function AppointmentCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Appointment</CardTitle>
+          <CardTitle>{t("appointmentCard")}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Loading appointment…
+              {t("loadingAppointment")}
             </p>
           ) : loadError ? (
             <Alert
               tone="danger"
-              title="Unable to load appointment"
+              title={t("unableToLoadAppointment")}
               description={loadError}
-              actionLabel="Retry"
+              actionLabel={tCommon("retry")}
               onAction={() => void load()}
             />
           ) : appointment ? (
             <div className="space-y-4">
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <DetailField label="Status" value={appointment.status} />
+                <DetailField label={t("status")} value={appointment.status} />
                 <DetailField
-                  label="Date"
-                  value={formatDate(appointment.appointmentDate)}
+                  label={t("appointmentDate")}
+                  value={formatDate(appointment.appointmentDate, locale)}
                 />
                 <DetailField
-                  label="Start"
-                  value={formatTime(appointment.appointmentStartTime)}
+                  label={t("startTime")}
+                  value={formatTime(appointment.appointmentStartTime, tCommon("emDash"))}
                 />
                 <DetailField
-                  label="End"
-                  value={formatTime(appointment.appointmentEndTime)}
+                  label={t("endTime")}
+                  value={formatTime(appointment.appointmentEndTime, tCommon("emDash"))}
                 />
                 <DetailField
-                  label="Engineer"
+                  label={t("engineer")}
                   value={
                     appointment.assignedEngineerName?.trim() ||
                     appointment.assignedEngineerId
                   }
                 />
                 <DetailField
-                  label="Notes"
-                  value={appointment.notes?.trim() || "—"}
+                  label={t("notes")}
+                  value={appointment.notes?.trim() || tCommon("emDash")}
                 />
               </dl>
 
@@ -461,20 +438,20 @@ export function AppointmentCard({
               appointment.checkedInAt ? (
                 <div className="space-y-3 border-t border-ecmp-border pt-4">
                   <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                    Check-In
+                    {t("checkIn")}
                   </p>
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <DetailField
-                      label="Checked In At"
-                      value={formatWhen(appointment.checkedInAt)}
+                      label={t("checkedInAt")}
+                      value={formatDateTime(appointment.checkedInAt, locale)}
                     />
                     <DetailField
-                      label="Checked In By"
-                      value={appointment.checkedInBy ?? "—"}
+                      label={t("checkedInBy")}
+                      value={appointment.checkedInBy ?? tCommon("emDash")}
                     />
                     <DetailField
-                      label="Check-In Notes"
-                      value={appointment.checkinNotes?.trim() || "—"}
+                      label={t("checkInNotes")}
+                      value={appointment.checkinNotes?.trim() || tCommon("emDash")}
                     />
                   </dl>
                 </div>
@@ -483,24 +460,24 @@ export function AppointmentCard({
               {isCompleted ? (
                 <div className="space-y-3 border-t border-ecmp-border pt-4">
                   <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                    Completion
+                    {t("completion")}
                   </p>
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <DetailField
-                      label="Result"
-                      value={appointment.completionResult?.trim() || "—"}
+                      label={t("result")}
+                      value={appointment.completionResult?.trim() || tCommon("emDash")}
                     />
                     <DetailField
-                      label="Completed At"
-                      value={formatWhen(appointment.completedAt)}
+                      label={t("completedAt")}
+                      value={formatDateTime(appointment.completedAt, locale)}
                     />
                     <DetailField
-                      label="Completed By"
-                      value={appointment.completedBy ?? "—"}
+                      label={t("completedBy")}
+                      value={appointment.completedBy ?? tCommon("emDash")}
                     />
                     <DetailField
-                      label="Completion Notes"
-                      value={appointment.completionNotes?.trim() || "—"}
+                      label={t("completionNotes")}
+                      value={appointment.completionNotes?.trim() || tCommon("emDash")}
                     />
                   </dl>
                 </div>
@@ -509,20 +486,20 @@ export function AppointmentCard({
               {isNoShow ? (
                 <div className="space-y-3 border-t border-ecmp-border pt-4">
                   <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                    No Show
+                    {t("noShow")}
                   </p>
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <DetailField
-                      label="No Show At"
-                      value={formatWhen(appointment.noShowAt)}
+                      label={t("noShowAt")}
+                      value={formatDateTime(appointment.noShowAt, locale)}
                     />
                     <DetailField
-                      label="No Show By"
-                      value={appointment.noShowBy ?? "—"}
+                      label={t("noShowBy")}
+                      value={appointment.noShowBy ?? tCommon("emDash")}
                     />
                     <DetailField
-                      label="Reason"
-                      value={appointment.noShowReason?.trim() || "—"}
+                      label={t("reason")}
+                      value={appointment.noShowReason?.trim() || tCommon("emDash")}
                     />
                   </dl>
                 </div>
@@ -536,7 +513,7 @@ export function AppointmentCard({
                       variant="outline"
                       onClick={openNoShow}
                     >
-                      Mark No Show
+                      {t("markNoShow")}
                     </Button>
                   ) : null}
                   {canCheckIn ? (
@@ -545,7 +522,7 @@ export function AppointmentCard({
                       variant="primary"
                       onClick={openCheckIn}
                     >
-                      Check In
+                      {t("checkIn")}
                     </Button>
                   ) : null}
                 </div>
@@ -558,7 +535,7 @@ export function AppointmentCard({
                     variant="primary"
                     onClick={openComplete}
                   >
-                    Complete Appointment
+                    {t("completeAppointment")}
                   </Button>
                 </div>
               ) : null}
@@ -566,7 +543,7 @@ export function AppointmentCard({
               {isCompleted ? (
                 <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
                   <Button type="button" variant="primary" disabled>
-                    Complete Appointment
+                    {t("completeAppointment")}
                   </Button>
                 </div>
               ) : null}
@@ -574,46 +551,45 @@ export function AppointmentCard({
               {isNoShow ? (
                 <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
                   <Button type="button" variant="outline" disabled>
-                    Mark No Show
+                    {t("markNoShow")}
                   </Button>
                 </div>
               ) : null}
 
               {appointment.status === "BOOKED" && !canManage ? (
                 <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                  Awaiting Head Office Scheduler check-in.
+                  {t("awaitingHeadOfficeSchedulerCheckIn")}
                 </p>
               ) : null}
 
               {appointment.status === "CHECKED_IN" && !canComplete ? (
                 <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                  Awaiting Head Office Engineer completion.
+                  {t("awaitingHeadOfficeEngineerCompletion")}
                 </p>
               ) : null}
             </div>
           ) : canManage ? (
             <form className="space-y-4" onSubmit={onSubmit}>
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                Book a Head Office appointment for this approved escalation.
-                Complaint stays IN PROGRESS.
+                {t("bookAppointmentHint")}
               </p>
               {submitError ? (
                 <Alert
                   tone="danger"
-                  title="Booking failed"
+                  title={t("bookingFailed")}
                   description={submitError}
                 />
               ) : null}
               {usersError ? (
                 <Alert
                   tone="warning"
-                  title="Engineer list unavailable"
+                  title={t("engineerListUnavailable")}
                   description={usersError}
                 />
               ) : null}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Input
-                  label="Appointment Date"
+                  label={t("appointmentDate")}
                   name="appointmentDate"
                   type="date"
                   required
@@ -622,17 +598,17 @@ export function AppointmentCard({
                   onChange={(event) => setAppointmentDate(event.target.value)}
                 />
                 <Select
-                  label="Assigned Engineer"
+                  label={t("assignedEngineer")}
                   name="assignedEngineerId"
                   required
-                  placeholder="Select engineer"
+                  placeholder={t("selectEngineer")}
                   options={engineerOptions}
                   value={engineerId}
                   error={fieldErrors.assignedEngineerId}
                   onChange={(event) => setEngineerId(event.target.value)}
                 />
                 <Input
-                  label="Start Time"
+                  label={t("startTime")}
                   name="startTime"
                   type="time"
                   required
@@ -641,7 +617,7 @@ export function AppointmentCard({
                   onChange={(event) => setStartTime(event.target.value)}
                 />
                 <Input
-                  label="End Time"
+                  label={t("endTime")}
                   name="endTime"
                   type="time"
                   required
@@ -651,7 +627,7 @@ export function AppointmentCard({
                 />
               </div>
               <Textarea
-                label="Notes"
+                label={t("notes")}
                 name="notes"
                 rows={2}
                 value={notes}
@@ -659,13 +635,13 @@ export function AppointmentCard({
               />
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="submit" variant="primary" disabled={submitting}>
-                  {submitting ? "Booking…" : "Book Appointment"}
+                  {submitting ? t("booking") : t("bookAppointment")}
                 </Button>
               </div>
             </form>
           ) : (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              Awaiting Head Office Scheduler to book an appointment.
+              {t("awaitingHeadOfficeSchedulerBook")}
             </p>
           )}
         </CardBody>
@@ -674,7 +650,7 @@ export function AppointmentCard({
       <Modal
         open={checkInOpen}
         onClose={closeCheckIn}
-        title="Check in customer?"
+        title={t("checkInCustomerConfirm")}
         size="sm"
         footer={
           <>
@@ -684,7 +660,7 @@ export function AppointmentCard({
               disabled={checkingIn}
               onClick={closeCheckIn}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
@@ -692,25 +668,24 @@ export function AppointmentCard({
               disabled={checkingIn}
               onClick={() => void confirmCheckIn()}
             >
-              {checkingIn ? "Checking in…" : "Confirm Check-In"}
+              {checkingIn ? t("checkingIn") : t("confirmCheckIn")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            Confirm the customer has arrived. Appointment status becomes
-            CHECKED_IN. Complaint stays IN PROGRESS.
+            {t("confirmCheckInHint")}
           </p>
           {checkInError ? (
             <Alert
               tone="danger"
-              title="Check-in failed"
+              title={t("checkInFailed")}
               description={checkInError}
             />
           ) : null}
           <Textarea
-            label="Check-In Notes"
+            label={t("checkInNotes")}
             name="checkinNotes"
             rows={3}
             value={checkInNotes}
@@ -722,7 +697,7 @@ export function AppointmentCard({
       <Modal
         open={completeOpen}
         onClose={closeComplete}
-        title="Complete appointment?"
+        title={t("completeAppointmentConfirm")}
         size="sm"
         footer={
           <>
@@ -732,7 +707,7 @@ export function AppointmentCard({
               disabled={completing}
               onClick={closeComplete}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
@@ -740,25 +715,24 @@ export function AppointmentCard({
               disabled={completing}
               onClick={() => void confirmComplete()}
             >
-              {completing ? "Completing…" : "Confirm Completion"}
+              {completing ? t("completing") : t("confirmCompletion")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            Mark this meeting finished. Appointment status becomes COMPLETED.
-            Complaint and escalation stay open.
+            {t("confirmCompletionHint")}
           </p>
           {completeError ? (
             <Alert
               tone="danger"
-              title="Completion failed"
+              title={t("completionFailed")}
               description={completeError}
             />
           ) : null}
           <Select
-            label="Completion Result"
+            label={t("completionResult")}
             name="completionResult"
             required
             options={COMPLETION_RESULT_OPTIONS}
@@ -770,7 +744,7 @@ export function AppointmentCard({
             }
           />
           <Textarea
-            label="Completion Notes"
+            label={t("completionNotes")}
             name="completionNotes"
             rows={3}
             value={completionNotes}
@@ -782,7 +756,7 @@ export function AppointmentCard({
       <Modal
         open={noShowOpen}
         onClose={closeNoShow}
-        title="Mark customer as no-show?"
+        title={t("markNoShowConfirm")}
         size="sm"
         footer={
           <>
@@ -792,7 +766,7 @@ export function AppointmentCard({
               disabled={markingNoShow}
               onClick={closeNoShow}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
@@ -800,25 +774,24 @@ export function AppointmentCard({
               disabled={markingNoShow}
               onClick={() => void confirmNoShow()}
             >
-              {markingNoShow ? "Marking…" : "Confirm No Show"}
+              {markingNoShow ? t("marking") : t("confirmNoShow")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            Confirm the customer did not arrive. Appointment status becomes
-            NO_SHOW. Complaint and escalation stay open.
+            {t("confirmNoShowHint")}
           </p>
           {noShowError ? (
             <Alert
               tone="danger"
-              title="No-show failed"
+              title={t("noShowFailed")}
               description={noShowError}
             />
           ) : null}
           <Textarea
-            label="Reason"
+            label={t("reason")}
             name="noShowReason"
             rows={3}
             value={noShowReason}

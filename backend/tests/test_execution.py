@@ -22,10 +22,10 @@ from app.modules.complaint_events import (
 from app.modules.event_dispatcher import EventDispatcher
 from app.modules.execution import (
     ExecutionPlan,
+    ExecutionPlanner,
     ExecutionPlanSource,
     ExecutionPlanStatus,
     ExecutionPlanStore,
-    ExecutionPlanner,
     ExecutionRegistry,
     ExecutionTask,
     WorkflowExecutionProducer,

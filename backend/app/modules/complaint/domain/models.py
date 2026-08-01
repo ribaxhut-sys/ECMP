@@ -17,6 +17,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Mapping
 
+from app.core.user_messages import m
 from app.modules.complaint.domain.errors import ComplaintDomainError
 
 
@@ -176,12 +177,12 @@ class Assignment:
         if self.is_active and self.released_at is not None:
             raise ComplaintDomainError(
                 "INVALID_ASSIGNMENT_STATE",
-                "active assignment cannot have released_at set",
+                m("assignment.active_cannot_have_released_at"),
             )
         if not self.is_active and self.released_at is None:
             raise ComplaintDomainError(
                 "INVALID_ASSIGNMENT_STATE",
-                "inactive assignment requires released_at",
+                m("assignment.inactive_requires_released_at"),
             )
 
     def release(
@@ -194,7 +195,7 @@ class Assignment:
         if not self.is_active:
             raise ComplaintDomainError(
                 "NO_ACTIVE_ASSIGNMENT",
-                "assignment is already inactive",
+                m("assignment.already_inactive"),
             )
         stamp = _now_utc(now)
         cleaned: str | None = None
@@ -265,12 +266,12 @@ class Escalation:
         if self.is_current and self.released_at is not None:
             raise ComplaintDomainError(
                 "INVALID_ESCALATION_STATE",
-                "current escalation cannot have released_at set",
+                m("escalation.current_cannot_have_released_at"),
             )
         if not self.is_current and self.released_at is None:
             raise ComplaintDomainError(
                 "INVALID_ESCALATION_STATE",
-                "historical escalation requires released_at",
+                m("escalation.historical_requires_released_at"),
             )
 
     def release(self, *, now: datetime | None = None) -> Escalation:
@@ -278,7 +279,7 @@ class Escalation:
         if not self.is_current:
             raise ComplaintDomainError(
                 "NO_CURRENT_ESCALATION",
-                "escalation is already historical",
+                m("escalation.already_historical"),
             )
         stamp = _now_utc(now)
         return replace(self, is_current=False, released_at=stamp)
@@ -320,7 +321,7 @@ class SLAPolicy:
         if self.target_minutes <= 0:
             raise ComplaintDomainError(
                 "VALIDATION_ERROR",
-                "target_minutes must be a positive integer",
+                m("sla.target_minutes_positive"),
             )
         if self.description is not None:
             cleaned = self.description.strip()
@@ -378,22 +379,22 @@ class ComplaintSLA:
         if self.is_active and self.completed_at is not None:
             raise ComplaintDomainError(
                 "INVALID_SLA_STATE",
-                "active SLA cannot have completed_at set",
+                m("sla.active_cannot_have_completed_at"),
             )
         if not self.is_active and self.completed_at is None:
             raise ComplaintDomainError(
                 "INVALID_SLA_STATE",
-                "inactive SLA requires completed_at",
+                m("sla.inactive_requires_completed_at"),
             )
         if self.is_breached and self.breached_at is None:
             raise ComplaintDomainError(
                 "INVALID_SLA_STATE",
-                "breached SLA requires breached_at",
+                m("sla.breached_requires_breached_at"),
             )
         if not self.is_breached and self.breached_at is not None:
             raise ComplaintDomainError(
                 "INVALID_SLA_STATE",
-                "non-breached SLA cannot have breached_at set",
+                m("sla.non_breached_cannot_have_breached_at"),
             )
 
     def remaining_minutes(self, *, current_time: datetime | None = None) -> int:
@@ -420,7 +421,7 @@ class ComplaintSLA:
         if not self.is_active:
             raise ComplaintDomainError(
                 "NO_ACTIVE_SLA",
-                "SLA is already inactive",
+                m("sla.already_inactive"),
             )
         stamp = _now_utc(now)
         return replace(self, is_active=False, completed_at=stamp)
@@ -493,7 +494,7 @@ class Complaint:
             if self.status is not ComplaintStatus.CLOSED:
                 raise ComplaintDomainError(
                     "INVALID_RESOLUTION_STATE",
-                    "resolution is only allowed when status is RESOLVED or CLOSED",
+                    m("resolution.only_when_resolved_or_closed"),
                 )
         object.__setattr__(self, "created_at", _ensure_utc(self.created_at, "created_at"))
         object.__setattr__(self, "updated_at", _ensure_utc(self.updated_at, "updated_at"))
@@ -566,7 +567,7 @@ class Complaint:
         if self.status is not ComplaintStatus.RESOLVED:
             raise ComplaintDomainError(
                 "INVALID_COMPLAINT_TRANSITION",
-                f"reopen requires RESOLVED status, got {self.status.value}",
+                f"reopen memerlukan status RESOLVED, saat ini {self.status.value}",
             )
         assert_transition(self.status, ComplaintStatus.IN_PROGRESS)
         stamp = _now_utc(now)
@@ -582,7 +583,7 @@ class Complaint:
         if self.status is ComplaintStatus.CLOSED:
             raise ComplaintDomainError(
                 "RESOLUTION_IMMUTABLE",
-                "resolution cannot be changed after complaint is CLOSED",
+                m("resolution.cannot_change_after_closed"),
             )
 
     def assign(
@@ -603,7 +604,7 @@ class Complaint:
         if active is not None and active.is_active:
             raise ComplaintDomainError(
                 "ACTIVE_ASSIGNMENT_EXISTS",
-                "complaint already has an active assignment; use reassign",
+                m("assignment.already_has_active"),
             )
         return self._new_active_assignment(
             assignee_type=assignee_type,
@@ -631,12 +632,12 @@ class Complaint:
         if active is None or not active.is_active:
             raise ComplaintDomainError(
                 "NO_ACTIVE_ASSIGNMENT",
-                "complaint has no active assignment to reassign",
+                m("assignment.no_active_to_reassign"),
             )
         if active.complaint_id != self.complaint_id:
             raise ComplaintDomainError(
                 "VALIDATION_ERROR",
-                "active assignment does not belong to this complaint",
+                m("assignment.active_not_belong_complaint"),
             )
         stamp = _now_utc(now)
         released = active.release(reason="reassigned", now=stamp)
@@ -663,12 +664,12 @@ class Complaint:
         if active is None or not active.is_active:
             raise ComplaintDomainError(
                 "NO_ACTIVE_ASSIGNMENT",
-                "complaint has no active assignment to unassign",
+                m("assignment.no_active_to_unassign"),
             )
         if active.complaint_id != self.complaint_id:
             raise ComplaintDomainError(
                 "VALIDATION_ERROR",
-                "active assignment does not belong to this complaint",
+                m("assignment.active_not_belong_complaint"),
             )
         return active.release(reason=reason, now=now)
 
@@ -684,7 +685,7 @@ class Complaint:
         if assignee_type not in _SUPPORTED_ASSIGNEE_TYPES:
             raise ComplaintDomainError(
                 "UNSUPPORTED_ASSIGNEE_TYPE",
-                f"assignee type {assignee_type.value} is not supported yet",
+                f"tipe assignee {assignee_type.value} belum didukung",
             )
         stamp = _now_utc(now)
         try:
@@ -730,12 +731,12 @@ class Complaint:
             if not current.is_current:
                 raise ComplaintDomainError(
                     "NO_CURRENT_ESCALATION",
-                    "provided escalation is not current",
+                    m("escalation.not_current"),
                 )
             if current.complaint_id != self.complaint_id:
                 raise ComplaintDomainError(
                     "VALIDATION_ERROR",
-                    "current escalation does not belong to this complaint",
+                    m("escalation.current_not_belong_complaint"),
                 )
             if _ESCALATION_LEVEL_RANK[level] <= _ESCALATION_LEVEL_RANK[current.level]:
                 raise ComplaintDomainError(
@@ -793,12 +794,12 @@ class Complaint:
         if active is not None and active.is_active:
             raise ComplaintDomainError(
                 "ACTIVE_SLA_EXISTS",
-                "complaint already has an active SLA",
+                m("sla.already_has_active"),
             )
         if self.status is ComplaintStatus.CLOSED:
             raise ComplaintDomainError(
                 "INVALID_SLA_STATE",
-                "cannot start SLA on a CLOSED complaint",
+                m("sla.cannot_start_on_closed"),
             )
         stamp = _now_utc(now)
         due_at = stamp + timedelta(minutes=policy.target_minutes)
@@ -827,12 +828,12 @@ class Complaint:
         if active is None or not active.is_active:
             raise ComplaintDomainError(
                 "NO_ACTIVE_SLA",
-                "complaint has no active SLA to complete",
+                m("sla.no_active_to_complete"),
             )
         if active.complaint_id != self.complaint_id:
             raise ComplaintDomainError(
                 "VALIDATION_ERROR",
-                "active SLA does not belong to this complaint",
+                m("sla.active_not_belong_complaint"),
             )
         return active.complete(now=now)
 

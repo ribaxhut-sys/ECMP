@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { DashboardSlaSummary } from "@/lib/api/types";
 import {
   Card,
@@ -33,18 +34,22 @@ function StageRow({
   label,
   completed,
   breached,
+  completedLabel,
+  breachedLabel,
 }: {
   label: string;
   completed: number;
   breached: number;
+  completedLabel: string;
+  breachedLabel: string;
 }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div className="flex items-center text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary sm:col-span-1">
         {label}
       </div>
-      <MetricTile label="Completed" value={completed} />
-      <MetricTile label="Breached" value={breached} />
+      <MetricTile label={completedLabel} value={completed} />
+      <MetricTile label={breachedLabel} value={breached} />
     </div>
   );
 }
@@ -56,11 +61,13 @@ export function SlaCards({
   sla: DashboardSlaSummary | null;
   loading: boolean;
 }) {
+  const t = useTranslations("dashboard");
+
   if (loading) {
     return (
       <Card data-testid="dashboard-sla-cards">
         <CardHeader>
-          <CardTitle>SLA Summary</CardTitle>
+          <CardTitle>{t("slaSummaryTitle")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Skeleton rows={4} />
@@ -73,12 +80,12 @@ export function SlaCards({
     return (
       <Card data-testid="dashboard-sla-cards">
         <CardHeader>
-          <CardTitle>SLA Summary</CardTitle>
+          <CardTitle>{t("slaSummaryTitle")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Empty
-            title="No SLA data"
-            description="SLA completed and breached counts will appear once SLA records exist."
+            title={t("noSlaData")}
+            description={t("noSlaDataDescription")}
           />
         </CardBody>
       </Card>
@@ -86,17 +93,17 @@ export function SlaCards({
   }
 
   const stages = [
-    { label: "Assignment", ...sla.assignment },
-    { label: "Appointment", ...sla.appointment },
-    { label: "Resolution", ...sla.resolution },
-    { label: "Escalation", ...sla.escalation },
-    { label: "Overall", ...sla.overall },
+    { label: t("stageAssignment"), ...sla.assignment },
+    { label: t("stageAppointment"), ...sla.appointment },
+    { label: t("stageResolution"), ...sla.resolution },
+    { label: t("stageEscalation"), ...sla.escalation },
+    { label: t("stageOverall"), ...sla.overall },
   ];
 
   return (
     <Card data-testid="dashboard-sla-cards">
       <CardHeader>
-        <CardTitle>SLA Summary</CardTitle>
+        <CardTitle>{t("slaSummaryTitle")}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-4">
         {stages.map((stage) => (
@@ -105,6 +112,8 @@ export function SlaCards({
             label={stage.label}
             completed={stage.completed}
             breached={stage.breached}
+            completedLabel={t("completed")}
+            breachedLabel={t("breached")}
           />
         ))}
       </CardBody>

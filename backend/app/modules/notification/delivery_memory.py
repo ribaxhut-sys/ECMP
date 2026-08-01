@@ -17,7 +17,10 @@ class InMemoryNotificationDeliveryStore:
     def add(self, delivery: NotificationDelivery) -> None:
         self._items.append(delivery)
 
-    def add_many(self, deliveries: tuple[NotificationDelivery, ...] | list[NotificationDelivery]) -> None:
+    def add_many(
+        self,
+        deliveries: tuple[NotificationDelivery, ...] | list[NotificationDelivery],
+    ) -> None:
         self._items.extend(deliveries)
 
     def all(self) -> list[NotificationDelivery]:

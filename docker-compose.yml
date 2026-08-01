@@ -1,3 +1,13 @@
+# ECMP foundation stack — production-capable Compose (R6-03).
+# Secrets: never commit .env. Validate with:
+#   python scripts/validate-production-config.py --env-file .env
+# Redis is intentionally absent (login lockout is in-memory).
+# Attachment blobs persist on named volume ``ecmp_attachments`` (default path
+# ``storage/attachments`` under the backend working directory).
+#
+# Startup order: postgres (healthy) → backend (migrate + healthy) → frontend.
+# Prefer IMAGE_TAG=vX.Y.Z (or RC tag) instead of floating "latest" for production.
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -41,17 +51,27 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        # R6-01: set via scripts/release/build-rc.ps1 (or export before compose build).
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-backend:${IMAGE_TAG:-latest}
     container_name: ecmp-backend
     restart: unless-stopped
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_VERSION: ${APP_VERSION:-1.0.0}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-ecmp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-ecmp}
+      # Development default only — production startup rejects localhost / non-HTTPS origins.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env (see .env.example)}
@@ -61,10 +81,21 @@ services:
       LOGIN_RATE_LIMIT_ENABLED: ${LOGIN_RATE_LIMIT_ENABLED:-true}
       LOGIN_MAX_FAILED_ATTEMPTS: ${LOGIN_MAX_FAILED_ATTEMPTS:-5}
       LOGIN_LOCKOUT_SECONDS: ${LOGIN_LOCKOUT_SECONDS:-300}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-8}
+      PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-15}
+      PASSWORD_RESET_FRONTEND_BASE_URL: ${PASSWORD_RESET_FRONTEND_BASE_URL:-http://localhost:3000}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-logging}
+      # CM Batch 1 Master Customer — TASK-OPS-03 stance: stub for lab/synthetic only.
+      # Do not set enterprise until an approved Enterprise HTTP adapter lands (EX-A/EX-B).
+      CUSTOMER_PROVIDER: ${CUSTOMER_PROVIDER:-stub}
+      CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL: ${CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Persist LocalStorageProvider blobs across recreate (default root storage/attachments).
+      - ecmp_attachments:/app/storage/attachments
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -80,6 +111,13 @@ services:
       args:
         # R2-04: no silent localhost default — must be set in .env for local or prod.
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?Set NEXT_PUBLIC_API_BASE_URL in .env (see .env.example)}
+        # R6-01 provenance
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_TREE_STATE: ${GIT_TREE_STATE:-unknown}
+    image: ecmp-frontend:${IMAGE_TAG:-latest}
     container_name: ecmp-frontend
     restart: unless-stopped
     environment:
@@ -93,3 +131,4 @@ services:
 volumes:
   ecmp_pgdata:
   ecmp_pgadmin:
+  ecmp_attachments:

@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -15,12 +16,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+from app.core.auth import Principal, get_current_principal
 from app.core.errors import ApiError
 from app.core.request_context import RequestContext, get_request_context
 from app.core.schemas import ErrorResponse
+from app.core.user_messages import field_errors_from_validation
 from app.modules.complaint.api import complaint_foundation_router
-from unittest.mock import MagicMock
-
 from app.modules.complaint.api.dependencies import (
     get_complaint_assignment_service,
     get_complaint_crud_service,
@@ -66,6 +67,21 @@ def _ctx() -> RequestContext:
     return RequestContext(
         request_id="test-request-id",
         correlation_id="test-correlation-id",
+    )
+
+
+def _principal() -> Principal:
+    return Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset(
+            {
+                "complaints:create",
+                "complaints:read",
+                "complaints:update",
+                "complaints:delete",
+            }
+        ),
     )
 
 
@@ -234,16 +250,12 @@ def _foundation_app(
     async def validation_error_handler(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        field_errors: dict[str, Any] = {}
-        for err in exc.errors():
-            loc = err.get("loc", ())
-            key = ".".join(str(part) for part in loc if part != "body")
-            field_errors[key or "body"] = err.get("msg")
+        field_errors = field_errors_from_validation(exc.errors())
         return JSONResponse(
             status_code=422,
             content=_error_body(
                 "VALIDATION_ERROR",
-                "Request validation failed",
+                "Validasi permintaan gagal.",
                 field_errors or None,
             ),
         )
@@ -254,6 +266,7 @@ def _foundation_app(
     app.dependency_overrides[get_complaint_escalation_service] = lambda: escalation
     app.dependency_overrides[get_complaint_sla_service] = lambda: MagicMock()
     app.dependency_overrides[get_request_context] = _ctx
+    app.dependency_overrides[get_current_principal] = _principal
     return app
 
 

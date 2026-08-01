@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { subscribeLoading } from "@/lib/api/client";
 
 /**
@@ -8,6 +9,7 @@ import { subscribeLoading } from "@/lib/api/client";
  * Visible whenever at least one API call is in flight.
  */
 export function GlobalLoadingBar() {
+  const t = useTranslations("common");
   const [pending, setPending] = useState(0);
 
   useEffect(() => subscribeLoading(setPending), []);
@@ -20,7 +22,7 @@ export function GlobalLoadingBar() {
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuetext="Loading"
+      aria-valuetext={t("loading")}
       aria-busy="true"
     >
       <div className="ecmp-global-loading-bar h-full w-1/3 bg-ecmp-primary" />

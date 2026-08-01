@@ -17,7 +17,14 @@ info:
     At most one current Escalation per Complaint; history is append-only; level must increase.
     SLA calculates due/remaining/breach only — no scheduler, notification, or auto-escalation.
     At most one active ComplaintSLA per Complaint. Closing a Complaint completes active SLA.
+    Ownership (DEC-020 Accepted): separate visit-linked BC (`complaint_cases*`).
+    Production availability limited to mounted ticket-nested ops; full router remains
+    unmounted pending a separate Cutover DEC. Not interchangeable with Aggregate
+    `/api/v1/cm` or foundation lifecycle `/api/v1/complaints`.
   x-ear-id: API-390
+  x-ecmp-dec: DEC-020
+  x-ecmp-ownership: Complaint CA BC (visit-linked; full surface unmounted)
+  x-ecmp-status: Documented — production mount limited (DEC-020)
 servers:
   - url: http://localhost:8000
     description: Local development

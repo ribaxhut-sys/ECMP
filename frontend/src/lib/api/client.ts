@@ -4,6 +4,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from "axios";
+import { PASSWORD_CHANGE_ROUTE } from "@/features/auth/routes";
 import type { ApiErrorBody } from "./types";
 
 export class ApiError extends Error {
@@ -123,7 +124,7 @@ function toApiError(error: unknown): ApiError {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<ApiErrorBody>;
     if (!axiosError.response) {
-      return new ApiError(0, "NETWORK_ERROR", "Network request failed");
+      return new ApiError(0, "NETWORK_ERROR", "Tidak dapat menghubungi API.");
     }
 
     const status = axiosError.response.status;
@@ -137,7 +138,7 @@ function toApiError(error: unknown): ApiError {
     const message =
       body && typeof body === "object" && "message" in body && body.message
         ? String(body.message)
-        : axiosError.message || "Request failed";
+        : "Permintaan gagal.";
     const details =
       body && typeof body === "object" && "details" in body
         ? ((body.details as Record<string, unknown> | null) ?? null)
@@ -149,7 +150,7 @@ function toApiError(error: unknown): ApiError {
   return new ApiError(
     0,
     "UNKNOWN_ERROR",
-    error instanceof Error ? error.message : "Request failed",
+    error instanceof Error ? error.message : "Permintaan gagal.",
   );
 }
 
@@ -243,9 +244,19 @@ axiosClient.interceptors.response.use(
 
     const apiError = toApiError(error);
 
+    // Safety net: force-password gate — avoid looping on the change-password call itself.
+    if (
+      typeof window !== "undefined" &&
+      apiError.code === "PASSWORD_CHANGE_REQUIRED" &&
+      !window.location.pathname.startsWith(PASSWORD_CHANGE_ROUTE)
+    ) {
+      window.location.replace(PASSWORD_CHANGE_ROUTE);
+    }
+
     const shouldNotify =
       !config.skipGlobalError &&
       !isAuthPath(url) &&
+      apiError.code !== "PASSWORD_CHANGE_REQUIRED" &&
       (apiError.status === 0 || apiError.status >= 500);
 
     if (shouldNotify) {

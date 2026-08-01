@@ -35,8 +35,8 @@ Konvensi umum:
 | TC-006 | List cases paginated and filtered | Sprint-03B | ✅ Implemented |
 | TC-010 | Customer 360 retrieval succeeds | Sprint-02 | 🕓 Deferred (CTO decision, ACR-002) |
 | TC-020 | Notification stub handles CaseAssigned | Sprint-02 | ✅ Implemented |
-| TC-030 | SLA breach event emitted when overdue | Sprint-03 | 🕓 Planned (DoR FRD-005) |
-| TC-040 | Dashboard queue view scoped by role/org | Sprint-03 | 🕓 Planned (DoR FRD-006) |
+| TC-030 | SLA breach event emitted when overdue | Sprint-03 | 🕓 Planned (FRD-005 LOCKED B2-16; await engine implement) |
+| TC-040 | Dashboard queue view scoped by role/org | Sprint-03 | ✅ Implemented (B2-14 API suite) |
 
 ### Pengecualian mapping TC (operational endpoint)
 Fungsi pytest yang memverifikasi **endpoint operasional** dikecualikan dari mapping TC → traceability karena bukan functional requirement (tidak ada FR/BR yang ditelusuri). Daftar eksplisit pengecualian:
@@ -367,7 +367,7 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 
 **Data uji (draf)**: case payload TC-001 dengan konfigurasi SLA sintetis (kategori COMPLAINT × priority HIGH), clock ter-inject.
 
-**Status**: 🕓 **Planned** — Sprint-03 (menunggu DoR FRD-005 dan trigger evaluasi broker ADR-009 bila lintas service).
+**Status**: 🕓 **Planned** — Sprint-03 (FRD-005 **LOCKED** B2-16 / DEC-CAP006-BQ-001; menunggu implementasi engine + trigger evaluasi — mechanism ADR; broker ADR-009 bila lintas service).
 
 ---
 
@@ -377,27 +377,30 @@ Tes operasional lain yang muncul kemudian harus ditambahkan ke tabel ini secara 
 |---|---|
 | FR | FR-040 |
 | BR | BR-006 (BR-DASH-01/04), BR-DASH-02, BR-DASH-03 |
-| API | API-040 `GET /v1/dashboard/queues` (draft: [`drafts/dashboard-queues.v1.draft.yaml`](../07%20API%20Catalog/openapi/drafts/dashboard-queues.v1.draft.yaml)) |
+| API | API-040 `GET /v1/dashboard/queues` — normative [`dashboard-queues.v1.yaml`](../07%20API%20Catalog/openapi/dashboard-queues.v1.yaml) **1.0.0** (B2-13) |
+| Permission | `dashboard:read` (DEC-CAP007-BQ-001 §2; DEC-016; SEC-RAM-001 Planned Sprint-03) |
+| Decision | DEC-CAP007-BQ-001 |
 | EVT | — (read-only) |
-| Trace link | TRC-L-008 (Sprint-03, Planned) |
+| Trace link | TRC-L-008 (Sprint-03, Approved — B2-14 Implemented) |
 
-> **Draf minimal, dibekukan saat DoR FRD-006.** Langkah diturunkan dari AC Gherkin FRD-006 §5; kontrak API-040 masih draft (non-normatif sampai merged di gate terkait Sprint-03).
+> **Contract FROZEN (B2-13).** FRD-006 LOCKED; API-040 NORMATIVE. B2-14: eksekusi API di `implementation/backend/tests/test_dashboard_queues_api040.py`; FE unit `DashboardQueuesPanel.test.tsx`.
 
-**Precondition (draf)**
-- Beberapa case tersebar di ≥2 unit dengan status beragam (setup via API-001/003/004).
-- Dua principal: Supervisor unit U dan Supervisor/Manager unit lain (scope berbeda, revisi SEC-RAM-001 Sprint-03).
+**Precondition (frozen)**
+- Beberapa case tersebar di ≥2 unit dengan status DOM-ECMF-003 (setup via API-001/003/004) — Sprint ECMF Case SoT (DEC-CAP007-BQ-001 §1).
+- Principal: Supervisor unit U dengan permission `dashboard:read` (SEC-RAM-001 Planned Sprint-03). Manager/Executive **out of v0.1** (Deferred).
 
-**Langkah (draf)**
+**Langkah (frozen)**
 1. Sebagai Supervisor unit U: kirim `GET /v1/dashboard/queues` → verifikasi hanya antrian unit U (BR-006) dan respons memuat timestamp `asOf` (BR-DASH-02).
-2. Sebagai principal scope lain: kirim request yang sama → verifikasi data ter-scope berbeda; angka agregat reconcile dengan list case (`GET /v1/cases` API-005) pada filter setara.
+2. Sebagai principal scope lain (Supervisor unit lain, bila fixture tersedia): kirim request yang sama → verifikasi data ter-scope berbeda; angka agregat reconcile dengan list case (`GET /v1/cases` API-005) pada filter setara (DEC-CAP007-BQ-001 §3 drill-down/list).
 3. Verifikasi tidak ada operasi mutasi yang tersedia dari kontrak dashboard (BR-DASH-03).
+4. Tanpa `dashboard:read` → **403** `FORBIDDEN`.
 
-**Expected Result (draf)**
+**Expected Result (frozen)**
 - Status code **200**; antrian ter-scope role+org; `asOf` ada; agregat konsisten dengan sumber; error auth mengikuti envelope (401/403).
 
-**Data uji (draf)**: case sintetis payload TC-001, unit/assignee fixture per Role Access Matrix revisi Sprint-03.
+**Data uji (frozen)**: case sintetis payload TC-001, unit/assignee fixture per Role Access Matrix Planned Sprint-03.
 
-**Status**: 🕓 **Planned** — Sprint-03 (gate: DoR FRD-006 per sprint traceability TRC-L-008).
+**Status**: ✅ **Implemented** (B2-14) — contract frozen; API execution PASS; FE unit PASS. Browser E2E harness tidak ada di tree Sprint ECMF (tidak diinventarisasi).
 
 ---
 

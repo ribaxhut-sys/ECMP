@@ -7,8 +7,8 @@
 | Owner | Security Architect |
 | Reviewer | Tech Lead / DevOps Lead / Security Officer |
 | Approver | Architecture Board |
-| Status | 🟡 Proposed (executes only after ADR-012 is Accepted) |
-| Last Review | 2026-07-21 |
+| Status | 🟢 Phase 0–1 complete (Phase 2+ still approval-gated) |
+| Last Review | 2026-07-29 |
 | Next Review | 2026-10-21 |
 
 ## Purpose
@@ -29,7 +29,7 @@ Guiding principles:
 | Phase | Deliverable | Exit criteria | Closes |
 |---|---|---|---|
 | **0 — Decision** (this change) | ADR-012, SEC-AUTH-001, SEC-MIG-001 reviewed by Architecture Board | ADR-012 status = Accepted | — |
-| **1 — IdP baseline** | Keycloak container in `implementation/infrastructure` compose (profile `auth`); realm-as-code export (`ecmp` realm, clients per SEC-AUTH-001 §2.2, roles per Role Access Matrix); no app change | Realm import reproducible from repo; admin runbook drafted in `15 Operations Runbook` | — |
+| **1 — IdP baseline** | Keycloak container in `implementation/infrastructure` compose (profile `auth`); realm-as-code export (`ecmp` realm, clients per SEC-AUTH-001 §2.2, roles per Role Access Matrix); no app change | Realm import reproducible from repo; admin runbook drafted in `15 Operations Runbook` — **DONE** (`TASK-PLATFORM-SECMIG-P1-001`, 2026-07-29) | — |
 | **2 — JWT validation path** | `ECMP_AUTH_MODE` switch; JWT validator (JWKS cache, iss/aud/exp/nbf); role→permission resolver over the existing matrix; startup guard (`dev` mode forbidden when `ECMP_ENV` shared); contract tests for 401/403 in both modes | CI green with both modes exercised; OpenAPI description updated; 401/403 semantics byte-identical to slice envelope | L-1, L-2 (design-complete) |
 | **3 — SIT/UAT activation** | Deploy compose baseline (ADR-010 §3) with `jwt` mode only; real named users in IdP; secrets via env secret store (DEP-001 §2); smoke tests via `ecmp-ci` client | UAT users log in via OIDC; dev tokens rejected in SIT/UAT; Limitations Register rows L-1/L-2 marked closed | **L-1, L-2** |
 | **4 — Org scoping (gate G1)** | `orgUnitId` claim populated from IdP user attributes; BR-CP-02 enforcement in permission check (SEC-AUTH-001 §7.5 note) | Cross-unit access tests pass per Role Access Matrix planned section | **L-3** |

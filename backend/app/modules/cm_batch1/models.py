@@ -1,0 +1,401 @@
+"""SQLAlchemy ORM for CM Batch 1 Aggregate persistence (S2 Task 01).
+
+Separate from legacy ``complaints`` / ``complaint_cases`` tables.
+No Case FK or Batch-2 columns.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+
+
+class CmBatch1ComplaintORM(Base):
+    """Complaint Aggregate Root for Batch 1 (DM-CM-001 / DB-CM-001)."""
+
+    __tablename__ = "cm_batch1_complaints"
+    __table_args__ = (
+        UniqueConstraint("complaint_number", name="uq_cm_batch1_complaints_number"),
+        Index("ix_cm_batch1_complaints_customer_id", "customer_id"),
+        Index("ix_cm_batch1_complaints_status", "status"),
+        Index("ix_cm_batch1_complaints_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    complaint_number: Mapped[str] = mapped_column(String(32), nullable=False)
+    customer_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    category: Mapped[str] = mapped_column(String(100), nullable=False)
+    channel: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    priority: Mapped[str] = mapped_column(String(32), nullable=False, default="MEDIUM")
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="REGISTERED"
+    )
+    # Hard invariant Batch 1 (CTO D-02) — always false; Case deferred.
+    case_created: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class CmBatch1IdempotencyORM(Base):
+    """Request Id (Idempotency-Key) → Aggregate (D-03 / DM-CM-010)."""
+
+    __tablename__ = "cm_batch1_idempotency"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_cm_batch1_idempotency_request_id"),
+        Index("ix_cm_batch1_idempotency_complaint_id", "complaint_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    request_id: Mapped[str] = mapped_column(String(256), nullable=False)
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_complaints.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmBatch1ChannelMessageORM(Base):
+    """Channel Message Id → Aggregate (D-03)."""
+
+    __tablename__ = "cm_batch1_channel_messages"
+    __table_args__ = (
+        UniqueConstraint(
+            "channel_message_id", name="uq_cm_batch1_channel_message_id"
+        ),
+        Index("ix_cm_batch1_channel_messages_complaint_id", "complaint_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    channel_message_id: Mapped[str] = mapped_column(String(256), nullable=False)
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_complaints.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmBatch1CustomerLockORM(Base):
+    """Per-principal confirmed CustomerId lock (FR-002 confirm)."""
+
+    __tablename__ = "cm_batch1_customer_locks"
+    __table_args__ = (
+        UniqueConstraint("principal_key", name="uq_cm_batch1_customer_locks_principal"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    principal_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    customer_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    locked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmBatch1NumberCounterORM(Base):
+    """Portable complaint-number counter (CM-########)."""
+
+    __tablename__ = "cm_batch1_number_counters"
+
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class CmBatch1DuplicateDecisionORM(Base):
+    """FR-003 duplicate decision / linkage history (BR-014 / BR-018)."""
+
+    __tablename__ = "cm_batch1_duplicate_decisions"
+    __table_args__ = (
+        Index("ix_cm_batch1_dup_decisions_customer_id", "customer_id"),
+        Index("ix_cm_batch1_dup_decisions_surviving", "surviving_complaint_id"),
+        Index("ix_cm_batch1_dup_decisions_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    customer_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    surviving_complaint_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_complaints.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    source_complaint_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_complaints.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    justification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    staging_token: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    warning: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    hard_block: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    later_review_work_item_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    case_created: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmBatch1LaterReviewItemORM(Base):
+    """Supervisor later-review work item when duplicate check is degraded (FR-003 E1)."""
+
+    __tablename__ = "cm_batch1_later_review_items"
+    __table_args__ = (
+        Index("ix_cm_batch1_later_review_customer_id", "customer_id"),
+        Index("ix_cm_batch1_later_review_status", "status"),
+        Index("ix_cm_batch1_later_review_complaint_id", "complaint_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    work_item_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    customer_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    complaint_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="OPEN")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmBatch1AttachmentStagingORM(Base):
+    """Create-session staging token (FR-004 A4 / D-06)."""
+
+    __tablename__ = "cm_batch1_attachment_staging"
+    __table_args__ = (
+        UniqueConstraint("staging_token", name="uq_cm_batch1_staging_token"),
+        Index("ix_cm_batch1_staging_status", "status"),
+        Index("ix_cm_batch1_staging_expires_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    staging_token: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="OPEN")
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class CmBatch1AttachmentORM(Base):
+    """Batch 1 attachment business metadata linked to CAP-011 attachment row."""
+
+    __tablename__ = "cm_batch1_attachments"
+    __table_args__ = (
+        Index("ix_cm_batch1_attachments_complaint_id", "complaint_id"),
+        Index("ix_cm_batch1_attachments_staging_token", "staging_token"),
+        Index("ix_cm_batch1_attachments_status", "status"),
+        Index("ix_cm_batch1_attachments_platform_id", "platform_attachment_id"),
+        Index("ix_cm_batch1_attachments_checksum", "checksum_sha256"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    platform_attachment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("attachments.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    staging_token: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    complaint_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_complaints.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    classification: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    original_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_attachments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    void_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class CmBatch1AttachmentHistoryORM(Base):
+    """Append-only attachment history (FR-004 / BR-012)."""
+
+    __tablename__ = "cm_batch1_attachment_history"
+    __table_args__ = (
+        Index("ix_cm_batch1_att_history_attachment_id", "attachment_id"),
+        Index("ix_cm_batch1_att_history_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    attachment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_attachments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmBatch1OutboxORM(Base):
+    """Persist-only EVT-CM-* outbox (S2 Task 04). No publisher."""
+
+    __tablename__ = "cm_batch1_outbox"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_cm_batch1_outbox_idempotency_key"),
+        Index("ix_cm_batch1_outbox_event_id", "event_id"),
+        Index("ix_cm_batch1_outbox_status", "status"),
+        Index("ix_cm_batch1_outbox_aggregate", "aggregate_type", "aggregate_id"),
+        Index("ix_cm_batch1_outbox_occurred_at", "occurred_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    event_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    aggregate_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    aggregate_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="UNPUBLISHED")
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

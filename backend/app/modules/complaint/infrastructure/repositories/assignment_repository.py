@@ -3,22 +3,7 @@
 Persistence only — no business rules.
 """
 
-from __future__ import annotations
-
-import uuid
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.modules.complaint.domain.models import Assignment
-from app.modules.complaint.domain.repositories import AssignmentRepository
-from app.modules.complaint.infrastructure.mappers.assignment_mapper import (
-    AssignmentMapper,
-)
-from app.modules.complaint.infrastructure.orm.models import AssignmentORM
-
-
-class SqlAlchemyAssignmentRepository(AssignmentRepository):
+from __future__ import annotationsimport uuidfrom sqlalchemy import selectfrom sqlalchemy.ext.asyncio import AsyncSessionfrom app.modules.complaint.domain.models import Assignmentfrom app.modules.complaint.domain.repositories import AssignmentRepositoryfrom app.modules.complaint.infrastructure.mappers.assignment_mapper import (    AssignmentMapper,)from app.modules.complaint.infrastructure.orm.models import AssignmentORMclass SqlAlchemyAssignmentRepository(AssignmentRepository):
     """Assignment persistence via AsyncSession."""
 
     def __init__(self, session: AsyncSession) -> None:

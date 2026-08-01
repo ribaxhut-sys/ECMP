@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchAttachment, type Attachment } from "@/lib/api";
 import { Alert, Empty, Skeleton } from "@/shared/ui";
@@ -18,22 +19,23 @@ export interface AttachmentListProps {
   emptyDescription?: string;
 }
 
-function mapError(error: unknown): string {
+function mapError(error: unknown, t: (key: string) => string): string {
   if (error instanceof ApiError) {
-    if (error.status === 404) return "One or more attachments were not found (404).";
-    if (error.status === 403) return "You do not have permission to view attachments (403).";
-    if (error.status === 500) return "Server error while loading attachments (500).";
+    if (error.status === 404) return t("someNotFound404");
+    if (error.status === 403) return t("noReadPermission403");
+    if (error.status === 500) return t("serverErrorLoading500");
     return error.message;
   }
-  return "Failed to load attachments.";
+  return t("failedToLoad");
 }
 
 export function AttachmentList({
   attachments: preloaded,
   attachmentIds,
-  emptyTitle = "No attachments",
-  emptyDescription = "Provide attachment IDs to load files for preview and download.",
+  emptyTitle = undefined,
+  emptyDescription = undefined,
 }: AttachmentListProps) {
+  const t = useTranslations("attachments");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("attachment:read") || hasPermission("*");
 
@@ -61,11 +63,11 @@ export function AttachmentList({
       setItems(results);
     } catch (err) {
       setItems([]);
-      setError(mapError(err));
+      setError(mapError(err, t));
     } finally {
       setLoading(false);
     }
-  }, [canRead]);
+  }, [canRead, t]);
 
   const idsKey = (attachmentIds ?? []).join(",");
 
@@ -89,8 +91,8 @@ export function AttachmentList({
     return (
       <Alert
         tone="warning"
-        title="Permission required"
-        description="attachment:read is required to view attachments."
+        title={t("permissionRequired")}
+        description={t("readPermissionRequiredDescription")}
       />
     );
   }
@@ -108,9 +110,9 @@ export function AttachmentList({
     return (
       <Alert
         tone="danger"
-        title="Could not load attachments"
+        title={t("couldNotLoad")}
         description={error}
-        actionLabel="Retry"
+        actionLabel={t("retry")}
         onAction={
           attachmentIds?.length
             ? () => void loadByIds(attachmentIds)
@@ -121,7 +123,7 @@ export function AttachmentList({
   }
 
   if (items.length === 0) {
-    return <Empty title={emptyTitle} description={emptyDescription} />;
+    return <Empty title={emptyTitle ?? t("noItems")} description={emptyDescription ?? t("provideIdsDescription")} />;
   }
 
   return (

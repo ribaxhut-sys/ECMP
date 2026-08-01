@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -39,6 +40,7 @@ import { ResolutionCard } from "./ResolutionCard";
 import { SlaCard } from "./SlaCard";
 import { StatusActionsCard } from "./StatusActionsCard";
 import { TimelineCard } from "./TimelineCard";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
@@ -106,6 +108,11 @@ function DetailField({
 export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tStatus = useTranslations("status");
+  const tPriority = useTranslations("priority");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canUpdate = hasPermission("complaints:update");
   const failedAttachmentCount = Number(
@@ -159,17 +166,13 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         setNotFound(true);
       } else {
         setError(
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : "Unable to load complaint.",
+          resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoadDetail"),
         );
       }
     } finally {
       setLoading(false);
     }
-  }, [complaintId]);
+  }, [complaintId, t, tCommon, tErrors]);
 
   useEffect(() => {
     void load();
@@ -179,11 +182,11 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Complaint Detail"
+          title={t("detailTitle")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Complaint Detail" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("detailTitle") },
           ]}
         />
         <Skeleton rows={8} />
@@ -195,23 +198,23 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Complaint Detail"
+          title={t("detailTitle")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Complaint Detail" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("detailTitle") },
           ]}
         />
         <Empty
-          title="404"
-          description="Complaint not found."
+          title={t("notFoundTitle")}
+          description={t("complaintNotFound")}
           action={
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints")}
             >
-              Back to Complaint List
+              {t("backToList")}
             </Button>
           }
         />
@@ -223,42 +226,43 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Complaint Detail"
+          title={t("detailTitle")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Complaints", href: "/complaints" },
-            { label: "Complaint Detail" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/complaints" },
+            { label: t("detailTitle") },
           ]}
         />
         <ErrorState
-          title="Could not load complaint"
-          message={error ?? "Unexpected error."}
+          title={t("unableToLoadDetail")}
+          message={error ?? tCommon("unexpectedErrorDescription")}
           onRetry={() => void load()}
         />
       </PageContainer>
     );
   }
 
-  const customerName = customer?.fullName ?? "—";
+  const customerName = customer?.fullName ?? tCommon("emDash");
   const customerPhone = customer?.phone?.trim() || null;
-  const branchName = branch?.name ?? (complaint.branchId ? "—" : "Unassigned");
+  const branchName =
+    branch?.name ?? (complaint.branchId ? tCommon("emDash") : t("unassignedBranch"));
 
   return (
     <PageContainer className="space-y-6">
       <PageHeader
         title={complaint.complaintNumber}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints", href: "/complaints" },
-          { label: "Complaint Detail" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title"), href: "/complaints" },
+          { label: t("detailTitle") },
         ]}
         description={
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Badge tone={statusTone(complaint.status)}>
-              {complaint.status.replaceAll("_", " ")}
+              {tStatus(complaint.status)}
             </Badge>
             <Badge tone={priorityTone(complaint.priority)}>
-              {complaint.priority}
+              {tPriority(complaint.priority)}
             </Badge>
           </div>
         }
@@ -270,7 +274,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
                 variant="outline"
                 onClick={() => router.push(`/complaints/${complaint.id}/edit`)}
               >
-                Edit
+                {tCommon("edit")}
               </Button>
             ) : null}
             <Button
@@ -278,7 +282,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
               variant="outline"
               onClick={() => router.push("/complaints")}
             >
-              Back to Complaints
+              {t("backToList")}
             </Button>
           </div>
         }
@@ -287,15 +291,14 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
       {failedAttachmentCount > 0 ? (
         <Alert
           tone="warning"
-          title="Complaint created successfully."
+          title={t("createdSuccessAlert")}
           description={
             <>
               <p>
-                {failedAttachmentCount} attachment
-                {failedAttachmentCount === 1 ? "" : "s"} failed to upload.
+                {t("attachmentFailedCount", { count: failedAttachmentCount })}
               </p>
               <p className="mt-1">
-                You can upload them later from the Complaint Detail page.
+                {t("uploadLaterHint")}
               </p>
             </>
           }
@@ -304,17 +307,17 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Current status</CardTitle>
+          <CardTitle>{t("currentStatus")}</CardTitle>
         </CardHeader>
         <CardBody>
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <DetailField
-              label="Status"
-              value={complaint.status.replaceAll("_", " ")}
+              label={tCommon("status")}
+              value={tStatus(complaint.status)}
             />
-            <DetailField label="Priority" value={complaint.priority} />
+            <DetailField label={tCommon("priority")} value={tPriority(complaint.priority)} />
             <DetailField
-              label="Reported at"
+              label={t("reportedAtLabel")}
               value={formatWhen(complaint.reportedAt)}
             />
           </dl>
@@ -323,19 +326,19 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Information</CardTitle>
+          <CardTitle>{t("information")}</CardTitle>
         </CardHeader>
         <CardBody>
           <dl className="grid grid-cols-1 gap-4">
-            <DetailField label="Subject" value={complaint.subject} />
-            <DetailField label="Description" value={complaint.description} />
+            <DetailField label={t("subject")} value={complaint.subject} />
+            <DetailField label={t("description")} value={complaint.description} />
             <DetailField
-              label="Channel"
-              value={complaint.channel?.trim() || "—"}
+              label={t("channel")}
+              value={complaint.channel?.trim() || tCommon("emDash")}
             />
             <DetailField
-              label="Category"
-              value={complaint.category?.trim() || "—"}
+              label={t("category")}
+              value={complaint.category?.trim() || tCommon("emDash")}
             />
           </dl>
         </CardBody>
@@ -344,13 +347,13 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Customer</CardTitle>
+          <CardTitle>{t("customer")}</CardTitle>
           </CardHeader>
           <CardBody>
             <dl className="grid grid-cols-1 gap-4">
-              <DetailField label="Name" value={customerName} />
+              <DetailField label={t("name")} value={customerName} />
               {customerPhone ? (
-                <DetailField label="Phone" value={customerPhone} />
+                <DetailField label={t("phone")} value={customerPhone} />
               ) : null}
             </dl>
           </CardBody>
@@ -358,11 +361,11 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Branch</CardTitle>
+          <CardTitle>{t("branch")}</CardTitle>
           </CardHeader>
           <CardBody>
             <dl className="grid grid-cols-1 gap-4">
-              <DetailField label="Branch Name" value={branchName} />
+              <DetailField label={t("branchName")} value={branchName} />
             </dl>
           </CardBody>
         </Card>
@@ -456,20 +459,20 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Metadata</CardTitle>
+          <CardTitle>{t("metadata")}</CardTitle>
         </CardHeader>
         <CardBody>
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <DetailField
-              label="Created By"
-              value={complaint.createdBy ?? "—"}
+              label={t("createdBy")}
+              value={complaint.createdBy ?? tCommon("emDash")}
             />
             <DetailField
-              label="Created At"
+              label={t("createdAt")}
               value={formatWhen(complaint.createdAt)}
             />
             <DetailField
-              label="Updated At"
+              label={t("updatedAt")}
               value={formatWhen(complaint.updatedAt)}
             />
           </dl>
@@ -482,7 +485,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
           variant="outline"
           onClick={() => router.push("/complaints")}
         >
-          Back to Complaints
+          {t("backToList")}
         </Button>
       </div>
     </PageContainer>

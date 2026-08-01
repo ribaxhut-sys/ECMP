@@ -48,13 +48,14 @@ Unavailable actions are hidden (not disabled stubs).
 
 ## 5. Known limitations remaining
 
-- Reports and Users routes remain placeholders (empty states only)
+- Users module is implemented (list + admin reset); not an empty placeholder
 - Notifications and theme controls remain disabled placeholders (out of scope)
 - No dedicated global search API — header uses complaint search only
 - Recent activity links by complaint number keyword (overview payload has no complaint id)
 - Dashboard report widgets require report permissions; missing data shows empty, not hard fail
 - Mobile layout is basic (drawer + header search); not mobile-optimized
 - Attachment enrichment / list composition patterns from F3–F5 unchanged
+- Reports page now wires API-210…212 (permission `reports:read`); advanced filters/export remain out of scope
 
 ## 6. Commit
 

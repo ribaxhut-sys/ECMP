@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import ComplaintSourceType, ComplaintStatus, ComplaintTargetType
+from app.core.user_messages import m
 
 Priority = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
@@ -43,7 +44,7 @@ class ComplaintCreateRequest(BaseModel):
     def strip_required_text(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @model_validator(mode="after")
@@ -68,8 +69,8 @@ class ComplaintCreateRequest(BaseModel):
             if self.target_id is None:
                 missing.append("targetId")
             raise ValueError(
-                "sourceType, sourceId, targetType, and targetId are all required "
-                f"when using generalized create (missing: {', '.join(missing)})"
+                m("complaint.route_fields_all_required")
+                + f" (hilang: {', '.join(missing)})"
             )
 
         if all_generalized:
@@ -82,7 +83,7 @@ class ComplaintCreateRequest(BaseModel):
                 )
                 if self.customer_id != self.source_id:
                     raise ValueError(
-                        "customerId must match sourceId when sourceType is CUSTOMER"
+                        m("complaint.customer_source_mismatch")
                     )
             if self.target_type == ComplaintTargetType.BRANCH:
                 object.__setattr__(
@@ -92,7 +93,7 @@ class ComplaintCreateRequest(BaseModel):
                 )
                 if self.branch_id != self.target_id:
                     raise ValueError(
-                        "branchId must match targetId when targetType is BRANCH"
+                        m("complaint.branch_target_mismatch")
                     )
             elif self.target_type == ComplaintTargetType.HEAD_OFFICE:
                 # HO target — branch context is not derived.
@@ -101,7 +102,7 @@ class ComplaintCreateRequest(BaseModel):
 
         # Legacy payload: customer → branch (exact prior behavior).
         if self.customer_id is None:
-            raise ValueError("customerId is required when source/target fields are omitted")
+            raise ValueError(m("complaint.customer_required_when_route_omitted"))
         object.__setattr__(self, "source_type", ComplaintSourceType.CUSTOMER)
         object.__setattr__(self, "source_id", self.customer_id)
         object.__setattr__(self, "target_type", ComplaintTargetType.BRANCH)
@@ -126,14 +127,14 @@ class ComplaintUpdateRequest(BaseModel):
             return None
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> ComplaintUpdateRequest:
         provided = self.model_dump(exclude_unset=True)
         if not provided:
-            raise ValueError("at least one field must be provided")
+            raise ValueError(m("validation.at_least_one_field"))
         return self
 
 
@@ -192,7 +193,7 @@ class CloseComplaintRequest(BaseModel):
     def strip_notes(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
 

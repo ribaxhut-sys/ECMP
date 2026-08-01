@@ -5,7 +5,7 @@ name: Backend CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "feature/**", "release/**"]
     paths:
       - "backend/**"
       - "07 API Catalog/openapi/**"
@@ -57,10 +57,12 @@ jobs:
           python -c "import pathlib; p=pathlib.Path('pyproject.toml'); assert p.is_file(), 'missing backend/pyproject.toml'; print(p.resolve())"
           ruff check --show-settings app 2>&1 | head -n 40
       - name: Lint backend (ruff)
-        # M2: config is authoritative under backend/pyproject.toml.
-        # Existing lint debt (~90 findings) is non-blocking until burn-down;
-        # hard gate is follow-up (not M0–M2). Tests/OpenAPI/Alembic remain blocking.
-        continue-on-error: true
+        # BLOCKING as of 2026-07-31 (audit TD-M1 burn-down).
+        # Config is authoritative under backend/pyproject.toml. The former
+        # ~134-finding backlog is cleared; the only remaining debt is declared
+        # explicitly in [tool.ruff.lint.per-file-ignores] so it stays visible
+        # and shrinkable. Do not reintroduce continue-on-error — narrow the
+        # per-file-ignores instead.
         run: ruff check app tests
       - name: Validate OpenAPI contracts (all specs incl. drafts)
         working-directory: .
@@ -78,9 +80,10 @@ jobs:
       - name: Run migrations (Alembic)
         run: alembic upgrade head
       - name: Run tests against PostgreSQL (coverage gate)
-        # Coverage burn-down: after CAPABILITY dump (~86.8%), restore fail-under=90
-        # once repository integration tests close the gap (EPIC-001 follow-up).
-        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=86
+        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=90
+      # SECMIG-P5-006 — security-only entry point (tests already included above):
+      #   python scripts/run_security_tests.py -q
+      # See docs/deployment/SECURITY_TEST_SUITE.md
 
   security-audit:
     runs-on: ubuntu-latest

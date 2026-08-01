@@ -17,16 +17,17 @@
 
 | Metric | Value |
 |---|---|
-| Orchestrator routes logged | 20 |
+| Orchestrator routes logged | 40 |
 | Success rate | 100% |
 | RAG hit rate (top_score>0) | 100% |
-| Avg RAG top score | 0.218 |
+| Avg RAG top score | 0.201 |
 
 ## By Capability
 
 | Capability | Runs | Success | Avg RAG score |
 |---|---|---|---|
-| `CAP-IMPLEMENT-FEATURE` | 18 | 100% | 0.211 |
+| `CAP-GENERATE-FRD` | 1 | 100% | 0.204 |
+| `CAP-IMPLEMENT-FEATURE` | 37 | 100% | 0.197 |
 | `CAP-REVIEW-CODE` | 1 | 100% | 0.245 |
 | `CAP-REVIEW-SECURITY` | 1 | 100% | 0.315 |
 

@@ -9,6 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -17,6 +18,7 @@ import {
   type Branch,
 } from "@/lib/api";
 import type { Complaint, ComplaintStatus, Priority } from "@/lib/api/types";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Badge,
   Button,
@@ -34,11 +36,6 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import {
-  PAGE_SIZE_OPTIONS,
-  PRIORITY_FILTER_OPTIONS,
-  SORT_FIELD_OPTIONS,
-  SORT_ORDER_OPTIONS,
-  STATUS_FILTER_OPTIONS,
   defaultListFilters,
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -46,10 +43,10 @@ import {
   type ComplaintListFilters,
 } from "./complaintListFilters";
 
-function formatWhen(value: string | null | undefined): string {
+function formatWhen(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(value));
@@ -93,6 +90,13 @@ export function ComplaintListView() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const locale = useLocale();
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
+  const tStatus = useTranslations("status");
+  const tPriority = useTranslations("priority");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
   const canCreate = hasPermission("complaints:create");
@@ -137,7 +141,7 @@ export function ComplaintListView() {
     async (next: ComplaintListFilters) => {
       if (!canRead) {
         setLoading(false);
-        setError("You do not have permission to view complaints.");
+        setError(t("noPermissionToView"));
         setErrorCode("FORBIDDEN");
         setRows([]);
         return;
@@ -160,18 +164,16 @@ export function ComplaintListView() {
         setHasNext(false);
         setHasPrevious(false);
         if (err instanceof ApiError) {
-          setError(err.message);
+          setError(resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError"));
           setErrorCode(err.code);
         } else {
-          setError(
-            err instanceof Error ? err.message : "Unable to load complaints.",
-          );
+          setError(resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError"));
         }
       } finally {
         setLoading(false);
       }
     },
-    [canRead],
+    [canRead, t, tCommon, tErrors],
   );
 
   useEffect(() => {
@@ -195,16 +197,72 @@ export function ComplaintListView() {
     applyFilters(next);
   }
 
-  const branchOptions = [
-    { value: "", label: "All branches" },
-    ...branches.map((b) => ({ value: b.id, label: b.name })),
-  ];
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: "", label: tTable("allStatuses") },
+      { value: "NEW", label: tStatus("NEW") },
+      { value: "ASSIGNED", label: tStatus("ASSIGNED") },
+      { value: "IN_PROGRESS", label: tStatus("IN_PROGRESS") },
+      { value: "PENDING", label: tStatus("PENDING") },
+      { value: "ESCALATED", label: tStatus("ESCALATED") },
+      { value: "RESOLVED", label: tStatus("RESOLVED") },
+      { value: "CLOSED", label: tStatus("CLOSED") },
+    ],
+    [tStatus, tTable],
+  );
+
+  const priorityFilterOptions = useMemo(
+    () => [
+      { value: "", label: tTable("allPriorities") },
+      { value: "LOW", label: tPriority("LOW") },
+      { value: "MEDIUM", label: tPriority("MEDIUM") },
+      { value: "HIGH", label: tPriority("HIGH") },
+      { value: "CRITICAL", label: tPriority("CRITICAL") },
+    ],
+    [tPriority, tTable],
+  );
+
+  const sortFieldOptions = useMemo(
+    () => [
+      { value: "createdAt", label: tTable("sortCreatedAt") },
+      { value: "updatedAt", label: tTable("sortUpdatedAt") },
+      { value: "priority", label: tTable("sortPriority") },
+      { value: "status", label: tTable("sortStatus") },
+      { value: "slaDueDate", label: tTable("sortSlaDueDate") },
+    ],
+    [tTable],
+  );
+
+  const sortOrderOptions = useMemo(
+    () => [
+      { value: "desc", label: tTable("sortOrderDesc") },
+      { value: "asc", label: tTable("sortOrderAsc") },
+    ],
+    [tTable],
+  );
+
+  const pageSizeOptions = useMemo(
+    () =>
+      [10, 20, 50].map((count) => ({
+        value: String(count),
+        label: tTable("perPage", { count }),
+      })),
+    [tTable],
+  );
+
+  const branchOptions = useMemo(
+    () => [
+      { value: "", label: t("allBranches") },
+      ...branches.map((b) => ({ value: b.id, label: b.name })),
+    ],
+    [branches, t],
+  );
 
   const columns = useMemo<TableColumn<Complaint>[]>(
     () => [
       {
         key: "complaintNumber",
-        header: "Number",
+        header: t("number"),
         cell: (row) => (
           <Link
             href={`/complaints/${row.id}`}
@@ -216,40 +274,42 @@ export function ComplaintListView() {
       },
       {
         key: "subject",
-        header: "Subject",
+        header: t("subject"),
         cell: (row) => (
           <span className="line-clamp-2 max-w-xs">{row.subject}</span>
         ),
       },
       {
         key: "status",
-        header: "Status",
+        header: t("status"),
         cell: (row) => (
           <Badge tone={statusTone(row.status)}>
-            {row.status.replaceAll("_", " ")}
+            {tStatus(row.status)}
           </Badge>
         ),
       },
       {
         key: "priority",
-        header: "Priority",
+        header: t("priority"),
         cell: (row) => (
-          <Badge tone={priorityTone(row.priority)}>{row.priority}</Badge>
+          <Badge tone={priorityTone(row.priority)}>
+            {tPriority(row.priority)}
+          </Badge>
         ),
       },
       {
         key: "category",
-        header: "Category",
-        cell: (row) => row.category?.trim() || "—",
+        header: t("category"),
+        cell: (row) => row.category?.trim() || tCommon("emDash"),
       },
       {
         key: "createdAt",
-        header: "Created",
-        cell: (row) => formatWhen(row.createdAt),
+        header: t("createdAt"),
+        cell: (row) => formatWhen(row.createdAt, locale),
       },
       {
         key: "actions",
-        header: "Actions",
+        header: tCommon("actions"),
         hideOnMobile: false,
         cell: (row) => (
           <div className="flex flex-wrap gap-2">
@@ -260,7 +320,7 @@ export function ComplaintListView() {
                 variant="outline"
                 onClick={() => router.push(`/complaints/${row.id}`)}
               >
-                View
+                {tCommon("view")}
               </Button>
             ) : null}
             {canUpdate ? (
@@ -270,35 +330,64 @@ export function ComplaintListView() {
                 variant="ghost"
                 onClick={() => router.push(`/complaints/${row.id}/edit`)}
               >
-                Edit
+                {tCommon("edit")}
               </Button>
             ) : null}
           </div>
         ),
       },
     ],
-    [canRead, canUpdate, router],
+    [
+      canRead,
+      canUpdate,
+      locale,
+      router,
+      t,
+      tCommon,
+      tPriority,
+      tStatus,
+    ],
   );
 
   const rangeLabel =
     totalItems === 0
-      ? "0 results"
-      : `Showing ${(filters.page - 1) * filters.pageSize + 1}–${Math.min(filters.page * filters.pageSize, totalItems)} of ${totalItems}`;
+      ? t("zeroResults")
+      : tCommon("showingItems", {
+          from: (filters.page - 1) * filters.pageSize + 1,
+          to: Math.min(filters.page * filters.pageSize, totalItems),
+          total: totalItems,
+        });
 
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Complaints"
+        title={t("title")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Complaints" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title") },
         ]}
-        description="Search, filter, and open customer complaints."
+        description={t("listDescription")}
         actions={
-          canCreate ? (
-            <Button type="button" onClick={() => router.push("/complaints/new")}>
-              Create Complaint
-            </Button>
+          canCreate || canRead ? (
+            <div className="flex flex-wrap gap-2">
+              {canRead ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/complaints/cm/supervisor")}
+                >
+                  {t("supervisorQueue")}
+                </Button>
+              ) : null}
+              {canCreate ? (
+                <Button
+                  type="button"
+                  onClick={() => router.push("/complaints/new")}
+                >
+                  {t("create")}
+                </Button>
+              ) : null}
+            </div>
           ) : undefined
         }
       />
@@ -308,13 +397,13 @@ export function ComplaintListView() {
           <form
             onSubmit={onSubmitFilters}
             className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
-            aria-label="Complaint search filters"
+            aria-label={t("filtersAriaLabel")}
           >
             <div className="md:col-span-2 xl:col-span-2">
               <Input
                 name="keyword"
-                label="Search"
-                placeholder="Number, subject, description, reporter…"
+                label={tCommon("search")}
+                placeholder={t("searchPlaceholder")}
                 value={draft.keyword}
                 onChange={(e) =>
                   setDraft((prev) => ({ ...prev, keyword: e.target.value }))
@@ -324,8 +413,8 @@ export function ComplaintListView() {
             </div>
             <Select
               name="status"
-              label="Status"
-              options={[...STATUS_FILTER_OPTIONS]}
+              label={t("status")}
+              options={statusFilterOptions}
               value={draft.status}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, status: e.target.value }))
@@ -333,8 +422,8 @@ export function ComplaintListView() {
             />
             <Select
               name="priority"
-              label="Priority"
-              options={[...PRIORITY_FILTER_OPTIONS]}
+              label={t("priority")}
+              options={priorityFilterOptions}
               value={draft.priority}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, priority: e.target.value }))
@@ -342,7 +431,7 @@ export function ComplaintListView() {
             />
             <Input
               name="category"
-              label="Category"
+              label={t("category")}
               value={draft.category}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, category: e.target.value }))
@@ -351,7 +440,7 @@ export function ComplaintListView() {
             />
             <Select
               name="branchId"
-              label="Branch"
+              label={t("branch")}
               options={branchOptions}
               value={draft.branchId}
               onChange={(e) =>
@@ -360,8 +449,8 @@ export function ComplaintListView() {
             />
             <Select
               name="sort"
-              label="Sort by"
-              options={SORT_FIELD_OPTIONS}
+              label={tTable("sortBy")}
+              options={sortFieldOptions}
               value={draft.sort}
               onChange={(e) =>
                 setDraft((prev) => ({
@@ -372,8 +461,8 @@ export function ComplaintListView() {
             />
             <Select
               name="order"
-              label="Order"
-              options={SORT_ORDER_OPTIONS}
+              label={tTable("order")}
+              options={sortOrderOptions}
               value={draft.order}
               onChange={(e) =>
                 setDraft((prev) => ({
@@ -384,8 +473,8 @@ export function ComplaintListView() {
             />
             <Select
               name="pageSize"
-              label="Page size"
-              options={[...PAGE_SIZE_OPTIONS]}
+              label={tTable("pageSize")}
+              options={pageSizeOptions}
               value={String(draft.pageSize)}
               onChange={(e) =>
                 setDraft((prev) => ({
@@ -395,9 +484,9 @@ export function ComplaintListView() {
               }
             />
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-end md:col-span-2 xl:col-span-4">
-              <Button type="submit">Apply filters</Button>
+              <Button type="submit">{t("applyFilters")}</Button>
               <Button type="button" variant="outline" onClick={onResetFilters}>
-                Reset
+                {tCommon("reset")}
               </Button>
             </div>
           </form>
@@ -408,7 +497,7 @@ export function ComplaintListView() {
 
       {!loading && error ? (
         <ErrorState
-          title="Unable to load complaints"
+          title={t("unableToLoad")}
           message={error}
           code={errorCode}
           onRetry={() => void load(filters)}
@@ -417,11 +506,9 @@ export function ComplaintListView() {
 
       {!loading && !error && rows.length === 0 ? (
         <Empty
-          title="No complaints found"
+          title={t("noResults")}
           description={
-            canCreate
-              ? "Try adjusting filters, or create a new complaint."
-              : "Try adjusting filters."
+            canCreate ? t("noResultsDescription") : t("noResultsTryFilters")
           }
           action={
             canCreate ? (
@@ -430,7 +517,7 @@ export function ComplaintListView() {
                 variant="outline"
                 onClick={() => router.push("/complaints/new")}
               >
-                Create Complaint
+                {t("create")}
               </Button>
             ) : undefined
           }
@@ -443,15 +530,19 @@ export function ComplaintListView() {
             <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
               <span>{rangeLabel}</span>
               <span>
-                Page {filters.page}
-                {totalPages > 0 ? ` of ${totalPages}` : ""}
+                {totalPages > 0
+                  ? tCommon("pageOf", {
+                      page: filters.page,
+                      totalPages,
+                    })
+                  : t("pageOnly", { page: filters.page })}
               </span>
             </div>
             <Table
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
-              caption="Complaint list"
+              caption={t("listCaption")}
             />
             <div className="flex flex-col-reverse gap-2 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
               <Button
@@ -462,7 +553,7 @@ export function ComplaintListView() {
                   applyFilters({ ...filters, page: Math.max(1, filters.page - 1) })
                 }
               >
-                Previous
+                {tCommon("previous")}
               </Button>
               <Button
                 type="button"
@@ -472,7 +563,7 @@ export function ComplaintListView() {
                   applyFilters({ ...filters, page: filters.page + 1 })
                 }
               >
-                Next
+                {tCommon("next")}
               </Button>
             </div>
           </CardBody>

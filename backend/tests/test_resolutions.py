@@ -134,7 +134,7 @@ def test_resolve_rejects_mismatched_resolved_by() -> None:
             ),
             actor_user_id=actor_id,
         )
-    assert "resolvedBy must match" in exc.value.message
+    assert "resolvedBy harus sesuai" in exc.value.message
     repo.commit.assert_not_called()
 
 

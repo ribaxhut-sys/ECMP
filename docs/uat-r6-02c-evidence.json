@@ -1,0 +1,13 @@
+{
+  "sprint": "R6-02C",
+  "checks": {
+    "list_users": "PASS",
+    "api_413": "PASS",
+    "force_flag": "PASS",
+    "force_gate": "PASS",
+    "audit_event": "password.admin_reset (emitted by service)"
+  },
+  "temporary_password_length": 16,
+  "target_username": "agent_46dfc8bc",
+  "result": "PASS"
+}

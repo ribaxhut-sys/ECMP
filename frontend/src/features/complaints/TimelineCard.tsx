@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { ApiError, fetchComplaintTimeline } from "@/lib/api";
 import type { TimelineEntry } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Alert,
   Card,
@@ -22,18 +24,6 @@ export type TimelineActivityType =
   | "PRIORITY_CHANGED"
   | "SLA"
   | "OTHER";
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function isSlaEvent(eventType: string): boolean {
   return eventType.startsWith("sla.");
@@ -99,22 +89,43 @@ function activityIcon(type: TimelineActivityType): string {
   }
 }
 
-function activityMessage(entry: TimelineEntry): string {
-  const summary = entry.summary?.trim();
-  if (summary) return summary;
-  switch (activityType(entry)) {
+function activityTypeLabelKey(type: TimelineActivityType): string {
+  switch (type) {
     case "CREATED":
-      return "Complaint created";
+      return "activityTypeCreated";
     case "ASSIGNED":
-      return "Complaint assigned";
-    case "PRIORITY_CHANGED":
-      return "Priority changed";
+      return "activityTypeAssigned";
     case "STATUS_CHANGED":
-      return "Status changed";
+      return "activityTypeStatusChanged";
+    case "PRIORITY_CHANGED":
+      return "activityTypePriorityChanged";
     case "SLA":
-      return "SLA status changed";
+      return "activityTypeSla";
     default:
-      return "Activity";
+      return "activityTypeOther";
+  }
+}
+
+function slaSummaryKey(eventType: string): string | null {
+  switch (eventType) {
+    case "sla.assignment.breached":
+      return "activitySlaAssignmentBreached";
+    case "sla.appointment.breached":
+      return "activitySlaAppointmentBreached";
+    case "sla.escalation.breached":
+      return "activitySlaEscalationBreached";
+    case "sla.resolution.breached":
+      return "activitySlaResolutionBreached";
+    case "sla.assignment.completed":
+      return "activitySlaAssignmentCompleted";
+    case "sla.appointment.completed":
+      return "activitySlaAppointmentCompleted";
+    case "sla.escalation.completed":
+      return "activitySlaEscalationCompleted";
+    case "sla.resolution.completed":
+      return "activitySlaResolutionCompleted";
+    default:
+      return null;
   }
 }
 
@@ -125,6 +136,37 @@ export function TimelineCard({
   complaintId: string;
   refreshKey?: number;
 }) {
+  const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
+
+  function activityMessage(entry: TimelineEntry): string {
+    const type = activityType(entry);
+
+    if (type === "SLA") {
+      const slaKey = slaSummaryKey(entry.eventType);
+      if (slaKey) return t(slaKey);
+      return t("activitySlaChanged");
+    }
+
+    if (type === "CREATED") return t("activityCreated");
+    if (type === "PRIORITY_CHANGED") return t("activityPriorityChanged");
+    if (type === "STATUS_CHANGED") return t("activityStatusChanged");
+    if (type === "ASSIGNED") {
+      const assignee =
+        typeof entry.metadata?.assigneeName === "string"
+          ? entry.metadata.assigneeName.trim()
+          : typeof entry.metadata?.toAssigneeName === "string"
+            ? entry.metadata.toAssigneeName.trim()
+            : "";
+      if (assignee) return t("activityAssignedTo", { name: assignee });
+      // Prefer localized label over English API summary ("Assigned to …").
+      return t("activityAssigned");
+    }
+
+    return t("activityGeneric");
+  }
+
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,12 +185,12 @@ export function TimelineCard({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to load timeline.",
+            : t("unableToLoadTimeline"),
       );
     } finally {
       setLoading(false);
     }
-  }, [complaintId]);
+  }, [complaintId, t]);
 
   useEffect(() => {
     void load();
@@ -157,7 +199,7 @@ export function TimelineCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Timeline</CardTitle>
+        <CardTitle>{t("timelineCard")}</CardTitle>
       </CardHeader>
       <CardBody>
         {loading ? (
@@ -165,15 +207,15 @@ export function TimelineCard({
         ) : error ? (
           <Alert
             tone="danger"
-            title="Could not load timeline"
+            title={t("couldNotLoadTimeline")}
             description={error}
-            actionLabel="Retry"
+            actionLabel={tCommon("retry")}
             onAction={() => void load()}
           />
         ) : entries.length === 0 ? (
-          <Empty title="Timeline" description="No activity yet." />
+          <Empty title={t("timelineCard")} description={t("noActivityYet")} />
         ) : (
-          <ol className="space-y-0" aria-label="Complaint activity timeline">
+          <ol className="space-y-0" aria-label={t("timelineAriaLabel")}>
             {entries.map((entry, index) => {
               const type = activityType(entry);
               const isLast = index === entries.length - 1;
@@ -190,7 +232,7 @@ export function TimelineCard({
                     className={cn(
                       "relative z-[1] flex size-8 shrink-0 items-center justify-center rounded-full border border-ecmp-border bg-ecmp-surface text-sm font-semibold text-ecmp-text-primary",
                     )}
-                    title={type}
+                    title={t(activityTypeLabelKey(type))}
                   >
                     {activityIcon(type)}
                   </span>
@@ -199,11 +241,11 @@ export function TimelineCard({
                       {activityMessage(entry)}
                     </p>
                     <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                      {entry.actorName?.trim() || "System"}
+                      {entry.actorName?.trim() || t("systemActor")}
                     </p>
                     <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
                       <time dateTime={entry.eventAt || entry.createdAt}>
-                        {formatWhen(entry.eventAt || entry.createdAt)}
+                        {formatDateTime(entry.eventAt || entry.createdAt, locale)}
                       </time>
                     </p>
                   </div>

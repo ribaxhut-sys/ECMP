@@ -7,12 +7,12 @@
 | Owner | Security Architect |
 | Reviewer | Tech Lead / Solution Architect / Security Officer |
 | Approver | Architecture Board |
-| Status | 🟡 Proposed |
-| Last Review | 2026-07-21 |
+| Status | 🟢 Accepted |
+| Last Review | 2026-07-29 |
 | Next Review | 2026-10-21 |
 
-- ADR Status: Proposed
-- Date: 2026-07-21
+- ADR Status: Accepted
+- Date: 2026-07-21 (Accepted 2026-07-29 via GOV-CS-ADR-012 / TASK-PLATFORM-ADR012-ACCEPT-001)
 - Decision Owners: Security Architect, Tech Lead
 - Related Domains: Core Platform (all domains consume)
 
@@ -70,11 +70,24 @@ This ADR elaborates the ADR-007 target phase into a concrete architecture. It is
 - Two auth modes exist during migration; guarded by fail-fast environment checks (risk R-1 in migration plan).
 
 ### Follow-up Actions
-- [ ] Architecture Board review → move Status to Accepted
+- [x] Architecture Board review → move Status to Accepted (GOV-CS-ADR-012 / TASK-PLATFORM-ADR012-ACCEPT-001, 2026-07-29)
 - [ ] Update Solution Architecture §8 (Security Architecture) to reference ADR-012 / SEC-AUTH-001
-- [ ] Execute migration plan phases (SEC-MIG-001) — implementation NOT authorized by this ADR alone
+- [ ] Execute migration plan phases (SEC-MIG-001) — implementation NOT authorized by this ADR alone; Phase 0 (decision) complete; Phase 1+ requires separate Architecture approval
 - [ ] Update `ECMP_AuthN_Limitations_Register` closure column (done in this change: closure now points to ADR-012 artifacts)
 - [ ] OpenAPI `securitySchemes` description update when Phase 2 implementation starts (contract change goes through `07 API Catalog` per AI-RULES §2)
+
+### Explicit non-authorization (TASK-PLATFORM-ADR012-ACCEPT-001)
+
+Accepting this ADR **does not** authorize any of the following (remain blocked until a separate, Board-approved implementation task):
+
+- Keycloak deployment or realm configuration
+- OIDC integration coding
+- JWT validator / `ECMP_AUTH_MODE` runtime changes
+- Any `backend/app` source changes
+- Database migrations
+- OpenAPI / contract changes
+- CI workflow changes
+- Docker / Compose changes
 
 ## Related
 - ADR-007 (slice + target split — this ADR elaborates the target phase; ADR-007 remains valid for the slice phase)

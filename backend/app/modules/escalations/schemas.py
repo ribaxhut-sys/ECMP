@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import ComplaintStatus, EscalationReasonCode
+from app.core.user_messages import m
 from app.modules.appointments.schemas import AppointmentSummary
 
 EscalationReasonCodeLiteral = Literal[
@@ -39,14 +40,14 @@ class EscalateComplaintRequest(BaseModel):
     def strip_reason(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @model_validator(mode="after")
     def require_target(self) -> EscalateComplaintRequest:
         if self.escalated_to_user_id is None and self.escalated_to_role_id is None:
             raise ValueError(
-                "escalatedToUserId or escalatedToRoleId is required"
+                m("escalation.target_required")
             )
         return self
 
@@ -68,7 +69,7 @@ class EscalationRequestCreate(BaseModel):
     def strip_required_text(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
     @field_validator("notes")
@@ -139,7 +140,7 @@ class EscalationReviewRequest(BaseModel):
     def strip_review_notes(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
 
@@ -166,7 +167,7 @@ class CloseEscalationRequest(BaseModel):
     def strip_notes(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("must not be blank")
+            raise ValueError(m("validation.must_not_blank"))
         return cleaned
 
 

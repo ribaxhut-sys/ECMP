@@ -38,6 +38,9 @@ Table of contents tingkat enterprise untuk seluruh ECMP EAR.
 - [Repository Standards](./REPOSITORY_STANDARDS.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Root README](../README.md)
+- [Frontend Architecture Docs](../docs/frontend/README.md)
+- [ADR Index (portal mirror)](../docs/architecture/adr-index.md)
+- [ADR Index (canonical generated)](../05%20Architecture%20Decision%20Records/ADR_INDEX.generated.md)
 
 ## Document Map
 
@@ -71,6 +74,13 @@ Table of contents tingkat enterprise untuk seluruh ECMP EAR.
 | 25 | Glossary | GLS-xxx | Business Analyst | 🟡 Draft | 25% |
 | 26 | Traceability | TRC-xxx | BA / QA Lead | 🟡 Draft | 15% |
 | 27 | Project Decisions | DEC-xxx / OQ-xxx | PMO | 🟡 Draft | 10% |
+
+### Related documentation hubs (non-numbered)
+
+| Hub | Path | Primary IDs | Owner Role |
+|---|---|---|---|
+| Frontend architecture & standards | `docs/frontend/` | FE-ARCH-001, FE-STD-001, FE-OD-001 | Frontend Lead / Solution Architect |
+| Architecture portal mirrors | `docs/architecture/` | EAR-PORTAL-MIRROR | Enterprise Architecture |
 
 ## Reading Path for New Joiners
 1. This Index  

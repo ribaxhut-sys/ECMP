@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.core.errors import ValidationAppError
+from app.core.user_messages import m
 from app.modules.complaints.service import ComplaintService
 from app.modules.dashboard.domain.dto import DashboardFilters, TrendPeriod
 from app.modules.dashboard.providers.complaint_provider import (
@@ -51,7 +52,7 @@ def _validate_filters(filters: DashboardFilters) -> DashboardFilters:
     date_to = _ensure_utc(filters.date_to) if filters.date_to is not None else None
     if date_from is not None and date_to is not None and date_from > date_to:
         raise ValidationAppError(
-            "dateFrom must be less than or equal to dateTo",
+            m("config.date_from_lte_date_to"),
             details={
                 "dateFrom": date_from.isoformat(),
                 "dateTo": date_to.isoformat(),

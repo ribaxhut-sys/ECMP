@@ -1,0 +1,43 @@
+# ECMP v1.0.0 — production reverse proxy (recommended reference)
+# Proxy: Caddy 2.x with automatic HTTPS (Let's Encrypt / ZeroSSL)
+#
+# Required env (compose injects):
+#   ECMP_DOMAIN     Public hostname, e.g. ecmp.example.com
+#   ACME_EMAIL      Contact email for ACME registration
+#
+# Topology (single public host — recommended):
+#   https://$ECMP_DOMAIN/           → frontend:3000
+#   https://$ECMP_DOMAIN/api/*      → backend:8000
+#   https://$ECMP_DOMAIN/live|ready|health|version → backend:8000
+#
+# reverse_proxy sets X-Forwarded-For / Proto / Host by default.
+# Security headers already emitted by the FastAPI app are NOT duplicated here.
+# Proxy adds Strict-Transport-Security only.
+
+{
+	email {$ACME_EMAIL}
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$ECMP_DOMAIN} {
+	encode gzip zstd
+
+	# HSTS — proxy-owned (application does not emit this header).
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+
+	# API + health/version surfaces. WebSocket Upgrade is handled by reverse_proxy
+	# (no product WebSocket APIs in v1.0.0; safe for Next.js / future use).
+	@backend path /api/* /live /ready /health /version /openapi.json /docs /redoc
+	handle @backend {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

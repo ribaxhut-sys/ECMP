@@ -35,7 +35,7 @@ class CancelTicketHandler:
         if ticket is None:
             raise QueueApplicationError(
                 "TICKET_NOT_FOUND",
-                f"ticket not found: {command.ticket_id}",
+                f"tiket tidak ditemukan: {command.ticket_id}",
             )
         updated = self._domain.transition_ticket(
             ticket, QueueTicketStatus.CANCELLED

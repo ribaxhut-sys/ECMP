@@ -14,6 +14,7 @@ from typing import Any
 
 from app.core.enums import NotificationChannel, NotificationQueueStatus
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.notification.domain.entity import NotificationRecord
 from app.modules.notification.infrastructure.providers import (
     NotificationProvider,
@@ -111,7 +112,7 @@ class NotificationService:
         self._validate_channel(payload.channel)
         if self._repo.get_template_by_code(payload.code) is not None:
             raise ConflictError(
-                f"Notification template code already exists: {payload.code}",
+                f"Kode template notifikasi sudah ada: {payload.code}",
                 details={"code": payload.code},
             )
         now = datetime.now(UTC)
@@ -141,7 +142,7 @@ class NotificationService:
             self._validate_channel(data["channel"])
         if not data:
             raise ValidationAppError(
-                "at least one field is required",
+                m("config.at_least_one_field"),
                 details={"fields": []},
             )
         for key, value in data.items():
@@ -154,7 +155,7 @@ class NotificationService:
         """Soft-delete: set is_active=False (no deleted_at column on templates)."""
         row = self._require_template(template_id)
         if not row.is_active:
-            raise NotFoundError("Notification template not found")
+            raise NotFoundError(m("notification.template_not_found"))
         self._repo.soft_delete_template(row)
         self._repo.commit()
 
@@ -166,14 +167,14 @@ class NotificationService:
         """Validate template + settings, generate payload, enqueue as PENDING."""
         if not self.is_enabled():
             raise ValidationAppError(
-                "notifications are disabled",
+                m("notification.disabled"),
                 details={"key": SETTING_ENABLED, "value": False},
             )
 
         template = self._repo.get_template_by_code(payload.template_code)
         if template is None or not template.is_active:
             raise NotFoundError(
-                f"Active notification template not found: {payload.template_code}"
+                f"Template notifikasi aktif tidak ditemukan: {payload.template_code}"
             )
 
         self._validate_channel(template.channel)
@@ -181,7 +182,7 @@ class NotificationService:
         max_retry = self.max_retry()
         if max_retry < 0:
             raise ValidationAppError(
-                "notification.max.retry must be >= 0",
+                m("notification.max_retry_min"),
                 details={"key": SETTING_MAX_RETRY, "value": max_retry},
             )
 
@@ -255,7 +256,7 @@ class NotificationService:
         """Persist a domain Notification request (event-driven path)."""
         if not self.is_enabled():
             raise ValidationAppError(
-                "notifications are disabled",
+                m("notification.disabled"),
                 details={"key": SETTING_ENABLED, "value": False},
             )
         return self.queue(
@@ -373,21 +374,20 @@ class NotificationService:
     def _require_template(self, template_id: uuid.UUID) -> NotificationTemplate:
         row = self._repo.get_template_by_id(template_id)
         if row is None:
-            raise NotFoundError("Notification template not found")
+            raise NotFoundError(m("notification.template_not_found"))
         return row
 
     def _require_queue(self, queue_id: uuid.UUID) -> NotificationQueue:
         row = self._repo.get_queue_by_id(queue_id)
         if row is None:
-            raise NotFoundError("Notification queue item not found")
+            raise NotFoundError(m("notification.queue_item_not_found"))
         return row
 
     @staticmethod
     def _validate_template_code(code: str) -> None:
         if not _TEMPLATE_CODE_RE.match(code):
             raise ValidationAppError(
-                "template code must start with a letter and use "
-                "letters, digits, underscore, dot, or hyphen (max 100)",
+                m("config.template_code_format"),
                 details={"code": code},
             )
 
@@ -397,7 +397,7 @@ class NotificationService:
             NotificationChannel(channel)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported notification channel: {channel}",
+                f"kanal notifikasi tidak didukung: {channel}",
                 details={
                     "channel": channel,
                     "allowed": [c.value for c in NotificationChannel],
@@ -410,7 +410,7 @@ class NotificationService:
             NotificationQueueStatus(status)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported notification status: {status}",
+                f"status notifikasi tidak didukung: {status}",
                 details={
                     "status": status,
                     "allowed": [s.value for s in NotificationQueueStatus],

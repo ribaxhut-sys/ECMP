@@ -7,7 +7,7 @@
 | Owner | Tech Lead Backend |
 | Reviewer | Solution Architect / DevOps Lead |
 | Approver | Architecture Board |
-| Status | 🟡 Draft |
+| Status | 🟡 Draft (full standard) — **Mode A floor §1–§3 Accepted via DEC-021 (2026-08-01)** |
 | Last Review | 2026-07-21 |
 | Next Review | 2027-01-21 |
 

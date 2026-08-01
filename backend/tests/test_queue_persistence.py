@@ -5,8 +5,8 @@ Mapper · ORM · Repository · Migration · Docker · Regression.
 
 from __future__ import annotations
 
-import asyncio
 import ast
+import asyncio
 import importlib
 import uuid
 from collections.abc import AsyncIterator

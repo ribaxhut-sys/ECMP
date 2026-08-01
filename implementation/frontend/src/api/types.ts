@@ -86,3 +86,16 @@ export interface ApiErrorBody {
   message: string
   details?: Record<string, string>
 }
+
+/** API-040 — dashboard-queues.v1.yaml DashboardQueuesResponse */
+export interface QueueEntry {
+  unitId: string
+  status: CaseStatus
+  count: number
+  oldestCreatedAt: string | null
+}
+
+export interface DashboardQueuesResponse {
+  asOf: string
+  queues: QueueEntry[]
+}

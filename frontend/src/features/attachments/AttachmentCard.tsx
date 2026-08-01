@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ApiError,
   downloadAttachment,
@@ -42,6 +43,7 @@ export interface AttachmentCardProps {
 }
 
 export function AttachmentCard({ attachment }: AttachmentCardProps) {
+  const t = useTranslations("attachments");
   const kind = getPreviewKind(
     attachment.mimeType,
     attachment.extension,
@@ -51,15 +53,15 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const mapError = (error: unknown): string => {
+  const mapError = useCallback((error: unknown): string => {
     if (error instanceof ApiError) {
-      if (error.status === 404) return "Attachment not found (404).";
-      if (error.status === 403) return "Permission denied (403).";
-      if (error.status === 500) return "Server error (500).";
+      if (error.status === 404) return t("notFound404");
+      if (error.status === 403) return t("permissionDenied403");
+      if (error.status === 500) return t("serverError500");
       return error.message;
     }
-    return "Action failed.";
-  };
+    return t("actionFailed");
+  }, [t]);
 
   const handleDownload = useCallback(async () => {
     setBusy(true);
@@ -79,7 +81,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
     } finally {
       setBusy(false);
     }
-  }, [attachment.originalName, attachment.id]);
+  }, [attachment.originalName, attachment.id, mapError]);
 
   const handleOpenTab = useCallback(async () => {
     setBusy(true);
@@ -90,7 +92,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
       const opened = window.open(url, "_blank", "noopener,noreferrer");
       if (!opened) {
         URL.revokeObjectURL(url);
-        setActionError("Popup blocked. Allow popups to open in a new tab.");
+        setActionError(t("popupBlocked"));
         return;
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -99,7 +101,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
     } finally {
       setBusy(false);
     }
-  }, [attachment.id]);
+  }, [attachment.id, mapError, t]);
 
   return (
     <>
@@ -126,9 +128,9 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
                   )}
                 </Badge>
                 {kind === "unsupported" ? (
-                  <Badge tone="warning">No preview</Badge>
+                  <Badge tone="warning">{t("noPreview")}</Badge>
                 ) : (
-                  <Badge tone="info">Previewable</Badge>
+                  <Badge tone="info">{t("previewable")}</Badge>
                 )}
               </div>
             </div>
@@ -136,25 +138,19 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
 
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="min-w-0 space-y-1">
-              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                File size
-              </dt>
+              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">{t("fileSize")}              </dt>
               <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                 {formatFileSize(attachment.sizeBytes)}
               </dd>
             </div>
             <div className="min-w-0 space-y-1">
-              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                MIME type
-              </dt>
+              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">{t("mimeType")}              </dt>
               <dd className="break-all text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                 {attachment.mimeType}
               </dd>
             </div>
             <div className="min-w-0 space-y-1">
-              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                Upload date
-              </dt>
+              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">{t("uploadDate")}              </dt>
               <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                 {formatUploadDate(attachment.uploadedAt)}
               </dd>
@@ -162,7 +158,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
           </dl>
 
           {actionError ? (
-            <Alert tone="danger" title="Action failed" description={actionError} />
+            <Alert tone="danger" title={t("actionFailed")} description={actionError} />
           ) : null}
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -174,13 +170,9 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
                 leftIcon={<IconEye />}
                 onClick={() => setViewerOpen(true)}
                 disabled={busy}
-              >
-                Preview
-              </Button>
+              >{t("preview")}              </Button>
             ) : (
-              <Button type="button" variant="outline" size="sm" disabled>
-                Preview not supported
-              </Button>
+              <Button type="button" variant="outline" size="sm" disabled>{t("previewNotSupportedButton")}              </Button>
             )}
             <Button
               type="button"
@@ -189,9 +181,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
               leftIcon={<IconDownload />}
               loading={busy}
               onClick={() => void handleDownload()}
-            >
-              Download
-            </Button>
+            >{t("download")}            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -199,9 +189,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
               leftIcon={<IconExternalLink />}
               disabled={busy}
               onClick={() => void handleOpenTab()}
-            >
-              Open in new tab
-            </Button>
+            >{t("openInNewTab")}            </Button>
           </div>
         </CardBody>
       </Card>

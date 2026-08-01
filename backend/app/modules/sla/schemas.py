@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.user_messages import m
+
 SlaStatusLiteral = Literal["PENDING", "ON_TIME", "BREACHED", "COMPLETED"]
 
 
@@ -50,7 +52,7 @@ class SlaPolicyCreateRequest(BaseModel):
     def strip_name(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("name is required")
+            raise ValueError(m("validation.name_required"))
         return cleaned
 
     @field_validator("description")

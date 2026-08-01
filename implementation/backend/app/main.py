@@ -31,6 +31,7 @@ from app.schemas import (
     CaseStatus,
     CaseTimeline,
     CaseType,
+    DashboardQueuesResponse,
     Error,
     NoteCreateRequest,
     Priority,
@@ -131,21 +132,21 @@ def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
     return _envelope(500, "INTERNAL_ERROR", "Internal server error")
 
 
-@app.get("/health")
-def health():
-    """Liveness probe — no dependency checks (Sprint-08 keeps shape stable)."""
-    return {"status": "ok", "service": "ecmp-case-service", "sprint": "Sprint-08"}
+@app.get("/live")
+def live():
+    """Liveness — process up; no dependency checks (case-service.v1.yaml)."""
+    return {"status": "ok", "service": "ecmp-case-service"}
 
 
 @app.get(
-    "/health/ready",
+    "/ready",
     responses={
         200: {"description": "Service is ready (database reachable)"},
         503: {"description": "Service is not ready (database unreachable)"},
     },
 )
-def readiness():
-    """Readiness probe — verifies database connectivity (SELECT 1)."""
+def ready():
+    """Readiness — startup + database SELECT 1 (ReadyResponse)."""
     try:
         ping_database()
     except Exception:
@@ -155,14 +156,63 @@ def readiness():
             content={
                 "status": "not_ready",
                 "service": "ecmp-case-service",
-                "checks": {"database": "fail"},
+                "checks": {"startup": "ok", "database": "fail"},
             },
         )
     return {
         "status": "ready",
         "service": "ecmp-case-service",
-        "checks": {"database": "ok"},
+        "checks": {"startup": "ok", "database": "ok"},
     }
+
+
+@app.get("/health", deprecated=True)
+def health():
+    """Legacy informational probe — prefer /live and /ready."""
+    database = "up"
+    try:
+        ping_database()
+    except Exception:
+        database = "down"
+    return {
+        "status": "ok",
+        "service": "ecmp-case-service",
+        "version": settings.release_version(),
+        "environment": settings.env(),
+        "database": database,
+    }
+
+
+@app.get("/version")
+def version():
+    """R6-01 release provenance — values from build ENV when present."""
+    return {
+        "version": settings.release_version(),
+        "git_commit": settings.git_commit(),
+        "branch": settings.git_branch(),
+        "build_time": settings.build_time(),
+        "environment": settings.env(),
+        "git_tree_state": settings.git_tree_state(),
+    }
+
+
+@app.get(
+    "/v1/dashboard/queues",
+    response_model=DashboardQueuesResponse,
+    responses={**ERROR_RESPONSES},
+    summary="Operational queue dashboard",
+    tags=["Dashboard"],
+)
+def get_dashboard_queues(
+    user: dict = Depends(need("dashboard:read")),
+    session: Session = Depends(get_session),
+):
+    """API-040 / FR-040 / CAP-007 — normative dashboard-queues.v1.yaml 1.0.0.
+
+    Read-only (BR-DASH-03). Unit-scoped Supervisor aggregates (BR-006).
+    Does not use API-390 or API-513.
+    """
+    return service.get_dashboard_queues(session, user)
 
 
 @app.get(

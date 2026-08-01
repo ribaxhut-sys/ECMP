@@ -1,125 +1,96 @@
-# ECMP Structured Log Inspection Procedure
+# ECMP Log Inspection Procedure
 
 | Field | Value |
 |---|---|
 | ID | OPS-LOG-001 |
-| Version | 0.1 |
+| Version | 0.2 |
 | Owner | Operations Lead |
 | Reviewer | DevOps / Tech Lead Backend / Support Lead |
 | Approver | Operations Lead |
 | Status | 🟡 Draft |
-| Last Review | 2026-07-22 |
+| Last Review | 2026-07-30 |
 | Next Review | 2027-01-21 |
-| Related | TS-OBS-001, OPS-RB-001, DEP-CHK-001 |
+| Related | TS-OBS-001, OPS-RB-001, OPS-SEC-AUD-001, DEP-CHK-001 |
 
-Dedicated procedure for inspecting **structured JSON logs** from `ecmp-case-service` (Sprint-08 logging). Aligns with `21 Technical Standards/ECMP_Observability_Standard_v0.1.md` (TS-OBS-001) and runtime middleware (`X-Request-ID`, `X-Correlation-ID`).
+Procedure for inspecting **foundation backend** access/application logs and correlating with `X-Request-ID`. For platform **security audit** rows (`security.*`), prefer [`ECMP_Audit_Investigation_Guide_v1.0.md`](./ECMP_Audit_Investigation_Guide_v1.0.md).
 
-## 1. Log format (contract)
+## 1. Foundation log format (canonical)
 
-Each application/access line is **one JSON object** on stdout (no multi-line free text).
+Root `backend/` uses a text formatter (`backend/app/core/logging.py`), for example:
 
-| Field | Location | Notes |
-|---|---|---|
-| `timestamp` | top-level | UTC ISO-8601 with `Z` |
-| `level` | top-level | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
-| `service` | top-level | `ecmp-case-service` |
-| `correlation_id` | top-level | From `X-Correlation-ID`, or equals `request_id` if header absent |
-| `message` | top-level | Short, **no PII** |
-| `extra.request_id` | under `extra` | From `X-Request-ID` (generated UUID if client omitted it) |
-| `extra.method` / `path` / `status_code` / `duration_ms` | under `extra` | Access log (`request completed`) |
-
-Example (illustrative):
-
-```json
-{"timestamp":"2026-07-22T10:00:00.000Z","level":"INFO","service":"ecmp-case-service","correlation_id":"corr-abc","message":"request completed","extra":{"request_id":"req-abc","method":"POST","path":"/v1/cases","status_code":201,"duration_ms":12.5}}
+```text
+2026-07-30T10:00:00+0000 | INFO     | app.http | request method=GET path=/ready status=200 duration_ms=1.2 request_id=<uuid>
 ```
 
-**PII ban (always):** do not expect or search for `subject`, `description`, customer name/contact, or bearer tokens in logs (TS-OBS-001 §3).
+| Signal | Where |
+|---|---|
+| `request_id` | Substring `request_id=` in the message; also response header `X-Request-ID` |
+| Level / logger | `INFO` / `ERROR`, logger name e.g. `app.http`, `app.main` |
+| Secrets | Scrubbed via `SecretRedactingFilter` — do not expect raw JWT/DB passwords |
 
-## 2. Where logs live (today)
+**PII ban:** do not search for or paste case subject/description, tokens, or passwords (TS-OBS-001 §3).
+
+### Historical (slice pack)
+
+Sprint-08 JSON contract for `ecmp-case-service` under **`implementation/backend`** (fields `correlation_id`, `extra.request_id`) remains valid **only** when that pack is running. Marked historical — not the production foundation path.
+
+## 2. Where logs live
 
 | Environment | Source | How to view |
 |---|---|---|
-| DEV | uvicorn stdout in the terminal | Scroll / redirect to file when reproducing |
-| CI | GitHub Actions job log | Open workflow run → pytest/uvicorn steps |
-| SIT/UAT/PROD | Planned (ADR-010) | Same JSON contract; aggregation tool TBD at activation |
+| DEV (foundation) | uvicorn / Compose `backend` stdout | `docker compose logs -f backend` |
+| CI | GitHub Actions job log | Workflow run |
+| SIT/UAT/PROD | Compose / host logging | `docker compose -f docker-compose.prod.yml logs backend`; aggregation TBD (ADR-010) |
 
 ## 3. Capture IDs from a response
 
-Every successful middleware path echoes:
-
-- Response header `X-Request-ID`
-- Response header `X-Correlation-ID` (defaults to request id when client did not send correlation)
+Foundation middleware echoes **`X-Request-ID`**. Audit metadata may also store `correlationId` (from `X-Correlation-ID` if the client sent it; else equals request id) — see OPS-SEC-AUD-001.
 
 ```powershell
-# Example — capture headers from health (no auth)
-curl.exe -sD - -o NUL http://127.0.0.1:8000/health
+curl.exe -sD - -o NUL http://127.0.0.1:8000/ready
+# Production:
+# curl.exe -sD - -o NUL https://$env:ECMP_DOMAIN/ready
 ```
 
-Record both values in the incident ticket before diving into logs.
+Record `X-Request-ID` in the incident ticket.
 
-## 4. Lookup by `request_id`
-
-`request_id` is stored as `extra.request_id` in JSON lines.
-
-**PowerShell (local file or redirected stdout):**
+## 4. Lookup by `request_id` (foundation)
 
 ```powershell
-# $logFile = path to captured stdout (one JSON object per line)
-$requestId = "req-sprint09-example"
-Get-Content $logFile | ForEach-Object {
-  try { $_ | ConvertFrom-Json } catch { $null }
-} | Where-Object {
-  $_.extra.request_id -eq $requestId -or $_.extra.request_id -eq $requestId
-}
-```
-
-**ripgrep (any OS with `rg`):**
-
-```bash
-rg -F '"request_id":"<REQUEST_ID>"' /path/to/logfile.jsonl
-```
-
-Expect at least the `request completed` access line for that HTTP call; ERROR lines for the same request share the same ids when emitted inside the request context.
-
-## 5. Lookup by `correlation_id`
-
-`correlation_id` is a **top-level** JSON field. Use it to group related calls when the client propagates `X-Correlation-ID` across retries or portal→API hops (propagation to other services is Planned until ADR-009 consumers exist).
-
-```powershell
-$correlationId = "corr-sprint09-example"
-Get-Content $logFile | ForEach-Object {
-  try { $_ | ConvertFrom-Json } catch { $null }
-} | Where-Object { $_.correlation_id -eq $correlationId }
+$requestId = "<paste-uuid>"
+docker compose logs backend 2>&1 | Select-String -SimpleMatch "request_id=$requestId"
 ```
 
 ```bash
-rg -F '"correlation_id":"<CORRELATION_ID>"' /path/to/logfile.jsonl
+rg -F "request_id=<REQUEST_ID>" <<< "$(docker compose logs backend)"
 ```
 
-**Rule of thumb:** if the client sent only `X-Request-ID`, `correlation_id == request_id` for that call — searching either id finds the same access line.
+## 5. Correlation across calls
+
+If the client propagated `X-Correlation-ID`, query **audit** `metadata.correlationId` (OPS-SEC-AUD-001). Foundation access logs may not print a separate correlation field — use audit for multi-call journeys.
 
 ## 6. Diagnosis workflow (support)
 
-1. Obtain failing `caseId` (if any) and response headers `X-Request-ID` / `X-Correlation-ID` from the client or API collection.
-2. Narrow time window (±5 minutes around the failure).
-3. Lookup by `request_id` first (single call); escalate to `correlation_id` if the journey spans multiple calls.
-4. Confirm `extra.path`, `extra.status_code`, and `level` — map 4xx/5xx to OPS-RB-001 playbooks (auth → check token/permissions; 5xx → P1/P2).
-5. If no matching line: verify the process writing logs is the same instance that served the request; confirm the client copied headers from the **same** response.
-6. **Never** paste raw case `subject`/`description` into tickets from DB dumps when correlating — use ids only.
+1. Obtain response `X-Request-ID` (and AuthN symptom if any).
+2. Narrow time window (±5–15 minutes).
+3. Search foundation logs for `request_id=…`.
+4. For 401/403/429 security patterns → OPS-SEC-RB-001 + audit guide.
+5. For 5xx / boot failures → OPS-RB-001 P1/P2.
+6. Never paste secrets or raw case free-text into tickets.
 
 ## 7. Verification checklist
 
 | # | Check | Pass |
 |---|---|---|
-| 1 | Log line parses as JSON | `ConvertFrom-Json` / `jq` succeeds |
-| 2 | Required fields present | `timestamp`, `level`, `service`, `message` |
-| 3 | Id lookup works | Hit on `correlation_id` and/or `extra.request_id` |
-| 4 | No PII in matched lines | No subject/description/token values |
+| 1 | Can capture `X-Request-ID` from a probe response | Header present |
+| 2 | Log line contains matching `request_id=` | Hit in `docker compose logs backend` |
+| 3 | No secret material in matched lines | Redacted / absent |
+| 4 | Security follow-up uses audit guide when needed | OPS-SEC-AUD-001 |
 
 ## Related
 
 - `../21 Technical Standards/ECMP_Observability_Standard_v0.1.md` (TS-OBS-001)
-- `./ECMP_Runbook_Slice_v0.1.md` (OPS-RB-001) — incident playbooks
-- `../14 Deployment Standards/ECMP_Production_Deployment_Checklist_v0.1.md` (DEP-CHK-001 §3)
-- Implementation: `implementation/backend/app/logging_config.py`, `implementation/backend/app/middleware.py`
+- `./ECMP_Runbook_Slice_v0.1.md` (OPS-RB-001)
+- `./ECMP_Audit_Investigation_Guide_v1.0.md` (OPS-SEC-AUD-001)
+- Foundation code (reference): `backend/app/core/middleware.py`, `backend/app/core/logging.py`
+- **Historical:** `implementation/backend/app/logging_config.py` (JSON slice pack)

@@ -6,8 +6,9 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { ApiError, fetchSettings, updateSetting } from "@/lib/api";
+import { fetchSettings, updateSetting } from "@/lib/api";
 import type { Setting } from "@/lib/api/types";
 import {
   Alert,
@@ -25,8 +26,12 @@ import {
   Table,
   type TableColumn,
 } from "@/shared/ui";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 export function SystemSettingsManagement() {
+  const t = useTranslations("settings");
+  const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("settings:read");
   const canUpdate = hasPermission("settings:update");
@@ -55,14 +60,12 @@ export function SystemSettingsManagement() {
     } catch (err) {
       setSettings([]);
       setLoadError(
-        err instanceof ApiError
-          ? err.message
-          : "Unable to load system settings.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoad"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead]);
+  }, [canRead, t, tCommon, tErrors]);
 
   useEffect(() => {
     void load();
@@ -91,22 +94,40 @@ export function SystemSettingsManagement() {
       setSettings((prev) =>
         prev.map((item) => (item.key === editingKey ? res.data : item)),
       );
-      setActionSuccess(`Updated ${editingKey}.`);
+      setActionSuccess(t("updatedKeyMessage", { key: editingKey }));
       cancelEdit();
     } catch (err) {
       setActionError(
-        err instanceof ApiError ? err.message : "Unable to update setting.",
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToUpdateSetting"),
       );
     } finally {
       setSaving(false);
     }
   }
 
+  const categoryLabel = (category: string): string => {
+    const map: Record<string, string> = {
+      app: t("categoryApp"),
+      company: t("categoryCompany"),
+      complaint: t("categoryComplaint"),
+      dashboard: t("categoryDashboard"),
+      notification: t("categoryNotification"),
+      storage: t("categoryStorage"),
+    };
+    return map[category] ?? category;
+  };
+
+  const visibilityLabel = (visibility: string): string => {
+    if (visibility === "PUBLIC") return t("visibilityPublic");
+    if (visibility === "PROTECTED") return t("visibilityProtected");
+    return visibility;
+  };
+
   if (!canRead) {
     return (
       <Empty
-        title="Access restricted"
-        description="You need the settings:read permission to view system settings."
+        title={tCommon("accessRestricted")}
+        description={t("accessRestrictedSystem")}
       />
     );
   }
@@ -114,18 +135,18 @@ export function SystemSettingsManagement() {
   const columns: TableColumn<Setting>[] = [
     {
       key: "key",
-      header: "Key",
+      header: t("keyColumn"),
       cell: (row) => <code data-testid={`setting-key-${row.key}`}>{row.key}</code>,
     },
     {
       key: "value",
-      header: "Value",
+      header: t("valueColumn"),
       cell: (row) =>
         editingKey === row.key ? (
           <Input
             value={draftValue}
             onChange={(e) => setDraftValue(e.target.value)}
-            aria-label={`Value for ${row.key}`}
+            aria-label={t("valueAriaLabel", { key: row.key })}
           />
         ) : (
           <span>{row.value === "" ? "—" : row.value}</span>
@@ -133,26 +154,26 @@ export function SystemSettingsManagement() {
     },
     {
       key: "valueType",
-      header: "Type",
+      header: t("typeColumn"),
       cell: (row) => <Badge tone="info">{row.valueType}</Badge>,
     },
     {
       key: "visibility",
-      header: "Visibility",
+      header: t("visibilityColumn"),
       cell: (row) => (
         <Badge tone={row.visibility === "PUBLIC" ? "success" : "neutral"}>
-          {row.visibility}
+          {visibilityLabel(row.visibility)}
         </Badge>
       ),
     },
     {
       key: "category",
-      header: "Category",
-      cell: (row) => row.category,
+      header: t("categoryColumn"),
+      cell: (row) => categoryLabel(row.category),
     },
     {
       key: "actions",
-      header: "Actions",
+      header: tCommon("actions"),
       hideOnMobile: false,
       cell: (row) => {
         if (!canUpdate) return null;
@@ -160,7 +181,7 @@ export function SystemSettingsManagement() {
           return (
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" loading={saving}>
-                Save
+                {tCommon("save")}
               </Button>
               <Button
                 type="button"
@@ -169,7 +190,7 @@ export function SystemSettingsManagement() {
                 onClick={cancelEdit}
                 disabled={saving}
               >
-                Cancel
+                {tCommon("cancel")}
               </Button>
             </div>
           );
@@ -182,7 +203,7 @@ export function SystemSettingsManagement() {
             onClick={() => startEdit(row)}
             disabled={editingKey !== null}
           >
-            Edit
+            {tCommon("edit")}
           </Button>
         );
       },
@@ -192,24 +213,24 @@ export function SystemSettingsManagement() {
   return (
     <Card data-testid="system-settings-card">
       <CardHeader>
-        <CardTitle>System Settings</CardTitle>
+        <CardTitle>{t("systemSettingsTitle")}</CardTitle>
         <CardDescription>
-          Application configuration keys (typed values, PUBLIC / PROTECTED).
+          {t("systemSettingsDescription")}
         </CardDescription>
       </CardHeader>
       <CardBody className="space-y-4">
         {loadError ? (
           <ErrorState
-            title="Unable to load settings"
+            title={t("unableToLoad")}
             message={loadError}
             onRetry={() => void load()}
           />
         ) : null}
         {actionError ? (
-          <Alert tone="danger" title="Update failed" description={actionError} />
+          <Alert tone="danger" title={t("updateFailed")} description={actionError} />
         ) : null}
         {actionSuccess ? (
-          <Alert tone="success" title="Saved" description={actionSuccess} />
+          <Alert tone="success" title={t("saved")} description={actionSuccess} />
         ) : null}
         <form onSubmit={onSave}>
           {loading ? (
@@ -219,7 +240,7 @@ export function SystemSettingsManagement() {
               columns={columns}
               rows={settings}
               getRowKey={(row) => row.key}
-              emptyMessage="No settings found."
+              emptyMessage={t("noSettingsFound")}
             />
           ) : null}
         </form>

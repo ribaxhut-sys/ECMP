@@ -7,8 +7,9 @@ from typing import Any
 
 from app.core.errors import NotFoundError
 from app.core.schemas import PageMeta
+from app.core.user_messages import m
 from app.modules.timeline.domain.entity import TimelineEntry
-from app.modules.timeline.domain.enums import AggregateType, ActorType
+from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
 from app.modules.timeline.schemas import (
     TimelineEntryCreateRequest,
@@ -88,7 +89,7 @@ class ActivityTimelineService:
     def get(self, entry_id: uuid.UUID) -> TimelineEntryResponse:
         entry = self._repo.get(entry_id)
         if entry is None:
-            raise NotFoundError("Timeline entry not found")
+            raise NotFoundError(m("timeline.not_found"))
         return _to_response(entry)
 
     def list(

@@ -54,6 +54,10 @@ Queue/workload/SLA views, filters, snapshots/export. No direct transaction mutat
 ## Objective
 Visualisasi operasional dan eksekutif berbasis role dengan drill-down ke konteks case. **Read-only** — dashboard tidak boleh mengubah data transaksi (BR-DASH-03).
 
+**TASK-050 (Dashboard Projection Foundation):** in-process `DashboardProjection`
+updated only from Complaint events via `EventDispatcher`. No HTTP endpoint yet;
+no DB persistence.
+
 ## Bounded Context
 Konteks Read Model / Projection: konsumsi domain events → bangun aggregated view per persona. Tampilan mengikuti role + organisasi user login (BR-DASH-01 → delivery BR-006); otorisasi tetap via Core Platform (BR-DASH-04).
 
@@ -61,16 +65,13 @@ Konteks Read Model / Projection: konsumsi domain events → bangun aggregated vi
 - Persona dashboards (queue/workload/SLA views)
 - Filters dan snapshots/export
 - Drill-down ke case context (navigasi, bukan mutasi)
+- **TASK-050:** event-driven in-memory operational counters
 
 ## Out of Scope
 - Mutasi data transaksi (BR-DASH-03); perhitungan KPI (milik KPI)
+- TASK-050: HTTP projection API, DB/materialized view, cache tier
 
 ## Key Components
-- Event Projector (idempotent consumer), Aggregated Metrics store, Widget Config per persona, Saved Filter, Report Snapshot.
-
-## Key Flows
-Event masuk → update projection → user buka dashboard → filter view by role+org (BR-006) → drill-down ke case. Angka harus reconcile dengan sumber; lag ditandai timestamp "as of" (BR-DASH-02).
-
-#
+- Event Projector (idempote
 
 _…truncated…_

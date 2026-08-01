@@ -7,7 +7,7 @@
 | Owner | Security Architect |
 | Reviewer | Tech Lead / Solution Architect / Security Officer |
 | Approver | Architecture Board |
-| Status | 🟡 Proposed (normative once ADR-012 is Accepted) |
+| Status | 🟡 Proposed (design normative under Accepted ADR-012; implementation not authorized by this document) |
 | Last Review | 2026-07-21 |
 | Next Review | 2026-10-21 |
 

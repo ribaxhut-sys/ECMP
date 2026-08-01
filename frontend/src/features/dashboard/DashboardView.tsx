@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   Button,
@@ -20,6 +21,8 @@ import { useDashboardData } from "./useDashboardData";
 
 export function DashboardView() {
   const { user, hasPermission } = useAuth();
+  const t = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
   const canRead = hasPermission("dashboard:read");
   const { state, reload } = useDashboardData();
   const loading = state.status === "loading";
@@ -34,15 +37,15 @@ export function DashboardView() {
     return (
       <PageContainer className="space-y-6">
         <PageHeader
-          title="Dashboard"
+          title={t("title")}
           breadcrumbs={[
-            { label: "Home", href: "/dashboard" },
-            { label: "Dashboard" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title") },
           ]}
         />
         <Empty
-          title="Access restricted"
-          description="You need the dashboard:read permission to view the dashboard."
+          title={t("accessRestricted")}
+          description={t("accessRestrictedDescription")}
         />
       </PageContainer>
     );
@@ -51,31 +54,28 @@ export function DashboardView() {
   return (
     <PageContainer className="space-y-6">
       <PageHeader
-        title="Dashboard"
+        title={t("title")}
         breadcrumbs={[
-          { label: "Home", href: "/dashboard" },
-          { label: "Dashboard" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title") },
         ]}
-        description={
-          <>
-            Signed in as {user?.fullName ?? user?.username}. Live summary from
-            the Dashboard API.
-          </>
-        }
+        description={t("signedInAs", {
+          name: user?.fullName ?? user?.username ?? "",
+        })}
         actions={
           <Button
             variant="outline"
             onClick={() => void reload()}
             disabled={loading}
           >
-            {loading ? "Refreshing…" : "Refresh"}
+            {loading ? tCommon("refreshing") : tCommon("refresh")}
           </Button>
         }
       />
 
       {state.status === "error" ? (
         <ErrorState
-          title="Unable to load dashboard"
+          title={t("unableToLoad")}
           message={state.error}
           code={state.code}
           onRetry={() => void reload()}

@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import type { Complaint } from "@/lib/api/types";
+import { formatDateTime } from "@/i18n/formatting";
 import {
   Badge,
   Card,
@@ -12,17 +16,6 @@ import {
   type BadgeTone,
   type TableColumn,
 } from "@/shared/ui";
-
-function formatWhen(value: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function priorityTone(priority: string): BadgeTone {
   switch (priority) {
@@ -37,47 +30,6 @@ function priorityTone(priority: string): BadgeTone {
   }
 }
 
-const columns: TableColumn<Complaint>[] = [
-  {
-    key: "number",
-    header: "Number",
-    cell: (row) => (
-      <Link
-        href={`/complaints/${row.id}`}
-        className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-      >
-        {row.complaintNumber}
-      </Link>
-    ),
-  },
-  {
-    key: "subject",
-    header: "Subject",
-    cell: (row) => <span className="line-clamp-2">{row.subject}</span>,
-  },
-  {
-    key: "status",
-    header: "Status",
-    cell: (row) => (
-      <Badge tone="neutral">{row.status.replaceAll("_", " ")}</Badge>
-    ),
-  },
-  {
-    key: "priority",
-    header: "Priority",
-    cell: (row) => (
-      <Badge tone={priorityTone(row.priority)}>{row.priority}</Badge>
-    ),
-  },
-  {
-    key: "created",
-    header: "Created",
-    cell: (row) => (
-      <span className="text-ecmp-text-secondary">{formatWhen(row.createdAt)}</span>
-    ),
-  },
-];
-
 export function LatestComplaints({
   rows,
   loading,
@@ -85,11 +37,60 @@ export function LatestComplaints({
   rows: Complaint[] | null;
   loading: boolean;
 }) {
+  const t = useTranslations("dashboard");
+  const tComplaints = useTranslations("complaints");
+  const tStatus = useTranslations("status");
+  const tPriority = useTranslations("priority");
+  const locale = useLocale();
+
+  const columns: TableColumn<Complaint>[] = [
+    {
+      key: "number",
+      header: t("number"),
+      cell: (row) => (
+        <Link
+          href={`/complaints/${row.id}`}
+          className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+        >
+          {row.complaintNumber}
+        </Link>
+      ),
+    },
+    {
+      key: "subject",
+      header: tComplaints("subject"),
+      cell: (row) => <span className="line-clamp-2">{row.subject}</span>,
+    },
+    {
+      key: "status",
+      header: tComplaints("status"),
+      cell: (row) => (
+        <Badge tone="neutral">{tStatus(row.status)}</Badge>
+      ),
+    },
+    {
+      key: "priority",
+      header: tComplaints("priority"),
+      cell: (row) => (
+        <Badge tone={priorityTone(row.priority)}>{tPriority(row.priority)}</Badge>
+      ),
+    },
+    {
+      key: "created",
+      header: tComplaints("createdAt"),
+      cell: (row) => (
+        <span className="text-ecmp-text-secondary">
+          {formatDateTime(row.createdAt, locale)}
+        </span>
+      ),
+    },
+  ];
+
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Latest Complaints</CardTitle>
+          <CardTitle>{t("latestComplaints")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Skeleton rows={5} />
@@ -102,12 +103,12 @@ export function LatestComplaints({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Latest Complaints</CardTitle>
+          <CardTitle>{t("latestComplaints")}</CardTitle>
         </CardHeader>
         <CardBody>
           <Empty
-            title="No complaints"
-            description="No complaints found."
+            title={t("noComplaints")}
+            description={t("noComplaintsDescription")}
           />
         </CardBody>
       </Card>
@@ -117,15 +118,15 @@ export function LatestComplaints({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Latest Complaints</CardTitle>
+        <CardTitle>{t("latestComplaints")}</CardTitle>
       </CardHeader>
       <CardBody>
         <Table
           columns={columns}
           rows={rows}
           getRowKey={(row) => row.id}
-          caption="Latest complaints"
-          emptyMessage="No complaints found."
+          caption={t("latestComplaints")}
+          emptyMessage={t("noComplaintsDescription")}
         />
       </CardBody>
     </Card>

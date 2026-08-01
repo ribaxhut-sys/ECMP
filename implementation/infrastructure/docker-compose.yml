@@ -1,5 +1,12 @@
 # ECMP local development infrastructure (G0 floor per DEC-002).
-# Usage: docker compose -f implementation/infrastructure/docker-compose.yml up -d
+# Default (no profile): PostgreSQL only — unchanged behaviour.
+#   docker compose -f implementation/infrastructure/docker-compose.yml up -d
+#
+# Optional IdP baseline (SEC-MIG-001 Phase 1 / TASK-PLATFORM-SECMIG-P1-001):
+#   docker compose -f implementation/infrastructure/docker-compose.yml --profile auth up -d
+#
+# Image pin: quay.io/keycloak/keycloak:26.2.5 (do not float tags).
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +24,42 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  keycloak:
+    profiles: ["auth"]
+    image: quay.io/keycloak/keycloak:26.2.5
+    container_name: ecmp-keycloak
+    command:
+      - start-dev
+      - --import-realm
+      - --http-port=8080
+      - --health-enabled=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin_local_only}
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      # Local DEV only — http issuer for OIDC discovery on localhost.
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: "8180"
+      KC_HOSTNAME_URL: http://localhost:8180
+    ports:
+      - "8180:8080"
+      - "9000:9000"
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import:ro
+    # No persistent Keycloak volume: repo realm JSON is SoT; each clean recreate re-imports.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q '200'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
 
 volumes:
   ecmp_pgdata:

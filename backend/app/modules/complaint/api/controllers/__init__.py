@@ -12,6 +12,7 @@ from fastapi import Response, status
 
 from app.core.request_context import RequestContext
 from app.core.schemas import DataResponse
+from app.core.user_messages import m
 from app.modules.complaint.api.exception_handlers import raise_as_api_error
 from app.modules.complaint.api.requests import (
     AssignRequest,
@@ -107,7 +108,7 @@ class ComplaintController:
             raise_as_api_error(
                 ComplaintApplicationError(
                     "VALIDATION_ERROR",
-                    "queue_ticket_id is required",
+                    m("queue.ticket_id_required"),
                 )
             )
         try:

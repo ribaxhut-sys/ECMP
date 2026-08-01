@@ -1,15 +1,20 @@
 name: Root Frontend CI
 
-# Sprint R1-02 — minimal CI for foundation frontend/ (not implementation/frontend).
-# Intentionally excludes tests, coverage, Playwright, and Cypress.
+# Product UI CI for canonical frontend/ (DEC-019).
+# FE-CI-POL-001 v1.0 Accepted with Conditions (FE-CI-POL-CS-001):
+#   Phase A/B hard: typecheck, lint, build
+#   Phase C hard: unit tests + coverage thresholds
+#   K-3 / AEN-03: Mode A credential-route inventory + enterprise guard self-test
+#   Still warn: npm audit, a11y smoke
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "feature/**", "release/**", "chore/**"]
     paths:
       - "frontend/**"
       - ".github/workflows/root-frontend-ci.yml"
   pull_request:
+    branches: [main, master, "feature/**"]
     paths:
       - "frontend/**"
       - ".github/workflows/root-frontend-ci.yml"
@@ -20,6 +25,9 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      # Required for next.config production checks (lint/build).
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,10 +37,34 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Dependency audit (high+)
+        # Still warn — high vulns remain; not Phase C hard-fail.
+        continue-on-error: true
+        run: npm audit --audit-level=high
       - name: Type check
         run: npm run typecheck
-      - name: Production build
+      - name: Lint
+        run: npm run lint
+      - name: Mode A credential route inventory (standalone)
+        # Mode A delivery may keep login/password routes. Documents surface for ADR-014.
+        run: npm run check:auth-routes
         env:
-          # R2-04: explicit URL required — no silent localhost fallback in app/Dockerfile.
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+          ECMP_FRONTEND_DEPLOY_MODE: standalone
+      - name: Prove enterprise credential-route guard hard-fails
+        # K-3 / AEN-03: while Mode A routes remain, enterprise profile MUST exit 1.
+        # Mode B unlock still CLOSED (C-7) — this proves the guard, does not remove routes.
+        run: npm run check:auth-routes:enterprise-guard
+      - name: Mode A credential-route guard unit tests
+        run: npm run check:auth-routes:unit
+      - name: Unit tests with coverage (Phase C hard-fail)
+        # FE-CI-POL-001 / OD-FE-010 Phase C — allowlisted .ts modules only (see vitest.config).
+        # Exclude *.test.tsx: i18n UI suites pull message catalogs and OOM ubuntu-latest.
+        run: npm run test:coverage
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Accessibility smoke (warn)
+        # Working target WCAG 2.2 AA; smoke remains warn (no conformance claim).
+        continue-on-error: true
+        run: npm run test:a11y
+      - name: Production build
         run: npm run build

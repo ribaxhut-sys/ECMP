@@ -35,7 +35,7 @@ class CallNextTicketHandler:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {command.queue_id}",
+                f"antrian tidak ditemukan: {command.queue_id}",
             )
         self._domain.validate_can_call(queue)
         tickets = self._state.list_tickets(queue.queue_id)

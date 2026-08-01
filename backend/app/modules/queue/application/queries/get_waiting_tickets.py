@@ -35,7 +35,7 @@ class GetWaitingTicketsHandler:
         if queue is None:
             raise QueueApplicationError(
                 "QUEUE_NOT_FOUND",
-                f"queue not found: {query.queue_id}",
+                f"antrian tidak ditemukan: {query.queue_id}",
             )
         self._domain.validate_queue_policy(queue.policy)
         tickets = [

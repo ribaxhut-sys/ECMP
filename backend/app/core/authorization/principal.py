@@ -13,6 +13,9 @@ class Principal:
     user_id: uuid.UUID
     roles: tuple[str, ...] = ()
     permissions: frozenset[str] = field(default_factory=frozenset)
+    force_password_change: bool = False
+    sid: str | None = None
+    org_unit_id: str | None = None
 
     def has_permission(self, permission: str) -> bool:
         return "*" in self.permissions or permission in self.permissions

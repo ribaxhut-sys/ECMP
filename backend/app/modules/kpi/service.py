@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.errors import ValidationAppError
+from app.core.user_messages import m
 from app.models import SlaRecord
 from app.modules.kpi.repository import KpiRepository
 from app.modules.kpi.schemas import (
@@ -34,7 +35,7 @@ def _validate_filters(
         and normalized_from > normalized_to
     ):
         raise ValidationAppError(
-            "dateFrom must be less than or equal to dateTo",
+            m("config.date_from_lte_date_to"),
             details={
                 "dateFrom": normalized_from.isoformat(),
                 "dateTo": normalized_to.isoformat(),

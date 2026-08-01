@@ -17,8 +17,8 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
-    func,
     false,
+    func,
     text,
     true,
 )
@@ -27,6 +27,19 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampAuditSoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from app.modules.attachment.models import Attachment
+from app.modules.cm_batch1.models import (
+    CmBatch1AttachmentHistoryORM,
+    CmBatch1AttachmentORM,
+    CmBatch1AttachmentStagingORM,
+    CmBatch1ChannelMessageORM,
+    CmBatch1ComplaintORM,
+    CmBatch1CustomerLockORM,
+    CmBatch1DuplicateDecisionORM,
+    CmBatch1IdempotencyORM,
+    CmBatch1LaterReviewItemORM,
+    CmBatch1NumberCounterORM,
+    CmBatch1OutboxORM,
+)
 from app.modules.iam.data_scope.models import DataScope
 from app.modules.iam.permission.models import Permission
 from app.modules.iam.role.models import Role
@@ -94,8 +107,14 @@ class User(TimestampAuditSoftDeleteMixin, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=true()
     )
+    force_password_change: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    preferred_language: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="id", server_default=text("'id'")
     )
 
     role: Mapped[Role] = relationship(back_populates="users")
@@ -644,11 +663,57 @@ class RefreshToken(Base):
     user: Mapped[User] = relationship(foreign_keys=[user_id])
 
 
+class PasswordResetToken(Base):
+    """Single-use password reset token (hashed at rest; never store raw token)."""
+
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_password_reset_tokens_token_hash"),
+        Index("ix_password_reset_tokens_user_id", "user_id"),
+        Index("ix_password_reset_tokens_expires_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
 __all__ = [
     "Appointment",
     "Attachment",
     "AuditLog",
     "Branch",
+    "CmBatch1AttachmentHistoryORM",
+    "CmBatch1AttachmentORM",
+    "CmBatch1AttachmentStagingORM",
+    "CmBatch1ChannelMessageORM",
+    "CmBatch1ComplaintORM",
+    "CmBatch1CustomerLockORM",
+    "CmBatch1DuplicateDecisionORM",
+    "CmBatch1IdempotencyORM",
+    "CmBatch1LaterReviewItemORM",
+    "CmBatch1NumberCounterORM",
+    "CmBatch1OutboxORM",
     "Complaint",
     "ComplaintAssignment",
     "ComplaintEscalation",
@@ -658,6 +723,7 @@ __all__ = [
     "DataScope",
     "NotificationQueue",
     "NotificationTemplate",
+    "PasswordResetToken",
     "Permission",
     "RefreshToken",
     "Role",

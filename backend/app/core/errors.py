@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.user_messages import code_message
+
 
 class ApiError(Exception):
     def __init__(
@@ -23,8 +25,10 @@ class ApiError(Exception):
 class UnauthenticatedError(ApiError):
     """HTTP 401 — caller is not authenticated."""
 
-    def __init__(self, message: str = "Unauthenticated") -> None:
-        super().__init__(401, "UNAUTHENTICATED", message)
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(
+            401, "UNAUTHENTICATED", message or code_message("UNAUTHENTICATED")
+        )
 
 
 class ForbiddenError(ApiError):
@@ -37,12 +41,14 @@ class ForbiddenError(ApiError):
 
     def __init__(
         self,
-        message: str = "Permission denied",
+        message: str | None = None,
         *,
         code: str = "FORBIDDEN",
         details: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(403, code, message, details)
+        super().__init__(
+            403, code, message or code_message(code), details
+        )
 
 
 class PermissionDeniedError(ForbiddenError):
@@ -50,10 +56,14 @@ class PermissionDeniedError(ForbiddenError):
 
     def __init__(
         self,
-        message: str = "Permission denied",
+        message: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(message, code="FORBIDDEN", details=details)
+        super().__init__(
+            message or code_message("FORBIDDEN"),
+            code="FORBIDDEN",
+            details=details,
+        )
 
 
 class DataScopeDeniedError(ForbiddenError):
@@ -61,15 +71,34 @@ class DataScopeDeniedError(ForbiddenError):
 
     def __init__(
         self,
-        message: str = "Data scope denied",
+        message: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(message, code="DATA_SCOPE_DENIED", details=details)
+        super().__init__(
+            message or code_message("DATA_SCOPE_DENIED"),
+            code="DATA_SCOPE_DENIED",
+            details=details,
+        )
+
+
+class OrgScopeDeniedError(ForbiddenError):
+    """HTTP 403 — principal org unit does not match resource org unit (SECMIG-P4)."""
+
+    def __init__(
+        self,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message or code_message("ORG_SCOPE_DENIED"),
+            code="ORG_SCOPE_DENIED",
+            details=details,
+        )
 
 
 class NotFoundError(ApiError):
-    def __init__(self, message: str = "Resource not found") -> None:
-        super().__init__(404, "NOT_FOUND", message)
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(404, "NOT_FOUND", message or code_message("NOT_FOUND"))
 
 
 class ValidationAppError(ApiError):
@@ -96,7 +125,12 @@ class RateLimitedError(ApiError):
 
     def __init__(
         self,
-        message: str = "Too many attempts; try again later",
+        message: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(429, "RATE_LIMITED", message, details)
+        super().__init__(
+            429,
+            "RATE_LIMITED",
+            message or code_message("RATE_LIMITED"),
+            details,
+        )

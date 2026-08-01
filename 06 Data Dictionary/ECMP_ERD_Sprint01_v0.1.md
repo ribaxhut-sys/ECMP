@@ -114,3 +114,27 @@ erDiagram
 Enums are VARCHAR-backed so future values (VENDOR, REGIONAL, …) do not require
 schema changes. Lifecycle and related aggregates (Assignment, Timeline,
 Resolution, Appointment, Escalation) are unchanged.
+
+## Addendum — Identity & Password Management (2026-07-28)
+
+Foundation Alembic `0037_password_management` (live SoT under `backend/`):
+
+```mermaid
+erDiagram
+    USERS {
+        uuid id PK
+        boolean force_password_change "default false"
+        string password_hash "bcrypt; never API-exposed"
+    }
+    PASSWORD_RESET_TOKENS {
+        uuid id PK
+        uuid user_id FK
+        string token_hash "SHA-256 only"
+        timestamptz expires_at
+        timestamptz used_at "nullable"
+        timestamptz created_at
+    }
+    USERS ||--o{ PASSWORD_RESET_TOKENS : "user_id"
+```
+
+See `10 Security and Access Standards/ECMP_Identity_Password_Management_v1.0.md`.

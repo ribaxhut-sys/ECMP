@@ -35,10 +35,22 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-006 | GET /v1/cases/{caseId}/timeline | Timeline + Audit History (projection over `audit_log`) | bearerAuth, permission `cases:read` | 🟢 Implemented (Sprint-06) |
 | API-007 | GET /v1/cases/{caseId}/notes | List append-only internal notes | bearerAuth, permission `cases:read` | 🟢 Implemented (Sprint-06) |
 | API-008 | POST /v1/cases/{caseId}/notes | Create append-only internal note | bearerAuth, permission `cases:notes:create` | 🟢 Implemented (Sprint-06) |
-| — | GET /health | Liveness check (di luar prefix /v1) | None | 🟢 Implemented |
-| — | GET /health/ready | Readiness check — DB `SELECT 1` (Sprint-08) | None | 🟢 Implemented |
+| — | GET /live | Liveness check — process up, no DB (B2) | None | 🟢 Implemented |
+| — | GET /ready | Readiness check — startup + DB `SELECT 1`; 503 when not ready (B2) | None | 🟢 Implemented |
+| — | GET /health | Legacy informational health (prefer /live + /ready) | None | 🟢 Implemented (deprecated) |
+| — | GET /version | Release provenance (git_commit, branch, build_time) — R6-01 | None | 🟢 Implemented |
+
+### dashboard-queues v1 — [`openapi/dashboard-queues.v1.yaml`](./openapi/dashboard-queues.v1.yaml) **1.0.0** — CAP-007 / FRD-006 🔒 LOCKED
+
+> **B2-13 NORMATIVE · B2-14 Implemented.** Promoted from `drafts/dashboard-queues.v1.draft.yaml` (now `x-status: superseded`). Sprint ECMF Case SoT; permission `dashboard:read`. Runtime: `implementation/backend` `GET /v1/dashboard/queues` + FE Queue Dashboard (API-040 only).
+
+| API ID | Method & Endpoint | Description | Auth | Status |
+|---|---|---|---|---|
+| API-040 | GET /v1/dashboard/queues | Operational case queue dashboard (FR-040; Supervisor unit-scoped) | bearerAuth, permission `dashboard:read` | 🟢 Implemented (B2-14) |
 
 ### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
+
+> **DEC-020:** Canonical foundation / Sprint delivery lifecycle namespace (`/api/v1/complaints`). Controlled coexistence with Aggregate `/api/v1/cm` — not interchangeable. Retirement requires a separate Cutover DEC.
 | API ID | Method & Endpoint | Description | Auth | Status |
 |---|---|---|---|---|
 | API-201 | POST /api/v1/complaints | Create complaint (status NEW; multi-source/target via DEC-018; legacy customerId→CUSTOMER/BRANCH; audit `complaint.create`) | bearerAuth, permission `complaints:create` | 🟢 Implemented |
@@ -150,6 +162,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-381 | POST /api/v1/tickets/{ticketId}/cancel | Cancel ticket | None (Request Context ready) | 🟢 Implemented |
 
 ### complaint-domain-service v1 — [`openapi/complaint-domain-service.v1.yaml`](./openapi/complaint-domain-service.v1.yaml) **1.4.0** — Complaint Domain Foundation + Processing + Assignment + Escalation + SLA (CAPABILITY-004…008)
+
+> **DEC-020:** Visit-linked CA BC (`complaint_cases*`). Separate from Aggregate `/api/v1/cm` and foundation lifecycle `/api/v1/complaints`. Full router unmounted pending Cutover DEC; production = ticket-nested ops only.
 | API ID | Method & Endpoint | Description | Auth | Status |
 |---|---|---|---|---|
 | API-390 | POST /api/v1/complaints | Create visit-context Complaint (status OPEN; queueTicketId required) | None (Request Context ready) | 🟢 Implemented |
@@ -176,6 +190,68 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-411 | POST /api/v1/complaints/{complaintId}/sla/recalculate | Manual breach detection + remaining time | None (Request Context ready) | 🟢 Implemented |
 | API-412 | GET /api/v1/complaints/{complaintId}/sla | Get active (or latest) ComplaintSLA | None (Request Context ready) | 🟢 Implemented |
 
+### complaint-management-batch1 v1 — [`openapi/complaint-management-batch1.v1.yaml`](./openapi/complaint-management-batch1.v1.yaml) **1.0.0-planned** — FRD-CM-001 Batch 1 (FR-001…FR-004)
+
+> **DEC-020 (Accepted):** Aggregate SoT namespace (`/api/v1/cm/...`). **No Case create.** Distinct from Sprint case-service and foundation complaint-domain IDs. Dual SoT coexistence with `/api/v1/complaints`.
+> Collision `API-390`/`API-392` (dashboard vs domain) is **not** reused here — Batch 1 uses **API-500…513**. Prefer **path+method** anchors until ID collisions are remediated.
+
+| API ID | Logical ID | Method & Endpoint | FR | Status |
+|---|---|---|---|---|
+| API-500 | API-CM-B1-001 | POST /api/v1/cm/complaints | FR-001 | 🟢 Implemented (lab; durable `cm_batch1_*` / Alembic 0040…0043) |
+| API-501 | API-CM-B1-002 | GET /api/v1/cm/complaints/{complaintId} | FR-001 | 🟢 Implemented (lab) |
+| API-502 | API-CM-B1-003 | POST /api/v1/cm/customers/search | FR-002 | 🟢 Implemented (lab; Master Customer stub + enumeration) |
+| API-503 | API-CM-B1-004 | POST /api/v1/cm/customers/confirm | FR-002 | 🟢 Implemented (lab) |
+| API-504 | API-CM-B1-005 | GET /api/v1/cm/customers/{customerId}/batch1-360 | FR-002 | 🟢 Implemented (lab) |
+| API-505 | API-CM-B1-006 | POST /api/v1/cm/duplicates/check | FR-003 | 🟢 Implemented (lab) |
+| API-506 | API-CM-B1-007 | POST /api/v1/cm/duplicates/decisions | FR-003 | 🟢 Implemented (lab) |
+| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟢 Implemented (lab; shared attachment CAP + Batch 1 fields) |
+| API-508 | API-CM-B1-009 | POST /api/v1/cm/attachments/transfer | FR-004 | 🟢 Implemented (lab) |
+| API-509 | API-CM-B1-010 | GET /api/v1/complaints/{id}/attachments (align API-387) | FR-004 | 🟢 Implemented (lab; shared listing semantics) |
+| API-510 | API-CM-B1-011 | GET /api/v1/attachments/{id} (align API-324) | FR-004 | 🟢 Implemented (lab; shared) |
+| API-511 | API-CM-B1-012 | GET /api/v1/attachments/{id}/download (align API-325) | FR-004 | 🟢 Implemented (lab; shared) |
+| API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟢 Implemented (lab; shared void semantics) |
+| API-513 | API-CM-B1-014 | GET /api/v1/cm/supervisor/queue | FR-001 | 🟢 Implemented (lab; later-review + no-Case aging visibility) |
+
+### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0** — FRD-CM-B2-001 🔒 LOCKED / CAP-008 Mode A
+
+> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…535** (logical **API-CM-B2-001…006**). **Implemented (lab)** — root `backend/app/modules/cm_case/`; REL-RC-001 PASS; annotated tag `v1.2.0-rc.1` @ `6890f50`. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A. SoT Closure: `../deploy/evidence/CAP-008_SoT_Closure_20260801.md`.
+
+| API ID | Logical ID | Method & Endpoint | FR | Status |
+|---|---|---|---|---|
+| API-530 | API-CM-B2-001 | POST /api/v1/cm/cases | FR-001 Create Case | 🟢 Implemented (lab) |
+| API-531 | API-CM-B2-002 | POST /api/v1/cm/complaints/{complaintId}/cases | FR-002 Add Case | 🟢 Implemented (lab) |
+| API-532 | API-CM-B2-003 | GET /api/v1/cm/cases/{caseId} | FR-003 View Case | 🟢 Implemented (lab) |
+| API-533 | API-CM-B2-004 | PATCH /api/v1/cm/cases/{caseId}/status | FR-004 Update Case Status | 🟢 Implemented (lab) |
+| API-534 | API-CM-B2-005 | POST /api/v1/cm/cases/{caseId}/resolve | FR-005 Resolve Case | 🟢 Implemented (lab) |
+| API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟢 Implemented (lab) |
+
+### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
+
+> Aggregate `/api/v1/cm/` escalation & resolution. Separate from foundation API-207/301 under **DEC-020** coexistence (not remapped/merged). Catalog IDs **API-520…526**. Not unlocked by DEC-020. **Path overlap** with CAP-008 Mode A API-532/534 on GET Case / POST resolve — see `cm-case-management.v1.yaml` for Mode A semantics.
+
+| API ID | Logical ID | Method & Endpoint | FR | Status |
+|---|---|---|---|---|
+| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟡 Planned |
+| API-521 | API-CM-F4-002 | POST /api/v1/cm/cases/{caseId}/return-escalation | FR-CM-011 | 🟡 Planned |
+| API-522 | API-CM-F4-003 | GET /api/v1/cm/pusat/escalated-queue | FR-CM-012 | 🟡 Planned |
+| API-523 | API-CM-F4-004 | POST /api/v1/cm/cases/{caseId}/resolve | FR-CM-013 | 🟡 Planned |
+| API-524 | API-CM-F4-005 | PATCH /api/v1/cm/cases/{caseId}/result-visibility | FR-CM-014 | 🟡 Planned |
+| API-525 | API-CM-F4-006 | GET /api/v1/cm/cases/{caseId} | FR-CM-015 | 🟡 Planned |
+| API-526 | API-CM-F4-007 | GET /api/v1/cm/cases | FR-CM-015 | 🟡 Planned |
+
+> **2026-07-30 (PROGRAM-DOC-001 / DEC-020):** Documentation metadata sync — dual SoT ownership,
+> coexistence notes, and `x-ecmp-dec` references. **No endpoint or schema contract changes.**
+> OQ-CM-B1-001 Closed.
+
+> **2026-07-31 (Mode A / DEC-020 hygiene):** Catalog metadata aligned — API-500…512 marked Implemented (lab)
+> including FR-003/FR-004 Aggregate ops. Dual SoT coexistence unchanged; API-520…526 remain Planned (Batch-2 CLOSED).
+
+> **2026-07-29 (S1 / FRD-CM-001):** FR-002 + FR-001 slice implemented under `backend/app/modules/cm_batch1/`
+> (Master Customer stub, enumeration guard, Aggregate create/idempotency). Tests: `tests/test_cm_batch1.py`.
+> Persistence + FR-003/FR-004 delivered in S2/S3 lab track (see BMR EPIC-CM-B1).
+
+> **2026-07-29 (S0 / FRD-CM-001):** Planned Batch 1 Aggregate contracts published. RTM-CM-B1-001 LOCKED. Events `EVT-CM-*` Planned in Event Catalog. TC-CM-* authored (38). Implementation starts S1 (FR-002 → FR-001).
+
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (includes SLA `sla.*.completed` / `sla.*.breached` SYSTEM events) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
@@ -188,7 +264,11 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-218 | POST /api/v1/auth/login | Login (bcrypt; JWT access 15m; HttpOnly refresh cookie 7d; audit `auth.login`) | None (public) | 🟢 Implemented |
 | API-219 | POST /api/v1/auth/refresh | Rotate refresh cookie; issue new access token (audit `auth.refresh`) | Refresh cookie | 🟢 Implemented |
 | API-220 | POST /api/v1/auth/logout | Revoke refresh token + clear cookie (audit `auth.logout`) | Refresh cookie | 🟢 Implemented |
-| API-221 | GET /api/v1/auth/me | Current user + roles/permissions | bearerAuth | 🟢 Implemented |
+| API-221 | GET /api/v1/auth/me | Current user + roles/permissions (+ `forcePasswordChange`) | bearerAuth | 🟢 Implemented |
+| API-410 | POST /api/v1/auth/forgot-password | Request password reset (opaque response; token hash only) | None (public) | 🟢 Implemented |
+| API-411 | POST /api/v1/auth/reset-password | Reset password with single-use token | None (public) | 🟢 Implemented |
+| API-412 | POST /api/v1/users/me/change-password | Self-service change password (revokes refresh tokens) | bearerAuth | 🟢 Implemented |
+| API-413 | POST /api/v1/users/{id}/reset-password | Admin/supervisor reset + force change | bearerAuth, permission `users:reset_password` | 🟢 Implemented |
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 
@@ -491,6 +571,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > out of scope. Migration `0005_complaint_escalations` extends
 > `complaint_escalations` with request fields.
 >
+> **2026-07-28 (Identity & Password Management):** complaint-service —
+> API-410 forgot-password / API-411 reset-password / API-412 change-password /
+> API-413 admin reset. Table `password_reset_tokens`, column
+> `users.force_password_change`, permission `users:reset_password`,
+> EmailService abstraction (`EMAIL_PROVIDER=logging|noop`).
+>
 > **2026-07-23 (TASK-010 Complaint Resolution):** complaint-service — API-225
 > (`POST /api/v1/complaints/{id}/resolution`) + API-226 GET current resolution.
 > `IN_PROGRESS`→`RESOLVED` only via resolution form/endpoint; PATCH status
@@ -538,12 +624,16 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API ID | Method & Endpoint | Description | Draft spec | Status |
 |---|---|---|---|---|
 | API-010 | GET /v1/customers/{customerId} | Customer reference read (CRM) — **ditunda, lihat ACR-002** | [`drafts/customer-read.v1.draft.yaml`](./openapi/drafts/customer-read.v1.draft.yaml) | Deferred |
-| API-040 | GET /v1/dashboard/queues | Dashboard queues (Sprint-03) | [`drafts/dashboard-queues.v1.draft.yaml`](./openapi/drafts/dashboard-queues.v1.draft.yaml) | Planned |
+| API-040 | GET /v1/dashboard/queues | Dashboard queues (CAP-007; FRD-006 LOCKED; DEC-CAP007-BQ-001) | [`dashboard-queues.v1.yaml`](./openapi/dashboard-queues.v1.yaml) **1.0.0** | 🟢 Implemented (B2-14) |
 
 > **Label gate:** G1 = gate masuk Sprint-02 (lihat `13 Test Strategy`); "Sprint-02 / gate G1" merujuk hal yang sama.
 
 ### Candidate (FRD-007 Administration — belum ada draft spec)
 Kandidat API Administration/Core Platform **API-050..API-059** (admin-config: reference data, workflow/SLA config, calendars, escalation, templates, change-requests, versions, settings, audit-config) dan **API-060..API-062** (Core Platform SoT: users, roles, role-permission) didefinisikan di [`../03 Functional Requirements/ECMP_FRD_Administration_v0.1.md`](../03%20Functional%20Requirements/ECMP_FRD_Administration_v0.1.md) §8. Status **Candidate** — belum boleh dibuat draft normatif sebelum FRD-007 DoR; draft OpenAPI wajib dibuat di `openapi/drafts/` sebelum implementasi (contract-first).
+
+> **2026-08-01 (B2-14):** API-040 Implemented in `implementation/backend` + FE Queue Dashboard. OpenAPI schema unchanged. Evidence: `../deploy/evidence/B2-14_CAP-007_Engineering_Implementation_20260801.md`.
+>
+> **2026-08-01 (B2-13):** API-040 promoted to normative `dashboard-queues.v1.yaml` **1.0.0**. Draft superseded. No schema/endpoint invent. Evidence: `../deploy/evidence/B2-13_API-040_Normative_Closure_20260801.md`.
 
 ### Konvensi `openapi/drafts/`
 File di `openapi/drafts/` (penamaan `<nama>.v<major>.draft.yaml`, `info.version: *-draft`, `x-status: draft`) adalah **skeleton non-normatif**: bahan review contract-first untuk memenuhi entry gate G1 ("OpenAPI merged sebelum kode"). Draft menjadi normatif **hanya setelah** direview dan di-merge ke spec berversi (mis. `case-service.v1.yaml`) di gate G1. Katalog/generator hanya mencakup spec normatif — draft tidak dihitung sebagai kontrak yang boleh diimplementasikan.

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   IconAssignments,
   IconComplaints,
@@ -31,9 +32,11 @@ const iconMap = {
 
 function NavLink({
   item,
+  label,
   onNavigate,
 }: {
   item: NavItem;
+  label: string;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -55,7 +58,7 @@ function NavLink({
       )}
     >
       <Icon className="size-5" />
-      <span>{item.label}</span>
+      <span>{label}</span>
     </Link>
   );
 }
@@ -63,13 +66,16 @@ function NavLink({
 export function Sidebar() {
   const { open, setOpen, isDesktop } = useSidebar();
   const closeDrawer = () => setOpen(false);
+  const t = useTranslations("nav");
+  const tCommon = useTranslations("common");
 
   const nav = (
-    <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 p-3">
+    <nav aria-label={tCommon("primaryNav")} className="flex flex-1 flex-col gap-1 p-3">
       {APP_NAV_ITEMS.map((item) => (
         <NavLink
           key={item.id}
           item={item}
+          label={t(item.labelKey)}
           onNavigate={isDesktop ? undefined : closeDrawer}
         />
       ))}
@@ -81,14 +87,14 @@ export function Sidebar() {
       {/* Desktop persistent sidebar */}
       <aside
         className="hidden w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border bg-ecmp-surface lg:flex lg:flex-col"
-        aria-label="Application sidebar"
+        aria-label={tCommon("appSidebar")}
       >
         <div className="flex h-[var(--ecmp-header-height)] items-center border-b border-ecmp-border px-4">
           <Link
             href="/dashboard"
             className="text-[length:var(--ecmp-font-title-size)] font-bold tracking-tight text-ecmp-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
           >
-            ECMP
+            {tCommon("appName")}
           </Link>
         </div>
         {nav}
@@ -104,7 +110,7 @@ export function Sidebar() {
       >
         <button
           type="button"
-          aria-label="Close navigation"
+          aria-label={tCommon("closeNav")}
           className={cn(
             "absolute inset-0 bg-ecmp-overlay transition-opacity",
             open ? "opacity-100" : "opacity-0",
@@ -118,11 +124,11 @@ export function Sidebar() {
             "absolute inset-y-0 left-0 flex w-[min(100%,var(--ecmp-sidebar-width))] flex-col bg-ecmp-surface shadow-ecmp-lg transition-transform duration-200",
             open ? "translate-x-0" : "-translate-x-full",
           )}
-          aria-label="Mobile navigation"
+          aria-label={tCommon("mobileNav")}
         >
           <div className="flex h-[var(--ecmp-header-height)] items-center border-b border-ecmp-border px-4">
             <span className="text-[length:var(--ecmp-font-title-size)] font-bold text-ecmp-primary">
-              ECMP
+              {tCommon("appName")}
             </span>
           </div>
           {nav}

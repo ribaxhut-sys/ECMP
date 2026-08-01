@@ -10,6 +10,8 @@ from app.modules.auth.login_protection import (
     reset_login_attempt_guard_for_tests,
 )
 
+pytestmark = pytest.mark.security
+
 
 @pytest.fixture(autouse=True)
 def _reset_guard() -> None:
@@ -23,11 +25,11 @@ def test_lockout_after_max_failures() -> None:
     key = "127.0.0.1:alice"
 
     guard.check(key)
-    guard.record_failure(key)
-    guard.record_failure(key)
+    assert guard.record_failure(key) is False
+    assert guard.record_failure(key) is False
     guard.check(key)  # still under threshold
 
-    guard.record_failure(key)
+    assert guard.record_failure(key) is True
     with pytest.raises(RateLimitedError) as exc:
         guard.check(key)
 

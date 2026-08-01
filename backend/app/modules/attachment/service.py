@@ -15,6 +15,7 @@ from pathlib import PurePosixPath
 
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.schemas import PageMeta
+from app.core.user_messages import m
 from app.modules.attachment.domain.entity import Attachment
 from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
 from app.modules.attachment.infrastructure.local_storage import LocalStorageProvider
@@ -76,12 +77,12 @@ def build_storage_provider(settings: SettingsService) -> StorageProvider:
         ).strip()
         if not root:
             raise ValidationAppError(
-                "storage.root.path must not be empty",
+                m("storage.root_path_not_empty"),
                 details={"key": SETTING_STORAGE_ROOT_PATH},
             )
         return LocalStorageProvider(root)
     raise ValidationAppError(
-        f"unsupported storage provider: {provider}",
+        f"penyedia storage tidak didukung: {provider}",
         details={"key": SETTING_STORAGE_PROVIDER, "value": provider},
     )
 
@@ -90,7 +91,7 @@ def sanitize_filename(raw_name: str | None) -> str:
     """Strip path components and unsafe characters from a client filename."""
     if raw_name is None or not raw_name.strip():
         raise ValidationAppError(
-            "filename is required",
+            m("storage.filename_required"),
             details={"filename": raw_name},
         )
     name = PurePosixPath(raw_name.replace("\\", "/")).name
@@ -99,7 +100,7 @@ def sanitize_filename(raw_name: str | None) -> str:
     name = name.replace("..", "_")
     if not name or name in {".", ".."}:
         raise ValidationAppError(
-            "filename is invalid after sanitization",
+            m("storage.filename_invalid_sanitized"),
             details={"filename": raw_name},
         )
     if len(name) > 255:
@@ -115,7 +116,7 @@ def _extension_of(filename: str) -> str | None:
         return None
     if len(suffix) > 20:
         raise ValidationAppError(
-            "file extension is too long",
+            m("storage.file_extension_too_long"),
             details={"extension": suffix},
         )
     return suffix
@@ -166,12 +167,15 @@ class AttachmentService:
         content_type: str | None,
         data: bytes,
         uploaded_by: uuid.UUID | None,
+        allowed_mime_types: set[str] | None = None,
+        max_bytes: int | None = None,
+        commit: bool = True,
     ) -> AttachmentResponse:
         try:
             AggregateType(aggregate_type)
         except ValueError as exc:
             raise ValidationAppError(
-                f"unsupported aggregate type: {aggregate_type}",
+                f"tipe agregat tidak didukung: {aggregate_type}",
                 details={
                     "aggregateType": aggregate_type,
                     "allowed": [a.value for a in AggregateType],
@@ -184,34 +188,39 @@ class AttachmentService:
 
         if not data:
             raise ValidationAppError(
-                "file must not be empty",
+                m("storage.file_empty"),
                 details={"sizeBytes": 0},
             )
 
-        max_mb = self._settings.get_int(
-            SETTING_MAX_UPLOAD_MB, default=_DEFAULT_MAX_UPLOAD_MB
-        )
-        if max_mb < 1:
-            raise ValidationAppError(
-                "storage.max.upload.mb must be >= 1",
-                details={"key": SETTING_MAX_UPLOAD_MB, "value": max_mb},
+        if max_bytes is None:
+            max_mb = self._settings.get_int(
+                SETTING_MAX_UPLOAD_MB, default=_DEFAULT_MAX_UPLOAD_MB
             )
-        max_bytes = max_mb * 1024 * 1024
+            if max_mb < 1:
+                raise ValidationAppError(
+                    m("storage.max_upload_mb_min"),
+                    details={"key": SETTING_MAX_UPLOAD_MB, "value": max_mb},
+                )
+            max_bytes = max_mb * 1024 * 1024
+        elif max_bytes < 1:
+            raise ValidationAppError(
+                m("storage.max_bytes_min"),
+                details={"maxBytes": max_bytes},
+            )
         size_bytes = len(data)
         if size_bytes > max_bytes:
             raise ValidationAppError(
-                "file exceeds maximum upload size",
+                m("storage.file_exceeds_max_size"),
                 details={
                     "sizeBytes": size_bytes,
                     "maxBytes": max_bytes,
-                    "maxUploadMb": max_mb,
                 },
             )
 
-        allowed = self._allowed_mime_types()
+        allowed = allowed_mime_types or self._allowed_mime_types()
         if mime_type not in allowed:
             raise ValidationAppError(
-                "mime type is not allowed",
+                m("storage.mime_not_allowed"),
                 details={"mimeType": mime_type, "allowed": sorted(allowed)},
             )
 
@@ -219,7 +228,7 @@ class AttachmentService:
         if expected_exts is not None:
             if extension is None or extension not in expected_exts:
                 raise ValidationAppError(
-                    "file extension does not match mime type",
+                    m("storage.file_extension_mismatch"),
                     details={
                         "extension": extension,
                         "mimeType": mime_type,
@@ -257,7 +266,10 @@ class AttachmentService:
         )
         try:
             self._repo.add(entity)
-            self._repo.commit()
+            if commit:
+                self._repo.commit()
+            else:
+                self._repo.flush()
         except Exception:
             try:
                 self._storage.delete(storage_path)
@@ -267,6 +279,43 @@ class AttachmentService:
             raise
 
         return _to_response(entity)
+
+    def rebind(
+        self,
+        attachment_id: uuid.UUID,
+        *,
+        aggregate_type: str,
+        aggregate_id: uuid.UUID,
+        commit: bool = True,
+    ) -> AttachmentResponse:
+        """Move metadata bind to a new aggregate (Batch 1 staging → Complaint)."""
+        try:
+            AggregateType(aggregate_type)
+        except ValueError as exc:
+            raise ValidationAppError(
+                f"tipe agregat tidak didukung: {aggregate_type}",
+                details={
+                    "aggregateType": aggregate_type,
+                    "allowed": [a.value for a in AggregateType],
+                },
+            ) from exc
+        entity = self._require(attachment_id, include_deleted=False)
+        entity.aggregate_type = aggregate_type
+        entity.aggregate_id = aggregate_id
+        self._repo.save(entity)
+        if commit:
+            self._repo.commit()
+        else:
+            self._repo.flush()
+        return _to_response(entity)
+
+    def find_by_checksum(
+        self, checksum_sha256: str, *, include_deleted: bool = False
+    ) -> AttachmentResponse | None:
+        entity = self._repo.find_by_checksum(
+            checksum_sha256.strip().lower(), include_deleted=include_deleted
+        )
+        return _to_response(entity) if entity is not None else None
 
     def get(self, attachment_id: uuid.UUID) -> AttachmentResponse:
         return _to_response(self._require(attachment_id))
@@ -284,7 +333,7 @@ class AttachmentService:
                 AggregateType(aggregate_type)
             except ValueError as exc:
                 raise ValidationAppError(
-                    f"unsupported aggregate type: {aggregate_type}",
+                    f"tipe agregat tidak didukung: {aggregate_type}",
                     details={
                         "aggregateType": aggregate_type,
                         "allowed": [a.value for a in AggregateType],
@@ -320,17 +369,24 @@ class AttachmentService:
         data = self._storage.read(entity.storage_path)
         return entity, data
 
-    def soft_delete(self, attachment_id: uuid.UUID) -> None:
+    def soft_delete(
+        self, attachment_id: uuid.UUID, *, commit: bool = True
+    ) -> None:
         """Logical delete (status=DELETED). Physical blob retained."""
         entity = self._require(attachment_id)
         entity.mark_deleted()
         self._repo.save(entity)
-        self._repo.commit()
+        if commit:
+            self._repo.commit()
+        else:
+            self._repo.flush()
 
-    def _require(self, attachment_id: uuid.UUID) -> Attachment:
-        entity = self._repo.get(attachment_id)
+    def _require(
+        self, attachment_id: uuid.UUID, *, include_deleted: bool = False
+    ) -> Attachment:
+        entity = self._repo.get(attachment_id, include_deleted=include_deleted)
         if entity is None:
-            raise NotFoundError("Attachment not found")
+            raise NotFoundError(m("attachment.not_found"))
         return entity
 
     def _allowed_mime_types(self) -> set[str]:
@@ -339,14 +395,14 @@ class AttachmentService:
         )
         if not isinstance(raw, list) or not raw:
             raise ValidationAppError(
-                "storage.allowed.mime must be a non-empty JSON array",
+                m("storage.allowed_mime_non_empty_array"),
                 details={"key": SETTING_ALLOWED_MIME},
             )
         allowed: set[str] = set()
         for item in raw:
             if not isinstance(item, str) or not item.strip():
                 raise ValidationAppError(
-                    "storage.allowed.mime entries must be non-empty strings",
+                    m("storage.allowed_mime_empty_strings"),
                     details={"key": SETTING_ALLOWED_MIME, "value": item},
                 )
             allowed.add(item.strip().lower())

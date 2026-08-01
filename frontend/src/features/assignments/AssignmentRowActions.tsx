@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -36,14 +37,6 @@ export type AssignmentRowMeta = {
 
 type ActionKind = "assign" | "reassign" | "cancel" | null;
 
-function roleLabel(user: UserRef): string {
-  return user.roleName?.trim() || user.roleCode?.trim() || "—";
-}
-
-function userOptionLabel(user: UserRef): string {
-  return `${user.fullName} — ${roleLabel(user)}`;
-}
-
 export function AssignmentRowActions({
   row,
   onChanged,
@@ -52,7 +45,18 @@ export function AssignmentRowActions({
   onChanged?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const t = useTranslations("assignments");
+  const tCommon = useTranslations("common");
+  const tComplaints = useTranslations("complaints");
   const canAssign = hasPermission("complaints:assign");
+
+  function roleLabel(user: UserRef): string {
+    return user.roleName?.trim() || user.roleCode?.trim() || tCommon("emDash");
+  }
+
+  function userOptionLabel(user: UserRef): string {
+    return `${user.fullName} — ${roleLabel(user)}`;
+  }
 
   const canDoAssign = canAssign && !row.currentAssigneeId;
   const canReassign = canAssign && Boolean(row.currentAssigneeId);
@@ -82,18 +86,31 @@ export function AssignmentRowActions({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Unable to load users.",
+            : tComplaints("unableToLoadUsers"),
       );
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [tComplaints]);
 
   useEffect(() => {
     if (action === "assign" || action === "reassign") {
       void loadUsers();
     }
   }, [action, loadUsers]);
+
+  const options = useMemo(
+    () =>
+      users
+        .filter((u) => u.id !== row.currentAssigneeId)
+        .map((user) => ({
+          value: user.id,
+          label: userOptionLabel(user),
+        })),
+    // userOptionLabel is stable per render via local helpers + tCommon
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- labels use tCommon only
+    [row.currentAssigneeId, users, tCommon],
+  );
 
   if (!canDoAssign && !canReassign && !canCancel) {
     return null;
@@ -118,21 +135,21 @@ export function AssignmentRowActions({
     try {
       if (action === "assign") {
         if (!selectedId) {
-          setError("Select an assignee.");
+          setError(tComplaints("selectAssignee"));
           setSubmitting(false);
           return;
         }
         await assignComplaintHandler(row.id, { assigneeId: selectedId });
-        setToastTitle("Complaint assigned");
+        setToastTitle(tComplaints("complaintAssigned"));
       } else if (action === "reassign") {
         if (!selectedId) {
-          setError("Select an assignee.");
+          setError(tComplaints("selectAssignee"));
           setSubmitting(false);
           return;
         }
         const trimmedReason = reason.trim();
         if (!trimmedReason) {
-          setError("Reason is required for reassignment.");
+          setError(t("reasonRequiredForReassign"));
           setSubmitting(false);
           return;
         }
@@ -140,10 +157,10 @@ export function AssignmentRowActions({
           assigneeId: selectedId,
           reason: trimmedReason,
         });
-        setToastTitle("Complaint reassigned");
+        setToastTitle(t("complaintReassigned"));
       } else if (action === "cancel") {
         if (!userId) {
-          setError("You must be signed in to cancel an assignment.");
+          setError(t("mustBeSignedInToCancel"));
           setSubmitting(false);
           return;
         }
@@ -151,7 +168,7 @@ export function AssignmentRowActions({
           releasedBy: userId,
           reason: reason.trim() || null,
         });
-        setToastTitle("Assignment cancelled");
+        setToastTitle(t("assignmentCancelled"));
       }
       setAction(null);
       setToastOpen(true);
@@ -162,31 +179,20 @@ export function AssignmentRowActions({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Action failed.",
+            : t("actionFailed"),
       );
     } finally {
       setSubmitting(false);
     }
   }
 
-  const options = useMemo(
-    () =>
-      users
-        .filter((u) => u.id !== row.currentAssigneeId)
-        .map((user) => ({
-          value: user.id,
-          label: userOptionLabel(user),
-        })),
-    [row.currentAssigneeId, users],
-  );
-
   const modalTitle =
     action === "assign"
-      ? "Assign complaint?"
+      ? t("assignConfirmTitle")
       : action === "reassign"
-        ? "Reassign complaint?"
+        ? t("reassignConfirmTitle")
         : action === "cancel"
-          ? "Cancel assignment?"
+          ? t("cancelConfirmTitle")
           : "";
 
   return (
@@ -199,7 +205,7 @@ export function AssignmentRowActions({
             variant="outline"
             onClick={() => openAction("assign")}
           >
-            Assign
+            {tComplaints("assign")}
           </Button>
         ) : null}
         {canReassign ? (
@@ -209,7 +215,7 @@ export function AssignmentRowActions({
             variant="outline"
             onClick={() => openAction("reassign")}
           >
-            Reassign
+            {tComplaints("reassign")}
           </Button>
         ) : null}
         {canCancel ? (
@@ -219,7 +225,7 @@ export function AssignmentRowActions({
             variant="ghost"
             onClick={() => openAction("cancel")}
           >
-            Cancel
+            {tCommon("cancel")}
           </Button>
         ) : null}
       </div>
@@ -237,14 +243,14 @@ export function AssignmentRowActions({
               disabled={submitting}
               onClick={closeAction}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button
               type="button"
               disabled={submitting}
               onClick={() => void confirmAction()}
             >
-              {submitting ? "Working…" : "Confirm"}
+              {submitting ? t("working") : tCommon("confirm")}
             </Button>
           </>
         }
@@ -252,10 +258,10 @@ export function AssignmentRowActions({
         <div className="space-y-4">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {action === "assign"
-              ? `Assign ${row.complaintNumber} to a handler.`
+              ? t("assignHint", { number: row.complaintNumber })
               : action === "reassign"
-                ? `Reassign ${row.complaintNumber}. A reason is required.`
-                : `Release the active assignee from ${row.complaintNumber}.`}
+                ? t("reassignHint", { number: row.complaintNumber })
+                : t("cancelHint", { number: row.complaintNumber })}
           </p>
 
           {action === "assign" || action === "reassign" ? (
@@ -263,24 +269,28 @@ export function AssignmentRowActions({
               {usersError ? (
                 <Alert
                   tone="danger"
-                  title="Could not load users"
+                  title={tComplaints("couldNotLoadUsers")}
                   description={usersError}
-                  actionLabel="Retry"
+                  actionLabel={tCommon("retry")}
                   onAction={() => void loadUsers()}
                 />
               ) : null}
               <Select
-                label="Assignee"
+                label={t("assigneeLabel")}
                 name="assigneeId"
                 required
-                placeholder={usersLoading ? "Loading users…" : "Select user"}
+                placeholder={
+                  usersLoading
+                    ? tComplaints("loadingUsers")
+                    : tComplaints("selectUser")
+                }
                 value={selectedId}
                 options={options}
                 disabled={submitting || usersLoading || options.length === 0}
                 onChange={(e) => setSelectedId(e.target.value)}
                 error={
                   !usersError && !usersLoading && options.length === 0
-                    ? "No active users available."
+                    ? tComplaints("noActiveUsersAvailable")
                     : undefined
                 }
               />
@@ -293,7 +303,9 @@ export function AssignmentRowActions({
                 htmlFor={`assignment-reason-${row.id}`}
                 className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
               >
-                {action === "reassign" ? "Reason (required)" : "Reason (optional)"}
+                {action === "reassign"
+                  ? t("reasonRequiredLabel")
+                  : t("reasonOptionalLabel")}
               </label>
               <Textarea
                 id={`assignment-reason-${row.id}`}
@@ -308,7 +320,7 @@ export function AssignmentRowActions({
           ) : null}
 
           {error ? (
-            <Alert tone="danger" title="Action failed" description={error} />
+            <Alert tone="danger" title={t("actionFailed")} description={error} />
           ) : null}
         </div>
       </Modal>
@@ -316,7 +328,7 @@ export function AssignmentRowActions({
       <Toast
         open={toastOpen}
         title={toastTitle}
-        description="Assignment list refreshed."
+        description={t("listRefreshed")}
         onClose={() => setToastOpen(false)}
       />
     </>

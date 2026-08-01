@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -29,6 +30,8 @@ from app.core.errors import (
 from app.core.security import create_access_token
 from app.modules.iam.data_scope.models import ScopeType
 from app.modules.iam.data_scope_resolver import EffectiveScope
+
+pytestmark = pytest.mark.security
 
 
 def _settings() -> Settings:
@@ -93,8 +96,18 @@ def test_check_permissions_denied() -> None:
         check_permissions(principal, "complaints:read")
     assert exc.value.status_code == 403
     assert exc.value.code == "FORBIDDEN"
-    assert exc.value.message == "Permission denied"
+    assert exc.value.message == "Anda tidak memiliki izin untuk tindakan ini."
     assert isinstance(exc.value, ForbiddenError)
+
+
+def _stub_request_session() -> tuple[MagicMock, MagicMock]:
+    request = MagicMock()
+    request.state = SimpleNamespace(request_id="unit-req-1")
+    request.headers = {}
+    request.url.path = "/unit"
+    request.client = None
+    session = MagicMock()
+    return request, session
 
 
 def test_require_permissions_dependency() -> None:
@@ -103,22 +116,24 @@ def test_require_permissions_dependency() -> None:
         user_id=uuid.uuid4(),
         permissions=frozenset({"complaints:read"}),
     )
-    assert gate(principal=ok) is ok
+    request, session = _stub_request_session()
+    assert gate(principal=ok, request=request, session=session) is ok
 
     denied = Principal(user_id=uuid.uuid4(), permissions=frozenset())
     with pytest.raises(PermissionDeniedError):
-        gate(principal=denied)
+        gate(principal=denied, request=request, session=session)
 
 
 def test_require_roles_dependency() -> None:
     gate = require_roles("SUPERVISOR", "ADMIN")
     ok = Principal(user_id=uuid.uuid4(), roles=("SUPERVISOR",))
-    assert gate(principal=ok) is ok
+    request, session = _stub_request_session()
+    assert gate(principal=ok, request=request, session=session) is ok
 
     denied = Principal(user_id=uuid.uuid4(), roles=("AGENT",))
     with pytest.raises(PermissionDeniedError) as exc:
-        gate(principal=denied)
-    assert exc.value.message == "Permission denied"
+        gate(principal=denied, request=request, session=session)
+    assert exc.value.message == "Anda tidak memiliki izin untuk tindakan ini."
 
 
 def test_check_roles_denied() -> None:
@@ -157,7 +172,7 @@ def test_check_data_scope_denied() -> None:
         check_data_scope(scope, "BRANCH")
     assert exc.value.status_code == 403
     assert exc.value.code == "DATA_SCOPE_DENIED"
-    assert exc.value.message == "Data scope denied"
+    assert exc.value.message == "Akses data ditolak karena di luar cakupan wewenang Anda."
     assert isinstance(exc.value, ForbiddenError)
 
 

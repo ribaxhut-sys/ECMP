@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 from typing import BinaryIO
 
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.user_messages import m
 from app.modules.attachment.infrastructure.storage_provider import StorageProvider
 
 
@@ -63,19 +64,19 @@ class LocalStorageProvider(StorageProvider):
         raw = (relative_path or "").strip().replace("\\", "/")
         if not raw:
             raise ValidationAppError(
-                "storage path is required",
+                m("storage.path_required"),
                 details={"storagePath": relative_path},
             )
         posix = PurePosixPath(raw)
         if posix.is_absolute() or raw.startswith("/"):
             raise ValidationAppError(
-                "storage path must be relative",
+                m("storage.path_must_be_relative"),
                 details={"storagePath": relative_path},
             )
         parts = posix.parts
         if not parts or any(p in {"", ".", ".."} for p in parts):
             raise ValidationAppError(
-                "storage path must not contain path traversal",
+                m("storage.path_no_traversal"),
                 details={"storagePath": relative_path},
             )
         # Normalize to posix relative (yyyy/mm/uuid.ext).
@@ -87,7 +88,7 @@ class LocalStorageProvider(StorageProvider):
             candidate.relative_to(self._root)
         except ValueError as exc:
             raise ValidationAppError(
-                "storage path escapes storage root",
+                m("storage.path_escapes_root"),
                 details={"storagePath": relative},
             ) from exc
         return candidate
@@ -96,7 +97,7 @@ class LocalStorageProvider(StorageProvider):
         raw = (storage_path or "").strip()
         if not raw:
             raise ValidationAppError(
-                "storage path is required",
+                m("storage.path_required"),
                 details={"storagePath": storage_path},
             )
         # Accept legacy absolute paths that still live under root.
@@ -106,12 +107,12 @@ class LocalStorageProvider(StorageProvider):
                 candidate.relative_to(self._root)
             except ValueError as exc:
                 raise ValidationAppError(
-                    "storage path escapes storage root",
+                    m("storage.path_escapes_root"),
                     details={"storagePath": storage_path},
                 ) from exc
         else:
             safe = self._require_safe_relative(raw)
             candidate = self._resolve_under_root(safe)
         if not candidate.is_file():
-            raise NotFoundError("Attachment file not found in storage")
+            raise NotFoundError(m("attachment.file_not_in_storage"))
         return candidate
