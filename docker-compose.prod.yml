@@ -43,7 +43,8 @@ services:
     restart: unless-stopped
     environment:
       ECMP_DOMAIN: ${ECMP_DOMAIN:?Set ECMP_DOMAIN (public hostname)}
-      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL for ACME registration}
+      # Prefer ACME_EMAIL; accept legacy CADDY_ACME_EMAIL used by lab .env.prod templates.
+      ACME_EMAIL: ${ACME_EMAIL:-${CADDY_ACME_EMAIL:?Set ACME_EMAIL or CADDY_ACME_EMAIL for ACME registration}}
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
