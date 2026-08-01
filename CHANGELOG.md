@@ -12,7 +12,38 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 
 ### Notes
 
-- Post-`v1.1.0-rc.1`: only hotfixes and approved change requests (new SemVer PATCH or new `rc.N` per versioning policy).
+- Post-`v1.2.0-rc.1`: only hotfixes and approved change requests (new SemVer PATCH or new `rc.N` per versioning policy).
+
+## [1.2.0-rc.1] - 2026-08-01
+
+### Notes
+
+- Mode A **CAP-008 Case Management** Release Candidate `v1.2.0-rc.1` (lab / Batch-2 Mode A).
+- Authorized ref (B-2 Option B pattern): `feature/cm-batch1-s2-persistence` — freeze tip recorded in
+  `deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md`.
+- Scope: internal/lab DEV validation of CAP-008 Mode A (FR-001…FR-006) — **not** Production /
+  Mode B / Enterprise Platform / Notification·Assignment·SLA·Event engines.
+- Alembic head for this RC: `0046_cm_case_management`.
+- Annotated tag prepared; create only when REL-RC-001 Go and working tree clean.
+
+### Added
+
+- CAP-008 Mode A Case Management: backend module `backend/app/modules/cm_case/`
+  (create / get / status / resolve / close), Alembic `0046_cm_case_management`
+  (`cm_cases`, `cm_case_resolutions`, `cm_case_number_counters`).
+- CAP-008 OpenAPI catalog (engineering SoT): `07 API Catalog/openapi/cm-case-management.v1.yaml`.
+- CAP-008 frontend surfaces: `frontend/src/features/cases/`, routes under
+  `frontend/src/app/(app)/complaints/cm/cases/`, client `frontend/src/lib/api/cmCase*.ts`.
+- CAP-008 Mode A tests: `backend/tests/test_cm_case_mode_a.py` (lifecycle + 401/403 +
+  `AuditTimelineSideEffects`); FE `cmCase.test.ts`.
+- Integration hardening evidence: `deploy/evidence/B2-05_CAP-008_Mode_A_Integration_Hardening_20260801.md`.
+- REL-RC-001 assessment: `deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md`.
+
+### Changed
+
+- Router wiring: `backend/app/api/router.py` mounts CAP-008 `cm_case` router.
+- Frontend API barrel exports CAP-008 clients (`frontend/src/lib/api/index.ts`).
+- Alembic head-pin tests updated for `0046_cm_case_management`.
 
 ## [1.1.0-rc.1] - 2026-08-01
 

@@ -159,4 +159,28 @@ export {
   isCmBatch1AggregatePath,
   isFoundationComplaintsPath,
 } from "./dualSotNamespaces";
+export {
+  CM_CASE_BASE,
+  addCmCase,
+  buildCmCaseMutateHeaders,
+  closeCmCase,
+  cmCasePaths,
+  createCmCase,
+  fetchCmCase,
+  resolveCmCase,
+  updateCmCaseStatus,
+} from "./cmCase";
+export type {
+  AddCmCaseRequest,
+  CloseCmCaseRequest,
+  CmCase,
+  CmCaseCancelReason,
+  CmCaseMutateOptions,
+  CmCaseResolution,
+  CmCaseResolveAction,
+  CmCaseStatus,
+  CreateCmCaseRequest,
+  ResolveCmCaseRequest,
+  UpdateCmCaseStatusRequest,
+} from "./cmCase";
 export type * from "./types";

@@ -1286,7 +1286,7 @@ This FRD Batch 1 does **not** include:
 | OQ-CM-B1-001 | DEC remapping date: when does BR-CM-CAT-001 replace Sprint delivery SoT for implementation? | ID namespace / implementation sequencing | Business Owner + Architecture Board | **Closed — remapped by dual SoT (DEC-020)** |
 | OQ-CM-B1-002 | Exact Master Customer search API fields and identity-number masking contract | FR-002 audit/display | Integration Lead + Security | v1.1 close |
 | OQ-CM-B1-003 | Default duplicate threshold, window (days), and hard-block category list | FR-003 behavior | Operations Lead + Administrator | v1.1 close |
-| OQ-CM-B1-004 | Production policy for when Batch 2 Case create becomes mandatory after REGISTERED | Aging KPI / supervisor queue SLAs | Domain PO ECMF | Batch 2 |
+| OQ-CM-B1-004 | Production policy for when Batch 2 Case create becomes mandatory after REGISTERED | Aging KPI / supervisor queue SLAs | Domain PO ECMF | **Closed 2026-08-01** — BQ-002 / DEC-MODEA-B2-001: MAY register without Case; MUST ≥1 Case within **1 business day** after REGISTERED; Supervisor Queue MUST display exceedances |
 | OQ-CM-B1-005 | Attachment max sizes per media type, aggregate payload max, and mandatory malware scan environments | FR-004 validation | Security + Administrator | v1.1 close |
 | OQ-CM-B1-006 | Who may override recording unit; multi-unit actor behaviour; mandatory audit fields | FR-001 validation | Operations Lead | v1.1 |
 | OQ-CM-B1-007 | How should ECMP react to upstream Customer merge / retirement / superseded CustomerId? | 360, duplicate correlation, history | Integration Lead + Architect | **v1.2 (CTO D-07)** — do not design in Batch 1 |

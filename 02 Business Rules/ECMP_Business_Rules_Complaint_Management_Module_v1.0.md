@@ -3,14 +3,33 @@
 | Field | Value |
 |---|---|
 | ID | BR-CM-CAT-001 |
-| Version | 1.1 |
+| Version | 1.3 |
 | Owner | Business Analyst / Domain PO ECMF |
 | Reviewer | Solution Architect, Operations Lead, Compliance |
 | Approver | Business Owner / Architecture Board |
-| Status | 🟡 Draft |
-| Last Review | 2026-07-29 |
+| Status | 🟢 Locked |
+| Last Review | 2026-08-01 |
 | Next Review | 2026-10-29 |
-| Related DEC | [DEC-F4](../18%20Architecture%20Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md) (escalation visibility / return / result audience) |
+| Related DEC | [DEC-F4](../18%20Architecture%20Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md) (escalation visibility / return / result audience); [DEC-BQ001](../18%20Architecture%20Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md) (Case Aggregate SoT / Option O3 APPROVED); [DEC-MODEA-B2-001](../18%20Architecture%20Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md) (Mode A Delivery Baseline BQ lock — CAP-008) |
+
+## Mode A Delivery Baseline (Batch-2) — Policy Notes
+
+> Binding Product Owner decisions for **CAP-008** / Batch-2 Mode A. **Case Aggregate Transition Matrix above remains SoT and is not rewritten by these notes.** Full record: DEC-MODEA-B2-001.
+
+| BQ | Mode A policy (LOCKED) |
+|---|---|
+| BQ-002 | Complaint MAY register without Case; MUST have ≥1 Case within **1 business day** after `REGISTERED`; Supervisor Queue MUST show exceedances |
+| BQ-003 | Default max Cases per Complaint = **5**; future override outside Mode A |
+| BQ-004 | Case Number independent of Complaint Number; format **`CASE-YYYY-NNNNNN`** |
+| BQ-005 | Case SHALL bind SLA Policy Version; SLA countdown **NOT** activated in Mode A |
+| BQ-006 | Assignment at **Unit level only**; Assigned User outside Mode A |
+| BQ-007 | Close Case ≠ auto Close Complaint |
+| BQ-008 | Mode A flow: `IN_PROGRESS` → `RESOLVED` → Supervisor Approval → `CLOSED` |
+| BQ-009 | `PENDING` / `ESCALATED` remain in Aggregate matrix; Mode A Delivery **does not expose** them |
+| BQ-010 | Resolve requires Comment; Attachment optional; Complaint Attachment may be reused |
+| BQ-011 | D-02 retained (no Case-at-intake); timing after REGISTERED = BQ-002 |
+| BQ-012 | Capability ID **CAP-008** (not CAP-002) |
+| BQ-014 | `CANCELLED` included in Mode A; reasons include Duplicate, Wrong Input, Customer Cancellation |
 
 ## Dokumen Ini
 
@@ -81,11 +100,155 @@ Single Source of Truth · No Duplicate Work · Full Traceability · Auditability
 | `result_visibility` | Audience hasil setelah Resolve oleh Pusat: `ORIGIN_BRANCH` \| `ALL_BRANCHES` (DEC-F4) |
 | Customer 360 View | Pandangan terpadu profil + riwayat interaksi Complaint/Case yang dimiliki ECMP, diperkaya data Master Customer |
 
-### State Machine Ringkas (konseptual)
+### Complaint State Machine (ringkas — tidak diubah oleh DEC-BQ001)
 
 **Complaint:** `REGISTERED` → `IN_PROGRESS` → `RESOLVED` → `CLOSED` · cabang: `REOPENED` → `IN_PROGRESS`
 
-**Case:** `CREATED` → `ASSIGNED` → `IN_PROGRESS` → `PENDING` / `ESCALATED` → `RESOLVED` → `CLOSED` · cabang: `CANCELLED` (hanya sebelum resolusi final, dengan justifikasi)
+### Case Aggregate Transition Matrix
+
+| Field | Value |
+|---|---|
+| SoT scope | **Case under Complaint Aggregate** — Batch-2 Mode A / CAP-02 (Definition B) |
+| Governing decision | [`ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md`](../18%20Architecture%20Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md) (**DEC-BQ001**, Option **O3**, Status **APPROVED**) |
+| Dual SoT | Sprint / case-centric Case SoT tetap **DOM-ECMF-003** — **bukan** matriks ini; keduanya tidak interchangeable |
+| Aggregate | Complaint = Aggregate Root; Case = child |
+| Explicit non-equivalence | Complaint `REGISTERED` ≠ Case `REGISTERED` (DOM-ECMF-003) |
+
+> Matriks ini adalah **Source of Truth** status dan transisi Case Aggregate. Tidak memakai enum DOM-ECMF-003 (`REGISTERED`, `PENDING_REVIEW`, Case `REOPENED`) pada Case Aggregate.
+
+#### 1. Case states
+
+| State | Purpose | Entry Criteria | Exit Criteria | Terminal |
+|---|---|---|---|---|
+| `CREATED` | Case terbentuk di bawah Complaint; belum ada assignee aktif | Create Case / Add Case sukses (BR-004); Complaint induk mengizinkan; Case Number terbentuk | Assign pertama → `ASSIGNED`; atau Cancel → `CANCELLED` | No |
+| `ASSIGNED` | Ada kepemilikan assignee dan/atau queue unit aktif (BR-005) | Assign/reassign/claim dari state yang mengizinkan; atau Create+Assign sekaligus (BR-004 A1) | Mulai kerja → `IN_PROGRESS`; reassign tetap/`ASSIGNED`; tunggu pihak → `PENDING`; eskalasi → `ESCALATED`; cancel → `CANCELLED` | No |
+| `IN_PROGRESS` | Sedang dikerjakan petugas berwenang | Dari `ASSIGNED` (mulai penanganan); dari `PENDING` (lanjut); dari `ESCALATED` setelah Return ke cabang; reassign dapat kembali ke `ASSIGNED` | Pending / Escalate / Resolve / Cancel / Reassign | No |
+| `PENDING` | Menunggu pihak eksternal/pelanggan/dokumen; kerja Case ditahan (BR-006 pause) | Dari `ASSIGNED` atau `IN_PROGRESS` dengan alasan tunggu wajib | Lanjut kerja → `IN_PROGRESS`; reassign → `ASSIGNED`; eskalasi → `ESCALATED`; resolve bila “PENDING selesai” (BR-008); cancel | No |
+| `ESCALATED` | Ownership operasional di jenjang eskalasi (Pusat per DEC-F4); package lengkap (BR-007) | Eskalasi dari state aktif non-terminal dengan alasan + package valid | Assign di tujuan → `ASSIGNED`; Return ke cabang → `IN_PROGRESS`; Resolve → `RESOLVED`; Cancel hanya jika masih sebelum resolusi final & policy izinkan | No |
+| `RESOLVED` | Resolution final **Accepted**; kerja Case selesai secara substansi (BR-008) | Resolve Accepted dari `IN_PROGRESS` / `ESCALATED` / `PENDING` (selesai) | Close Case → `CLOSED` | No |
+| `CLOSED` | Siklus Case ditutup secara resmi | Dari `RESOLVED` setelah close berwenang | Tidak ada exit Case-level; pekerjaan ulang lewat **Complaint Reopen (BR-015)** + Case baru (default), bukan reopen status Case ini | **Yes** |
+| `CANCELLED` | Case dibatalkan sebelum resolusi final + justifikasi (BR-004); bukan hard-delete | Dari `CREATED`/`ASSIGNED`/`IN_PROGRESS`/`PENDING`/`ESCALATED` dengan alasan wajib | Tidak ada | **Yes** |
+
+**Bukan Case state:** `PENDING_APPROVAL` = status **usulan Resolution** (BR-008), bukan status Case.  
+**Bukan Case state:** `REOPENED` = status **Complaint** (BR-015), bukan Case Aggregate.
+
+**Catatan SoT (Return):** BR-007 A4 tidak menamai next status; matriks Aggregate menetapkan `ESCALATED` → `IN_PROGRESS` (cabang lanjut kerja / write restored). BR-008 menuliskan `RESOLVED`/`CLOSED`; urutan Definition B menetapkan `RESOLVED` → `CLOSED` sebagai Close Case terpisah.
+
+#### 2. Allowed transitions
+
+| Current State | Allowed Next State | Business Guard | Triggered By | Notes |
+|---|---|---|---|---|
+| *(none)* | `CREATED` | Complaint valid, tidak `CLOSED` tanpa reopen; aktor berwenang; tipe/prioritas valid; di bawah max Case/Complaint | Agent / Supervisor / System (Create Case, BR-004) | Status awal default |
+| *(none)* | `ASSIGNED` | Sama Create + assignee/queue valid (BR-005) | Create Case + Assignment sekaligus (BR-004 A1) | Melewati persistensi lama di `CREATED` dalam satu aksi bisnis |
+| `CREATED` | `ASSIGNED` | Assignee/queue valid; aktor punya hak assign | Supervisor / System (assign/claim) | Assign pertama |
+| `CREATED` | `CANCELLED` | Alasan wajib; sebelum resolusi final | Supervisor (utama) / aktor berwenang | Bukan delete fisik |
+| `ASSIGNED` | `IN_PROGRESS` | Aktor = assignee atau Supervisor unit terkait | Case Handler / Supervisor | Mulai penanganan |
+| `ASSIGNED` | `ASSIGNED` | Target assignee/queue valid; history append-only | Reassign / claim / unassign-to-queue per BR-005 | Tetap status, ganti ownership |
+| `ASSIGNED` | `PENDING` | Alasan tunggu wajib | Handler / Supervisor | Menunggu pihak lain |
+| `ASSIGNED` | `ESCALATED` | Case belum `CLOSED`; alasan eskalasi; package No Information Lost; target Pusat (DEC-F4) | Supervisor / Handler berwenang / System auto-rule | Identitas Case tidak berubah |
+| `ASSIGNED` | `CANCELLED` | Alasan wajib; belum ada Resolution Accepted | Supervisor / berwenang | |
+| `IN_PROGRESS` | `PENDING` | Alasan tunggu wajib | Handler / Supervisor | |
+| `IN_PROGRESS` | `ASSIGNED` | Reassign valid (BR-005) | Supervisor / claim policy | Ownership berubah |
+| `IN_PROGRESS` | `ESCALATED` | Guard eskalasi BR-007 | Supervisor / Handler / System | |
+| `IN_PROGRESS` | `RESOLVED` | Resolution lengkap; evidence wajib kategori terpenuhi; approval Accepted bila policy wajib; aktor assignee atau Supervisor | Handler (ajukan) + Supervisor (approve bila wajib) | `PENDING_APPROVAL` hanya pada Resolution History |
+| `IN_PROGRESS` | `CANCELLED` | Alasan wajib; belum Resolution Accepted | Supervisor / berwenang | |
+| `PENDING` | `IN_PROGRESS` | Alasan tunggu selesai / dokumen ada | Handler / Supervisor | Resume kerja |
+| `PENDING` | `ASSIGNED` | Assign/reassign valid | Supervisor | BR-005 mengizinkan assign dari `PENDING` |
+| `PENDING` | `ESCALATED` | Guard eskalasi BR-007 | Supervisor / System | |
+| `PENDING` | `RESOLVED` | “PENDING selesai” + Resolution Accepted (BR-008) | Handler / Supervisor | Tidak resolve sambil masih menunggu item wajib |
+| `PENDING` | `CANCELLED` | Alasan wajib; belum Resolution Accepted | Supervisor / berwenang | |
+| `ESCALATED` | `ASSIGNED` | Assign di unit tujuan (Pusat) valid | Supervisor Pusat / claim Pusat | BR-005 + BR-007 |
+| `ESCALATED` | `IN_PROGRESS` | **Return:** `return_reason_code` + `return_note` ≥ 10 trim; target = cabang asal; Case owned by Pusat | Petugas/Supervisor Pusat (BR-007 A4) | next = `IN_PROGRESS`; write cabang restored |
+| `ESCALATED` | `RESOLVED` | Resolution Accepted; untuk Resolve Pusat: `result_visibility` set/default `ORIGIN_BRANCH` (DEC-F4) | Petugas Pusat / Supervisor | Return ≠ Resolve |
+| `ESCALATED` | `CANCELLED` | Alasan wajib; belum Resolution Accepted; role berwenang | Supervisor berwenang | Hanya sebelum resolusi final |
+| `RESOLVED` | `CLOSED` | Resolution Accepted masih berlaku; aktor berwenang close Case; checklist Case terpenuhi | Supervisor (utama) / Handler bila dikonfigurasi | Close Case ≠ auto Close Complaint (BR-009 terpisah) |
+
+#### 3. Forbidden transitions
+
+| Forbidden | Why (SoT) |
+|---|---|
+| Any → hard-delete / hilang tanpa status | BR-004: hapus fisik dilarang |
+| `CLOSED` → any Case status | Definition B tidak punya Case `REOPENED`; BR-015 = reopen **Complaint** + Case baru (default) |
+| `CANCELLED` → any | Terminal; kerja baru = Case baru di bawah Complaint yang mengizinkan |
+| `RESOLVED` → `CANCELLED` | Cancel hanya sebelum resolusi final |
+| `CLOSED` → `CANCELLED` | Sudah terminal close-with-resolution path |
+| `CREATED` → `IN_PROGRESS` | Urutan Definition B: melalui `ASSIGNED` (kepemilikan jelas) |
+| `CREATED` → `PENDING` / `ESCALATED` / `RESOLVED` / `CLOSED` | Belum ada basis kerja/assignment/package/resolusi |
+| `CREATED` → `CLOSED` | Resolution wajib sebelum close (BR-008) |
+| `ASSIGNED` → `RESOLVED` / `CLOSED` | BR-008: resolve dari kerja (`IN_PROGRESS` / `ESCALATED` / `PENDING` selesai), bukan langsung dari assign tanpa penanganan |
+| `IN_PROGRESS` → `CREATED` | Tidak mundur ke status awal |
+| `PENDING` → `CREATED` | Tidak mundur |
+| `ESCALATED` → `CREATED` | Tidak mundur; identitas/history eskalasi tetap |
+| `RESOLVED` → `IN_PROGRESS` / `ASSIGNED` / `PENDING` / `ESCALATED` | Setelah Accepted, ubah kerja = Case baru atau jalur Complaint reopen — bukan mundur status Case lama |
+| `RESOLVED` → `ESCALATED` | Eskalasi hanya sebelum resolve final |
+| Any → `ESCALATED` dari `RESOLVED`/`CLOSED`/`CANCELLED` | BR-007: aktif & belum CLOSED; terminal/cancel excluded |
+| `CLOSED` → Create mutation pada Case yang sama | Write terbatas; Case baru via BR-015/BR-004 |
+| Eskalasi tanpa package lengkap | BR-007 E1 / No Information Lost |
+| Return tanpa kode/note | BR-007 E6 |
+| Resolve tanpa evidence wajib kategori | BR-008 E1 |
+| Resolve milik Case orang lain tanpa hak Supervisor | BR-008 E3 |
+| Transisi yang mengubah status **Complaint** sebagai efek samping tak terkendali selain yang sudah disebut BR-004 (Complaint `REGISTERED`→`IN_PROGRESS` saat Case pertama) | Batas Aggregate vs Case |
+| Memakai enum DOM-ECMF-003 (`REGISTERED`, `PENDING_REVIEW`, Case `REOPENED`) pada Case Aggregate | DEC-BQ001 O3: SoT terpisah |
+
+#### 4. Entry criteria
+
+Ringkas per state — lihat kolom **Entry Criteria** pada tabel §1 Case states. Setiap masuk state MUST memenuhi kriteria tersebut plus Business Guard pada baris allowed transition terkait.
+
+#### 5. Exit criteria
+
+Ringkas per state — lihat kolom **Exit Criteria** pada tabel §1 Case states. Keluar state hanya melalui **Allowed transitions** (§2); selain itu MUST ditolak.
+
+#### 6. Terminal states
+
+| Terminal state | Meaning |
+|---|---|
+| `CLOSED` | Siklus Case ditutup setelah Resolution Accepted; tidak ada exit Case-level |
+| `CANCELLED` | Case dibatalkan sebelum resolusi final; tidak ada un-cancel; kerja baru = Case baru |
+
+#### 7. Business guards
+
+1. Setiap transisi MUST ada di §2 Allowed transitions; selain itu MUST ditolak.  
+2. Case MUST memiliki Complaint induk yang sama sepanjang hidupnya.  
+3. Create Case MUST ditolak jika Complaint `CLOSED` tanpa reopen (BR-004 E1).  
+4. Assign MUST ditolak pada `RESOLVED` / `CLOSED` / `CANCELLED` (BR-005 E3).  
+5. Escalate MUST ditolak dari `CLOSED` / `CANCELLED` / `RESOLVED`; MUST menolak package tidak lengkap.  
+6. Return MUST hanya dari `ESCALATED` owned by Pusat; MUST punya `return_reason_code` + `return_note` (min 10 trim); MUST NOT set `result_visibility`.  
+7. Resolve MUST menolak evidence wajib hilang; MUST menghasilkan Resolution History append-only; Case MUST menjadi `RESOLVED` hanya setelah Accepted.  
+8. Close Case MUST hanya dari `RESOLVED`; MUST NOT otomatis menutup Complaint kecuali keputusan BR-009 terpisah.  
+9. Cancel MUST punya alasan; MUST ONLY sebelum Resolution Accepted; MUST NOT hard-delete.  
+10. Tidak boleh memakai status DOM-ECMF-003 pada Case Aggregate (DEC-BQ001 O3).  
+11. Tidak boleh reopen dengan mengubah Case `CLOSED` → status kerja; gunakan BR-015 pada Complaint.  
+12. Setiap transisi sukses MUST tercatat Timeline + Audit (BR-016 / BR-017).
+
+**Invariant lintas state:** Case selalu punya Complaint induk; CustomerId tetap di Complaint; Timeline+Audit pada setiap transisi sukses.
+
+#### 8. Transition business events
+
+| Transition | Business Event | Business Meaning |
+|---|---|---|
+| → `CREATED` | CaseCreated | Unit kerja operasional baru di bawah Complaint |
+| → `ASSIGNED` (create+assign atau assign) | CaseAssigned | Kepemilikan kerja ditetapkan/dialihkan |
+| `ASSIGNED` → `IN_PROGRESS` | CaseWorkStarted | Penanganan aktif dimulai |
+| `*` → `PENDING` | CasePending | Kerja ditahan menunggu pihak/dokumen |
+| `PENDING` → `IN_PROGRESS` | CaseResumed | Penanganan dilanjutkan |
+| `*` → `ESCALATED` | CaseEscalated | Ownership + package pindah ke jenjang lebih tinggi (Pusat) |
+| `ESCALATED` → `IN_PROGRESS` (Return) | CaseEscalationReturned | Dikembalikan ke cabang asal; bukan resolve |
+| `*` → `RESOLVED` | CaseResolved | Resolusi final Accepted; substansi kerja selesai |
+| `RESOLVED` → `CLOSED` | CaseClosed | Siklus Case ditutup resmi |
+| `*` → `CANCELLED` | CaseCancelled | Case dibatalkan sebelum resolusi final |
+| Reassign (`ASSIGNED`↔ / `IN_PROGRESS`→`ASSIGNED`) | CaseReassigned | Ownership berubah; history lama tidak dihapus |
+
+> Nama event di atas = **business event names** untuk matriks Aggregate; **bukan** spesifikasi katalog EVT / OpenAPI.
+
+#### 9. Governing decision reference
+
+| Item | Value |
+|---|---|
+| Decision | DEC-BQ001 — Case State Machine Option O3 |
+| File | `18 Architecture Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md` |
+| Countersign | `18 Architecture Governance/reviews/ECMP_DEC_BQ001_Architecture_Board_Countersign_Pack_v1.0.md` |
+| Status | **APPROVED** (2026-08-01) |
+| Effect | Matriks ini adalah SoT Case Aggregate; DOM-ECMF-003 tetap SoT Sprint / case-centric |
 
 ---
 
@@ -2481,11 +2644,11 @@ Kegagalan checklist → eskalasi tidak boleh diselesaikan sebagai sukses.
 
 | Item | Nilai |
 |---|---|
-| Status | Draft v1.1 |
+| Status | Locked v1.3 (+ Mode A Delivery Baseline policy notes 2026-08-01; Transition Matrix unchanged) |
 | Model domain | Complaint Aggregate → multi Case |
 | Konflik dengan SoT Sprint-01 | Ya (case-centric delivery BR-0xx) — perlu DEC remapping sebelum implementasi menggantikan SoT |
 | Keputusan terkunci yang dihormati | Prinsip pembuka dokumen + **DEC-F4** (F4…F4.5) pada BR-007 / BR-008 |
-| DEC terkait | `18 Architecture Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md` |
+| DEC terkait | `18 Architecture Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md`; `ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md`; `ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md` |
 | FRD Batch 1 | **Tidak diubah** (LOCKED FRD-CM-001 v1.1); DEC-F4 untuk batch eskalasi/resolusi berikutnya |
 | Rekomendasi berikutnya | Countersign Architecture Board; Impact Analysis BR-007/BR-008; petakan ke FRD batch eskalasi; formalisasi UAT-F4 di Test Strategy |
 
@@ -2497,7 +2660,10 @@ Kegagalan checklist → eskalasi tidak boleh diselesaikan sebagai sukses.
 |---|---|---|
 | 1.0 | 2026-07-29 | Draft awal BR-CM-CAT-001 (BR-001…BR-020) |
 | 1.1 | 2026-07-29 | DEC-F4: jalur Cabang→Pusat; Return reason code+note; `result_visibility`; F4-OQ-01/02 closed (min note 10; branch read-only at Pusat) |
+| 1.2 | 2026-08-01 | BU-02: Case Aggregate Transition Matrix menggantikan State Machine Ringkas untuk Case; governing DEC-BQ001 O3 APPROVED; Complaint state machine tidak diubah; status dokumen tetap Draft |
+| 1.3 | 2026-08-01 | BU-04: Status Draft → **Locked** setelah BU-01 (DEC-BQ001 O3 APPROVED) + BU-02 (Transition Matrix SoT); tidak mengubah Business Rules, Transition Matrix, atau Complaint state machine |
+| 1.3+notes | 2026-08-01 | DEC-MODEA-B2-001: Mode A Delivery Baseline policy notes (CAP-008); Transition Matrix **unchanged** |
 
 ---
 
-*Akhir dokumen BR-CM-CAT-001 v1.1 — ECMP Complaint Management Module Business Rules.*
+*Akhir dokumen BR-CM-CAT-001 v1.3 — ECMP Complaint Management Module Business Rules (+ Mode A Delivery Baseline notes).*

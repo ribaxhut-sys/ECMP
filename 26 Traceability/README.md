@@ -51,6 +51,8 @@ BP → BR → FRD → API/Event → Test Case → UAT scenario (acceptance subse
 - `ECMP_IMPACT_DEC_F4_v1.0.md` — **Authoritative** impact for DEC-F4 / CM BR-007·008 (EOS `impact --id BR-007` hits Sprint BR namespace — do not use for F4)
 - `ECMP_RTM_Complaint_Management_Batch1_v1.0_Validation_Report.md` — RTM validation extract
 - `ECMP_RTM_Complaint_Management_Batch1_v1.0_Coverage_Summary.md` — Coverage summary extract
+- **CAP-008** Case Management Batch-2 Mode A BCS — `../docs/product/CAP-008_Case_Management_Business_Capability_Specification_v1.0.md` (Residual BQ ZERO; FRD Batch-2 prerequisite READY; DEC-MODEA-B2-001)
+- Decision pack: `../18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`
 - `UAT_SCENARIO_TRACEABILITY.md` — UAT ↔ TC ↔ pytest (Sprint-09)
 - `../13 Test Strategy/ECMP_UAT_Plan_v0.2.md` — UAT-001 v0.2
 - `../02 Business Rules`

@@ -182,12 +182,26 @@ export function CmBatch1ConfirmationView({
           <div className="flex flex-wrap gap-3">
             <Button
               type="button"
+              onClick={() =>
+                router.push(
+                  `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases`,
+                )
+              }
+            >
+              Manage cases
+            </Button>
+            <Button
+              type="button"
               variant="outline"
               onClick={() => router.push("/complaints/new")}
             >
               Register another
             </Button>
-            <Button type="button" onClick={() => router.push("/complaints")}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/complaints")}
+            >
               Back to foundation list
             </Button>
           </div>

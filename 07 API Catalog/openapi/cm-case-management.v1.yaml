@@ -1,0 +1,1242 @@
+openapi: 3.1.0
+info:
+  title: ECMP Case Management Batch-2 Mode A API
+  version: 1.0.0-draft
+  summary: Aggregate Case Management contracts for CAP-008 / FRD-CM-B2-001 Mode A
+  description: |
+    OpenAPI contract for Complaint Management Module — Case Management Batch-2 Mode A.
+
+    **Capability:** CAP-008
+    **FRD:** FRD-CM-B2-001 (`ECMP_FRD_Case_Management_Batch2_v1.0.md`) Draft v1.0 COMPLETE
+    **BR SoT:** BR-CM-CAT-001 (LOCKED) — Case Aggregate Transition Matrix
+    **Decisions:** DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; CTO D-02 / BQ-011
+
+    **Namespace:** `/api/v1/cm` Aggregate (DEC-020). Not interchangeable with:
+    - Sprint case-service `/v1/cases` (DOM-ECMF-003)
+    - Foundation `/api/v1/complaints`
+
+    **Mode A Delivery exposed Case statuses:**
+    CREATED · ASSIGNED · IN_PROGRESS · RESOLVED · CLOSED · CANCELLED
+
+    **Not exposed (BQ-009):** PENDING · ESCALATED
+
+    **Assignment (BQ-006):** Unit level only. Assigned User rejected.
+    **SLA (BQ-005):** SLA Policy Version bound; countdown NOT activated.
+    **Close (BQ-007):** Close Case MUST NOT auto-close Complaint.
+
+    **Path coexistence note:** GET/POST resolve on `/api/v1/cm/cases/{caseId}` also appear
+    in `complaint-management-esc-res.v1.yaml` (API-523/525, FRD-CM-002 / DEC-F4 Planned).
+    This document is the Mode A CAP-008 contract (FR-003/FR-005). DEC-F4
+    `result_visibility` / Escalate paths are OUT OF SCOPE for Mode A delivery
+    (FRD: NOT SPECIFIED as Mode A requirement).
+
+    **Out of scope:** Notification Engine · Assignment Engine · SLA Engine · Identity
+    redesign · Mode B · Customer Merge · Dashboard · Reporting · AI · implementation /
+    database / frontend.
+
+    **AuthZ permission codes for CAP-008:** NOT SPECIFIED in repository beyond
+    ECMP-internal authorization and FRD actor matrix. Security scheme reuses
+    repository `bearerAuth` (JWT) — no authentication redesign.
+  contact:
+    name: ECMP API Architect / Domain PO ECMF
+  license:
+    name: Proprietary — ECMP internal
+  x-ecmp-frd: FRD-CM-B2-001
+  x-ecmp-cap: CAP-008
+  x-ecmp-br: BR-CM-CAT-001
+  x-ecmp-dec: DEC-MODEA-B2-001
+  x-ecmp-related-dec:
+    - DEC-BQ001
+    - DEC-020
+  x-ecmp-status: Draft — contract only (not implemented)
+  x-ecmp-ownership: CM Aggregate Case Management Batch-2 Mode A
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.example.local/ecmp
+    description: Example deployed base (paths already include /api/v1/cm)
+
+tags:
+  - name: CM-Case-Create
+    description: FR-001 Create Case
+  - name: CM-Case-Add
+    description: FR-002 Add Case to Existing Complaint
+  - name: CM-Case-View
+    description: FR-003 View Case
+  - name: CM-Case-Status
+    description: FR-004 Update Case Status (Mode A Delivery Transition Subset)
+  - name: CM-Case-Resolve
+    description: FR-005 Resolve Case
+  - name: CM-Case-Close
+    description: FR-006 Close Case
+
+paths:
+  /api/v1/cm/cases:
+    post:
+      summary: Create Case
+      description: |
+        Creates an operational Case under a parent Complaint (FR-001 / BR-004).
+
+        - Case Number format: `CASE-YYYY-NNNNNN` (BQ-004), independent of Complaint Number.
+        - Initial status: `CREATED`, or `ASSIGNED` when `destinationUnitId` is supplied
+          for Unit assignment in the same business action (BQ-006).
+        - Assigned User MUST NOT be accepted (BQ-006) → `ASSIGNED_USER_NOT_ALLOWED_MODE_A`.
+        - Binds `slaPolicyVersionId` when resolvable; countdown NOT activated (BQ-005).
+        - First Case on Complaint `REGISTERED` → Complaint becomes `IN_PROGRESS` (BR-004).
+        - Max Cases per Complaint = 5 (BQ-003).
+        - Complaint `CLOSED` → reject (BR-004 E1).
+        - Writes Timeline + Audit (BR-016 / BR-017).
+
+        ECMP-internal authorization required (Agent / Supervisor Unit / System;
+        Case Handler if granted). Permission code string: NOT SPECIFIED.
+      operationId: cmB2CreateCase
+      x-ear-id: API-530
+      x-ecmp-logical-id: API-CM-B2-001
+      x-ecmp-fr: FR-001
+      x-ecmp-br:
+        - BR-004
+        - BR-016
+        - BR-017
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-01
+      x-ecmp-dec:
+        - DEC-MODEA-B2-001
+        - DEC-BQ001
+        - DEC-020
+      x-ecmp-bq:
+        - BQ-002
+        - BQ-003
+        - BQ-004
+        - BQ-005
+        - BQ-006
+        - BQ-011
+      tags: [CM-Case-Create]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCaseRequest"
+            examples:
+              createWithoutUnitAssign:
+                summary: Create → CREATED
+                value:
+                  complaintId: "CMP-2026-000100"
+                  caseType: "BILLING"
+                  category: "OVERCHARGE"
+                  subject: "Tagihan tidak sesuai"
+                  description: "Pelanggan menuntut koreksi tagihan periode Juli."
+                  priority: "MEDIUM"
+              createWithUnitAssign:
+                summary: Create + Unit assign → ASSIGNED
+                value:
+                  complaintId: "CMP-2026-000100"
+                  caseType: "BILLING"
+                  category: "OVERCHARGE"
+                  subject: "Tagihan tidak sesuai"
+                  description: "Pelanggan menuntut koreksi tagihan periode Juli."
+                  priority: "MEDIUM"
+                  destinationUnitId: "UNIT-JKT-01"
+      responses:
+        "201":
+          description: Case created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Parent Complaint not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                notFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    code: COMPLAINT_NOT_FOUND
+                    detail: Parent Complaint does not exist.
+        "409":
+          description: Business conflict (closed complaint, max cases, assigned user, etc.)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                complaintClosed:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: COMPLAINT_CLOSED
+                    detail: Create Case on CLOSED Complaint is rejected.
+                maxCases:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: MAX_CASES_EXCEEDED
+                    detail: Maximum 5 Cases per Complaint reached (BQ-003).
+                assignedUser:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: ASSIGNED_USER_NOT_ALLOWED_MODE_A
+                    detail: Assigned User is outside Mode A (BQ-006).
+
+  /api/v1/cm/complaints/{complaintId}/cases:
+    post:
+      summary: Add Case to Existing Complaint
+      description: |
+        Adds a new Case under an existing Complaint without creating a new Complaint
+        (FR-002 / BR-004 / BR-014). Same Mode A create semantics as FR-001 for
+        Case Number, Unit assignment, SLA bind-without-clock, max 5 Cases, Timeline/Audit.
+
+        MUST NOT create a new Complaint Aggregate. MUST NOT create Case-under-Case.
+      operationId: cmB2AddCaseToComplaint
+      x-ear-id: API-531
+      x-ecmp-logical-id: API-CM-B2-002
+      x-ecmp-fr: FR-002
+      x-ecmp-br:
+        - BR-004
+        - BR-014
+        - BR-016
+        - BR-017
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-02
+      x-ecmp-dec:
+        - DEC-MODEA-B2-001
+        - DEC-020
+      x-ecmp-bq:
+        - BQ-003
+        - BQ-004
+        - BQ-005
+        - BQ-006
+      tags: [CM-Case-Add]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCaseRequest"
+      responses:
+        "201":
+          description: Case added under existing Complaint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Complaint not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Business conflict
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                maxCases:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: MAX_CASES_EXCEEDED
+                    detail: Maximum 5 Cases per Complaint reached (BQ-003).
+
+  /api/v1/cm/cases/{caseId}:
+    get:
+      summary: View Case
+      description: |
+        Returns Case detail for an authorized actor (FR-003).
+
+        Minimum fields: Case Number, status, parent Complaint, CustomerId,
+        priority/type when present (AC-06). Membership checks apply when
+        `complaintId` query context is supplied (AC-07).
+
+        Timeline projection endpoint is NOT SPECIFIED as a separate Mode A path
+        in this contract set; Timeline read semantics remain in FRD UC-CAP02-07.
+        Sensitive-read Audit on every View: NOT SPECIFIED beyond BR-016 general.
+
+        Coexistence: path also listed as API-525 (FRD-CM-002 visibility). Mode A
+        response does not require DEC-F4 `resultVisibility`.
+      operationId: cmB2GetCase
+      x-ear-id: API-532
+      x-ecmp-logical-id: API-CM-B2-003
+      x-ecmp-fr: FR-003
+      x-ecmp-br:
+        - BR-017
+        - BR-004
+        - BR-012
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-03
+      x-ecmp-dec:
+        - DEC-BQ001
+        - DEC-020
+      tags: [CM-Case-View]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: complaintId
+          in: query
+          required: false
+          description: Optional Complaint context for Aggregate membership validation (AC-07).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Case detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                notFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    code: CASE_NOT_FOUND
+                    detail: Case does not exist.
+        "409":
+          description: Membership mismatch with complaintId context
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                membership:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: CASE_COMPLAINT_MEMBERSHIP_MISMATCH
+                    detail: CaseId is not a member of the supplied Complaint context.
+
+  /api/v1/cm/cases/{caseId}/status:
+    patch:
+      summary: Update Case Status
+      description: |
+        Updates Case status only via the Mode A Delivery Transition Subset
+        (FR-004 / FRD Appendix B / BR-CM-CAT matrix filter BQ-006/008/009/014).
+
+        Allowed Mode A transitions (explicit):
+        - CREATED → ASSIGNED | CANCELLED
+        - ASSIGNED → IN_PROGRESS | ASSIGNED (Unit reassign) | CANCELLED
+        - IN_PROGRESS → ASSIGNED | CANCELLED
+        - IN_PROGRESS → RESOLVED is performed via Resolve endpoint (FR-005), not this PATCH alone
+        - RESOLVED → CLOSED is performed via Close endpoint (FR-006), not this PATCH alone
+
+        Forbidden / not exposed:
+        - PENDING or ESCALATED as from/to (BQ-009) → `STATE_NOT_EXPOSED_MODE_A`
+        - Assigned User target (BQ-006) → `ASSIGNED_USER_NOT_ALLOWED_MODE_A`
+        - All BR-CM-CAT §3 forbidden transitions → `INVALID_TRANSITION`
+
+        Cancel reasons Mode A (BQ-014): Duplicate | Wrong Input | Customer Cancellation.
+
+        Non-status attribute mutation after create: NOT SPECIFIED as Mode A FR — not this API.
+      operationId: cmB2UpdateCaseStatus
+      x-ear-id: API-533
+      x-ecmp-logical-id: API-CM-B2-004
+      x-ecmp-fr: FR-004
+      x-ecmp-br:
+        - BR-CM-CAT-001
+        - BR-016
+        - BR-017
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-04
+      x-ecmp-dec:
+        - DEC-BQ001
+        - DEC-MODEA-B2-001
+      x-ecmp-bq:
+        - BQ-001
+        - BQ-006
+        - BQ-009
+        - BQ-014
+      tags: [CM-Case-Status]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCaseStatusRequest"
+            examples:
+              startWork:
+                summary: ASSIGNED → IN_PROGRESS
+                value:
+                  toStatus: IN_PROGRESS
+              unitReassign:
+                summary: Reassign Unit (ASSIGNED → ASSIGNED)
+                value:
+                  toStatus: ASSIGNED
+                  destinationUnitId: "UNIT-BDG-02"
+                  reason: "Beban unit"
+              cancel:
+                summary: Cancel with Mode A reason
+                value:
+                  toStatus: CANCELLED
+                  cancelReason: DUPLICATE
+                  reason: "Duplikat Case pada Complaint yang sama"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Invalid / forbidden / not-exposed transition or terminal Case
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                invalidTransition:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: INVALID_TRANSITION
+                    detail: Transition is forbidden by BR-CM-CAT / Mode A subset.
+                notExposed:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: STATE_NOT_EXPOSED_MODE_A
+                    detail: PENDING/ESCALATED are not exposed in Mode A Delivery (BQ-009).
+
+  /api/v1/cm/cases/{caseId}/resolve:
+    post:
+      summary: Resolve Case
+      description: |
+        Proposes/accepts Case Resolution on Mode A path (FR-005 / BR-008 / BQ-008 / BQ-010).
+
+        Preconditions (Mode A Delivery):
+        - Case status MUST be `IN_PROGRESS`.
+        - Comment MUST be present (BQ-010).
+        - Attachment optional; Complaint Attachment MAY be reused (attachmentIds).
+        - Case → `RESOLVED` only after Resolution Accepted (Supervisor Approval path BQ-008).
+        - MUST NOT auto-close Complaint (BQ-007).
+
+        Resolve from PENDING/ESCALATED: NOT SPECIFIED as Mode A delivery path (BQ-009).
+        DEC-F4 `resultVisibility`: NOT SPECIFIED / OUT for Mode A CAP-008
+        (do not require it here; F4 Planned API-523 is a separate FRD-CM-002 contract).
+
+        Request may represent propose and/or accept depending on actor rights:
+        - Case Handler proposes (`action=PROPOSE` default)
+        - Supervisor accepts (`action=ACCEPT`) or rejects (`action=REJECT`)
+      operationId: cmB2ResolveCase
+      x-ear-id: API-534
+      x-ecmp-logical-id: API-CM-B2-005
+      x-ecmp-fr: FR-005
+      x-ecmp-br:
+        - BR-008
+        - BR-012
+        - BR-013
+        - BR-016
+        - BR-017
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-05
+      x-ecmp-dec:
+        - DEC-MODEA-B2-001
+      x-ecmp-bq:
+        - BQ-008
+        - BQ-010
+        - BQ-007
+      tags: [CM-Case-Resolve]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveCaseRequest"
+            examples:
+              propose:
+                summary: Handler proposes resolution
+                value:
+                  action: PROPOSE
+                  resolutionCode: "FIXED"
+                  summary: "Tagihan dikoreksi"
+                  detail: "Adjustment diterapkan pada periode Juli."
+                  comment: "Bukti koreksi dikirim ke pelanggan."
+                  attachmentIds: ["ATT-001"]
+              accept:
+                summary: Supervisor accepts → Case RESOLVED
+                value:
+                  action: ACCEPT
+                  resolutionCode: "FIXED"
+                  summary: "Tagihan dikoreksi"
+                  comment: "Disetujui Supervisor."
+              reject:
+                summary: Supervisor rejects
+                value:
+                  action: REJECT
+                  rejectionReason: "Evidence kurang lengkap"
+                  comment: "Mohon lengkapi lampiran bukti."
+      responses:
+        "200":
+          description: |
+            Resolution processed. Case status becomes `RESOLVED` when action=ACCEPT
+            and Acceptance succeeds; otherwise Case remains non-RESOLVED with
+            Resolution History updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Invalid state / missing evidence / comment / rights
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                commentRequired:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: COMMENT_REQUIRED
+                    detail: Resolve requires Comment (BQ-010).
+                evidenceRequired:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: RESOLUTION_EVIDENCE_REQUIRED
+                    detail: Mandatory category evidence is missing (BR-008 E1).
+                invalidState:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: INVALID_STATE
+                    detail: Mode A Resolve requires Case status IN_PROGRESS.
+
+  /api/v1/cm/cases/{caseId}/close:
+    post:
+      summary: Close Case
+      description: |
+        Closes a Case after Resolution Accepted / status `RESOLVED` and Supervisor
+        Approval completed (FR-006 / BQ-008 / BR-CM-CAT `RESOLVED→CLOSED`).
+
+        Close Case Checklist minimum (LOCKED Operational Spec):
+        1. Case status = RESOLVED
+        2. Final Resolution Accepted still valid
+        3. Supervisor Approval after RESOLVED completed
+        4. Closer authorized — Supervisor Unit (primary)
+
+        NOT SPECIFIED (MUST NOT invent as mandatory gates):
+        - Case Handler closer activation in Mode A
+        - Comment / Attachment required at Close moment
+        - Category evidence required at Close moment
+        - Checklist items beyond #1–#4
+
+        MUST NOT auto-close Complaint Aggregate (BQ-007), including last open Case.
+      operationId: cmB2CloseCase
+      x-ear-id: API-535
+      x-ecmp-logical-id: API-CM-B2-006
+      x-ecmp-fr: FR-006
+      x-ecmp-br:
+        - BR-CM-CAT-001
+        - BR-016
+        - BR-017
+        - BR-009
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-06
+      x-ecmp-dec:
+        - DEC-MODEA-B2-001
+      x-ecmp-bq:
+        - BQ-007
+        - BQ-008
+      tags: [CM-Case-Close]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseCaseRequest"
+            examples:
+              empty:
+                summary: Close with checklist only (no extra body fields required)
+                value: {}
+      responses:
+        "200":
+          description: Case closed (terminal). Complaint NOT auto-closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Checklist not met / not RESOLVED / approval missing
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                notResolved:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: INVALID_STATE
+                    detail: Close requires Case status RESOLVED.
+                approvalRequired:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: SUPERVISOR_APPROVAL_REQUIRED
+                    detail: Supervisor Approval after RESOLVED is required (BQ-008).
+                checklist:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: CLOSE_CHECKLIST_NOT_MET
+                    detail: Close Case Checklist minimum items #1–#4 not satisfied.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Reuses existing repository authentication (JWT bearer). Identical scheme
+        pattern as Aggregate Batch-1 / esc-res OpenAPI. No authentication redesign.
+        Authorization remains ECMP-internal (ADR-008 / ADR-014 / ADR-015).
+        CAP-008 permission code strings: NOT SPECIFIED.
+
+  parameters:
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      description: Aggregate Case identifier (internal id or Case Number — binding NOT SPECIFIED beyond uniqueness).
+      schema:
+        type: string
+        minLength: 1
+    ComplaintId:
+      name: complaintId
+      in: path
+      required: true
+      description: Parent Complaint Aggregate identifier.
+      schema:
+        type: string
+        minLength: 1
+    RequestId:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Optional idempotency key for mutating Case operations.
+        Batch-1 create mandates Request Id (D-03). Whether Mode A Case create
+        mandates the same header: NOT SPECIFIED in FRD-CM-B2-001 — therefore
+        optional at contract level (clients SHOULD send when available).
+      schema:
+        type: string
+
+  responses:
+    ValidationProblem:
+      description: Request validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          examples:
+            validation:
+              value:
+                type: about:blank
+                title: Bad Request
+                status: 400
+                code: VALIDATION_ERROR
+                detail: One or more fields failed validation.
+                errors:
+                  - field: subject
+                    code: REQUIRED
+                    message: subject is required
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          examples:
+            unauthorized:
+              value:
+                type: about:blank
+                title: Unauthorized
+                status: 401
+                code: UNAUTHORIZED
+                detail: Authentication required.
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          examples:
+            forbidden:
+              value:
+                type: about:blank
+                title: Forbidden
+                status: 403
+                code: FORBIDDEN
+                detail: Actor is not authorized for this Case operation.
+
+  schemas:
+    CaseStatus:
+      type: string
+      description: |
+        Aggregate Case status vocabulary (BR-CM-CAT Definition B / DEC-BQ001 O3).
+        Mode A Delivery exposes only the enum values listed. PENDING and ESCALATED
+        remain in the Aggregate matrix but are not exposed in Mode A (BQ-009).
+      enum:
+        - CREATED
+        - ASSIGNED
+        - IN_PROGRESS
+        - RESOLVED
+        - CLOSED
+        - CANCELLED
+
+    CaseStatusAggregateFull:
+      type: string
+      description: |
+        Full Aggregate Case status set including states not exposed in Mode A Delivery.
+        Provided for documentation completeness only — Mode A APIs MUST NOT accept
+        PENDING/ESCALATED as request targets (BQ-009).
+      enum:
+        - CREATED
+        - ASSIGNED
+        - IN_PROGRESS
+        - PENDING
+        - ESCALATED
+        - RESOLVED
+        - CLOSED
+        - CANCELLED
+
+    CancelReasonModeA:
+      type: string
+      description: Mode A cancel reasons (BQ-014 LOCKED)
+      enum:
+        - DUPLICATE
+        - WRONG_INPUT
+        - CUSTOMER_CANCELLATION
+
+    ResolveAction:
+      type: string
+      enum:
+        - PROPOSE
+        - ACCEPT
+        - REJECT
+
+    CaseSummary:
+      type: object
+      description: Compact Case projection for lists / embeds
+      required:
+        - caseId
+        - caseNumber
+        - complaintId
+        - status
+      properties:
+        caseId:
+          type: string
+        caseNumber:
+          type: string
+          description: Format CASE-YYYY-NNNNNN (BQ-004)
+          pattern: "^CASE-[0-9]{4}-[0-9]{6}$"
+          examples:
+            - CASE-2026-000001
+        complaintId:
+          type: string
+        status:
+          $ref: "#/components/schemas/CaseStatus"
+        caseType:
+          type: string
+        category:
+          type: string
+        priority:
+          type: string
+        subject:
+          type: string
+        owningUnitId:
+          type:
+            - string
+            - "null"
+          description: Unit ownership (Mode A). Null when status=CREATED without assign.
+        customerId:
+          type: string
+          description: From parent Complaint (CustomerId only)
+        createdAt:
+          type: string
+          format: date-time
+
+    CaseResolution:
+      type: object
+      description: Resolution record / history entry (BR-008)
+      required:
+        - resolutionCode
+        - summary
+        - status
+      properties:
+        resolutionId:
+          type: string
+        resolutionCode:
+          type: string
+        summary:
+          type: string
+        detail:
+          type:
+            - string
+            - "null"
+        customerImpact:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          description: Resolution proposal lifecycle — not a Case status
+          enum:
+            - PENDING_APPROVAL
+            - ACCEPTED
+            - REJECTED
+        comment:
+          type: string
+          description: Required on Resolve (BQ-010)
+        attachmentIds:
+          type: array
+          items:
+            type: string
+          description: Optional; may include reused Complaint attachments (BQ-010)
+        proposedBy:
+          type: string
+        proposedAt:
+          type: string
+          format: date-time
+        decidedBy:
+          type:
+            - string
+            - "null"
+        decidedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        rejectionReason:
+          type:
+            - string
+            - "null"
+
+    Case:
+      type: object
+      description: Full Case resource (Mode A CAP-008)
+      required:
+        - caseId
+        - caseNumber
+        - complaintId
+        - status
+        - customerId
+        - createdAt
+        - createdBy
+      properties:
+        caseId:
+          type: string
+        caseNumber:
+          type: string
+          pattern: "^CASE-[0-9]{4}-[0-9]{6}$"
+          examples:
+            - CASE-2026-000001
+        complaintId:
+          type: string
+        customerId:
+          type: string
+        status:
+          $ref: "#/components/schemas/CaseStatus"
+        caseType:
+          type: string
+        category:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+        owningUnitId:
+          type:
+            - string
+            - "null"
+          description: Mode A Unit ownership. Assigned User is outside Mode A.
+        assignedUserId:
+          type:
+            - string
+            - "null"
+          description: |
+            MUST be null in Mode A responses. If present in requests → reject
+            ASSIGNED_USER_NOT_ALLOWED_MODE_A (BQ-006).
+          deprecated: true
+        slaPolicyVersionId:
+          type:
+            - string
+            - "null"
+          description: Bound SLA Policy Version (BQ-005). Countdown NOT activated in Mode A.
+        slaCountdownActive:
+          type: boolean
+          const: false
+          description: Always false in Mode A (BQ-005).
+        resolution:
+          oneOf:
+            - $ref: "#/components/schemas/CaseResolution"
+            - type: "null"
+        resolutionHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseResolution"
+          description: Append-only (BR-008)
+        cancelReason:
+          oneOf:
+            - $ref: "#/components/schemas/CancelReasonModeA"
+            - type: "null"
+        closedBy:
+          type:
+            - string
+            - "null"
+        closedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        complaintStatusAfterCreate:
+          type:
+            - string
+            - "null"
+          description: |
+            Informational. When first Case created on REGISTERED Complaint,
+            Complaint becomes IN_PROGRESS (BR-004). Close Case does not set
+            Complaint CLOSED (BQ-007).
+
+    CreateCaseRequest:
+      type: object
+      required:
+        - complaintId
+        - caseType
+        - subject
+        - description
+        - priority
+      properties:
+        complaintId:
+          type: string
+        caseType:
+          type: string
+        category:
+          type: string
+        subject:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        priority:
+          type: string
+        destinationUnitId:
+          type: string
+          description: |
+            Optional. When present → Create + Unit assignment → initial status ASSIGNED.
+            When absent → initial status CREATED (BQ-006).
+        assignedUserId:
+          type: string
+          description: Forbidden in Mode A. If supplied → 409 ASSIGNED_USER_NOT_ALLOWED_MODE_A.
+          deprecated: true
+        slaPolicyVersionId:
+          type: string
+          description: Optional explicit bind; otherwise system selects active policy. Countdown NOT activated.
+
+    AddCaseRequest:
+      type: object
+      required:
+        - caseType
+        - subject
+        - description
+        - priority
+      properties:
+        caseType:
+          type: string
+        category:
+          type: string
+        subject:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        priority:
+          type: string
+        destinationUnitId:
+          type: string
+          description: Optional Unit assign on add → ASSIGNED; else CREATED.
+        assignedUserId:
+          type: string
+          deprecated: true
+          description: Forbidden in Mode A.
+        slaPolicyVersionId:
+          type: string
+
+    UpdateCaseStatusRequest:
+      type: object
+      required:
+        - toStatus
+      properties:
+        toStatus:
+          $ref: "#/components/schemas/CaseStatus"
+          description: Mode A exposed target only. PENDING/ESCALATED rejected.
+        destinationUnitId:
+          type: string
+          description: Required when transitioning to ASSIGNED (first assign or Unit reassign).
+        cancelReason:
+          $ref: "#/components/schemas/CancelReasonModeA"
+          description: Required when toStatus=CANCELLED (BQ-014).
+        reason:
+          type: string
+          description: Free-text reason when guard requires (cancel / reassign policy).
+        assignedUserId:
+          type: string
+          deprecated: true
+          description: Forbidden in Mode A.
+
+    ResolveCaseRequest:
+      type: object
+      required:
+        - action
+        - comment
+      properties:
+        action:
+          $ref: "#/components/schemas/ResolveAction"
+        resolutionCode:
+          type: string
+          description: Required for PROPOSE and ACCEPT.
+        summary:
+          type: string
+          description: Required for PROPOSE and ACCEPT.
+        detail:
+          type: string
+        customerImpact:
+          type: string
+        comment:
+          type: string
+          minLength: 1
+          description: Required (BQ-010).
+        attachmentIds:
+          type: array
+          items:
+            type: string
+          description: Optional evidence / reused Complaint attachments.
+        rejectionReason:
+          type: string
+          description: Required when action=REJECT.
+        resultVisibility:
+          type: string
+          description: |
+            DEC-F4 field. NOT SPECIFIED / OUT for Mode A CAP-008 delivery.
+            If supplied in Mode A, behavior: NOT SPECIFIED (do not invent).
+            Prefer omitting on Mode A clients.
+          deprecated: true
+
+    CloseCaseRequest:
+      type: object
+      description: |
+        Close body is optional. Comment/Attachment at Close moment: NOT SPECIFIED.
+        Checklist minimum #1–#4 is enforced server-side from Case state + AuthZ.
+      properties:
+        note:
+          type: string
+          description: Optional operational note. NOT a mandatory Close checklist item.
+
+    ProblemDetails:
+      type: object
+      description: |
+        RFC 9457-style problem details used for 4xx/5xx. Extends with ECMP `code`
+        and optional `errors` for field validation. Compatible with Aggregate
+        Batch-1 `{code,message,details}` via `code` + `detail`.
+      required:
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          description: |
+            Business / protocol error code. Mode A catalog includes:
+            VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN,
+            COMPLAINT_NOT_FOUND, CASE_NOT_FOUND,
+            COMPLAINT_CLOSED, MAX_CASES_EXCEEDED,
+            ASSIGNED_USER_NOT_ALLOWED_MODE_A,
+            CASE_COMPLAINT_MEMBERSHIP_MISMATCH,
+            INVALID_TRANSITION, INVALID_STATE,
+            STATE_NOT_EXPOSED_MODE_A,
+            COMMENT_REQUIRED, RESOLUTION_EVIDENCE_REQUIRED,
+            SUPERVISOR_APPROVAL_REQUIRED, CLOSE_CHECKLIST_NOT_MET.
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
+        details:
+          type: object
+          additionalProperties: true
+
+    ValidationError:
+      type: object
+      description: Field-level validation error entry
+      required:
+        - field
+        - code
+        - message
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    Pagination:
+      type: object
+      description: |
+        Common pagination component for Aggregate list endpoints.
+        No Case list endpoint is in the CAP-008 Mode A FR-001…006 contract set
+        (list remains NOT SPECIFIED for Mode A CAP-008 / may exist under FRD-CM-002 API-526).
+      required:
+        - page
+        - pageSize
+        - total
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        total:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseSummary"

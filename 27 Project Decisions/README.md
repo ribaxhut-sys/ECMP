@@ -43,8 +43,10 @@ Draft
 | DEC-021 *(org O-06)* | Organization Hierarchy Descendant Scope (O-06) | **Proposed** | No silent descendant AuthZ; Mode B not unlocked |
 | DEC-021 *(G2 Mode A)* | G2 Mini-Gate Mode A | **Accepted (Mode A lab)** | G2 exit Mode A — **same ID as O-06**; see collision register |
 | DEC-022 | Org Restructure / Orphan Remediation (O-07) | **Proposed** | Retain + fail-closed interim; Mode B not unlocked |
+| **DEC-MODEA-B2-001** | Mode A Delivery Baseline BQ Lock (CAP-008) | **Accepted** | BQ-002…014 LOCKED; Residual BQ ZERO; FRD Batch-2 prerequisite READY |
 
-> DEC-020 (SoT remapping) closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, Batch-2, or real-customer production.
+> DEC-020 (SoT remapping) closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, or real-customer production.
+> **DEC-MODEA-B2-001** locks Batch-2 Mode A Case Management BQs and registers capability **CAP-008** (former working ID CAP-02 retired). Pack: `../18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`.
 > DEC-021 (O-06) / DEC-022 are **Proposed** only — interim fail-closed rules apply until Accepted.
 > **ID collision (P0 governance):** two files share `DEC-020` and two share `DEC-021`. Do **not** renumber without Board/PMO decision. Register: `../deploy/evidence/DEC_ID_Collision_Register_20260801.md`.
 

@@ -1,0 +1,136 @@
+"""SQLAlchemy adapter for CaseRepository port."""
+
+from __future__ import annotations
+
+import uuid
+from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_case.domain.aggregate import CaseAggregate
+from app.modules.cm_case.domain.repositories import ParentComplaintRef
+from app.modules.cm_case.domain.value_objects import CaseNumber
+from app.modules.cm_case.infrastructure import mappers
+from app.modules.cm_case.infrastructure.orm import (
+    CmCaseNumberCounterORM,
+    CmCaseORM,
+    CmCaseResolutionORM,
+)
+
+
+class SqlAlchemyCaseRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_parent_complaint(self, complaint_id: str) -> ParentComplaintRef | None:
+        key = (complaint_id or "").strip()
+        if not key:
+            return None
+        row: CmBatch1ComplaintORM | None = None
+        try:
+            uid = UUID(key)
+            row = self._session.get(CmBatch1ComplaintORM, uid)
+        except ValueError:
+            row = None
+        if row is None:
+            row = self._session.scalar(
+                select(CmBatch1ComplaintORM).where(
+                    CmBatch1ComplaintORM.complaint_number == key
+                )
+            )
+        if row is None:
+            return None
+        cid = str(row.id)
+        count = self.count_cases(cid)
+        return ParentComplaintRef(
+            complaint_id=cid,
+            complaint_number=row.complaint_number,
+            customer_id=row.customer_id,
+            status=row.status,
+            case_created=bool(row.case_created),
+            case_count=count,
+        )
+
+    def count_cases(self, complaint_id: str) -> int:
+        return int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmCaseORM)
+                .where(CmCaseORM.complaint_id == complaint_id)
+            )
+            or 0
+        )
+
+    def next_case_number(self, year: int) -> str:
+        counter = self._session.get(CmCaseNumberCounterORM, year)
+        if counter is None:
+            counter = CmCaseNumberCounterORM(year=year, last_seq=0)
+            self._session.add(counter)
+            self._session.flush()
+        counter.last_seq += 1
+        self._session.flush()
+        return CaseNumber.format(year, counter.last_seq).value
+
+    def save(self, case: CaseAggregate) -> CaseAggregate:
+        row = self._session.get(CmCaseORM, case.case_id)
+        if row is None:
+            row = CmCaseORM(id=case.case_id)
+            self._session.add(row)
+        mappers.apply_case_to_orm(case, row)
+        # Replace resolution history (append-only business; simplest durable rewrite)
+        existing = list(
+            self._session.scalars(
+                select(CmCaseResolutionORM).where(
+                    CmCaseResolutionORM.case_id == case.case_id
+                )
+            )
+        )
+        existing_ids = {str(r.id) for r in existing}
+        for record in case.resolution_history:
+            if record.resolution_id in existing_ids:
+                continue
+            self._session.add(mappers.resolution_to_orm(case.case_id, record))
+        self._session.flush()
+        return case
+
+    def get(self, case_id: str) -> CaseAggregate | None:
+        key = (case_id or "").strip()
+        if not key:
+            return None
+        row: CmCaseORM | None = None
+        try:
+            row = self._session.get(CmCaseORM, UUID(key))
+        except ValueError:
+            row = None
+        if row is None:
+            row = self._session.scalar(
+                select(CmCaseORM).where(CmCaseORM.case_number == key)
+            )
+        if row is None:
+            return None
+        resolutions = list(
+            self._session.scalars(
+                select(CmCaseResolutionORM)
+                .where(CmCaseResolutionORM.case_id == row.id)
+                .order_by(CmCaseResolutionORM.created_at.asc())
+            )
+        )
+        return mappers.case_from_orm(row, resolutions)
+
+    def mark_complaint_in_progress(self, complaint_id: str) -> None:
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return
+        row.case_created = True
+        if row.status == "REGISTERED":
+            row.status = "IN_PROGRESS"
+        self._session.flush()
+
+    def commit(self) -> None:
+        self._session.commit()

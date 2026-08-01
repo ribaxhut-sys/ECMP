@@ -21,6 +21,7 @@ from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.branches.router import router as branches_router
 from app.modules.cm_batch1.router import router as cm_batch1_router
+from app.modules.cm_case.api.router import router as cm_case_router
 from app.modules.complaint.api import complaint_api_router
 from app.modules.complaints.router import router as complaints_router
 from app.modules.customers.router import router as customers_router
@@ -66,6 +67,7 @@ api_router.include_router(health_router)
 api_router.include_router(version_router)
 api_router.include_router(auth_router)
 api_router.include_router(cm_batch1_router)
+api_router.include_router(cm_case_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(kpi_router)
 api_router.include_router(settings_router)

@@ -204,9 +204,22 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟢 Implemented (lab; shared void semantics) |
 | API-513 | API-CM-B1-014 | GET /api/v1/cm/supervisor/queue | FR-001 | 🟢 Implemented (lab; later-review + no-Case aging visibility) |
 
+### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0-draft** — FRD-CM-B2-001 / CAP-008 Mode A
+
+> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…535** (logical **API-CM-B2-001…006**). Contract only — not implemented. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A.
+
+| API ID | Logical ID | Method & Endpoint | FR | Status |
+|---|---|---|---|---|
+| API-530 | API-CM-B2-001 | POST /api/v1/cm/cases | FR-001 Create Case | 🟡 Draft (contract) |
+| API-531 | API-CM-B2-002 | POST /api/v1/cm/complaints/{complaintId}/cases | FR-002 Add Case | 🟡 Draft (contract) |
+| API-532 | API-CM-B2-003 | GET /api/v1/cm/cases/{caseId} | FR-003 View Case | 🟡 Draft (contract) |
+| API-533 | API-CM-B2-004 | PATCH /api/v1/cm/cases/{caseId}/status | FR-004 Update Case Status | 🟡 Draft (contract) |
+| API-534 | API-CM-B2-005 | POST /api/v1/cm/cases/{caseId}/resolve | FR-005 Resolve Case | 🟡 Draft (contract) |
+| API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟡 Draft (contract) |
+
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 
-> Aggregate `/api/v1/cm/` escalation & resolution. Separate from foundation API-207/301 under **DEC-020** coexistence (not remapped/merged). Catalog IDs **API-520…526**. Not unlocked by DEC-020.
+> Aggregate `/api/v1/cm/` escalation & resolution. Separate from foundation API-207/301 under **DEC-020** coexistence (not remapped/merged). Catalog IDs **API-520…526**. Not unlocked by DEC-020. **Path overlap** with CAP-008 Mode A API-532/534 on GET Case / POST resolve — see `cm-case-management.v1.yaml` for Mode A semantics.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|

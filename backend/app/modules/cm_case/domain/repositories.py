@@ -1,0 +1,61 @@
+"""Repository port for Case Aggregate (Epic 3)."""
+
+from __future__ import annotations
+
+from typing import Protocol
+from uuid import UUID
+
+from app.modules.cm_case.domain.aggregate import CaseAggregate
+
+
+class ParentComplaintRef:
+    """Read model for parent Complaint Aggregate (Batch-1)."""
+
+    __slots__ = (
+        "complaint_id",
+        "complaint_number",
+        "customer_id",
+        "status",
+        "case_created",
+        "case_count",
+    )
+
+    def __init__(
+        self,
+        *,
+        complaint_id: str,
+        complaint_number: str,
+        customer_id: str,
+        status: str,
+        case_created: bool,
+        case_count: int,
+    ) -> None:
+        self.complaint_id = complaint_id
+        self.complaint_number = complaint_number
+        self.customer_id = customer_id
+        self.status = status
+        self.case_created = case_created
+        self.case_count = case_count
+
+
+class CaseRepository(Protocol):
+    def get_parent_complaint(self, complaint_id: str) -> ParentComplaintRef | None:
+        """Load parent Complaint by UUID or complaint number."""
+
+    def count_cases(self, complaint_id: str) -> int:
+        ...
+
+    def next_case_number(self, year: int) -> str:
+        """Allocate next ``CASE-YYYY-NNNNNN`` (BQ-004)."""
+
+    def save(self, case: CaseAggregate) -> CaseAggregate:
+        ...
+
+    def get(self, case_id: str) -> CaseAggregate | None:
+        """Load by UUID or Case Number."""
+
+    def mark_complaint_in_progress(self, complaint_id: str) -> None:
+        """First Case effect: Complaint REGISTERED → IN_PROGRESS; case_created=True."""
+
+    def commit(self) -> None:
+        ...

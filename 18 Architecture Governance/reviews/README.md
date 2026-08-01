@@ -44,4 +44,7 @@ Proses dan formulir review arsitektur ECMP. Bagian dari Governance (`18`), bukan
 - `ECMP_PLATFORM_TD_OPS_003_Admin_RBAC_Repair_v1.0.md` (GOV-PLATFORM-OPS-SEED-001) — ADMIN matrix repair (`0044`)
 - `ECMP_PLATFORM_CI_COV_001_Coverage_Gate_v1.0.md` (GOV-PLATFORM-CI-COV-001) — restore CI coverage gate ≥90%
 - `ECMP_ADR_012_Architecture_Board_Countersign_Pack_v1.0.md` (GOV-CS-ADR-012) — ADR-012 **Accepted** / Countersigned (TASK-PLATFORM-ADR012-ACCEPT-001 complete; no Keycloak/OIDC/JWT/code authorization)
+- `ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md` (GOV-DEC-BQ001) — BQ-001 Option O3 APPROVED
+- `ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md` (GOV-DEC-MODEA-B2-BQLOCK / **DEC-MODEA-B2-001**) — Mode A Delivery Baseline: BQ-002…014 **LOCKED**; capability **CAP-008**; Residual BQ **ZERO**; FRD Batch-2 prerequisite **READY**
+- `ECMP_DM_ModeA_Delivery_Baseline_Decision_Matrix_v1.0.md` (DM-MODEA-B2-001) — Decision Matrix companion
 - Backend Master Roadmap: `../BACKEND_MASTER_ROADMAP.md` (BMR-001)
