@@ -57,8 +57,8 @@ jobs:
       - name: Mode A credential-route guard unit tests
         run: npm run check:auth-routes:unit
       - name: Unit tests with coverage (Phase C hard-fail)
-        # FE-CI-POL-001 / OD-FE-010 Phase C thresholds — blocks PR on failure.
-        # Cap heap below ubuntu-latest RAM; vitest uses singleFork (see vitest.config.ts).
+        # FE-CI-POL-001 / OD-FE-010 Phase C — allowlisted .ts modules only (see vitest.config).
+        # Exclude *.test.tsx: i18n UI suites pull message catalogs and OOM ubuntu-latest.
         run: npm run test:coverage
         env:
           NODE_OPTIONS: --max-old-space-size=4096

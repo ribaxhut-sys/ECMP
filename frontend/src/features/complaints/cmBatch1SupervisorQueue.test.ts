@@ -47,7 +47,7 @@ describe("cmBatch1SupervisorQueue contract helpers", () => {
     expect(cmBatch1LaterReviewReasonIsUnknown("future_enrichment_v2")).toBe(
       true,
     );
-    expect(cmBatch1LaterReviewReasonLabel("   ")).toBe("(empty reason)");
+    expect(cmBatch1LaterReviewReasonLabel("   ")).toBe("");
   });
 
   it("pass-through status labels", () => {

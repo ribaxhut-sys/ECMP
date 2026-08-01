@@ -13,7 +13,7 @@
     "check:auth-routes:unit": "node --test scripts/check-mode-a-credential-routes.test.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --exclude 'src/**/*.test.tsx'",
     "test:a11y": "vitest run --config vitest.a11y.config.ts"
   },
   "dependencies": {
