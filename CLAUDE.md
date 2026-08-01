@@ -82,7 +82,7 @@ Kode:
 - `backend/` — FastAPI + SQLAlchemy + Alembic (Python 3.13, ruff line-length 100)
 - `frontend/` — Next.js + TypeScript
 - `deploy/proxy/` — Caddy dan nginx (lab override + certs)
-- `deploy/README.md` (+ evidence pack) — operasi lab/VPS (folder `deploy/vps/` **BELUM ADA** sebagai tree terpisah)
+- `deploy/README.md` (+ evidence pack) — operasi lab/VPS / bootstrap & panduan Claude Code di server (folder `deploy/vps/` **BELUM ADA** sebagai tree terpisah)
 - `scripts/validate-production-config.py` — validator konfigurasi fail-fast
 - `scripts/release/` — helper rilis
 
@@ -137,9 +137,9 @@ PostgreSQL 16 · backend · frontend. Backend dan frontend **dibangun dari sourc
 (`build: context:`), jadi deployment memerlukan repo lengkap di host — tidak bisa lewat
 API yang hanya mengirim isi compose.
 
-VPS lab (contoh): Hostinger host yang dipakai operasi lab. User aplikasi `ecmp` (grup `sudo` + `docker`) bila di-provision demikian.
-ufw mengizinkan 80/443, SSH di-rate-limit. Firewall panel host adalah lapisan terpisah —
-keduanya harus mengizinkan. Panduan edge: `deploy/README.md`, `deploy/proxy/README.md`.
+VPS lab (contoh): Hostinger, `srv1869401.hstgr.cloud`. User aplikasi `ecmp` (grup `sudo` + `docker`) bila di-provision demikian.
+ufw mengizinkan 80/443, SSH di-rate-limit. Firewall hPanel / panel host adalah lapisan terpisah —
+keduanya harus mengizinkan. Panduan: `deploy/README.md`, `deploy/proxy/README.md` (bukan `deploy/vps/` — tree terpisah belum ada).
 
 Ambil snapshot hPanel sebelum deploy produksi pertama.
 
