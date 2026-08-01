@@ -2,6 +2,7 @@
  * CaseStatusBadge + CaseSummaryCard smoke.
  */
 import { cleanup, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CmCase } from "@/lib/api";
 import { CaseStatusBadge } from "./CaseStatusBadge";
@@ -37,6 +38,22 @@ const sample: CmCase = {
   createdBy: "user-1",
 };
 
+const casesMessages = {
+  type: "Jenis",
+  priority: "Prioritas",
+  unit: "Unit",
+  customer: "Pelanggan",
+  view: "Lihat Case",
+};
+
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="id" messages={{ cases: casesMessages }}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
+
 describe("CaseStatusBadge", () => {
   afterEach(() => cleanup());
 
@@ -50,9 +67,9 @@ describe("CaseSummaryCard", () => {
   afterEach(() => cleanup());
 
   it("links to case detail", () => {
-    render(<CaseSummaryCard caseData={sample} />);
+    renderWithIntl(<CaseSummaryCard caseData={sample} />);
     expect(screen.getByText("CASE-2026-000001")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /view case/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /lihat case/i })).toHaveAttribute(
       "href",
       "/complaints/cm/cases/case-1",
     );

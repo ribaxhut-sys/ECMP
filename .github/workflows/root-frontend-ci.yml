@@ -58,10 +58,10 @@ jobs:
         run: npm run check:auth-routes:unit
       - name: Unit tests with coverage (Phase C hard-fail)
         # FE-CI-POL-001 / OD-FE-010 Phase C thresholds — blocks PR on failure.
-        # Raise heap: post-i18n message catalogs inflate Vitest+v8 coverage RSS on GHA.
+        # Cap heap below ubuntu-latest RAM; vitest uses singleFork (see vitest.config.ts).
         run: npm run test:coverage
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Accessibility smoke (warn)
         # Working target WCAG 2.2 AA; smoke remains warn (no conformance claim).
         continue-on-error: true

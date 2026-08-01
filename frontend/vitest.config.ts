@@ -20,9 +20,13 @@ export default defineConfig({
       "coverage",
       "src/**/*.a11y.test.{ts,tsx}",
     ],
+    // Bound RSS on ubuntu-latest (~7GiB total).
+    fileParallelism: false,
+    maxWorkers: 1,
     coverage: {
       provider: "v8",
-      reporter: ["text", "html", "json-summary"],
+      // Skip HTML report in CI — large sourcemap walk caused OOM after i18n catalogs.
+      reporter: ["text", "json-summary"],
       include: [
         "src/features/**/statusTransitions.ts",
         "src/features/**/createComplaintForm.ts",
