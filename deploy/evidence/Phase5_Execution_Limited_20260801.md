@@ -39,4 +39,4 @@
 |---|---|
 | Base | `2bf779d136a96c1c167abbacb51bf6e9a215791f` |
 | Release tip | bdf47aad440e633e85c8ba179c335b284d4f195e |
-| PR URL | _(filled after open)_ |
+| PR URL | https://github.com/ribaxhut-sys/ECMP/pull/2 |
