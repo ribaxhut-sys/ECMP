@@ -1,4 +1,11 @@
-"""Simple in-process fixed-window rate limiter (single-instance lab/prod compose)."""
+"""Simple in-process fixed-window rate limiter (single-instance).
+
+NOTE (2026-08-01): Batch-1 SoT already protects login via
+``app.modules.auth.login_protection.LoginAttemptGuard`` wired in ``auth/router``.
+This module was ported as an ABSENT lab helper under RAB GO WITH WAIVERS and is
+**not** the primary login guard. Prefer ``login_protection`` for auth flows;
+do not dual-wire without an explicit ADR.
+"""
 
 from __future__ import annotations
 
