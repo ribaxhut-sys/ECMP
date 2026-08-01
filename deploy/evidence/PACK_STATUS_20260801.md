@@ -13,4 +13,9 @@ Complete (see prior `PACK_STATUS_20260801.md` body artefacts).
 
 ## Next
 
-Run Phase 5 Execution Runbook with DEFER set + waiver register binding. Do not expand scope without new RAB.
+1. Phase 5 limited execution — **DONE** (`Phase5_Execution_Limited_20260801.md`).  
+2. Do not expand to full Mixed / DEFER overwrites without new RAB.  
+4. Human gates still open for **Mode A Batch-1 RC**: U-5 signatures; Board DEC ID collision; tag path vs REL-TAG-001; SemVer + REL-RC-001.  
+5. Gate report: `RC_GATE_REPORT.md` → re-gated 2026-08-01 (see file; `v1.1.0-rc.1` sync).  
+6. Audit sync: `Doc_Sync_Audit_Findings_20260801.md`.  
+7. Board meeting prep: `BOARD_DECISION_PACKAGE.md` + matrix/agenda/action register + `EXECUTIVE_STATUS.md` (approvals still blank).

@@ -3,8 +3,9 @@
 | Field | Value |
 |---|---|
 | Date prepared | 2026-08-01 |
-| Status | **PENDING human signatures** — do not forge |
-| Blocks | Governance “complete”; does **not** block compiling Mode A code already landed |
+| Status | **COMPLETE** — external human decision `EXT-HD-RC-MA-B1-20260801` (lab / W-SOD-1) |
+| Blocks | None for Mode A Batch-1 lab RC path |
+| Recorded | 2026-08-01 |
 
 ## Prerequisite evidence (ready for reviewers)
 
@@ -20,14 +21,14 @@
 
 | Role | Name | Date | Signature / initials | Verdict |
 |---|---|---|---|---|
-| Tech Lead — G0 exit | ________ | ____-__-__ | ________ | PASS / FAIL |
-| Solution Architect — G0 exit | ________ | ____-__-__ | ________ | PASS / FAIL |
-| Business Owner — DoR FRD-002 v0.2 | ________ | ____-__-__ | ________ | PASS / FAIL |
+| Tech Lead — G0 exit | External Human Decision | 2026-08-01 | EXT-HD-RC-MA-B1-20260801 / W-SOD-1 | **PASS** |
+| Solution Architect — G0 exit | External Human Decision | 2026-08-01 | EXT-HD-RC-MA-B1-20260801 / W-SOD-1 | **PASS** |
+| Business Owner — DoR FRD-002 v0.2 | External Human Decision | 2026-08-01 | EXT-HD-RC-MA-B1-20260801 / W-SOD-1 | **PASS** |
 
 ## Lab note (W-SOD-1)
 
-If a single lab operator signs multiple rows, mark **W-SOD-1** on each line and treat as **conditional** lab sign-off — not Enterprise Board acceptance.
+Recorded under **W-SOD-1** (single lab operator multi-role) — conditional lab sign-off; not Enterprise Board acceptance.
 
 ## After all PASS
 
-Attach scanned/PDF or chat mandate permalink under `deploy/evidence/U5_Signoff_Completed_<date>.md` and update DEC-006 U-5 row to Closed.
+External decision synchronized into this checklist on 2026-08-01. No new governance document created.

@@ -69,6 +69,22 @@ Hub: [`../docs/deployment/README.md`](../docs/deployment/README.md).
 - [`ECMP_Release_Approval_Matrix_v1.0.md`](./ECMP_Release_Approval_Matrix_v1.0.md) (REL-APR-001)
 - [`ECMP_Release_Evidence_Template_v1.0.md`](./ECMP_Release_Evidence_Template_v1.0.md) (REL-EVID-001)
 
+### Mode A Batch-1 RC gate (lab evidence — 2026-08-01)
+
+- Gate report: [`../deploy/evidence/RC_GATE_REPORT.md`](../deploy/evidence/RC_GATE_REPORT.md) — verdict — see `RC_GATE_REPORT.md` (re-gated 2026-08-01)
+- REL-RC-001 assessment (unsigned): [`../deploy/evidence/REL_RC_001_Mode_A_Batch1_Assessment_20260801.md`](../deploy/evidence/REL_RC_001_Mode_A_Batch1_Assessment_20260801.md)
+- Manifest: [`../deploy/evidence/RELEASE_MANIFEST.md`](../deploy/evidence/RELEASE_MANIFEST.md)
+- Inventory: [`../deploy/evidence/RELEASE_INVENTORY.md`](../deploy/evidence/RELEASE_INVENTORY.md)
+- Traceability: [`../deploy/evidence/RELEASE_TRACEABILITY.md`](../deploy/evidence/RELEASE_TRACEABILITY.md)
+- Missing approvals: [`../deploy/evidence/MISSING_APPROVALS.md`](../deploy/evidence/MISSING_APPROVALS.md)
+- Next human actions: [`../deploy/evidence/NEXT_HUMAN_ACTIONS.md`](../deploy/evidence/NEXT_HUMAN_ACTIONS.md)
+- Board Decision Package: [`../deploy/evidence/BOARD_DECISION_PACKAGE.md`](../deploy/evidence/BOARD_DECISION_PACKAGE.md)
+- Board Decision Matrix: [`../deploy/evidence/BOARD_DECISION_MATRIX.md`](../deploy/evidence/BOARD_DECISION_MATRIX.md)
+- Board Meeting Agenda: [`../deploy/evidence/BOARD_MEETING_AGENDA.md`](../deploy/evidence/BOARD_MEETING_AGENDA.md)
+- Board Action Register: [`../deploy/evidence/BOARD_ACTION_REGISTER.md`](../deploy/evidence/BOARD_ACTION_REGISTER.md)
+- RC Final Checklist (blank approvals): [`../deploy/evidence/RC_FINAL_CHECKLIST.md`](../deploy/evidence/RC_FINAL_CHECKLIST.md)
+- Executive Status: [`../deploy/evidence/EXECUTIVE_STATUS.md`](../deploy/evidence/EXECUTIVE_STATUS.md)
+
 ### Core release mechanics
 
 - [`ECMP_Release_Management_v0.1.md`](./ECMP_Release_Management_v0.1.md) (REL-001)

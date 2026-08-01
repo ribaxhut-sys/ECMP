@@ -39,11 +39,14 @@ Draft
 |---|---|---|---|
 | DEC-019 | Engineering Foundation Canonical Trees | Accepted | `backend/` + `frontend/` production trees |
 | **DEC-020** | Complaint Implementation SoT & Namespace Remapping | **Accepted** | Dual SoT; `/api/v1/cm` Aggregate vs `/api/v1/complaints` foundation; coexistence; cutover policy |
-| DEC-021 | Organization Hierarchy Descendant Scope (O-06) | **Proposed** | No silent descendant AuthZ; Mode B not unlocked |
+| DEC-020 *(file collision)* | Lab Auth: local JWT now, SSO later | Accepted (ops) | Lab auth phasing — **same ID as SoT remapping**; see collision register |
+| DEC-021 *(org O-06)* | Organization Hierarchy Descendant Scope (O-06) | **Proposed** | No silent descendant AuthZ; Mode B not unlocked |
+| DEC-021 *(G2 Mode A)* | G2 Mini-Gate Mode A | **Accepted (Mode A lab)** | G2 exit Mode A — **same ID as O-06**; see collision register |
 | DEC-022 | Org Restructure / Orphan Remediation (O-07) | **Proposed** | Retain + fail-closed interim; Mode B not unlocked |
 
-> DEC-020 closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, Batch-2, or real-customer production.
-> DEC-021 / DEC-022 are **Proposed** only — interim fail-closed rules apply until Accepted.
+> DEC-020 (SoT remapping) closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, Batch-2, or real-customer production.
+> DEC-021 (O-06) / DEC-022 are **Proposed** only — interim fail-closed rules apply until Accepted.
+> **ID collision (P0 governance):** two files share `DEC-020` and two share `DEC-021`. Do **not** renumber without Board/PMO decision. Register: `../deploy/evidence/DEC_ID_Collision_Register_20260801.md`.
 
 ## Structure (konvensi aktual — flat)
 - `DEC-*.md` di root folder ini — decision records bernomor urut (DEC-001 dst.)

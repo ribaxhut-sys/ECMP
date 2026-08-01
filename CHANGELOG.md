@@ -12,9 +12,20 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
 
 ### Notes
 
-- Post-`v1.0.0`: only hotfixes and approved change requests (new SemVer PATCH or new `rc.N` per versioning policy).
+- Post-`v1.1.0-rc.1`: only hotfixes and approved change requests (new SemVer PATCH or new `rc.N` per versioning policy).
+
+## [1.1.0-rc.1] - 2026-08-01
+
+### Notes
+
+- Mode A Batch-1 **Release Candidate** `v1.1.0-rc.1` (lab / W-SOD-1).
+- Authorized ref (B-2 Option B): `feature/cm-batch1-s2-persistence` @ `16082454659d7f511e5296d0bd9531185766e6db` (`1608245`).
+- External decisions: B-1 Option A; B-2 Option B; U-5 COMPLETE; QA/TL COMPLETE; REL-RC-001 §5 Go (`EXT-HD-RC-MA-B1-20260801`).
+- Scope: internal/lab DEV validation — **not** Production / Mode B / Enterprise Platform.
+- Annotated tag prepared; create only when explicitly permitted (never move tags).
 
 ### Added
+
 
 - Mode A **M3d**: EX-G later-review `complaintId` (nullable) on API-513 — Alembic `0045`; bind-failure enqueue anchors Aggregate Complaint; supervisor UI deep-link. Degraded duplicate pre-create remains `null`. No Case create / Mode B.
 - Mode A **M3c**: Module Lab COMPLETE Evidence Pack — `18 Architecture Governance/ECMP_PROGRAM_MODE_A_M3C_Module_Lab_COMPLETE_Evidence_Pack_v1.0.md` (GOV-MODEA-M3C-001). Claim = lab/synthetic Batch-1 COMPLETE under BR-008; **not** Mode B / Batch-2 / real-customer Production Ready.
@@ -229,7 +240,8 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
   (ADR-012 Phase 3) is accepted and active (ADR-010 / DEP-CHK-001).
 - This RC is for internal DEV/CI validation only.
 
-[Unreleased]: https://github.com/hutbeon-hub/ECMP/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/hutbeon-hub/ECMP/compare/v1.1.0-rc.1...HEAD
+[1.1.0-rc.1]: https://github.com/hutbeon-hub/ECMP/compare/v1.0.0...v1.1.0-rc.1
 [1.0.0]: https://github.com/hutbeon-hub/ECMP/releases/tag/v1.0.0
 [1.0.0-rc4]: https://github.com/hutbeon-hub/ECMP/releases/tag/v1.0.0-rc4
 [1.0.0-rc3]: https://github.com/hutbeon-hub/ECMP/releases/tag/v1.0.0-rc3

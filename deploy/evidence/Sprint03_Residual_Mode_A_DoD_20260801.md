@@ -20,3 +20,12 @@
 ## Rule
 
 Do not implement Sprint FR-030/040 in both trees. Choose Cutover DEC before porting.
+
+## Decision status (Mode A Batch-1 RC)
+
+| Topic | Verdict for Mode A RC | Blocks RC cut? |
+|---|---|---|
+| FR-040 dashboard queues | **DEFER** (Future Work) unless PO expands DoD + freezes API-040 | **No** — deferral is the decision |
+| FR-030 SLA event-clock (Sprint) | **DEFER** until broker re-eval / Cutover DEC | **No** — deferral is the decision |
+
+PO/Board may still **countersign** this matrix; blank countersign ≠ reopen implementation. Do not forge Accept.
