@@ -64,6 +64,7 @@
     "appSidebar": "Bilah sisi aplikasi",
     "mobileNav": "Navigasi seluler",
     "closeNav": "Tutup navigasi",
+    "skipToContent": "Lewati ke konten",
     "and": "dan",
     "success": "Berhasil",
     "accessRestricted": "Akses dibatasi",
@@ -84,7 +85,10 @@
     "attachments": "Lampiran",
     "reports": "Laporan",
     "users": "Pengguna",
-    "settings": "Pengaturan"
+    "settings": "Pengaturan",
+    "groupOperations": "Operasi",
+    "groupWorkspace": "Ruang kerja",
+    "groupAdministration": "Administrasi"
   },
   "header": {
     "searchComplaints": "Cari pengaduan",

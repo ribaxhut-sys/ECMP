@@ -15,6 +15,51 @@ import {
 import { useSidebar } from "@/shared/hooks";
 import { Button } from "@/shared/ui/button";
 import { LanguageSwitcher } from "@/shared/i18n";
+import { cn } from "@/shared/utils";
+
+function SearchField({
+  id,
+  value,
+  onChange,
+  placeholder,
+  label,
+  autoFocus,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  label: string;
+  autoFocus?: boolean;
+}) {
+  return (
+    <>
+      <label className="sr-only" htmlFor={id}>
+        {label}
+      </label>
+      <div className="relative">
+        <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-muted" />
+        <input
+          id={id}
+          name="keyword"
+          type="search"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={200}
+          autoFocus={autoFocus}
+          className={cn(
+            "ecmp-touch w-full rounded-[var(--ecmp-radius-input)] border border-ecmp-border bg-ecmp-surface-sunken",
+            "py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary",
+            "placeholder:text-ecmp-muted",
+            "transition-[border-color,background-color,box-shadow] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+            "hover:border-ecmp-secondary hover:bg-ecmp-surface",
+          )}
+        />
+      </div>
+    </>
+  );
+}
 
 export function Header() {
   const router = useRouter();
@@ -39,11 +84,18 @@ export function Header() {
   }
 
   return (
-    <header className="relative sticky top-0 z-30 flex h-[var(--ecmp-header-height)] items-center gap-3 border-b border-ecmp-border bg-ecmp-surface px-3 sm:px-4 lg:px-6">
+    <header
+      className={cn(
+        "relative sticky top-0 z-[var(--ecmp-z-sticky-header)]",
+        "flex h-[var(--ecmp-header-height)] items-center gap-3",
+        "border-b border-ecmp-border bg-ecmp-surface/95 px-[var(--ecmp-page-gutter)] shadow-ecmp-raised backdrop-blur-sm",
+        "sm:px-6 lg:px-8",
+      )}
+    >
       <Button
         variant="ghost"
         size="sm"
-        className="!min-h-[44px] !min-w-[44px] px-0 lg:hidden"
+        className="!min-h-[var(--ecmp-touch-min)] !min-w-[var(--ecmp-touch-min)] px-0 lg:hidden"
         aria-label={open ? tCommon("closeMenu") : tCommon("openMenu")}
         aria-expanded={open}
         aria-controls="mobile-sidebar"
@@ -58,22 +110,13 @@ export function Header() {
           className="hidden min-w-0 flex-1 md:block md:max-w-md lg:max-w-lg"
           role="search"
         >
-          <label className="sr-only" htmlFor="global-search">
-            {t("searchComplaints")}
-          </label>
-          <div className="relative">
-            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-text-secondary" />
-            <input
-              id="global-search"
-              name="keyword"
-              type="search"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder={t("searchPlaceholder")}
-              maxLength={200}
-              className="ecmp-touch w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary placeholder:text-ecmp-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-            />
-          </div>
+          <SearchField
+            id="global-search"
+            value={keyword}
+            onChange={setKeyword}
+            placeholder={t("searchPlaceholder")}
+            label={t("searchComplaints")}
+          />
         </form>
       ) : (
         <div className="hidden flex-1 md:block" />
@@ -81,24 +124,22 @@ export function Header() {
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         {canSearch ? (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="!min-h-[44px] !min-w-[44px] px-0 md:hidden"
-              aria-label={mobileSearchOpen ? t("closeSearch") : t("searchComplaints")}
-              aria-expanded={mobileSearchOpen}
-              onClick={() => setMobileSearchOpen((prev) => !prev)}
-            >
-              <IconSearch />
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="!min-h-[var(--ecmp-touch-min)] !min-w-[var(--ecmp-touch-min)] px-0 md:hidden"
+            aria-label={mobileSearchOpen ? t("closeSearch") : t("searchComplaints")}
+            aria-expanded={mobileSearchOpen}
+            onClick={() => setMobileSearchOpen((prev) => !prev)}
+          >
+            <IconSearch />
+          </Button>
         ) : null}
 
         <Button
           variant="ghost"
           size="sm"
-          className="!min-h-[44px] !min-w-[44px] px-0"
+          className="!min-h-[var(--ecmp-touch-min)] !min-w-[var(--ecmp-touch-min)] px-0"
           aria-label={t("notificationsSoon")}
           disabled
         >
@@ -108,7 +149,7 @@ export function Header() {
         <Button
           variant="ghost"
           size="sm"
-          className="!min-h-[44px] !min-w-[44px] px-0"
+          className="!min-h-[var(--ecmp-touch-min)] !min-w-[var(--ecmp-touch-min)] px-0"
           aria-label={t("themeSoon")}
           disabled
           title={t("themeSoonTitle")}
@@ -118,17 +159,24 @@ export function Header() {
 
         <LanguageSwitcher variant="compact" className="hidden sm:inline-flex" />
 
-        <div className="hidden items-center gap-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border px-3 py-2 sm:flex">
-          <IconUser className="size-4 text-ecmp-text-secondary" />
-          <button
-            type="button"
-            className="max-w-[10rem] truncate text-left text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-primary hover:underline"
-            onClick={() => router.push("/profile")}
-            title={t("openProfile")}
-          >
+        <button
+          type="button"
+          className={cn(
+            "hidden items-center gap-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken px-3 py-2 sm:inline-flex",
+            "text-left transition-[background-color,border-color] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+            "hover:border-ecmp-secondary hover:bg-ecmp-hover",
+            "min-h-[var(--ecmp-touch-min)]",
+          )}
+          onClick={() => router.push("/profile")}
+          title={t("openProfile")}
+        >
+          <span className="flex size-7 items-center justify-center rounded-full bg-ecmp-primary-muted text-ecmp-primary">
+            <IconUser className="size-4" aria-hidden />
+          </span>
+          <span className="max-w-[10rem] truncate text-[length:var(--ecmp-font-body-small-size)] font-medium text-ecmp-text-primary">
             {displayName}
-          </button>
-        </div>
+          </span>
+        </button>
 
         <Button
           variant="outline"
@@ -146,26 +194,20 @@ export function Header() {
       {canSearch && mobileSearchOpen ? (
         <form
           onSubmit={submitSearch}
-          className="absolute inset-x-0 top-full border-b border-ecmp-border bg-ecmp-surface px-3 py-3 md:hidden"
+          className={cn(
+            "absolute inset-x-0 top-full z-[var(--ecmp-z-dropdown)] border-b border-ecmp-border",
+            "bg-ecmp-surface px-[var(--ecmp-page-gutter)] py-3 shadow-ecmp-floating md:hidden",
+          )}
           role="search"
         >
-          <label className="sr-only" htmlFor="global-search-mobile">
-            {t("searchComplaints")}
-          </label>
-          <div className="relative">
-            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ecmp-text-secondary" />
-            <input
-              id="global-search-mobile"
-              name="keyword"
-              type="search"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder={t("searchPlaceholder")}
-              maxLength={200}
-              autoFocus
-              className="ecmp-touch w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-2 pr-3 pl-10 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary placeholder:text-ecmp-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-            />
-          </div>
+          <SearchField
+            id="global-search-mobile"
+            value={keyword}
+            onChange={setKeyword}
+            placeholder={t("searchPlaceholder")}
+            label={t("searchComplaints")}
+            autoFocus
+          />
         </form>
       ) : null}
     </header>

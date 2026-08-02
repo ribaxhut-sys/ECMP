@@ -64,6 +64,7 @@
     "appSidebar": "Application sidebar",
     "mobileNav": "Mobile navigation",
     "closeNav": "Close navigation",
+    "skipToContent": "Skip to content",
     "and": "and",
     "success": "Success",
     "accessRestricted": "Access restricted",
@@ -84,7 +85,10 @@
     "attachments": "Attachments",
     "reports": "Reports",
     "users": "Users",
-    "settings": "Settings"
+    "settings": "Settings",
+    "groupOperations": "Operations",
+    "groupWorkspace": "Workspace",
+    "groupAdministration": "Administration"
   },
   "header": {
     "searchComplaints": "Search complaints",

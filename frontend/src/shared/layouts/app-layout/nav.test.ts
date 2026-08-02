@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_NAV_ITEMS } from "./nav";
+import { APP_NAV_GROUPS, APP_NAV_ITEMS } from "./nav";
 
 describe("APP_NAV_ITEMS", () => {
   it("includes reports and users routes", () => {
@@ -30,5 +30,14 @@ describe("APP_NAV_ITEMS", () => {
     expect(APP_NAV_ITEMS.some((item) => item.href === "/complaints")).toBe(
       true,
     );
+  });
+});
+
+describe("APP_NAV_GROUPS", () => {
+  it("covers every primary nav item exactly once (presentation-only grouping)", () => {
+    const itemIds = APP_NAV_ITEMS.map((item) => item.id).sort();
+    const groupedIds = APP_NAV_GROUPS.flatMap((group) => group.itemIds).sort();
+    expect(groupedIds).toEqual(itemIds);
+    expect(new Set(groupedIds).size).toBe(groupedIds.length);
   });
 });
