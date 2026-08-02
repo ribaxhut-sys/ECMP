@@ -48,7 +48,7 @@ const REQUEST_FLOW_STATUSES = new Set([
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 space-y-1">
-      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </dt>
       <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -302,7 +302,7 @@ export function EscalationCard({
         <CardHeader>
           <CardTitle>{t("escalationCard")}</CardTitle>
         </CardHeader>
-        <CardBody className="space-y-4">
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               {t("loadingEscalation")}
@@ -316,8 +316,8 @@ export function EscalationCard({
               onAction={() => void load()}
             />
           ) : escalation ? (
-            <div className="space-y-4">
-              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-[var(--ecmp-panel-gap)]">
+              <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
                 <DetailField label={t("status")} value={escalation.status} />
                 <DetailField
                   label={t("requestedBy")}
@@ -353,11 +353,11 @@ export function EscalationCard({
               </dl>
 
               {reviewed ? (
-                <div className="space-y-3 border-t border-ecmp-border pt-4">
-                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                <div className="space-y-3 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                     {t("reviewDecision")}
                   </p>
-                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
                     <DetailField
                       label={t("reviewedBy")}
                       value={escalation.reviewedByName?.trim() || tCommon("emDash")}
@@ -377,7 +377,7 @@ export function EscalationCard({
               ) : null}
 
               {canShowReviewActions ? (
-                <div className="space-y-3 border-t border-ecmp-border pt-4">
+                <div className="space-y-3 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
                   <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
                     {t("headOfficeReviewHint")}
                   </p>
@@ -399,7 +399,7 @@ export function EscalationCard({
                   </div>
                 </div>
               ) : escalation.status === "REQUESTED" && !canReview ? (
-                <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                <p className="border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
                   {t("awaitingHeadOfficeSchedulerReview")}
                 </p>
               ) : null}
@@ -429,7 +429,7 @@ export function EscalationCard({
 
           {canRequest && formOpen ? (
             <form
-              className="space-y-4 border-t border-ecmp-border pt-4"
+              className="space-y-[var(--ecmp-panel-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]"
               onSubmit={onSubmit}
             >
               <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
@@ -535,7 +535,7 @@ export function EscalationCard({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {reviewAction === "approve"
               ? t("confirmApprovalHint")

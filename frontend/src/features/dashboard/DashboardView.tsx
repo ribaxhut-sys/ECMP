@@ -35,7 +35,7 @@ export function DashboardView() {
 
   if (!canRead) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("title")}
           breadcrumbs={[
@@ -52,7 +52,7 @@ export function DashboardView() {
   }
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-dashboard-gap)]">
       <PageHeader
         title={t("title")}
         breadcrumbs={[
@@ -82,29 +82,36 @@ export function DashboardView() {
         />
       ) : (
         <>
+          {/* Top — operational KPIs */}
           <SummaryCards header={data?.header ?? null} loading={loading} />
-          <SlaCards sla={data?.sla ?? null} loading={loading} />
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ComplaintByStatus
-              rows={data?.byStatus ?? null}
+
+          {/* Middle — operational widgets */}
+          <div className="space-y-[var(--ecmp-section-gap)]">
+            <SlaCards sla={data?.sla ?? null} loading={loading} />
+            <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] lg:grid-cols-2">
+              <ComplaintByStatus
+                rows={data?.byStatus ?? null}
+                loading={loading}
+              />
+              <ComplaintByBranch
+                rows={data?.byBranch ?? null}
+                loading={loading}
+              />
+            </div>
+            <LatestComplaints
+              rows={data?.latestComplaints ?? null}
               loading={loading}
             />
-            <ComplaintByBranch
-              rows={data?.byBranch ?? null}
-              loading={loading}
-            />
+            <QuickActions onRefresh={() => void reload()} />
           </div>
-          <LatestComplaints
-            rows={data?.latestComplaints ?? null}
-            loading={loading}
-          />
+
+          {/* Bottom — recent activity */}
           <div id="recent-activity">
             <RecentActivity
               rows={data?.recentActivity ?? null}
               loading={loading}
             />
           </div>
-          <QuickActions onRefresh={() => void reload()} />
         </>
       )}
     </PageContainer>

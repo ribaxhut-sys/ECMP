@@ -6,7 +6,7 @@ import {
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
+  PanelHeader,
   Empty,
   Skeleton,
   Table,
@@ -52,7 +52,7 @@ export function ComplaintByBranch({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("byBranch")}</CardTitle>
+          <PanelHeader title={t("byBranch")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Skeleton rows={4} />
@@ -65,7 +65,7 @@ export function ComplaintByBranch({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("byBranch")}</CardTitle>
+          <PanelHeader title={t("byBranch")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Empty
@@ -80,7 +80,7 @@ export function ComplaintByBranch({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("byBranch")}</CardTitle>
+        <PanelHeader title={t("byBranch")} className="mb-0 border-0 pb-0" />
       </CardHeader>
       <CardBody>
         <Table

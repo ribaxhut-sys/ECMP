@@ -16,11 +16,11 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Input,
+  RadioGroup,
+  SectionHeader,
   Select,
+  Skeleton,
 } from "@/shared/ui";
 
 export type CustomerKeyType =
@@ -201,14 +201,14 @@ export function CustomerSearchPanel({
   const locked = Boolean(confirmedCustomerId);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle id="section-customer-search">
-          {t("customerSearchTitle")}
-        </CardTitle>
-        <CardDescription>{t("customerSearchDescription")}</CardDescription>
-      </CardHeader>
-      <CardBody className="space-y-4">
+    <section className="space-y-[var(--ecmp-panel-gap)]">
+      <SectionHeader
+        id="section-customer-search"
+        title={t("customerSearchTitle")}
+        description={t("customerSearchDescription")}
+      />
+      <Card>
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
         {error ? (
           <Alert
             tone="warning"
@@ -230,7 +230,7 @@ export function CustomerSearchPanel({
 
         <form
           onSubmit={(event) => void onSearch(event)}
-          className="grid grid-cols-1 gap-4 md:grid-cols-3"
+          className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-3"
           aria-labelledby="section-customer-search"
         >
           <Select
@@ -282,7 +282,7 @@ export function CustomerSearchPanel({
         </form>
 
         {status ? (
-          <p className="text-sm text-ecmp-text-secondary">
+          <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
             {t("statusLabel")}:{" "}
             <span className="font-medium text-ecmp-text-primary">{status}</span>
             {enumerationOutcome
@@ -293,32 +293,28 @@ export function CustomerSearchPanel({
         ) : null}
 
         {candidates.length > 0 ? (
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">{t("candidates")}</legend>
-            <ul className="space-y-2">
-              {candidates.map((c) => (
-                <li key={c.customerId}>
-                  <label className="flex cursor-pointer items-start gap-2 rounded border border-ecmp-border p-3 text-sm">
-                    <input
-                      type="radio"
-                      name="customerCandidate"
-                      value={c.customerId}
-                      checked={selectedCandidateId === c.customerId}
-                      onChange={() => setSelectedCandidateId(c.customerId)}
-                      disabled={disabled || confirming}
-                      className="mt-1"
-                    />
-                    <span>
-                      <span className="font-medium">{c.displayName}</span>
-                      <span className="block font-mono text-xs text-ecmp-text-secondary">
-                        {c.customerId}
-                        {c.maskedIdentity ? ` · ${c.maskedIdentity}` : ""}
-                      </span>
+          <div className="space-y-[var(--ecmp-panel-gap)]">
+            <RadioGroup
+              name="customerCandidate"
+              label={t("candidates")}
+              value={selectedCandidateId}
+              onChange={setSelectedCandidateId}
+              disabled={disabled || confirming}
+              options={candidates.map((c) => ({
+                value: c.customerId,
+                label: (
+                  <span>
+                    <span className="font-medium text-ecmp-text-primary">
+                      {c.displayName}
                     </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+                    <span className="block font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                      {c.customerId}
+                      {c.maskedIdentity ? ` · ${c.maskedIdentity}` : ""}
+                    </span>
+                  </span>
+                ),
+              }))}
+            />
             {!locked ? (
               <Button
                 type="button"
@@ -329,43 +325,47 @@ export function CustomerSearchPanel({
                 {confirming ? t("confirming") : t("confirmCustomer")}
               </Button>
             ) : null}
-          </fieldset>
+          </div>
         ) : null}
 
         {locked && (loading360 || profile360) ? (
-          <div className="rounded border border-ecmp-border p-3 text-sm">
-            <h3 className="font-medium">{t("customer360Title")}</h3>
-            {loading360 ? (
-              <p className="mt-2 text-ecmp-text-secondary">
-                {t("loadingProfile")}
-              </p>
-            ) : null}
+          <div className="space-y-[var(--ecmp-form-gap)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-3 text-[length:var(--ecmp-font-body-small-size)]">
+            <h3 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
+              {t("customer360Title")}
+            </h3>
+            {loading360 ? <Skeleton rows={3} /> : null}
             {profile360 ? (
-              <dl className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                <div>
-                  <dt className="text-ecmp-text-secondary">
+              <dl className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                <div className="space-y-1">
+                  <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                     {t("complaintCount")}
                   </dt>
-                  <dd className="font-medium">{profile360.complaintCount}</dd>
+                  <dd className="font-medium text-ecmp-text-primary">
+                    {profile360.complaintCount}
+                  </dd>
                 </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">
+                <div className="space-y-1">
+                  <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                     {t("activeComplaints")}
                   </dt>
-                  <dd className="font-medium">
+                  <dd className="font-medium text-ecmp-text-primary">
                     {profile360.activeComplaints?.length ?? 0}
                   </dd>
                 </div>
-                <div className="md:col-span-2">
-                  <dt className="text-ecmp-text-secondary">{t("asOfLabel")}</dt>
-                  <dd className="font-mono text-xs">{profile360.asOf}</dd>
+                <div className="space-y-1 md:col-span-2">
+                  <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                    {t("asOfLabel")}
+                  </dt>
+                  <dd className="font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-primary">
+                    {profile360.asOf}
+                  </dd>
                 </div>
-                <div className="md:col-span-2">
-                  <dt className="text-ecmp-text-secondary">
+                <div className="space-y-1 md:col-span-2">
+                  <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                     {t("profileReadOnly")}
                   </dt>
                   <dd>
-                    <pre className="mt-1 max-h-40 overflow-auto rounded bg-ecmp-secondary-muted p-2 text-xs">
+                    <pre className="mt-1 max-h-40 overflow-auto rounded-[var(--ecmp-radius-md)] bg-ecmp-secondary-muted p-2 text-[length:var(--ecmp-font-helper-size)]">
                       {JSON.stringify(profile360.profile ?? {}, null, 2)}
                     </pre>
                   </dd>
@@ -374,7 +374,8 @@ export function CustomerSearchPanel({
             ) : null}
           </div>
         ) : null}
-      </CardBody>
-    </Card>
+        </CardBody>
+      </Card>
+    </section>
   );
 }

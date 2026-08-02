@@ -8,7 +8,7 @@ import {
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
+  PanelHeader,
   Empty,
   Skeleton,
   Table,
@@ -67,7 +67,7 @@ export function RecentActivity({
     return (
       <Card data-testid="dashboard-recent-activity">
         <CardHeader>
-          <CardTitle>{t("recentActivity")}</CardTitle>
+          <PanelHeader title={t("recentActivity")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Skeleton rows={5} />
@@ -80,7 +80,7 @@ export function RecentActivity({
     return (
       <Card data-testid="dashboard-recent-activity">
         <CardHeader>
-          <CardTitle>{t("recentActivity")}</CardTitle>
+          <PanelHeader title={t("recentActivity")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Empty
@@ -95,7 +95,7 @@ export function RecentActivity({
   return (
     <Card data-testid="dashboard-recent-activity">
       <CardHeader>
-        <CardTitle>{t("recentActivity")}</CardTitle>
+        <PanelHeader title={t("recentActivity")} className="mb-0 border-0 pb-0" />
       </CardHeader>
       <CardBody>
         <Table

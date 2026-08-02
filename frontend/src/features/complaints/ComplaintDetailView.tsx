@@ -26,6 +26,7 @@ import {
   ErrorState,
   PageContainer,
   PageHeader,
+  SectionHeader,
   Skeleton,
   type BadgeTone,
 } from "@/shared/ui";
@@ -95,7 +96,7 @@ function DetailField({
 }) {
   return (
     <div className="min-w-0 space-y-1">
-      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </dt>
       <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -180,7 +181,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
 
   if (loading) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("detailTitle")}
           breadcrumbs={[
@@ -196,7 +197,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
 
   if (notFound) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("detailTitle")}
           breadcrumbs={[
@@ -224,7 +225,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
 
   if (error || !complaint) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("detailTitle")}
           breadcrumbs={[
@@ -248,7 +249,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     branch?.name ?? (complaint.branchId ? tCommon("emDash") : t("unassignedBranch"));
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={complaint.complaintNumber}
         breadcrumbs={[
@@ -305,164 +306,177 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         />
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("currentStatus")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <DetailField
-              label={tCommon("status")}
-              value={tStatus(complaint.status)}
-            />
-            <DetailField label={tCommon("priority")} value={tPriority(complaint.priority)} />
-            <DetailField
-              label={t("reportedAtLabel")}
-              value={formatWhen(complaint.reportedAt)}
-            />
-          </dl>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("information")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <dl className="grid grid-cols-1 gap-4">
-            <DetailField label={t("subject")} value={complaint.subject} />
-            <DetailField label={t("description")} value={complaint.description} />
-            <DetailField
-              label={t("channel")}
-              value={complaint.channel?.trim() || tCommon("emDash")}
-            />
-            <DetailField
-              label={t("category")}
-              value={complaint.category?.trim() || tCommon("emDash")}
-            />
-          </dl>
-        </CardBody>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      {/* General information · customer · status */}
+      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("information")}>
+        <SectionHeader title={t("information")} />
         <Card>
           <CardHeader>
-          <CardTitle>{t("customer")}</CardTitle>
+            <CardTitle>{t("currentStatus")}</CardTitle>
           </CardHeader>
           <CardBody>
-            <dl className="grid grid-cols-1 gap-4">
-              <DetailField label={t("name")} value={customerName} />
-              {customerPhone ? (
-                <DetailField label={t("phone")} value={customerPhone} />
-              ) : null}
+            <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-3">
+              <DetailField
+                label={tCommon("status")}
+                value={tStatus(complaint.status)}
+              />
+              <DetailField
+                label={tCommon("priority")}
+                value={tPriority(complaint.priority)}
+              />
+              <DetailField
+                label={t("reportedAtLabel")}
+                value={formatWhen(complaint.reportedAt)}
+              />
             </dl>
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader>
-          <CardTitle>{t("branch")}</CardTitle>
-          </CardHeader>
           <CardBody>
-            <dl className="grid grid-cols-1 gap-4">
-              <DetailField label={t("branchName")} value={branchName} />
+            <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)]">
+              <DetailField label={t("subject")} value={complaint.subject} />
+              <DetailField
+                label={t("description")}
+                value={complaint.description}
+              />
+              <DetailField
+                label={t("channel")}
+                value={complaint.channel?.trim() || tCommon("emDash")}
+              />
+              <DetailField
+                label={t("category")}
+                value={complaint.category?.trim() || tCommon("emDash")}
+              />
             </dl>
           </CardBody>
         </Card>
-      </div>
 
-      <AssignmentCard
-        complaintId={complaint.id}
-        onAssigned={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+        <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("customer")}</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)]">
+                <DetailField label={t("name")} value={customerName} />
+                {customerPhone ? (
+                  <DetailField label={t("phone")} value={customerPhone} />
+                ) : null}
+              </dl>
+            </CardBody>
+          </Card>
 
-      <StatusActionsCard
-        complaintId={complaint.id}
-        status={complaint.status}
-        onStatusChanged={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("branch")}</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)]">
+                <DetailField label={t("branchName")} value={branchName} />
+              </dl>
+            </CardBody>
+          </Card>
+        </div>
+      </section>
 
-      <ResolutionCard
-        complaintId={complaint.id}
-        status={complaint.status}
-        onResolved={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+      {/* Workflow actions · SLA · attachments */}
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <AssignmentCard
+          complaintId={complaint.id}
+          onAssigned={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <EscalationCard
-        complaintId={complaint.id}
-        status={complaint.status}
-        hasResolution={hasResolution}
-        onRequested={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-        onReviewed={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+        <StatusActionsCard
+          complaintId={complaint.id}
+          status={complaint.status}
+          onStatusChanged={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <AppointmentCard
-        complaintId={complaint.id}
-        refreshKey={timelineKey}
-        onBooked={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+        <ResolutionCard
+          complaintId={complaint.id}
+          status={complaint.status}
+          onResolved={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <FinalResolutionCard
-        complaintId={complaint.id}
-        refreshKey={timelineKey}
-        onSubmitted={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+        <EscalationCard
+          complaintId={complaint.id}
+          status={complaint.status}
+          hasResolution={hasResolution}
+          onRequested={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+          onReviewed={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <CloseComplaintCard
-        complaint={complaint}
-        onClosed={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+        <AppointmentCard
+          complaintId={complaint.id}
+          refreshKey={timelineKey}
+          onBooked={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <CloseEscalationCard
-        complaintId={complaint.id}
-        complaintStatus={complaint.status}
-        refreshKey={timelineKey}
-        onClosed={() => {
-          setTimelineKey((key) => key + 1);
-          void load();
-        }}
-      />
+        <FinalResolutionCard
+          complaintId={complaint.id}
+          refreshKey={timelineKey}
+          onSubmitted={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <SlaCard complaintId={complaint.id} refreshKey={timelineKey} />
+        <CloseComplaintCard
+          complaint={complaint}
+          onClosed={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <ComplaintAttachmentsCard
-        complaintId={complaint.id}
-        refreshKey={timelineKey}
-        allowUpload
-      />
+        <CloseEscalationCard
+          complaintId={complaint.id}
+          complaintStatus={complaint.status}
+          refreshKey={timelineKey}
+          onClosed={() => {
+            setTimelineKey((key) => key + 1);
+            void load();
+          }}
+        />
 
-      <TimelineCard complaintId={complaint.id} refreshKey={timelineKey} />
+        <SlaCard complaintId={complaint.id} refreshKey={timelineKey} />
+
+        <ComplaintAttachmentsCard
+          complaintId={complaint.id}
+          refreshKey={timelineKey}
+          allowUpload
+        />
+      </section>
+
+      {/* History · activity */}
+      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("timelineCard")}>
+        <TimelineCard complaintId={complaint.id} refreshKey={timelineKey} />
+      </section>
 
       <Card>
         <CardHeader>
           <CardTitle>{t("metadata")}</CardTitle>
         </CardHeader>
         <CardBody>
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-3">
             <DetailField
               label={t("createdBy")}
               value={complaint.createdBy ?? tCommon("emDash")}
@@ -479,7 +493,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         </CardBody>
       </Card>
 
-      <div className="flex justify-start border-t border-ecmp-border pt-4 sm:justify-end">
+      <div className="flex justify-start border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:justify-end">
         <Button
           type="button"
           variant="outline"

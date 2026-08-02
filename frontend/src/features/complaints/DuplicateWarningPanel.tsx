@@ -6,7 +6,7 @@ import type {
   CmBatch1DuplicateCheckResponse,
   CmBatch1DuplicateDecision,
 } from "@/lib/api";
-import { Alert, Button, Input, Modal, Textarea } from "@/shared/ui";
+import { Alert, Button, Empty, Input, Modal, Textarea } from "@/shared/ui";
 
 export interface DuplicateWarningPanelProps {
   open: boolean;
@@ -115,7 +115,7 @@ export function DuplicateWarningPanel({
         </div>
       }
     >
-      <div className="space-y-4 text-sm">
+      <div className="space-y-[var(--ecmp-panel-gap)] text-[length:var(--ecmp-font-body-small-size)]">
         <Alert
           tone="warning"
           title={t("duplicateWarningTitle")}
@@ -145,7 +145,10 @@ export function DuplicateWarningPanel({
         ) : null}
 
         {candidates.length === 0 ? (
-          <p className="text-ecmp-text-secondary">{t("noCandidateDetails")}</p>
+          <Empty
+            title={t("noCandidateDetails")}
+            description={t("duplicateWarningDescription")}
+          />
         ) : (
           <ul className="max-h-48 space-y-2 overflow-auto">
             {candidates.map((c, index) => {
@@ -166,7 +169,7 @@ export function DuplicateWarningPanel({
               return (
                 <li
                   key={id}
-                  className="rounded border border-ecmp-border p-2 font-mono text-xs"
+                  className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border p-2 font-mono text-[length:var(--ecmp-font-helper-size)]"
                 >
                   <button
                     type="button"

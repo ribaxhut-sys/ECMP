@@ -10,7 +10,7 @@ function DetailFallback() {
   const tCommon = useTranslations("common");
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
         breadcrumbs={[

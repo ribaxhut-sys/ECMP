@@ -48,7 +48,7 @@ function formatTime(value: string | null | undefined, emDash: string): string {
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 space-y-1">
-      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </dt>
       <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -391,7 +391,7 @@ export function AppointmentCard({
         <CardHeader>
           <CardTitle>{t("appointmentCard")}</CardTitle>
         </CardHeader>
-        <CardBody className="space-y-4">
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               {t("loadingAppointment")}
@@ -405,8 +405,8 @@ export function AppointmentCard({
               onAction={() => void load()}
             />
           ) : appointment ? (
-            <div className="space-y-4">
-              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-[var(--ecmp-panel-gap)]">
+              <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
                 <DetailField label={t("status")} value={appointment.status} />
                 <DetailField
                   label={t("appointmentDate")}
@@ -436,11 +436,11 @@ export function AppointmentCard({
               {appointment.status === "CHECKED_IN" ||
               appointment.status === "COMPLETED" ||
               appointment.checkedInAt ? (
-                <div className="space-y-3 border-t border-ecmp-border pt-4">
-                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                <div className="space-y-3 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                     {t("checkIn")}
                   </p>
-                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
                     <DetailField
                       label={t("checkedInAt")}
                       value={formatDateTime(appointment.checkedInAt, locale)}
@@ -458,11 +458,11 @@ export function AppointmentCard({
               ) : null}
 
               {isCompleted ? (
-                <div className="space-y-3 border-t border-ecmp-border pt-4">
-                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                <div className="space-y-3 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                     {t("completion")}
                   </p>
-                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
                     <DetailField
                       label={t("result")}
                       value={appointment.completionResult?.trim() || tCommon("emDash")}
@@ -484,11 +484,11 @@ export function AppointmentCard({
               ) : null}
 
               {isNoShow ? (
-                <div className="space-y-3 border-t border-ecmp-border pt-4">
-                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                <div className="space-y-3 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                  <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                     {t("noShow")}
                   </p>
-                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
                     <DetailField
                       label={t("noShowAt")}
                       value={formatDateTime(appointment.noShowAt, locale)}
@@ -506,7 +506,7 @@ export function AppointmentCard({
               ) : null}
 
               {canCheckIn || canNoShow ? (
-                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
                   {canNoShow ? (
                     <Button
                       type="button"
@@ -529,7 +529,7 @@ export function AppointmentCard({
               ) : null}
 
               {canCompleteAction ? (
-                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
                   <Button
                     type="button"
                     variant="primary"
@@ -541,7 +541,7 @@ export function AppointmentCard({
               ) : null}
 
               {isCompleted ? (
-                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
                   <Button type="button" variant="primary" disabled>
                     {t("completeAppointment")}
                   </Button>
@@ -549,7 +549,7 @@ export function AppointmentCard({
               ) : null}
 
               {isNoShow ? (
-                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-4">
+                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
                   <Button type="button" variant="outline" disabled>
                     {t("markNoShow")}
                   </Button>
@@ -557,19 +557,19 @@ export function AppointmentCard({
               ) : null}
 
               {appointment.status === "BOOKED" && !canManage ? (
-                <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                <p className="border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
                   {t("awaitingHeadOfficeSchedulerCheckIn")}
                 </p>
               ) : null}
 
               {appointment.status === "CHECKED_IN" && !canComplete ? (
-                <p className="border-t border-ecmp-border pt-4 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                <p className="border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
                   {t("awaitingHeadOfficeEngineerCompletion")}
                 </p>
               ) : null}
             </div>
           ) : canManage ? (
-            <form className="space-y-4" onSubmit={onSubmit}>
+            <form className="space-y-[var(--ecmp-panel-gap)]" onSubmit={onSubmit}>
               <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
                 {t("bookAppointmentHint")}
               </p>
@@ -587,7 +587,7 @@ export function AppointmentCard({
                   description={usersError}
                 />
               ) : null}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
                 <Input
                   label={t("appointmentDate")}
                   name="appointmentDate"
@@ -673,7 +673,7 @@ export function AppointmentCard({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {t("confirmCheckInHint")}
           </p>
@@ -720,7 +720,7 @@ export function AppointmentCard({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {t("confirmCompletionHint")}
           </p>
@@ -779,7 +779,7 @@ export function AppointmentCard({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {t("confirmNoShowHint")}
           </p>

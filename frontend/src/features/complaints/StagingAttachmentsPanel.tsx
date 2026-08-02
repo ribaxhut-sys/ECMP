@@ -17,13 +17,13 @@ import {
 } from "./cmBatch1Attachments";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  Empty,
   Input,
+  SectionHeader,
   Select,
 } from "@/shared/ui";
 
@@ -157,139 +157,152 @@ export function StagingAttachmentsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("stagedAttachments")}</CardTitle>
-        <CardDescription>
-          {t("stagedAttachmentsDescription")}
-        </CardDescription>
-      </CardHeader>
-      <CardBody className="space-y-4">
-        {error ? (
-          <Alert tone="danger" title={t("attachmentError")} description={error} />
-        ) : null}
+    <section className="space-y-[var(--ecmp-panel-gap)]">
+      <SectionHeader
+        title={t("stagedAttachments")}
+        description={t("stagedAttachmentsDescription")}
+      />
+      <Card>
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+          {error ? (
+            <Alert tone="danger" title={t("attachmentError")} description={error} />
+          ) : null}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-end">
-          <Select
-            name="attachmentClassification"
-            id="attachmentClassification"
-            label={t("classification")}
-            options={CLASSIFICATION_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
-            value={classification}
-            onChange={(event) =>
-              setClassification(
-                event.target.value as CmBatch1AttachmentClassification,
-              )
-            }
-            disabled={disabled || uploading}
-          />
-          <div className="flex flex-col gap-2">
-            <input
-              ref={inputRef}
-              type="file"
-              className="sr-only"
-              accept={ACCEPT_MIME}
+          <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2 md:items-end">
+            <Select
+              name="attachmentClassification"
+              id="attachmentClassification"
+              label={t("classification")}
+              options={CLASSIFICATION_OPTIONS.map((option) => ({
+                ...option,
+                label: t(option.label),
+              }))}
+              value={classification}
+              onChange={(event) =>
+                setClassification(
+                  event.target.value as CmBatch1AttachmentClassification,
+                )
+              }
               disabled={disabled || uploading}
-              onChange={(event) => void onFileChange(event)}
-              aria-label={t("chooseFile")}
             />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onPick}
-              loading={uploading}
-              disabled={disabled || uploading}
-              aria-label={t("uploadStagedAttachment")}
-            >
-              {uploading ? t("uploading") : t("uploadFile")}
-            </Button>
-            <p className="text-xs text-ecmp-muted">
-              {t("filePolicy")}
-            </p>
-          </div>
-        </div>
-
-        {voidTargetId ? (
-          <div
-            className="space-y-3 rounded-md border border-ecmp-border p-3"
-            data-testid="staging-void-form"
-          >
-            <Input
-              id="stagingVoidReason"
-              name="stagingVoidReason"
-              label={t("voidReason")}
-              value={voidReason}
-              onChange={(event) => setVoidReason(event.target.value)}
-              disabled={disabled || voidingId !== null}
-              hint={t("voidReasonHint")}
-            />
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2">
+              <input
+                ref={inputRef}
+                type="file"
+                className="sr-only"
+                accept={ACCEPT_MIME}
+                disabled={disabled || uploading}
+                onChange={(event) => void onFileChange(event)}
+                aria-label={t("chooseFile")}
+              />
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  setVoidTargetId(null);
-                  setVoidReason("");
-                }}
-                disabled={voidingId !== null}
-              >{t("cancel")}              </Button>
-              <Button
-                type="button"
-                onClick={() => void onConfirmVoid()}
-                loading={voidingId !== null}
-                disabled={disabled || voidingId !== null}
-                aria-label={t("confirmVoid")}
-              >{t("confirmVoid")}              </Button>
+                onClick={onPick}
+                loading={uploading}
+                disabled={disabled || uploading}
+                aria-label={t("uploadStagedAttachment")}
+              >
+                {uploading ? t("uploading") : t("uploadFile")}
+              </Button>
+              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {t("filePolicy")}
+              </p>
             </div>
           </div>
-        ) : null}
 
-        {visible.length === 0 ? (
-          <p className="text-sm text-ecmp-muted" data-testid="staging-empty">
-            {t("noStagedAttachments")}
-          </p>
-        ) : (
-          <ul
-            className="divide-y divide-ecmp-border rounded-md border border-ecmp-border"
-            data-testid="staging-list"
-            aria-label={t("stagedAttachmentsAria")}
-          >
-            {visible.map((item) => (
-              <li
-                key={item.attachmentId}
-                className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
-                data-testid={`staging-item-${item.attachmentId}`}
-              >
-                <div className="min-w-0">
-                  <span className="font-medium text-ecmp-fg truncate block">
-                    {item.originalName}
-                  </span>
-                  <span className="text-xs text-ecmp-muted">
-                    {item.status} · {item.classification} ·{" "}
-                    {formatCmBatch1AttachmentBytes(item.sizeBytes)}
-                  </span>
-                </div>
-                {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={disabled || voidingId !== null}
-                    onClick={() => {
-                      setVoidTargetId(item.attachmentId);
-                      setVoidReason("");
-                      setError(null);
-                    }}
-                    aria-label={t("voidNamed", { name: item.originalName })}
-                  >
-                    {t("void")}
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardBody>
-    </Card>
+          {voidTargetId ? (
+            <div
+              className="space-y-[var(--ecmp-form-gap)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-3"
+              data-testid="staging-void-form"
+            >
+              <Input
+                id="stagingVoidReason"
+                name="stagingVoidReason"
+                label={t("voidReason")}
+                value={voidReason}
+                onChange={(event) => setVoidReason(event.target.value)}
+                disabled={disabled || voidingId !== null}
+                hint={t("voidReasonHint")}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setVoidTargetId(null);
+                    setVoidReason("");
+                  }}
+                  disabled={voidingId !== null}
+                >
+                  {t("cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void onConfirmVoid()}
+                  loading={voidingId !== null}
+                  disabled={disabled || voidingId !== null}
+                  aria-label={t("confirmVoid")}
+                >
+                  {t("confirmVoid")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {visible.length === 0 ? (
+            <div data-testid="staging-empty">
+              <Empty
+                title={t("noStagedAttachments")}
+                description={t("stagedAttachmentsDescription")}
+              />
+            </div>
+          ) : (
+            <ul
+              className="divide-y divide-ecmp-border rounded-[var(--ecmp-radius-md)] border border-ecmp-border"
+              data-testid="staging-list"
+              aria-label={t("stagedAttachmentsAria")}
+            >
+              {visible.map((item) => (
+                <li
+                  key={item.attachmentId}
+                  className="flex flex-col gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
+                  data-testid={`staging-item-${item.attachmentId}`}
+                >
+                  <div className="min-w-0 space-y-1">
+                    <span className="block truncate font-medium text-ecmp-text-primary">
+                      {item.originalName}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="neutral">{item.status}</Badge>
+                      <Badge tone="info">{item.classification}</Badge>
+                      <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                        {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+                      </span>
+                    </div>
+                  </div>
+                  {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled || voidingId !== null}
+                      onClick={() => {
+                        setVoidTargetId(item.attachmentId);
+                        setVoidReason("");
+                        setError(null);
+                      }}
+                      aria-label={t("voidNamed", { name: item.originalName })}
+                    >
+                      {t("void")}
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
+    </section>
   );
 }

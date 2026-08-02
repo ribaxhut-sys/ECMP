@@ -39,7 +39,7 @@ const CATEGORY_VALUES: readonly ResolutionCategory[] = [
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 space-y-1">
-      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </dt>
       <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -160,7 +160,7 @@ export function ResolutionCard({
         <CardHeader>
           <CardTitle>{t("resolutionCard")}</CardTitle>
         </CardHeader>
-        <CardBody className="space-y-4">
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               {t("loadingResolution")}
@@ -174,7 +174,7 @@ export function ResolutionCard({
               onAction={() => void load()}
             />
           ) : resolution ? (
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
               <DetailField
                 label={t("category")}
                 value={tCategory(resolution.resolutionCategory)}
@@ -202,7 +202,7 @@ export function ResolutionCard({
           )}
 
           {showForm ? (
-            <form className="space-y-4 border-t border-ecmp-border pt-4" onSubmit={onSubmit}>
+            <form className="space-y-[var(--ecmp-panel-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]" onSubmit={onSubmit}>
               <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
                 {t("resolutionFormHint")}
               </p>

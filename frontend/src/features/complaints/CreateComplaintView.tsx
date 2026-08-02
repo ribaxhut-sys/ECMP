@@ -28,13 +28,11 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   Input,
   PageContainer,
   PageHeader,
+  SectionHeader,
   Select,
   Textarea,
 } from "@/shared/ui";
@@ -196,7 +194,7 @@ export function CreateComplaintView() {
 
   if (!canCreate) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("create")}
           breadcrumbs={[
@@ -376,7 +374,7 @@ export function CreateComplaintView() {
   }));
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("create")}
         breadcrumbs={[
@@ -391,7 +389,7 @@ export function CreateComplaintView() {
         noValidate
         onSubmit={(event) => void onSubmit(event)}
         aria-label={t("createFormAriaLabel")}
-        className="space-y-6"
+        className="space-y-[var(--ecmp-section-gap)]"
       >
         {submitError ? (
           <Alert
@@ -433,19 +431,17 @@ export function CreateComplaintView() {
           />
         ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle id="section-complaint-info">
-              {t("complaintInformation")}
-            </CardTitle>
-            <CardDescription>
-              {t("complaintInformationDescription")}
-            </CardDescription>
-          </CardHeader>
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader
+            id="section-complaint-info"
+            title={t("complaintInformation")}
+            description={t("complaintInformationDescription")}
+          />
+          <Card>
           <CardBody>
             <fieldset
               aria-labelledby="section-complaint-info"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
+              className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2"
             >
               <legend className="sr-only">{t("complaintInformation")}</legend>
               <div className="md:col-span-2">
@@ -516,17 +512,20 @@ export function CreateComplaintView() {
               </div>
             </fieldset>
           </CardBody>
-        </Card>
+          </Card>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle id="section-location">{t("recordingUnit")}</CardTitle>
-            <CardDescription>{t("recordingUnitDescription")}</CardDescription>
-          </CardHeader>
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader
+            id="section-location"
+            title={t("recordingUnit")}
+            description={t("recordingUnitDescription")}
+          />
+          <Card>
           <CardBody>
             <fieldset
               aria-labelledby="section-location"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
+              className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2"
             >
               <legend className="sr-only">{t("recordingUnit")}</legend>
               <Select
@@ -551,7 +550,8 @@ export function CreateComplaintView() {
               />
             </fieldset>
           </CardBody>
-        </Card>
+          </Card>
+        </section>
 
         {overrideJustification ? (
           <Alert
@@ -567,7 +567,7 @@ export function CreateComplaintView() {
           onStagingTokenResolved={setStagingToken}
         />
 
-        <div className="flex flex-col-reverse gap-3 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:justify-end">
           <Button
             type="button"
             variant="outline"

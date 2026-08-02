@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { Button, Card, CardBody, CardHeader, CardTitle, Empty } from "@/shared/ui";
+import { Button, Card, CardBody, CardHeader, PanelHeader, Empty } from "@/shared/ui";
 import { QUICK_ACTIONS } from "./quickActionConfig";
 
 export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
@@ -45,7 +45,7 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("quickActions")}</CardTitle>
+        <PanelHeader title={t("quickActions")} className="mb-0 border-0 pb-0" />
       </CardHeader>
       <CardBody>
         <div id="quick-actions" />
@@ -55,7 +55,7 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
             description={t("noActionsDescription")}
           />
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2 xl:grid-cols-3">
             {actions.map((action) => (
               <Button
                 key={action.id}
@@ -66,7 +66,7 @@ export function QuickActions({ onRefresh }: { onRefresh: () => void }) {
                 title={t(action.descriptionKey)}
                 className="h-auto !min-h-[44px] flex-col items-start gap-1 px-4 py-3 text-left whitespace-normal"
               >
-                <span className="block text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
+                <span className="block text-[length:var(--ecmp-font-body-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
                   {t(action.labelKey)}
                 </span>
                 <span className="block text-[length:var(--ecmp-font-caption-size)] font-normal text-ecmp-text-secondary">

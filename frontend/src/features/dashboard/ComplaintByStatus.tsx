@@ -6,7 +6,7 @@ import {
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
+  PanelHeader,
   Empty,
   Skeleton,
 } from "@/shared/ui";
@@ -25,7 +25,7 @@ export function ComplaintByStatus({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("byStatus")}</CardTitle>
+          <PanelHeader title={t("byStatus")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Skeleton rows={4} />
@@ -39,7 +39,7 @@ export function ComplaintByStatus({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("byStatus")}</CardTitle>
+          <PanelHeader title={t("byStatus")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Empty
@@ -56,7 +56,7 @@ export function ComplaintByStatus({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("byStatus")}</CardTitle>
+        <PanelHeader title={t("byStatus")} className="mb-0 border-0 pb-0" />
       </CardHeader>
       <CardBody>
         <ul className="space-y-3">

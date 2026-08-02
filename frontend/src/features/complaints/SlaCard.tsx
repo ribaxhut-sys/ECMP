@@ -31,7 +31,7 @@ function DetailField({
 }) {
   return (
     <div className="min-w-0 space-y-1">
-      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </dt>
       <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -103,7 +103,7 @@ export function SlaCard({
       <CardHeader>
         <CardTitle>{t("slaCard")}</CardTitle>
       </CardHeader>
-      <CardBody className="space-y-4">
+      <CardBody className="space-y-[var(--ecmp-panel-gap)]">
         {loading ? (
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {t("loadingSla")}
@@ -121,7 +121,7 @@ export function SlaCard({
             {t("noSlaRecord")}
           </p>
         ) : (
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
             <DetailField
               label={t("assignmentDue")}
               value={formatDateTime(sla.assignmentDueAt, locale)}

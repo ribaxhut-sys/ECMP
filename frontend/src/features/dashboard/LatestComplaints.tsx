@@ -9,7 +9,7 @@ import {
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
+  PanelHeader,
   Empty,
   Skeleton,
   Table,
@@ -90,7 +90,7 @@ export function LatestComplaints({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("latestComplaints")}</CardTitle>
+          <PanelHeader title={t("latestComplaints")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Skeleton rows={5} />
@@ -103,7 +103,7 @@ export function LatestComplaints({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("latestComplaints")}</CardTitle>
+          <PanelHeader title={t("latestComplaints")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Empty
@@ -118,7 +118,7 @@ export function LatestComplaints({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("latestComplaints")}</CardTitle>
+        <PanelHeader title={t("latestComplaints")} className="mb-0 border-0 pb-0" />
       </CardHeader>
       <CardBody>
         <Table

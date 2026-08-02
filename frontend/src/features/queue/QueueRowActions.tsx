@@ -185,7 +185,7 @@ export function QueueRowActions({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {action === "take"
               ? t("assignToYouHint", { number: row.complaintNumber })

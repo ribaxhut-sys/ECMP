@@ -156,7 +156,7 @@ export function AssignmentCard({
         <CardHeader>
           <CardTitle>{t("assignmentCard")}</CardTitle>
         </CardHeader>
-        <CardBody className="space-y-4">
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
           {loading ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               {t("loadingAssignment")}
@@ -170,9 +170,9 @@ export function AssignmentCard({
               onAction={() => void load()}
             />
           ) : assignment ? (
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
               <div className="min-w-0 space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                   {t("assignee")}
                 </dt>
                 <dd className="break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -180,7 +180,7 @@ export function AssignmentCard({
                 </dd>
               </div>
               <div className="min-w-0 space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+                <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                   {t("assignedAt")}
                 </dt>
                 <dd className="break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -189,7 +189,7 @@ export function AssignmentCard({
               </div>
             </dl>
           ) : showForm ? (
-            <form className="space-y-4" onSubmit={(e) => void handleAssign(e)}>
+            <form className="space-y-[var(--ecmp-panel-gap)]" onSubmit={(e) => void handleAssign(e)}>
               {usersError ? (
                 <Alert
                   tone="danger"

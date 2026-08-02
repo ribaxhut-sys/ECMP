@@ -6,29 +6,11 @@ import {
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
   Empty,
+  SectionHeader,
   Skeleton,
+  StatCard,
 } from "@/shared/ui";
-
-function MetricTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-4 py-4">
-      <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-        {label}
-      </p>
-      <p className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tabular-nums text-ecmp-text-primary">
-        {value}
-      </p>
-    </div>
-  );
-}
 
 function StageRow({
   label,
@@ -44,12 +26,21 @@ function StageRow({
   breachedLabel: string;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-3 sm:items-stretch">
       <div className="flex items-center text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary sm:col-span-1">
         {label}
       </div>
-      <MetricTile label={completedLabel} value={completed} />
-      <MetricTile label={breachedLabel} value={breached} />
+      <StatCard
+        title={completedLabel}
+        value={<span className="tabular-nums">{completed}</span>}
+        statusTone="success"
+      />
+      <StatCard
+        title={breachedLabel}
+        value={<span className="tabular-nums">{breached}</span>}
+        variant={breached > 0 ? "emphasis" : "default"}
+        statusTone={breached > 0 ? "danger" : "neutral"}
+      />
     </div>
   );
 }
@@ -67,7 +58,7 @@ export function SlaCards({
     return (
       <Card data-testid="dashboard-sla-cards">
         <CardHeader>
-          <CardTitle>{t("slaSummaryTitle")}</CardTitle>
+          <SectionHeader title={t("slaSummaryTitle")} />
         </CardHeader>
         <CardBody>
           <Skeleton rows={4} />
@@ -80,7 +71,7 @@ export function SlaCards({
     return (
       <Card data-testid="dashboard-sla-cards">
         <CardHeader>
-          <CardTitle>{t("slaSummaryTitle")}</CardTitle>
+          <SectionHeader title={t("slaSummaryTitle")} />
         </CardHeader>
         <CardBody>
           <Empty
@@ -103,9 +94,9 @@ export function SlaCards({
   return (
     <Card data-testid="dashboard-sla-cards">
       <CardHeader>
-        <CardTitle>{t("slaSummaryTitle")}</CardTitle>
+        <SectionHeader title={t("slaSummaryTitle")} />
       </CardHeader>
-      <CardBody className="space-y-4">
+      <CardBody className="space-y-[var(--ecmp-panel-gap)]">
         {stages.map((stage) => (
           <StageRow
             key={stage.label}
