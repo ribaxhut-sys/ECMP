@@ -1,6 +1,11 @@
 /**
  * ECMP spacing scale (px).
  * Map to Tailwind: 4→1, 8→2, 12→3, 16→4, 24→6, 32→8, 40→10, 48→12, 64→16.
+ *
+ * Usage rules:
+ * - Prefer this scale for padding, margin, and gap.
+ * - Prefer layout tokens (`layout.ts`) for page/section rhythm.
+ * - Do not invent one-off spacing (e.g. 18px, 22px).
  */
 
 export const spacing = {
