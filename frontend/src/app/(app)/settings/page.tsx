@@ -7,11 +7,9 @@ import { LanguageSwitcher } from "@/shared/i18n/LanguageSwitcher";
 import {
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   PageContainer,
   PageHeader,
+  SectionHeader,
 } from "@/shared/ui";
 
 export default function SettingsPage() {
@@ -19,7 +17,7 @@ export default function SettingsPage() {
   const tCommon = useTranslations("common");
 
   return (
-    <PageContainer>
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
         breadcrumbs={[
@@ -28,19 +26,21 @@ export default function SettingsPage() {
         ]}
         description={t("pageDescription")}
       />
-      <div style={{ display: "grid", gap: "1.5rem" }}>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader
+          title={t("language")}
+          description={t("languageDescription")}
+        />
         <Card>
-          <CardHeader>
-            <CardTitle>{t("language")}</CardTitle>
-            <CardDescription>{t("languageDescription")}</CardDescription>
-          </CardHeader>
           <CardBody>
             <LanguageSwitcher variant="full" id="settings-language-switcher" />
           </CardBody>
         </Card>
-        <SystemSettingsManagement />
-        <SlaPolicyManagement />
-      </div>
+      </section>
+
+      <SystemSettingsManagement />
+      <SlaPolicyManagement />
     </PageContainer>
   );
 }

@@ -15,12 +15,10 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Input,
   PageContainer,
   PageHeader,
+  SectionHeader,
 } from "@/shared/ui";
 
 export default function ChangePasswordPage() {
@@ -90,7 +88,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("changePasswordTitle")}
         breadcrumbs={[
@@ -112,60 +110,67 @@ export default function ChangePasswordPage() {
         />
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("securityTitle")}</CardTitle>
-          <CardDescription>
-            {t("chooseStrongPassword", { min: PASSWORD_MIN_LENGTH })}
-          </CardDescription>
-        </CardHeader>
-        <CardBody>
-          <form onSubmit={onSubmit} className="mx-auto max-w-md space-y-4">
-            <Input
-              name="currentPassword"
-              type="password"
-              label={t("currentPassword")}
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-            />
-            <Input
-              name="newPassword"
-              type="password"
-              label={tAuth("newPassword")}
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              minLength={PASSWORD_MIN_LENGTH}
-              maxLength={PASSWORD_MAX_LENGTH}
-            />
-            <Input
-              name="confirmPassword"
-              type="password"
-              label={t("confirmNewPassword")}
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={PASSWORD_MIN_LENGTH}
-              maxLength={PASSWORD_MAX_LENGTH}
-            />
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader
+          title={t("securityTitle")}
+          description={t("chooseStrongPassword", { min: PASSWORD_MIN_LENGTH })}
+        />
+        <Card>
+          <CardBody>
+            <form
+              onSubmit={onSubmit}
+              className="mx-auto w-full max-w-[var(--ecmp-form-max-width)] space-y-[var(--ecmp-form-gap)]"
+            >
+              <Input
+                name="currentPassword"
+                type="password"
+                label={t("currentPassword")}
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+              <Input
+                name="newPassword"
+                type="password"
+                label={tAuth("newPassword")}
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
+              />
+              <Input
+                name="confirmPassword"
+                type="password"
+                label={t("confirmNewPassword")}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
+              />
 
-            {error ? (
-              <Alert tone="danger" title={t("changeFailed")} description={error} />
-            ) : null}
-            {success ? (
-              <Alert tone="success" title={tAuth("passwordUpdated")} description={success} />
-            ) : null}
+              {error ? (
+                <Alert tone="danger" title={t("changeFailed")} description={error} />
+              ) : null}
+              {success ? (
+                <Alert
+                  tone="success"
+                  title={tAuth("passwordUpdated")}
+                  description={success}
+                />
+              ) : null}
 
-            <Button type="submit" loading={submitting}>
-              {submitting ? tCommon("saving") : t("changePasswordAction")}
-            </Button>
-          </form>
-        </CardBody>
-      </Card>
+              <Button type="submit" loading={submitting}>
+                {submitting ? tCommon("saving") : t("changePasswordAction")}
+              </Button>
+            </form>
+          </CardBody>
+        </Card>
+      </section>
     </PageContainer>
   );
 }

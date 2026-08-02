@@ -21,12 +21,10 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   ErrorState,
   Input,
+  SectionHeader,
   Skeleton,
   Table,
   Textarea,
@@ -255,16 +253,12 @@ export function SlaPolicyManagement() {
   ];
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <CardTitle>{t("managementTitle")}</CardTitle>
-            <CardDescription>
-              {t("managementDescription")}
-            </CardDescription>
-          </div>
-          {canManage ? (
+    <section className="space-y-[var(--ecmp-panel-gap)]">
+      <SectionHeader
+        title={t("managementTitle")}
+        description={t("managementDescription")}
+        actions={
+          canManage ? (
             <Button
               type="button"
               onClick={() => {
@@ -275,9 +269,11 @@ export function SlaPolicyManagement() {
             >
               {showCreate ? tCommon("cancel") : t("createPolicy")}
             </Button>
-          ) : null}
-        </CardHeader>
-        <CardBody className="space-y-4">
+          ) : null
+        }
+      />
+      <Card>
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
           {actionError ? (
             <Alert
               tone="danger"
@@ -295,11 +291,11 @@ export function SlaPolicyManagement() {
 
           {showCreate && canManage ? (
             <form
-              className="space-y-4 rounded-[var(--ecmp-radius-md)] border border-ecmp-border p-4"
+              className="space-y-[var(--ecmp-form-gap)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-[var(--ecmp-panel-gap)]"
               onSubmit={(event) => void onCreate(event)}
               noValidate
             >
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
                 <Input
                   label={t("name")}
                   value={values.name}
@@ -358,10 +354,7 @@ export function SlaPolicyManagement() {
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                >
+                <Button type="submit" disabled={submitting} loading={submitting}>
                   {submitting ? t("creating") : t("savePolicy")}
                 </Button>
               </div>
@@ -389,7 +382,7 @@ export function SlaPolicyManagement() {
           ) : null}
         </CardBody>
       </Card>
-    </div>
+    </section>
   );
 }
 

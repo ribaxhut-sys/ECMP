@@ -16,12 +16,10 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   ErrorState,
   Input,
+  SectionHeader,
   Skeleton,
   Table,
   type TableColumn,
@@ -211,40 +209,40 @@ export function SystemSettingsManagement() {
   ];
 
   return (
-    <Card data-testid="system-settings-card">
-      <CardHeader>
-        <CardTitle>{t("systemSettingsTitle")}</CardTitle>
-        <CardDescription>
-          {t("systemSettingsDescription")}
-        </CardDescription>
-      </CardHeader>
-      <CardBody className="space-y-4">
-        {loadError ? (
-          <ErrorState
-            title={t("unableToLoad")}
-            message={loadError}
-            onRetry={() => void load()}
-          />
-        ) : null}
-        {actionError ? (
-          <Alert tone="danger" title={t("updateFailed")} description={actionError} />
-        ) : null}
-        {actionSuccess ? (
-          <Alert tone="success" title={t("saved")} description={actionSuccess} />
-        ) : null}
-        <form onSubmit={onSave}>
-          {loading ? (
-            <Skeleton rows={5} />
-          ) : !loadError ? (
-            <Table
-              columns={columns}
-              rows={settings}
-              getRowKey={(row) => row.key}
-              emptyMessage={t("noSettingsFound")}
+    <section className="space-y-[var(--ecmp-panel-gap)]" data-testid="system-settings-card">
+      <SectionHeader
+        title={t("systemSettingsTitle")}
+        description={t("systemSettingsDescription")}
+      />
+      <Card>
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+          {loadError ? (
+            <ErrorState
+              title={t("unableToLoad")}
+              message={loadError}
+              onRetry={() => void load()}
             />
           ) : null}
-        </form>
-      </CardBody>
-    </Card>
+          {actionError ? (
+            <Alert tone="danger" title={t("updateFailed")} description={actionError} />
+          ) : null}
+          {actionSuccess ? (
+            <Alert tone="success" title={t("saved")} description={actionSuccess} />
+          ) : null}
+          <form onSubmit={onSave}>
+            {loading ? (
+              <Skeleton rows={5} />
+            ) : !loadError ? (
+              <Table
+                columns={columns}
+                rows={settings}
+                getRowKey={(row) => row.key}
+                emptyMessage={t("noSettingsFound")}
+              />
+            ) : null}
+          </form>
+        </CardBody>
+      </Card>
+    </section>
   );
 }

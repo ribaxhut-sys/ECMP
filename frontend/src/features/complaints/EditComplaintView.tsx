@@ -24,14 +24,12 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   ErrorState,
   Input,
   PageContainer,
   PageHeader,
+  SectionHeader,
   Select,
   Skeleton,
   Textarea,
@@ -194,7 +192,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
 
   if (loading) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("editTitle")}
           breadcrumbs={[
@@ -210,7 +208,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
 
   if (notFound) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("editTitle")}
           breadcrumbs={[
@@ -238,7 +236,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
 
   if (loadError || !complaint || !values) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("editTitle")}
           breadcrumbs={[
@@ -258,7 +256,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
 
   if (!canUpdate) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("editTitle")}
           breadcrumbs={[
@@ -290,7 +288,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
   }));
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("editTitleWithNumber", { number: complaint.complaintNumber })}
         breadcrumbs={[
@@ -306,7 +304,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
         noValidate
         onSubmit={(event) => void onSubmit(event)}
         aria-label={t("editFormAriaLabel")}
-        className="space-y-6"
+        className="space-y-[var(--ecmp-section-gap)]"
       >
         {submitError ? (
           <Alert
@@ -316,96 +314,96 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
           />
         ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("complaintInformation")}</CardTitle>
-            <CardDescription>
-              {t("editComplaintInformationDescription")}
-            </CardDescription>
-          </CardHeader>
-          <CardBody>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <Input
-                  name="subject"
-                  id="subject"
-                  label={t("subject")}
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader
+            title={t("complaintInformation")}
+            description={t("editComplaintInformationDescription")}
+          />
+          <Card>
+            <CardBody>
+              <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <Input
+                    name="subject"
+                    id="subject"
+                    label={t("subject")}
+                    required
+                    maxLength={200}
+                    value={values.subject}
+                    onChange={onTextChange("subject")}
+                    error={errors.subject}
+                  />
+                </div>
+                <Select
+                  name="priority"
+                  id="priority"
+                  label={tCommon("priority")}
                   required
-                  maxLength={200}
-                  value={values.subject}
-                  onChange={onTextChange("subject")}
-                  error={errors.subject}
+                  options={priorityOptions}
+                  value={values.priority}
+                  onChange={onTextChange("priority")}
+                  error={errors.priority}
                 />
+                <div className="md:col-span-2">
+                  <Textarea
+                    name="description"
+                    id="description"
+                    label={t("description")}
+                    required
+                    rows={5}
+                    maxLength={5000}
+                    value={values.description}
+                    onChange={onTextChange("description")}
+                    error={errors.description}
+                    hint={`${values.description.trim().length}/5000`}
+                  />
+                </div>
               </div>
-              <Select
-                name="priority"
-                id="priority"
-                label={tCommon("priority")}
-                required
-                options={priorityOptions}
-                value={values.priority}
-                onChange={onTextChange("priority")}
-                error={errors.priority}
-              />
-              <div className="md:col-span-2">
-                <Textarea
-                  name="description"
-                  id="description"
-                  label={t("description")}
-                  required
-                  rows={5}
-                  maxLength={5000}
-                  value={values.description}
-                  onChange={onTextChange("description")}
-                  error={errors.description}
-                  hint={`${values.description.trim().length}/5000`}
-                />
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("locationAndClassification")}</CardTitle>
-          </CardHeader>
-          <CardBody>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Select
-                name="branchId"
-                id="branchId"
-                label={t("branch")}
-                placeholder={
-                  branchesLoading ? t("loadingBranches") : t("selectBranchPlaceholder")
-                }
-                options={branchOptions}
-                value={values.branchId}
-                onChange={onTextChange("branchId")}
-                error={errors.branchId}
-                disabled={branchesLoading}
-              />
-              <Select
-                name="channel"
-                id="channel"
-                label={t("channel")}
-                placeholder={t("selectChannelOptional")}
-                options={channelOptions}
-                value={values.channel}
-                onChange={onTextChange("channel")}
-                error={errors.channel}
-              />
-              <Input
-                name="category"
-                id="category"
-                label={t("category")}
-                maxLength={64}
-                value={values.category}
-                onChange={onTextChange("category")}
-                error={errors.category}
-              />
-            </div>
-          </CardBody>
-        </Card>
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader title={t("locationAndClassification")} />
+          <Card>
+            <CardBody>
+              <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
+                <Select
+                  name="branchId"
+                  id="branchId"
+                  label={t("branch")}
+                  placeholder={
+                    branchesLoading ? t("loadingBranches") : t("selectBranchPlaceholder")
+                  }
+                  options={branchOptions}
+                  value={values.branchId}
+                  onChange={onTextChange("branchId")}
+                  error={errors.branchId}
+                  disabled={branchesLoading}
+                />
+                <Select
+                  name="channel"
+                  id="channel"
+                  label={t("channel")}
+                  placeholder={t("selectChannelOptional")}
+                  options={channelOptions}
+                  value={values.channel}
+                  onChange={onTextChange("channel")}
+                  error={errors.channel}
+                />
+                <Input
+                  name="category"
+                  id="category"
+                  label={t("category")}
+                  maxLength={64}
+                  value={values.category}
+                  onChange={onTextChange("category")}
+                  error={errors.category}
+                />
+              </div>
+            </CardBody>
+          </Card>
+        </section>
 
         <Alert
           tone="info"
@@ -413,7 +411,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
           description={t("notEditableDescription")}
         />
 
-        <div className="flex flex-col-reverse gap-3 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:justify-end">
           <Button
             type="button"
             variant="outline"

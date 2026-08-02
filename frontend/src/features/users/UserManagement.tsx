@@ -18,6 +18,9 @@ import {
   Empty,
   ErrorState,
   Modal,
+  PageContainer,
+  PageHeader,
+  SectionHeader,
   Skeleton,
   Table,
   type TableColumn,
@@ -193,10 +196,19 @@ export function UserManagement() {
 
   if (!canRead) {
     return (
-      <Empty
-        title={t("accessRestricted")}
-        description={t("accessRestrictedDescription")}
-      />
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
+        <PageHeader
+          title={t("title")}
+          breadcrumbs={[
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title") },
+          ]}
+        />
+        <Empty
+          title={t("accessRestricted")}
+          description={t("accessRestrictedDescription")}
+        />
+      </PageContainer>
     );
   }
 
@@ -205,9 +217,9 @@ export function UserManagement() {
       key: "username",
       header: t("username"),
       cell: (row) => (
-        <div>
+        <div className="space-y-0.5">
           <div className="font-medium text-ecmp-text-primary">{row.username}</div>
-          <div className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+          <div className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
             {row.fullName}
           </div>
         </div>
@@ -221,7 +233,9 @@ export function UserManagement() {
     {
       key: "role",
       header: t("role"),
-      cell: (row) => row.roleCode ?? row.roleName ?? "—",
+      cell: (row) => (
+        <Badge tone="neutral">{row.roleCode ?? row.roleName ?? "—"}</Badge>
+      ),
     },
     {
       key: "status",
@@ -244,7 +258,7 @@ export function UserManagement() {
       cell: (row) => {
         if (!canReset) {
           return (
-            <span className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+            <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
               —
             </span>
           );
@@ -272,54 +286,57 @@ export function UserManagement() {
   ];
 
   return (
-    <>
-      <Card>
-        <CardBody className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-[length:var(--ecmp-font-title-size)] font-semibold text-ecmp-text-primary">
-                {t("title")}
-              </h2>
-              <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                {t("managementDescription")}
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => void load()}>
-              {tCommon("refresh")}
-            </Button>
-          </div>
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
+      <PageHeader
+        title={t("title")}
+        breadcrumbs={[
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title") },
+        ]}
+        description={t("managementDescription")}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => void load()}>
+            {tCommon("refresh")}
+          </Button>
+        }
+      />
 
-          {actionError ? (
-            <Alert tone="danger" title={t("actionFailed")} description={actionError} />
-          ) : null}
-          {actionSuccess ? (
-            <Alert tone="success" title={t("resetPassword")} description={actionSuccess} />
-          ) : null}
+      {actionError ? (
+        <Alert tone="danger" title={t("actionFailed")} description={actionError} />
+      ) : null}
+      {actionSuccess ? (
+        <Alert tone="success" title={t("resetPassword")} description={actionSuccess} />
+      ) : null}
 
-          {loading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : loadError ? (
-            <ErrorState
-              title={t("unableToLoad")}
-              message={loadError}
-              actionLabel={tCommon("retry")}
-              onRetry={() => void load()}
-            />
-          ) : (
-            <Table
-              columns={columns}
-              rows={rows}
-              getRowKey={(row) => row.id}
-              caption={t("title")}
-              emptyMessage={t("noUsersFound")}
-            />
-          )}
-        </CardBody>
-      </Card>
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader title={t("title")} description={t("managementDescription")} />
+        <Card>
+          <CardBody>
+            {loading ? (
+              <div className="space-y-[var(--ecmp-form-gap)]">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : loadError ? (
+              <ErrorState
+                title={t("unableToLoad")}
+                message={loadError}
+                actionLabel={tCommon("retry")}
+                onRetry={() => void load()}
+              />
+            ) : (
+              <Table
+                columns={columns}
+                rows={rows}
+                getRowKey={(row) => row.id}
+                caption={t("title")}
+                emptyMessage={t("noUsersFound")}
+              />
+            )}
+          </CardBody>
+        </Card>
+      </section>
 
       <Modal
         open={confirmTarget != null}
@@ -337,7 +354,7 @@ export function UserManagement() {
         }
       >
         {confirmTarget ? (
-          <div className="space-y-3">
+          <div className="space-y-[var(--ecmp-panel-gap)]">
             <Alert
               tone="warning"
               title={t("resetWarningTitle")}
@@ -391,33 +408,34 @@ export function UserManagement() {
         }
       >
         {revealed ? (
-          <div className="space-y-4">
+          <div className="space-y-[var(--ecmp-panel-gap)]">
             <Alert
               tone="warning"
               title={t("temporaryPasswordWarningTitle")}
               description={t("temporaryPasswordWarningDescription")}
             />
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              {tCommon("user")}: <strong className="text-ecmp-text-primary">{revealed.user.username}</strong>
+              {tCommon("user")}:{" "}
+              <strong className="text-ecmp-text-primary">{revealed.user.username}</strong>
             </p>
-            <div>
-              <p className="mb-2 text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+            <div className="space-y-2">
+              <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                 {t("temporaryPassword")}
               </p>
               <code
-                className="block break-all rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-3 py-3 font-mono text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
+                className="block break-all rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken px-3 py-3 font-mono text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
                 data-testid="temporary-password"
               >
                 {revealed.result.temporaryPassword}
               </code>
             </div>
-            <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
               {revealed.result.message} Audit:{" "}
               <code>password.admin_reset</code>
             </p>
           </div>
         ) : null}
       </Modal>
-    </>
+    </PageContainer>
   );
 }

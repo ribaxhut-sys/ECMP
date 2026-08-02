@@ -87,18 +87,18 @@ function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-[var(--ecmp-form-gap)]">
       <div className="mb-1 flex justify-end">
         <LanguageSwitcher variant="compact" />
       </div>
-      <div>
-        <p className="text-[length:var(--ecmp-font-caption-size)] font-semibold uppercase tracking-[0.2em] text-ecmp-primary">
+      <div className="space-y-2">
+        <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-primary">
           {tCommon("appName")}
         </p>
-        <h1 className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tracking-tight text-ecmp-text-primary">
+        <h1 className="text-[length:var(--ecmp-font-page-title-size)] font-[number:var(--ecmp-font-page-title-weight)] leading-[var(--ecmp-font-page-title-line)] tracking-tight text-ecmp-text-primary">
           {t("resetPasswordTitle")}
         </h1>
-        <p className="mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+        <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
           {t("resetPasswordSubtitle")}
         </p>
       </div>
@@ -134,7 +134,6 @@ function ResetPasswordForm() {
         maxLength={PASSWORD_MAX_LENGTH}
       />
 
-
       {error ? (
         <Alert tone="danger" title={t("resetFailed")} description={error} />
       ) : null}
@@ -147,7 +146,10 @@ function ResetPasswordForm() {
       </Button>
 
       <p className="text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-        <Link href="/login" className="text-ecmp-primary underline-offset-2 hover:underline">
+        <Link
+          href="/login"
+          className="text-ecmp-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus focus-visible:ring-offset-[length:var(--ecmp-focus-ring-offset)]"
+        >
           {t("backToSignIn")}
         </Link>
       </p>
