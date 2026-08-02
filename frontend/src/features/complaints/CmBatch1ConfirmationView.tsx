@@ -11,15 +11,14 @@ import {
 } from "@/lib/api";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   PageContainer,
   PageHeader,
+  SectionHeader,
   Skeleton,
 } from "@/shared/ui";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
@@ -76,7 +75,7 @@ export function CmBatch1ConfirmationView({
 
   if (!canRead) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("complaintRegistered")}
           breadcrumbs={[
@@ -93,7 +92,9 @@ export function CmBatch1ConfirmationView({
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints")}
-            >{t("backToComplaints")}            </Button>
+            >
+              {t("backToComplaints")}
+            </Button>
           }
         />
       </PageContainer>
@@ -101,7 +102,7 @@ export function CmBatch1ConfirmationView({
   }
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("complaintRegistered")}
         breadcrumbs={[
@@ -125,62 +126,101 @@ export function CmBatch1ConfirmationView({
             title={t("createdSuccess")}
             description={t("registeredDescription", { number: data.complaintNumber })}
           />
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("registrationDetails")}</CardTitle>
-              <CardDescription>
-                {t("registrationDetailsDescription")}
-              </CardDescription>
-            </CardHeader>
-            <CardBody>
-              <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("complaintNumber")}</dt>
-                  <dd className="font-medium">{data.complaintNumber}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("complaintId")}</dt>
-                  <dd className="font-mono text-xs">{data.complaintId}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("status")}</dt>
-                  <dd className="font-medium">{data.status}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("customerId")}</dt>
-                  <dd className="font-mono text-xs">{data.customerId}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{tCases("title")}</dt>
-                  <dd>{data.caseCreated ? tCommon("yes") : tCommon("no")}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("replayed")}</dt>
-                  <dd>{data.replayed ? tCommon("yes") : tCommon("no")}</dd>
-                </div>
-                {data.category ? (
-                  <div>
-                    <dt className="text-ecmp-text-secondary">{t("category")}</dt>
-                    <dd>{data.category}</dd>
+
+          <section className="space-y-[var(--ecmp-panel-gap)]">
+            <SectionHeader
+              title={t("registrationDetails")}
+              description={t("registrationDetailsDescription")}
+            />
+            <Card>
+              <CardBody>
+                <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("complaintNumber")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
+                      {data.complaintNumber}
+                    </dd>
                   </div>
-                ) : null}
-                {data.channel ? (
-                  <div>
-                    <dt className="text-ecmp-text-secondary">{t("channel")}</dt>
-                    <dd>{data.channel}</dd>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("complaintId")}
+                    </dt>
+                    <dd className="break-all font-mono text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
+                      {data.complaintId}
+                    </dd>
                   </div>
-                ) : null}
-                {data.subject ? (
-                  <div className="md:col-span-2">
-                    <dt className="text-ecmp-text-secondary">{t("subject")}</dt>
-                    <dd>{data.subject}</dd>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("status")}
+                    </dt>
+                    <dd>
+                      <Badge tone="info">{data.status}</Badge>
+                    </dd>
                   </div>
-                ) : null}
-              </dl>
-            </CardBody>
-          </Card>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("customerId")}
+                    </dt>
+                    <dd className="break-all font-mono text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
+                      {data.customerId}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {tCases("title")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {data.caseCreated ? tCommon("yes") : tCommon("no")}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("replayed")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {data.replayed ? tCommon("yes") : tCommon("no")}
+                    </dd>
+                  </div>
+                  {data.category ? (
+                    <div className="space-y-1">
+                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("category")}
+                      </dt>
+                      <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {data.category}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {data.channel ? (
+                    <div className="space-y-1">
+                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("channel")}
+                      </dt>
+                      <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {data.channel}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {data.subject ? (
+                    <div className="space-y-1 md:col-span-2">
+                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("subject")}
+                      </dt>
+                      <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {data.subject}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </CardBody>
+            </Card>
+          </section>
+
           <CmBatch1BoundAttachmentsCard complaintId={data.complaintId} />
-          <div className="flex flex-wrap gap-3">
+
+          <div className="flex flex-wrap gap-[var(--ecmp-form-gap)]">
             <Button
               type="button"
               onClick={() =>
@@ -188,17 +228,23 @@ export function CmBatch1ConfirmationView({
                   `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases`,
                 )
               }
-            >{t("manageCases")}            </Button>
+            >
+              {t("manageCases")}
+            </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints/new")}
-            >{t("registerAnother")}            </Button>
+            >
+              {t("registerAnother")}
+            </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/complaints")}
-            >{t("backToFoundationList")}            </Button>
+            >
+              {t("backToFoundationList")}
+            </Button>
           </div>
         </>
       ) : null}

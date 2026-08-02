@@ -16,14 +16,15 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   ErrorState,
+  FilterBar,
   PageContainer,
   PageHeader,
+  SectionHeader,
+  Select,
   Skeleton,
+  StatCard,
   Table,
   type TableColumn,
 } from "@/shared/ui";
@@ -103,7 +104,7 @@ export function CmBatch1SupervisorQueueView() {
       key: "workItemId",
       header: t("workItem"),
       cell: (row) => (
-        <span className="font-mono text-sm">{row.workItemId}</span>
+        <span className="font-mono text-[length:var(--ecmp-font-body-small-size)]">{row.workItemId}</span>
       ),
     },
     {
@@ -113,7 +114,7 @@ export function CmBatch1SupervisorQueueView() {
         row.complaintId ? (
           <Link
             href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
-            className="font-mono text-sm text-ecmp-primary underline-offset-2 hover:underline"
+            className="font-mono text-[length:var(--ecmp-font-body-small-size)] text-ecmp-primary underline-offset-2 hover:underline"
           >
             {row.complaintId}
           </Link>
@@ -238,8 +239,11 @@ export function CmBatch1SupervisorQueueView() {
     );
   }
 
+  const laterCount = data?.laterReviewItems.length ?? 0;
+  const agingCount = data?.agingComplaints.length ?? 0;
+
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("batchSupervisorQueue")}
         breadcrumbs={[
@@ -249,25 +253,26 @@ export function CmBatch1SupervisorQueueView() {
         ]}
         description={t("laterReviewDescription")}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-ecmp-text-secondary">{t("agingThreshold")}</span>
-              <select
-                className="rounded border border-ecmp-border bg-ecmp-surface px-2 py-1"
-                value={agingHours}
-                onChange={(e) => setAgingHours(Number(e.target.value))}
-                aria-label={t("agingThreshold")}
-              >
-                <option value={24}>24h</option>
-                <option value={48}>48h</option>
-                <option value={72}>72h</option>
-                <option value={168}>7d</option>
-              </select>
-            </label>
-            <Button type="button" variant="secondary" onClick={() => void load()}>
-              {tCommon("refresh")}
-            </Button>
-          </div>
+          <Button type="button" variant="secondary" onClick={() => void load()}>
+            {tCommon("refresh")}
+          </Button>
+        }
+      />
+
+      <FilterBar
+        filters={
+          <Select
+            name="agingHours"
+            label={t("agingThreshold")}
+            value={String(agingHours)}
+            onChange={(e) => setAgingHours(Number(e.target.value))}
+            options={[
+              { value: "24", label: "24h" },
+              { value: "48", label: "48h" },
+              { value: "72", label: "72h" },
+              { value: "168", label: "7d" },
+            ]}
+          />
         }
       />
 
@@ -275,57 +280,78 @@ export function CmBatch1SupervisorQueueView() {
         <ErrorState title={t("unableToLoadQueue")} message={error} />
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("laterReviewItems")}</CardTitle>
-          <CardDescription>{t("laterReviewDescription")}</CardDescription>
-        </CardHeader>
-        <CardBody>
-          {loading && !data ? (
-            <Skeleton className="h-32 w-full" />
-          ) : !data?.laterReviewItems.length ? (
-            <Empty
-              title={t("noOpenLaterReview")}
-              description={t("queueEmptyForFilter")}
-            />
-          ) : (
-            <Table
-              columns={laterColumns}
-              rows={data.laterReviewItems}
-              getRowKey={(row) => row.workItemId}
-            />
-          )}
-        </CardBody>
-      </Card>
+      {data ? (
+        <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-2">
+          <StatCard
+            title={t("laterReviewItems")}
+            value={<span className="tabular-nums">{laterCount}</span>}
+          />
+          <StatCard
+            title={t("noCaseAging")}
+            value={<span className="tabular-nums">{agingCount}</span>}
+            variant={agingCount > 0 ? "emphasis" : "default"}
+          />
+        </div>
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("noCaseAging")}</CardTitle>
-          <CardDescription>
-            {t("noCaseAgingDescription", { hours: threshold })}
-          </CardDescription>
-        </CardHeader>
-        <CardBody>
-          {loading && !data ? (
-            <Skeleton className="h-32 w-full" />
-          ) : !data?.agingComplaints.length ? (
-            <Empty
-              title={t("noAgingComplaints")}
-              description={t("noRegisteredPastThreshold")}
-            />
-          ) : (
-            <Table
-              columns={agingColumns}
-              rows={data.agingComplaints}
-              getRowKey={(row) => row.complaintId}
-            />
-          )}
-        </CardBody>
-      </Card>
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader
+          title={t("laterReviewItems")}
+          description={t("laterReviewDescription")}
+        />
+        <Card>
+          <CardBody>
+            {loading && !data ? (
+              <Skeleton className="h-32 w-full" />
+            ) : !data?.laterReviewItems.length ? (
+              <Empty
+                title={t("noOpenLaterReview")}
+                description={t("queueEmptyForFilter")}
+              />
+            ) : (
+              <Table
+                columns={laterColumns}
+                rows={data.laterReviewItems}
+                getRowKey={(row) => row.workItemId}
+              />
+            )}
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader
+          title={t("noCaseAging")}
+          description={t("noCaseAgingDescription", { hours: threshold })}
+        />
+        <Card>
+          <CardBody>
+            {loading && !data ? (
+              <Skeleton className="h-32 w-full" />
+            ) : !data?.agingComplaints.length ? (
+              <Empty
+                title={t("noAgingComplaints")}
+                description={t("noRegisteredPastThreshold")}
+              />
+            ) : (
+              <Table
+                columns={agingColumns}
+                rows={data.agingComplaints}
+                getRowKey={(row) => row.complaintId}
+              />
+            )}
+          </CardBody>
+        </Card>
+      </section>
 
       {data ? (
-        <p className="text-xs text-ecmp-text-secondary">
-          {t("snapshotAsOf", { date: formatWhen(data.asOf), hours: data.agingThresholdHours, later: data.laterReviewItems.length, aging: data.agingComplaints.length })}
+        <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+          {t("snapshotAsOf", {
+            date: formatWhen(data.asOf),
+            hours: data.agingThresholdHours,
+            later: data.laterReviewItems.length,
+            aging: data.agingComplaints.length,
+          })}
         </p>
       ) : null}
     </PageContainer>

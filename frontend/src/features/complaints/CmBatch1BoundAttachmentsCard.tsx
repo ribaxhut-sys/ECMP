@@ -17,13 +17,13 @@ import {
 } from "./cmBatch1Attachments";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  Empty,
   Input,
+  SectionHeader,
   Skeleton,
 } from "@/shared/ui";
 
@@ -124,112 +124,127 @@ export function CmBatch1BoundAttachmentsCard({
   const visible = items.filter((item) => item.status !== "VOID");
 
   return (
-    <Card data-testid="cm-batch1-bound-attachments">
-      <CardHeader>
-        <CardTitle>{t("boundAttachments")}</CardTitle>
-        <CardDescription>
-          {t("boundAttachmentsDescription")}
-        </CardDescription>
-      </CardHeader>
-      <CardBody className="space-y-4">
-        {loading ? <Skeleton rows={3} /> : null}
+    <section
+      className="space-y-[var(--ecmp-panel-gap)]"
+      data-testid="cm-batch1-bound-attachments"
+    >
+      <SectionHeader
+        title={t("boundAttachments")}
+        description={t("boundAttachmentsDescription")}
+      />
+      <Card>
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+          {loading ? <Skeleton rows={3} /> : null}
 
-        {!loading && error ? (
-          <Alert
-            tone="danger"
-            title={t("couldNotLoadAttachments")}
-            description={error}
-          />
-        ) : null}
-
-        {!loading && !error && voidTargetId ? (
-          <div
-            className="space-y-3 rounded-md border border-ecmp-border p-3"
-            data-testid="bound-void-form"
-          >
-            <Input
-              id="boundVoidReason"
-              name="boundVoidReason"
-              label={t("voidReason")}
-              value={voidReason}
-              onChange={(event) => setVoidReason(event.target.value)}
-              disabled={voidingId !== null}
-              hint={t("voidReasonHint")}
+          {!loading && error ? (
+            <Alert
+              tone="danger"
+              title={t("couldNotLoadAttachments")}
+              description={error}
             />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setVoidTargetId(null);
-                  setVoidReason("");
-                }}
-                disabled={voidingId !== null}
-              >{t("cancel")}              </Button>
-              <Button
-                type="button"
-                onClick={() => void onConfirmVoid()}
-                loading={voidingId !== null}
-                disabled={voidingId !== null}
-                aria-label={t("confirmVoid")}
-              >{t("confirmVoid")}              </Button>
-            </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {!loading && !error && visible.length === 0 ? (
-          <p className="text-sm text-ecmp-muted" data-testid="bound-empty">
-            {t(cmBatch1AttachmentListLabel(0))}
-          </p>
-        ) : null}
-
-        {!loading && !error && visible.length > 0 ? (
-          <>
-            <p className="text-sm text-ecmp-muted">
-              {t(cmBatch1AttachmentListLabel(visible.length), { count: visible.length })}
-            </p>
-            <ul
-              className="divide-y divide-ecmp-border rounded-md border border-ecmp-border"
-              data-testid="bound-list"
-              aria-label={t("boundAttachmentsAria")}
+          {!loading && !error && voidTargetId ? (
+            <div
+              className="space-y-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-3"
+              data-testid="bound-void-form"
             >
-              {visible.map((item) => (
-                <li
-                  key={item.attachmentId}
-                  className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
-                  data-testid={`bound-item-${item.attachmentId}`}
+              <Input
+                id="boundVoidReason"
+                name="boundVoidReason"
+                label={t("voidReason")}
+                value={voidReason}
+                onChange={(event) => setVoidReason(event.target.value)}
+                disabled={voidingId !== null}
+                hint={t("voidReasonHint")}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setVoidTargetId(null);
+                    setVoidReason("");
+                  }}
+                  disabled={voidingId !== null}
                 >
-                  <div className="min-w-0">
-                    <span className="font-medium text-ecmp-fg truncate block">
-                      {item.originalName}
-                    </span>
-                    <span className="text-xs text-ecmp-muted">
-                      {item.status} · {item.classification} ·{" "}
-                      {formatCmBatch1AttachmentBytes(item.sizeBytes)}
-                    </span>
-                  </div>
-                  {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={voidingId !== null}
-                      onClick={() => {
-                        setVoidTargetId(item.attachmentId);
-                        setVoidReason("");
-                        setError(null);
-                      }}
-                      aria-label={t("voidNamed", { name: item.originalName })}
-                    >
-                      {t("void")}
-                    </Button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
-      </CardBody>
-    </Card>
+                  {t("cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void onConfirmVoid()}
+                  loading={voidingId !== null}
+                  disabled={voidingId !== null}
+                  aria-label={t("confirmVoid")}
+                >
+                  {t("confirmVoid")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {!loading && !error && visible.length === 0 ? (
+            <div data-testid="bound-empty">
+              <Empty
+                title={t(cmBatch1AttachmentListLabel(0))}
+                description={t("boundAttachmentsDescription")}
+              />
+            </div>
+          ) : null}
+
+          {!loading && !error && visible.length > 0 ? (
+            <>
+              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {t(cmBatch1AttachmentListLabel(visible.length), {
+                  count: visible.length,
+                })}
+              </p>
+              <ul
+                className="divide-y divide-ecmp-border rounded-[var(--ecmp-radius-md)] border border-ecmp-border"
+                data-testid="bound-list"
+                aria-label={t("boundAttachmentsAria")}
+              >
+                {visible.map((item) => (
+                  <li
+                    key={item.attachmentId}
+                    className="flex flex-col gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
+                    data-testid={`bound-item-${item.attachmentId}`}
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <span className="block truncate font-medium text-ecmp-text-primary">
+                        {item.originalName}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="neutral">{item.status}</Badge>
+                        <Badge tone="info">{item.classification}</Badge>
+                        <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                          {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+                        </span>
+                      </div>
+                    </div>
+                    {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={voidingId !== null}
+                        onClick={() => {
+                          setVoidTargetId(item.attachmentId);
+                          setVoidReason("");
+                          setError(null);
+                        }}
+                        aria-label={t("voidNamed", { name: item.originalName })}
+                      >
+                        {t("void")}
+                      </Button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </CardBody>
+      </Card>
+    </section>
   );
 }

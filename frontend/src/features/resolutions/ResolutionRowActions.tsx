@@ -22,6 +22,7 @@ import type {
 import {
   Alert,
   Button,
+  Checkbox,
   Input,
   Modal,
   Select,
@@ -357,7 +358,7 @@ export function ResolutionRowActions({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {row.complaintNumber} — {row.subject}
           </p>
@@ -423,16 +424,13 @@ export function ResolutionRowActions({
                 disabled={submitting}
                 onChange={(e) => setFinalNotes(e.target.value)}
               />
-              <label className="flex items-center gap-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-ecmp-border"
-                  checked={followUpRequired}
-                  disabled={submitting}
-                  onChange={(e) => setFollowUpRequired(e.target.checked)}
-                />
-                {tComplaints("followUpRequired")}
-              </label>
+              <Checkbox
+                name="followUpRequired"
+                label={tComplaints("followUpRequired")}
+                checked={followUpRequired}
+                disabled={submitting}
+                onChange={(e) => setFollowUpRequired(e.target.checked)}
+              />
             </>
           ) : null}
 

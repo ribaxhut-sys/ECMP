@@ -106,17 +106,17 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
   return (
     <>
       <Card data-testid={`attachment-card-${attachment.id}`}>
-        <CardBody className="space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--ecmp-radius-md)] bg-ecmp-secondary-muted">
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+          <div className="flex items-start gap-[var(--ecmp-form-gap)]">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken">
               <TypeIcon
                 mimeType={attachment.mimeType}
                 extension={attachment.extension}
                 filename={attachment.originalName}
               />
             </div>
-            <div className="min-w-0 flex-1 space-y-1">
-              <p className="truncate text-[length:var(--ecmp-font-subtitle-size)] font-semibold text-ecmp-text-primary">
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="truncate text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
                 {attachment.originalName}
               </p>
               <div className="flex flex-wrap items-center gap-2">
@@ -136,21 +136,27 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
             </div>
           </div>
 
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-3">
             <div className="min-w-0 space-y-1">
-              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">{t("fileSize")}              </dt>
+              <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                {t("fileSize")}
+              </dt>
               <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                 {formatFileSize(attachment.sizeBytes)}
               </dd>
             </div>
             <div className="min-w-0 space-y-1">
-              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">{t("mimeType")}              </dt>
-              <dd className="break-all text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+              <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                {t("mimeType")}
+              </dt>
+              <dd className="break-all text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
                 {attachment.mimeType}
               </dd>
             </div>
             <div className="min-w-0 space-y-1">
-              <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">{t("uploadDate")}              </dt>
+              <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                {t("uploadDate")}
+              </dt>
               <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                 {formatUploadDate(attachment.uploadedAt)}
               </dd>

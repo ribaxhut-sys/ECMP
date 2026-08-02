@@ -31,7 +31,7 @@ export function ReportsWorkspace() {
 
   if (!canRead) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("title")}
           breadcrumbs={[
@@ -49,7 +49,7 @@ export function ReportsWorkspace() {
   }
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-dashboard-gap)]">
       <PageHeader
         title={t("title")}
         breadcrumbs={[
@@ -81,7 +81,7 @@ export function ReportsWorkspace() {
             summary={data?.summary ?? null}
             loading={loading}
           />
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] lg:grid-cols-2">
             <ComplaintByStatus
               rows={data?.byStatus ?? data?.summary?.byStatus ?? null}
               loading={loading}

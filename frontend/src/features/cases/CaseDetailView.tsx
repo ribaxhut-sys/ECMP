@@ -10,13 +10,11 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   ErrorState,
   PageContainer,
   PageHeader,
+  SectionHeader,
   Skeleton,
   Toast,
 } from "@/shared/ui";
@@ -75,7 +73,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
 
   if (!canRead) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("title")}
           breadcrumbs={[
@@ -98,7 +96,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const showClose = Boolean(data && canUpdate && canClose(data.status));
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={data?.caseNumber ?? t("title")}
         description={data?.subject}
@@ -126,16 +124,24 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                     `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases`,
                   )
                 }
-              >{t("caseList")}              </Button>
+              >
+                {t("caseList")}
+              </Button>
             ) : null}
             {showStatus ? (
-              <Button type="button" onClick={() => setStatusOpen(true)}>{t("updateStatus")}              </Button>
+              <Button type="button" onClick={() => setStatusOpen(true)}>
+                {t("updateStatus")}
+              </Button>
             ) : null}
             {showResolve ? (
-              <Button type="button" onClick={() => setResolveOpen(true)}>{t("resolve")}              </Button>
+              <Button type="button" onClick={() => setResolveOpen(true)}>
+                {t("resolve")}
+              </Button>
             ) : null}
             {showClose ? (
-              <Button type="button" onClick={() => setCloseOpen(true)}>{t("close")}              </Button>
+              <Button type="button" onClick={() => setCloseOpen(true)}>
+                {t("close")}
+              </Button>
             ) : null}
           </div>
         }
@@ -148,89 +154,111 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
 
       {!loading && data ? (
         <>
-          <Card>
-            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle>{data.caseNumber}</CardTitle>
-                <CardDescription>
-                  {t("identitySummary", {
-                    caseId: data.caseId,
-                    complaintId: data.complaintId,
-                  })}
-                </CardDescription>
-              </div>
-              <CaseStatusBadge status={data.status} />
-            </CardHeader>
-            <CardBody>
-              <dl className="grid gap-3 text-[length:var(--ecmp-font-body-size)] sm:grid-cols-2">
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("type")}</dt>
-                  <dd>{data.caseType}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("priority")}</dt>
-                  <dd>{data.priority}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("category")}</dt>
-                  <dd>{data.category ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("owningUnit")}</dt>
-                  <dd>{data.owningUnitId ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("customer")}</dt>
-                  <dd className="font-mono text-xs">{data.customerId}</dd>
-                </div>
-                <div>
-                  <dt className="text-ecmp-text-secondary">{t("createdAt")}</dt>
-                  <dd>{data.createdAt}</dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="text-ecmp-text-secondary">{t("subject")}</dt>
-                  <dd>{data.subject}</dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="text-ecmp-text-secondary">{t("description")}</dt>
-                  <dd className="whitespace-pre-wrap">{data.description}</dd>
-                </div>
-                {data.cancelReason ? (
-                  <div>
-                    <dt className="text-ecmp-text-secondary">{t("cancelReason")}</dt>
-                    <dd>{data.cancelReason}</dd>
-                  </div>
-                ) : null}
-                {data.closedAt ? (
-                  <div>
-                    <dt className="text-ecmp-text-secondary">{t("closedAt")}</dt>
-                    <dd>{data.closedAt}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            </CardBody>
-          </Card>
-
-          {data.resolution ? (
+          <section className="space-y-[var(--ecmp-panel-gap)]">
+            <SectionHeader
+              title={data.caseNumber}
+              description={t("identitySummary", {
+                caseId: data.caseId,
+                complaintId: data.complaintId,
+              })}
+              actions={<CaseStatusBadge status={data.status} />}
+            />
             <Card>
-              <CardHeader>
-                <CardTitle>{t("resolution")}</CardTitle>
-                <CardDescription>
-                  {data.resolution.status} · {data.resolution.resolutionCode}
-                </CardDescription>
-              </CardHeader>
-              <CardBody className="space-y-2 text-[length:var(--ecmp-font-body-size)]">
-                <p>{data.resolution.summary}</p>
-                {data.resolution.detail ? (
-                  <p className="text-ecmp-text-secondary whitespace-pre-wrap">
-                    {data.resolution.detail}
-                  </p>
-                ) : null}
-                <p className="text-ecmp-text-secondary">
-                  {t("comment")}: {data.resolution.comment}
-                </p>
+              <CardBody>
+                <dl className="grid gap-[var(--ecmp-form-gap)] text-[length:var(--ecmp-font-body-size)] sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("type")}
+                    </dt>
+                    <dd className="text-ecmp-text-primary">{data.caseType}</dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("priority")}
+                    </dt>
+                    <dd className="text-ecmp-text-primary">{data.priority}</dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("category")}
+                    </dt>
+                    <dd className="text-ecmp-text-primary">{data.category ?? "—"}</dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("owningUnit")}
+                    </dt>
+                    <dd className="text-ecmp-text-primary">{data.owningUnitId ?? "—"}</dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("customer")}
+                    </dt>
+                    <dd className="break-all font-mono text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
+                      {data.customerId}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("createdAt")}
+                    </dt>
+                    <dd className="text-ecmp-text-primary">{data.createdAt}</dd>
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("subject")}
+                    </dt>
+                    <dd className="text-ecmp-text-primary">{data.subject}</dd>
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("description")}
+                    </dt>
+                    <dd className="whitespace-pre-wrap text-ecmp-text-primary">
+                      {data.description}
+                    </dd>
+                  </div>
+                  {data.cancelReason ? (
+                    <div className="space-y-1">
+                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("cancelReason")}
+                      </dt>
+                      <dd className="text-ecmp-text-primary">{data.cancelReason}</dd>
+                    </div>
+                  ) : null}
+                  {data.closedAt ? (
+                    <div className="space-y-1">
+                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("closedAt")}
+                      </dt>
+                      <dd className="text-ecmp-text-primary">{data.closedAt}</dd>
+                    </div>
+                  ) : null}
+                </dl>
               </CardBody>
             </Card>
+          </section>
+
+          {data.resolution ? (
+            <section className="space-y-[var(--ecmp-panel-gap)]">
+              <SectionHeader
+                title={t("resolution")}
+                description={`${data.resolution.status} · ${data.resolution.resolutionCode}`}
+              />
+              <Card>
+                <CardBody className="space-y-2 text-[length:var(--ecmp-font-body-size)]">
+                  <p className="text-ecmp-text-primary">{data.resolution.summary}</p>
+                  {data.resolution.detail ? (
+                    <p className="whitespace-pre-wrap text-ecmp-text-secondary">
+                      {data.resolution.detail}
+                    </p>
+                  ) : null}
+                  <p className="text-ecmp-text-secondary">
+                    {t("comment")}: {data.resolution.comment}
+                  </p>
+                </CardBody>
+              </Card>
+            </section>
           ) : null}
 
           {!canUpdate ? (

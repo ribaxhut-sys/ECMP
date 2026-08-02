@@ -3,12 +3,10 @@
 import { useTranslations } from "next-intl";
 import type { ReportSummary } from "@/lib/api/types";
 import {
-  Card,
-  CardBody,
-  CardHeader,
-  CardTitle,
   Empty,
+  SectionHeader,
   Skeleton,
+  StatCard,
 } from "@/shared/ui";
 import { reportHeadlineCounts } from "./reportSummaryStats";
 
@@ -23,31 +21,31 @@ export function ReportSummaryCards({
 
   if (loading) {
     return (
-      <Card data-testid="reports-summary-cards">
-        <CardHeader>
-          <CardTitle>{t("summaryTitle")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <Skeleton rows={2} />
-        </CardBody>
-      </Card>
+      <section
+        data-testid="reports-summary-cards"
+        className="space-y-[var(--ecmp-panel-gap)]"
+        aria-label={t("summaryTitle")}
+      >
+        <SectionHeader title={t("summaryTitle")} />
+        <Skeleton rows={2} />
+      </section>
     );
   }
 
   const headlines = reportHeadlineCounts(summary);
   if (!headlines) {
     return (
-      <Card data-testid="reports-summary-cards">
-        <CardHeader>
-          <CardTitle>{t("summaryTitle")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <Empty
-            title={t("noSummary")}
-            description={t("noSummaryDescription")}
-          />
-        </CardBody>
-      </Card>
+      <section
+        data-testid="reports-summary-cards"
+        className="space-y-[var(--ecmp-panel-gap)]"
+        aria-label={t("summaryTitle")}
+      >
+        <SectionHeader title={t("summaryTitle")} />
+        <Empty
+          title={t("noSummary")}
+          description={t("noSummaryDescription")}
+        />
+      </section>
     );
   }
 
@@ -58,27 +56,21 @@ export function ReportSummaryCards({
   ];
 
   return (
-    <Card data-testid="reports-summary-cards">
-      <CardHeader>
-        <CardTitle>{t("summaryTitle")}</CardTitle>
-      </CardHeader>
-      <CardBody>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {cards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-4 py-4"
-            >
-              <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                {card.label}
-              </p>
-              <p className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tabular-nums text-ecmp-text-primary">
-                {card.value}
-              </p>
-            </div>
-          ))}
-        </div>
-      </CardBody>
-    </Card>
+    <section
+      data-testid="reports-summary-cards"
+      className="space-y-[var(--ecmp-panel-gap)]"
+      aria-label={t("summaryTitle")}
+    >
+      <SectionHeader title={t("summaryTitle")} />
+      <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-3">
+        {cards.map((card) => (
+          <StatCard
+            key={card.label}
+            title={card.label}
+            value={<span className="tabular-nums">{card.value}</span>}
+          />
+        ))}
+      </div>
+    </section>
   );
 }

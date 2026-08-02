@@ -255,7 +255,7 @@ export function AssignmentRowActions({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {action === "assign"
               ? t("assignHint", { number: row.complaintNumber })
@@ -301,7 +301,7 @@ export function AssignmentRowActions({
             <div className="space-y-1">
               <label
                 htmlFor={`assignment-reason-${row.id}`}
-                className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
+                className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary"
               >
                 {action === "reassign"
                   ? t("reasonRequiredLabel")

@@ -12,6 +12,7 @@ import {
   ErrorState,
   PageContainer,
   PageHeader,
+  SectionHeader,
   Skeleton,
   Toast,
 } from "@/shared/ui";
@@ -79,7 +80,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
 
   if (!canRead) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("title")}
           breadcrumbs={[
@@ -97,7 +98,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
   }
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
         description={t("modeADescription", { id: complaintId })}
@@ -120,15 +121,21 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
                   `/complaints/cm/${encodeURIComponent(complaintId)}`,
                 )
               }
-            >{t("back")}            </Button>
+            >
+              {t("back")}
+            </Button>
             {canCreate ? (
               <>
-                <Button type="button" onClick={() => setCreateOpen(true)}>{t("create")}                </Button>
+                <Button type="button" onClick={() => setCreateOpen(true)}>
+                  {t("create")}
+                </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={() => setAddOpen(true)}
-                >{t("add")}                </Button>
+                >
+                  {t("add")}
+                </Button>
               </>
             ) : null}
           </div>
@@ -153,11 +160,17 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         />
       ) : null}
       {!loading && cases.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {cases.map((c) => (
-            <CaseSummaryCard key={c.caseId} caseData={c} />
-          ))}
-        </div>
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader
+            title={t("title")}
+            description={t("modeADescription", { id: complaintId })}
+          />
+          <div className="grid gap-[var(--ecmp-card-gap)] md:grid-cols-2">
+            {cases.map((c) => (
+              <CaseSummaryCard key={c.caseId} caseData={c} />
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {!canCreate ? (

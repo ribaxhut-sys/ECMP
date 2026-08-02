@@ -7,13 +7,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AttachmentList } from "@/features/attachments";
 import {
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  CardTitle,
+  FilterBar,
   Input,
   PageContainer,
   PageHeader,
+  SectionHeader,
 } from "@/shared/ui";
 
 function parseIds(raw: string | null): string[] {
@@ -46,7 +44,7 @@ export function AttachmentsWorkspace() {
   };
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
         breadcrumbs={[
@@ -56,44 +54,44 @@ export function AttachmentsWorkspace() {
         description={t("workspaceDescription")}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("loadByIdTitle")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <form
-            className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            onSubmit={onSubmit}
-          >
-            <div className="min-w-0 flex-1 space-y-1">
-              <label
-                htmlFor="attachment-ids"
-                className="text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary"
-              >{t("attachmentUuidsLabel")}              </label>
+      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("loadByIdTitle")}>
+        <SectionHeader
+          title={t("loadByIdTitle")}
+          description={
+            <>
+              {t("apiHintPrefix")}{" "}
+              <code className="rounded bg-ecmp-secondary-muted px-1">
+                GET /api/v1/attachments/&#123;id&#125;
+              </code>{" "}
+              {t("apiHintJoin")}{" "}
+              <code className="rounded bg-ecmp-secondary-muted px-1">
+                GET /api/v1/attachments/&#123;id&#125;/download
+              </code>
+              . {t("noListEndpointNote")}
+            </>
+          }
+        />
+        <form onSubmit={onSubmit}>
+          <FilterBar
+            search={
               <Input
                 id="attachment-ids"
                 name="ids"
+                label={t("attachmentUuidsLabel")}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={t("idsPlaceholder")}
                 autoComplete="off"
               />
-            </div>
-            <Button type="submit" variant="primary">{t("load")}            </Button>
-          </form>
-          <p className="mt-3 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-            {t("apiHintPrefix")}{" "}
-            <code className="rounded bg-ecmp-secondary-muted px-1">
-              GET /api/v1/attachments/&#123;id&#125;
-            </code>{" "}
-            {t("apiHintJoin")}{" "}
-            <code className="rounded bg-ecmp-secondary-muted px-1">
-              GET /api/v1/attachments/&#123;id&#125;/download
-            </code>
-            . {t("noListEndpointNote")}
-          </p>
-        </CardBody>
-      </Card>
+            }
+            actions={
+              <Button type="submit" variant="primary">
+                {t("load")}
+              </Button>
+            }
+          />
+        </form>
+      </section>
 
       <AttachmentList
         attachmentIds={idsFromQuery}

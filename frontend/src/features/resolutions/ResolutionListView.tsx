@@ -37,9 +37,11 @@ import {
   CardBody,
   Empty,
   ErrorState,
+  FilterBar,
   Input,
   PageContainer,
   PageHeader,
+  Pagination,
   Select,
   Skeleton,
   Table,
@@ -507,8 +509,13 @@ export function ResolutionListView() {
           total: totalItems,
         });
 
+  const pageSummary =
+    totalPages > 0
+      ? tCommon("pageOf", { page: filters.page, totalPages })
+      : t("pageLabel", { page: filters.page });
+
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
         breadcrumbs={[
@@ -523,106 +530,104 @@ export function ResolutionListView() {
         }
       />
 
-      <Card>
-        <CardBody>
-          <form
-            onSubmit={onSubmitFilters}
-            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
-            aria-label={t("searchFiltersAriaLabel")}
-          >
-            <div className="md:col-span-2 xl:col-span-2">
-              <Input
-                name="keyword"
-                label={tCommon("search")}
-                placeholder={t("searchPlaceholder")}
-                value={draft.keyword}
+      <form onSubmit={onSubmitFilters} aria-label={t("searchFiltersAriaLabel")}>
+        <FilterBar
+          search={
+            <Input
+              name="keyword"
+              label={tCommon("search")}
+              placeholder={t("searchPlaceholder")}
+              value={draft.keyword}
+              onChange={(e) =>
+                setDraft((prev) => ({ ...prev, keyword: e.target.value }))
+              }
+              maxLength={200}
+            />
+          }
+          filters={
+            <>
+              <Select
+                name="status"
+                label={tComplaints("status")}
+                options={statusFilterOptions}
+                value={draft.status}
                 onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, keyword: e.target.value }))
+                  setDraft((prev) => ({ ...prev, status: e.target.value }))
                 }
-                maxLength={200}
               />
-            </div>
-            <Select
-              name="status"
-              label={tComplaints("status")}
-              options={statusFilterOptions}
-              value={draft.status}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, status: e.target.value }))
-              }
-            />
-            <Select
-              name="priority"
-              label={tComplaints("priority")}
-              options={priorityFilterOptions}
-              value={draft.priority}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, priority: e.target.value }))
-              }
-            />
-            <Select
-              name="branchId"
-              label={t("branchColumn")}
-              options={branchOptions}
-              value={draft.branchId}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, branchId: e.target.value }))
-              }
-            />
-            <Select
-              name="escalated"
-              label={t("escalationColumn")}
-              options={escalatedFilterOptions}
-              value={draft.escalated}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, escalated: e.target.value }))
-              }
-            />
-            <Select
-              name="sort"
-              label={tTable("sortBy")}
-              options={sortFieldOptions}
-              value={draft.sort}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  sort: e.target.value as ResolutionListFilters["sort"],
-                }))
-              }
-            />
-            <Select
-              name="order"
-              label={tTable("order")}
-              options={sortOrderOptions}
-              value={draft.order}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  order: e.target.value as ResolutionListFilters["order"],
-                }))
-              }
-            />
-            <Select
-              name="pageSize"
-              label={tTable("pageSize")}
-              options={pageSizeOptions}
-              value={String(draft.pageSize)}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  pageSize: Number(e.target.value) || 20,
-                }))
-              }
-            />
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-end md:col-span-2 xl:col-span-4">
-              <Button type="submit">{tCommon("apply")}</Button>
-              <Button type="button" variant="outline" onClick={onResetFilters}>
-                {tCommon("reset")}
-              </Button>
-            </div>
-          </form>
-        </CardBody>
-      </Card>
+              <Select
+                name="priority"
+                label={tComplaints("priority")}
+                options={priorityFilterOptions}
+                value={draft.priority}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, priority: e.target.value }))
+                }
+              />
+              <Select
+                name="branchId"
+                label={t("branchColumn")}
+                options={branchOptions}
+                value={draft.branchId}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, branchId: e.target.value }))
+                }
+              />
+              <Select
+                name="escalated"
+                label={t("escalationColumn")}
+                options={escalatedFilterOptions}
+                value={draft.escalated}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, escalated: e.target.value }))
+                }
+              />
+              <Select
+                name="sort"
+                label={tTable("sortBy")}
+                options={sortFieldOptions}
+                value={draft.sort}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    sort: e.target.value as ResolutionListFilters["sort"],
+                  }))
+                }
+              />
+              <Select
+                name="order"
+                label={tTable("order")}
+                options={sortOrderOptions}
+                value={draft.order}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    order: e.target.value as ResolutionListFilters["order"],
+                  }))
+                }
+              />
+              <Select
+                name="pageSize"
+                label={tTable("pageSize")}
+                options={pageSizeOptions}
+                value={String(draft.pageSize)}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    pageSize: Number(e.target.value) || 20,
+                  }))
+                }
+              />
+            </>
+          }
+          actions={<Button type="submit">{tCommon("apply")}</Button>}
+          reset={
+            <Button type="button" variant="outline" onClick={onResetFilters}>
+              {tCommon("reset")}
+            </Button>
+          }
+        />
+      </form>
 
       {loading ? <Skeleton rows={6} /> : null}
 
@@ -653,46 +658,35 @@ export function ResolutionListView() {
 
       {!loading && !error && rows.length > 0 ? (
         <Card>
-          <CardBody className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-              <span>{rangeLabel}</span>
-              <span>
-                {totalPages > 0
-                  ? tCommon("pageOf", { page: filters.page, totalPages })
-                  : t("pageLabel", { page: filters.page })}
-              </span>
-            </div>
+          <CardBody className="space-y-[var(--ecmp-panel-gap)]">
             <Table
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
               caption={t("caption")}
             />
-            <div className="flex flex-col-reverse gap-2 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasPrevious}
-                onClick={() =>
-                  applyFilters({
-                    ...filters,
-                    page: Math.max(1, filters.page - 1),
-                  })
-                }
-              >
-                {tCommon("previous")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasNext}
-                onClick={() =>
-                  applyFilters({ ...filters, page: filters.page + 1 })
-                }
-              >
-                {tCommon("next")}
-              </Button>
-            </div>
+            <Pagination
+              summary={
+                <span>
+                  {rangeLabel}
+                  <span className="mx-2 text-ecmp-border">·</span>
+                  {pageSummary}
+                </span>
+              }
+              previousLabel={tCommon("previous")}
+              nextLabel={tCommon("next")}
+              previousDisabled={!hasPrevious}
+              nextDisabled={!hasNext}
+              onPrevious={() =>
+                applyFilters({
+                  ...filters,
+                  page: Math.max(1, filters.page - 1),
+                })
+              }
+              onNext={() =>
+                applyFilters({ ...filters, page: filters.page + 1 })
+              }
+            />
           </CardBody>
         </Card>
       ) : null}

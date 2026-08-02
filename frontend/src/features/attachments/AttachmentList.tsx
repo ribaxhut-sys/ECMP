@@ -99,7 +99,10 @@ export function AttachmentList({
 
   if (loading) {
     return (
-      <div className="space-y-3" data-testid="attachment-list-loading">
+      <div
+        className="space-y-[var(--ecmp-card-gap)]"
+        data-testid="attachment-list-loading"
+      >
         <Skeleton className="h-36 w-full" />
         <Skeleton className="h-36 w-full" />
       </div>
@@ -128,7 +131,7 @@ export function AttachmentList({
 
   return (
     <div
-      className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+      className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] lg:grid-cols-2"
       data-testid="attachment-list"
     >
       {items.map((item) => (
