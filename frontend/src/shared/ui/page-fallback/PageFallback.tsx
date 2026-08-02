@@ -19,7 +19,7 @@ export function PageFallback({
   const title = t(titleKey);
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={title}
         breadcrumbs={[

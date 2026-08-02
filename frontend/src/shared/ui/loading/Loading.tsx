@@ -9,11 +9,7 @@ export interface LoadingProps extends HTMLAttributes<HTMLDivElement> {
   label?: string;
 }
 
-export function Loading({
-  className,
-  label,
-  ...props
-}: LoadingProps) {
+export function Loading({ className, label, ...props }: LoadingProps) {
   const tCommon = useTranslations("common");
 
   return (
@@ -27,11 +23,35 @@ export function Loading({
       )}
       {...props}
     >
-      <IconSpinner className="size-5" />
+      <Spinner />
       <span className="text-[length:var(--ecmp-font-body-size)]">
         {label ?? tCommon("loading")}
       </span>
     </div>
+  );
+}
+
+export interface SpinnerProps extends HTMLAttributes<HTMLSpanElement> {
+  size?: "sm" | "md" | "lg";
+}
+
+const spinnerSize: Record<NonNullable<SpinnerProps["size"]>, string> = {
+  sm: "size-4",
+  md: "size-5",
+  lg: "size-6",
+};
+
+/** Standalone spinner consuming motion tokens via IconSpinner + reduced-motion CSS. */
+export function Spinner({ className, size = "md", ...props }: SpinnerProps) {
+  return (
+    <span
+      role="status"
+      aria-hidden={props["aria-label"] ? undefined : true}
+      className={cn("inline-flex", className)}
+      {...props}
+    >
+      <IconSpinner className={spinnerSize[size]} />
+    </span>
   );
 }
 
@@ -50,13 +70,16 @@ export function Skeleton({
     <div
       aria-busy="true"
       aria-label={tCommon("loadingContent")}
-      className={cn("space-y-3", className)}
+      className={cn("space-y-[var(--ecmp-space-12)]", className)}
       {...props}
     >
       {Array.from({ length: rows }).map((_, index) => (
         <div
           key={index}
-          className="h-10 animate-pulse rounded-[var(--ecmp-radius-md)] bg-ecmp-secondary-muted"
+          className={cn(
+            "h-10 rounded-[var(--ecmp-radius-md)] bg-ecmp-secondary-muted",
+            "animate-pulse motion-reduce:animate-none",
+          )}
         />
       ))}
     </div>

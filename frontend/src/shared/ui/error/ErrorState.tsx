@@ -4,6 +4,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 import { Alert } from "@/shared/ui/alert";
+import { Button } from "@/shared/ui/button";
 
 export interface ErrorStateProps extends HTMLAttributes<HTMLDivElement> {
   title?: string;
@@ -11,6 +12,7 @@ export interface ErrorStateProps extends HTMLAttributes<HTMLDivElement> {
   code?: string;
   actionLabel?: string;
   onRetry?: () => void;
+  secondaryAction?: ReactNode;
   children?: ReactNode;
 }
 
@@ -21,6 +23,7 @@ export function ErrorState({
   code,
   actionLabel,
   onRetry,
+  secondaryAction,
   children,
   ...props
 }: ErrorStateProps) {
@@ -40,8 +43,16 @@ export function ErrorState({
             {children}
           </>
         }
-        actionLabel={onRetry ? (actionLabel ?? tCommon("retry")) : undefined}
-        onAction={onRetry}
+        actions={
+          <>
+            {onRetry ? (
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                {actionLabel ?? tCommon("retry")}
+              </Button>
+            ) : null}
+            {secondaryAction}
+          </>
+        }
       />
     </div>
   );

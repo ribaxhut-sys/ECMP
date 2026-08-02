@@ -185,6 +185,32 @@ export function IconChevronRight(props: IconProps) {
   );
 }
 
+export function IconChevronDown(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </IconBase>
+  );
+}
+
+export function IconTrendUp(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 14l6-6 4 4 6-6" />
+      <path d="M14 6h6v6" />
+    </IconBase>
+  );
+}
+
+export function IconTrendDown(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 10l6 6 4-4 6 6" />
+      <path d="M14 18h6v-6" />
+    </IconBase>
+  );
+}
+
 export function IconAlert(props: IconProps) {
   return (
     <IconBase {...props}>

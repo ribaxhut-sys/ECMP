@@ -18,7 +18,7 @@ export function GlobalLoadingBar() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 top-0 z-[70] h-0.5 overflow-hidden"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[var(--ecmp-z-loading)] h-0.5 overflow-hidden"
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
