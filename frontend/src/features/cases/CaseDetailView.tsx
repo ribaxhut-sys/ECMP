@@ -23,11 +23,14 @@ import {
   CwxContextAwareLayout,
   CwxContextHeader,
   CwxDecisionBar,
+  CwxEvidenceSurface,
   CwxOperationalContextBlock,
+  CwxWorkingActionsArea,
   deriveContextLevel,
   deriveOperationalContext,
   type CwxDecisionAction,
 } from "@/features/cwx";
+import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
 import { CaseStatusBadge } from "./CaseStatusBadge";
 import { CloseCaseDialog } from "./CloseCaseDialog";
 import { ResolveCaseDialog } from "./ResolveCaseDialog";
@@ -255,6 +258,61 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 />
               ) : null}
 
+              <div className="space-y-[var(--ecmp-panel-gap)]">
+                <CwxEvidenceSurface
+                  title={tCwx("evidenceSurfaceTitle")}
+                  showHeading={false}
+                >
+                  <CmBatch1BoundAttachmentsCard complaintId={data.complaintId} />
+                </CwxEvidenceSurface>
+
+                <CwxWorkingActionsArea
+                  title={tCwx("workingActionsTitle")}
+                  description={tCwx("workingActionsDescription")}
+                >
+                  {!statusOpen && !resolveOpen && !closeOpen ? (
+                    <Empty
+                      title={tCwx("workingActionsIdleTitle")}
+                      description={tCwx("workingActionsIdleDescription")}
+                      className="px-4 py-6"
+                      data-testid="cwx-working-actions-idle"
+                    />
+                  ) : null}
+                  <UpdateStatusDialog
+                    open={statusOpen}
+                    onClose={() => setStatusOpen(false)}
+                    caseData={data}
+                    onUpdated={(next) => {
+                      setData(next);
+                      showSuccess(t("statusUpdated", { status: next.status }));
+                    }}
+                  />
+                  <ResolveCaseDialog
+                    open={resolveOpen}
+                    onClose={() => setResolveOpen(false)}
+                    caseId={data.caseId}
+                    onResolved={(next) => {
+                      setData(next);
+                      showSuccess(
+                        t("caseCreated", {
+                          number: next.caseNumber,
+                          status: next.status,
+                        }),
+                      );
+                    }}
+                  />
+                  <CloseCaseDialog
+                    open={closeOpen}
+                    onClose={() => setCloseOpen(false)}
+                    caseId={data.caseId}
+                    onClosed={(next) => {
+                      setData(next);
+                      showSuccess(t("closed", { number: next.caseNumber }));
+                    }}
+                  />
+                </CwxWorkingActionsArea>
+              </div>
+
               <section className="space-y-[var(--ecmp-panel-gap)]">
                 <SectionHeader
                   title={data.caseNumber}
@@ -396,43 +454,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             </div>
           }
         />
-      ) : null}
-
-      {data ? (
-        <>
-          <UpdateStatusDialog
-            open={statusOpen}
-            onClose={() => setStatusOpen(false)}
-            caseData={data}
-            onUpdated={(next) => {
-              setData(next);
-              showSuccess(t("statusUpdated", { status: next.status }));
-            }}
-          />
-          <ResolveCaseDialog
-            open={resolveOpen}
-            onClose={() => setResolveOpen(false)}
-            caseId={data.caseId}
-            onResolved={(next) => {
-              setData(next);
-              showSuccess(
-                t("caseCreated", {
-                  number: next.caseNumber,
-                  status: next.status,
-                }),
-              );
-            }}
-          />
-          <CloseCaseDialog
-            open={closeOpen}
-            onClose={() => setCloseOpen(false)}
-            caseId={data.caseId}
-            onClosed={(next) => {
-              setData(next);
-              showSuccess(t("closed", { number: next.caseNumber }));
-            }}
-          />
-        </>
       ) : null}
 
       <Toast
