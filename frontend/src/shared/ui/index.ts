@@ -54,3 +54,7 @@ export { PageFallback } from "./page-fallback";
 
 export { Toast } from "./toast";
 export type { ToastProps, ToastTone } from "./toast";
+
+export { SectionHeader } from "./section-header";
+export type { SectionHeaderProps } from "./section-header";
+
