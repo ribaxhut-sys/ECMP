@@ -1352,6 +1352,12 @@
     "nextActionClose": "Close the case",
     "nextActionResolve": "Propose or accept resolution",
     "nextActionReviewEscalation": "Review escalation",
-    "blockingWaitingCustomer": "Waiting on customer / external party"
+    "blockingWaitingCustomer": "Waiting on customer / external party",
+    "evidenceSurfaceTitle": "Evidence",
+    "evidenceSurfaceDescription": "Supporting attachments for this Case.",
+    "workingActionsTitle": "Working actions",
+    "workingActionsDescription": "Actions you can take right now.",
+    "workingActionsIdleTitle": "No open action panel",
+    "workingActionsIdleDescription": "No action panel is currently open. Use the Decision Bar above to update, resolve, or close this Case."
   }
 }
