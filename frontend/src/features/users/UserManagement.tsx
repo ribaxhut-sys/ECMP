@@ -341,7 +341,7 @@ export function UserManagement() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={(username) => {
-          setActionSuccess(t("createdSuccess", { username }));
+          setActionSuccess(t("createdUserSuccess", { username }));
           void load();
         }}
       />
