@@ -237,7 +237,7 @@ export function CreateUserModal({
           value={form.password}
           disabled={submitting}
           onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-          helper={t("forcePasswordChange")}
+          hint={t("forcePasswordChange")}
         />
         <Select
           name="roleId"
