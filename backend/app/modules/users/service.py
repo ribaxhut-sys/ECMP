@@ -38,6 +38,32 @@ from app.modules.users.schemas import (
     UserUpdateRequest,
 )
 
+# Operational roles that belong to a branch (agent / officer / supervisor /
+# branch manager). Head-office / SUPER_ADMIN may omit branchId.
+BRANCH_SCOPED_ROLE_CODES: frozenset[str] = frozenset(
+    {
+        "AGENT",
+        "CS_AGENT",
+        "BRANCH_OFFICER",
+        "SUPERVISOR",
+        "BRANCH_SUPERVISOR",
+    }
+)
+
+# Head-office roles (admin / scheduler / engineer families) never belong to a
+# branch. SUPER_ADMIN is a separate exception, evaluated before this set.
+HEAD_OFFICE_SCOPED_ROLE_CODES: frozenset[str] = frozenset(
+    {
+        "ADMIN",
+        "ADMINISTRATOR",
+        "HO_SCHEDULER",
+        "HEAD_OFFICE_SCHEDULER",
+        "SCHEDULER",
+        "HO_ENGINEER",
+        "HEAD_OFFICE_ENGINEER",
+    }
+)
+
 
 def _to_response(user: User) -> UserResponse:
     # Prefer already-loaded role; avoid lazy-load in unit tests / detached instances.
@@ -102,6 +128,41 @@ class UserService:
                 details={"branchId": str(branch_id)},
             )
 
+    def _ensure_branch_for_role(
+        self,
+        *,
+        role_id: uuid.UUID,
+        branch_id: uuid.UUID | None,
+    ) -> None:
+        """Enforce organization-location validation for the effective role.
+
+        Branch-scoped roles require an active branch (unchanged). Head-office
+        scoped roles must not carry a branch. SUPER_ADMIN is exempt from both
+        directions and is evaluated first.
+        """
+        role_code = self._repo.get_role_code(role_id)
+        if role_code is None:
+            return
+        if role_code == "SUPER_ADMIN":
+            self._ensure_branch(branch_id)
+            return
+        if role_code in BRANCH_SCOPED_ROLE_CODES:
+            if branch_id is None:
+                raise ValidationAppError(
+                    m("user.branch_required_for_role"),
+                    details={"roleCode": role_code, "branchId": None},
+                )
+            self._ensure_branch(branch_id)
+            return
+        if role_code in HEAD_OFFICE_SCOPED_ROLE_CODES:
+            if branch_id is not None:
+                raise ValidationAppError(
+                    m("user.branch_forbidden_for_role"),
+                    details={"roleCode": role_code, "branchId": str(branch_id)},
+                )
+            return
+        self._ensure_branch(branch_id)
+
     def _ensure_unique_username(
         self, username: str, *, exclude_user_id: uuid.UUID | None = None
     ) -> None:
@@ -131,7 +192,10 @@ class UserService:
         self._ensure_unique_email(payload.email)
         self._ensure_role(payload.role_id)
         self._ensure_assignable_role(payload.role_id, actor_roles=actor_roles)
-        self._ensure_branch(payload.branch_id)
+        self._ensure_branch_for_role(
+            role_id=payload.role_id,
+            branch_id=payload.branch_id,
+        )
         self._policy().validate(payload.password)
 
         now = datetime.now(UTC)
@@ -219,6 +283,20 @@ class UserService:
                 )
         if "branch_id" in changes:
             self._ensure_branch(changes["branch_id"])
+
+        effective_role_id = changes.get("role_id", user.role_id)
+        if effective_role_id is None:
+            effective_role_id = user.role_id
+        if "branch_id" in changes:
+            effective_branch_id = changes["branch_id"]
+        else:
+            effective_branch_id = user.branch_id
+        # Re-validate when role or branch changes (or role stays branch-scoped).
+        if "role_id" in changes or "branch_id" in changes:
+            self._ensure_branch_for_role(
+                role_id=effective_role_id,
+                branch_id=effective_branch_id,
+            )
 
         password = changes.pop("password", None)
         for field_name, value in changes.items():

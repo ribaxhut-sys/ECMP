@@ -48,10 +48,13 @@ def test_primary_role_change_removes_old_and_adds_new(
 ) -> None:
     old_role = uuid.uuid4()
     new_role = uuid.uuid4()
-    user = _user_row(role_id=old_role)
+    branch_id = uuid.uuid4()
+    # Branch-scoped target roles (AGENT / SUPERVISOR) require an existing branchId.
+    user = _user_row(role_id=old_role, branch_id=branch_id)
     repo = MagicMock()
     repo.get_by_id.return_value = user
     repo.role_exists.return_value = True
+    repo.branch_exists.return_value = True
     repo.get_role_code.return_value = to_code
     repo.refresh.side_effect = lambda u: u
 
@@ -147,10 +150,12 @@ def test_sync_primary_no_op_when_same_role() -> None:
 def test_primary_role_change_rolls_back_on_sync_failure() -> None:
     old_role = uuid.uuid4()
     new_role = uuid.uuid4()
-    user = _user_row(role_id=old_role)
+    branch_id = uuid.uuid4()
+    user = _user_row(role_id=old_role, branch_id=branch_id)
     repo = MagicMock()
     repo.get_by_id.return_value = user
     repo.role_exists.return_value = True
+    repo.branch_exists.return_value = True
     repo.get_role_code.return_value = "AGENT"
     repo.sync_primary_user_role.side_effect = RuntimeError("sync failed")
 

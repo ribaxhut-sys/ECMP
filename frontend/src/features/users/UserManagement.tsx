@@ -23,6 +23,8 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { CreateUserModal } from "./CreateUserModal";
+import { DirectoryLocationBadge } from "./DirectoryLocationBadge";
 
 type ConfirmTarget = {
   user: UserRef;
@@ -103,6 +105,7 @@ export function UserManagement() {
   const { userId, hasPermission } = useAuth();
   const canRead = hasPermission("users:read");
   const canReset = hasPermission("users:reset_password");
+  const canCreate = hasPermission("users:create");
 
   const [rows, setRows] = useState<UserRef[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +116,7 @@ export function UserManagement() {
   const [revealed, setRevealed] = useState<RevealedPassword | null>(null);
   const [resetting, setResetting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -224,6 +228,11 @@ export function UserManagement() {
       cell: (row) => row.roleCode ?? row.roleName ?? "—",
     },
     {
+      key: "location",
+      header: t("branch"),
+      cell: (row) => <DirectoryLocationBadge user={row} />,
+    },
+    {
       key: "status",
       header: tCommon("status"),
       cell: (row) => (
@@ -284,9 +293,16 @@ export function UserManagement() {
                 {t("managementDescription")}
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => void load()}>
-              {tCommon("refresh")}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {canCreate ? (
+                <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+                  {t("createUser")}
+                </Button>
+              ) : null}
+              <Button variant="outline" size="sm" onClick={() => void load()}>
+                {tCommon("refresh")}
+              </Button>
+            </div>
           </div>
 
           {actionError ? (
@@ -320,6 +336,15 @@ export function UserManagement() {
           )}
         </CardBody>
       </Card>
+
+      <CreateUserModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(username) => {
+          setActionSuccess(t("createdUserSuccess", { username }));
+          void load();
+        }}
+      />
 
       <Modal
         open={confirmTarget != null}
