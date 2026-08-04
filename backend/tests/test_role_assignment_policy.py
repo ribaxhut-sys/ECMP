@@ -40,6 +40,17 @@ def _user_row(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
+_BRANCH_SCOPED_ROLE_CODES = frozenset(
+    {
+        "AGENT",
+        "CS_AGENT",
+        "BRANCH_OFFICER",
+        "SUPERVISOR",
+        "BRANCH_SUPERVISOR",
+    }
+)
+
+
 def _repo_for_create(*, role_code: str) -> tuple[MagicMock, uuid.UUID]:
     role_id = uuid.uuid4()
     user_id = uuid.uuid4()
@@ -47,6 +58,7 @@ def _repo_for_create(*, role_code: str) -> tuple[MagicMock, uuid.UUID]:
     repo.username_exists.return_value = False
     repo.email_exists.return_value = False
     repo.role_exists.return_value = True
+    repo.branch_exists.return_value = True
     repo.get_role_code.return_value = role_code
     repo.ensure_user_role.return_value = True
     repo.add.side_effect = lambda user: setattr(user, "id", user_id) or user
@@ -60,6 +72,9 @@ def _create(
     target_role_code: str,
 ) -> None:
     repo, role_id = _repo_for_create(role_code=target_role_code)
+    branch_id = (
+        uuid.uuid4() if target_role_code in _BRANCH_SCOPED_ROLE_CODES else None
+    )
     UserService(repo).create(
         UserCreateRequest(
             username=f"u_{uuid.uuid4().hex[:8]}",
@@ -67,6 +82,7 @@ def _create(
             fullName="Policy User",
             password="Secret123!",
             roleId=role_id,
+            branchId=branch_id,
         ),
         actor_user_id=uuid.uuid4(),
         actor_roles=actor_roles,
@@ -129,10 +145,12 @@ def test_update_role_escalation_forbidden() -> None:
 def test_update_role_officer_allowed_for_supervisor() -> None:
     old_role = uuid.uuid4()
     new_role = uuid.uuid4()
-    user = _user_row(role_id=old_role)
+    branch_id = uuid.uuid4()
+    user = _user_row(role_id=old_role, branch_id=branch_id)
     repo = MagicMock()
     repo.get_by_id.return_value = user
     repo.role_exists.return_value = True
+    repo.branch_exists.return_value = True
     repo.get_role_code.return_value = "AGENT"
     repo.refresh.side_effect = lambda u: u
 

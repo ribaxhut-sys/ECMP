@@ -134,3 +134,16 @@ No entry added to `26 Traceability/traceability.yaml` or the generated `TRACEABI
 ---
 
 *This pack documents Commits 1–7 as implemented. It does not authorize merge, push, or deployment — those remain separate, human decisions per this repo's review process.*
+
+---
+
+## 11. Release Isolation Note (2026-08-04)
+
+Isolated onto branch `release/ebs-001-org-location-authorization` from `main` without touching the dirty development worktree.
+
+**Included as approved EBS surfaces:** backend organization-location validation + tests, OpenAPI `branchId` documentation, Create User modal (location-aware), `DirectoryLocationBadge` on the baseline user directory table, Complaints navigation gate, Complaints layout gate, this evidence pack, and ECMP-EBS-001.
+
+**Intentionally excluded from this PR branch (parallel dirty-tree work, not EBS-001):** CWX M1–M4, UI redesign (dashboard/settings/auth/shell), `DirectoryPeopleList` / `DirectoryPreviewPanel` rewrite and their unfinished i18n/UI-primitive co-requisites, `org_unit_resolver` / CAP / Mode B / DEC-F4 / M4, deploy/Caddy/compose churn, and other unstaged files on `feature/cm-batch1-s2-persistence`.
+
+Badge AC is delivered via `DirectoryLocationBadge` on the existing user table rather than the unfinished directory rewrite panels.
+

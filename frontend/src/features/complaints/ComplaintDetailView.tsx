@@ -44,7 +44,9 @@ import {
   CwxContextAwareLayout,
   CwxContextHeader,
   CwxDecisionBar,
+  CwxEvidenceSurface,
   CwxOperationalContextBlock,
+  CwxWorkingActionsArea,
   deriveContextLevel,
   deriveOperationalContext,
   type CwxDecisionAction,
@@ -61,6 +63,60 @@ import { SlaCard } from "./SlaCard";
 import { TimelineCard } from "./TimelineCard";
 import { statusActionsFor } from "./statusTransitions";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+
+
+type WorkingActionPanel =
+  | "assignment"
+  | "resolution"
+  | "escalation"
+  | "appointment"
+  | "finalResolution"
+  | "close"
+  | "closeEscalation";
+
+/** Presentation-only default-open panel from existing status (no new business rules). */
+function defaultOpenWorkingAction(
+  status: ComplaintStatus,
+): WorkingActionPanel | null {
+  switch (status) {
+    case "NEW":
+      return "assignment";
+    case "IN_PROGRESS":
+      return "resolution";
+    case "ESCALATED":
+      return "escalation";
+    case "RESOLVED":
+      return "close";
+    default:
+      return null;
+  }
+}
+
+function WorkingActionDisclosure({
+  label,
+  defaultOpen,
+  children,
+}: {
+  label: string;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <details
+      className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 bg-ecmp-surface/40 open:bg-ecmp-surface"
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className="cursor-pointer px-3 py-2.5 text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus">
+        {label}
+      </summary>
+      <div className="space-y-[var(--ecmp-panel-gap)] border-t border-ecmp-border/60 px-3 pb-3 pt-2">
+        {children}
+      </div>
+    </details>
+  );
+}
 
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
@@ -404,6 +460,8 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     onClick: () => router.push("/complaints"),
   });
 
+  const openWorkingAction = defaultOpenWorkingAction(complaint.status);
+
   const main: ReactNode = (
     <div className="space-y-[var(--ecmp-section-gap)]">
       <CwxOperationalContextBlock
@@ -493,84 +551,128 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
         </Card>
       </section>
 
-      <section className="space-y-[var(--ecmp-panel-gap)]">
-        <div id="cwx-assignment">
-          <AssignmentCard
+      <div className="space-y-[var(--ecmp-panel-gap)]">
+        <CwxEvidenceSurface
+          title={tCwx("evidenceSurfaceTitle")}
+          showHeading={false}
+        >
+          <ComplaintAttachmentsCard
             complaintId={complaint.id}
-            onAssigned={() => {
-              setTimelineKey((key) => key + 1);
-              void load();
-            }}
+            refreshKey={timelineKey}
+            allowUpload
           />
+        </CwxEvidenceSurface>
+
+        <div id="cwx-assignment">
+          <CwxWorkingActionsArea
+            title={tCwx("workingActionsTitle")}
+            description={tCwx("workingActionsDescription")}
+          >
+            <div
+              key={complaint.status}
+              className="space-y-[var(--ecmp-panel-gap)]"
+            >
+              <WorkingActionDisclosure
+                label={t("assignmentCard")}
+                defaultOpen={openWorkingAction === "assignment"}
+              >
+                <AssignmentCard
+                  complaintId={complaint.id}
+                  onAssigned={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                />
+              </WorkingActionDisclosure>
+              <WorkingActionDisclosure
+                label={t("resolutionCard")}
+                defaultOpen={openWorkingAction === "resolution"}
+              >
+                <ResolutionCard
+                  complaintId={complaint.id}
+                  status={complaint.status}
+                  onResolved={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                />
+              </WorkingActionDisclosure>
+              <WorkingActionDisclosure
+                label={t("escalationCard")}
+                defaultOpen={openWorkingAction === "escalation"}
+              >
+                <EscalationCard
+                  complaintId={complaint.id}
+                  status={complaint.status}
+                  hasResolution={hasResolution}
+                  onRequested={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                  onReviewed={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                />
+              </WorkingActionDisclosure>
+              <WorkingActionDisclosure
+                label={t("appointmentCard")}
+                defaultOpen={openWorkingAction === "appointment"}
+              >
+                <AppointmentCard
+                  complaintId={complaint.id}
+                  refreshKey={timelineKey}
+                  onBooked={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                />
+              </WorkingActionDisclosure>
+              <WorkingActionDisclosure
+                label={t("finalResolutionCard")}
+                defaultOpen={openWorkingAction === "finalResolution"}
+              >
+                <FinalResolutionCard
+                  complaintId={complaint.id}
+                  refreshKey={timelineKey}
+                  onSubmitted={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                />
+              </WorkingActionDisclosure>
+              <WorkingActionDisclosure
+                label={t("closeCard")}
+                defaultOpen={openWorkingAction === "close"}
+              >
+                <CloseComplaintCard
+                  complaint={complaint}
+                  onClosed={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                />
+              </WorkingActionDisclosure>
+              <WorkingActionDisclosure
+                label={t("closeEscalationCard")}
+                defaultOpen={openWorkingAction === "closeEscalation"}
+              >
+                <CloseEscalationCard
+                  complaintId={complaint.id}
+                  complaintStatus={complaint.status}
+                  refreshKey={timelineKey}
+                  onClosed={() => {
+                    setTimelineKey((key) => key + 1);
+                    void load();
+                  }}
+                />
+              </WorkingActionDisclosure>
+            </div>
+          </CwxWorkingActionsArea>
         </div>
+      </div>
 
-        <ResolutionCard
-          complaintId={complaint.id}
-          status={complaint.status}
-          onResolved={() => {
-            setTimelineKey((key) => key + 1);
-            void load();
-          }}
-        />
-
-        <EscalationCard
-          complaintId={complaint.id}
-          status={complaint.status}
-          hasResolution={hasResolution}
-          onRequested={() => {
-            setTimelineKey((key) => key + 1);
-            void load();
-          }}
-          onReviewed={() => {
-            setTimelineKey((key) => key + 1);
-            void load();
-          }}
-        />
-
-        <AppointmentCard
-          complaintId={complaint.id}
-          refreshKey={timelineKey}
-          onBooked={() => {
-            setTimelineKey((key) => key + 1);
-            void load();
-          }}
-        />
-
-        <FinalResolutionCard
-          complaintId={complaint.id}
-          refreshKey={timelineKey}
-          onSubmitted={() => {
-            setTimelineKey((key) => key + 1);
-            void load();
-          }}
-        />
-
-        <CloseComplaintCard
-          complaint={complaint}
-          onClosed={() => {
-            setTimelineKey((key) => key + 1);
-            void load();
-          }}
-        />
-
-        <CloseEscalationCard
-          complaintId={complaint.id}
-          complaintStatus={complaint.status}
-          refreshKey={timelineKey}
-          onClosed={() => {
-            setTimelineKey((key) => key + 1);
-            void load();
-          }}
-        />
-
-        <SlaCard complaintId={complaint.id} refreshKey={timelineKey} />
-
-        <ComplaintAttachmentsCard
-          complaintId={complaint.id}
-          refreshKey={timelineKey}
-          allowUpload
-        />
-      </section>
+      <SlaCard complaintId={complaint.id} refreshKey={timelineKey} />
 
       <section
         className="space-y-[var(--ecmp-panel-gap)]"

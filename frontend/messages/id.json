@@ -1806,6 +1806,12 @@
     "nextActionClose": "Tutup kasus",
     "nextActionResolve": "Usulkan atau terima resolusi",
     "nextActionReviewEscalation": "Tinjau eskalasi",
-    "blockingWaitingCustomer": "Menunggu pelanggan / pihak eksternal"
+    "blockingWaitingCustomer": "Menunggu pelanggan / pihak eksternal",
+    "evidenceSurfaceTitle": "Bukti",
+    "evidenceSurfaceDescription": "Lampiran pendukung untuk Kasus ini.",
+    "workingActionsTitle": "Aksi kerja",
+    "workingActionsDescription": "Aksi yang dapat Anda lakukan saat ini.",
+    "workingActionsIdleTitle": "Tidak ada panel aksi terbuka",
+    "workingActionsIdleDescription": "Tidak ada panel aksi yang sedang terbuka. Gunakan Decision Bar di atas untuk memperbarui, menyelesaikan, atau menutup Kasus ini."
   }
 }

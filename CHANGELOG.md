@@ -168,6 +168,28 @@ Repository versioning follows [SemVer](https://semver.org/) as defined in
   `docker-compose.prod.yml` accepts legacy `CADDY_ACME_EMAIL`. Does **not**
   change REL-SEC / Production Readiness / FINAL_RELEASE_REVIEW verdicts.
 
+## [1.3.0-rc.1] - 2026-08-03
+
+### Added
+
+- **EPIC-CW-001** Case Workspace Experience (CWX) Version 1.0 — repository RC
+  `v1.3.0-rc.1`.
+- CWX-000 / CWX-M1 / CWX-M2 Foundation (Context-Aware Layout, Context Header,
+  Decision Bar, Operational Context) on Dual-SoT detail surfaces.
+- CWX-M3 Working Surface READY: Evidence Surface · Working Actions Area.
+- Governance living docs + Architecture Governance mirrors for CWX-000…M3.
+- Supporting shared UI primitives used by CWX (`Badge`, `Empty`, `SectionHeader`).
+- Unit tests for CWX context derivation helpers.
+
+### Notes
+
+- Official Sign-Off **COMPLETED**; Known Risk **ACCEPTED**.
+- No backend / OpenAPI / DB changes in this RC.
+- Deferred by design: Conversation · Internal Notes · Decision Notes (BLOCKED);
+  Mode B / SSO; Dual-SoT silent merge.
+- Release notes: `docs/releases/v1.3.0-rc.1-EPIC-CW-001.md`.
+- Evidence: `deploy/evidence/EPIC-CW-001_Release_Evidence_v1.3.0-rc.1_20260803.md`.
+
 ## [1.2.0-rc.1] - 2026-08-01
 
 ### Notes

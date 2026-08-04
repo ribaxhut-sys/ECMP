@@ -114,3 +114,4 @@ export type { TimelineProps, TimelineItem } from "./timeline";
 
 export { Pagination } from "./pagination";
 export type { PaginationProps } from "./pagination";
+

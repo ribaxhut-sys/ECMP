@@ -153,13 +153,13 @@ describe("roleDisplayName", () => {
 describe("filterRolesForUserForm", () => {
   function role(partial: Partial<RoleRef> & Pick<RoleRef, "code">): RoleRef {
     return {
-      id: partial.id ?? partial.code,
-      code: partial.code,
-      name: partial.name ?? partial.code,
       description: null,
       isSystem: true,
       isActive: true,
       ...partial,
+      id: partial.id ?? partial.code,
+      code: partial.code,
+      name: partial.name ?? partial.code,
     };
   }
 
