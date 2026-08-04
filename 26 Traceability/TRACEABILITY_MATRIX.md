@@ -22,7 +22,7 @@
 | TRC-L-004 | ECMF | BP-002 | BR-001 | FR-004 | API-004 | EVT-003, EVT-005 | TC-004 | Sprint-02 | Approved |
 | TRC-L-005 | CRM | BP-003 | BR-003 | FR-010 | API-010 | — | TC-010 | Sprint-02 | Planned |
 | TRC-L-006 | Notification | BP-004 | BR-004 | FR-020 | — | EVT-001, EVT-002 | TC-020 | Sprint-02 | Approved |
-| TRC-L-007 | KPI | BP-005 | BR-005 | FR-030 | — | EVT-004, EVT-001, EVT-003, EVT-005, EVT-007 | TC-030 | Sprint-03 | Planned (FRD-005 LOCKED; Hybrid + ARC-CAP006-001/002; B2-22 ADDITIONAL ARCHITECTURE REQUIRED; B2-23 FULFILLMENT PATTERN NOT SPECIFIED; concrete Deferred; engine not Implemented) |
+| TRC-L-007 | KPI | BP-005 | BR-005 | FR-030 | — | EVT-004, EVT-001, EVT-003, EVT-005, EVT-007 | TC-030 | Sprint-03 | Planned (FRD-005 LOCKED; Hybrid + ARC-CAP006-001/002; B2-22 ADDITIONAL ARCHITECTURE REQUIRED; B2-23 FULFILLMENT PATTERN NOT SPECIFIED; **B2-24 Stay Deferred · CAP006-BLK-001 frozen · FR-030 eng NOT authorized**; concrete Deferred; engine not Implemented) |
 | TRC-L-008 | Dashboard | BP-006 | BR-006 | FR-040 | API-040 | — | TC-040 | Sprint-03 | Approved |
 | TRC-L-010 | ECMF | BP-001 | BR-007 | FR-005 | API-005 | — | TC-006 | Sprint-03B | Approved |
 | TRC-L-011 | ECMF | BP-001 | BR-004 | FR-CM-B2-001 | API-530 | — | — | Mode-A-CAP-008 | Approved |

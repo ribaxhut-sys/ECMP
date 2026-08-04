@@ -40,12 +40,14 @@ Do not schedule further CAP-008 Create/Add/View/Status/Resolve/Close feature wor
 
 1. Hold Production until bilateral IdP contract (external).  
 2. Execute **B2-08** portfolio dispositions — `deploy/evidence/B2-08_Capability_Portfolio_Rationalization_20260801.md` (**COMPLETE** 2026-08-01).  
-3. Next: **B2-12** FRD-006 LOCKED → **B2-13** API-040 **NORMATIVE** (`deploy/evidence/B2-13_API-040_Normative_Closure_20260801.md`) → **next eng:** implement CAP-007 against `dashboard-queues.v1.yaml` only → then CAP-006 / CAP-004 / CAP-005.  
-4. Optional: formal TC-catalog IDs for CAP-008 (documentation only).  
-5. Optional: EVT Aggregate IDs when Event Catalog work is authorized.  
-6. Do **not** start Mode B coding.  
-7. Do **not** reopen CAP-008 Create/Add/View/Status/Resolve/Close delivery.  
-8. Do **not** promote API-390 or API-513 as CAP-007/FR-040 SoT (B2-09).
+3. CAP-007 track (**COMPLETE**): **B2-12** FRD-006 LOCKED → **B2-13** API-040 **NORMATIVE** → **B2-14** engineering against `dashboard-queues.v1.yaml` — **do not** schedule CAP-007 re-implementation.  
+4. CAP-006 / FR-030 engine: **Stay Deferred** — official blocker **CAP006-BLK-001** (Time Source fulfillment pattern **NOT SPECIFIED**, B2-23) **frozen** by **B2-24** (`deploy/evidence/B2-24_CAP-006_Stay_Deferred_Confirmation_Blocker_Freeze_20260804.md`). **FR-030 engineering is NOT authorized.**  
+5. Deferred portfolio (no active eng ticket until own DoR): CAP-004 → CAP-005 (prod engine).  
+6. Optional: formal TC-catalog IDs for CAP-008 (documentation only).  
+7. Optional: EVT Aggregate IDs when Event Catalog work is authorized.  
+8. Do **not** start Mode B coding.  
+9. Do **not** reopen CAP-008 Create/Add/View/Status/Resolve/Close delivery.  
+10. Do **not** promote API-390 or API-513 as CAP-007/FR-040 SoT (B2-09).
 
 ## 5. Pointers
 
