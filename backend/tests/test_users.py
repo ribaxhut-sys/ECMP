@@ -58,10 +58,14 @@ def _create_repo(
     repo.email_exists.return_value = False
     repo.role_exists.return_value = True
     repo.get_role_code.return_value = role_code
+    repo.branch_exists.return_value = True
     repo.ensure_user_role.return_value = True
     repo.add.side_effect = lambda user: setattr(user, "id", user_id) or user
     repo.refresh.side_effect = lambda user: user
     return repo
+
+
+_BRANCH_ID = uuid.UUID("26d8f2bf-7d4c-4e42-b747-d2fa5b18e327")
 
 
 def test_hash_password_not_plaintext() -> None:
@@ -84,6 +88,7 @@ def test_create_user_hashes_password_and_hides_hash() -> None:
             fullName="Jane Doe",
             password="Secret123",
             roleId=role_id,
+            branchId=_BRANCH_ID,
         ),
         actor_user_id=actor_id,
         actor_roles=_ADMIN_ACTOR,
@@ -97,9 +102,251 @@ def test_create_user_hashes_password_and_hides_hash() -> None:
     assert verify_password("Secret123", added.password_hash)
     assert added.is_active is True
     assert added.force_password_change is True
+    assert added.branch_id == _BRANCH_ID
     repo.ensure_user_role.assert_called_once_with(created.id, role_id)
     repo.commit.assert_called_once()
     repo.rollback.assert_not_called()
+
+
+def test_create_branch_scoped_role_without_branch_rejected() -> None:
+    role_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code="AGENT")
+    service = UserService(repo)
+
+    with pytest.raises(ValidationAppError) as exc:
+        service.create(
+            UserCreateRequest(
+                username="no_branch_agent",
+                email="nobranch@example.com",
+                fullName="No Branch",
+                password="Secret123!",
+                roleId=role_id,
+            ),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+    assert "Cabang wajib" in exc.value.message
+    repo.add.assert_not_called()
+
+
+def test_create_supervisor_without_branch_rejected() -> None:
+    role_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code="SUPERVISOR")
+    service = UserService(repo)
+
+    with pytest.raises(ValidationAppError) as exc:
+        service.create(
+            UserCreateRequest(
+                username="no_branch_sup",
+                email="nobranchsup@example.com",
+                fullName="No Branch Sup",
+                password="Secret123!",
+                roleId=role_id,
+            ),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+    assert "Cabang wajib" in exc.value.message
+
+
+def test_create_admin_without_branch_allowed() -> None:
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code="ADMIN", created_id=user_id)
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username="admin_nobranch",
+            email="admin_nobranch@example.com",
+            fullName="Admin No Branch",
+            password="Secret123!",
+            roleId=role_id,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert repo.add.call_args.args[0].branch_id is None
+    repo.commit.assert_called_once()
+
+
+@pytest.mark.parametrize("role_code", ["AGENT", "SUPERVISOR"])
+def test_create_branch_scoped_role_with_branch_accepted(role_code: str) -> None:
+    """Commit 2 regression lock: branch-scoped create with a valid branchId
+    is unchanged (EBS-001 §2.1 step 3, preserved verbatim)."""
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code=role_code, created_id=user_id)
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username=f"{role_code.lower()}_with_branch",
+            email=f"{role_code.lower()}_branch@example.com",
+            fullName=f"{role_code} With Branch",
+            password="Secret123!",
+            roleId=role_id,
+            branchId=_BRANCH_ID,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert repo.add.call_args.args[0].branch_id == _BRANCH_ID
+    repo.commit.assert_called_once()
+
+
+_HEAD_OFFICE_SCOPED_ROLE_CODES = [
+    "ADMIN",
+    "ADMINISTRATOR",
+    "HO_SCHEDULER",
+    "HEAD_OFFICE_SCHEDULER",
+    "SCHEDULER",
+    "HO_ENGINEER",
+    "HEAD_OFFICE_ENGINEER",
+]
+
+
+@pytest.mark.parametrize("role_code", _HEAD_OFFICE_SCOPED_ROLE_CODES)
+def test_create_head_office_scoped_role_with_branch_rejected(role_code: str) -> None:
+    """Commit 2: head-office scoped roles must not carry a branchId (EBS-001 §2.1 step 4)."""
+    role_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code=role_code)
+
+    with pytest.raises(ValidationAppError) as exc:
+        UserService(repo).create(
+            UserCreateRequest(
+                username=f"{role_code.lower()}_with_branch",
+                email=f"{role_code.lower()}_branch@example.com",
+                fullName=f"{role_code} With Branch",
+                password="Secret123!",
+                roleId=role_id,
+                branchId=_BRANCH_ID,
+            ),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+    assert "Cabang tidak boleh" in exc.value.message
+    repo.add.assert_not_called()
+
+
+@pytest.mark.parametrize("role_code", _HEAD_OFFICE_SCOPED_ROLE_CODES)
+def test_create_head_office_scoped_role_without_branch_accepted(role_code: str) -> None:
+    """Commit 2: head-office scoped roles remain creatable with branchId omitted."""
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code=role_code, created_id=user_id)
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username=f"{role_code.lower()}_nobranch",
+            email=f"{role_code.lower()}_nobranch@example.com",
+            fullName=f"{role_code} No Branch",
+            password="Secret123!",
+            roleId=role_id,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert repo.add.call_args.args[0].branch_id is None
+    repo.commit.assert_called_once()
+
+
+def test_create_super_admin_with_branch_accepted() -> None:
+    """Commit 2: SUPER_ADMIN exception is evaluated before both scoped sets —
+    branchId remains optional in both directions (EBS-001 §2.1 step 2)."""
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code="SUPER_ADMIN", created_id=user_id)
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username="super_admin_branch",
+            email="super_admin_branch@example.com",
+            fullName="Super Admin Branch",
+            password="Secret123!",
+            roleId=role_id,
+            branchId=_BRANCH_ID,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert repo.add.call_args.args[0].branch_id == _BRANCH_ID
+    repo.commit.assert_called_once()
+
+
+def test_create_super_admin_without_branch_accepted() -> None:
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code="SUPER_ADMIN", created_id=user_id)
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username="super_admin_nobranch",
+            email="super_admin_nobranch@example.com",
+            fullName="Super Admin No Branch",
+            password="Secret123!",
+            roleId=role_id,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert repo.add.call_args.args[0].branch_id is None
+    repo.commit.assert_called_once()
+
+
+def test_create_super_admin_with_inactive_branch_rejected() -> None:
+    """SUPER_ADMIN skips the required/forbidden rule only — branch validity
+    itself (_ensure_branch) still applies when a branchId is supplied."""
+    role_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code="SUPER_ADMIN")
+    repo.branch_exists.return_value = False
+
+    with pytest.raises(ValidationAppError) as exc:
+        UserService(repo).create(
+            UserCreateRequest(
+                username="super_admin_bad_branch",
+                email="super_admin_bad_branch@example.com",
+                fullName="Super Admin Bad Branch",
+                password="Secret123!",
+                roleId=role_id,
+                branchId=_BRANCH_ID,
+            ),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+    assert "Cabang tidak ditemukan" in exc.value.message
+    repo.add.assert_not_called()
+
+
+@pytest.mark.parametrize("branch_id", [None, _BRANCH_ID])
+def test_create_unclassified_role_branch_optional(
+    branch_id: uuid.UUID | None,
+) -> None:
+    """Unclassified roles (e.g. VIEWER) keep branchId fully optional — Commit 2
+    only adds behavior for BRANCH_SCOPED_ROLE_CODES / HEAD_OFFICE_SCOPED_ROLE_CODES,
+    the fallback path is untouched."""
+    role_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    repo = _create_repo(role_id=role_id, role_code="VIEWER", created_id=user_id)
+
+    UserService(repo).create(
+        UserCreateRequest(
+            username="viewer_user",
+            email="viewer_user@example.com",
+            fullName="Viewer User",
+            password="Secret123!",
+            roleId=role_id,
+            branchId=branch_id,
+        ),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert repo.add.call_args.args[0].branch_id == branch_id
+    repo.commit.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -117,6 +364,7 @@ def test_create_user_syncs_user_roles_for_persona(
     role_id = uuid.uuid4()
     user_id = uuid.uuid4()
     repo = _create_repo(role_id=role_id, role_code=role_code, created_id=user_id)
+    branch_id = None if role_code == "ADMIN" else _BRANCH_ID
 
     UserService(repo).create(
         UserCreateRequest(
@@ -125,6 +373,7 @@ def test_create_user_syncs_user_roles_for_persona(
             fullName=f"{persona} User",
             password="Secret123!",
             roleId=role_id,
+            branchId=branch_id,
         ),
         actor_user_id=uuid.uuid4(),
         actor_roles=_ADMIN_ACTOR,
@@ -150,6 +399,7 @@ def test_create_user_roles_idempotent_no_duplicate() -> None:
             fullName="Dup Role",
             password="Secret123!",
             roleId=role_id,
+            branchId=_BRANCH_ID,
         ),
         actor_user_id=uuid.uuid4(),
         actor_roles=_ADMIN_ACTOR,
@@ -175,6 +425,7 @@ def test_create_user_rolls_back_when_user_roles_fails() -> None:
                 fullName="Rollback User",
                 password="Secret123!",
                 roleId=role_id,
+                branchId=_BRANCH_ID,
             ),
             actor_user_id=uuid.uuid4(),
             actor_roles=_ADMIN_ACTOR,
@@ -265,6 +516,93 @@ def test_create_missing_role_rejected() -> None:
     assert "Peran" in exc.value.message
 
 
+def test_update_clear_branch_on_agent_rejected() -> None:
+    role_id = uuid.uuid4()
+    user = _user_row(role_id=role_id, branch_id=_BRANCH_ID)
+    repo = MagicMock()
+    repo.get_by_id.return_value = user
+    repo.get_role_code.return_value = "AGENT"
+    repo.branch_exists.return_value = True
+    service = UserService(repo)
+
+    with pytest.raises(ValidationAppError) as exc:
+        service.update(
+            user.id,
+            UserUpdateRequest(branchId=None),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+    assert "Cabang wajib" in exc.value.message
+    repo.commit.assert_not_called()
+
+
+def test_update_set_branch_on_head_office_role_rejected() -> None:
+    """Commit 2: assigning a branch to an existing head-office-role user is
+    rejected on update, mirroring the create-path rule."""
+    role_id = uuid.uuid4()
+    user = _user_row(role_id=role_id, branch_id=None)
+    repo = MagicMock()
+    repo.get_by_id.return_value = user
+    repo.get_role_code.return_value = "ADMIN"
+    repo.branch_exists.return_value = True
+    service = UserService(repo)
+
+    with pytest.raises(ValidationAppError) as exc:
+        service.update(
+            user.id,
+            UserUpdateRequest(branchId=_BRANCH_ID),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+    assert "Cabang tidak boleh" in exc.value.message
+    repo.commit.assert_not_called()
+
+
+def test_update_role_change_to_head_office_with_existing_branch_rejected() -> None:
+    """Commit 2: changing role AGENT -> ADMIN without clearing branchId in the
+    same request is rejected — effective role/branch are re-validated together."""
+    old_role = uuid.uuid4()
+    new_role = uuid.uuid4()
+    user = _user_row(role_id=old_role, branch_id=_BRANCH_ID)
+    repo = MagicMock()
+    repo.get_by_id.return_value = user
+    repo.role_exists.return_value = True
+    repo.get_role_code.return_value = "ADMIN"
+    service = UserService(repo)
+
+    with pytest.raises(ValidationAppError) as exc:
+        service.update(
+            user.id,
+            UserUpdateRequest(roleId=new_role),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+    assert "Cabang tidak boleh" in exc.value.message
+    repo.commit.assert_not_called()
+
+
+def test_update_unrelated_field_on_head_office_user_accepted() -> None:
+    """Unrelated field updates (no role_id/branch_id change) must not re-trigger
+    organization-location validation, even for a head-office-role user."""
+    role_id = uuid.uuid4()
+    user = _user_row(role_id=role_id, branch_id=None, email="old@example.com")
+    repo = MagicMock()
+    repo.get_by_id.return_value = user
+    repo.get_role_code.return_value = "ADMIN"
+    repo.email_exists.return_value = False
+    repo.refresh.side_effect = lambda u: u
+
+    UserService(repo).update(
+        user.id,
+        UserUpdateRequest(email="new@example.com"),
+        actor_user_id=uuid.uuid4(),
+        actor_roles=_ADMIN_ACTOR,
+    )
+
+    assert user.email == "new@example.com"
+    repo.commit.assert_called_once()
+
+
 def test_get_user_not_found() -> None:
     repo = MagicMock()
     repo.get_by_id.return_value = None
@@ -309,11 +647,12 @@ def test_update_requires_unique_email() -> None:
 def test_update_role_syncs_user_roles() -> None:
     old_role = uuid.uuid4()
     new_role = uuid.uuid4()
-    user = _user_row(role_id=old_role)
+    user = _user_row(role_id=old_role, branch_id=_BRANCH_ID)
     repo = MagicMock()
     repo.get_by_id.return_value = user
     repo.role_exists.return_value = True
     repo.get_role_code.return_value = "AGENT"
+    repo.branch_exists.return_value = True
     repo.refresh.side_effect = lambda u: u
 
     UserService(repo).update(
