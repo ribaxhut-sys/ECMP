@@ -37,10 +37,12 @@ def _user_row(**overrides: object) -> SimpleNamespace:
 def test_admin_create_user_sets_force_password_change() -> None:
     role_id = uuid.uuid4()
     user_id = uuid.uuid4()
+    branch_id = uuid.uuid4()
     repo = MagicMock()
     repo.username_exists.return_value = False
     repo.email_exists.return_value = False
     repo.role_exists.return_value = True
+    repo.branch_exists.return_value = True
     repo.get_role_code.return_value = "AGENT"
     repo.ensure_user_role.return_value = True
     repo.add.side_effect = lambda user: setattr(user, "id", user_id) or user
@@ -53,6 +55,7 @@ def test_admin_create_user_sets_force_password_change() -> None:
             fullName="New User",
             password="TempPass1!",
             roleId=role_id,
+            branchId=branch_id,
         ),
         actor_user_id=uuid.uuid4(),
         actor_roles=("ADMIN",),
