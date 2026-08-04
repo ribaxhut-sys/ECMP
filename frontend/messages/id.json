@@ -835,7 +835,8 @@
     "activityTypeStatusChanged": "Status diubah",
     "activityTypePriorityChanged": "Prioritas diubah",
     "activityTypeSla": "SLA",
-    "activityTypeOther": "Lainnya"
+    "activityTypeOther": "Lainnya",
+    "moduleAccessDescription": "Anda memerlukan izin pengaduan (read, create, update, assign, escalate, atau close) untuk melihat bagian ini."
   },
   "queue": {
     "title": "Antrian",
@@ -1119,7 +1120,15 @@
     "temporaryPasswordWarningDescription": "Menutup dialog ini akan menyembunyikan kata sandi sementara secara permanen. Kata sandi tidak disimpan di UI dan tidak dapat diambil kembali.",
     "printShowOnce": "Tampilkan sekali.",
     "printShowOnceDescription": "Simpan dengan aman dan bagikan melalui kanal terpisah. Pengguna wajib mengubah kata sandi saat masuk berikutnya.",
-    "printedAt": "Dicetak"
+    "printedAt": "Dicetak",
+    "branchRequired": "Cabang",
+    "branchRequiredForRole": "Cabang wajib untuk peran agen, petugas cabang, supervisor, atau manager cabang.",
+    "branchNotAllowedForRole": "Cabang harus dikosongkan untuk peran kantor pusat (admin, penjadwal, teknisi).",
+    "headOfficeFixed": "Kantor pusat (tanpa cabang)",
+    "locationBranch": "Cabang",
+    "locationHeadOffice": "Pusat",
+    "roleBranchManager": "Manager Cabang",
+    "selectBranch": "Pilih cabang"
   },
   "settings": {
     "title": "Pengaturan",

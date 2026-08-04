@@ -835,7 +835,8 @@
     "activityTypeSla": "SLA",
     "activityTypeOther": "Other",
     "cancel": "Cancel",
-    "completed": "Completed"
+    "completed": "Completed",
+    "moduleAccessDescription": "You need a complaint permission (read, create, update, assign, escalate, or close) to view this section."
   },
   "queue": {
     "title": "Queue",
@@ -1119,7 +1120,15 @@
     "temporaryPasswordWarningDescription": "Closing this dialog permanently hides the temporary password. It is not stored in the UI and cannot be retrieved again.",
     "printShowOnce": "Show once.",
     "printShowOnceDescription": "Store safely and share via a separate channel. The user must change password on next sign-in.",
-    "printedAt": "Printed"
+    "printedAt": "Printed",
+    "branchRequired": "Branch",
+    "branchRequiredForRole": "Branch is required for agent, branch officer, supervisor, or branch manager roles.",
+    "branchNotAllowedForRole": "Branch must be left empty for head-office roles (admin, scheduler, engineer).",
+    "headOfficeFixed": "Head office (no branch)",
+    "locationBranch": "Branch",
+    "locationHeadOffice": "Head Office",
+    "roleBranchManager": "Branch Manager",
+    "selectBranch": "Select branch"
   },
   "settings": {
     "title": "Settings",

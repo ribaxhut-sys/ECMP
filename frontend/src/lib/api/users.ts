@@ -71,6 +71,34 @@ export async function adminResetPassword(
   return body.data;
 }
 
+export interface CreateUserPayload {
+  username: string;
+  email: string;
+  fullName: string;
+  password: string;
+  roleId: string;
+  branchId?: string | null;
+  isActive?: boolean;
+}
+
+/** API-213 — POST /api/v1/users (requires users:create). */
+export async function createUser(payload: CreateUserPayload): Promise<UserRef> {
+  const body = await apiRequest<DataResponse<UserRef>>("/api/v1/users", {
+    method: "POST",
+    body: JSON.stringify({
+      username: payload.username,
+      email: payload.email,
+      fullName: payload.fullName,
+      password: payload.password,
+      roleId: payload.roleId,
+      branchId: payload.branchId ?? null,
+      isActive: payload.isActive ?? true,
+    }),
+    skipGlobalError: true,
+  });
+  return body.data;
+}
+
 export interface PreferredLanguageUpdateRequest {
   preferredLanguage: string;
 }
