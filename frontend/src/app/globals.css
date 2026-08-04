@@ -99,15 +99,19 @@
   --ecmp-form-gap: var(--ecmp-space-16);
   --ecmp-content-max-width: 80rem; /* max-w-7xl */
   --ecmp-form-max-width: 42rem;
-  --ecmp-sidebar-width: 16rem;
-  --ecmp-header-height: 4rem;
+  --ecmp-sidebar-width: 248px;
+  --ecmp-header-height: 64px;
   --ecmp-touch-min: 44px;
+  --ecmp-button-height: 44px;
+  --ecmp-card-padding: 24px;
+  --ecmp-modal-max-width: 720px;
+  --ecmp-search-radius: 14px;
 
   /* ── Radius scale ── */
   --ecmp-radius-sm: 4px;
   --ecmp-radius-md: 8px;
   --ecmp-radius-lg: 12px;
-  --ecmp-radius-xl: 16px;
+  --ecmp-radius-xl: 18px;
   --ecmp-radius-full: 9999px;
 
   /* Component radius roles (tokens only) */
@@ -116,23 +120,25 @@
   --ecmp-radius-select: var(--ecmp-radius-md);
   --ecmp-radius-textarea: var(--ecmp-radius-md);
   --ecmp-radius-badge: var(--ecmp-radius-sm);
-  --ecmp-radius-card: var(--ecmp-radius-lg);
-  --ecmp-radius-table: var(--ecmp-radius-lg);
-  --ecmp-radius-modal: var(--ecmp-radius-xl);
-  --ecmp-radius-dialog: var(--ecmp-radius-xl);
+  --ecmp-radius-card: 18px;
+  --ecmp-radius-table: 18px;
+  --ecmp-radius-modal: 18px;
+  --ecmp-radius-dialog: 18px;
   --ecmp-radius-dropdown: var(--ecmp-radius-md);
-  --ecmp-radius-surface: var(--ecmp-radius-lg);
+  --ecmp-radius-surface: 18px;
+  --ecmp-radius-search: var(--ecmp-search-radius);
 
   /* ── Elevation / shadows (soft, enterprise) ── */
-  --ecmp-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
-  --ecmp-shadow-md: 0 4px 12px rgb(15 23 42 / 0.08);
-  --ecmp-shadow-lg: 0 12px 32px rgb(15 23 42 / 0.12);
+  --ecmp-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+  --ecmp-shadow-md: 0 4px 14px rgb(15 23 42 / 0.07);
+  --ecmp-shadow-lg: 0 12px 28px rgb(15 23 42 / 0.1);
 
   --ecmp-shadow-surface: none;
-  --ecmp-shadow-raised: var(--ecmp-shadow-sm);
+  --ecmp-shadow-raised: 0 1px 3px rgb(15 23 42 / 0.04), 0 1px 2px rgb(15 23 42 / 0.03);
   --ecmp-shadow-floating: var(--ecmp-shadow-md);
   --ecmp-shadow-overlay: var(--ecmp-shadow-lg);
-  --ecmp-shadow-hover: 0 6px 16px rgb(15 23 42 / 0.1);
+  --ecmp-shadow-hover: 0 8px 20px rgb(15 23 42 / 0.08);
+  --ecmp-shadow-search: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.06);
 
   /* ── Z-index scale ── */
   --ecmp-z-dropdown: 40;
@@ -208,10 +214,10 @@
   --ecmp-font-overline-weight: 600;
   --ecmp-font-overline-tracking: 0.06em;
 
-  /* ── Motion ── */
-  --ecmp-duration-fast: 120ms;
+  /* ── Motion (180–220ms micro-interactions) ── */
+  --ecmp-duration-fast: 180ms;
   --ecmp-duration-normal: 200ms;
-  --ecmp-duration-slow: 300ms;
+  --ecmp-duration-slow: 220ms;
   --ecmp-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ecmp-ease-enter: cubic-bezier(0, 0, 0.2, 1);
   --ecmp-ease-exit: cubic-bezier(0.4, 0, 1, 1);
@@ -227,7 +233,7 @@
   --ecmp-density-compact-row: 36px;
   --ecmp-density-comfortable-gap: var(--ecmp-space-16);
   --ecmp-density-compact-gap: var(--ecmp-space-8);
-  --ecmp-density-comfortable-cell-y: var(--ecmp-space-12);
+  --ecmp-density-comfortable-cell-y: 14px;
   --ecmp-density-compact-cell-y: var(--ecmp-space-8);
 
   /* ── Icon sizes (documentation + CSS vars for consumers) ── */
@@ -310,6 +316,7 @@
   --ecmp-shadow-floating: var(--ecmp-shadow-md);
   --ecmp-shadow-overlay: var(--ecmp-shadow-lg);
   --ecmp-shadow-hover: 0 6px 16px rgb(0 0 0 / 0.45);
+  --ecmp-shadow-search: 0 1px 2px rgb(0 0 0 / 0.25), 0 4px 12px rgb(0 0 0 / 0.3);
 }
 
 @theme inline {
@@ -447,6 +454,26 @@ table {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@keyframes ecmp-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ecmp-content-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
-import { AuthLayout } from "@/shared/layouts";
+import { AuthLayout, IdentityBrand } from "@/shared/layouts";
 import {
   Alert,
   Button,
   Card,
   CardBody,
   Input,
-  Loading,
+  Skeleton,
 } from "@/shared/ui";
 import { LanguageSwitcher } from "@/shared/i18n";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
@@ -59,34 +59,28 @@ export default function LoginPage() {
 
   if (status === "loading" || status === "authenticated") {
     return (
-      <AuthLayout>
-        <Loading label={t("checkingSession")} />
+      <AuthLayout toolbar={<LanguageSwitcher variant="compact" />}>
+        <Card className="shadow-ecmp-raised">
+          <CardBody className="space-y-[var(--ecmp-panel-gap)] p-[var(--ecmp-panel-gap)]">
+            <Skeleton rows={4} />
+          </CardBody>
+        </Card>
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout>
-      <div className="mb-3 flex justify-end">
-        <LanguageSwitcher variant="compact" />
-      </div>
-      <Card>
-        <CardBody>
+    <AuthLayout toolbar={<LanguageSwitcher variant="compact" />}>
+      <Card className="shadow-ecmp-raised">
+        <CardBody className="p-[var(--ecmp-panel-gap)] md:p-[var(--ecmp-section-gap)]">
           <form
             onSubmit={onSubmit}
             className="space-y-[var(--ecmp-form-gap)]"
           >
-            <div className="space-y-2">
-              <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-primary">
-                {tCommon("appName")}
-              </p>
-              <h1 className="text-[length:var(--ecmp-font-page-title-size)] font-[number:var(--ecmp-font-page-title-weight)] leading-[var(--ecmp-font-page-title-line)] tracking-tight text-ecmp-text-primary">
-                {t("signIn")}
-              </h1>
-              <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                {t("signInSubtitle")}
-              </p>
-            </div>
+            <IdentityBrand
+              title={t("signIn")}
+              subtitle={t("signInSubtitle")}
+            />
 
             <Input
               name="username"
@@ -97,32 +91,38 @@ export default function LoginPage() {
               required
             />
 
-            <Input
-              name="password"
-              type="password"
-              label={t("password")}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="space-y-2">
+              <Input
+                name="password"
+                type="password"
+                label={t("password")}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <div className="flex justify-end">
+                <Link
+                  href="/forgot-password"
+                  className="min-h-[var(--ecmp-touch-min)] inline-flex items-center text-[length:var(--ecmp-font-helper-size)] text-ecmp-primary underline-offset-2 transition-colors duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-hover)] hover:underline focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus focus-visible:ring-offset-[length:var(--ecmp-focus-ring-offset)]"
+                >
+                  {t("forgotPassword")}
+                </Link>
+              </div>
+            </div>
 
             {error ? (
               <Alert tone="danger" title={t("signInFailed")} description={error} />
             ) : null}
 
-            <Button type="submit" fullWidth loading={submitting}>
+            <Button
+              type="submit"
+              fullWidth
+              loading={submitting}
+              className="min-h-[var(--ecmp-touch-min)]"
+            >
               {submitting ? t("signingIn") : t("signIn")}
             </Button>
-
-            <p className="text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              <Link
-                href="/forgot-password"
-                className="text-ecmp-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus focus-visible:ring-offset-[length:var(--ecmp-focus-ring-offset)]"
-              >
-                {t("forgotPassword")}
-              </Link>
-            </p>
           </form>
         </CardBody>
       </Card>

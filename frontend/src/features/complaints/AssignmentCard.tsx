@@ -25,9 +25,11 @@ import {
   CardBody,
   CardHeader,
   CardTitle,
+  ErrorState,
   Select,
-  Toast,
+  Skeleton,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 export function AssignmentCard({
   complaintId,
@@ -37,6 +39,7 @@ export function AssignmentCard({
   onAssigned?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -58,7 +61,6 @@ export function AssignmentCard({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,7 +130,7 @@ export function AssignmentCard({
     setSubmitting(true);
     try {
       await assignComplaint(complaintId, { assigneeId: selectedId });
-      setToastOpen(true);
+      pushSuccess(t("complaintAssigned"), t("assigneeSaved"));
       await load();
       onAssigned?.();
     } catch (err) {
@@ -158,16 +160,12 @@ export function AssignmentCard({
         </CardHeader>
         <CardBody className="space-y-[var(--ecmp-panel-gap)]">
           {loading ? (
-            <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              {t("loadingAssignment")}
-            </p>
+            <Skeleton rows={2} />
           ) : loadError ? (
-            <Alert
-              tone="danger"
+            <ErrorState
               title={t("couldNotLoadAssignment")}
-              description={loadError}
-              actionLabel={tCommon("retry")}
-              onAction={() => void load()}
+              message={loadError}
+              onRetry={() => void load()}
             />
           ) : assignment ? (
             <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
@@ -235,13 +233,6 @@ export function AssignmentCard({
           )}
         </CardBody>
       </Card>
-
-      <Toast
-        open={toastOpen}
-        title={t("complaintAssigned")}
-        description={t("assigneeSaved")}
-        onClose={() => setToastOpen(false)}
-      />
     </>
   );
 }

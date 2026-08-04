@@ -7,5 +7,5 @@ export {
 } from "./app-layout";
 export type { AppLayoutProps, NavItem, NavGroup } from "./app-layout";
 
-export { AuthLayout } from "./auth-layout";
+export { AuthLayout, IdentityBrand, IdentityTrustFooter } from "./auth-layout";
 export type { AuthLayoutProps } from "./auth-layout";

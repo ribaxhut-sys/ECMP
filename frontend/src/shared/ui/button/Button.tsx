@@ -30,18 +30,19 @@ const variantClass: Record<ButtonVariant, string> = {
     "hover:bg-[color-mix(in_srgb,var(--ecmp-color-primary)_88%,black)] hover:shadow-ecmp-hover",
     "active:bg-[color-mix(in_srgb,var(--ecmp-color-primary)_78%,black)] active:shadow-ecmp-surface",
   ),
+  /** Outline secondary — filled secondary kept via legacy usage of size/color mix below. */
   secondary: cn(
-    "border border-transparent bg-ecmp-secondary text-ecmp-secondary-foreground shadow-ecmp-raised",
-    "hover:bg-[color-mix(in_srgb,var(--ecmp-color-secondary)_88%,black)] hover:shadow-ecmp-hover",
-    "active:bg-[color-mix(in_srgb,var(--ecmp-color-secondary)_78%,black)] active:shadow-ecmp-surface",
+    "border border-ecmp-border bg-ecmp-surface text-ecmp-text-primary shadow-ecmp-surface",
+    "hover:border-ecmp-secondary/50 hover:bg-ecmp-hover hover:shadow-ecmp-raised",
+    "active:bg-ecmp-pressed",
   ),
   outline: cn(
-    "border border-ecmp-border bg-ecmp-surface text-ecmp-text-primary shadow-ecmp-surface",
-    "hover:border-ecmp-secondary hover:bg-ecmp-hover hover:shadow-ecmp-raised",
+    "border border-ecmp-border bg-transparent text-ecmp-text-primary shadow-ecmp-surface",
+    "hover:border-ecmp-secondary hover:bg-ecmp-hover",
     "active:bg-ecmp-pressed",
   ),
   ghost: cn(
-    "border border-transparent bg-transparent text-ecmp-text-primary shadow-ecmp-surface",
+    "border border-transparent bg-transparent text-ecmp-text-primary shadow-none",
     "hover:bg-ecmp-hover",
     "active:bg-ecmp-pressed",
   ),
@@ -58,9 +59,9 @@ const variantClass: Record<ButtonVariant, string> = {
 };
 
 const sizeClass: Record<ButtonSize, string> = {
-  sm: "min-h-[var(--ecmp-touch-min)] gap-2 px-3 text-[length:var(--ecmp-font-body-small-size)]",
-  md: "min-h-[var(--ecmp-touch-min)] gap-2 px-4 text-[length:var(--ecmp-font-body-size)]",
-  lg: "min-h-12 gap-2.5 px-6 text-[length:var(--ecmp-font-body-size)]",
+  sm: "h-[var(--ecmp-button-height)] min-h-[var(--ecmp-button-height)] gap-2 px-3 text-[length:var(--ecmp-font-body-small-size)]",
+  md: "h-[var(--ecmp-button-height)] min-h-[var(--ecmp-button-height)] gap-2 px-4 text-[length:var(--ecmp-font-body-size)]",
+  lg: "h-[var(--ecmp-button-height)] min-h-[var(--ecmp-button-height)] gap-2.5 px-6 text-[length:var(--ecmp-font-body-size)]",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

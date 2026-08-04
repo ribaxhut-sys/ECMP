@@ -24,8 +24,8 @@ import {
   Input,
   Select,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 const CATEGORY_VALUES: readonly ResolutionCategory[] = [
   "SOLVED",
@@ -59,6 +59,7 @@ export function ResolutionCard({
   onResolved?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tCategory = useTranslations("resolutionCategory");
@@ -84,7 +85,6 @@ export function ResolutionCard({
   }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,7 +137,7 @@ export function ResolutionCard({
       setCategory("");
       setRootCause("");
       setNotes("");
-      setToastOpen(true);
+      pushSuccess(t("complaintResolved"), t("statusNowResolved"));
       onResolved?.();
     } catch (err) {
       setSubmitError(
@@ -251,13 +251,6 @@ export function ResolutionCard({
           ) : null}
         </CardBody>
       </Card>
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={t("complaintResolved")}
-        description={t("statusNowResolved")}
-      />
     </>
   );
 }

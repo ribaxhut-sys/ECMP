@@ -23,8 +23,8 @@ import {
   Modal,
   Select,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 export type AssignmentRowMeta = {
   id: string;
@@ -45,6 +45,7 @@ export function AssignmentRowActions({
   onChanged?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("assignments");
   const tCommon = useTranslations("common");
   const tComplaints = useTranslations("complaints");
@@ -70,8 +71,6 @@ export function AssignmentRowActions({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastTitle, setToastTitle] = useState("");
 
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -133,6 +132,7 @@ export function AssignmentRowActions({
     setSubmitting(true);
     setError(null);
     try {
+      let successTitle = "";
       if (action === "assign") {
         if (!selectedId) {
           setError(tComplaints("selectAssignee"));
@@ -140,7 +140,7 @@ export function AssignmentRowActions({
           return;
         }
         await assignComplaintHandler(row.id, { assigneeId: selectedId });
-        setToastTitle(tComplaints("complaintAssigned"));
+        successTitle = tComplaints("complaintAssigned");
       } else if (action === "reassign") {
         if (!selectedId) {
           setError(tComplaints("selectAssignee"));
@@ -157,7 +157,7 @@ export function AssignmentRowActions({
           assigneeId: selectedId,
           reason: trimmedReason,
         });
-        setToastTitle(t("complaintReassigned"));
+        successTitle = t("complaintReassigned");
       } else if (action === "cancel") {
         if (!userId) {
           setError(t("mustBeSignedInToCancel"));
@@ -168,10 +168,12 @@ export function AssignmentRowActions({
           releasedBy: userId,
           reason: reason.trim() || null,
         });
-        setToastTitle(t("assignmentCancelled"));
+        successTitle = t("assignmentCancelled");
       }
       setAction(null);
-      setToastOpen(true);
+      if (successTitle) {
+        pushSuccess(successTitle, t("listRefreshed"));
+      }
       onChanged?.();
     } catch (err) {
       setError(
@@ -324,13 +326,6 @@ export function AssignmentRowActions({
           ) : null}
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        title={toastTitle}
-        description={t("listRefreshed")}
-        onClose={() => setToastOpen(false)}
-      />
     </>
   );
 }

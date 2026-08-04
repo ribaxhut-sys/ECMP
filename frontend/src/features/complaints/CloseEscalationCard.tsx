@@ -19,8 +19,8 @@ import {
   CardTitle,
   Modal,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -58,6 +58,7 @@ export function CloseEscalationCard({
   onClosed?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
@@ -74,7 +75,6 @@ export function CloseEscalationCard({
   const [notesError, setNotesError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,7 +127,7 @@ export function CloseEscalationCard({
     try {
       await closeEscalation(escalation.id, { notes: trimmed });
       setDialogOpen(false);
-      setToastOpen(true);
+      pushSuccess(t("escalationClosed"), t("escalationClosedHint"));
       onClosed?.();
       await load();
     } catch (err) {
@@ -261,14 +261,6 @@ export function CloseEscalationCard({
           </div>
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={t("escalationClosed")}
-        description={t("escalationClosedHint")}
-      />
     </>
   );
 }

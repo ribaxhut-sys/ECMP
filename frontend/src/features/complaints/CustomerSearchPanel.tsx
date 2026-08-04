@@ -219,7 +219,7 @@ export function CustomerSearchPanel({
 
         {locked ? (
           <Alert
-            tone="success"
+            tone="info"
             title={t("customerConfirmed")}
             description={t("customerConfirmedDescription", {
               name: confirmedDisplayName,
@@ -284,9 +284,31 @@ export function CustomerSearchPanel({
         {status ? (
           <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
             {t("statusLabel")}:{" "}
-            <span className="font-medium text-ecmp-text-primary">{status}</span>
+            <span className="font-medium text-ecmp-text-primary">
+              {status === "verified"
+                ? t("verificationVerified")
+                : status === "not_found"
+                  ? t("verificationNotFound")
+                  : status === "ambiguous"
+                    ? t("verificationAmbiguous")
+                    : status === "degraded"
+                      ? t("verificationDegraded")
+                      : status === "blocked"
+                        ? t("verificationBlocked")
+                        : status}
+            </span>
             {enumerationOutcome
-              ? ` · ${t("enumerationLabel")}: ${enumerationOutcome}`
+              ? ` · ${
+                  enumerationOutcome === "allowed"
+                    ? t("matchAllowed")
+                    : enumerationOutcome === "delayed"
+                      ? t("matchDelayed")
+                      : enumerationOutcome === "blocked"
+                        ? t("matchBlocked")
+                        : enumerationOutcome === "alerted"
+                          ? t("matchAlerted")
+                          : enumerationOutcome
+                }`
               : ""}
             {asOf ? ` · ${t("asOfLabel")} ${asOf}` : ""}
           </p>
@@ -307,10 +329,11 @@ export function CustomerSearchPanel({
                     <span className="font-medium text-ecmp-text-primary">
                       {c.displayName}
                     </span>
-                    <span className="block font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                      {c.customerId}
-                      {c.maskedIdentity ? ` · ${c.maskedIdentity}` : ""}
-                    </span>
+                    {c.maskedIdentity ? (
+                      <span className="block text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                        {c.maskedIdentity}
+                      </span>
+                    ) : null}
                   </span>
                 ),
               }))}

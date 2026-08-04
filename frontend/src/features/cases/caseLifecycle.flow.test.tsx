@@ -2,10 +2,11 @@
  * CAP-008 Mode A end-to-end flow (mocked API):
  * Create → Update Status → Resolve → Close.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CmCase } from "@/lib/api";
+import { renderWithProviders } from "@/test/harness";
 
 const createCmCase = vi.fn();
 const updateCmCaseStatus = vi.fn();
@@ -14,10 +15,6 @@ const closeCmCase = vi.fn();
 const fetchCmCase = vi.fn();
 const hasPermission = vi.fn(() => true);
 const noop = () => undefined;
-
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
-}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -112,7 +109,7 @@ describe("CAP-008 case lifecycle flow", () => {
 
     createCmCase.mockResolvedValue({ data: current });
     const onCreated = vi.fn();
-    const { unmount } = render(
+    const { unmount } = renderWithProviders(
       <CreateCaseDialog
         open
         onClose={noop}
@@ -139,7 +136,7 @@ describe("CAP-008 case lifecycle flow", () => {
     });
     updateCmCaseStatus.mockResolvedValue({ data: current });
     const onUpdated = vi.fn();
-    const statusRender = render(
+    const statusRender = renderWithProviders(
       <UpdateStatusDialog
         open
         onClose={noop}
@@ -170,7 +167,7 @@ describe("CAP-008 case lifecycle flow", () => {
       owningUnitId: "unit-ops",
     });
     updateCmCaseStatus.mockResolvedValueOnce({ data: current });
-    const progressRender = render(
+    const progressRender = renderWithProviders(
       <UpdateStatusDialog
         open
         onClose={noop}
@@ -207,7 +204,7 @@ describe("CAP-008 case lifecycle flow", () => {
     });
     resolveCmCase.mockResolvedValue({ data: current });
     const onResolved = vi.fn();
-    const resolveRender = render(
+    const resolveRender = renderWithProviders(
       <ResolveCaseDialog
         open
         onClose={noop}
@@ -244,7 +241,7 @@ describe("CAP-008 case lifecycle flow", () => {
     });
     closeCmCase.mockResolvedValue({ data: current });
     const onClosed = vi.fn();
-    render(
+    renderWithProviders(
       <CloseCaseDialog
         open
         onClose={noop}

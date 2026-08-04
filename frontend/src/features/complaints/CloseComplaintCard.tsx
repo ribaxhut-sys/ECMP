@@ -15,8 +15,8 @@ import {
   CardTitle,
   Modal,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -39,6 +39,7 @@ export function CloseComplaintCard({
   onClosed?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
@@ -53,7 +54,6 @@ export function CloseComplaintCard({
   const [notesError, setNotesError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
 
   function openDialog() {
     setNotes("");
@@ -80,7 +80,7 @@ export function CloseComplaintCard({
     try {
       await closeComplaint(complaint.id, { notes: trimmed });
       setDialogOpen(false);
-      setToastOpen(true);
+      pushSuccess(t("complaintClosed"), t("complaintClosedHint"));
       onClosed?.();
     } catch (err) {
       setSubmitError(
@@ -195,14 +195,6 @@ export function CloseComplaintCard({
           </div>
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={t("complaintClosed")}
-        description={t("complaintClosedHint")}
-      />
     </>
   );
 }

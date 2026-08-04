@@ -1,18 +1,17 @@
-# ECMP v1.0.0 — production reverse proxy (recommended reference)
-# Proxy: Caddy 2.x with automatic HTTPS (Let's Encrypt / ZeroSSL)
+# ECMP — production reverse proxy (Opsi A: apex landing + module host)
 #
 # Required env (compose injects):
-#   ECMP_DOMAIN     Public hostname, e.g. ecmp.example.com
-#   ACME_EMAIL      Contact email for ACME registration
+#   ECMP_DOMAIN       Module hostname, e.g. pengaduan.layanankami.tech
+#   ECMP_APEX_DOMAIN  Apex hostname, e.g. layanankami.tech (static landing only)
+#   ACME_EMAIL        ACME registration contact (or CADDY_ACME_EMAIL in lab)
 #
-# Topology (single public host — recommended):
-#   https://$ECMP_DOMAIN/           → frontend:3000
-#   https://$ECMP_DOMAIN/api/*      → backend:8000
-#   https://$ECMP_DOMAIN/live|ready|health|version → backend:8000
+# Topology:
+#   https://$ECMP_APEX_DOMAIN/     → static landing (link to module)
+#   https://$ECMP_DOMAIN/          → frontend:3000
+#   https://$ECMP_DOMAIN/api/*     → backend:8000
+#   https://$ECMP_DOMAIN/health*   → backend:8000
 #
-# reverse_proxy sets X-Forwarded-For / Proto / Host by default.
-# Security headers already emitted by the FastAPI app are NOT duplicated here.
-# Proxy adds Strict-Transport-Security only.
+# Not Mode B: no SSO, no Identity Adapter, no portal chrome product.
 
 {
 	email {$ACME_EMAIL}
@@ -21,18 +20,29 @@
 	}
 }
 
+{$ECMP_APEX_DOMAIN}, www.{$ECMP_APEX_DOMAIN} {
+	encode gzip zstd
+
+	root * /srv/apex-landing
+	file_server
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
 {$ECMP_DOMAIN} {
 	encode gzip zstd
 
-	# HSTS — proxy-owned (application does not emit this header).
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		-Server
 	}
 
-	# API + health/version surfaces. WebSocket Upgrade is handled by reverse_proxy
-	# (no product WebSocket APIs in v1.0.0; safe for Next.js / future use).
-	@backend path /api/* /live /ready /health /version /openapi.json /docs /redoc
+	@backend path /api/* /live /ready /health /version
 	handle @backend {
 		reverse_proxy backend:8000
 	}

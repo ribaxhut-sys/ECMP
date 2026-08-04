@@ -21,6 +21,7 @@ export const radius = {
   dialog: "var(--ecmp-radius-dialog)",
   dropdown: "var(--ecmp-radius-dropdown)",
   surface: "var(--ecmp-radius-surface)",
+  search: "var(--ecmp-radius-search)",
 } as const;
 
 export type RadiusToken = keyof typeof radius;

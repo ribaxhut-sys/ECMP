@@ -16,6 +16,10 @@ export const layout = {
   sidebarWidth: "var(--ecmp-sidebar-width)",
   headerHeight: "var(--ecmp-header-height)",
   touchMin: "var(--ecmp-touch-min)",
+  buttonHeight: "var(--ecmp-button-height)",
+  cardPadding: "var(--ecmp-card-padding)",
+  modalMaxWidth: "var(--ecmp-modal-max-width)",
+  searchRadius: "var(--ecmp-search-radius)",
 } as const;
 
 export type LayoutToken = keyof typeof layout;

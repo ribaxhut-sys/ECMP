@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchCmCase, type CmCase } from "@/lib/api";
 import {
@@ -14,8 +14,9 @@ import {
   PageHeader,
   SectionHeader,
   Skeleton,
-  Toast,
+  WorkspaceToolbar,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 import { CaseSummaryCard } from "./CaseSummaryCard";
 import { CreateCaseDialog } from "./CreateCaseDialog";
 import { listKnownCaseIds, rememberCaseId } from "./caseSessionRegistry";
@@ -27,8 +28,11 @@ import { listKnownCaseIds, rememberCaseId } from "./caseSessionRegistry";
  */
 export function CaseListView({ complaintId }: { complaintId: string }) {
   const t = useTranslations("cases");
+  const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
   const router = useRouter();
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const canRead = hasPermission("complaints:read");
   const canCreate = hasPermission("complaints:create");
 
@@ -37,8 +41,6 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
 
   const reload = useCallback(async () => {
     if (!canRead || !complaintId.trim()) {
@@ -73,8 +75,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
 
   function onCreated(caseData: CmCase) {
     rememberCaseId(complaintId, caseData.caseId);
-    setToastMessage(t("created", { number: caseData.caseNumber }));
-    setToastOpen(true);
+    pushSuccess(t("success"), t("created", { number: caseData.caseNumber }));
     void reload();
   }
 
@@ -92,6 +93,10 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         <Empty
           title={t("accessDenied")}
           description={t("readPermission")}
+          primaryAction={{
+            label: tCommon("goHome"),
+            onClick: () => router.push("/dashboard"),
+          }}
         />
       </PageContainer>
     );
@@ -101,7 +106,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
-        description={t("modeADescription", { id: complaintId })}
+        description={t("modeADescription")}
         breadcrumbs={[
           { label: t("back"), href: "/dashboard" },
           { label: t("confirmation"), href: "/complaints" },
@@ -142,28 +147,53 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         }
       />
 
-      {loading ? <Skeleton rows={4} /> : null}
+      {loading ? <Skeleton rows={6} /> : null}
       {error ? (
-        <ErrorState title={t("unableToLoadList")} message={error} />
+        <ErrorState
+          title={t("unableToLoadList")}
+          message={error}
+          onRetry={() => void reload()}
+        />
       ) : null}
       {!loading && !error && cases.length === 0 ? (
         <Empty
           title={t("noSessionCases")}
           description={t("noSessionCasesDescription")}
-          action={
-            canCreate ? (
-              <Button type="button" onClick={() => setCreateOpen(true)}>
-                {t("create")}
-              </Button>
-            ) : undefined
+          primaryAction={
+            canCreate
+              ? {
+                  label: t("create"),
+                  onClick: () => setCreateOpen(true),
+                }
+              : {
+                  label: t("refreshCases"),
+                  onClick: () => void reload(),
+                }
           }
+          secondaryAction={{
+            label: t("goToComplaints"),
+            onClick: () => router.push("/complaints"),
+          }}
         />
       ) : null}
       {!loading && cases.length > 0 ? (
         <section className="space-y-[var(--ecmp-panel-gap)]">
           <SectionHeader
             title={t("title")}
-            description={t("modeADescription", { id: complaintId })}
+            description={t("modeADescription")}
+          />
+          <WorkspaceToolbar
+            summary={tTable("itemsInView", { count: cases.length })}
+            actions={
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void reload()}
+              >
+                {tCommon("refresh")}
+              </Button>
+            }
           />
           <div className="grid gap-[var(--ecmp-card-gap)] md:grid-cols-2">
             {cases.map((c) => (
@@ -194,13 +224,6 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         complaintId={complaintId}
         mode="add"
         onCreated={onCreated}
-      />
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        title={t("success")}
-        description={toastMessage}
-        tone="success"
       />
     </PageContainer>
   );

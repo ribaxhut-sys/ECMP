@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useAuth } from "@/auth/AuthProvider";
@@ -16,6 +17,7 @@ import {
   Button,
   Card,
   CardBody,
+  DensityToggle,
   Empty,
   ErrorState,
   FilterBar,
@@ -26,7 +28,9 @@ import {
   Skeleton,
   StatCard,
   Table,
+  WorkspaceToolbar,
   type TableColumn,
+  type TableDensity,
 } from "@/shared/ui";
 import {
   CM_BATCH1_SUPERVISOR_QUEUE_LIMIT_DEFAULT,
@@ -55,8 +59,10 @@ function formatWhen(value: string | null | undefined): string {
  * Status/reason are contract pass-through (no meaning rewrite).
  */
 export function CmBatch1SupervisorQueueView() {
+  const router = useRouter();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
 
@@ -66,6 +72,7 @@ export function CmBatch1SupervisorQueueView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agingHours, setAgingHours] = useState(24);
+  const [density, setDensity] = useState<TableDensity>("comfortable");
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -99,14 +106,22 @@ export function CmBatch1SupervisorQueueView() {
 
   const threshold = data?.agingThresholdHours ?? agingHours;
 
+  function humanReason(reason: string): string {
+    const raw = (reason ?? "").trim();
+    if (raw === "duplicate_check_degraded") return t("reasonDuplicateCheckLimited");
+    if (raw === "attachment_bind_failed") return t("reasonAttachmentBindFailed");
+    return cmBatch1LaterReviewReasonLabel(raw) || t("emptyReason");
+  }
+
+  function humanStatus(status: string): string {
+    const raw = cmBatch1SupervisorStatusLabel(status);
+    if (raw === "REGISTERED") return t("registered");
+    if (raw === "OPEN") return t("statusOpen");
+    if (raw === "CLOSED") return t("statusClosed");
+    return raw;
+  }
+
   const laterColumns: TableColumn<CmBatch1LaterReviewWorkItem>[] = [
-    {
-      key: "workItemId",
-      header: t("workItem"),
-      cell: (row) => (
-        <span className="font-mono text-[length:var(--ecmp-font-body-small-size)]">{row.workItemId}</span>
-      ),
-    },
     {
       key: "complaintId",
       header: t("title"),
@@ -114,18 +129,13 @@ export function CmBatch1SupervisorQueueView() {
         row.complaintId ? (
           <Link
             href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
-            className="font-mono text-[length:var(--ecmp-font-body-small-size)] text-ecmp-primary underline-offset-2 hover:underline"
+            className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
           >
-            {row.complaintId}
+            {t("openComplaint")}
           </Link>
         ) : (
           <span className="text-ecmp-text-secondary">—</span>
         ),
-    },
-    {
-      key: "customerId",
-      header: t("customer"),
-      cell: (row) => row.customerId,
     },
     {
       key: "reason",
@@ -133,9 +143,7 @@ export function CmBatch1SupervisorQueueView() {
       cell: (row) => (
         <span className="inline-flex flex-wrap items-center gap-1">
           <Badge tone={cmBatch1LaterReviewReasonTone(row.reason)}>
-            {(row.reason ?? "").trim()
-              ? cmBatch1LaterReviewReasonLabel(row.reason)
-              : t("emptyReason")}
+            {humanReason(row.reason)}
           </Badge>
           {cmBatch1LaterReviewReasonIsUnknown(row.reason) ? (
             <Badge tone="neutral">{t("unknownType")}</Badge>
@@ -146,7 +154,7 @@ export function CmBatch1SupervisorQueueView() {
     {
       key: "status",
       header: t("status"),
-      cell: (row) => cmBatch1SupervisorStatusLabel(row.status),
+      cell: (row) => humanStatus(row.status),
     },
     {
       key: "ageHours",
@@ -174,14 +182,9 @@ export function CmBatch1SupervisorQueueView() {
       ),
     },
     {
-      key: "customerId",
-      header: t("customer"),
-      cell: (row) => row.customerId,
-    },
-    {
       key: "status",
       header: t("status"),
-      cell: (row) => cmBatch1SupervisorStatusLabel(row.status),
+      cell: (row) => humanStatus(row.status),
     },
     {
       key: "subject",
@@ -222,8 +225,9 @@ export function CmBatch1SupervisorQueueView() {
 
   if (!canRead) {
     return (
-      <PageContainer>
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
+          overline={t("overline")}
           title={t("batchSupervisorQueue")}
           breadcrumbs={[
             { label: t("home"), href: "/dashboard" },
@@ -234,6 +238,10 @@ export function CmBatch1SupervisorQueueView() {
         <Empty
           title={t("accessRestricted")}
           description={t("noPermissionToView")}
+          primaryAction={{
+            label: tCommon("goHome"),
+            onClick: () => router.push("/dashboard"),
+          }}
         />
       </PageContainer>
     );
@@ -245,6 +253,7 @@ export function CmBatch1SupervisorQueueView() {
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={t("overline")}
         title={t("batchSupervisorQueue")}
         breadcrumbs={[
           { label: t("home"), href: "/dashboard" },
@@ -253,7 +262,7 @@ export function CmBatch1SupervisorQueueView() {
         ]}
         description={t("laterReviewDescription")}
         actions={
-          <Button type="button" variant="secondary" onClick={() => void load()}>
+          <Button type="button" variant="outline" onClick={() => void load()}>
             {tCommon("refresh")}
           </Button>
         }
@@ -277,7 +286,11 @@ export function CmBatch1SupervisorQueueView() {
       />
 
       {error ? (
-        <ErrorState title={t("unableToLoadQueue")} message={error} />
+        <ErrorState
+          title={t("unableToLoadQueue")}
+          message={error}
+          onRetry={() => void load()}
+        />
       ) : null}
 
       {data ? (
@@ -299,21 +312,49 @@ export function CmBatch1SupervisorQueueView() {
           title={t("laterReviewItems")}
           description={t("laterReviewDescription")}
         />
-        <Card>
-          <CardBody>
+        <Card padding={false} className="overflow-hidden">
+          <CardBody className="space-y-[var(--ecmp-panel-gap)] p-4 md:p-6">
             {loading && !data ? (
-              <Skeleton className="h-32 w-full" />
+              <Skeleton rows={6} />
             ) : !data?.laterReviewItems.length ? (
               <Empty
                 title={t("noOpenLaterReview")}
                 description={t("queueEmptyForFilter")}
+                primaryAction={{
+                  label: tCommon("refreshPage"),
+                  onClick: () => void load(),
+                }}
+                secondaryAction={{
+                  label: tCommon("goToQueue"),
+                  onClick: () => router.push("/queue"),
+                }}
               />
             ) : (
-              <Table
-                columns={laterColumns}
-                rows={data.laterReviewItems}
-                getRowKey={(row) => row.workItemId}
-              />
+              <>
+                <WorkspaceToolbar
+                  summary={tTable("itemsInView", { count: laterCount })}
+                  density={
+                    <DensityToggle value={density} onChange={setDensity} />
+                  }
+                  actions={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void load()}
+                    >
+                      {tCommon("refresh")}
+                    </Button>
+                  }
+                />
+                <Table
+                  columns={laterColumns}
+                  rows={data.laterReviewItems}
+                  getRowKey={(row) => row.workItemId}
+                  density={density}
+                  stickyHeader
+                />
+              </>
             )}
           </CardBody>
         </Card>
@@ -324,21 +365,49 @@ export function CmBatch1SupervisorQueueView() {
           title={t("noCaseAging")}
           description={t("noCaseAgingDescription", { hours: threshold })}
         />
-        <Card>
-          <CardBody>
+        <Card padding={false} className="overflow-hidden">
+          <CardBody className="space-y-[var(--ecmp-panel-gap)] p-4 md:p-6">
             {loading && !data ? (
-              <Skeleton className="h-32 w-full" />
+              <Skeleton rows={6} />
             ) : !data?.agingComplaints.length ? (
               <Empty
                 title={t("noAgingComplaints")}
                 description={t("noRegisteredPastThreshold")}
+                primaryAction={{
+                  label: tCommon("refreshPage"),
+                  onClick: () => void load(),
+                }}
+                secondaryAction={{
+                  label: t("clearFilters"),
+                  onClick: () => setAgingHours(24),
+                }}
               />
             ) : (
-              <Table
-                columns={agingColumns}
-                rows={data.agingComplaints}
-                getRowKey={(row) => row.complaintId}
-              />
+              <>
+                <WorkspaceToolbar
+                  summary={tTable("itemsInView", { count: agingCount })}
+                  density={
+                    <DensityToggle value={density} onChange={setDensity} />
+                  }
+                  actions={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void load()}
+                    >
+                      {tCommon("refresh")}
+                    </Button>
+                  }
+                />
+                <Table
+                  columns={agingColumns}
+                  rows={data.agingComplaints}
+                  getRowKey={(row) => row.complaintId}
+                  density={density}
+                  stickyHeader
+                />
+              </>
             )}
           </CardBody>
         </Card>

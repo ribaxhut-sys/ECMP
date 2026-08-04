@@ -256,6 +256,73 @@ def test_resolver_cm_complaint_not_found() -> None:
         OrgUnitResolver(session).resolve_cm_complaint(uuid.uuid4())
 
 
+def test_resolver_case_uses_owning_unit_id() -> None:
+    """P0 gap closure: CAP-008 Case (Aggregate) org scope, by id or case number."""
+    case_id = uuid.uuid4()
+    case_row = MagicMock()
+    case_row.owning_unit_id = "OU-CASE-01"
+
+    session = MagicMock()
+    session.get.return_value = case_row
+    assert OrgUnitResolver(session).resolve_case(str(case_id)) == "OU-CASE-01"
+
+    # Fallback to case_number lookup (SqlAlchemyCaseRepository.get parity).
+    session_by_number = MagicMock()
+    session_by_number.get.return_value = None
+    session_by_number.scalar.return_value = case_row
+    assert (
+        OrgUnitResolver(session_by_number).resolve_case("CASE-2026-000001")
+        == "OU-CASE-01"
+    )
+
+
+def test_resolver_case_not_found() -> None:
+    session = MagicMock()
+    session.get.return_value = None
+    session.scalar.return_value = None
+    with pytest.raises(NotFoundError):
+        OrgUnitResolver(session).resolve_case(str(uuid.uuid4()))
+
+
+def test_resolver_escalation_uses_parent_complaint() -> None:
+    """P0 gap closure: escalation → parent Complaint → Branch.code."""
+    escalation_id = uuid.uuid4()
+    complaint_id = uuid.uuid4()
+    branch_id = uuid.uuid4()
+
+    escalation_row = MagicMock()
+    escalation_row.deleted_at = None
+    escalation_row.complaint_id = complaint_id
+
+    complaint = MagicMock()
+    complaint.deleted_at = None
+    complaint.branch_id = branch_id
+    branch = MagicMock()
+    branch.deleted_at = None
+    branch.code = "OU-ESC-01"
+
+    session = MagicMock()
+
+    def _get(model: object, key: object) -> object | None:
+        if key == escalation_id:
+            return escalation_row
+        if key == complaint_id:
+            return complaint
+        if key == branch_id:
+            return branch
+        return None
+
+    session.get.side_effect = _get
+    assert OrgUnitResolver(session).resolve_escalation(escalation_id) == "OU-ESC-01"
+
+
+def test_resolver_escalation_not_found() -> None:
+    session = MagicMock()
+    session.get.return_value = None
+    with pytest.raises(NotFoundError):
+        OrgUnitResolver(session).resolve_escalation(uuid.uuid4())
+
+
 # --- HTTP integration (M-4) -------------------------------------------------
 
 
@@ -826,3 +893,119 @@ def test_http_duplicate_decision_surviving_same_unit_succeeds(
         assert "DuplicateDecisionRecorded" in org_http_client["cm_store"]["outbox_events"]
         assert org_http_client["attachments"].transfer_calls == 0
         assert org_http_client["cm_store"]["commits"] >= 1
+
+
+# --- P0 attachment ownership gap closure ------------------------------------
+
+
+def _attachment_entity(*, aggregate_type: str, aggregate_id: uuid.UUID) -> Any:
+    from app.modules.attachment.domain.entity import Attachment as AttachmentEntity
+
+    return AttachmentEntity(
+        id=uuid.uuid4(),
+        aggregate_type=aggregate_type,
+        aggregate_id=aggregate_id,
+        file_name="f.pdf",
+        original_name="f.pdf",
+        mime_type="application/pdf",
+        extension=".pdf",
+        size_bytes=4,
+        storage_provider="local",
+        storage_path="f.pdf",
+        checksum_sha256="abc",
+        uploaded_by=None,
+    )
+
+
+def test_download_attachment_cross_unit_denied_for_complaint_aggregate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import download_attachment
+
+    entity = _attachment_entity(aggregate_type="Complaint", aggregate_id=uuid.uuid4())
+    service = MagicMock()
+    service.download.return_value = (entity, b"data")
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = None
+    batch1.try_get.return_value = None
+    batch1.resolve_platform_attachment_id.side_effect = lambda aid: aid
+
+    monkeypatch.setattr(OrgUnitResolver, "resolve_complaint", lambda self, cid: "OU-A")
+    settings = _jwt_settings()
+    principal = _principal(org_unit_id="OU-B")
+
+    with pytest.raises(OrgScopeDeniedError):
+        download_attachment(uuid.uuid4(), service, batch1, principal, MagicMock(), settings)
+
+
+def test_download_attachment_same_unit_allowed_for_complaint_aggregate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import download_attachment
+
+    entity = _attachment_entity(aggregate_type="Complaint", aggregate_id=uuid.uuid4())
+    service = MagicMock()
+    service.download.return_value = (entity, b"data")
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = None
+    batch1.try_get.return_value = None
+    batch1.resolve_platform_attachment_id.side_effect = lambda aid: aid
+
+    monkeypatch.setattr(OrgUnitResolver, "resolve_complaint", lambda self, cid: "OU-A")
+    settings = _jwt_settings()
+    principal = _principal(org_unit_id="OU-A")
+
+    resp = download_attachment(
+        uuid.uuid4(), service, batch1, principal, MagicMock(), settings
+    )
+    assert resp.body == b"data"
+
+
+def test_download_attachment_batch1_linked_cross_unit_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import download_attachment
+
+    entity = _attachment_entity(aggregate_type="Complaint", aggregate_id=uuid.uuid4())
+    service = MagicMock()
+    service.download.return_value = (entity, b"data")
+    linked = MagicMock()
+    linked.complaint_id = str(uuid.uuid4())
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = linked
+    batch1.resolve_platform_attachment_id.side_effect = lambda aid: aid
+
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    settings = _jwt_settings()
+    principal = _principal(org_unit_id="OU-B")
+
+    with pytest.raises(OrgScopeDeniedError):
+        download_attachment(uuid.uuid4(), service, batch1, principal, MagicMock(), settings)
+
+
+def test_download_attachment_not_a_real_complaint_skips_enforcement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CAPABILITY-011 is aggregate-agnostic (no FK to Complaint) — an
+    ``aggregate_id`` with no real Complaint row must not block download."""
+    from app.modules.attachment.router import download_attachment
+
+    entity = _attachment_entity(aggregate_type="Complaint", aggregate_id=uuid.uuid4())
+    service = MagicMock()
+    service.download.return_value = (entity, b"data")
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = None
+    batch1.try_get.return_value = None
+    batch1.resolve_platform_attachment_id.side_effect = lambda aid: aid
+
+    def _raise_not_found(self: OrgUnitResolver, cid: uuid.UUID) -> str | None:
+        raise NotFoundError("Complaint not found")
+
+    monkeypatch.setattr(OrgUnitResolver, "resolve_complaint", _raise_not_found)
+    settings = _jwt_settings()
+    principal = _principal(org_unit_id="OU-B")
+
+    resp = download_attachment(
+        uuid.uuid4(), service, batch1, principal, MagicMock(), settings
+    )
+    assert resp.body == b"data"

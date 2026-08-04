@@ -1,39 +1,43 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  PasswordRequirements,
 } from "@/features/auth";
 import { ApiError, resetPassword } from "@/lib/api";
-import { AuthLayout } from "@/shared/layouts";
+import { AuthLayout, IdentityBrand } from "@/shared/layouts";
 import {
   Alert,
   Button,
   Card,
   CardBody,
   Input,
-  Loading,
+  Skeleton,
 } from "@/shared/ui";
 import { LanguageSwitcher } from "@/shared/i18n";
+import { useToast } from "@/shared/providers";
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
-  const token = useMemo(() => searchParams.get("token")?.trim() ?? "", [searchParams]);
+  const token = useMemo(
+    () => searchParams.get("token")?.trim() ?? "",
+    [searchParams],
+  );
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -45,7 +49,6 @@ function ResetPasswordForm() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setSuccess(null);
 
     if (!token) {
       setError(t("tokenMissing"));
@@ -67,7 +70,7 @@ function ResetPasswordForm() {
         password,
         confirmPassword,
       });
-      setSuccess(result.message);
+      pushSuccess(t("passwordUpdated"), result.message);
       setTimeout(() => router.replace("/login"), 1500);
     } catch (err) {
       setError(
@@ -83,25 +86,15 @@ function ResetPasswordForm() {
   }
 
   if (status === "loading" || status === "authenticated") {
-    return <Loading label={t("checkingSession")} />;
+    return <Skeleton rows={4} />;
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-[var(--ecmp-form-gap)]">
-      <div className="mb-1 flex justify-end">
-        <LanguageSwitcher variant="compact" />
-      </div>
-      <div className="space-y-2">
-        <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-primary">
-          {tCommon("appName")}
-        </p>
-        <h1 className="text-[length:var(--ecmp-font-page-title-size)] font-[number:var(--ecmp-font-page-title-weight)] leading-[var(--ecmp-font-page-title-line)] tracking-tight text-ecmp-text-primary">
-          {t("resetPasswordTitle")}
-        </h1>
-        <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-          {t("resetPasswordSubtitle")}
-        </p>
-      </div>
+      <IdentityBrand
+        title={t("resetPasswordTitle")}
+        subtitle={t("resetPasswordSubtitle")}
+      />
 
       {!token ? (
         <Alert
@@ -134,21 +127,26 @@ function ResetPasswordForm() {
         maxLength={PASSWORD_MAX_LENGTH}
       />
 
+      <PasswordRequirements password={password} />
+
       {error ? (
         <Alert tone="danger" title={t("resetFailed")} description={error} />
       ) : null}
-      {success ? (
-        <Alert tone="success" title={t("passwordUpdated")} description={success} />
-      ) : null}
 
-      <Button type="submit" fullWidth loading={submitting} disabled={!token}>
+      <Button
+        type="submit"
+        fullWidth
+        loading={submitting}
+        disabled={!token}
+        className="min-h-[var(--ecmp-touch-min)]"
+      >
         {submitting ? tCommon("saving") : t("resetPassword")}
       </Button>
 
       <p className="text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
         <Link
           href="/login"
-          className="text-ecmp-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus focus-visible:ring-offset-[length:var(--ecmp-focus-ring-offset)]"
+          className="min-h-[var(--ecmp-touch-min)] inline-flex items-center text-ecmp-primary underline-offset-2 transition-colors duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-hover)] hover:underline focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus focus-visible:ring-offset-[length:var(--ecmp-focus-ring-offset)]"
         >
           {t("backToSignIn")}
         </Link>
@@ -160,10 +158,10 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   const t = useTranslations("auth");
   return (
-    <AuthLayout>
-      <Card>
-        <CardBody>
-          <Suspense fallback={<Loading label={t("loading")} />}>
+    <AuthLayout toolbar={<LanguageSwitcher variant="compact" />}>
+      <Card className="shadow-ecmp-raised">
+        <CardBody className="p-[var(--ecmp-panel-gap)] md:p-[var(--ecmp-section-gap)]">
+          <Suspense fallback={<Skeleton rows={4} aria-label={t("loading")} />}>
             <ResetPasswordForm />
           </Suspense>
         </CardBody>

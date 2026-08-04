@@ -1,8 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -31,6 +34,7 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { useToast } from "@/shared/providers";
 import {
   createEmptySlaPolicyForm,
   toSlaPolicyCreateRequest,
@@ -39,12 +43,19 @@ import {
   type SlaPolicyFormValues,
 } from "./slaPolicyForm";
 
-export function SlaPolicyManagement() {
+export function SlaPolicyManagement({
+  searchQuery = "",
+}: {
+  searchQuery?: string;
+} = {}) {
+  // presentation-only local filter; load/create/activate unchanged
   const t = useTranslations("settings");
   const tCommon = useTranslations("common");
+  const router = useRouter();
   const tValidation = useTranslations("validation");
   const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const canRead = hasPermission("sla:read");
   const canManage = hasPermission("sla:manage");
 
@@ -52,7 +63,6 @@ export function SlaPolicyManagement() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [values, setValues] = useState<SlaPolicyFormValues>(
@@ -105,7 +115,6 @@ export function SlaPolicyManagement() {
     event.preventDefault();
     if (!canManage) return;
     setActionError(null);
-    setActionSuccess(null);
     const errors = validateSlaPolicyForm(values);
     const fieldLabels: Partial<Record<keyof SlaPolicyFormValues, string>> = {
       assignmentTargetMinutes: t("assignmentTargetFieldLabel"),
@@ -141,7 +150,7 @@ export function SlaPolicyManagement() {
       await createSlaPolicy(toSlaPolicyCreateRequest(values));
       setValues(createEmptySlaPolicyForm());
       setShowCreate(false);
-      setActionSuccess(t("policyCreatedSuccess"));
+      pushSuccess(tCommon("success"), t("policyCreatedSuccess"));
       await load();
     } catch (err) {
       setActionError(
@@ -155,11 +164,13 @@ export function SlaPolicyManagement() {
   async function onActivate(policy: SlaPolicy) {
     if (!canManage || policy.isActive) return;
     setActionError(null);
-    setActionSuccess(null);
     setActivatingId(policy.id);
     try {
       await activateSlaPolicy(policy.id);
-      setActionSuccess(t("nowActiveMessage", { name: policy.name }));
+      pushSuccess(
+        tCommon("success"),
+        t("nowActiveMessage", { name: policy.name }),
+      );
       await load();
     } catch (err) {
       setActionError(
@@ -170,11 +181,24 @@ export function SlaPolicyManagement() {
     }
   }
 
+  const visiblePolicies = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return policies;
+    return policies.filter((policy) => {
+      const haystack = `${policy.name} ${policy.description ?? ""}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [policies, searchQuery]);
+
   if (!canRead) {
     return (
       <Empty
         title={tCommon("accessRestricted")}
         description={t("accessRestrictedSla")}
+        primaryAction={{
+          label: tCommon("goHome"),
+          onClick: () => router.push("/dashboard"),
+        }}
       />
     );
   }
@@ -261,10 +285,10 @@ export function SlaPolicyManagement() {
           canManage ? (
             <Button
               type="button"
+              className="min-h-[var(--ecmp-touch-min)]"
               onClick={() => {
                 setShowCreate((prev) => !prev);
                 setActionError(null);
-                setActionSuccess(null);
               }}
             >
               {showCreate ? tCommon("cancel") : t("createPolicy")}
@@ -279,13 +303,6 @@ export function SlaPolicyManagement() {
               tone="danger"
               title={t("actionFailed")}
               description={actionError}
-            />
-          ) : null}
-          {actionSuccess ? (
-            <Alert
-              tone="success"
-              title={tCommon("success")}
-              description={actionSuccess}
             />
           ) : null}
 
@@ -374,10 +391,14 @@ export function SlaPolicyManagement() {
           ) : !loadError ? (
             <Table
               columns={columns}
-              rows={policies}
+              rows={visiblePolicies}
               getRowKey={(row) => row.id}
               caption={t("slaPoliciesCaption")}
-              emptyMessage={t("noPoliciesTableMessage")}
+              emptyMessage={
+                searchQuery.trim()
+                  ? t("noPoliciesMatchSearch")
+                  : t("noPoliciesTableMessage")
+              }
             />
           ) : null}
         </CardBody>

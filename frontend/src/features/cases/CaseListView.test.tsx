@@ -1,15 +1,12 @@
 /**
  * CaseListView — permission / empty UX smoke.
  */
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "@/test/harness";
 
 const fetchCmCase = vi.fn();
 const hasPermission = vi.fn((code: string) => code === "complaints:read");
-
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
-}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -64,12 +61,12 @@ describe("CaseListView", () => {
 
   it("shows permission denied without complaints:read", () => {
     hasPermission.mockReturnValue(false);
-    render(<CaseListView complaintId={COMPLAINT_ID} />);
+    renderWithProviders(<CaseListView complaintId={COMPLAINT_ID} />);
     expect(screen.getByText(/permission denied/i)).toBeInTheDocument();
   });
 
   it("shows empty state when no session cases", async () => {
-    render(<CaseListView complaintId={COMPLAINT_ID} />);
+    renderWithProviders(<CaseListView complaintId={COMPLAINT_ID} />);
     await waitFor(() => {
       expect(screen.getByText(/no cases in this session/i)).toBeInTheDocument();
     });

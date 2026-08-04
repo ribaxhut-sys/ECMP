@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SidebarProvider } from "@/shared/hooks";
 import { Header } from "./Header";
@@ -16,6 +17,7 @@ export interface AppLayoutProps {
  */
 export function AppLayout({ children }: AppLayoutProps) {
   const tCommon = useTranslations("common");
+  const pathname = usePathname();
 
   return (
     <SidebarProvider>
@@ -34,7 +36,12 @@ export function AppLayout({ children }: AppLayoutProps) {
             className="min-w-0 flex-1 bg-ecmp-background"
             tabIndex={-1}
           >
-            {children}
+            <div
+              key={pathname}
+              className="animate-[ecmp-content-fade_var(--ecmp-duration-normal)_var(--ecmp-ease-enter)] motion-reduce:animate-none"
+            >
+              {children}
+            </div>
           </main>
         </div>
       </div>

@@ -7,12 +7,13 @@ import { ApiError, fetchComplaintSla } from "@/lib/api";
 import type { SlaRecord, SlaStatus } from "@/lib/api/types";
 import { formatDateTime } from "@/i18n/formatting";
 import {
-  Alert,
   Badge,
   Card,
   CardBody,
   CardHeader,
   CardTitle,
+  ErrorState,
+  Skeleton,
 } from "@/shared/ui";
 import type { BadgeTone } from "@/shared/ui";
 
@@ -50,7 +51,6 @@ export function SlaCard({
 }) {
   const { hasPermission } = useAuth();
   const t = useTranslations("complaints");
-  const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
   const locale = useLocale();
   const canRead = hasPermission("complaints:read");
@@ -105,16 +105,12 @@ export function SlaCard({
       </CardHeader>
       <CardBody className="space-y-[var(--ecmp-panel-gap)]">
         {loading ? (
-          <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-            {t("loadingSla")}
-          </p>
+          <Skeleton rows={2} />
         ) : loadError ? (
-          <Alert
-            tone="danger"
+          <ErrorState
             title={t("couldNotLoadSla")}
-            description={loadError}
-            actionLabel={tCommon("retry")}
-            onAction={() => void load()}
+            message={loadError}
+            onRetry={() => void load()}
           />
         ) : !sla ? (
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">

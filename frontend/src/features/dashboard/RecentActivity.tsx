@@ -1,113 +1,99 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { DashboardRecentActivityItem } from "@/lib/api/types";
-import { formatDateTime } from "@/i18n/formatting";
+import { Empty, Skeleton, Timeline } from "@/shared/ui";
+import { resolveActivityMeta } from "./activityLabels";
 import {
-  Card,
-  CardBody,
-  CardHeader,
-  PanelHeader,
-  Empty,
-  Skeleton,
-  Table,
-  type TableColumn,
-} from "@/shared/ui";
+  actorInitials,
+  DASHBOARD_CAPTION,
+  DASHBOARD_SECTION_TITLE,
+  DASHBOARD_SURFACE_QUIET,
+  formatRelativeTime,
+} from "./dashboardUtils";
 
 export function RecentActivity({
   rows,
   loading,
+  onRefresh,
 }: {
   rows: DashboardRecentActivityItem[] | null;
   loading: boolean;
+  onRefresh?: () => void;
 }) {
+  const router = useRouter();
   const t = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
 
-  const columns: TableColumn<DashboardRecentActivityItem>[] = [
-    {
-      key: "eventType",
-      header: t("eventType"),
-      cell: (row) => (
-        <span className="font-mono text-[length:var(--ecmp-font-caption-size)]">
-          {row.eventType}
-        </span>
-      ),
-    },
-    {
-      key: "complaintNumber",
-      header: t("complaintNumberColumn"),
-      cell: (row) => (
-        <Link
-          href={`/complaints?keyword=${encodeURIComponent(row.complaintNumber)}`}
-          className="font-mono text-[length:var(--ecmp-font-caption-size)] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-        >
-          {row.complaintNumber}
-        </Link>
-      ),
-    },
-    {
-      key: "timestamp",
-      header: t("timestamp"),
-      cell: (row) => (
-        <span className="text-ecmp-text-secondary">
-          {formatDateTime(row.timestamp, locale)}
-        </span>
-      ),
-    },
-    {
-      key: "actor",
-      header: t("actor"),
-      cell: (row) => <span>{row.actor}</span>,
-    },
-  ];
+  return (
+    <section
+      data-testid="dashboard-recent-activity"
+      id="recent-activity"
+      aria-label={t("recentActivity")}
+      className={`${DASHBOARD_SURFACE_QUIET} flex h-full flex-col p-3.5`}
+    >
+      <div>
+        <h2 className={DASHBOARD_SECTION_TITLE}>{t("recentActivity")}</h2>
+        <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>{t("latestComplaints")}</p>
+      </div>
 
-  if (loading) {
-    return (
-      <Card data-testid="dashboard-recent-activity">
-        <CardHeader>
-          <PanelHeader title={t("recentActivity")} className="mb-0 border-0 pb-0" />
-        </CardHeader>
-        <CardBody>
-          <Skeleton rows={5} />
-        </CardBody>
-      </Card>
-    );
-  }
-
-  if (!rows || rows.length === 0) {
-    return (
-      <Card data-testid="dashboard-recent-activity">
-        <CardHeader>
-          <PanelHeader title={t("recentActivity")} className="mb-0 border-0 pb-0" />
-        </CardHeader>
-        <CardBody>
+      {loading ? (
+        <div className="mt-3" aria-busy="true">
+          <Skeleton rows={4} />
+        </div>
+      ) : !rows || rows.length === 0 ? (
+        <div className="mt-3 flex-1">
           <Empty
             title={t("noActivity")}
             description={t("noActivityDescription")}
+            primaryAction={{
+              label: t("refreshDashboard"),
+              onClick: onRefresh,
+            }}
+            secondaryAction={{
+              label: tCommon("goToComplaints"),
+              onClick: () => router.push("/complaints"),
+            }}
           />
-        </CardBody>
-      </Card>
-    );
-  }
-
-  return (
-    <Card data-testid="dashboard-recent-activity">
-      <CardHeader>
-        <PanelHeader title={t("recentActivity")} className="mb-0 border-0 pb-0" />
-      </CardHeader>
-      <CardBody>
-        <Table
-          columns={columns}
-          rows={rows}
-          getRowKey={(row, index) =>
-            `${row.complaintNumber}-${row.eventType}-${row.timestamp}-${index}`
-          }
-          caption={t("recentActivity")}
-          emptyMessage={t("noActivityDescription")}
-        />
-      </CardBody>
-    </Card>
+        </div>
+      ) : (
+        <div className="mt-2.5 max-h-[20rem] flex-1 overflow-y-auto pr-1">
+          <Timeline
+            aria-label={t("recentActivity")}
+            items={rows.map((row, index) => {
+              const meta = resolveActivityMeta(row.eventType);
+              const initials = actorInitials(row.actor);
+              return {
+                id: `${row.complaintNumber}-${row.eventType}-${row.timestamp}-${index}`,
+                title: t(meta.labelKey),
+                time: formatRelativeTime(row.timestamp, locale),
+                actor: row.actor || tCommon("emDash"),
+                status: t(meta.badgeKey),
+                statusTone: meta.statusTone,
+                icon: (
+                  <span
+                    className="text-[10px] font-medium text-ecmp-primary"
+                    aria-hidden
+                  >
+                    {initials}
+                  </span>
+                ),
+                description: (
+                  <Link
+                    href={`/complaints?keyword=${encodeURIComponent(row.complaintNumber)}`}
+                    className="font-mono text-[12px] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+                  >
+                    {row.complaintNumber}
+                  </Link>
+                ),
+              };
+            })}
+          />
+        </div>
+      )}
+    </section>
   );
 }

@@ -17,8 +17,9 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
 from app.core.user_messages import m
-from app.models import Branch, Complaint
+from app.models import Branch, Complaint, ComplaintEscalation
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
 
 class OrgUnitResolver:
@@ -85,6 +86,35 @@ class OrgUnitResolver:
             or _as_optional_str(payload.get("orgUnitId"))
             or _as_optional_str(payload.get("org_unit_id"))
         )
+
+    def resolve_case(self, case_id: str) -> str | None:
+        """Map CAP-008 Case (Aggregate) → owning_unit_id.
+
+        Lookup mirrors ``SqlAlchemyCaseRepository.get`` (id, falling back to
+        case_number) so org-scope sees the same row the router will act on.
+        """
+        key = (case_id or "").strip()
+        if not key:
+            raise NotFoundError("Case does not exist.")
+        row: CmCaseORM | None = None
+        try:
+            row = self._session.get(CmCaseORM, uuid.UUID(key))
+        except ValueError:
+            row = None
+        if row is None:
+            row = self._session.scalar(
+                select(CmCaseORM).where(CmCaseORM.case_number == key)
+            )
+        if row is None:
+            raise NotFoundError("Case does not exist.")
+        return self.normalize(row.owning_unit_id)
+
+    def resolve_escalation(self, escalation_id: uuid.UUID) -> str | None:
+        """Map Escalation → parent Complaint → Branch.code (org unit key)."""
+        row = self._session.get(ComplaintEscalation, escalation_id)
+        if row is None or row.deleted_at is not None:
+            raise NotFoundError(m("escalation.not_found"))
+        return self.resolve_complaint(row.complaint_id)
 
 
 def _as_optional_str(value: Any) -> str | None:

@@ -27,6 +27,7 @@ import {
   Button,
   Card,
   CardBody,
+  DensityToggle,
   Empty,
   ErrorState,
   FilterBar,
@@ -34,11 +35,14 @@ import {
   PageContainer,
   PageHeader,
   Pagination,
+  QuickFilters,
   Select,
   Skeleton,
   Table,
+  WorkspaceToolbar,
   type BadgeTone,
   type TableColumn,
+  type TableDensity,
 } from "@/shared/ui";
 import { AssignmentRowActions } from "./AssignmentRowActions";
 import {
@@ -53,6 +57,17 @@ type RowEnrichment = {
   current: Assignment | null;
   previous: Assignment | null;
 };
+
+type QuickFilterId = "all" | "new" | "assigned" | "critical" | "inProgress";
+
+function activeQuickFilter(filters: AssignmentListFilters): QuickFilterId {
+  if (filters.priority === "CRITICAL" && !filters.status) return "critical";
+  if (filters.status === "NEW" && !filters.priority) return "new";
+  if (filters.status === "ASSIGNED" && !filters.priority) return "assigned";
+  if (filters.status === "IN_PROGRESS" && !filters.priority) return "inProgress";
+  if (!filters.status && !filters.priority) return "all";
+  return "all";
+}
 
 function formatWhen(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
@@ -117,6 +132,8 @@ export function AssignmentListView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | undefined>();
+  const [density, setDensity] = useState<TableDensity>("comfortable");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(filters);
@@ -233,6 +250,39 @@ export function AssignmentListView() {
     setDraft(next);
     applyFilters(next);
   }
+
+  function applyQuickFilter(id: string): void {
+    const base = defaultAssignmentFilters();
+    const next: AssignmentListFilters = {
+      ...base,
+      keyword: filters.keyword,
+      branchId: filters.branchId,
+      assignedTo: filters.assignedTo,
+      sort: filters.sort,
+      order: filters.order,
+      pageSize: filters.pageSize,
+    };
+    switch (id as QuickFilterId) {
+      case "new":
+        next.status = "NEW";
+        break;
+      case "assigned":
+        next.status = "ASSIGNED";
+        break;
+      case "inProgress":
+        next.status = "IN_PROGRESS";
+        break;
+      case "critical":
+        next.priority = "CRITICAL";
+        break;
+      default:
+        break;
+    }
+    setDraft(next);
+    applyFilters(next);
+  }
+
+  const currentQuick = activeQuickFilter(filters);
 
   const refresh = useCallback(() => {
     void load(filters);
@@ -423,6 +473,7 @@ export function AssignmentListView() {
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={tComplaints("overline")}
         title={t("title")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
@@ -434,6 +485,31 @@ export function AssignmentListView() {
             {tCommon("refresh")}
           </Button>
         }
+      />
+
+      <QuickFilters
+        label={tComplaints("quickFiltersLabel")}
+        onSelect={applyQuickFilter}
+        options={[
+          { id: "all", label: tComplaints("qfAll"), active: currentQuick === "all" },
+          { id: "new", label: tComplaints("qfNew"), active: currentQuick === "new" },
+          {
+            id: "assigned",
+            label: tStatus("ASSIGNED"),
+            active: currentQuick === "assigned",
+          },
+          {
+            id: "inProgress",
+            label: tComplaints("qfOpen"),
+            active: currentQuick === "inProgress",
+          },
+          {
+            id: "critical",
+            label: tComplaints("qfCritical"),
+            active: currentQuick === "critical",
+            tone: "critical",
+          },
+        ]}
       />
 
       <form onSubmit={onSubmitFilters} aria-label={t("searchFiltersAriaLabel")}>
@@ -550,26 +626,43 @@ export function AssignmentListView() {
         <Empty
           title={t("noItems")}
           description={t("noItemsDescription")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/queue")}
-            >
-              {t("openQueue")}
-            </Button>
-          }
+          primaryAction={{
+            label: t("refreshAssignments"),
+            onClick: () => void load(filters),
+          }}
+          secondaryAction={{
+            label: t("clearFilters"),
+            onClick: onResetFilters,
+          }}
         />
       ) : null}
 
       {!loading && !error && rows.length > 0 ? (
-        <Card>
-          <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+        <Card padding={false} className="overflow-hidden">
+          <CardBody className="space-y-[var(--ecmp-panel-gap)] p-4 md:p-6">
+            <WorkspaceToolbar
+              summary={tTable("itemsInView", { count: totalItems })}
+              density={<DensityToggle value={density} onChange={setDensity} />}
+              actions={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={refresh}
+                >
+                  {tCommon("refresh")}
+                </Button>
+              }
+            />
             <Table
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
               caption={t("caption")}
+              density={density}
+              stickyHeader
+              selectedKeys={selectedId ? new Set([selectedId]) : undefined}
+              onRowClick={(row) => setSelectedId(row.id)}
             />
             <Pagination
               summary={

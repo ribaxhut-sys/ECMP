@@ -203,19 +203,14 @@ export function CreateComplaintView() {
             { label: tCommon("create") },
           ]}
         />
-        <Empty
-          title={tCommon("accessRestricted")}
-          description={t("createAccessRestrictedDescription")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints")}
-            >
-              {t("backToList")}
-            </Button>
-          }
-        />
+          <Empty
+            title={tCommon("accessRestricted")}
+            description={t("createAccessRestrictedDescription")}
+            primaryAction={{
+              label: tCommon("goHome"),
+              onClick: () => router.push("/dashboard"),
+            }}
+          />
       </PageContainer>
     );
   }

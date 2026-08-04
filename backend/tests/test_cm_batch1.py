@@ -247,6 +247,47 @@ def test_tc_cm_fr001_04_missing_fields(service: CmBatch1Service) -> None:
         )
 
 
+def test_tc_cm_fr001_08_strict_master_unavailable_create_rejected(
+    store: Batch1Store,
+) -> None:
+    """AC-CM-FR001-08 — strict mode + Master Customer down at create time → reject.
+
+    Customer is confirmed/locked while Master Customer is reachable (mirrors
+    a real sequence: search + confirm succeed, then Master Customer goes down
+    before the create call lands). ``create_complaint`` re-checks existence
+    via ``self._customers.exists(...)`` (service.py ~L723) and must reject
+    when that check reports UNAVAILABLE under strict_master — it must not
+    silently fall back to the already-confirmed lock.
+    """
+    provider = StubCustomerProvider()
+    svc = CmBatch1Service(
+        customer_provider=provider,
+        guard=EnumerationGuard(max_failures=3, window_seconds=60, block_seconds=30),
+        store=store,
+        strict_master=True,
+    )
+    svc.confirm_customer("CUST-10001", principal_key="actor-strict")
+
+    provider._available = False  # Master Customer goes down after confirm.
+
+    with pytest.raises(ValidationAppError) as exc:
+        svc.create_complaint(
+            CreateComplaintBatch1Request(
+                customerId="CUST-10001",
+                category="BILLING",
+                channel="BRANCH",
+                subject="Strict reject",
+                description="Master Customer unavailable at create",
+            ),
+            request_id="req-strict-1",
+            channel_message_id=None,
+            actor_id="actor-strict",
+            principal_key="actor-strict",
+        )
+    assert "Strict" in exc.value.message
+    assert "ditolak" in exc.value.message
+
+
 def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
     first = confirmed_create(service,
         CreateComplaintBatch1Request(
@@ -412,6 +453,150 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
     assert replay.status_code == 200, replay.text
     assert replay.json()["data"]["complaintId"] == data["complaintId"]
     assert replay.json()["data"]["replayed"] is True
+
+
+@pytest.fixture()
+def api_client_unauthorized(service: CmBatch1Service) -> Generator[TestClient, None, None]:
+    """Same wiring as ``api_client``, but the principal lacks complaints:create.
+
+    AC-CM-FR001-05 — "Unauthorized -> reject + security audit". This exercises
+    the real ``require_permissions("complaints:create")`` dependency instead
+    of a hand-rolled check, matching the pattern the router actually uses.
+    """
+    app = create_app()
+    app.dependency_overrides[get_cm_batch1_service] = lambda: service
+
+    async def _principal() -> Principal:
+        return Principal(
+            user_id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+            roles=("VIEWER",),
+            permissions=frozenset({"complaints:read"}),  # no complaints:create
+        )
+
+    from app.core.authorization.authentication import get_current_principal
+
+    app.dependency_overrides[get_current_principal] = _principal
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+def test_tc_cm_fr001_05_unauthorized_create_rejected(
+    api_client_unauthorized: TestClient,
+) -> None:
+    """AC-CM-FR001-05 — principal without complaints:create is rejected (API-500).
+
+    HTTP-layer assertion only; the security-audit-row assertion is a separate
+    test gated on a real Postgres connection (see
+    ``test_tc_cm_fr001_05_unauthorized_create_writes_security_audit`` below) —
+    ``write_security_event`` never raises to the caller (by design, see
+    app/modules/audit/security_events.py), so the 403 here is verifiable in
+    any environment regardless of whether the audit write itself succeeds.
+    """
+    response = api_client_unauthorized.post(
+        "/api/v1/cm/complaints",
+        headers={"Idempotency-Key": "api-req-unauthz-1"},
+        json={
+            "customerId": "CUST-10001",
+            "category": "BILLING",
+            "channel": "BRANCH",
+            "subject": "Should be rejected",
+            "description": "No complaints:create permission",
+        },
+    )
+    assert response.status_code == 403, response.text
+    body = response.json()
+    assert body["code"] == "FORBIDDEN"
+    missing = (body.get("details") or {}).get("missingPermissions") or []
+    assert "complaints:create" in missing
+
+
+def _postgres_available() -> bool:
+    from sqlalchemy import create_engine as _create_engine
+    from sqlalchemy import text as _text
+
+    from app.core.config import get_settings
+
+    try:
+        eng = _create_engine(
+            get_settings().database_url,
+            pool_pre_ping=True,
+            future=True,
+            connect_args={"connect_timeout": 2},
+        )
+        with eng.connect() as conn:
+            conn.execute(_text("SELECT 1"))
+        eng.dispose()
+        return True
+    except Exception:
+        return False
+
+
+requires_postgres = pytest.mark.skipif(
+    not _postgres_available(),
+    reason="PostgreSQL not available for security-audit row assertion",
+)
+
+
+@requires_postgres
+def test_tc_cm_fr001_05_unauthorized_create_writes_security_audit(
+    api_client_unauthorized: TestClient,
+) -> None:
+    """AC-CM-FR001-05 — the reject is also recorded as a security audit row.
+
+    Same reject path as the always-on HTTP test above; this half additionally
+    verifies the ``security.permission_denied`` SystemAuditLog row, matching
+    the established platform pattern in
+    test_secmig_p5_security_smoke.py::test_http_permission_denied_returns_403_and_permission_denied_audit.
+    Skipped (not failed) when Postgres is unreachable, same as that file.
+    """
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.config import get_settings
+    from app.modules.audit.models import SystemAuditLog
+    from app.modules.audit.security_events import SecurityEventType
+
+    response = api_client_unauthorized.post(
+        "/api/v1/cm/complaints",
+        headers={"Idempotency-Key": "api-req-unauthz-audit-1"},
+        json={
+            "customerId": "CUST-10001",
+            "category": "BILLING",
+            "channel": "BRANCH",
+            "subject": "Should be rejected",
+            "description": "No complaints:create permission",
+        },
+    )
+    assert response.status_code == 403, response.text
+
+    # Separate connection to the same database — write_security_event commits
+    # on its own session inside the request, so a fresh read sees it too.
+    engine = create_engine(get_settings().database_url, pool_pre_ping=True, future=True)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    session = session_factory()
+    try:
+        rows = list(
+            session.scalars(
+                select(SystemAuditLog)
+                .where(
+                    SystemAuditLog.event_type
+                    == SecurityEventType.PERMISSION_DENIED.value,
+                    SystemAuditLog.actor_id
+                    == uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                )
+                .order_by(SystemAuditLog.created_at.desc())
+                .limit(5)
+            )
+        )
+        assert rows, "expected security.permission_denied audit row"
+        latest = rows[0]
+        assert latest.entity_type == "Security"
+        assert (latest.metadata_json or {}).get("reasonCode") == "FORBIDDEN"
+        assert (latest.metadata_json or {}).get("path") == "/api/v1/cm/complaints"
+    finally:
+        session.close()
+        engine.dispose()
 
 
 # --- S2 Task 01 persistence ---

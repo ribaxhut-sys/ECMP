@@ -255,6 +255,11 @@ export function StagingAttachmentsPanel({
               <Empty
                 title={t("noStagedAttachments")}
                 description={t("stagedAttachmentsDescription")}
+                primaryAction={{
+                  label: t("uploadFile"),
+                  onClick: onPick,
+                  disabled: disabled || uploading || !canUpload,
+                }}
               />
             </div>
           ) : (

@@ -71,6 +71,13 @@ MESSAGES: dict[str, str] = {
     "user.email_exists": "Alamat email sudah digunakan.",
     "user.not_found": "Pengguna tidak ditemukan.",
     "user.username_exists": "Nama pengguna sudah digunakan.",
+    "user.branch_required_for_role": (
+        "Cabang wajib diisi untuk peran operasional cabang "
+        "(agen, petugas cabang, supervisor, atau manager cabang)."
+    ),
+    "user.branch_forbidden_for_role": (
+        "Cabang tidak boleh diisi untuk peran kantor pusat."
+    ),
     # --- Branch ---
     "branch.not_found": "Cabang tidak ditemukan.",
     "branch.not_found_or_inactive": "Cabang tidak ditemukan atau tidak aktif.",
@@ -674,6 +681,8 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "User not found": "user.not_found",
     "User role link not found": "iam.user_role_not_found",
     "Username already exists": "user.username_exists",
+    "Branch is required for this role": "user.branch_required_for_role",
+    "Branch is not allowed for this role": "user.branch_forbidden_for_role",
     "active SLA cannot have completed_at set": "sla.active_cannot_have_completed_at",
     "active SLA does not belong to this complaint": "sla.active_not_belong_complaint",
     "active assignment cannot have released_at set": "assignment.active_cannot_have_released_at",

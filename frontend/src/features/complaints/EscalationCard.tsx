@@ -27,8 +27,8 @@ import {
   Modal,
   Select,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 const REASON_VALUES: readonly EscalationReasonCode[] = [
   "SPECIALIST_REQUIRED",
@@ -101,6 +101,7 @@ export function EscalationCard({
   onReviewed?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tReason = useTranslations("escalationReason");
@@ -136,9 +137,6 @@ export function EscalationCard({
   }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastTitle, setToastTitle] = useState("");
-  const [toastDescription, setToastDescription] = useState("");
 
   const [reviewAction, setReviewAction] = useState<ReviewAction | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
@@ -221,9 +219,7 @@ export function EscalationCard({
       setReasonDescription("");
       setDiagnosis("");
       setNotes("");
-      setToastTitle(t("escalationRequested"));
-      setToastDescription(t("awaitingHeadOfficeReview"));
-      setToastOpen(true);
+      pushSuccess(t("escalationRequested"), t("awaitingHeadOfficeReview"));
       onRequested?.();
     } catch (err) {
       setSubmitError(
@@ -267,18 +263,15 @@ export function EscalationCard({
       const body = { reviewNotes: notesTrimmed };
       if (reviewAction === "approve") {
         await approveEscalation(escalation.id, body);
-        setToastTitle(t("escalationApproved"));
-        setToastDescription(t("headOfficeWillHandle"));
+        pushSuccess(t("escalationApproved"), t("headOfficeWillHandle"));
       } else {
         await rejectEscalation(escalation.id, body);
-        setToastTitle(t("escalationRejected"));
-        setToastDescription(t("issueRemainsWithBranch"));
+        pushSuccess(t("escalationRejected"), t("issueRemainsWithBranch"));
       }
       const detail = await fetchEscalation(escalation.id);
       setEscalation(detail.data);
       setReviewAction(null);
       setReviewNotes("");
-      setToastOpen(true);
       onReviewed?.();
     } catch (err) {
       setReviewError(
@@ -559,14 +552,6 @@ export function EscalationCard({
           />
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={toastTitle}
-        description={toastDescription}
-      />
     </>
   );
 }

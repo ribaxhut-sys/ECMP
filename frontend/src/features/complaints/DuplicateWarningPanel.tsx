@@ -148,6 +148,11 @@ export function DuplicateWarningPanel({
           <Empty
             title={t("noCandidateDetails")}
             description={t("duplicateWarningDescription")}
+            primaryAction={{
+              label: tCommon("closeDialog"),
+              onClick: onClose,
+              disabled: busy,
+            }}
           />
         ) : (
           <ul className="max-h-48 space-y-2 overflow-auto">

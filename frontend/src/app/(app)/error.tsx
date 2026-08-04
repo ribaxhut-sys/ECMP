@@ -23,7 +23,6 @@ export default function AppError({
       <ErrorState
         title={t("appErrorTitle")}
         message={t("appErrorMessage")}
-        code={error.digest}
         actionLabel={tCommon("retry")}
         onRetry={reset}
       />

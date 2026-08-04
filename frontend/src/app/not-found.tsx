@@ -8,9 +8,6 @@ export default function NotFound() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-[var(--ecmp-panel-gap)] bg-ecmp-background px-[var(--ecmp-page-gutter)] text-center">
-      <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-        404
-      </p>
       <h1 className="text-[length:var(--ecmp-font-page-title-size)] font-[number:var(--ecmp-font-page-title-weight)] leading-[var(--ecmp-font-page-title-line)] tracking-tight text-ecmp-text-primary">
         {t("notFoundTitle")}
       </h1>

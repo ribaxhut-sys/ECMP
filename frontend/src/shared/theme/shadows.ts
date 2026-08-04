@@ -20,6 +20,7 @@ export const shadows = {
   floating: "var(--ecmp-shadow-floating)",
   overlay: "var(--ecmp-shadow-overlay)",
   hover: "var(--ecmp-shadow-hover)",
+  search: "var(--ecmp-shadow-search)",
 } as const;
 
 export type ShadowToken = keyof typeof shadows;

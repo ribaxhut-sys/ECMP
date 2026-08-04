@@ -232,7 +232,14 @@ export function TimelineCard({
             onAction={() => void load()}
           />
         ) : entries.length === 0 ? (
-          <Empty title={t("timelineCard")} description={t("noActivityYet")} />
+          <Empty
+            title={t("noActivityYet")}
+            description={t("timelineEmptyDescription")}
+            primaryAction={{
+              label: tCommon("refresh"),
+              onClick: () => void load(),
+            }}
+          />
         ) : (
           <Timeline
             aria-label={t("timelineAriaLabel")}

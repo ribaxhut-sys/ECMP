@@ -9,6 +9,7 @@ import { Alert } from "@/shared/ui/alert";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Breadcrumb } from "@/shared/ui/breadcrumb";
+import { renderWithProviders } from "@/test/harness";
 
 async function runAxe(container: HTMLElement) {
   const results = await axe.run(container, {
@@ -52,7 +53,8 @@ describe("a11y smoke (shared UI)", () => {
   });
 
   it("Breadcrumb navigation has no axe violations", async () => {
-    const { container } = render(
+    // Breadcrumb labels its <nav> via common.breadcrumb — needs the i18n provider.
+    const { container } = renderWithProviders(
       <Breadcrumb
         items={[
           { label: "Home", href: "/dashboard" },

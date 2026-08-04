@@ -4,10 +4,15 @@ import type { ReactNode } from "react";
 import { SectionHeader } from "@/shared/ui";
 
 export type CwxEvidenceSurfaceProps = {
-  /** Presentation label only — parent supplies translated copy. */
+  /** Presentation label only — parent supplies translated copy. Used for aria-label. */
   title: string;
   /** Optional presentation hint — never business/context fields. */
   description?: string;
+  /**
+   * When false, omit visual SectionHeader so a native child that already
+   * provides its own heading is the sole visual title (a11y via aria-label).
+   */
+  showHeading?: boolean;
   /**
    * Native evidence capability (Foundation or Aggregate).
    * Parent owns SoT selection; this shell never branches on SoT.
@@ -25,6 +30,7 @@ export type CwxEvidenceSurfaceProps = {
 export function CwxEvidenceSurface({
   title,
   description,
+  showHeading = true,
   children,
 }: CwxEvidenceSurfaceProps) {
   return (
@@ -33,7 +39,13 @@ export function CwxEvidenceSurface({
       className="space-y-[var(--ecmp-panel-gap)]"
       aria-label={title}
     >
-      <SectionHeader title={title} description={description} />
+      {showHeading ? (
+        <SectionHeader title={title} description={description} />
+      ) : description ? (
+        <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+          {description}
+        </p>
+      ) : null}
       {children}
     </section>
   );

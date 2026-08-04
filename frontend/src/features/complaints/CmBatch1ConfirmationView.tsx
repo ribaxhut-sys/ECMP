@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
@@ -10,17 +10,18 @@ import {
   type CmBatch1ComplaintResponse,
 } from "@/lib/api";
 import {
-  Alert,
   Badge,
   Button,
   Card,
   CardBody,
   Empty,
+  ErrorState,
   PageContainer,
   PageHeader,
   SectionHeader,
   Skeleton,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
 
 /**
@@ -37,12 +38,14 @@ export function CmBatch1ConfirmationView({
   const tCases = useTranslations("cases");
   const router = useRouter();
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const canRead =
     hasPermission("complaints:read") || hasPermission("complaints:create");
 
   const [data, setData] = useState<CmBatch1ComplaintResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const announcedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!canRead || !complaintId.trim()) {
@@ -73,6 +76,16 @@ export function CmBatch1ConfirmationView({
     };
   }, [canRead, complaintId, t]);
 
+  useEffect(() => {
+    if (!data) return;
+    if (announcedIdRef.current === data.complaintId) return;
+    announcedIdRef.current = data.complaintId;
+    pushSuccess(
+      t("createdSuccess"),
+      t("registeredDescription", { number: data.complaintNumber }),
+    );
+  }, [data, pushSuccess, t]);
+
   if (!canRead) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -87,19 +100,17 @@ export function CmBatch1ConfirmationView({
         <Empty
           title={t("accessRestricted")}
           description={t("confirmationAccessDescription")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints")}
-            >
-              {t("backToComplaints")}
-            </Button>
-          }
+          primaryAction={{
+            label: tCommon("goHome"),
+            onClick: () => router.push("/dashboard"),
+          }}
         />
       </PageContainer>
     );
   }
+
+  const statusLabel =
+    data?.status === "REGISTERED" ? t("registered") : (data?.status ?? "");
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -116,17 +127,28 @@ export function CmBatch1ConfirmationView({
       {loading ? <Skeleton rows={5} /> : null}
 
       {!loading && error ? (
-        <Alert tone="danger" title={t("couldNotLoadComplaint")} description={error} />
+        <ErrorState
+          title={t("couldNotLoadComplaint")}
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            void fetchCmBatch1Complaint(complaintId.trim())
+              .then((res) => setData(res.data))
+              .catch((err) =>
+                setError(
+                  err instanceof ApiError
+                    ? err.message
+                    : t("couldNotLoadComplaint"),
+                ),
+              )
+              .finally(() => setLoading(false));
+          }}
+        />
       ) : null}
 
       {!loading && data ? (
         <>
-          <Alert
-            tone="success"
-            title={t("createdSuccess")}
-            description={t("registeredDescription", { number: data.complaintNumber })}
-          />
-
           <section className="space-y-[var(--ecmp-panel-gap)]">
             <SectionHeader
               title={t("registrationDetails")}
@@ -145,26 +167,10 @@ export function CmBatch1ConfirmationView({
                   </div>
                   <div className="space-y-1">
                     <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                      {t("complaintId")}
-                    </dt>
-                    <dd className="break-all font-mono text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
-                      {data.complaintId}
-                    </dd>
-                  </div>
-                  <div className="space-y-1">
-                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                       {t("status")}
                     </dt>
                     <dd>
-                      <Badge tone="info">{data.status}</Badge>
-                    </dd>
-                  </div>
-                  <div className="space-y-1">
-                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                      {t("customerId")}
-                    </dt>
-                    <dd className="break-all font-mono text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
-                      {data.customerId}
+                      <Badge tone="info">{statusLabel}</Badge>
                     </dd>
                   </div>
                   <div className="space-y-1">
@@ -175,14 +181,16 @@ export function CmBatch1ConfirmationView({
                       {data.caseCreated ? tCommon("yes") : tCommon("no")}
                     </dd>
                   </div>
-                  <div className="space-y-1">
-                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                      {t("replayed")}
-                    </dt>
-                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                      {data.replayed ? tCommon("yes") : tCommon("no")}
-                    </dd>
-                  </div>
+                  {data.replayed ? (
+                    <div className="space-y-1">
+                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("replayed")}
+                      </dt>
+                      <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {tCommon("yes")}
+                      </dd>
+                    </div>
+                  ) : null}
                   {data.category ? (
                     <div className="space-y-1">
                       <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
@@ -243,7 +251,7 @@ export function CmBatch1ConfirmationView({
               variant="outline"
               onClick={() => router.push("/complaints")}
             >
-              {t("backToFoundationList")}
+              {t("backToComplaints")}
             </Button>
           </div>
         </>

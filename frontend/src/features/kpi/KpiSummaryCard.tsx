@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { KpiSummary } from "@/lib/api/types";
 import {
@@ -57,12 +58,16 @@ function StageRow({
 export function KpiSummaryCard({
   summary,
   loading,
+  onRefresh,
 }: {
   summary: KpiSummary | null;
   loading: boolean;
+  onRefresh?: () => void;
 }) {
+  const router = useRouter();
   const t = useTranslations("kpi");
   const td = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
 
   if (loading) {
     return (
@@ -87,6 +92,15 @@ export function KpiSummaryCard({
           <Empty
             title={t("noData")}
             description={t("noDataDescription")}
+            primaryAction={
+              onRefresh
+                ? { label: tCommon("refreshPage"), onClick: onRefresh }
+                : undefined
+            }
+            secondaryAction={{
+              label: tCommon("goToComplaints"),
+              onClick: () => router.push("/complaints"),
+            }}
           />
         </CardBody>
       </Card>

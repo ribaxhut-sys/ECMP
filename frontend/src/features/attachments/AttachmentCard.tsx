@@ -147,7 +147,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
             </div>
             <div className="min-w-0 space-y-1">
               <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                {t("mimeType")}
+                {t("fileType")}
               </dt>
               <dd className="break-all text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
                 {attachment.mimeType}
@@ -167,7 +167,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
             <Alert tone="danger" title={t("actionFailed")} description={actionError} />
           ) : null}
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {kind !== "unsupported" ? (
               <Button
                 type="button"
@@ -178,7 +178,9 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
                 disabled={busy}
               >{t("preview")}              </Button>
             ) : (
-              <Button type="button" variant="outline" size="sm" disabled>{t("previewNotSupportedButton")}              </Button>
+              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {t("previewNotSupportedDescription")}
+              </p>
             )}
             <Button
               type="button"

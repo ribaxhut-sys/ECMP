@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
-import { Loading } from "@/shared/ui";
+import { PageContainer, Skeleton } from "@/shared/ui";
 
 /**
  * Client-side session gate. Preserves existing auth redirect behavior;
@@ -36,11 +36,22 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }, [status, forcePasswordChange, pathname, router]);
 
   if (status === "loading" || status === "unauthenticated") {
-    return <Loading label={t("loading")} />;
+    return (
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]" aria-label={t("loading")}>
+        <Skeleton rows={6} />
+      </PageContainer>
+    );
   }
 
   if (forcePasswordChange && pathname !== PASSWORD_CHANGE_ROUTE) {
-    return <Loading label={t("passwordChangeRequired")} />;
+    return (
+      <PageContainer
+        className="space-y-[var(--ecmp-section-gap)]"
+        aria-label={t("passwordChangeRequired")}
+      >
+        <Skeleton rows={4} />
+      </PageContainer>
+    );
   }
 
   return <>{children}</>;

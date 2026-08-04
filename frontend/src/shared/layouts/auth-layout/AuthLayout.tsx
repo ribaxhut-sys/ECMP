@@ -1,36 +1,39 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/utils";
+import { IdentityTrustFooter } from "./IdentityTrustFooter";
 
 export interface AuthLayoutProps {
   children: ReactNode;
   className?: string;
+  /** Optional top-right chrome (e.g. language switcher). */
+  toolbar?: ReactNode;
+  showTrustFooter?: boolean;
 }
 
 /**
- * Centered auth shell for login / session screens.
- * Provides enterprise background layering; pages supply their own Card content.
- * No illustrations. No heavy gradients.
+ * Centered auth shell for login / recovery screens.
+ * Flat enterprise surface — no gradients, illustrations, or glassmorphism.
  */
-export function AuthLayout({ children, className }: AuthLayoutProps) {
+export function AuthLayout({
+  children,
+  className,
+  toolbar,
+  showTrustFooter = true,
+}: AuthLayoutProps) {
   return (
     <div
       className={cn(
         "relative flex min-h-screen w-full items-center justify-center overflow-x-hidden",
-        "bg-ecmp-background px-[var(--ecmp-page-gutter)] py-[var(--ecmp-section-gap)]",
+        "bg-ecmp-surface-sunken px-[var(--ecmp-page-gutter)] py-[var(--ecmp-section-gap)]",
         className,
       )}
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-ecmp-surface-sunken"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-44 border-b border-ecmp-border bg-ecmp-surface shadow-ecmp-surface"
-      />
-
-      <div className="relative z-[1] w-full max-w-[var(--ecmp-form-max-width)]">
+      <div className="relative z-[1] flex w-full max-w-[var(--ecmp-form-max-width)] flex-col gap-[var(--ecmp-panel-gap)]">
+        {toolbar ? (
+          <div className="flex justify-end">{toolbar}</div>
+        ) : null}
         {children}
+        {showTrustFooter ? <IdentityTrustFooter /> : null}
       </div>
     </div>
   );

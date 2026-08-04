@@ -35,6 +35,7 @@ import {
   Button,
   Card,
   CardBody,
+  DensityToggle,
   Empty,
   ErrorState,
   FilterBar,
@@ -42,11 +43,14 @@ import {
   PageContainer,
   PageHeader,
   Pagination,
+  QuickFilters,
   Select,
   Skeleton,
   Table,
+  WorkspaceToolbar,
   type BadgeTone,
   type TableColumn,
+  type TableDensity,
 } from "@/shared/ui";
 import { ResolutionRowActions } from "./ResolutionRowActions";
 import {
@@ -63,6 +67,30 @@ type RowEnrichment = {
   finalResolution: FinalResolutionDetail | null;
   escalation: Escalation | null;
 };
+
+type QuickFilterId =
+  | "all"
+  | "critical"
+  | "resolved"
+  | "escalated"
+  | "closed";
+
+function activeQuickFilter(filters: ResolutionListFilters): QuickFilterId {
+  if (filters.priority === "CRITICAL" && !filters.status && !filters.escalated) {
+    return "critical";
+  }
+  if (filters.status === "RESOLVED" && !filters.priority && !filters.escalated) {
+    return "resolved";
+  }
+  if (filters.status === "CLOSED" && !filters.priority && !filters.escalated) {
+    return "closed";
+  }
+  if (filters.escalated === "true" && !filters.status && !filters.priority) {
+    return "escalated";
+  }
+  if (!filters.status && !filters.priority && !filters.escalated) return "all";
+  return "all";
+}
 
 function formatWhen(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
@@ -151,6 +179,8 @@ export function ResolutionListView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | undefined>();
+  const [density, setDensity] = useState<TableDensity>("comfortable");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(filters);
@@ -288,6 +318,38 @@ export function ResolutionListView() {
     setDraft(next);
     applyFilters(next);
   }
+
+  function applyQuickFilter(id: string): void {
+    const base = defaultResolutionFilters();
+    const next: ResolutionListFilters = {
+      ...base,
+      keyword: filters.keyword,
+      branchId: filters.branchId,
+      sort: filters.sort,
+      order: filters.order,
+      pageSize: filters.pageSize,
+    };
+    switch (id as QuickFilterId) {
+      case "critical":
+        next.priority = "CRITICAL";
+        break;
+      case "resolved":
+        next.status = "RESOLVED";
+        break;
+      case "closed":
+        next.status = "CLOSED";
+        break;
+      case "escalated":
+        next.escalated = "true";
+        break;
+      default:
+        break;
+    }
+    setDraft(next);
+    applyFilters(next);
+  }
+
+  const currentQuick = activeQuickFilter(filters);
 
   const refresh = useCallback(() => {
     void load(filters);
@@ -517,6 +579,7 @@ export function ResolutionListView() {
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={tComplaints("overline")}
         title={t("title")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
@@ -528,6 +591,37 @@ export function ResolutionListView() {
             {tCommon("refresh")}
           </Button>
         }
+      />
+
+      <QuickFilters
+        label={tComplaints("quickFiltersLabel")}
+        onSelect={applyQuickFilter}
+        options={[
+          { id: "all", label: tComplaints("qfAll"), active: currentQuick === "all" },
+          {
+            id: "critical",
+            label: tComplaints("qfCritical"),
+            active: currentQuick === "critical",
+            tone: "critical",
+          },
+          {
+            id: "resolved",
+            label: tComplaints("qfResolved"),
+            active: currentQuick === "resolved",
+            tone: "healthy",
+          },
+          {
+            id: "escalated",
+            label: tComplaints("qfEscalated"),
+            active: currentQuick === "escalated",
+            tone: "critical",
+          },
+          {
+            id: "closed",
+            label: tStatus("CLOSED"),
+            active: currentQuick === "closed",
+          },
+        ]}
       />
 
       <form onSubmit={onSubmitFilters} aria-label={t("searchFiltersAriaLabel")}>
@@ -644,26 +738,43 @@ export function ResolutionListView() {
         <Empty
           title={t("noItems")}
           description={t("noItemsDescription")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/queue")}
-            >
-              {t("openQueue")}
-            </Button>
-          }
+          primaryAction={{
+            label: t("refreshResolutions"),
+            onClick: () => void load(filters),
+          }}
+          secondaryAction={{
+            label: t("clearFilters"),
+            onClick: onResetFilters,
+          }}
         />
       ) : null}
 
       {!loading && !error && rows.length > 0 ? (
-        <Card>
-          <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+        <Card padding={false} className="overflow-hidden">
+          <CardBody className="space-y-[var(--ecmp-panel-gap)] p-4 md:p-6">
+            <WorkspaceToolbar
+              summary={tTable("itemsInView", { count: totalItems })}
+              density={<DensityToggle value={density} onChange={setDensity} />}
+              actions={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={refresh}
+                >
+                  {tCommon("refresh")}
+                </Button>
+              }
+            />
             <Table
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
               caption={t("caption")}
+              density={density}
+              stickyHeader
+              selectedKeys={selectedId ? new Set([selectedId]) : undefined}
+              onRowClick={(row) => setSelectedId(row.id)}
             />
             <Pagination
               summary={

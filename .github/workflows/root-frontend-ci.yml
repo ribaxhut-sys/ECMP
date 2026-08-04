@@ -2,7 +2,7 @@ name: Root Frontend CI
 
 # Product UI CI for canonical frontend/ (DEC-019).
 # FE-CI-POL-001 v1.0 Accepted with Conditions (FE-CI-POL-CS-001):
-#   Phase A/B hard: typecheck, lint, build
+#   Phase A/B hard: typecheck, lint, i18n coverage guardrail, build
 #   Phase C hard: unit tests + coverage thresholds
 #   K-3 / AEN-03: Mode A credential-route inventory + enterprise guard self-test
 #   Still warn: npm audit, a11y smoke
@@ -45,6 +45,10 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      - name: I18N coverage guardrail
+        # Static localization gate — fails on missing keys, EN/ID parity
+        # mismatches, duplicate JSON keys, or invalid locale JSON.
+        run: npm run check:i18n
       - name: Mode A credential route inventory (standalone)
         # Mode A delivery may keep login/password routes. Documents surface for ADR-014.
         run: npm run check:auth-routes

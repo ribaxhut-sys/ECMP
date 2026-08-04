@@ -8,7 +8,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_final_resolution, require_permissions
+from app.core.auth import (
+    OrgUnitResolver,
+    Principal,
+    enforce_org_scope,
+    require_final_resolution,
+    require_permissions,
+)
+from app.core.config import Settings, get_settings
 from app.core.errors import NotFoundError
 from app.core.schemas import DataResponse
 from app.core.user_messages import m
@@ -44,8 +51,15 @@ def resolve_complaint(
     payload: ResolveComplaintRequest,
     service: Annotated[ResolutionService, Depends(get_resolution_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ResolveComplaintResult]:
-    """IN_PROGRESS → RESOLVED with mandatory resolution record (API-225)."""
+    """IN_PROGRESS → RESOLVED with mandatory resolution record (API-225).
+
+    SECMIG-P4 parity: org scope after permission check, before mutation.
+    """
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.resolve(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)
 
@@ -60,9 +74,15 @@ def get_complaint_resolution(
     id: uuid.UUID,
     service: Annotated[ResolutionService, Depends(get_resolution_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ResolutionResponse]:
-    """Current resolution for display on complaint detail (API-226)."""
-    _ = principal
+    """Current resolution for display on complaint detail (API-226).
+
+    SECMIG-P4 parity: org scope on approved read (after permission).
+    """
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     current = service.get_current(id)
     if current is None:
         raise NotFoundError(m("resolution.generic_not_found"))
@@ -80,11 +100,16 @@ def submit_final_resolution(
     payload: FinalResolutionRequest,
     service: Annotated[ResolutionService, Depends(get_resolution_service)],
     principal: Annotated[Principal, Depends(require_final_resolution)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[FinalResolutionResult]:
     """Final Resolution after appointment COMPLETED (API-310 / DEC-011).
 
     Complaint remains IN_PROGRESS; escalation remains APPROVED.
+    SECMIG-P4 parity: org scope after permission check, before mutation.
     """
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.submit_final_resolution(
         id, payload, actor_user_id=principal.user_id
     )
@@ -101,9 +126,15 @@ def get_final_resolution(
     id: uuid.UUID,
     service: Annotated[ResolutionService, Depends(get_resolution_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[FinalResolutionResponse]:
-    """Submitted Final Resolution for Complaint Detail (read companion to API-310)."""
-    _ = principal
+    """Submitted Final Resolution for Complaint Detail (read companion to API-310).
+
+    SECMIG-P4 parity: org scope on approved read (after permission).
+    """
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     current = service.get_final_resolution(id)
     if current is None:
         raise NotFoundError(m("resolution.not_found"))

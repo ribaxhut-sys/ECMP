@@ -18,11 +18,11 @@ export function Card({
   return (
     <section
       className={cn(
-        "rounded-[var(--ecmp-radius-card)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-raised",
-        "transition-[box-shadow,border-color,transform] duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-hover)]",
+        "rounded-[var(--ecmp-radius-card)] border border-ecmp-border/80 bg-ecmp-surface shadow-ecmp-raised",
+        "transition-[box-shadow,border-color,transform] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
         interactive &&
-          "cursor-pointer hover:border-ecmp-secondary hover:shadow-ecmp-hover",
-        padding && "p-4 md:p-6",
+          "cursor-pointer hover:-translate-y-[2px] hover:border-ecmp-secondary/40 hover:shadow-ecmp-hover motion-reduce:hover:translate-y-0",
+        padding && "p-[var(--ecmp-card-padding)]",
         className,
       )}
       data-interactive={interactive || undefined}
@@ -61,7 +61,7 @@ export function CardTitle({
   return (
     <h2
       className={cn(
-        "text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] leading-[var(--ecmp-font-card-title-line)] text-ecmp-text-primary",
+        "text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] leading-[var(--ecmp-font-card-title-line)] tracking-tight text-ecmp-text-primary",
         className,
       )}
       {...props}
@@ -109,7 +109,7 @@ export function CardFooter({
   return (
     <div
       className={cn(
-        "mt-[var(--ecmp-card-gap)] flex flex-wrap items-center gap-2 border-t border-ecmp-border pt-[var(--ecmp-card-gap)]",
+        "mt-[var(--ecmp-card-gap)] flex flex-wrap items-center gap-2 border-t border-ecmp-border/80 pt-[var(--ecmp-card-gap)]",
         className,
       )}
       {...props}

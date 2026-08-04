@@ -1,22 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchAttachment, type Attachment } from "@/lib/api";
-import { Alert, Empty, Skeleton } from "@/shared/ui";
+import { Empty, ErrorState, Skeleton, type EmptyActionConfig } from "@/shared/ui";
 import { AttachmentCard } from "./AttachmentCard";
 
 export interface AttachmentListProps {
   /** Preloaded metadata (preferred when already available). */
   attachments?: Attachment[];
   /**
-   * Attachment UUIDs to load via API-324.
-   * There is no list-by-object endpoint; parents must supply IDs.
+   * Attachment IDs to load when the parent already knows them.
    */
   attachmentIds?: string[];
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyPrimaryAction?: EmptyActionConfig;
 }
 
 function mapError(error: unknown, t: (key: string) => string): string {
@@ -34,8 +35,11 @@ export function AttachmentList({
   attachmentIds,
   emptyTitle = undefined,
   emptyDescription = undefined,
+  emptyPrimaryAction,
 }: AttachmentListProps) {
+  const router = useRouter();
   const t = useTranslations("attachments");
+  const tCommon = useTranslations("common");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("attachment:read") || hasPermission("*");
 
@@ -89,34 +93,31 @@ export function AttachmentList({
 
   if (!canRead) {
     return (
-      <Alert
-        tone="warning"
+      <Empty
         title={t("permissionRequired")}
         description={t("readPermissionRequiredDescription")}
+        primaryAction={{
+          label: tCommon("goHome"),
+          onClick: () => router.push("/dashboard"),
+        }}
       />
     );
   }
 
   if (loading) {
     return (
-      <div
-        className="space-y-[var(--ecmp-card-gap)]"
-        data-testid="attachment-list-loading"
-      >
-        <Skeleton className="h-36 w-full" />
-        <Skeleton className="h-36 w-full" />
+      <div data-testid="attachment-list-loading">
+        <Skeleton rows={6} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <Alert
-        tone="danger"
+      <ErrorState
         title={t("couldNotLoad")}
-        description={error}
-        actionLabel={t("retry")}
-        onAction={
+        message={error}
+        onRetry={
           attachmentIds?.length
             ? () => void loadByIds(attachmentIds)
             : undefined
@@ -126,7 +127,24 @@ export function AttachmentList({
   }
 
   if (items.length === 0) {
-    return <Empty title={emptyTitle ?? t("noItems")} description={emptyDescription ?? t("provideIdsDescription")} />;
+    return (
+      <Empty
+        title={emptyTitle ?? t("noItems")}
+        description={emptyDescription ?? t("noItemsDescription")}
+        primaryAction={
+          emptyPrimaryAction ??
+          (attachmentIds?.length
+            ? {
+                label: t("refreshAttachments"),
+                onClick: () => void loadByIds(attachmentIds),
+              }
+            : {
+                label: tCommon("goToComplaints"),
+                onClick: () => router.push("/complaints"),
+              })
+        }
+      />
+    );
   }
 
   return (

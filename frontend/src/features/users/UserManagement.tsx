@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -11,21 +12,30 @@ import {
 import type { AdminResetPasswordResponse } from "@/lib/api/types";
 import {
   Alert,
-  Badge,
   Button,
-  Card,
-  CardBody,
+  DensityToggle,
   Empty,
   ErrorState,
+  Input,
   Modal,
   PageContainer,
   PageHeader,
+  QuickFilters,
   SectionHeader,
   Skeleton,
-  Table,
-  type TableColumn,
+  WorkspaceToolbar,
+  type TableDensity,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { useToast } from "@/shared/providers";
+import { CreateUserModal } from "./CreateUserModal";
+import { DirectoryPeopleList } from "./DirectoryPeopleList";
+import { DirectoryPreviewPanel } from "./DirectoryPreviewPanel";
+import {
+  matchesDirectoryFilter,
+  matchesDirectorySearch,
+  type DirectoryFilter,
+} from "./directoryHelpers";
 
 type ConfirmTarget = {
   user: UserRef;
@@ -35,18 +45,6 @@ type RevealedPassword = {
   user: UserRef;
   result: AdminResetPasswordResponse;
 };
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function printTemporaryPassword(payload: {
   username: string;
@@ -100,22 +98,30 @@ function printTemporaryPassword(payload: {
 }
 
 export function UserManagement() {
+  const router = useRouter();
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
   const { userId, hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const canRead = hasPermission("users:read");
   const canReset = hasPermission("users:reset_password");
+  const canCreate = hasPermission("users:create");
 
   const [rows, setRows] = useState<UserRef[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [revealed, setRevealed] = useState<RevealedPassword | null>(null);
   const [resetting, setResetting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [directoryFilter, setDirectoryFilter] = useState<DirectoryFilter>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [density, setDensity] = useState<TableDensity>("comfortable");
+  const [showEmail, setShowEmail] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -143,9 +149,72 @@ export function UserManagement() {
     void load();
   }, [load]);
 
+  const filteredRows = useMemo(() => {
+    return rows.filter(
+      (row) =>
+        matchesDirectoryFilter(row, directoryFilter) &&
+        matchesDirectorySearch(row, searchQuery),
+    );
+  }, [rows, searchQuery, directoryFilter]);
+
+  const selectedUser = useMemo(
+    () => filteredRows.find((row) => row.id === selectedId) ?? null,
+    [filteredRows, selectedId],
+  );
+
+  useEffect(() => {
+    if (selectedId && !filteredRows.some((row) => row.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [filteredRows, selectedId]);
+
+  const filterOptions = useMemo(
+    () => [
+      {
+        id: "active",
+        label: t("filterActive"),
+        active: directoryFilter === "active",
+        tone: "healthy" as const,
+        count: rows.filter((row) => row.isActive).length,
+      },
+      {
+        id: "inactive",
+        label: t("filterInactive"),
+        active: directoryFilter === "inactive",
+        tone: "default" as const,
+        count: rows.filter((row) => !row.isActive).length,
+      },
+      {
+        id: "administrator",
+        label: t("filterAdministrators"),
+        active: directoryFilter === "administrator",
+        tone: "critical" as const,
+        count: rows.filter((row) =>
+          matchesDirectoryFilter(row, "administrator"),
+        ).length,
+      },
+      {
+        id: "supervisor",
+        label: t("filterSupervisors"),
+        active: directoryFilter === "supervisor",
+        tone: "attention" as const,
+        count: rows.filter((row) =>
+          matchesDirectoryFilter(row, "supervisor"),
+        ).length,
+      },
+      {
+        id: "agent",
+        label: t("filterAgents"),
+        active: directoryFilter === "agent",
+        tone: "healthy" as const,
+        count: rows.filter((row) => matchesDirectoryFilter(row, "agent")).length,
+      },
+    ],
+    [directoryFilter, rows, t],
+  );
+
   function openConfirm(user: UserRef) {
     setActionError(null);
-    setActionSuccess(null);
     setCopied(false);
     setConfirmTarget({ user });
   }
@@ -155,7 +224,6 @@ export function UserManagement() {
     setConfirmTarget(null);
   }
 
-  /** Closing discards the temporary password permanently from UI state. */
   function closeRevealed() {
     setRevealed(null);
     setCopied(false);
@@ -165,12 +233,12 @@ export function UserManagement() {
     if (!confirmTarget || !canReset) return;
     setResetting(true);
     setActionError(null);
-    setActionSuccess(null);
     try {
       const result = await adminResetPassword(confirmTarget.user.id);
       setRevealed({ user: confirmTarget.user, result });
       setConfirmTarget(null);
-      setActionSuccess(
+      pushSuccess(
+        t("resetPassword"),
         t("passwordResetSuccess", { username: confirmTarget.user.username }),
       );
     } catch (err) {
@@ -198,144 +266,199 @@ export function UserManagement() {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
+          overline={t("overline")}
           title={t("title")}
           breadcrumbs={[
             { label: tCommon("home"), href: "/dashboard" },
             { label: t("title") },
           ]}
+          description={t("description")}
         />
         <Empty
           title={t("accessRestricted")}
           description={t("accessRestrictedDescription")}
+          primaryAction={{
+            label: tCommon("goHome"),
+            onClick: () => router.push("/dashboard"),
+          }}
         />
       </PageContainer>
     );
   }
 
-  const columns: TableColumn<UserRef>[] = [
-    {
-      key: "username",
-      header: t("username"),
-      cell: (row) => (
-        <div className="space-y-0.5">
-          <div className="font-medium text-ecmp-text-primary">{row.username}</div>
-          <div className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-            {row.fullName}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: "email",
-      header: t("email"),
-      cell: (row) => row.email,
-    },
-    {
-      key: "role",
-      header: t("role"),
-      cell: (row) => (
-        <Badge tone="neutral">{row.roleCode ?? row.roleName ?? "—"}</Badge>
-      ),
-    },
-    {
-      key: "status",
-      header: tCommon("status"),
-      cell: (row) => (
-        <Badge tone={row.isActive ? "success" : "neutral"}>
-          {row.isActive ? tCommon("active") : tCommon("inactive")}
-        </Badge>
-      ),
-    },
-    {
-      key: "lastLogin",
-      header: t("lastLogin"),
-      hideOnMobile: true,
-      cell: (row) => formatWhen(row.lastLoginAt),
-    },
-    {
-      key: "actions",
-      header: tCommon("actions"),
-      cell: (row) => {
-        if (!canReset) {
-          return (
-            <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-              —
-            </span>
-          );
-        }
-        const isSelf = row.id === userId;
-        return (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!row.isActive || isSelf}
-            title={
-              isSelf
-                ? t("resetOwnPasswordHint")
-                : row.isActive
-                  ? t("resetPasswordHint")
-                  : t("inactiveResetHint")
-            }
-            onClick={() => openConfirm(row)}
-          >
-            {t("resetPassword")}
-          </Button>
-        );
-      },
-    },
-  ];
-
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={t("overline")}
         title={t("title")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
         ]}
-        description={t("managementDescription")}
+        description={t("description")}
         actions={
-          <Button variant="outline" size="sm" onClick={() => void load()}>
-            {tCommon("refresh")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {canCreate ? (
+              <Button
+                className="min-h-[var(--ecmp-touch-min)]"
+                onClick={() => setCreateOpen(true)}
+              >
+                {t("createUser")}
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="min-h-[var(--ecmp-touch-min)]"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              {loading ? tCommon("refreshing") : tCommon("refresh")}
+            </Button>
+          </div>
         }
+      />
+
+      <CreateUserModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(username) => {
+          pushSuccess(t("createdSuccess"), t("createdUserSuccess", { username }));
+          void load();
+        }}
       />
 
       {actionError ? (
         <Alert tone="danger" title={t("actionFailed")} description={actionError} />
       ) : null}
-      {actionSuccess ? (
-        <Alert tone="success" title={t("resetPassword")} description={actionSuccess} />
-      ) : null}
 
-      <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader title={t("title")} description={t("managementDescription")} />
-        <Card>
-          <CardBody>
-            {loading ? (
-              <div className="space-y-[var(--ecmp-form-gap)]">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : loadError ? (
-              <ErrorState
-                title={t("unableToLoad")}
-                message={loadError}
-                actionLabel={tCommon("retry")}
-                onRetry={() => void load()}
+      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("quickFilters")}>
+        <SectionHeader
+          title={t("quickFilters")}
+          description={t("quickFiltersDescription")}
+        />
+        <QuickFilters
+          label={t("quickFilters")}
+          options={filterOptions}
+          onSelect={(id) => {
+            const next = id as DirectoryFilter;
+            setDirectoryFilter((current) => (current === next ? "all" : next));
+          }}
+        />
+      </section>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("directorySearch")}>
+        <div className="w-full max-w-xl">
+          <Input
+            name="directorySearch"
+            label={t("directorySearch")}
+            placeholder={t("searchPlaceholder")}
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            helper={t("searchHelper")}
+          />
+        </div>
+
+        <WorkspaceToolbar
+          summary={t("directorySummary", { count: filteredRows.length })}
+          density={<DensityToggle value={density} onChange={setDensity} />}
+          actions={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[var(--ecmp-touch-min)]"
+                onClick={() => void load()}
+                disabled={loading}
+              >
+                {loading ? tCommon("refreshing") : tCommon("refresh")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[var(--ecmp-touch-min)]"
+                aria-pressed={showEmail}
+                onClick={() => setShowEmail((current) => !current)}
+              >
+                {showEmail ? t("columnsHideEmail") : t("columnsShowEmail")}
+              </Button>
+            </>
+          }
+        />
+      </section>
+
+      <section
+        className="space-y-[var(--ecmp-panel-gap)]"
+        aria-label={t("directorySection")}
+      >
+        <SectionHeader
+          title={t("directorySection")}
+          description={t("directorySectionDescription")}
+        />
+
+        {loading ? (
+          <Skeleton rows={6} />
+        ) : loadError ? (
+          <ErrorState
+            title={t("unableToLoad")}
+            message={loadError}
+            actionLabel={tCommon("retry")}
+            onRetry={() => void load()}
+          />
+        ) : filteredRows.length === 0 ? (
+          <Empty
+            title={
+              rows.length === 0 ? t("emptyDirectoryTitle") : t("noUsersFound")
+            }
+            description={
+              rows.length === 0
+                ? t("emptyDirectoryDescription")
+                : t("adjustFiltersAndRetry")
+            }
+            primaryAction={{
+              label: t("refreshUsers"),
+              onClick: () => void load(),
+            }}
+            secondaryAction={
+              searchQuery.trim() || directoryFilter !== "all"
+                ? {
+                    label: t("clearSearch"),
+                    onClick: () => {
+                      setSearchQuery("");
+                      setDirectoryFilter("all");
+                    },
+                  }
+                : undefined
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] xl:grid-cols-12">
+            <div className="xl:col-span-8">
+              <DirectoryPeopleList
+                rows={filteredRows}
+                selectedId={selectedId}
+                density={density}
+                showEmail={showEmail}
+                canReset={canReset}
+                currentUserId={userId}
+                onSelect={(user) =>
+                  setSelectedId((current) =>
+                    current === user.id ? null : user.id,
+                  )
+                }
+                onResetPassword={openConfirm}
               />
-            ) : (
-              <Table
-                columns={columns}
-                rows={rows}
-                getRowKey={(row) => row.id}
-                caption={t("title")}
-                emptyMessage={t("noUsersFound")}
+            </div>
+            <div className="xl:col-span-4">
+              <DirectoryPreviewPanel
+                user={selectedUser}
+                canReset={canReset}
+                currentUserId={userId}
+                onResetPassword={openConfirm}
+                onClose={() => setSelectedId(null)}
               />
-            )}
-          </CardBody>
-        </Card>
+            </div>
+          </div>
+        )}
       </section>
 
       <Modal
@@ -430,8 +553,7 @@ export function UserManagement() {
               </code>
             </div>
             <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-              {revealed.result.message} Audit:{" "}
-              <code>password.admin_reset</code>
+              {revealed.result.message}
             </p>
           </div>
         ) : null}

@@ -188,6 +188,10 @@ export function CmBatch1BoundAttachmentsCard({
               <Empty
                 title={t(cmBatch1AttachmentListLabel(0))}
                 description={t("boundAttachmentsDescription")}
+                primaryAction={{
+                  label: t("refreshList"),
+                  onClick: () => void load(),
+                }}
               />
             </div>
           ) : null}

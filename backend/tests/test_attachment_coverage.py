@@ -293,7 +293,9 @@ def test_router_handlers_call_service() -> None:
     assert get_attachment(entity.id, svc, batch1, principal).data.id == entity.id
     listed = list_attachments(svc, principal)
     assert listed.meta.total_items == 1
-    dl = download_attachment(entity.id, svc, batch1, principal)
+    dl = download_attachment(
+        entity.id, svc, batch1, principal, session=MagicMock(), settings=MagicMock()
+    )
     assert dl.body == b"%PDF"
 
     with patch(

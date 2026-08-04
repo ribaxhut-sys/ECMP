@@ -34,6 +34,7 @@ import {
   Skeleton,
   Textarea,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 import {
   resolveApiErrorMessage,
   translateValidationErrors,
@@ -56,6 +57,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
   const tValidation = useTranslations("validation");
   const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const canUpdate = hasPermission("complaints:update") || hasPermission("*");
 
   const [complaint, setComplaint] = useState<Complaint | null>(null);
@@ -180,6 +182,7 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
         complaintId,
         toUpdateComplaintRequest(values),
       );
+      pushSuccess(t("complaintUpdated"));
       router.push(`/complaints/${res.data.id}`);
     } catch (err) {
       setSubmitError(
@@ -220,15 +223,14 @@ export function EditComplaintView({ complaintId }: { complaintId: string }) {
         <Empty
           title={t("notFoundTitle")}
           description={t("complaintNotFound")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints")}
-            >
-              {t("backToList")}
-            </Button>
-          }
+          primaryAction={{
+            label: t("backToList"),
+            onClick: () => router.push("/complaints"),
+          }}
+          secondaryAction={{
+            label: tCommon("goHome"),
+            onClick: () => router.push("/dashboard"),
+          }}
         />
       </PageContainer>
     );

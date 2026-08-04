@@ -3,6 +3,10 @@ import { cn } from "@/shared/utils";
 import { IconAlert, IconCheck, IconClose } from "@/shared/icons";
 import { Button } from "@/shared/ui/button";
 
+/**
+ * Persistent inline feedback (validation, permission, business warning, errors).
+ * Do not use tone="success" for action success — use useToast().pushSuccess instead.
+ */
 export type AlertTone = "info" | "success" | "warning" | "danger";
 
 export interface AlertProps extends HTMLAttributes<HTMLDivElement> {

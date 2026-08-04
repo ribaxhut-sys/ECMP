@@ -8,8 +8,8 @@ import type {
 } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
-import { Empty } from "@/shared/ui/empty";
-import { Skeleton } from "@/shared/ui/loading";
+import { Empty, type EmptyActionConfig } from "@/shared/ui/empty";
+import { TableSkeleton } from "@/shared/ui/loading";
 
 export type TableDensity = "comfortable" | "compact";
 
@@ -36,6 +36,8 @@ export interface TableProps<T> extends HTMLAttributes<HTMLDivElement> {
   emptyMessage?: string;
   emptyTitle?: string;
   emptyAction?: ReactNode;
+  emptyPrimaryAction?: ReactNode | EmptyActionConfig;
+  emptySecondaryAction?: ReactNode | EmptyActionConfig;
   loading?: boolean;
   density?: TableDensity;
   /** Sticky table header (desktop). */
@@ -47,6 +49,8 @@ export interface TableProps<T> extends HTMLAttributes<HTMLDivElement> {
   selectedKeys?: ReadonlySet<string>;
   onRowClick?: (row: T, index: number) => void;
   skeletonRows?: number;
+  /** Optional sticky toolbar above the table (search / density / refresh / selection). */
+  toolbar?: ReactNode;
 }
 
 export function Table<T>({
@@ -57,12 +61,15 @@ export function Table<T>({
   emptyMessage,
   emptyTitle,
   emptyAction,
+  emptyPrimaryAction,
+  emptySecondaryAction,
   loading = false,
   density = "comfortable",
   stickyHeader = true,
   selectedKeys,
   onRowClick,
   skeletonRows = 5,
+  toolbar,
   className,
   ...props
 }: TableProps<T>) {
@@ -74,35 +81,39 @@ export function Table<T>({
 
   if (loading) {
     return (
-      <div className={cn("w-full", className)} {...props}>
-        <Skeleton rows={skeletonRows} className="md:hidden" />
-        <div className="hidden overflow-hidden rounded-[var(--ecmp-radius-table)] border border-ecmp-border md:block">
-          <Skeleton rows={skeletonRows} className="p-4" />
-        </div>
+      <div className={cn("w-full space-y-3", className)} {...props}>
+        {toolbar}
+        <TableSkeleton rows={skeletonRows} columns={Math.min(columns.length, 5)} />
       </div>
     );
   }
 
   if (rows.length === 0) {
+    const primary = emptyPrimaryAction ?? emptyAction;
+
     return (
-      <Empty
-        title={emptyTitle}
-        description={emptyMessage ?? t("empty")}
-        action={emptyAction}
-        className={className}
-      />
+      <div className={cn("w-full space-y-3", className)} {...props}>
+        {toolbar}
+        <Empty
+          title={emptyTitle}
+          description={emptyMessage ?? t("empty")}
+          primaryAction={primary}
+          secondaryAction={emptySecondaryAction}
+        />
+      </div>
     );
   }
 
   return (
-    <div className={cn("w-full min-w-0", className)} {...props}>
+    <div className={cn("w-full min-w-0 space-y-3", className)} {...props}>
+      {toolbar}
       {/* Desktop / tablet table */}
-      <div className="hidden max-w-full overflow-x-auto rounded-[var(--ecmp-radius-table)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-raised md:block">
+      <div className="hidden max-w-full overflow-x-auto rounded-[var(--ecmp-radius-table)] border border-ecmp-border/80 bg-ecmp-surface shadow-ecmp-raised md:block">
         <table className="min-w-full text-left text-[length:var(--ecmp-font-body-size)]">
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <thead
             className={cn(
-              "border-b border-ecmp-border bg-ecmp-surface-sunken text-ecmp-text-secondary",
+              "border-b border-ecmp-border/80 bg-ecmp-surface-sunken/90 text-ecmp-text-secondary backdrop-blur-sm",
               stickyHeader && "sticky top-0 z-[var(--ecmp-z-sticky-header)]",
             )}
           >
@@ -131,10 +142,10 @@ export function Table<T>({
                   data-selected={selected || undefined}
                   onClick={onRowClick ? () => onRowClick(row, index) : undefined}
                   className={cn(
-                    "border-b border-ecmp-border/70 align-middle last:border-0",
-                    "transition-colors duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
-                    "hover:bg-ecmp-hover",
-                    selected && "bg-ecmp-selected",
+                    "border-b border-ecmp-border/50 align-middle last:border-0",
+                    "transition-[background-color,box-shadow] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+                    "hover:bg-ecmp-hover/90",
+                    selected && "bg-ecmp-selected/80",
                     onRowClick && "cursor-pointer",
                   )}
                 >
@@ -168,10 +179,11 @@ export function Table<T>({
               data-selected={selected || undefined}
               onClick={onRowClick ? () => onRowClick(row, index) : undefined}
               className={cn(
-                "rounded-[var(--ecmp-radius-card)] border border-ecmp-border bg-ecmp-surface p-4 shadow-ecmp-raised",
-                "transition-[box-shadow,background-color] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
-                selected && "border-ecmp-primary bg-ecmp-selected",
-                onRowClick && "cursor-pointer hover:shadow-ecmp-hover",
+                "rounded-[var(--ecmp-radius-card)] border border-ecmp-border/80 bg-ecmp-surface p-4 shadow-ecmp-raised",
+                "transition-[box-shadow,background-color,transform] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+                selected && "border-ecmp-primary/40 bg-ecmp-selected",
+                onRowClick &&
+                  "cursor-pointer hover:-translate-y-[2px] hover:shadow-ecmp-hover motion-reduce:hover:translate-y-0",
               )}
             >
               <dl className="space-y-3">
@@ -204,7 +216,7 @@ export function Th({
   return (
     <th
       className={cn(
-        "px-4 font-medium first:pl-4 last:pr-4",
+        "px-4 text-[length:var(--ecmp-font-overline-size)] font-semibold uppercase tracking-[0.04em] first:pl-5 last:pr-5",
         className,
       )}
       {...props}
@@ -220,7 +232,7 @@ export function Td({
   ...props
 }: TdHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <td className={cn("px-4 first:pl-4 last:pr-4", className)} {...props}>
+    <td className={cn("px-4 first:pl-5 last:pr-5", className)} {...props}>
       {children}
     </td>
   );

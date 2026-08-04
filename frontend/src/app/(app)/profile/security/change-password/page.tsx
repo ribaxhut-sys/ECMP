@@ -8,6 +8,7 @@ import {
   PASSWORD_CHANGE_ROUTE,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  PasswordRequirements,
 } from "@/features/auth";
 import { ApiError, changePassword } from "@/lib/api";
 import {
@@ -20,10 +21,12 @@ import {
   PageHeader,
   SectionHeader,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("profile");
   const tAuth = useTranslations("auth");
   const tCommon = useTranslations("common");
@@ -33,7 +36,6 @@ export default function ChangePasswordPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -48,7 +50,6 @@ export default function ChangePasswordPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setSuccess(null);
 
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
       setError(t("newPasswordMin", { min: PASSWORD_MIN_LENGTH }));
@@ -70,7 +71,7 @@ export default function ChangePasswordPage() {
         newPassword,
         confirmPassword,
       });
-      setSuccess(result.message);
+      pushSuccess(tAuth("passwordUpdated"), result.message);
       // Refresh tokens are revoked server-side — re-authenticate.
       await logout();
       router.replace("/login");
@@ -90,6 +91,7 @@ export default function ChangePasswordPage() {
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={t("overline")}
         title={t("changePasswordTitle")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
@@ -112,10 +114,10 @@ export default function ChangePasswordPage() {
 
       <section className="space-y-[var(--ecmp-panel-gap)]">
         <SectionHeader
-          title={t("securityTitle")}
+          title={t("passwordFormTitle")}
           description={t("chooseStrongPassword", { min: PASSWORD_MIN_LENGTH })}
         />
-        <Card>
+        <Card className="shadow-ecmp-raised">
           <CardBody>
             <form
               onSubmit={onSubmit}
@@ -153,18 +155,17 @@ export default function ChangePasswordPage() {
                 maxLength={PASSWORD_MAX_LENGTH}
               />
 
+              <PasswordRequirements password={newPassword} />
+
               {error ? (
                 <Alert tone="danger" title={t("changeFailed")} description={error} />
               ) : null}
-              {success ? (
-                <Alert
-                  tone="success"
-                  title={tAuth("passwordUpdated")}
-                  description={success}
-                />
-              ) : null}
 
-              <Button type="submit" loading={submitting}>
+              <Button
+                type="submit"
+                loading={submitting}
+                className="min-h-[var(--ecmp-touch-min)]"
+              >
                 {submitting ? tCommon("saving") : t("changePasswordAction")}
               </Button>
             </form>

@@ -1,32 +1,45 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
-import { cn } from "@/shared/utils";
+import { useAuth } from "@/auth/AuthProvider";
 import {
+  PASSWORD_CHANGE_ROUTE,
+  formatIdentityWhen,
+} from "@/features/auth";
+import {
+  Badge,
+  Button,
   Card,
   CardBody,
+  CardHeader,
+  Empty,
   PageContainer,
   PageHeader,
+  PanelHeader,
   SectionHeader,
+  Skeleton,
 } from "@/shared/ui";
 
-const linkButtonClass = cn(
-  "inline-flex min-h-[var(--ecmp-touch-min)] items-center justify-center rounded-[var(--ecmp-radius-button)]",
-  "border border-ecmp-border bg-ecmp-surface px-3 font-medium",
-  "text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary shadow-ecmp-surface",
-  "hover:border-ecmp-secondary hover:bg-ecmp-hover hover:shadow-ecmp-raised",
-  "focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus focus-visible:ring-offset-[length:var(--ecmp-focus-ring-offset)]",
-);
-
 export default function ProfileSecurityPage() {
+  const router = useRouter();
+  const { user, status } = useAuth();
   const t = useTranslations("profile");
   const tCommon = useTranslations("common");
+  const lastLogin = formatIdentityWhen(user?.lastLoginAt);
+
+  if (status === "loading") {
+    return (
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
+        <Skeleton rows={4} />
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={t("overline")}
         title={t("securityTitle")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
@@ -38,14 +51,101 @@ export default function ProfileSecurityPage() {
 
       <section className="space-y-[var(--ecmp-panel-gap)]">
         <SectionHeader
+          title={t("securityStatus")}
+          description={t("securityStatusDescription")}
+        />
+        <Card>
+          <CardHeader
+            action={
+              <Badge tone={user?.forcePasswordChange ? "warning" : "success"}>
+                {user?.forcePasswordChange
+                  ? t("securityNeedsAttention")
+                  : t("securityHealthy")}
+              </Badge>
+            }
+          >
+            <PanelHeader
+              title={t("securityStatusTitle")}
+              description={
+                user?.forcePasswordChange
+                  ? t("securityStatusForced")
+                  : t("securityStatusOk")
+              }
+              className="mb-0 border-0 pb-0"
+            />
+          </CardHeader>
+        </Card>
+      </section>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader
           title={t("passwordSection")}
           description={t("passwordSectionDescription")}
         />
         <Card>
-          <CardBody>
-            <Link href={PASSWORD_CHANGE_ROUTE} className={linkButtonClass}>
+          <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+            <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+              {t("passwordSectionGuidance")}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-[var(--ecmp-touch-min)]"
+              onClick={() => router.push(PASSWORD_CHANGE_ROUTE)}
+            >
               {t("changePassword")}
-            </Link>
+            </Button>
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader
+          title={t("sessionSection")}
+          description={t("sessionSectionDescription")}
+        />
+        <Card>
+          <CardBody>
+            <Empty
+              className="border-0 bg-transparent py-6"
+              title={t("sessionUnavailableTitle")}
+              description={t("sessionUnavailableDescription")}
+              primaryAction={{
+                label: t("refreshProfile"),
+                onClick: () => router.refresh(),
+              }}
+            />
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader
+          title={t("lastLoginSection")}
+          description={t("lastLoginSectionDescription")}
+        />
+        <Card>
+          <CardBody>
+            {lastLogin ? (
+              <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                <span className="text-ecmp-text-secondary">{t("lastLogin")}: </span>
+                {lastLogin}
+              </p>
+            ) : (
+              <Empty
+                className="border-0 bg-transparent py-6"
+                title={t("lastLoginEmptyTitle")}
+                description={t("lastLoginEmptyDescription")}
+                primaryAction={{
+                  label: t("refreshProfile"),
+                  onClick: () => router.refresh(),
+                }}
+                secondaryAction={{
+                  label: tCommon("goToProfile"),
+                  onClick: () => router.push("/profile"),
+                }}
+              />
+            )}
           </CardBody>
         </Card>
       </section>

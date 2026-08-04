@@ -25,8 +25,8 @@ import {
   SectionHeader,
   Skeleton,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -51,6 +51,7 @@ export function FinalResolutionCard({
   onSubmitted?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -70,7 +71,6 @@ export function FinalResolutionCard({
   }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -120,7 +120,10 @@ export function FinalResolutionCard({
         notes: notes.trim(),
         followUpRequired,
       });
-      setToastOpen(true);
+      pushSuccess(
+        t("finalResolutionSubmitted"),
+        t("finalResolutionSubmittedHint"),
+      );
       await load();
       onSubmitted?.();
     } catch (err) {
@@ -219,18 +222,15 @@ export function FinalResolutionCard({
               <Empty
                 title={t("noFinalResolutionYet")}
                 description={t("submitFinalResolutionHint")}
+                primaryAction={{
+                  label: tCommon("refreshPage"),
+                  onClick: () => void load(),
+                }}
               />
             )}
           </CardBody>
         </Card>
       </section>
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={t("finalResolutionSubmitted")}
-        description={t("finalResolutionSubmittedHint")}
-      />
     </>
   );
 }

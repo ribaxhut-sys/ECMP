@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import {
   IconAssignments,
   IconComplaints,
@@ -19,6 +20,7 @@ import { cn } from "@/shared/utils";
 import {
   APP_NAV_GROUPS,
   APP_NAV_ITEMS,
+  isNavItemVisible,
   type NavItem,
 } from "./nav";
 
@@ -37,6 +39,20 @@ const iconMap = {
 const itemsById = Object.fromEntries(
   APP_NAV_ITEMS.map((item) => [item.id, item]),
 ) as Record<string, NavItem>;
+
+function NavBadge({ value }: { value: number | string }) {
+  const label = typeof value === "number" && value > 99 ? "99+" : String(value);
+  return (
+    <span
+      className={cn(
+        "ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full px-1.5",
+        "bg-ecmp-primary-muted text-[length:var(--ecmp-font-overline-size)] font-semibold leading-5 text-ecmp-primary",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
 
 function NavLink({
   item,
@@ -59,28 +75,33 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         "ecmp-touch group relative flex items-center gap-3 rounded-[var(--ecmp-radius-md)] px-3",
-        "text-[length:var(--ecmp-font-body-small-size)] font-medium",
-        "transition-[background-color,color,box-shadow] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+        "text-[length:var(--ecmp-font-body-small-size)] font-normal tracking-[-0.01em]",
+        "transition-[background-color,color,transform] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
         active
-          ? "bg-ecmp-selected text-ecmp-primary shadow-ecmp-surface"
+          ? "bg-ecmp-selected/70 font-medium text-ecmp-text-primary"
           : "text-ecmp-text-secondary hover:bg-ecmp-hover hover:text-ecmp-text-primary",
       )}
     >
       <span
         aria-hidden
         className={cn(
-          "absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-ecmp-primary",
+          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-ecmp-primary",
           "transition-opacity duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
-          active ? "opacity-100" : "opacity-0 group-hover:opacity-40",
+          active ? "opacity-100" : "opacity-0 group-hover:opacity-35",
         )}
       />
       <Icon
         className={cn(
           "size-5 shrink-0",
-          active ? "text-ecmp-primary" : "text-ecmp-muted group-hover:text-ecmp-text-primary",
+          active
+            ? "text-ecmp-primary"
+            : "text-ecmp-muted group-hover:text-ecmp-text-primary",
         )}
       />
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {item.badge !== undefined && item.badge !== null && item.badge !== "" ? (
+        <NavBadge value={item.badge} />
+      ) : null}
     </Link>
   );
 }
@@ -94,7 +115,7 @@ function Brand({
 }) {
   const tCommon = useTranslations("common");
   const className =
-    "text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] tracking-tight text-ecmp-primary";
+    "text-[length:var(--ecmp-font-card-title-size)] font-semibold tracking-tight text-ecmp-text-primary";
 
   if (asLink) {
     return (
@@ -110,16 +131,18 @@ function Brand({
 function NavSections({ onNavigate }: { onNavigate?: () => void }) {
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
+  const { hasPermission } = useAuth();
 
   return (
     <nav
       aria-label={tCommon("primaryNav")}
-      className="flex flex-1 flex-col gap-[var(--ecmp-space-16)] overflow-y-auto p-3"
+      className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4"
     >
       {APP_NAV_GROUPS.map((group) => {
         const items = group.itemIds
           .map((id) => itemsById[id])
-          .filter(Boolean);
+          .filter(Boolean)
+          .filter((item) => isNavItemVisible(item, hasPermission));
         if (items.length === 0) return null;
         const headingId = `nav-group-${group.id}`;
         return (
@@ -127,11 +150,11 @@ function NavSections({ onNavigate }: { onNavigate?: () => void }) {
             key={group.id}
             role="group"
             aria-labelledby={headingId}
-            className="flex flex-col gap-1"
+            className="flex flex-col gap-0.5"
           >
             <p
               id={headingId}
-              className="px-3 pb-1 text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-muted"
+              className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted"
             >
               {t(group.labelKey)}
             </p>
@@ -159,10 +182,10 @@ export function Sidebar() {
     <>
       {/* Desktop persistent sidebar */}
       <aside
-        className="hidden w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border bg-ecmp-surface lg:flex lg:flex-col"
+        className="hidden w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border/80 bg-ecmp-surface lg:flex lg:flex-col"
         aria-label={tCommon("appSidebar")}
       >
-        <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center border-b border-ecmp-border px-4">
+        <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
           <Brand asLink />
         </div>
         <NavSections />
@@ -180,7 +203,8 @@ export function Sidebar() {
           type="button"
           aria-label={tCommon("closeNav")}
           className={cn(
-            "absolute inset-0 bg-ecmp-surface-overlay transition-opacity duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-standard)]",
+            "absolute inset-0 bg-ecmp-surface-overlay backdrop-blur-[2px]",
+            "transition-opacity duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-standard)]",
             open ? "opacity-100" : "opacity-0",
           )}
           onClick={closeDrawer}
@@ -190,12 +214,12 @@ export function Sidebar() {
           id="mobile-sidebar"
           className={cn(
             "absolute inset-y-0 left-0 flex w-[min(100%,var(--ecmp-sidebar-width))] flex-col bg-ecmp-surface-floating shadow-ecmp-overlay",
-            "transition-transform duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-enter)]",
+            "transition-transform duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-enter)]",
             open ? "translate-x-0" : "-translate-x-full",
           )}
           aria-label={tCommon("mobileNav")}
         >
-          <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center border-b border-ecmp-border px-4">
+          <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
             <Brand asLink onNavigate={isDesktop ? undefined : closeDrawer} />
           </div>
           <NavSections onNavigate={isDesktop ? undefined : closeDrawer} />

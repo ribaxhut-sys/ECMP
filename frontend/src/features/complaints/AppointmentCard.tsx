@@ -37,8 +37,8 @@ import {
   Modal,
   Select,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 function formatTime(value: string | null | undefined, emDash: string): string {
   if (!value) return emDash;
@@ -72,6 +72,7 @@ export function AppointmentCard({
   onBooked?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -100,9 +101,6 @@ export function AppointmentCard({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastTitle, setToastTitle] = useState("");
-  const [toastDescription, setToastDescription] = useState("");
 
   const [appointmentDate, setAppointmentDate] = useState("");
   const [startTime, setStartTime] = useState("09:00");
@@ -219,9 +217,10 @@ export function AppointmentCard({
       });
       const detail = await fetchAppointment(created.data.id);
       setAppointment(detail.data);
-      setToastTitle(t("appointmentBooked"));
-      setToastDescription(t("timelineUpdatedEscalationApproved"));
-      setToastOpen(true);
+      pushSuccess(
+        t("appointmentBooked"),
+        t("timelineUpdatedEscalationApproved"),
+      );
       onBooked?.();
       await load();
     } catch (err) {
@@ -260,9 +259,7 @@ export function AppointmentCard({
       const detail = await fetchAppointment(appointment.id);
       setAppointment(detail.data);
       setCheckInOpen(false);
-      setToastTitle(t("customerCheckedIn"));
-      setToastDescription(t("statusCheckedInHint"));
-      setToastOpen(true);
+      pushSuccess(t("customerCheckedIn"), t("statusCheckedInHint"));
       onBooked?.();
       await load();
     } catch (err) {
@@ -303,9 +300,7 @@ export function AppointmentCard({
       const detail = await fetchAppointment(appointment.id);
       setAppointment(detail.data);
       setCompleteOpen(false);
-      setToastTitle(t("appointmentCompleted"));
-      setToastDescription(t("statusCompletedHint"));
-      setToastOpen(true);
+      pushSuccess(t("appointmentCompleted"), t("statusCompletedHint"));
       onBooked?.();
       await load();
     } catch (err) {
@@ -344,9 +339,7 @@ export function AppointmentCard({
       const detail = await fetchAppointment(appointment.id);
       setAppointment(detail.data);
       setNoShowOpen(false);
-      setToastTitle(t("customerMarkedNoShow"));
-      setToastDescription(t("statusNoShowHint"));
-      setToastOpen(true);
+      pushSuccess(t("customerMarkedNoShow"), t("statusNoShowHint"));
       onBooked?.();
       await load();
     } catch (err) {
@@ -424,7 +417,7 @@ export function AppointmentCard({
                   label={t("engineer")}
                   value={
                     appointment.assignedEngineerName?.trim() ||
-                    appointment.assignedEngineerId
+                    t("unassigned")
                   }
                 />
                 <DetailField
@@ -541,19 +534,15 @@ export function AppointmentCard({
               ) : null}
 
               {isCompleted ? (
-                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
-                  <Button type="button" variant="primary" disabled>
-                    {t("completeAppointment")}
-                  </Button>
-                </div>
+                <p className="border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                  {t("appointmentCompletedHint")}
+                </p>
               ) : null}
 
               {isNoShow ? (
-                <div className="flex flex-wrap justify-end gap-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
-                  <Button type="button" variant="outline" disabled>
-                    {t("markNoShow")}
-                  </Button>
-                </div>
+                <p className="border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                  {t("appointmentNoShowHint")}
+                </p>
               ) : null}
 
               {appointment.status === "BOOKED" && !canManage ? (
@@ -799,14 +788,6 @@ export function AppointmentCard({
           />
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={toastTitle}
-        description={toastDescription}
-      />
     </>
   );
 }
