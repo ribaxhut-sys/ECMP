@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import {
   IconAssignments,
   IconComplaints,
@@ -16,7 +17,7 @@ import {
 } from "@/shared/icons";
 import { useSidebar } from "@/shared/hooks";
 import { cn } from "@/shared/utils";
-import { APP_NAV_ITEMS, type NavItem } from "./nav";
+import { APP_NAV_ITEMS, isNavItemVisible, type NavItem } from "./nav";
 
 const iconMap = {
   dashboard: IconDashboard,
@@ -68,17 +69,20 @@ export function Sidebar() {
   const closeDrawer = () => setOpen(false);
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
+  const { hasPermission } = useAuth();
 
   const nav = (
     <nav aria-label={tCommon("primaryNav")} className="flex flex-1 flex-col gap-1 p-3">
-      {APP_NAV_ITEMS.map((item) => (
-        <NavLink
-          key={item.id}
-          item={item}
-          label={t(item.labelKey)}
-          onNavigate={isDesktop ? undefined : closeDrawer}
-        />
-      ))}
+      {APP_NAV_ITEMS.filter((item) => isNavItemVisible(item, hasPermission)).map(
+        (item) => (
+          <NavLink
+            key={item.id}
+            item={item}
+            label={t(item.labelKey)}
+            onNavigate={isDesktop ? undefined : closeDrawer}
+          />
+        ),
+      )}
     </nav>
   );
 
