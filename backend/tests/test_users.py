@@ -321,6 +321,17 @@ def test_create_super_admin_with_inactive_branch_rejected() -> None:
     repo.add.assert_not_called()
 
 
+def test_ensure_branch_for_role_noop_when_role_code_missing() -> None:
+    """Org-location validation no-ops when role code cannot be resolved."""
+    repo = MagicMock()
+    repo.get_role_code.return_value = None
+    UserService(repo)._ensure_branch_for_role(
+        role_id=uuid.uuid4(),
+        branch_id=None,
+    )
+    repo.branch_exists.assert_not_called()
+
+
 @pytest.mark.parametrize("branch_id", [None, _BRANCH_ID])
 def test_create_unclassified_role_branch_optional(
     branch_id: uuid.UUID | None,
@@ -610,6 +621,37 @@ def test_get_user_not_found() -> None:
         UserService(repo).get(uuid.uuid4())
 
 
+def test_get_user_returns_response() -> None:
+    user = _user_row()
+    repo = MagicMock()
+    repo.get_by_id.return_value = user
+    result = UserService(repo).get(user.id)
+    assert str(result.id) == str(user.id)
+    assert result.username == user.username
+
+
+def test_list_rejects_invalid_pagination() -> None:
+    repo = MagicMock()
+    service = UserService(repo)
+    with pytest.raises(ValidationAppError):
+        service.list(page=0, page_size=10)
+    with pytest.raises(ValidationAppError):
+        service.list(page=1, page_size=0)
+    with pytest.raises(ValidationAppError):
+        service.list(page=1, page_size=101)
+    repo.list_page.assert_not_called()
+
+
+def test_list_returns_page() -> None:
+    user = _user_row()
+    repo = MagicMock()
+    repo.list_page.return_value = ([user], 1)
+    items, total = UserService(repo).list(page=1, page_size=20)
+    assert total == 1
+    assert len(items) == 1
+    assert items[0].username == user.username
+
+
 def test_soft_deactivate_sets_inactive() -> None:
     user = _user_row(is_active=True)
     repo = MagicMock()
@@ -639,6 +681,32 @@ def test_update_requires_unique_email() -> None:
         service.update(
             user.id,
             UserUpdateRequest(email="taken@example.com"),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+
+
+def test_update_user_not_found() -> None:
+    repo = MagicMock()
+    repo.get_by_id.return_value = None
+    with pytest.raises(NotFoundError):
+        UserService(repo).update(
+            uuid.uuid4(),
+            UserUpdateRequest(fullName="Nope"),
+            actor_user_id=uuid.uuid4(),
+            actor_roles=_ADMIN_ACTOR,
+        )
+
+
+def test_update_requires_unique_username() -> None:
+    user = _user_row()
+    repo = MagicMock()
+    repo.get_by_id.return_value = user
+    repo.username_exists.return_value = True
+    with pytest.raises(ConflictError):
+        UserService(repo).update(
+            user.id,
+            UserUpdateRequest(username="taken"),
             actor_user_id=uuid.uuid4(),
             actor_roles=_ADMIN_ACTOR,
         )
