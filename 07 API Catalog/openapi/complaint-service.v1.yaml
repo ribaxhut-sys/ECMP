@@ -5735,7 +5735,21 @@ components:
         fullName: { type: string, minLength: 1, maxLength: 200 }
         password: { type: string, minLength: 8, maxLength: 72, format: password }
         roleId: { type: string, format: uuid }
-        branchId: { type: string, format: uuid, nullable: true }
+        branchId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Organization-location rule, enforced against the role roleId
+            resolves to: branch-scoped roles (AGENT, CS_AGENT,
+            BRANCH_OFFICER, SUPERVISOR, BRANCH_SUPERVISOR) require a
+            non-null branchId — omitting it is rejected. Head-office
+            scoped roles (ADMIN, ADMINISTRATOR, HO_SCHEDULER,
+            HEAD_OFFICE_SCHEDULER, SCHEDULER, HO_ENGINEER,
+            HEAD_OFFICE_ENGINEER) must omit branchId — supplying one is
+            rejected. SUPER_ADMIN is exempt from both directions:
+            branchId is optional, and either a null or a valid branchId
+            is accepted.
         isActive: { type: boolean, default: true }
     UserUpdateRequest:
       type: object
@@ -5745,7 +5759,24 @@ components:
         fullName: { type: string, minLength: 1, maxLength: 200 }
         password: { type: string, minLength: 8, maxLength: 72, format: password }
         roleId: { type: string, format: uuid }
-        branchId: { type: string, format: uuid, nullable: true }
+        branchId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Organization-location rule, enforced against the effective
+            role after this request is applied (existing role if roleId
+            is omitted): branch-scoped roles (AGENT, CS_AGENT,
+            BRANCH_OFFICER, SUPERVISOR, BRANCH_SUPERVISOR) require a
+            non-null branchId — clearing it is rejected. Head-office
+            scoped roles (ADMIN, ADMINISTRATOR, HO_SCHEDULER,
+            HEAD_OFFICE_SCHEDULER, SCHEDULER, HO_ENGINEER,
+            HEAD_OFFICE_ENGINEER) must have a null branchId — setting one
+            is rejected, including when roleId changes to a head-office
+            scoped role in the same request while branchId is left
+            unset. SUPER_ADMIN is exempt from both directions: branchId
+            is optional, and either a null or a valid branchId is
+            accepted.
       description: At least one field must be provided.
     UserStatusUpdateRequest:
       type: object
