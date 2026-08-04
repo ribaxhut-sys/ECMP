@@ -19,7 +19,7 @@ Hub for **frontend architecture and development standards** documentation. Appli
 
 | Document | ID | Description |
 |---|---|---|
-| [UI_BASELINE.md](./UI_BASELINE.md) | ECMP-UI-BASELINE-001 | **Official UI Freeze** — product UI LOCKED; change policy |
+| [UI_BASELINE.md](../../UI_BASELINE.md) | ECMP-UI-BASELINE-001 | **Official UI Freeze** — product UI LOCKED; change policy |
 | [FRONTEND_ARCHITECTURE_v1.2.md](./FRONTEND_ARCHITECTURE_v1.2.md) | FE-ARCH-001 | **Current** frontend architecture — Lifecycle **BASELINE** |
 | [FRONTEND_DEVELOPMENT_STANDARDS_v1.0.md](./FRONTEND_DEVELOPMENT_STANDARDS_v1.0.md) | FE-STD-001 | **Current** frontend development standards — Lifecycle **BASELINE** |
 | [FRONTEND_ARCHITECTURE_v1.1.md](./FRONTEND_ARCHITECTURE_v1.1.md) | FE-ARCH-001 | ARCHIVED (prior PHASE-0A revision) |
