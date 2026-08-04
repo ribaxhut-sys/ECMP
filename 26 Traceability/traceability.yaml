@@ -123,9 +123,10 @@ links:
       class Hybrid (B2-20); Time Source mandatory (ARC-CAP006-001); conceptual
       Runtime Architecture Accepted (ARC-CAP006-002, B2-21); B2-22 Non-Invent
       Gate = ADDITIONAL ARCHITECTURE REQUIRED; B2-23 Time Source fulfillment
-      pattern NOT SPECIFIED; concrete runtime Deferred. EVT-004 Planned; no
-      FR-030 engine yet. api: [] until contract-first surface is approved.
-      TC-030 Planned.
+      pattern NOT SPECIFIED; B2-24 Stay Deferred confirmation — official
+      blocker CAP006-BLK-001 frozen; FR-030 engineering NOT authorized;
+      concrete runtime Deferred. EVT-004 Planned; no FR-030 engine yet.
+      api: [] until contract-first surface is approved. TC-030 Planned.
   - id: TRC-L-008
     domain: Dashboard
     bp: BP-006

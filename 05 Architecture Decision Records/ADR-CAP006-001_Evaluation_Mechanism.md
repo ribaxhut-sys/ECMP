@@ -27,6 +27,7 @@
 - Conceptual runtime: B2-21 — `./ARC-CAP006-002_Runtime_Architecture.md` (**Accepted** concept; concrete still Deferred)
 - Non-Invent Gate: B2-22 — `../deploy/evidence/B2-22_CAP-006_Concrete_Runtime_Non_Invent_Gate_20260801.md` (**ADDITIONAL ARCHITECTURE REQUIRED**)
 - Fulfillment pattern: B2-23 — `../deploy/evidence/B2-23_CAP-006_Time_Source_Fulfillment_Pattern_Decision_20260801.md` (**FULFILLMENT PATTERN NOT SPECIFIED**)
+- Stay Deferred freeze: B2-24 — `../deploy/evidence/B2-24_CAP-006_Stay_Deferred_Confirmation_Blocker_Freeze_20260804.md` (**CAP006-BLK-001 frozen · FR-030 eng NOT authorized**)
 
 ## Context
 
@@ -114,6 +115,10 @@ B2-22 audited whether existing repository patterns suffice for Technical Runtime
 ### G. Time Source fulfillment pattern (B2-23)
 
 B2-23 asked whether the repository **already defines** a **conceptual** Time Source fulfillment pattern. Verdict: **FULFILLMENT PATTERN NOT SPECIFIED**. ARC-CAP006-001 remains the stimulus **requirement** concept only; Accepting a fulfillment pattern in B2-23 would invent. Evidence: `../deploy/evidence/B2-23_CAP-006_Time_Source_Fulfillment_Pattern_Decision_20260801.md`.
+
+### H. Stay Deferred confirmation & blocker freeze (B2-24)
+
+B2-24 confirms CAP-006 engine **Stay Deferred**, freezes official blocker **CAP006-BLK-001** (fulfillment pattern NOT SPECIFIED), and states **FR-030 engineering is NOT authorized**. Evidence: `../deploy/evidence/B2-24_CAP-006_Stay_Deferred_Confirmation_Blocker_Freeze_20260804.md`. Does **not** invent fulfillment pattern or scheduler.
 
 ## Repository Constraints
 
