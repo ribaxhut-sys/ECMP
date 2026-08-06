@@ -32,6 +32,7 @@ from app.core.authorization.gates import (
     require_final_resolution,
     require_supervisor_assign,
     require_supervisor_escalate,
+    require_user_status_update,
 )
 from app.core.authorization.org_unit_guard import (
     OrgUnitGuard,
@@ -88,6 +89,7 @@ __all__ = [
     "require_roles",
     "require_supervisor_assign",
     "require_supervisor_escalate",
+    "require_user_status_update",
     "reset_authentication_strategy",
     "resolve_effective_scope",
     "resolve_principal_permissions",

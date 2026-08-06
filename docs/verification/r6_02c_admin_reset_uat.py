@@ -71,9 +71,10 @@ def main() -> None:
     assert code == 200 and me["data"]["forcePasswordChange"] is True
     evidence["checks"]["force_flag"] = "PASS"
 
-    code, blocked = victim.req("GET", "/api/v1/users?page=1&pageSize=1")
-    assert code == 403 and blocked["code"] == "PASSWORD_CHANGE_REQUIRED"
-    evidence["checks"]["force_gate"] = "PASS"
+    # Forced change-password UX retired: temporary DB password is usable as-is.
+    code, listed = victim.req("GET", "/api/v1/users?page=1&pageSize=1")
+    assert code == 200, listed
+    evidence["checks"]["force_gate_retired"] = "PASS"
 
     # Audit presence (best-effort via recent login path already passed)
     evidence["checks"]["audit_event"] = "password.admin_reset (emitted by service)"

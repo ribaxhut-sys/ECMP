@@ -24,16 +24,24 @@ import {
   Button,
   Card,
   CardBody,
+  CardHeader,
+  CardTitle,
   Empty,
   ErrorState,
+  FilterBar,
   Input,
   PageContainer,
   PageHeader,
+  Pagination,
+  QuickFilters,
   Select,
+  DensityToggle,
   Skeleton,
   Table,
+  WorkspaceToolbar,
   type BadgeTone,
   type TableColumn,
+  type TableDensity,
 } from "@/shared/ui";
 import {
   defaultListFilters,
@@ -86,6 +94,26 @@ function priorityTone(priority: Priority): BadgeTone {
   }
 }
 
+type QuickFilterId =
+  | "all"
+  | "new"
+  | "open"
+  | "critical"
+  | "waiting"
+  | "escalated"
+  | "resolved";
+
+function activeQuickFilter(filters: ComplaintListFilters): QuickFilterId {
+  if (filters.priority === "CRITICAL" && !filters.status) return "critical";
+  if (filters.status === "NEW" && !filters.priority) return "new";
+  if (filters.status === "IN_PROGRESS" && !filters.priority) return "open";
+  if (filters.status === "PENDING" && !filters.priority) return "waiting";
+  if (filters.status === "ESCALATED" && !filters.priority) return "escalated";
+  if (filters.status === "RESOLVED" && !filters.priority) return "resolved";
+  if (!filters.status && !filters.priority) return "all";
+  return "all";
+}
+
 export function ComplaintListView() {
   const router = useRouter();
   const pathname = usePathname();
@@ -117,6 +145,9 @@ export function ComplaintListView() {
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | undefined>();
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [density, setDensity] = useState<TableDensity>("comfortable");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(filters);
@@ -180,6 +211,12 @@ export function ComplaintListView() {
     void load(filters);
   }, [filters, load]);
 
+  useEffect(() => {
+    if (selectedId && !rows.some((row) => row.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [rows, selectedId]);
+
   function applyFilters(next: ComplaintListFilters): void {
     const params = filtersToSearchParams(next);
     const query = params.toString();
@@ -196,6 +233,38 @@ export function ComplaintListView() {
     setDraft(next);
     applyFilters(next);
   }
+
+  function applyQuickFilter(id: string): void {
+    const base = { ...filters, page: 1, priority: "", status: "" };
+    let next = base;
+    switch (id as QuickFilterId) {
+      case "new":
+        next = { ...base, status: "NEW" };
+        break;
+      case "open":
+        next = { ...base, status: "IN_PROGRESS" };
+        break;
+      case "critical":
+        next = { ...base, priority: "CRITICAL" };
+        break;
+      case "waiting":
+        next = { ...base, status: "PENDING" };
+        break;
+      case "escalated":
+        next = { ...base, status: "ESCALATED" };
+        break;
+      case "resolved":
+        next = { ...base, status: "RESOLVED" };
+        break;
+      default:
+        next = base;
+    }
+    setDraft(next);
+    applyFilters(next);
+  }
+
+  const currentQuick = activeQuickFilter(filters);
+  const selected = rows.find((row) => row.id === selectedId) ?? null;
 
   const statusFilterOptions = useMemo(
     () => [
@@ -282,15 +351,15 @@ export function ComplaintListView() {
       {
         key: "status",
         header: t("status"),
+        slot: "status",
         cell: (row) => (
-          <Badge tone={statusTone(row.status)}>
-            {tStatus(row.status)}
-          </Badge>
+          <Badge tone={statusTone(row.status)}>{tStatus(row.status)}</Badge>
         ),
       },
       {
         key: "priority",
         header: t("priority"),
+        slot: "badge",
         cell: (row) => (
           <Badge tone={priorityTone(row.priority)}>
             {tPriority(row.priority)}
@@ -310,6 +379,7 @@ export function ComplaintListView() {
       {
         key: "actions",
         header: tCommon("actions"),
+        slot: "action",
         hideOnMobile: false,
         cell: (row) => (
           <div className="flex flex-wrap gap-2">
@@ -318,7 +388,10 @@ export function ComplaintListView() {
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => router.push(`/complaints/${row.id}`)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  router.push(`/complaints/${row.id}`);
+                }}
               >
                 {tCommon("view")}
               </Button>
@@ -328,7 +401,10 @@ export function ComplaintListView() {
                 type="button"
                 size="sm"
                 variant="ghost"
-                onClick={() => router.push(`/complaints/${row.id}/edit`)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  router.push(`/complaints/${row.id}/edit`);
+                }}
               >
                 {tCommon("edit")}
               </Button>
@@ -337,16 +413,7 @@ export function ComplaintListView() {
         ),
       },
     ],
-    [
-      canRead,
-      canUpdate,
-      locale,
-      router,
-      t,
-      tCommon,
-      tPriority,
-      tStatus,
-    ],
+    [canRead, canUpdate, locale, router, t, tCommon, tPriority, tStatus],
   );
 
   const rangeLabel =
@@ -358,9 +425,15 @@ export function ComplaintListView() {
           total: totalItems,
         });
 
+  const pageSummary =
+    totalPages > 0
+      ? tCommon("pageOf", { page: filters.page, totalPages })
+      : t("pageOnly", { page: filters.page });
+
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={t("overline")}
         title={t("title")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
@@ -371,13 +444,22 @@ export function ComplaintListView() {
           canCreate || canRead ? (
             <div className="flex flex-wrap gap-2">
               {canRead ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push("/complaints/cm/supervisor")}
-                >
-                  {t("supervisorQueue")}
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push("/complaints")}
+                  >
+                    {t("aggregateListTitle")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push("/complaints/cm/supervisor")}
+                  >
+                    {t("supervisorQueue")}
+                  </Button>
+                </>
               ) : null}
               {canCreate ? (
                 <Button
@@ -392,106 +474,145 @@ export function ComplaintListView() {
         }
       />
 
-      <Card>
-        <CardBody>
-          <form
-            onSubmit={onSubmitFilters}
-            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
-            aria-label={t("filtersAriaLabel")}
-          >
-            <div className="md:col-span-2 xl:col-span-2">
-              <Input
-                name="keyword"
-                label={tCommon("search")}
-                placeholder={t("searchPlaceholder")}
-                value={draft.keyword}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, keyword: e.target.value }))
-                }
-                maxLength={200}
-              />
-            </div>
-            <Select
-              name="status"
-              label={t("status")}
-              options={statusFilterOptions}
-              value={draft.status}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, status: e.target.value }))
-              }
-            />
-            <Select
-              name="priority"
-              label={t("priority")}
-              options={priorityFilterOptions}
-              value={draft.priority}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, priority: e.target.value }))
-              }
-            />
+      <QuickFilters
+        label={t("quickFiltersLabel")}
+        onSelect={applyQuickFilter}
+        options={[
+          { id: "all", label: t("qfAll"), active: currentQuick === "all" },
+          { id: "new", label: t("qfNew"), active: currentQuick === "new" },
+          { id: "open", label: t("qfOpen"), active: currentQuick === "open" },
+          {
+            id: "critical",
+            label: t("qfCritical"),
+            active: currentQuick === "critical",
+            tone: "critical",
+          },
+          {
+            id: "waiting",
+            label: t("qfWaiting"),
+            active: currentQuick === "waiting",
+            tone: "attention",
+          },
+          {
+            id: "escalated",
+            label: t("qfEscalated"),
+            active: currentQuick === "escalated",
+            tone: "critical",
+          },
+          {
+            id: "resolved",
+            label: t("qfResolved"),
+            active: currentQuick === "resolved",
+            tone: "healthy",
+          },
+        ]}
+      />
+
+      <form onSubmit={onSubmitFilters} aria-label={t("filtersAriaLabel")}>
+        <FilterBar
+          search={
             <Input
-              name="category"
-              label={t("category")}
-              value={draft.category}
+              name="keyword"
+              label={tCommon("search")}
+              placeholder={t("searchPlaceholder")}
+              value={draft.keyword}
               onChange={(e) =>
-                setDraft((prev) => ({ ...prev, category: e.target.value }))
+                setDraft((prev) => ({ ...prev, keyword: e.target.value }))
               }
-              maxLength={64}
+              maxLength={200}
             />
-            <Select
-              name="branchId"
-              label={t("branch")}
-              options={branchOptions}
-              value={draft.branchId}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, branchId: e.target.value }))
-              }
-            />
-            <Select
-              name="sort"
-              label={tTable("sortBy")}
-              options={sortFieldOptions}
-              value={draft.sort}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  sort: e.target.value as ComplaintListFilters["sort"],
-                }))
-              }
-            />
-            <Select
-              name="order"
-              label={tTable("order")}
-              options={sortOrderOptions}
-              value={draft.order}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  order: e.target.value as ComplaintListFilters["order"],
-                }))
-              }
-            />
-            <Select
-              name="pageSize"
-              label={tTable("pageSize")}
-              options={pageSizeOptions}
-              value={String(draft.pageSize)}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  pageSize: Number(e.target.value) || 20,
-                }))
-              }
-            />
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-end md:col-span-2 xl:col-span-4">
-              <Button type="submit">{t("applyFilters")}</Button>
-              <Button type="button" variant="outline" onClick={onResetFilters}>
-                {tCommon("reset")}
-              </Button>
-            </div>
-          </form>
-        </CardBody>
-      </Card>
+          }
+          filters={
+            <>
+              <Select
+                name="status"
+                label={t("status")}
+                options={statusFilterOptions}
+                value={draft.status}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, status: e.target.value }))
+                }
+              />
+              <Select
+                name="priority"
+                label={t("priority")}
+                options={priorityFilterOptions}
+                value={draft.priority}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, priority: e.target.value }))
+                }
+              />
+            </>
+          }
+          advancedOpen={advancedOpen}
+          onAdvancedToggle={() => setAdvancedOpen((open) => !open)}
+          advancedToggleLabel={t("advancedFilters")}
+          advanced={
+            <>
+              <Input
+                name="category"
+                label={t("category")}
+                value={draft.category}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, category: e.target.value }))
+                }
+                maxLength={64}
+              />
+              <Select
+                name="branchId"
+                label={t("branch")}
+                options={branchOptions}
+                value={draft.branchId}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, branchId: e.target.value }))
+                }
+              />
+              <Select
+                name="sort"
+                label={tTable("sortBy")}
+                options={sortFieldOptions}
+                value={draft.sort}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    sort: e.target.value as ComplaintListFilters["sort"],
+                  }))
+                }
+              />
+              <Select
+                name="order"
+                label={tTable("order")}
+                options={sortOrderOptions}
+                value={draft.order}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    order: e.target.value as ComplaintListFilters["order"],
+                  }))
+                }
+              />
+              <Select
+                name="pageSize"
+                label={tTable("pageSize")}
+                options={pageSizeOptions}
+                value={String(draft.pageSize)}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    pageSize: Number(e.target.value) || 20,
+                  }))
+                }
+              />
+            </>
+          }
+          actions={<Button type="submit">{t("applyFilters")}</Button>}
+          reset={
+            <Button type="button" variant="outline" onClick={onResetFilters}>
+              {tCommon("reset")}
+            </Button>
+          }
+        />
+      </form>
 
       {loading ? <Skeleton rows={6} /> : null}
 
@@ -510,64 +631,157 @@ export function ComplaintListView() {
           description={
             canCreate ? t("noResultsDescription") : t("noResultsTryFilters")
           }
-          action={
-            canCreate ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push("/complaints/new")}
-              >
-                {t("create")}
-              </Button>
-            ) : undefined
+          primaryAction={
+            canCreate
+              ? {
+                  label: t("create"),
+                  onClick: () => router.push("/complaints/new"),
+                }
+              : {
+                  label: t("refreshList"),
+                  onClick: () => void load(filters),
+                }
           }
+          secondaryAction={{
+            label: t("clearFilters"),
+            onClick: onResetFilters,
+          }}
         />
       ) : null}
 
       {!loading && !error && rows.length > 0 ? (
-        <Card>
-          <CardBody className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-              <span>{rangeLabel}</span>
-              <span>
-                {totalPages > 0
-                  ? tCommon("pageOf", {
-                      page: filters.page,
-                      totalPages,
-                    })
-                  : t("pageOnly", { page: filters.page })}
-              </span>
-            </div>
-            <Table
-              columns={columns}
-              rows={rows}
-              getRowKey={(row) => row.id}
-              caption={t("listCaption")}
-            />
-            <div className="flex flex-col-reverse gap-2 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasPrevious}
-                onClick={() =>
-                  applyFilters({ ...filters, page: Math.max(1, filters.page - 1) })
+        <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <Card padding={false} className="overflow-hidden">
+            <CardBody className="space-y-[var(--ecmp-panel-gap)] p-4 md:p-6">
+              <WorkspaceToolbar
+                summary={t("workspaceSummary", { count: totalItems })}
+                selectionLabel={
+                  selected
+                    ? selected.complaintNumber
+                    : t("selectionPreviewHint")
                 }
-              >
-                {tCommon("previous")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasNext}
-                onClick={() =>
+                density={
+                  <DensityToggle value={density} onChange={setDensity} />
+                }
+                actions={
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void load(filters)}
+                    >
+                      {tCommon("refresh")}
+                    </Button>
+                    {selected ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => router.push(`/complaints/${selected.id}`)}
+                      >
+                        {t("previewOpen")}
+                      </Button>
+                    ) : null}
+                  </>
+                }
+              />
+              <Table
+                columns={columns}
+                rows={rows}
+                getRowKey={(row) => row.id}
+                caption={t("listCaption")}
+                density={density}
+                stickyHeader
+                selectedKeys={
+                  selectedId ? new Set([selectedId]) : undefined
+                }
+                onRowClick={(row) => setSelectedId(row.id)}
+              />
+              <Pagination
+                summary={
+                  <span>
+                    {rangeLabel}
+                    <span className="mx-2 text-ecmp-border">·</span>
+                    {pageSummary}
+                  </span>
+                }
+                previousLabel={tCommon("previous")}
+                nextLabel={tCommon("next")}
+                previousDisabled={!hasPrevious}
+                nextDisabled={!hasNext}
+                onPrevious={() =>
+                  applyFilters({
+                    ...filters,
+                    page: Math.max(1, filters.page - 1),
+                  })
+                }
+                onNext={() =>
                   applyFilters({ ...filters, page: filters.page + 1 })
                 }
-              >
-                {tCommon("next")}
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
+              />
+            </CardBody>
+          </Card>
+
+          <aside className="xl:sticky xl:top-[calc(var(--ecmp-header-height)+1rem)] xl:self-start">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("selectionPreview")}</CardTitle>
+              </CardHeader>
+              <CardBody>
+                {selected ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {selected.complaintNumber}
+                      </p>
+                      <p className="mt-1 text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
+                        {selected.subject}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone={statusTone(selected.status)}>
+                        {tStatus(selected.status)}
+                      </Badge>
+                      <Badge tone={priorityTone(selected.priority)}>
+                        {tPriority(selected.priority)}
+                      </Badge>
+                    </div>
+                    <dl className="space-y-3 text-[length:var(--ecmp-font-helper-size)]">
+                      <div>
+                        <dt className="text-ecmp-text-secondary">{t("category")}</dt>
+                        <dd className="text-ecmp-text-primary">
+                          {selected.category?.trim() || tCommon("emDash")}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-ecmp-text-secondary">{t("createdAt")}</dt>
+                        <dd className="text-ecmp-text-primary">
+                          {formatWhen(selected.createdAt, locale)}
+                        </dd>
+                      </div>
+                    </dl>
+                    <Button
+                      type="button"
+                      fullWidth
+                      onClick={() => router.push(`/complaints/${selected.id}`)}
+                    >
+                      {t("previewOpen")}
+                    </Button>
+                  </div>
+                ) : (
+                  <Empty
+                    title={t("previewEmpty")}
+                    description={t("previewEmptyDescription")}
+                    primaryAction={{
+                      label: t("previewEmptyAction"),
+                      onClick: () => void load(filters),
+                    }}
+                  />
+                )}
+              </CardBody>
+            </Card>
+          </aside>
+        </div>
       ) : null}
     </PageContainer>
   );

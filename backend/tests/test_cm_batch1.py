@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.authorization.principal import Principal
-from app.core.errors import RateLimitedError, ValidationAppError
+from app.core.errors import InvalidStateError, RateLimitedError, ValidationAppError
 from app.db.base import Base
 from app.integrations.customer import StubCustomerProvider
 from app.main import create_app
@@ -36,6 +36,7 @@ from app.modules.cm_batch1.schemas import (
     CustomerSearchRequest,
     DuplicateCheckRequest,
     DuplicateDecisionRequest,
+    IntakeEscalationDecisionRequest,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.store import Batch1Store
@@ -92,12 +93,30 @@ def persistent_service(db_session: Session) -> CmBatch1Service:
 
 def test_tc_cm_fr002_01_unique_customer_number(service: CmBatch1Service) -> None:
     result = service.search_customer(
-        CustomerSearchRequest(customerNumber="CN-10001"),
+        CustomerSearchRequest(customerNumber="CN-10000001"),
         principal_key="p1",
     )
     assert result.verification_status == "verified"
     assert result.customer_id == "CUST-10001"
     assert result.enumeration_outcome == "allowed"
+
+
+def test_customer_search_rejects_short_id(service: CmBatch1Service) -> None:
+    with pytest.raises(ValidationAppError) as exc:
+        service.search_customer(
+            CustomerSearchRequest(customerNumber="32"),
+            principal_key="p-short-id",
+        )
+    assert "8" in exc.value.message or "pendek" in exc.value.message.lower()
+
+
+def test_customer_search_rejects_short_phone(service: CmBatch1Service) -> None:
+    with pytest.raises(ValidationAppError) as exc:
+        service.search_customer(
+            CustomerSearchRequest(customerNumber="0833"),
+            principal_key="p-short-phone",
+        )
+    assert "10" in exc.value.message or "telepon" in exc.value.message.lower()
 
 
 def test_tc_cm_fr002_02_ambiguous_no_lock(service: CmBatch1Service) -> None:
@@ -133,7 +152,7 @@ def test_tc_cm_fr002_05_strict_unavailable(store: Batch1Store) -> None:
     )
     with pytest.raises(ValidationAppError):
         svc.search_customer(
-            CustomerSearchRequest(customerNumber="CN-10001"),
+            CustomerSearchRequest(customerNumber="CN-10000001"),
             principal_key="p1",
         )
 
@@ -141,7 +160,7 @@ def test_tc_cm_fr002_05_strict_unavailable(store: Batch1Store) -> None:
 def test_tc_cm_fr002_07_two_keys_rejected(service: CmBatch1Service) -> None:
     with pytest.raises(ValidationAppError) as exc:
         service.search_customer(
-            CustomerSearchRequest(customerNumber="CN-10001", identityNumber="ID-10001"),
+            CustomerSearchRequest(customerNumber="CN-10000001", identityNumber="ID-10000001"),
             principal_key="p1",
         )
     assert "Tepat satu" in exc.value.message
@@ -164,7 +183,7 @@ def test_tc_cm_fr002_08_enumeration_blocks(service: CmBatch1Service) -> None:
 
 def test_tc_cm_fr002_09_as_of_present(service: CmBatch1Service) -> None:
     result = service.search_customer(
-        CustomerSearchRequest(customerNumber="CN-10001"),
+        CustomerSearchRequest(customerNumber="CN-10000001"),
         principal_key="p1",
     )
     assert result.as_of is not None
@@ -212,6 +231,50 @@ def test_tc_cm_fr001_01_create_registered_no_case(service: CmBatch1Service) -> N
     assert created.complaint_number.startswith("CM-")
 
 
+def test_create_branch_closed_without_case(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Walk-in resolved",
+            description="Keluhan singkat\n\n---\nPenyelesaian:\nSudah diganti",
+            intakeDisposition="BRANCH_CLOSED",
+        ),
+        request_id="req-branch-closed",
+        channel_message_id=None,
+        actor_id="actor-1",
+    )
+    assert created.status == "CLOSED"
+    assert created.case_created is False
+
+
+def test_create_branch_closed_requires_resolution(service: CmBatch1Service) -> None:
+    from app.core.errors import ValidationAppError
+
+    try:
+        confirmed_create(
+            service,
+            CreateComplaintBatch1Request(
+                customerId="CUST-10001",
+                category="BILLING",
+                channel="BRANCH",
+                subject="No resolution",
+                description="Keluhan tanpa penyelesaian",
+                intakeDisposition="BRANCH_CLOSED",
+            ),
+            request_id="req-branch-closed-bad",
+            channel_message_id=None,
+            actor_id="actor-1",
+        )
+        raise AssertionError("expected ValidationAppError")
+    except ValidationAppError as exc:
+        assert "resolution" in str(exc).lower() or "BRANCH_CLOSED" in str(
+            getattr(exc, "details", {})
+        )
+
+
 def test_tc_cm_fr001_02_customer_id_only(service: CmBatch1Service) -> None:
     created = confirmed_create(service,
         CreateComplaintBatch1Request(
@@ -245,6 +308,47 @@ def test_tc_cm_fr001_04_missing_fields(service: CmBatch1Service) -> None:
             channel_message_id=None,
             actor_id="a",
         )
+
+
+def test_tc_cm_fr001_08_strict_master_unavailable_create_rejected(
+    store: Batch1Store,
+) -> None:
+    """AC-CM-FR001-08 — strict mode + Master Customer down at create time → reject.
+
+    Customer is confirmed/locked while Master Customer is reachable (mirrors
+    a real sequence: search + confirm succeed, then Master Customer goes down
+    before the create call lands). ``create_complaint`` re-checks existence
+    via ``self._customers.exists(...)`` (service.py ~L723) and must reject
+    when that check reports UNAVAILABLE under strict_master — it must not
+    silently fall back to the already-confirmed lock.
+    """
+    provider = StubCustomerProvider()
+    svc = CmBatch1Service(
+        customer_provider=provider,
+        guard=EnumerationGuard(max_failures=3, window_seconds=60, block_seconds=30),
+        store=store,
+        strict_master=True,
+    )
+    svc.confirm_customer("CUST-10001", principal_key="actor-strict")
+
+    provider._available = False  # Master Customer goes down after confirm.
+
+    with pytest.raises(ValidationAppError) as exc:
+        svc.create_complaint(
+            CreateComplaintBatch1Request(
+                customerId="CUST-10001",
+                category="BILLING",
+                channel="BRANCH",
+                subject="Strict reject",
+                description="Master Customer unavailable at create",
+            ),
+            request_id="req-strict-1",
+            channel_message_id=None,
+            actor_id="actor-strict",
+            principal_key="actor-strict",
+        )
+    assert "Strict" in exc.value.message
+    assert "ditolak" in exc.value.message
 
 
 def test_tc_cm_fr001_10_request_id_replay(service: CmBatch1Service) -> None:
@@ -322,6 +426,8 @@ def test_tc_cm_fr001_12_360_after_create(service: CmBatch1Service) -> None:
     view = service.customer_360_minimum("CUST-10001")
     assert view.complaint_count == 1
     assert len(view.active_complaints) == 1
+    assert len(view.complaint_history) == 1
+    assert view.complaint_history[0]["complaintNumber"]
 
 
 # --- API smoke (auth override) ---
@@ -369,7 +475,7 @@ def api_client(service: CmBatch1Service) -> Generator[TestClient, None, None]:
 def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
     search = api_client.post(
         "/api/v1/cm/customers/search",
-        json={"customerNumber": "CN-10001"},
+        json={"customerNumber": "CN-10000001"},
     )
     assert search.status_code == 200, search.text
     body = search.json()["data"]
@@ -412,6 +518,174 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
     assert replay.status_code == 200, replay.text
     assert replay.json()["data"]["complaintId"] == data["complaintId"]
     assert replay.json()["data"]["replayed"] is True
+
+    listed = api_client.get("/api/v1/cm/complaints?page=1&pageSize=20")
+    assert listed.status_code == 200, listed.text
+    list_body = listed.json()
+    assert list_body["meta"]["page"] == 1
+    assert list_body["meta"]["pageSize"] == 20
+    assert list_body["meta"]["totalItems"] >= 1
+    assert any(row["complaintId"] == data["complaintId"] for row in list_body["data"])
+
+    by_kw = api_client.get("/api/v1/cm/complaints?keyword=API%20create")
+    assert by_kw.status_code == 200, by_kw.text
+    assert any(row["complaintId"] == data["complaintId"] for row in by_kw.json()["data"])
+
+    by_pri = api_client.get("/api/v1/cm/complaints?priority=MEDIUM")
+    assert by_pri.status_code == 200, by_pri.text
+    assert by_pri.json()["meta"]["totalItems"] >= 1
+
+    by_cat = api_client.get("/api/v1/cm/complaints?category=BILLING")
+    assert by_cat.status_code == 200, by_cat.text
+    assert any(row["complaintId"] == data["complaintId"] for row in by_cat.json()["data"])
+
+    miss = api_client.get("/api/v1/cm/complaints?keyword=zzznomatch999")
+    assert miss.status_code == 200, miss.text
+    assert miss.json()["meta"]["totalItems"] == 0
+
+
+@pytest.fixture()
+def api_client_unauthorized(service: CmBatch1Service) -> Generator[TestClient, None, None]:
+    """Same wiring as ``api_client``, but the principal lacks complaints:create.
+
+    AC-CM-FR001-05 — "Unauthorized -> reject + security audit". This exercises
+    the real ``require_permissions("complaints:create")`` dependency instead
+    of a hand-rolled check, matching the pattern the router actually uses.
+    """
+    app = create_app()
+    app.dependency_overrides[get_cm_batch1_service] = lambda: service
+
+    async def _principal() -> Principal:
+        return Principal(
+            user_id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+            roles=("VIEWER",),
+            permissions=frozenset({"complaints:read"}),  # no complaints:create
+        )
+
+    from app.core.authorization.authentication import get_current_principal
+
+    app.dependency_overrides[get_current_principal] = _principal
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+def test_tc_cm_fr001_05_unauthorized_create_rejected(
+    api_client_unauthorized: TestClient,
+) -> None:
+    """AC-CM-FR001-05 — principal without complaints:create is rejected (API-500).
+
+    HTTP-layer assertion only; the security-audit-row assertion is a separate
+    test gated on a real Postgres connection (see
+    ``test_tc_cm_fr001_05_unauthorized_create_writes_security_audit`` below) —
+    ``write_security_event`` never raises to the caller (by design, see
+    app/modules/audit/security_events.py), so the 403 here is verifiable in
+    any environment regardless of whether the audit write itself succeeds.
+    """
+    response = api_client_unauthorized.post(
+        "/api/v1/cm/complaints",
+        headers={"Idempotency-Key": "api-req-unauthz-1"},
+        json={
+            "customerId": "CUST-10001",
+            "category": "BILLING",
+            "channel": "BRANCH",
+            "subject": "Should be rejected",
+            "description": "No complaints:create permission",
+        },
+    )
+    assert response.status_code == 403, response.text
+    body = response.json()
+    assert body["code"] == "FORBIDDEN"
+    missing = (body.get("details") or {}).get("missingPermissions") or []
+    assert "complaints:create" in missing
+
+
+def _postgres_available() -> bool:
+    from sqlalchemy import create_engine as _create_engine
+    from sqlalchemy import text as _text
+
+    from app.core.config import get_settings
+
+    try:
+        eng = _create_engine(
+            get_settings().database_url,
+            pool_pre_ping=True,
+            future=True,
+            connect_args={"connect_timeout": 2},
+        )
+        with eng.connect() as conn:
+            conn.execute(_text("SELECT 1"))
+        eng.dispose()
+        return True
+    except Exception:
+        return False
+
+
+requires_postgres = pytest.mark.skipif(
+    not _postgres_available(),
+    reason="PostgreSQL not available for security-audit row assertion",
+)
+
+
+@requires_postgres
+def test_tc_cm_fr001_05_unauthorized_create_writes_security_audit(
+    api_client_unauthorized: TestClient,
+) -> None:
+    """AC-CM-FR001-05 — the reject is also recorded as a security audit row.
+
+    Same reject path as the always-on HTTP test above; this half additionally
+    verifies the ``security.permission_denied`` SystemAuditLog row, matching
+    the established platform pattern in
+    test_secmig_p5_security_smoke.py::test_http_permission_denied_returns_403_and_permission_denied_audit.
+    Skipped (not failed) when Postgres is unreachable, same as that file.
+    """
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.config import get_settings
+    from app.modules.audit.models import SystemAuditLog
+    from app.modules.audit.security_events import SecurityEventType
+
+    response = api_client_unauthorized.post(
+        "/api/v1/cm/complaints",
+        headers={"Idempotency-Key": "api-req-unauthz-audit-1"},
+        json={
+            "customerId": "CUST-10001",
+            "category": "BILLING",
+            "channel": "BRANCH",
+            "subject": "Should be rejected",
+            "description": "No complaints:create permission",
+        },
+    )
+    assert response.status_code == 403, response.text
+
+    # Separate connection to the same database — write_security_event commits
+    # on its own session inside the request, so a fresh read sees it too.
+    engine = create_engine(get_settings().database_url, pool_pre_ping=True, future=True)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    session = session_factory()
+    try:
+        rows = list(
+            session.scalars(
+                select(SystemAuditLog)
+                .where(
+                    SystemAuditLog.event_type
+                    == SecurityEventType.PERMISSION_DENIED.value,
+                    SystemAuditLog.actor_id
+                    == uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                )
+                .order_by(SystemAuditLog.created_at.desc())
+                .limit(5)
+            )
+        )
+        assert rows, "expected security.permission_denied audit row"
+        latest = rows[0]
+        assert latest.entity_type == "Security"
+        assert (latest.metadata_json or {}).get("reasonCode") == "FORBIDDEN"
+        assert (latest.metadata_json or {}).get("path") == "/api/v1/cm/complaints"
+    finally:
+        session.close()
+        engine.dispose()
 
 
 # --- S2 Task 01 persistence ---
@@ -1051,3 +1325,162 @@ def test_api_505_and_506_roundtrip(
         },
     )
     assert rejected.status_code == 400
+
+
+def test_api_515_approve_intake_escalation(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate pending",
+            description="Ajuan eskalasi: butuh pusat karena kompleks",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-approve-1",
+        actor_id="agent-1",
+    )
+    assert created.intake_disposition == "ESCALATE_PENDING_APPROVAL"
+    assert created.status == "REGISTERED"
+
+    decided = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(decision="APPROVE", note="ok lanjut"),
+        actor_id="supervisor-1",
+    )
+    assert decided.status == "REGISTERED"
+    assert decided.intake_disposition == "ESCALATE_APPROVED"
+    assert decided.case_created is False
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert row.intake_disposition == "ESCALATE_APPROVED"
+
+
+def test_api_515_reject_requires_note(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate reject",
+            description="Ajuan eskalasi: uji tolak",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-reject-1",
+        actor_id="agent-1",
+    )
+    with pytest.raises(ValidationAppError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="REJECT", note="short"),
+            actor_id="supervisor-1",
+        )
+
+    decided = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="REJECT",
+            note="Tolak: masih bisa diselesaikan di cabang dengan bukti lengkap.",
+        ),
+        actor_id="supervisor-1",
+    )
+    assert decided.intake_disposition == "ESCALATE_REJECTED"
+    assert decided.status == "REGISTERED"
+    assert decided.case_created is False
+
+
+def test_api_515_wrong_disposition_conflict(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="No escalate flag",
+            description="Ordinary registered complaint",
+        ),
+        request_id="esc-wrong-1",
+        actor_id="agent-1",
+    )
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="APPROVE"),
+            actor_id="supervisor-1",
+        )
+
+
+def test_api_515_list_filter_intake_disposition(service: CmBatch1Service) -> None:
+    pending = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Pending filter unique A",
+            description="Ajuan eskalasi: filter list",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for filter test pending disposition row."
+            ),
+        ),
+        request_id="esc-filter-1",
+        actor_id="agent-1",
+    )
+    confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Ordinary filter unique B",
+            description="No disposition",
+            duplicateOverrideJustification=(
+                "Lab override for filter test ordinary disposition row."
+            ),
+        ),
+        request_id="esc-filter-2",
+        actor_id="agent-1",
+    )
+    rows, total = service.list_complaints(
+        page=1,
+        page_size=20,
+        intake_disposition="ESCALATE_PENDING_APPROVAL",
+    )
+    assert total >= 1
+    assert all(r.intake_disposition == "ESCALATE_PENDING_APPROVAL" for r in rows)
+    assert any(r.complaint_id == pending.complaint_id for r in rows)
+
+
+def test_api_515_second_decision_invalid_state(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Second decision",
+            description="Ajuan eskalasi: second decision guard",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for second decision invalid-state guard."
+            ),
+        ),
+        request_id="esc-second-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(decision="APPROVE"),
+        actor_id="supervisor-1",
+    )
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="APPROVE"),
+            actor_id="supervisor-1",
+        )

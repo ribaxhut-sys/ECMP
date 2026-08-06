@@ -24,8 +24,8 @@ export interface ModalProps {
 
 const sizeClass = {
   sm: "max-w-md",
-  md: "max-w-lg",
-  lg: "max-w-2xl",
+  md: "max-w-[var(--ecmp-modal-max-width)]",
+  lg: "max-w-[var(--ecmp-modal-max-width)]",
 } as const;
 
 export function Modal({
@@ -39,14 +39,18 @@ export function Modal({
   const t = useTranslations("common");
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
+  // Only on open/close transitions — do not re-run when parent passes a new
+  // inline onClose each render (that steals focus from inputs inside the modal).
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     }
 
     document.addEventListener("keydown", onKeyDown);
@@ -58,17 +62,17 @@ export function Modal({
       document.body.style.overflow = originalOverflow;
       previous?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+    <div className="fixed inset-0 z-[var(--ecmp-z-modal)] flex items-end justify-center p-4 sm:items-center">
       <button
         type="button"
         aria-label={t("closeDialogOverlay")}
-        className="absolute inset-0 bg-ecmp-overlay"
-        onClick={onClose}
+        className="absolute inset-0 bg-ecmp-overlay backdrop-blur-[3px] transition-opacity duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-exit)]"
+        onClick={() => onCloseRef.current()}
       />
       <div
         ref={dialogRef}
@@ -77,14 +81,17 @@ export function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "relative z-10 flex max-h-[90vh] w-full flex-col overflow-hidden rounded-[var(--ecmp-radius-xl)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-lg",
+          "relative z-10 flex max-h-[90vh] w-full flex-col overflow-hidden",
+          "rounded-[var(--ecmp-radius-modal)] border border-ecmp-border/80 bg-ecmp-surface shadow-ecmp-overlay",
+          "animate-[ecmp-modal-enter_var(--ecmp-duration-normal)_var(--ecmp-ease-enter)]",
+          "motion-reduce:animate-none",
           sizeClass[size],
         )}
       >
-        <header className="flex items-center justify-between gap-3 border-b border-ecmp-border px-4 py-3 md:px-6">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-ecmp-border/80 px-5 py-4 md:px-6">
           <h2
             id={titleId}
-            className="text-[length:var(--ecmp-font-title-size)] font-semibold text-ecmp-text-primary"
+            className="text-[length:var(--ecmp-font-title-size)] font-semibold tracking-tight text-ecmp-text-primary"
           >
             {title}
           </h2>
@@ -92,15 +99,17 @@ export function Modal({
             variant="ghost"
             size="sm"
             aria-label={t("closeDialog")}
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             className="!min-h-[44px] !min-w-[44px] px-0"
           >
             <IconClose />
           </Button>
         </header>
-        <div className="overflow-y-auto px-4 py-4 md:px-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6">
+          {children}
+        </div>
         {footer ? (
-          <footer className="flex flex-col-reverse gap-2 border-t border-ecmp-border px-4 py-3 sm:flex-row sm:justify-end md:px-6">
+          <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-ecmp-border/80 px-5 py-4 sm:flex-row sm:justify-end md:px-6">
             {footer}
           </footer>
         ) : null}

@@ -20,16 +20,18 @@ import {
   Button,
   Card,
   CardBody,
-  CardHeader,
-  CardTitle,
+  Checkbox,
+  Empty,
+  SectionHeader,
+  Skeleton,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 space-y-1">
-      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </dt>
       <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -49,6 +51,7 @@ export function FinalResolutionCard({
   onSubmitted?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -68,7 +71,6 @@ export function FinalResolutionCard({
   }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -118,7 +120,10 @@ export function FinalResolutionCard({
         notes: notes.trim(),
         followUpRequired,
       });
-      setToastOpen(true);
+      pushSuccess(
+        t("finalResolutionSubmitted"),
+        t("finalResolutionSubmittedHint"),
+      );
       await load();
       onSubmitted?.();
     } catch (err) {
@@ -136,118 +141,96 @@ export function FinalResolutionCard({
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("finalResolutionCard")}</CardTitle>
-        </CardHeader>
-        <CardBody className="space-y-4">
-          {loading ? (
-            <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              {t("loadingFinalResolution")}
-            </p>
-          ) : loadError ? (
-            <Alert tone="danger" title={t("couldNotLoadFinalResolution")}>
-              {loadError}
-            </Alert>
-          ) : detail ? (
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <DetailField label={t("summary")} value={detail.summary} />
-              <DetailField
-                label={t("followUpRequired")}
-                value={detail.followUpRequired ? tCommon("yes") : tCommon("no")}
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader title={t("finalResolutionCard")} />
+        <Card>
+          <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+            {loading ? (
+              <Skeleton rows={4} />
+            ) : loadError ? (
+              <Alert
+                tone="danger"
+                title={t("couldNotLoadFinalResolution")}
+                description={loadError}
               />
-              <DetailField label={t("notes")} value={detail.notes} />
-              <DetailField
-                label={t("submittedBy")}
-                value={detail.submittedByName?.trim() || tCommon("emDash")}
-              />
-              <DetailField
-                label={t("submittedAt")}
-                value={formatDateTime(detail.submittedAt, locale)}
-              />
-              <DetailField label={t("status")} value={detail.status} />
-            </dl>
-          ) : canSubmit ? (
-            <form className="space-y-4" onSubmit={onSubmit}>
-              <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                {t("submitFinalResolutionHint")}
-              </p>
-              <div className="space-y-1">
-                <label
-                  htmlFor="final-resolution-summary"
-                  className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
-                >
-                  {t("summary")}
-                </label>
+            ) : detail ? (
+              <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
+                <DetailField label={t("summary")} value={detail.summary} />
+                <DetailField
+                  label={t("followUpRequired")}
+                  value={detail.followUpRequired ? tCommon("yes") : tCommon("no")}
+                />
+                <DetailField label={t("notes")} value={detail.notes} />
+                <DetailField
+                  label={t("submittedBy")}
+                  value={detail.submittedByName?.trim() || tCommon("emDash")}
+                />
+                <DetailField
+                  label={t("submittedAt")}
+                  value={formatDateTime(detail.submittedAt, locale)}
+                />
+                <DetailField label={t("status")} value={detail.status} />
+              </dl>
+            ) : canSubmit ? (
+              <form
+                className="space-y-[var(--ecmp-form-gap)]"
+                onSubmit={onSubmit}
+              >
+                <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                  {t("submitFinalResolutionHint")}
+                </p>
                 <Textarea
                   id="final-resolution-summary"
                   name="summary"
+                  label={t("summary")}
                   rows={3}
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
-                  aria-invalid={Boolean(fieldErrors.summary)}
+                  error={fieldErrors.summary}
                 />
-                {fieldErrors.summary ? (
-                  <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger">
-                    {fieldErrors.summary}
-                  </p>
-                ) : null}
-              </div>
-              <div className="space-y-1">
-                <label
-                  htmlFor="final-resolution-notes"
-                  className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
-                >
-                  {t("notes")}
-                </label>
                 <Textarea
                   id="final-resolution-notes"
                   name="notes"
+                  label={t("notes")}
                   rows={4}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  aria-invalid={Boolean(fieldErrors.notes)}
+                  error={fieldErrors.notes}
                 />
-                {fieldErrors.notes ? (
-                  <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger">
-                    {fieldErrors.notes}
-                  </p>
-                ) : null}
-              </div>
-              <label className="flex items-center gap-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                <input
-                  type="checkbox"
+                <Checkbox
+                  name="followUpRequired"
+                  label={t("followUpRequired")}
                   checked={followUpRequired}
                   onChange={(e) => setFollowUpRequired(e.target.checked)}
-                  className="size-4 accent-[var(--ecmp-color-primary)]"
                 />
-                {t("followUpRequired")}
-              </label>
-              {submitError ? (
-                <Alert tone="danger" title={t("submitFailed")}>
-                  {submitError}
-                </Alert>
-              ) : null}
-              <div className="flex justify-end">
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? tCommon("submitting") : t("submitFinalResolution")}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              {t("noFinalResolutionYet")}
-            </p>
-          )}
-        </CardBody>
-      </Card>
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={t("finalResolutionSubmitted")}
-        description={t("finalResolutionSubmittedHint")}
-      />
+                {submitError ? (
+                  <Alert
+                    tone="danger"
+                    title={t("submitFailed")}
+                    description={submitError}
+                  />
+                ) : null}
+                <div className="flex justify-end">
+                  <Button type="submit" loading={submitting}>
+                    {submitting
+                      ? tCommon("submitting")
+                      : t("submitFinalResolution")}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <Empty
+                title={t("noFinalResolutionYet")}
+                description={t("submitFinalResolutionHint")}
+                primaryAction={{
+                  label: tCommon("refreshPage"),
+                  onClick: () => void load(),
+                }}
+              />
+            )}
+          </CardBody>
+        </Card>
+      </section>
     </>
   );
 }

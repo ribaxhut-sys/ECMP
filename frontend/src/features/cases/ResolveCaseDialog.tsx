@@ -100,7 +100,7 @@ export function ResolveCaseDialog({
         </>
       }
     >
-      <ModalSection className="space-y-4">
+      <ModalSection className="space-y-[var(--ecmp-panel-gap)]">
         {submitError ? (
           <Alert
             tone="danger"

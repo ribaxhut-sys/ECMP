@@ -40,6 +40,7 @@ from app.core.authorization import (
     require_roles,
     require_supervisor_assign,
     require_supervisor_escalate,
+    require_user_status_update,
     resolve_effective_scope,
     resolve_principal_permissions,
 )
@@ -65,6 +66,7 @@ __all__ = [
     "require_roles",
     "require_supervisor_assign",
     "require_supervisor_escalate",
+    "require_user_status_update",
     "resolve_effective_scope",
     "resolve_principal_permissions",
 ]

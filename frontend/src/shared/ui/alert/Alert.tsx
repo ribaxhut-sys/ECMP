@@ -1,8 +1,12 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/shared/utils";
-import { IconAlert } from "@/shared/icons";
+import { IconAlert, IconCheck, IconClose } from "@/shared/icons";
 import { Button } from "@/shared/ui/button";
 
+/**
+ * Persistent inline feedback (validation, permission, business warning, errors).
+ * Do not use tone="success" for action success — use useToast().pushSuccess instead.
+ */
 export type AlertTone = "info" | "success" | "warning" | "danger";
 
 export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
@@ -11,14 +15,26 @@ export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
   description?: ReactNode;
   actionLabel?: string;
   onAction?: () => void;
+  /** Optional dismiss handler — renders a close control when provided. */
+  onDismiss?: () => void;
+  dismissLabel?: string;
+  icon?: ReactNode;
+  actions?: ReactNode;
 }
 
 const toneClass: Record<AlertTone, string> = {
-  info: "border-ecmp-info bg-ecmp-info-muted text-ecmp-info",
-  success: "border-ecmp-success bg-ecmp-success-muted text-ecmp-success",
-  warning: "border-ecmp-warning bg-ecmp-warning-muted text-ecmp-warning",
-  danger: "border-ecmp-danger bg-ecmp-danger-muted text-ecmp-danger",
+  info: "border-ecmp-info-border bg-ecmp-info-bg text-ecmp-info-text",
+  success: "border-ecmp-success-border bg-ecmp-success-bg text-ecmp-success-text",
+  warning: "border-ecmp-warning-border bg-ecmp-warning-bg text-ecmp-warning-text",
+  danger: "border-ecmp-danger-border bg-ecmp-danger-bg text-ecmp-danger-text",
 };
+
+function DefaultIcon({ tone }: { tone: AlertTone }) {
+  if (tone === "success") {
+    return <IconCheck className="mt-0.5 size-5 shrink-0" aria-hidden />;
+  }
+  return <IconAlert className="mt-0.5 size-5 shrink-0" aria-hidden />;
+}
 
 export function Alert({
   className,
@@ -27,37 +43,55 @@ export function Alert({
   description,
   actionLabel,
   onAction,
+  onDismiss,
+  dismissLabel = "Dismiss",
+  icon,
+  actions,
   ...props
 }: AlertProps) {
   return (
     <div
       role="alert"
       className={cn(
-        "rounded-[var(--ecmp-radius-lg)] border px-4 py-4",
+        "rounded-[var(--ecmp-radius-lg)] border px-4 py-4 shadow-ecmp-surface",
         toneClass[tone],
         className,
       )}
       {...props}
     >
       <div className="flex gap-3">
-        <IconAlert className="mt-0.5 size-5 shrink-0" />
+        {icon ?? <DefaultIcon tone={tone} />}
         <div className="min-w-0 flex-1">
-          <p className="text-[length:var(--ecmp-font-subtitle-size)] font-semibold text-ecmp-text-primary">
+          <p className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
             {title}
           </p>
           {description ? (
-            <div className="mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary/90">
+            <div className="mt-1 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary/90">
               {description}
             </div>
           ) : null}
-          {actionLabel && onAction ? (
-            <div className="mt-3">
-              <Button variant="outline" size="sm" onClick={onAction}>
-                {actionLabel}
-              </Button>
+          {actions || (actionLabel && onAction) ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {actions}
+              {actionLabel && onAction ? (
+                <Button variant="outline" size="sm" onClick={onAction}>
+                  {actionLabel}
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>
+        {onDismiss ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={dismissLabel}
+            onClick={onDismiss}
+            className="!min-h-9 !min-w-9 shrink-0 !px-0"
+          >
+            <IconClose className="size-4" />
+          </Button>
+        ) : null}
       </div>
     </div>
   );

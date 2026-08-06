@@ -60,6 +60,8 @@ servers:
     description: Example deployed base (paths already include /api/v1/cm)
 
 tags:
+  - name: CM-Case-List
+    description: DEC-024 Mode A Case list with visibility (API-536)
   - name: CM-Case-Create
     description: FR-001 Create Case
   - name: CM-Case-Add
@@ -75,6 +77,76 @@ tags:
 
 paths:
   /api/v1/cm/cases:
+    get:
+      summary: List Cases (visibility-scoped)
+      description: |
+        Mode A Case list with server-side visibility (DEC-024).
+
+        Visibility classes:
+        - SELF (Agent): `createdBy = principal` (Mode A interim; BQ-006 has no assigned user column)
+        - UNIT (Supervisor/Manager cabang): `owningUnitId = principal.orgUnitId` only
+        - PUSAT: `owningUnitId` in Pusat unit codes (escalation filter when API-520 ships)
+        - ALL (Admin): no row filter
+
+        Permission gate: `complaints:read` (DEC-024 OQ-4).
+        Optional `complaintId` narrows to one parent after visibility filter.
+        Not interchangeable with foundation complaint lists. Not API-526 F4 unlock.
+      operationId: cmB2ListCases
+      x-ear-id: API-536
+      x-ecmp-logical-id: API-CM-B2-007
+      x-ecmp-fr: FR-003
+      x-ecmp-dec:
+        - DEC-024
+        - DEC-020
+        - DEC-MODEA-B2-001
+      x-ecmp-cap: CAP-008
+      tags: [CM-Case-List]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: complaintId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/CaseStatus"
+      responses:
+        "200":
+          description: Visibility-scoped Case page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CaseSummary"
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       summary: Create Case
       description: |
@@ -1219,8 +1291,8 @@ components:
       type: object
       description: |
         Common pagination component for Aggregate list endpoints.
-        No Case list endpoint is in the CAP-008 Mode A FR-001…006 contract set
-        (list remains NOT SPECIFIED for Mode A CAP-008 / may exist under FRD-CM-002 API-526).
+        Mode A Case list (API-536 / DEC-024) uses `PageMeta` (`totalItems`) in the
+        envelope; this `Pagination.total` shape remains for embeds/docs.
       required:
         - page
         - pageSize
@@ -1242,3 +1314,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CaseSummary"
+
+    PageMeta:
+      type: object
+      description: List envelope meta (aligned with core ListResponse / API-514)
+      required: [page, pageSize, totalItems]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalItems:
+          type: integer
+          minimum: 0

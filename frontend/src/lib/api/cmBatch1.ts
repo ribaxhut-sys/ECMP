@@ -44,7 +44,9 @@ export interface CmBatch1CustomerSearchRequest {
 export interface CmBatch1CustomerCandidate {
   customerId: string;
   displayName: string;
+  customerNumber?: string | null;
   maskedIdentity?: string | null;
+  phone?: string | null;
 }
 
 export interface CmBatch1CustomerSearchResponse {
@@ -66,10 +68,23 @@ export interface CmBatch1ConfirmCustomerResponse {
   asOf: string;
 }
 
+export interface CmBatch1ComplaintBrief {
+  complaintId?: string;
+  complaintNumber?: string;
+  status?: string;
+  subject?: string | null;
+  category?: string | null;
+  channel?: string | null;
+  createdAt?: string | null;
+}
+
 export interface CmBatch1Customer360Response {
   customerId: string;
   profile: Record<string, unknown>;
-  activeComplaints: Record<string, unknown>[];
+  activeComplaints: CmBatch1ComplaintBrief[];
+  /** Recent history (open + closed); may be capped by API. */
+  complaintHistory?: CmBatch1ComplaintBrief[];
+  /** Total Aggregate complaints including CLOSED. */
   complaintCount: number;
   asOf: string;
 }
@@ -84,13 +99,27 @@ export interface CmBatch1CreateComplaintRequest {
   recordingUnitId?: string | null;
   duplicateOverrideJustification?: string | null;
   stagingToken?: string | null;
+  /** BRANCH_CLOSED = handled at branch. ESCALATE_PENDING_APPROVAL = await supervisor. */
+  intakeDisposition?: "BRANCH_CLOSED" | "ESCALATE_PENDING_APPROVAL" | null;
 }
 
 export interface CmBatch1ComplaintResponse {
   complaintId: string;
   complaintNumber: string;
-  status: "REGISTERED";
+  status: "REGISTERED" | "CLOSED";
   customerId: string;
+  /** Operator-facing name from customer provider (not SoR). */
+  customerDisplayName?: string | null;
+  /** External/business customer id (not internal UUID). */
+  customerNumber?: string | null;
+  /** Intake path label; Aggregate status stays REGISTERED|CLOSED. */
+  intakeDisposition?:
+    | "BRANCH_CLOSED"
+    | "ESCALATE_PENDING_APPROVAL"
+    | "ESCALATE_APPROVED"
+    | "ESCALATE_REJECTED"
+    | string
+    | null;
   caseCreated: false;
   replayed: boolean;
   category?: string | null;
@@ -181,8 +210,14 @@ export interface UploadCmBatch1AttachmentInput {
   classification: CmBatch1AttachmentClassification | string;
   stagingToken?: string | null;
   complaintId?: string | null;
+  customerId?: string | null;
   caseId?: string | null;
   supersedesAttachmentId?: string | null;
+}
+
+export interface CmBatch1IntakeEscalationDecisionRequest {
+  decision: "APPROVE" | "REJECT";
+  note?: string | null;
 }
 
 export interface CmBatch1LaterReviewWorkItem {
@@ -259,11 +294,56 @@ export function createCmBatch1Complaint(
   });
 }
 
+/** API-514 — GET /api/v1/cm/complaints (Aggregate list; coexistence read). */
+export function fetchCmBatch1Complaints(
+  pageOrFilters: number | {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    status?: string;
+    intakeDisposition?: string;
+    priority?: string;
+    category?: string;
+  } = 1,
+  pageSizeArg = 20,
+): Promise<ListResponse<CmBatch1ComplaintResponse>> {
+  const filters =
+    typeof pageOrFilters === "number"
+      ? { page: pageOrFilters, pageSize: pageSizeArg }
+      : pageOrFilters;
+  const params = new URLSearchParams({
+    page: String(filters.page ?? 1),
+    pageSize: String(filters.pageSize ?? 20),
+  });
+  const keyword = filters.keyword?.trim();
+  if (keyword) params.set("keyword", keyword);
+  const status = filters.status?.trim();
+  if (status) params.set("status", status);
+  const intakeDisposition = filters.intakeDisposition?.trim();
+  if (intakeDisposition) params.set("intakeDisposition", intakeDisposition);
+  const priority = filters.priority?.trim();
+  if (priority) params.set("priority", priority);
+  const category = filters.category?.trim();
+  if (category) params.set("category", category);
+  return apiRequest(`${cmBatch1Paths().complaints}?${params.toString()}`);
+}
+
 /** API-501 — GET /api/v1/cm/complaints/{complaintId} */
 export function fetchCmBatch1Complaint(
   complaintId: string,
 ): Promise<DataResponse<CmBatch1ComplaintResponse>> {
   return apiRequest(cmBatch1Paths().complaint(complaintId));
+}
+
+/** API-515 — POST intake escalation approve/reject (disposition only; no Case). */
+export function decideCmBatch1IntakeEscalation(
+  complaintId: string,
+  body: CmBatch1IntakeEscalationDecisionRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().intakeEscalationDecision(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /** API-505 — POST /api/v1/cm/duplicates/check */
@@ -335,6 +415,10 @@ export function uploadCmBatch1Attachment(
   const complaintId = input.complaintId?.trim();
   if (complaintId) {
     form.append("complaintId", complaintId);
+  }
+  const customerId = input.customerId?.trim();
+  if (customerId) {
+    form.append("customerId", customerId);
   }
   const caseId = input.caseId?.trim();
   if (caseId) {

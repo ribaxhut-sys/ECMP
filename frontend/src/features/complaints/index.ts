@@ -1,5 +1,7 @@
 export { CreateComplaintView } from "./CreateComplaintView";
+export { EscalateIntakeView } from "./EscalateIntakeView";
 export { CmBatch1ConfirmationView } from "./CmBatch1ConfirmationView";
+export { CmBatch1ComplaintListView } from "./CmBatch1ComplaintListView";
 export { CmBatch1SupervisorQueueView } from "./CmBatch1SupervisorQueueView";
 export { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
 export { CustomerSearchPanel } from "./CustomerSearchPanel";

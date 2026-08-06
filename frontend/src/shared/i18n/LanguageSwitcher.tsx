@@ -14,7 +14,7 @@ interface LanguageSwitcherProps {
 
 function FlagIcon({
   locale,
-  className = "h-4 w-6",
+  className = "h-3.5 w-5",
 }: {
   locale: AppLocale;
   className?: string;
@@ -25,9 +25,9 @@ function FlagIcon({
     <img
       src={meta.flagSrc}
       alt=""
-      width={24}
-      height={16}
-      className={`inline-block shrink-0 rounded-[2px] object-cover ring-1 ring-ecmp-border ${className}`}
+      width={20}
+      height={14}
+      className={`inline-block shrink-0 rounded-[var(--ecmp-radius-sm)] object-cover ring-1 ring-ecmp-border ${className}`}
       aria-hidden="true"
     />
   );
@@ -44,6 +44,7 @@ export function LanguageSwitcher({
   const rootId = id ?? `language-switcher-${listId}`;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const current = LOCALE_META[locale];
 
   useEffect(() => {
     if (!open) return;
@@ -91,17 +92,17 @@ export function LanguageSwitcher({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={`${rootId}-list`}
-        aria-label={tCommon("language")}
+        aria-label={`${tCommon("language")}: ${current.label}`}
         onClick={() => setOpen((prev) => !prev)}
         className={
           variant === "full"
-            ? "ecmp-touch inline-flex w-full max-w-xs items-center gap-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-left text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-            : "ecmp-touch inline-flex max-w-[14rem] items-center gap-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-2 py-1.5 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+            ? "ecmp-touch inline-flex w-full max-w-[8rem] items-center gap-1.5 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-2.5 py-2 text-left text-[length:var(--ecmp-font-body-size)] font-semibold tracking-wide text-ecmp-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+            : "ecmp-touch inline-flex items-center gap-1.5 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-2 py-1.5 text-[length:var(--ecmp-font-caption-size)] font-semibold tracking-wide text-ecmp-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
         }
       >
         <FlagIcon locale={locale} />
-        <span className="truncate">{LOCALE_META[locale].label}</span>
-        <span className="ml-auto text-ecmp-text-secondary" aria-hidden="true">
+        <span>{current.flag}</span>
+        <span className="text-ecmp-text-secondary" aria-hidden="true">
           ▾
         </span>
       </button>
@@ -120,17 +121,18 @@ export function LanguageSwitcher({
               <li key={code} role="option" aria-selected={selected}>
                 <button
                   type="button"
+                  aria-label={meta.label}
                   className={
                     selected
-                      ? "ecmp-touch flex w-full items-center gap-2 bg-ecmp-primary-muted px-3 py-2 text-left text-[length:var(--ecmp-font-body-size)] text-ecmp-primary"
-                      : "ecmp-touch flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary hover:bg-ecmp-secondary-muted"
+                      ? "ecmp-touch flex w-full items-center gap-1.5 bg-ecmp-primary-muted px-2.5 py-2 text-left text-[length:var(--ecmp-font-body-size)] font-semibold tracking-wide text-ecmp-primary"
+                      : "ecmp-touch flex w-full items-center gap-1.5 px-2.5 py-2 text-left text-[length:var(--ecmp-font-body-size)] font-semibold tracking-wide text-ecmp-text-primary hover:bg-ecmp-secondary-muted"
                   }
                   onClick={() => {
                     void choose(code);
                   }}
                 >
                   <FlagIcon locale={code} />
-                  <span>{meta.label}</span>
+                  <span>{meta.flag}</span>
                 </button>
               </li>
             );

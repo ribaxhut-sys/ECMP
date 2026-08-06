@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import OrgUnitResolver, Principal, enforce_org_scope, require_permissions
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.config import Settings, get_settings
-from app.core.schemas import DataResponse
+from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.integrations.customer import build_customer_provider
 from app.modules.attachment.registration import build_attachment_service
@@ -29,6 +29,7 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    IntakeEscalationDecisionRequest,
     SupervisorQueueResponse,
     TransferAttachmentsRequest,
     TransferAttachmentsResponse,
@@ -50,6 +51,7 @@ def get_cm_batch1_service(
         customer_provider=build_customer_provider(
             settings.customer_provider,
             enterprise_base_url=settings.customer_provider_enterprise_base_url,
+            session=session,
         ),
     )
 
@@ -156,6 +158,61 @@ def get_supervisor_queue(
     )
 
 
+_ALLOWED_PRIORITIES = frozenset({"LOW", "MEDIUM", "HIGH", "CRITICAL"})
+_ALLOWED_INTAKE_DISPOSITIONS = frozenset(
+    {
+        "BRANCH_CLOSED",
+        "ESCALATE_PENDING_APPROVAL",
+        "ESCALATE_APPROVED",
+        "ESCALATE_REJECTED",
+    }
+)
+
+
+@router.get(
+    "/complaints",
+    response_model=ListResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="List Aggregate Complaints (API-514 / FR-001) — coexistence read",
+)
+def list_complaints(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
+    keyword: Annotated[str | None, Query(max_length=200)] = None,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    intake_disposition: Annotated[
+        str | None, Query(alias="intakeDisposition")
+    ] = None,
+    priority: Annotated[str | None, Query()] = None,
+    category: Annotated[str | None, Query(max_length=100)] = None,
+) -> ListResponse[ComplaintBatch1Response]:
+    _ = principal
+    pri = (priority or "").strip().upper() or None
+    if pri is not None and pri not in _ALLOWED_PRIORITIES:
+        pri = None
+    st = (status_filter or "").strip().upper() or None
+    if st is not None and st not in {"REGISTERED", "CLOSED"}:
+        st = None
+    disp = (intake_disposition or "").strip().upper() or None
+    if disp is not None and disp not in _ALLOWED_INTAKE_DISPOSITIONS:
+        disp = None
+    items, total = service.list_complaints(
+        page=page,
+        page_size=page_size,
+        keyword=keyword,
+        status=st,
+        intake_disposition=disp,
+        priority=pri,
+        category=category,
+    )
+    return ListResponse(
+        data=items,
+        meta=PageMeta(page=page, pageSize=page_size, totalItems=total),
+    )
+
+
 @router.post(
     "/complaints",
     response_model=DataResponse[ComplaintBatch1Response],
@@ -249,6 +306,33 @@ def get_complaint(
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
     enforce_org_scope(principal, resource_org, settings)
     return DataResponse(data=service.get_complaint(complaint_id))
+
+
+@router.post(
+    "/complaints/{complaint_id}/intake-escalation/decision",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="Approve/reject intake escalation (API-515 / FR-001)",
+)
+def decide_intake_escalation(
+    complaint_id: str,
+    body: IntakeEscalationDecisionRequest,
+    principal: Annotated[
+        Principal, Depends(require_permissions("complaints:escalate"))
+    ],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    enforce_org_scope(principal, resource_org, settings)
+    return DataResponse(
+        data=service.decide_intake_escalation(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
 
 
 @router.post(

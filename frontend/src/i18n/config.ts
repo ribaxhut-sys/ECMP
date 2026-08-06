@@ -19,7 +19,7 @@ export interface LocaleMeta {
   code: AppLocale;
   /** Native display name */
   label: string;
-  /** Short language code (e.g. ID, EN) — fallback / aria */
+  /** Short language code shown in the switcher (e.g. ID, EN) */
   flag: string;
   /** Public path to flag SVG/PNG used in the language switcher */
   flagSrc: string;

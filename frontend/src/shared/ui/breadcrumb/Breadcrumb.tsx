@@ -47,7 +47,7 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
                 ) : (
                   <Link
                     href={item.href}
-                    className="truncate rounded-[var(--ecmp-radius-sm)] hover:text-ecmp-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+                    className="truncate rounded-[var(--ecmp-radius-sm)] transition-colors duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)] hover:text-ecmp-primary"
                   >
                     {item.label}
                   </Link>

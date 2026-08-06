@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
 /*
- * ECMP Design Tokens
+ * ECMP Design System v1.0 — Design Tokens
+ * Source of truth for visual foundation.
  * Components must reference these variables / Tailwind theme keys.
- * Do not hardcode colors or spacing in feature UI.
+ * Do not hardcode colors, spacing, radius, shadows, or z-index in feature UI.
+ *
+ * Prefix: --ecmp-* (do not rename existing keys; extend only).
  */
 
 :root {
-  /* Colors — enterprise teal / slate palette */
+  /* ── Colors — brand & semantic (existing, keep) ── */
   --ecmp-color-primary: #0f766e;
   --ecmp-color-primary-foreground: #ffffff;
   --ecmp-color-primary-muted: #ccfbf1;
@@ -32,15 +35,51 @@
   --ecmp-color-info-foreground: #ffffff;
   --ecmp-color-info-muted: #e0f2fe;
 
-  --ecmp-color-surface: #ffffff;
+  /* ── Surface system ── */
   --ecmp-color-background: #f1f5f9;
-  --ecmp-color-border: #cbd5e1;
+  --ecmp-color-surface: #ffffff;
+  --ecmp-color-surface-raised: #ffffff;
+  --ecmp-color-surface-sunken: #f8fafc;
+  --ecmp-color-surface-floating: #ffffff;
+  --ecmp-color-surface-overlay: rgb(15 23 42 / 0.45);
+
+  /* Legacy alias — overlay used by Modal; keep in sync with surface-overlay */
+  --ecmp-color-overlay: var(--ecmp-color-surface-overlay);
+
+  --ecmp-color-border: #e2e8f0;
   --ecmp-color-text-primary: #0f172a;
   --ecmp-color-text-secondary: #64748b;
   --ecmp-color-focus: #0f766e;
-  --ecmp-color-overlay: rgb(15 23 42 / 0.45);
 
-  /* Spacing scale (px) */
+  /* ── Interaction ── */
+  --ecmp-color-hover: #f1f5f9;
+  --ecmp-color-selected: #ccfbf1;
+  --ecmp-color-pressed: #e2e8f0;
+  --ecmp-color-disabled: #94a3b8;
+  --ecmp-color-muted: #64748b;
+
+  /* ── Semantic state surfaces (alert / badge contexts) ── */
+  --ecmp-color-success-bg: #dcfce7;
+  --ecmp-color-success-border: #86efac;
+  --ecmp-color-success-text: #14532d;
+  --ecmp-color-success-subtle: #f0fdf4;
+
+  --ecmp-color-warning-bg: #ffedd5;
+  --ecmp-color-warning-border: #fdba74;
+  --ecmp-color-warning-text: #7c2d12;
+  --ecmp-color-warning-subtle: #fff7ed;
+
+  --ecmp-color-danger-bg: #fee2e2;
+  --ecmp-color-danger-border: #fca5a5;
+  --ecmp-color-danger-text: #7f1d1d;
+  --ecmp-color-danger-subtle: #fef2f2;
+
+  --ecmp-color-info-bg: #e0f2fe;
+  --ecmp-color-info-border: #7dd3fc;
+  --ecmp-color-info-text: #0c4a6e;
+  --ecmp-color-info-subtle: #f0f9ff;
+
+  /* ── Spacing scale (px) — keep; do not replace ── */
   --ecmp-space-4: 4px;
   --ecmp-space-8: 8px;
   --ecmp-space-12: 12px;
@@ -51,46 +90,237 @@
   --ecmp-space-48: 48px;
   --ecmp-space-64: 64px;
 
-  /* Radius */
+  /* ── Layout tokens (consume in Phase 1+; pages unchanged in Phase 0) ── */
+  --ecmp-page-gutter: var(--ecmp-space-16);
+  --ecmp-section-gap: var(--ecmp-space-24);
+  --ecmp-panel-gap: var(--ecmp-space-16);
+  --ecmp-card-gap: var(--ecmp-space-16);
+  --ecmp-dashboard-gap: var(--ecmp-space-24);
+  --ecmp-form-gap: var(--ecmp-space-16);
+  --ecmp-content-max-width: 80rem; /* max-w-7xl */
+  --ecmp-form-max-width: 42rem;
+  --ecmp-sidebar-width: 248px;
+  --ecmp-header-height: 64px;
+  --ecmp-touch-min: 44px;
+  --ecmp-button-height: 44px;
+  --ecmp-card-padding: 24px;
+  --ecmp-modal-max-width: 720px;
+  --ecmp-search-radius: 14px;
+
+  /* ── Radius scale ── */
   --ecmp-radius-sm: 4px;
   --ecmp-radius-md: 8px;
   --ecmp-radius-lg: 12px;
-  --ecmp-radius-xl: 16px;
+  --ecmp-radius-xl: 18px;
   --ecmp-radius-full: 9999px;
 
-  /* Shadows */
-  --ecmp-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
-  --ecmp-shadow-md: 0 4px 12px rgb(15 23 42 / 0.08);
-  --ecmp-shadow-lg: 0 12px 32px rgb(15 23 42 / 0.12);
+  /* Component radius roles (tokens only) */
+  --ecmp-radius-button: var(--ecmp-radius-md);
+  --ecmp-radius-input: var(--ecmp-radius-md);
+  --ecmp-radius-select: var(--ecmp-radius-md);
+  --ecmp-radius-textarea: var(--ecmp-radius-md);
+  --ecmp-radius-badge: var(--ecmp-radius-sm);
+  --ecmp-radius-card: 18px;
+  --ecmp-radius-table: 18px;
+  --ecmp-radius-modal: 18px;
+  --ecmp-radius-dialog: 18px;
+  --ecmp-radius-dropdown: var(--ecmp-radius-md);
+  --ecmp-radius-surface: 18px;
+  --ecmp-radius-search: var(--ecmp-search-radius);
 
-  /* Typography */
+  /* ── Elevation / shadows (soft, enterprise) ── */
+  --ecmp-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+  --ecmp-shadow-md: 0 4px 14px rgb(15 23 42 / 0.07);
+  --ecmp-shadow-lg: 0 12px 28px rgb(15 23 42 / 0.1);
+
+  --ecmp-shadow-surface: none;
+  --ecmp-shadow-raised: 0 1px 3px rgb(15 23 42 / 0.04), 0 1px 2px rgb(15 23 42 / 0.03);
+  --ecmp-shadow-floating: var(--ecmp-shadow-md);
+  --ecmp-shadow-overlay: var(--ecmp-shadow-lg);
+  --ecmp-shadow-hover: 0 8px 20px rgb(15 23 42 / 0.08);
+  --ecmp-shadow-search: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.06);
+
+  /* ── Z-index scale ── */
+  --ecmp-z-dropdown: 40;
+  --ecmp-z-sticky-header: 30;
+  --ecmp-z-sidebar: 50;
+  --ecmp-z-overlay: 55;
+  --ecmp-z-modal: 60;
+  --ecmp-z-toast: 65;
+  --ecmp-z-loading: 70;
+
+  /* ── Typography — existing + extended hierarchy ── */
   --ecmp-font-family: var(--font-ecmp-sans, "Source Sans 3"), "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* Display */
   --ecmp-font-display-size: 2.25rem;
   --ecmp-font-display-line: 1.2;
   --ecmp-font-display-weight: 700;
+
+  /* Page Title (alias of heading — keep heading vars) */
   --ecmp-font-heading-size: 1.875rem;
   --ecmp-font-heading-line: 1.25;
   --ecmp-font-heading-weight: 700;
+  --ecmp-font-page-title-size: var(--ecmp-font-heading-size);
+  --ecmp-font-page-title-line: var(--ecmp-font-heading-line);
+  --ecmp-font-page-title-weight: var(--ecmp-font-heading-weight);
+
+  /* Section Title (alias of title) */
   --ecmp-font-title-size: 1.25rem;
   --ecmp-font-title-line: 1.35;
   --ecmp-font-title-weight: 600;
+  --ecmp-font-section-title-size: var(--ecmp-font-title-size);
+  --ecmp-font-section-title-line: var(--ecmp-font-title-line);
+  --ecmp-font-section-title-weight: var(--ecmp-font-title-weight);
+
+  /* Card Title */
+  --ecmp-font-card-title-size: 1.125rem;
+  --ecmp-font-card-title-line: 1.4;
+  --ecmp-font-card-title-weight: 600;
+
+  /* Subtitle (existing) */
   --ecmp-font-subtitle-size: 1.125rem;
   --ecmp-font-subtitle-line: 1.4;
   --ecmp-font-subtitle-weight: 600;
+
+  /* Body */
   --ecmp-font-body-size: 1rem; /* 16px minimum */
   --ecmp-font-body-line: 1.5;
   --ecmp-font-body-weight: 400;
+
+  /* Body Small */
+  --ecmp-font-body-small-size: 0.875rem;
+  --ecmp-font-body-small-line: 1.45;
+  --ecmp-font-body-small-weight: 400;
+
+  /* Label */
+  --ecmp-font-label-size: 0.875rem;
+  --ecmp-font-label-line: 1.4;
+  --ecmp-font-label-weight: 600;
+
+  /* Helper */
+  --ecmp-font-helper-size: 0.8125rem;
+  --ecmp-font-helper-line: 1.4;
+  --ecmp-font-helper-weight: 400;
+
+  /* Caption (existing) */
   --ecmp-font-caption-size: 0.875rem;
   --ecmp-font-caption-line: 1.4;
   --ecmp-font-caption-weight: 400;
 
-  /* Layout */
-  --ecmp-sidebar-width: 16rem;
-  --ecmp-header-height: 4rem;
-  --ecmp-touch-min: 44px;
+  /* Overline */
+  --ecmp-font-overline-size: 0.75rem;
+  --ecmp-font-overline-line: 1.35;
+  --ecmp-font-overline-weight: 600;
+  --ecmp-font-overline-tracking: 0.06em;
+
+  /* ── Motion (180–220ms micro-interactions) ── */
+  --ecmp-duration-fast: 180ms;
+  --ecmp-duration-normal: 200ms;
+  --ecmp-duration-slow: 220ms;
+  --ecmp-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ecmp-ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ecmp-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ecmp-ease-hover: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ── Focus ring (single application-wide style) ── */
+  --ecmp-focus-ring-width: 2px;
+  --ecmp-focus-ring-offset: 2px;
+  --ecmp-focus-ring-color: var(--ecmp-color-focus);
+
+  /* ── Density (tokens only — no UI switch in Phase 0) ── */
+  --ecmp-density-comfortable-row: 48px;
+  --ecmp-density-compact-row: 36px;
+  --ecmp-density-comfortable-gap: var(--ecmp-space-16);
+  --ecmp-density-compact-gap: var(--ecmp-space-8);
+  --ecmp-density-comfortable-cell-y: 14px;
+  --ecmp-density-compact-cell-y: var(--ecmp-space-8);
+
+  /* ── Icon sizes (documentation + CSS vars for consumers) ── */
+  --ecmp-icon-size-16: 16px;
+  --ecmp-icon-size-20: 20px;
+  --ecmp-icon-size-24: 24px;
+  --ecmp-icon-stroke: 1.75;
+}
+
+/* ── Dark-ready: mirror every color token. Toggle NOT wired. ── */
+.dark {
+  --ecmp-color-primary: #2dd4bf;
+  --ecmp-color-primary-foreground: #042f2e;
+  --ecmp-color-primary-muted: #134e4a;
+
+  --ecmp-color-secondary: #94a3b8;
+  --ecmp-color-secondary-foreground: #0f172a;
+  --ecmp-color-secondary-muted: #334155;
+
+  --ecmp-color-success: #4ade80;
+  --ecmp-color-success-foreground: #052e16;
+  --ecmp-color-success-muted: #14532d;
+
+  --ecmp-color-warning: #fb923c;
+  --ecmp-color-warning-foreground: #431407;
+  --ecmp-color-warning-muted: #7c2d12;
+
+  --ecmp-color-danger: #f87171;
+  --ecmp-color-danger-foreground: #450a0a;
+  --ecmp-color-danger-muted: #7f1d1d;
+
+  --ecmp-color-info: #38bdf8;
+  --ecmp-color-info-foreground: #082f49;
+  --ecmp-color-info-muted: #0c4a6e;
+
+  --ecmp-color-background: #0b1220;
+  --ecmp-color-surface: #111827;
+  --ecmp-color-surface-raised: #1e293b;
+  --ecmp-color-surface-sunken: #0b1220;
+  --ecmp-color-surface-floating: #1e293b;
+  --ecmp-color-surface-overlay: rgb(2 6 23 / 0.65);
+  --ecmp-color-overlay: var(--ecmp-color-surface-overlay);
+
+  --ecmp-color-border: #334155;
+  --ecmp-color-text-primary: #f1f5f9;
+  --ecmp-color-text-secondary: #94a3b8;
+  --ecmp-color-focus: #2dd4bf;
+
+  --ecmp-color-hover: #1e293b;
+  --ecmp-color-selected: #134e4a;
+  --ecmp-color-pressed: #334155;
+  --ecmp-color-disabled: #64748b;
+  --ecmp-color-muted: #94a3b8;
+
+  --ecmp-color-success-bg: #14532d;
+  --ecmp-color-success-border: #166534;
+  --ecmp-color-success-text: #bbf7d0;
+  --ecmp-color-success-subtle: #052e16;
+
+  --ecmp-color-warning-bg: #7c2d12;
+  --ecmp-color-warning-border: #9a3412;
+  --ecmp-color-warning-text: #fed7aa;
+  --ecmp-color-warning-subtle: #431407;
+
+  --ecmp-color-danger-bg: #7f1d1d;
+  --ecmp-color-danger-border: #991b1b;
+  --ecmp-color-danger-text: #fecaca;
+  --ecmp-color-danger-subtle: #450a0a;
+
+  --ecmp-color-info-bg: #0c4a6e;
+  --ecmp-color-info-border: #075985;
+  --ecmp-color-info-text: #bae6fd;
+  --ecmp-color-info-subtle: #082f49;
+
+  --ecmp-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
+  --ecmp-shadow-md: 0 4px 12px rgb(0 0 0 / 0.4);
+  --ecmp-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.5);
+  --ecmp-shadow-surface: none;
+  --ecmp-shadow-raised: var(--ecmp-shadow-sm);
+  --ecmp-shadow-floating: var(--ecmp-shadow-md);
+  --ecmp-shadow-overlay: var(--ecmp-shadow-lg);
+  --ecmp-shadow-hover: 0 6px 16px rgb(0 0 0 / 0.45);
+  --ecmp-shadow-search: 0 1px 2px rgb(0 0 0 / 0.25), 0 4px 12px rgb(0 0 0 / 0.3);
 }
 
 @theme inline {
+  /* Brand & semantic (existing) */
   --color-ecmp-primary: var(--ecmp-color-primary);
   --color-ecmp-primary-foreground: var(--ecmp-color-primary-foreground);
   --color-ecmp-primary-muted: var(--ecmp-color-primary-muted);
@@ -109,22 +339,59 @@
   --color-ecmp-info: var(--ecmp-color-info);
   --color-ecmp-info-foreground: var(--ecmp-color-info-foreground);
   --color-ecmp-info-muted: var(--ecmp-color-info-muted);
-  --color-ecmp-surface: var(--ecmp-color-surface);
+
+  /* Surfaces */
   --color-ecmp-background: var(--ecmp-color-background);
+  --color-ecmp-surface: var(--ecmp-color-surface);
+  --color-ecmp-surface-raised: var(--ecmp-color-surface-raised);
+  --color-ecmp-surface-sunken: var(--ecmp-color-surface-sunken);
+  --color-ecmp-surface-floating: var(--ecmp-color-surface-floating);
+  --color-ecmp-surface-overlay: var(--ecmp-color-surface-overlay);
+  --color-ecmp-overlay: var(--ecmp-color-overlay);
   --color-ecmp-border: var(--ecmp-color-border);
   --color-ecmp-text-primary: var(--ecmp-color-text-primary);
   --color-ecmp-text-secondary: var(--ecmp-color-text-secondary);
   --color-ecmp-focus: var(--ecmp-color-focus);
-  --color-ecmp-overlay: var(--ecmp-color-overlay);
+
+  /* Interaction */
+  --color-ecmp-hover: var(--ecmp-color-hover);
+  --color-ecmp-selected: var(--ecmp-color-selected);
+  --color-ecmp-pressed: var(--ecmp-color-pressed);
+  --color-ecmp-disabled: var(--ecmp-color-disabled);
+  --color-ecmp-muted: var(--ecmp-color-muted);
+
+  /* Semantic states */
+  --color-ecmp-success-bg: var(--ecmp-color-success-bg);
+  --color-ecmp-success-border: var(--ecmp-color-success-border);
+  --color-ecmp-success-text: var(--ecmp-color-success-text);
+  --color-ecmp-success-subtle: var(--ecmp-color-success-subtle);
+  --color-ecmp-warning-bg: var(--ecmp-color-warning-bg);
+  --color-ecmp-warning-border: var(--ecmp-color-warning-border);
+  --color-ecmp-warning-text: var(--ecmp-color-warning-text);
+  --color-ecmp-warning-subtle: var(--ecmp-color-warning-subtle);
+  --color-ecmp-danger-bg: var(--ecmp-color-danger-bg);
+  --color-ecmp-danger-border: var(--ecmp-color-danger-border);
+  --color-ecmp-danger-text: var(--ecmp-color-danger-text);
+  --color-ecmp-danger-subtle: var(--ecmp-color-danger-subtle);
+  --color-ecmp-info-bg: var(--ecmp-color-info-bg);
+  --color-ecmp-info-border: var(--ecmp-color-info-border);
+  --color-ecmp-info-text: var(--ecmp-color-info-text);
+  --color-ecmp-info-subtle: var(--ecmp-color-info-subtle);
 
   --radius-ecmp-sm: var(--ecmp-radius-sm);
   --radius-ecmp-md: var(--ecmp-radius-md);
   --radius-ecmp-lg: var(--ecmp-radius-lg);
   --radius-ecmp-xl: var(--ecmp-radius-xl);
+  --radius-ecmp-full: var(--ecmp-radius-full);
 
   --shadow-ecmp-sm: var(--ecmp-shadow-sm);
   --shadow-ecmp-md: var(--ecmp-shadow-md);
   --shadow-ecmp-lg: var(--ecmp-shadow-lg);
+  --shadow-ecmp-surface: var(--ecmp-shadow-surface);
+  --shadow-ecmp-raised: var(--ecmp-shadow-raised);
+  --shadow-ecmp-floating: var(--ecmp-shadow-floating);
+  --shadow-ecmp-overlay: var(--ecmp-shadow-overlay);
+  --shadow-ecmp-hover: var(--ecmp-shadow-hover);
 
   --font-ecmp: var(--ecmp-font-family);
 }
@@ -162,15 +429,52 @@ table {
   border-collapse: collapse;
 }
 
+/* Single focus ring — entire application */
+:focus {
+  outline: none;
+}
+
 :focus-visible {
-  outline: 2px solid var(--ecmp-color-focus);
-  outline-offset: 2px;
+  outline: var(--ecmp-focus-ring-width) solid var(--ecmp-focus-ring-color);
+  outline-offset: var(--ecmp-focus-ring-offset);
 }
 
 /* Utility: min touch target */
 .ecmp-touch {
   min-height: var(--ecmp-touch-min);
   min-width: var(--ecmp-touch-min);
+}
+
+/* Motion: respect reduced preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes ecmp-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ecmp-content-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Global Axios loading indicator */
@@ -184,5 +488,12 @@ table {
 }
 
 .ecmp-global-loading-bar {
-  animation: ecmp-loading-slide 1.1s ease-in-out infinite;
+  animation: ecmp-loading-slide 1.1s var(--ecmp-ease-standard) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecmp-global-loading-bar {
+    animation: none;
+    opacity: 0.85;
+  }
 }

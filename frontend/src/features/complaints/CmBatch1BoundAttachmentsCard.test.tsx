@@ -1,19 +1,16 @@
 /**
  * Component smoke for confirmation bound attachments (API-509 / API-512).
  */
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "@/test/harness";
 
 const fetchCmBatch1ComplaintAttachments = vi.fn();
 const voidCmBatch1Attachment = vi.fn();
 const hasPermission = vi.fn((code: string) =>
   ["attachment:read", "attachment:delete"].includes(code),
 );
-
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
-}));
 
 vi.mock("@/auth/AuthProvider", () => ({
   useAuth: () => ({
@@ -68,7 +65,7 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       meta: { page: 1, pageSize: 100, totalItems: 1 },
     });
 
-    render(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
+    renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("bound-item-att-bound-1")).toBeInTheDocument();
@@ -82,7 +79,7 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       data: [],
       meta: { page: 1, pageSize: 100, totalItems: 0 },
     });
-    render(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
+    renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
     await waitFor(() => {
       expect(screen.getByTestId("bound-empty")).toBeInTheDocument();
     });
@@ -121,15 +118,15 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       },
     });
 
-    render(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
+    renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
     await waitFor(() => {
       expect(screen.getByTestId("bound-item-att-bound-2")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: "Void letter.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Mark as void: letter.pdf" }));
     await user.type(screen.getByLabelText("Void reason"), "wrong upload");
     await user.click(
-      screen.getByRole("button", { name: "Confirm void bound attachment" }),
+      screen.getByRole("button", { name: "Confirm void" }),
     );
 
     await waitFor(() => {

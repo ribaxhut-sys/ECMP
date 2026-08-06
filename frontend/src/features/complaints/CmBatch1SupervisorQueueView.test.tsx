@@ -8,6 +8,25 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    ...props
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock("@/auth/AuthProvider", () => ({
   useAuth: () => ({
     hasPermission: (p: string) => p === "complaints:read",
@@ -43,10 +62,8 @@ describe("CmBatch1SupervisorQueueView", () => {
       },
     });
     render(<CmBatch1SupervisorQueueView />);
-    expect(
-      await screen.findByText("No open later-review items"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("No aging Complaints")).toBeInTheDocument();
+    expect(await screen.findByText("noOpenLaterReview")).toBeInTheDocument();
+    expect(screen.getByText("noAgingComplaints")).toBeInTheDocument();
   });
 
   it("renders API-513 fields including unknown reason without rewrite", async () => {
@@ -81,15 +98,15 @@ describe("CmBatch1SupervisorQueueView", () => {
       },
     });
     render(<CmBatch1SupervisorQueueView />);
-    expect(await screen.findAllByText("LR-TEST0001")).not.toHaveLength(0);
+    expect(await screen.findAllByText("openComplaint")).not.toHaveLength(0);
     expect(screen.getAllByText("future_enrichment_v2").length).toBeGreaterThan(
       0,
     );
-    expect(screen.getAllByText("unknown type").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("cmp-bind-1").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("OPEN").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("unknownType").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("statusOpen").length).toBeGreaterThan(0);
     expect(screen.getAllByText("CM-0001").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("REGISTERED").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("false").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("registered").length).toBeGreaterThan(0);
+    // caseCreated=false renders via common.no (identity mock -> key name).
+    expect(screen.getAllByText("no").length).toBeGreaterThan(0);
   });
 });

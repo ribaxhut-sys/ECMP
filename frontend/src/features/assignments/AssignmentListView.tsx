@@ -27,16 +27,22 @@ import {
   Button,
   Card,
   CardBody,
+  DensityToggle,
   Empty,
   ErrorState,
+  FilterBar,
   Input,
   PageContainer,
   PageHeader,
+  Pagination,
+  QuickFilters,
   Select,
   Skeleton,
   Table,
+  WorkspaceToolbar,
   type BadgeTone,
   type TableColumn,
+  type TableDensity,
 } from "@/shared/ui";
 import { AssignmentRowActions } from "./AssignmentRowActions";
 import {
@@ -51,6 +57,17 @@ type RowEnrichment = {
   current: Assignment | null;
   previous: Assignment | null;
 };
+
+type QuickFilterId = "all" | "new" | "assigned" | "critical" | "inProgress";
+
+function activeQuickFilter(filters: AssignmentListFilters): QuickFilterId {
+  if (filters.priority === "CRITICAL" && !filters.status) return "critical";
+  if (filters.status === "NEW" && !filters.priority) return "new";
+  if (filters.status === "ASSIGNED" && !filters.priority) return "assigned";
+  if (filters.status === "IN_PROGRESS" && !filters.priority) return "inProgress";
+  if (!filters.status && !filters.priority) return "all";
+  return "all";
+}
 
 function formatWhen(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
@@ -115,6 +132,8 @@ export function AssignmentListView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | undefined>();
+  const [density, setDensity] = useState<TableDensity>("comfortable");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(filters);
@@ -231,6 +250,39 @@ export function AssignmentListView() {
     setDraft(next);
     applyFilters(next);
   }
+
+  function applyQuickFilter(id: string): void {
+    const base = defaultAssignmentFilters();
+    const next: AssignmentListFilters = {
+      ...base,
+      keyword: filters.keyword,
+      branchId: filters.branchId,
+      assignedTo: filters.assignedTo,
+      sort: filters.sort,
+      order: filters.order,
+      pageSize: filters.pageSize,
+    };
+    switch (id as QuickFilterId) {
+      case "new":
+        next.status = "NEW";
+        break;
+      case "assigned":
+        next.status = "ASSIGNED";
+        break;
+      case "inProgress":
+        next.status = "IN_PROGRESS";
+        break;
+      case "critical":
+        next.priority = "CRITICAL";
+        break;
+      default:
+        break;
+    }
+    setDraft(next);
+    applyFilters(next);
+  }
+
+  const currentQuick = activeQuickFilter(filters);
 
   const refresh = useCallback(() => {
     void load(filters);
@@ -413,9 +465,15 @@ export function AssignmentListView() {
           total: totalItems,
         });
 
+  const pageSummary =
+    totalPages > 0
+      ? tCommon("pageOf", { page: filters.page, totalPages })
+      : t("pageLabel", { page: filters.page });
+
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={tComplaints("overline")}
         title={t("title")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
@@ -429,106 +487,129 @@ export function AssignmentListView() {
         }
       />
 
-      <Card>
-        <CardBody>
-          <form
-            onSubmit={onSubmitFilters}
-            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
-            aria-label={t("searchFiltersAriaLabel")}
-          >
-            <div className="md:col-span-2 xl:col-span-2">
-              <Input
-                name="keyword"
-                label={tCommon("search")}
-                placeholder={t("searchPlaceholder")}
-                value={draft.keyword}
+      <QuickFilters
+        label={tComplaints("quickFiltersLabel")}
+        onSelect={applyQuickFilter}
+        options={[
+          { id: "all", label: tComplaints("qfAll"), active: currentQuick === "all" },
+          { id: "new", label: tComplaints("qfNew"), active: currentQuick === "new" },
+          {
+            id: "assigned",
+            label: tStatus("ASSIGNED"),
+            active: currentQuick === "assigned",
+          },
+          {
+            id: "inProgress",
+            label: tComplaints("qfOpen"),
+            active: currentQuick === "inProgress",
+          },
+          {
+            id: "critical",
+            label: tComplaints("qfCritical"),
+            active: currentQuick === "critical",
+            tone: "critical",
+          },
+        ]}
+      />
+
+      <form onSubmit={onSubmitFilters} aria-label={t("searchFiltersAriaLabel")}>
+        <FilterBar
+          search={
+            <Input
+              name="keyword"
+              label={tCommon("search")}
+              placeholder={t("searchPlaceholder")}
+              value={draft.keyword}
+              onChange={(e) =>
+                setDraft((prev) => ({ ...prev, keyword: e.target.value }))
+              }
+              maxLength={200}
+            />
+          }
+          filters={
+            <>
+              <Select
+                name="status"
+                label={t("complaintStatusLabel")}
+                options={statusFilterOptions}
+                value={draft.status}
                 onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, keyword: e.target.value }))
+                  setDraft((prev) => ({ ...prev, status: e.target.value }))
                 }
-                maxLength={200}
               />
-            </div>
-            <Select
-              name="status"
-              label={t("complaintStatusLabel")}
-              options={statusFilterOptions}
-              value={draft.status}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, status: e.target.value }))
-              }
-            />
-            <Select
-              name="priority"
-              label={tComplaints("priority")}
-              options={priorityFilterOptions}
-              value={draft.priority}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, priority: e.target.value }))
-              }
-            />
-            <Select
-              name="branchId"
-              label={t("branchColumn")}
-              options={branchOptions}
-              value={draft.branchId}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, branchId: e.target.value }))
-              }
-            />
-            <Select
-              name="assignedTo"
-              label={t("assigneeLabel")}
-              options={assigneeOptions}
-              value={draft.assignedTo}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, assignedTo: e.target.value }))
-              }
-            />
-            <Select
-              name="sort"
-              label={tTable("sortBy")}
-              options={sortFieldOptions}
-              value={draft.sort}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  sort: e.target.value as AssignmentListFilters["sort"],
-                }))
-              }
-            />
-            <Select
-              name="order"
-              label={tTable("order")}
-              options={sortOrderOptions}
-              value={draft.order}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  order: e.target.value as AssignmentListFilters["order"],
-                }))
-              }
-            />
-            <Select
-              name="pageSize"
-              label={tTable("pageSize")}
-              options={pageSizeOptions}
-              value={String(draft.pageSize)}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  pageSize: Number(e.target.value) || 20,
-                }))
-              }
-            />
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-end md:col-span-2 xl:col-span-4">
-              <Button type="submit">{tCommon("apply")}</Button>
-              <Button type="button" variant="outline" onClick={onResetFilters}>
-                {tCommon("reset")}
-              </Button>
-            </div>
-          </form>
-        </CardBody>
-      </Card>
+              <Select
+                name="priority"
+                label={tComplaints("priority")}
+                options={priorityFilterOptions}
+                value={draft.priority}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, priority: e.target.value }))
+                }
+              />
+              <Select
+                name="branchId"
+                label={t("branchColumn")}
+                options={branchOptions}
+                value={draft.branchId}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, branchId: e.target.value }))
+                }
+              />
+              <Select
+                name="assignedTo"
+                label={t("assigneeLabel")}
+                options={assigneeOptions}
+                value={draft.assignedTo}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, assignedTo: e.target.value }))
+                }
+              />
+              <Select
+                name="sort"
+                label={tTable("sortBy")}
+                options={sortFieldOptions}
+                value={draft.sort}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    sort: e.target.value as AssignmentListFilters["sort"],
+                  }))
+                }
+              />
+              <Select
+                name="order"
+                label={tTable("order")}
+                options={sortOrderOptions}
+                value={draft.order}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    order: e.target.value as AssignmentListFilters["order"],
+                  }))
+                }
+              />
+              <Select
+                name="pageSize"
+                label={tTable("pageSize")}
+                options={pageSizeOptions}
+                value={String(draft.pageSize)}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    pageSize: Number(e.target.value) || 20,
+                  }))
+                }
+              />
+            </>
+          }
+          actions={<Button type="submit">{tCommon("apply")}</Button>}
+          reset={
+            <Button type="button" variant="outline" onClick={onResetFilters}>
+              {tCommon("reset")}
+            </Button>
+          }
+        />
+      </form>
 
       {loading ? <Skeleton rows={6} /> : null}
 
@@ -545,60 +626,66 @@ export function AssignmentListView() {
         <Empty
           title={t("noItems")}
           description={t("noItemsDescription")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/queue")}
-            >
-              {t("openQueue")}
-            </Button>
-          }
+          primaryAction={{
+            label: t("refreshAssignments"),
+            onClick: () => void load(filters),
+          }}
+          secondaryAction={{
+            label: t("clearFilters"),
+            onClick: onResetFilters,
+          }}
         />
       ) : null}
 
       {!loading && !error && rows.length > 0 ? (
-        <Card>
-          <CardBody className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-              <span>{rangeLabel}</span>
-              <span>
-                {totalPages > 0
-                  ? tCommon("pageOf", { page: filters.page, totalPages })
-                  : t("pageLabel", { page: filters.page })}
-              </span>
-            </div>
+        <Card padding={false} className="overflow-hidden">
+          <CardBody className="space-y-[var(--ecmp-panel-gap)] p-4 md:p-6">
+            <WorkspaceToolbar
+              summary={tTable("itemsInView", { count: totalItems })}
+              density={<DensityToggle value={density} onChange={setDensity} />}
+              actions={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={refresh}
+                >
+                  {tCommon("refresh")}
+                </Button>
+              }
+            />
             <Table
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
               caption={t("caption")}
+              density={density}
+              stickyHeader
+              selectedKeys={selectedId ? new Set([selectedId]) : undefined}
+              onRowClick={(row) => setSelectedId(row.id)}
             />
-            <div className="flex flex-col-reverse gap-2 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasPrevious}
-                onClick={() =>
-                  applyFilters({
-                    ...filters,
-                    page: Math.max(1, filters.page - 1),
-                  })
-                }
-              >
-                {tCommon("previous")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasNext}
-                onClick={() =>
-                  applyFilters({ ...filters, page: filters.page + 1 })
-                }
-              >
-                {tCommon("next")}
-              </Button>
-            </div>
+            <Pagination
+              summary={
+                <span>
+                  {rangeLabel}
+                  <span className="mx-2 text-ecmp-border">·</span>
+                  {pageSummary}
+                </span>
+              }
+              previousLabel={tCommon("previous")}
+              nextLabel={tCommon("next")}
+              previousDisabled={!hasPrevious}
+              nextDisabled={!hasNext}
+              onPrevious={() =>
+                applyFilters({
+                  ...filters,
+                  page: Math.max(1, filters.page - 1),
+                })
+              }
+              onNext={() =>
+                applyFilters({ ...filters, page: filters.page + 1 })
+              }
+            />
           </CardBody>
         </Card>
       ) : null}

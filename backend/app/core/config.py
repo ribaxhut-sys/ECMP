@@ -218,8 +218,9 @@ class Settings(BaseSettings):
 
     # Master Customer integration (ADR-002 read-only; CM Batch 1)
     # stub = in-memory seed (default / current behavior)
+    # local = lab Postgres customers reference cache (ID / name / phone)
     # enterprise = Enterprise Platform skeleton (returns UNAVAILABLE until HTTP wired)
-    customer_provider: Literal["stub", "enterprise"] = Field(
+    customer_provider: Literal["stub", "enterprise", "local"] = Field(
         default="stub",
         alias="CUSTOMER_PROVIDER",
     )

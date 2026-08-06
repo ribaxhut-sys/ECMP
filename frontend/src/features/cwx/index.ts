@@ -23,7 +23,6 @@ export { CwxCurrentWorkPanel } from "./CurrentWorkPanel";
 export { CwxCaseSummaryCard } from "./CwxCaseSummaryCard";
 export { CwxCustomerSummary } from "./CustomerSummary";
 export { CwxOperationalContextBlock } from "./OperationalContextBlock";
-
 export {
   CwxEvidenceSurface,
   type CwxEvidenceSurfaceProps,

@@ -10,7 +10,7 @@ function CasesFallback() {
   const tCommon = useTranslations("common");
   const tNav = useTranslations("nav");
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={tCases("list")}
         breadcrumbs={[

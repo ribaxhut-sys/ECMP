@@ -211,8 +211,6 @@ async function collectStrings(page) {
 
 const ROUTES = [
   { path: "/login", auth: false, name: "Login" },
-  { path: "/forgot-password", auth: false, name: "Forgot Password" },
-  { path: "/reset-password", auth: false, name: "Reset Password" },
   { path: "/dashboard", auth: true, name: "Dashboard" },
   { path: "/complaints", auth: true, name: "Pengaduan" },
   { path: "/complaints/new", auth: true, name: "Buat Pengaduan" },

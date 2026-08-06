@@ -37,6 +37,7 @@ class CmBatch1ComplaintORM(Base):
         Index("ix_cm_batch1_complaints_customer_id", "customer_id"),
         Index("ix_cm_batch1_complaints_status", "status"),
         Index("ix_cm_batch1_complaints_created_at", "created_at"),
+        Index("ix_cm_batch1_complaints_intake_disposition", "intake_disposition"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -54,6 +55,10 @@ class CmBatch1ComplaintORM(Base):
     priority: Mapped[str] = mapped_column(String(32), nullable=False, default="MEDIUM")
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="REGISTERED"
+    )
+    # Intake path label (not Aggregate lifecycle). e.g. ESCALATE_PENDING_APPROVAL.
+    intake_disposition: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
     )
     # Hard invariant Batch 1 (CTO D-02) — always false; Case deferred.
     case_created: Mapped[bool] = mapped_column(
@@ -283,6 +288,7 @@ class CmBatch1AttachmentORM(Base):
         Index("ix_cm_batch1_attachments_status", "status"),
         Index("ix_cm_batch1_attachments_platform_id", "platform_attachment_id"),
         Index("ix_cm_batch1_attachments_checksum", "checksum_sha256"),
+        Index("ix_cm_batch1_attachments_customer_id", "customer_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -302,6 +308,7 @@ class CmBatch1AttachmentORM(Base):
         ForeignKey("cm_batch1_complaints.id", ondelete="SET NULL"),
         nullable=True,
     )
+    customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     classification: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     original_name: Mapped[str] = mapped_column(String(255), nullable=False)

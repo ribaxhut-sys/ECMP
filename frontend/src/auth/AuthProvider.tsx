@@ -17,6 +17,17 @@ import {
 } from "@/lib/api/auth";
 import { setAuthToken } from "@/lib/api/client";
 import type { AuthMe } from "@/lib/api/types";
+import { isMockAuthEnabled, isShellUiBatch } from "@/shared/config/uiBatch";
+import {
+  clearMockSession,
+  mockLogin,
+  readMockSession,
+  updateOfficerWorkMode,
+  writeMockSession,
+  type MockPersonaId,
+  type MockSession,
+  type OfficerWorkMode,
+} from "@/auth/mockAuth";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -27,6 +38,10 @@ interface AuthContextValue {
   permissions: readonly string[];
   roles: readonly string[];
   forcePasswordChange: boolean;
+  /** True when session comes from mockAuth (Batch B0). */
+  isMockSession: boolean;
+  mockPersona: MockPersonaId | null;
+  officerWorkMode: OfficerWorkMode | null;
   hasPermission: (permission: string) => boolean;
   login: (username: string, password: string) => Promise<AuthMe>;
   logout: () => Promise<void>;
@@ -34,6 +49,8 @@ interface AuthContextValue {
   refreshUser: () => Promise<boolean>;
   /** Merge fields into the in-memory AuthMe (e.g. preferredLanguage). */
   patchUser: (partial: Partial<AuthMe>) => void;
+  /** Officer intake ↔ handling (mock / B0 only). */
+  setOfficerWorkMode: (mode: OfficerWorkMode) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,15 +58,31 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthMe | null>(null);
+  const [mockSession, setMockSession] = useState<MockSession | null>(null);
 
   const applyUser = useCallback((next: AuthMe | null) => {
     setUser(next);
     setStatus(next ? "authenticated" : "unauthenticated");
   }, []);
 
+  const applyMockSession = useCallback(
+    (session: MockSession | null) => {
+      setMockSession(session);
+      if (session) {
+        setAuthToken("mock-access-token");
+        applyUser(session.user);
+      } else {
+        setAuthToken(null);
+        applyUser(null);
+      }
+    },
+    [applyUser],
+  );
+
   const loadMe = useCallback(async (): Promise<AuthMe | null> => {
     try {
       const me = await fetchCurrentUser();
+      setMockSession(null);
       applyUser(me);
       return me;
     } catch {
@@ -60,6 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyUser]);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
+    if (isMockAuthEnabled() && readMockSession()) {
+      const session = readMockSession();
+      applyMockSession(session);
+      return session != null;
+    }
     const tokens = await refreshAccessToken();
     if (!tokens) {
       applyUser(null);
@@ -67,16 +105,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const me = await loadMe();
     return me != null;
-  }, [applyUser, loadMe]);
+  }, [applyMockSession, applyUser, loadMe]);
 
   const refreshUser = useCallback(async (): Promise<boolean> => {
+    if (mockSession) {
+      const session = readMockSession();
+      applyMockSession(session);
+      return session != null;
+    }
     const me = await loadMe();
     return me != null;
-  }, [loadMe]);
+  }, [applyMockSession, loadMe, mockSession]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (isMockAuthEnabled()) {
+        const existing = readMockSession();
+        if (cancelled) return;
+        if (existing) {
+          applyMockSession(existing);
+          return;
+        }
+        if (isShellUiBatch()) {
+          applyMockSession(null);
+          return;
+        }
+      }
       const tokens = await refreshAccessToken();
       if (cancelled) return;
       if (!tokens) {
@@ -88,10 +143,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [applyUser, loadMe]);
+  }, [applyMockSession, applyUser, loadMe]);
 
   const login = useCallback(
     async (username: string, password: string) => {
+      if (isMockAuthEnabled()) {
+        try {
+          const session = mockLogin(username, password);
+          applyMockSession(session);
+          return session.user;
+        } catch (err) {
+          if (isShellUiBatch()) {
+            throw err;
+          }
+          // Non-shell mock mode: fall through to real API
+        }
+      }
       await apiLogin(username, password);
       const me = await loadMe();
       if (!me) {
@@ -99,17 +166,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return me;
     },
-    [loadMe],
+    [applyMockSession, loadMe],
   );
 
   const logout = useCallback(async () => {
+    if (mockSession || readMockSession()) {
+      clearMockSession();
+      applyMockSession(null);
+      return;
+    }
     await apiLogout();
     applyUser(null);
-  }, [applyUser]);
+  }, [applyMockSession, applyUser, mockSession]);
 
   const patchUser = useCallback((partial: Partial<AuthMe>) => {
     setUser((prev) => (prev ? { ...prev, ...partial } : prev));
+    setMockSession((prev) => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        user: { ...prev.user, ...partial },
+      };
+      writeMockSession(next);
+      return next;
+    });
   }, []);
+
+  const setOfficerWorkMode = useCallback(
+    (mode: OfficerWorkMode) => {
+      const next = updateOfficerWorkMode(mode);
+      if (next) applyMockSession(next);
+    },
+    [applyMockSession],
+  );
 
   const permissions = useMemo(
     () => user?.permissions ?? [],
@@ -132,12 +221,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       permissions,
       roles,
       forcePasswordChange,
+      isMockSession: mockSession != null,
+      mockPersona: mockSession?.persona ?? null,
+      officerWorkMode: mockSession?.officerWorkMode ?? null,
       hasPermission,
       login,
       logout,
       refreshSession,
       refreshUser,
       patchUser,
+      setOfficerWorkMode,
     }),
     [
       status,
@@ -145,12 +238,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       permissions,
       roles,
       forcePasswordChange,
+      mockSession,
       hasPermission,
       login,
       logout,
       refreshSession,
       refreshUser,
       patchUser,
+      setOfficerWorkMode,
     ],
   );
 

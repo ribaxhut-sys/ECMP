@@ -6,9 +6,18 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.auth import CurrentPrincipal, Principal, require_permissions
+from app.core.auth import (
+    CurrentPrincipal,
+    OrgUnitResolver,
+    Principal,
+    enforce_org_scope,
+    require_permissions,
+    require_user_status_update,
+)
+from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.config import Settings, get_settings
 from app.core.local_credential_auth import (
     assert_local_credential_auth_enabled,
@@ -16,6 +25,7 @@ from app.core.local_credential_auth import (
 )
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
+from app.models import Branch
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import (
     AdminResetPasswordResponse,
@@ -88,8 +98,17 @@ def create_user(
     payload: UserCreateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:create"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     _: LocalCredentialAuth,
 ) -> DataResponse[UserResponse]:
+    # UX-CU-002 R2 / SECMIG-P4 reuse: declared Unit must match the administrator's
+    # own org-scope claim. No-op unless ECMP_AUTH_MODE=jwt (org_scope_enforcement_enabled).
+    declared_org = None
+    if payload.branch_id is not None:
+        branch = session.get(Branch, payload.branch_id)
+        declared_org = OrgUnitResolver.normalize(branch.code if branch else None)
+    enforce_org_scope(principal, declared_org, settings)
     created = service.create(
         payload,
         actor_user_id=principal.user_id,
@@ -107,13 +126,45 @@ def create_user(
 def list_users(
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     is_active: Annotated[bool | None, Query(alias="isActive")] = None,
     role_id: Annotated[uuid.UUID | None, Query(alias="roleId")] = None,
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
 ) -> ListResponse[UserResponse]:
-    _ = principal
+    # UM-SEC-001 TASK 1/2 — same scope predicate as users:create (OrgUnitGuard,
+    # SECMIG-P4), applied as a list filter instead of a single-resource raise.
+    # No-op unless ECMP_AUTH_MODE=jwt (org_scope_enforcement_enabled).
+    if org_scope_enforcement_enabled(settings):
+        principal_org = OrgUnitResolver.normalize(principal.org_unit_id)
+        if principal_org is not None:
+            if branch_id is not None:
+                branch = session.get(Branch, branch_id)
+                requested_org = OrgUnitResolver.normalize(
+                    branch.code if branch else None
+                )
+                # Reuses the exact create-path comparator/error shape — an
+                # explicit cross-unit list request is denied, not silently
+                # narrowed to the admin's own unit.
+                enforce_org_scope(principal, requested_org, settings)
+            else:
+                own_branch_id = session.scalar(
+                    select(Branch.id).where(Branch.code == principal_org)
+                )
+                branch_id = own_branch_id
+        # principal_org is None (head-office-scoped role, or missing claim):
+        # left UNRESTRICTED here — see UX-UM-001 §8.1 / Remaining Repository
+        # Gaps. Head-office-scoped roles are defined repo-wide (Branch
+        # requirement is forbidden for them, users/service.py
+        # _ensure_branch_for_role) as operating across all units; a formal
+        # "does Head Office get GLOBAL list visibility" business rule has not
+        # been written down anywhere, so this is reported as an open gap
+        # rather than silently asserted as correct. It is NOT a bypass this
+        # change introduces — it is the endpoint's pre-existing behavior,
+        # preserved because blocking it would 403 every head-office
+        # administrator out of the only membership list ECMP has.
     items, total = service.list(
         page=page,
         page_size=page_size,
@@ -137,8 +188,14 @@ def get_user(
     id: uuid.UUID,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[UserResponse]:
-    _ = principal
+    # UM-SEC-002 TASK 1/2/3 — same reused idiom as update_user_status
+    # (single-resource compare): OrgUnitResolver + enforce_org_scope
+    # (SECMIG-P4). No-op unless ECMP_AUTH_MODE=jwt.
+    target_org = OrgUnitResolver(session).resolve_user(id)
+    enforce_org_scope(principal, target_org, settings)
     return DataResponse(data=service.get(id))
 
 
@@ -177,7 +234,7 @@ def update_user_status(
     id: uuid.UUID,
     payload: UserStatusUpdateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
-    principal: Annotated[Principal, Depends(require_permissions("users:update"))],
+    principal: Annotated[Principal, Depends(require_user_status_update)],
 ) -> DataResponse[UserResponse]:
     updated = service.update_status(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=updated)

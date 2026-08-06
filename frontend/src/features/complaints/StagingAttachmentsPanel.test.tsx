@@ -1,9 +1,10 @@
 /**
  * Component smoke for SCR-CM-004 staging panel (upload + void affordance).
  */
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "@/test/harness";
 
 const uploadCmBatch1Attachment = vi.fn();
 const voidCmBatch1Attachment = vi.fn();
@@ -61,7 +62,12 @@ describe("StagingAttachmentsPanel", () => {
       },
     });
 
-    render(<StagingAttachmentsPanel stagingToken="STG-panel" />);
+    renderWithProviders(
+      <StagingAttachmentsPanel
+        stagingToken="STG-panel"
+        customerId="CUST-LAB-001"
+      />,
+    );
     expect(screen.getByTestId("staging-empty")).toBeInTheDocument();
 
     const file = new File(["x"], "shot.png", { type: "image/png" });
@@ -70,6 +76,10 @@ describe("StagingAttachmentsPanel", () => {
 
     await waitFor(() => {
       expect(uploadCmBatch1Attachment).toHaveBeenCalled();
+    });
+    expect(uploadCmBatch1Attachment.mock.calls[0]?.[0]).toMatchObject({
+      customerId: "CUST-LAB-001",
+      stagingToken: "STG-panel",
     });
     expect(screen.getByTestId("staging-item-att-staged-1")).toBeInTheDocument();
     expect(screen.getByText("shot.png")).toBeInTheDocument();
@@ -106,18 +116,23 @@ describe("StagingAttachmentsPanel", () => {
       },
     });
 
-    render(<StagingAttachmentsPanel stagingToken="STG-panel" />);
+    renderWithProviders(
+      <StagingAttachmentsPanel
+        stagingToken="STG-panel"
+        customerId="CUST-LAB-001"
+      />,
+    );
     const file = new File(["x"], "doc.pdf", { type: "application/pdf" });
     await user.upload(screen.getByLabelText("Choose file to stage"), file);
     await waitFor(() => {
       expect(screen.getByTestId("staging-item-att-staged-2")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: "Void doc.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Mark as void: doc.pdf" }));
     expect(screen.getByTestId("staging-void-form")).toBeInTheDocument();
     await user.type(screen.getByLabelText("Void reason"), "wrong file");
     await user.click(
-      screen.getByRole("button", { name: "Confirm void staged attachment" }),
+      screen.getByRole("button", { name: "Confirm void" }),
     );
 
     await waitFor(() => {

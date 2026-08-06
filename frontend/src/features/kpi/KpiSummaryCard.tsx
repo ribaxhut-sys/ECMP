@@ -1,13 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { KpiSummary } from "@/lib/api/types";
 import {
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
   Empty,
+  PanelHeader,
   Skeleton,
 } from "@/shared/ui";
 
@@ -19,11 +20,11 @@ function MetricTile({
   value: number;
 }) {
   return (
-    <div className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-4 py-4">
-      <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+    <div className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken px-[var(--ecmp-panel-gap)] py-[var(--ecmp-panel-gap)]">
+      <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </p>
-      <p className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tabular-nums text-ecmp-text-primary">
+      <p className="mt-2 text-[length:var(--ecmp-font-page-title-size)] font-[number:var(--ecmp-font-page-title-weight)] tabular-nums text-ecmp-text-primary">
         {value}
       </p>
     </div>
@@ -44,7 +45,7 @@ function StageRow({
   breachedLabel: string;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-3">
       <div className="flex items-center text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary sm:col-span-1">
         {label}
       </div>
@@ -57,18 +58,22 @@ function StageRow({
 export function KpiSummaryCard({
   summary,
   loading,
+  onRefresh,
 }: {
   summary: KpiSummary | null;
   loading: boolean;
+  onRefresh?: () => void;
 }) {
+  const router = useRouter();
   const t = useTranslations("kpi");
   const td = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
 
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("title")}</CardTitle>
+          <PanelHeader title={t("title")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Skeleton rows={4} />
@@ -81,12 +86,21 @@ export function KpiSummaryCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("title")}</CardTitle>
+          <PanelHeader title={t("title")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Empty
             title={t("noData")}
             description={t("noDataDescription")}
+            primaryAction={
+              onRefresh
+                ? { label: tCommon("refreshPage"), onClick: onRefresh }
+                : undefined
+            }
+            secondaryAction={{
+              label: tCommon("goToComplaints"),
+              onClick: () => router.push("/complaints"),
+            }}
           />
         </CardBody>
       </Card>
@@ -104,22 +118,22 @@ export function KpiSummaryCard({
   return (
     <Card data-testid="kpi-summary-card">
       <CardHeader>
-        <CardTitle>{t("title")}</CardTitle>
+        <PanelHeader title={t("title")} className="mb-0 border-0 pb-0" />
       </CardHeader>
-      <CardBody className="space-y-6">
+      <CardBody className="space-y-[var(--ecmp-panel-gap)]">
         <div>
-          <p className="mb-3 text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+          <p className="mb-[var(--ecmp-form-gap)] text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
             {t("complaintsSectionLabel")}
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-3">
             <MetricTile label={td("totalComplaints")} value={summary.complaints.total} />
             <MetricTile label={t("open")} value={summary.complaints.open} />
             <MetricTile label={t("closed")} value={summary.complaints.closed} />
           </div>
         </div>
 
-        <div className="space-y-4">
-          <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
+          <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
             {t("slaSectionLabel")}
           </p>
           {stages.map((stage) => (

@@ -78,6 +78,9 @@ MESSAGES: dict[str, str] = {
     "user.branch_forbidden_for_role": (
         "Cabang tidak boleh diisi untuk peran kantor pusat."
     ),
+    "user.only_head_office_admin_status": (
+        "Hanya Admin Pusat yang dapat mengaktifkan atau menonaktifkan pengguna."
+    ),
     # --- Branch ---
     "branch.not_found": "Cabang tidak ditemukan.",
     "branch.not_found_or_inactive": "Cabang tidak ditemukan atau tidak aktif.",
@@ -98,6 +101,10 @@ MESSAGES: dict[str, str] = {
     "iam.user_role_not_found": "Tautan pengguna-peran tidak ditemukan.",
     # --- Customer ---
     "customer.exactly_one_key_type": "Tepat satu tipe kunci pelanggan harus disediakan.",
+    "customer.search_key_empty": "Masukkan kunci pencarian.",
+    "customer.search_name_too_short": "Nama terlalu pendek — minimal 3 karakter.",
+    "customer.search_id_too_short": "ID terlalu pendek — minimal 8 digit.",
+    "customer.search_phone_too_short": "Nomor telepon terlalu pendek — minimal 10 digit.",
     "customer.id_must_be_confirmed": (
         "CustomerId harus dikonfirmasi/dikunci untuk aktor ini sebelum pembuatan."
     ),

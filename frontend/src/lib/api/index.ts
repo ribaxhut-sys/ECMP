@@ -11,11 +11,9 @@ export {
 export type { ApiBlobResult, ApiRequestInit } from "./client";
 export {
   fetchCurrentUser,
-  forgotPassword,
   login,
   logout,
   refreshAccessToken,
-  resetPassword,
 } from "./auth";
 export {
   assignComplaint,
@@ -51,9 +49,14 @@ export {
 } from "./appointments";
 export { fetchBranches } from "./branches";
 export type { Branch } from "./branches";
-export { fetchCustomers } from "./customers";
+export { fetchCustomers, updateCustomerPhone } from "./customers";
 export type { Customer } from "./customers";
-export { adminResetPassword, changePassword, createUser, fetchUsers } from "./users";
+export {
+  createUser,
+  fetchUsers,
+  updateUserRole,
+  updateUserStatus,
+} from "./users";
 export type { UserRef, CreateUserPayload } from "./users";
 export { fetchRoles } from "./roles";
 export type { RoleRef } from "./roles";
@@ -117,7 +120,9 @@ export {
   cmBatch1Paths,
   confirmCmBatch1Customer,
   createCmBatch1Complaint,
+  decideCmBatch1IntakeEscalation,
   fetchCmBatch1Complaint,
+  fetchCmBatch1Complaints,
   fetchCmBatch1Customer360,
   recordCmBatch1DuplicateDecision,
   searchCmBatch1Customer,
@@ -133,6 +138,7 @@ export type {
   CmBatch1AttachmentResponse,
   CmBatch1AttachmentStatus,
   CmBatch1ComplaintResponse,
+  CmBatch1ComplaintBrief,
   CmBatch1ConfirmCustomerRequest,
   CmBatch1ConfirmCustomerResponse,
   CmBatch1CreateComplaintOptions,
@@ -146,6 +152,7 @@ export type {
   CmBatch1DuplicateDecision,
   CmBatch1DuplicateDecisionRequest,
   CmBatch1DuplicateDecisionResponse,
+  CmBatch1IntakeEscalationDecisionRequest,
   CmBatch1LaterReviewWorkItem,
   CmBatch1SupervisorQueueQuery,
   CmBatch1SupervisorQueueResponse,
@@ -169,6 +176,7 @@ export {
   cmCasePaths,
   createCmCase,
   fetchCmCase,
+  fetchCmCases,
   resolveCmCase,
   updateCmCaseStatus,
 } from "./cmCase";
@@ -181,6 +189,7 @@ export type {
   CmCaseResolution,
   CmCaseResolveAction,
   CmCaseStatus,
+  CmCaseSummary,
   CreateCmCaseRequest,
   ResolveCmCaseRequest,
   UpdateCmCaseStatusRequest,

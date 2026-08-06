@@ -120,6 +120,23 @@ _ESCALATION_CLOSE_ROLES = (
     "ADMINISTRATOR",
 )
 
+_USER_STATUS_UPDATE_ROLES = (
+    "ADMIN",
+    "ADMINISTRATOR",
+    "SUPER_ADMIN",
+)
+
+
+def require_user_status_update(
+    principal: Annotated[
+        Principal, Depends(require_permissions("users:update"))
+    ],
+) -> Principal:
+    """API-217 gate: users:update + Head Office Admin only."""
+    if not principal.has_any_role(*_USER_STATUS_UPDATE_ROLES):
+        raise PermissionDeniedError(m("user.only_head_office_admin_status"))
+    return principal
+
 
 def require_escalation_close(
     principal: Annotated[

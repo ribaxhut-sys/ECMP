@@ -11,10 +11,11 @@
     "check:auth-routes": "node scripts/check-mode-a-credential-routes.mjs",
     "check:auth-routes:enterprise-guard": "node scripts/check-mode-a-credential-routes.mjs --self-test",
     "check:auth-routes:unit": "node --test scripts/check-mode-a-credential-routes.test.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage --exclude 'src/**/*.test.tsx'",
-    "test:a11y": "vitest run --config vitest.a11y.config.ts"
+    "test:a11y": "vitest run --config vitest.a11y.config.mts"
   },
   "dependencies": {
     "@swc/helpers": "^0.5.23",

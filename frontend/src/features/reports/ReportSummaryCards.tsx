@@ -2,83 +2,168 @@
 
 import { useTranslations } from "next-intl";
 import type { ReportSummary } from "@/lib/api/types";
+import { IconCheck, IconQueue } from "@/shared/icons";
 import {
-  Card,
-  CardBody,
-  CardHeader,
-  CardTitle,
   Empty,
+  SectionHeader,
   Skeleton,
+  StatCard,
+  type StatAccent,
 } from "@/shared/ui";
-import { reportHeadlineCounts } from "./reportSummaryStats";
+import {
+  reportHeadlineCounts,
+  resolutionRatePercent,
+} from "./reportSummaryStats";
+
+function openAccentFromRate(openRate: number): StatAccent {
+  if (openRate >= 70) return "critical";
+  if (openRate >= 40) return "attention";
+  return "healthy";
+}
 
 export function ReportSummaryCards({
   summary,
   loading,
+  onRefresh,
 }: {
   summary: ReportSummary | null;
   loading: boolean;
+  onRefresh?: () => void;
 }) {
   const t = useTranslations("reports");
 
   if (loading) {
     return (
-      <Card data-testid="reports-summary-cards">
-        <CardHeader>
-          <CardTitle>{t("summaryTitle")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <Skeleton rows={2} />
-        </CardBody>
-      </Card>
+      <section
+        data-testid="reports-summary-cards"
+        className="space-y-[var(--ecmp-panel-gap)]"
+        aria-label={t("executiveSummary")}
+      >
+        <SectionHeader
+          title={t("executiveSummary")}
+          description={t("executiveSummaryDescription")}
+        />
+        <Skeleton rows={3} />
+      </section>
     );
   }
 
   const headlines = reportHeadlineCounts(summary);
+  const resolutionRate = resolutionRatePercent(headlines);
+
   if (!headlines) {
     return (
-      <Card data-testid="reports-summary-cards">
-        <CardHeader>
-          <CardTitle>{t("summaryTitle")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <Empty
-            title={t("noSummary")}
-            description={t("noSummaryDescription")}
-          />
-        </CardBody>
-      </Card>
+      <section
+        data-testid="reports-summary-cards"
+        className="space-y-[var(--ecmp-panel-gap)]"
+        aria-label={t("executiveSummary")}
+      >
+        <SectionHeader
+          title={t("executiveSummary")}
+          description={t("executiveSummaryDescription")}
+        />
+        <Empty
+          title={t("noSummary")}
+          description={t("noSummaryDescription")}
+          primaryAction={
+            onRefresh
+              ? { label: t("refreshReport"), onClick: onRefresh }
+              : undefined
+          }
+        />
+      </section>
     );
   }
 
-  const cards = [
-    { label: t("totalComplaints"), value: headlines.total },
-    { label: t("openComplaints"), value: headlines.open },
-    { label: t("closedComplaints"), value: headlines.closed },
-  ];
+  const openRate =
+    headlines.total > 0
+      ? Math.round((headlines.open / headlines.total) * 100)
+      : 0;
+  const openAccent = openAccentFromRate(openRate);
+  const resolutionAccent: StatAccent =
+    resolutionRate == null
+      ? "normal"
+      : resolutionRate >= 60
+        ? "healthy"
+        : resolutionRate >= 30
+          ? "attention"
+          : "critical";
 
   return (
-    <Card data-testid="reports-summary-cards">
-      <CardHeader>
-        <CardTitle>{t("summaryTitle")}</CardTitle>
-      </CardHeader>
-      <CardBody>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {cards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-4 py-4"
-            >
-              <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                {card.label}
-              </p>
-              <p className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tabular-nums text-ecmp-text-primary">
-                {card.value}
-              </p>
-            </div>
-          ))}
-        </div>
-      </CardBody>
-    </Card>
+    <section
+      data-testid="reports-summary-cards"
+      className="space-y-[var(--ecmp-panel-gap)]"
+      aria-label={t("executiveSummary")}
+    >
+      <SectionHeader
+        title={t("executiveSummary")}
+        description={t("executiveSummaryDescription")}
+      />
+      <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] md:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          hierarchy="primary"
+          accent={openAccent}
+          title={t("openComplaints")}
+          value={<span className="tabular-nums">{headlines.open}</span>}
+          icon={<IconQueue className="size-5" aria-hidden />}
+          status={
+            openAccent === "critical"
+              ? t("critical")
+              : openAccent === "attention"
+                ? t("attention")
+                : t("healthy")
+          }
+          statusTone={
+            openAccent === "critical"
+              ? "danger"
+              : openAccent === "attention"
+                ? "warning"
+                : "success"
+          }
+          subtitle={t("openStory")}
+          description={`${openRate}% ${t("openRate").toLowerCase()}`}
+        />
+
+        <StatCard
+          hierarchy="secondary"
+          accent="normal"
+          title={t("totalComplaints")}
+          value={<span className="tabular-nums">{headlines.total}</span>}
+          subtitle={t("volumeStory")}
+          description={t("closedOfTotal", {
+            closed: headlines.closed,
+            total: headlines.total,
+          })}
+        />
+
+        <StatCard
+          hierarchy="secondary"
+          accent={resolutionAccent}
+          title={t("resolutionRate")}
+          value={
+            <span className="tabular-nums">
+              {resolutionRate == null ? "—" : `${resolutionRate}%`}
+            </span>
+          }
+          icon={<IconCheck className="size-5" aria-hidden />}
+          status={
+            resolutionAccent === "critical"
+              ? t("critical")
+              : resolutionAccent === "attention"
+                ? t("attention")
+                : t("healthy")
+          }
+          statusTone={
+            resolutionAccent === "critical"
+              ? "danger"
+              : resolutionAccent === "attention"
+                ? "warning"
+                : "success"
+          }
+          subtitle={t("resolutionRateStory")}
+          description={t("closedStory")}
+        />
+      </div>
+    </section>
   );
 }

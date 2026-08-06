@@ -150,7 +150,7 @@ export function AttachmentViewer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-[var(--ecmp-panel-gap)]"
       role="dialog"
       aria-modal="true"
       aria-label={t("previewAriaLabel", { name: attachment.originalName })}
@@ -163,9 +163,9 @@ export function AttachmentViewer({
         onClick={onClose}
       />
       <div className="relative z-10 flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-none border border-ecmp-border bg-ecmp-surface shadow-ecmp-lg sm:h-auto sm:max-h-[92vh] sm:rounded-[var(--ecmp-radius-xl)]">
-        <header className="flex items-center justify-between gap-3 border-b border-ecmp-border px-3 py-3 sm:px-5">
+        <header className="flex items-center justify-between gap-[var(--ecmp-form-gap)] border-b border-ecmp-border px-3 py-3 sm:px-5">
           <div className="min-w-0">
-            <h2 className="truncate text-[length:var(--ecmp-font-title-size)] font-semibold text-ecmp-text-primary">
+            <h2 className="truncate text-[length:var(--ecmp-font-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
               {attachment.originalName}
             </h2>
             <p className="truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
@@ -233,14 +233,14 @@ export function AttachmentViewer({
 
         <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-ecmp-secondary-muted/40 p-3 sm:p-5">
           {loading ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-ecmp-text-secondary">
+            <div className="flex flex-1 flex-col items-center justify-center gap-[var(--ecmp-form-gap)] py-16 text-ecmp-text-secondary">
               <IconSpinner className="size-8" />
               <p>{t("loadingPreview")}</p>
             </div>
           ) : null}
 
           {!loading && error ? (
-            <div className="mx-auto w-full max-w-lg space-y-4 py-8">
+            <div className="mx-auto w-full max-w-lg space-y-[var(--ecmp-panel-gap)] py-8">
               <Alert
                 tone={error.includes("not supported") ? "warning" : "danger"}
                 title={
@@ -261,7 +261,7 @@ export function AttachmentViewer({
               <img
                 src={objectUrl}
                 alt={attachment.originalName}
-                className="max-h-none origin-center transition-transform duration-150"
+                className="max-h-none origin-center transition-transform duration-[var(--ecmp-duration-fast)]"
                 style={{ transform: `scale(${zoom})` }}
                 data-testid="attachment-image-preview"
               />
@@ -272,7 +272,7 @@ export function AttachmentViewer({
             <iframe
               title={t("pdfPreviewTitle", { name: attachment.originalName })}
               src={objectUrl}
-              className="h-[70vh] w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-white"
+              className="h-[70vh] w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface"
               data-testid="attachment-pdf-preview"
             />
           ) : null}

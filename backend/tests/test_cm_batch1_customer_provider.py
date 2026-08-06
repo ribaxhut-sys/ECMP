@@ -45,7 +45,7 @@ def test_enterprise_isinstance_customer_provider() -> None:
 
 
 def test_mask_identity_batch1() -> None:
-    assert mask_identity("ID-10001") == "****0001"
+    assert mask_identity("ID-10000001") == "*******0001"
     assert mask_identity("AB") == "****"
 
 
@@ -56,7 +56,7 @@ def test_mask_identity_batch1() -> None:
 
 def test_stub_find_by_customer_number_found() -> None:
     provider = StubCustomerProvider()
-    result = provider.find_by_customer_number("CN-10001")
+    result = provider.find_by_customer_number("CN-10000001")
     assert result.status == CustomerLookupStatus.FOUND
     assert result.customer is not None
     assert result.customer.customer_id == "CUST-10001"
@@ -91,7 +91,7 @@ def test_stub_exists_and_get_minimal() -> None:
 def test_stub_unavailable_normalized() -> None:
     provider = StubCustomerProvider(available=False)
     assert (
-        provider.find_by_customer_number("CN-10001").status
+        provider.find_by_customer_number("CN-10000001").status
         == CustomerLookupStatus.UNAVAILABLE
     )
     assert provider.exists("CUST-10001").status == CustomerLookupStatus.UNAVAILABLE
@@ -109,15 +109,15 @@ def test_stub_unavailable_normalized() -> None:
 def test_enterprise_returns_unavailable() -> None:
     provider = EnterpriseCustomerProvider(base_url="https://example.invalid")
     assert (
-        provider.find_by_customer_number("CN-10001").status
+        provider.find_by_customer_number("CN-10000001").status
         == CustomerLookupStatus.UNAVAILABLE
     )
     assert (
-        provider.find_by_national_id("ID-10001").status
+        provider.find_by_national_id("ID-10000001").status
         == CustomerLookupStatus.UNAVAILABLE
     )
     assert (
-        provider.find_by_reference_number("REF-10001").status
+        provider.find_by_reference_number("REF-10000001").status
         == CustomerLookupStatus.UNAVAILABLE
     )
     assert provider.exists("CUST-10001").status == CustomerLookupStatus.UNAVAILABLE
@@ -136,7 +136,7 @@ def test_factory_default_stub() -> None:
     provider = build_customer_provider()
     assert isinstance(provider, StubCustomerProvider)
     assert (
-        provider.find_by_customer_number("CN-10001").status
+        provider.find_by_customer_number("CN-10000001").status
         == CustomerLookupStatus.FOUND
     )
 
@@ -145,7 +145,7 @@ def test_factory_enterprise() -> None:
     provider = build_customer_provider("enterprise")
     assert isinstance(provider, EnterpriseCustomerProvider)
     assert (
-        provider.find_by_customer_number("CN-10001").status
+        provider.find_by_customer_number("CN-10000001").status
         == CustomerLookupStatus.UNAVAILABLE
     )
 
@@ -170,7 +170,7 @@ def test_di_swappable_without_business_code_change() -> None:
         store=store,
     )
     result = stub_svc.search_customer(
-        CustomerSearchRequest(customerNumber="CN-10001"),
+        CustomerSearchRequest(customerNumber="CN-10000001"),
         principal_key="di-1",
     )
     assert result.verification_status == "verified"
@@ -183,7 +183,7 @@ def test_di_swappable_without_business_code_change() -> None:
     )
     with pytest.raises(ValidationAppError, match="tidak tersedia"):
         enterprise_svc.search_customer(
-            CustomerSearchRequest(customerNumber="CN-10001"),
+            CustomerSearchRequest(customerNumber="CN-10000001"),
             principal_key="di-2",
         )
 
@@ -228,7 +228,7 @@ def test_regression_shim_master_customer_stub_still_constructible() -> None:
     """Transitional alias remains for older imports."""
     stub = MasterCustomerStub()
     assert stub.get("CUST-10001") is not None
-    assert stub.search(customer_number="CN-10001")[0].customer_id == "CUST-10001"
+    assert stub.search(customer_number="CN-10000001")[0].customer_id == "CUST-10001"
 
 
 def test_router_wires_provider_override() -> None:
@@ -258,7 +258,7 @@ def test_router_wires_provider_override() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/cm/customers/search",
-            json={"customerNumber": "CN-10001"},
+            json={"customerNumber": "CN-10000001"},
         )
     app.dependency_overrides.clear()
     assert response.status_code == 200

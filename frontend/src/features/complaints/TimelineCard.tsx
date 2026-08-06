@@ -13,8 +13,10 @@ import {
   CardTitle,
   Empty,
   Skeleton,
+  Timeline,
+  type BadgeTone,
+  type TimelineItem,
 } from "@/shared/ui";
-import { cn } from "@/shared/utils";
 
 /** UI activity kinds (mapped from API TimelineEvent + metadata). */
 export type TimelineActivityType =
@@ -103,6 +105,23 @@ function activityTypeLabelKey(type: TimelineActivityType): string {
       return "activityTypeSla";
     default:
       return "activityTypeOther";
+  }
+}
+
+function activityTone(type: TimelineActivityType): BadgeTone {
+  switch (type) {
+    case "CREATED":
+      return "info";
+    case "ASSIGNED":
+      return "primary";
+    case "STATUS_CHANGED":
+      return "warning";
+    case "PRIORITY_CHANGED":
+      return "warning";
+    case "SLA":
+      return "danger";
+    default:
+      return "neutral";
   }
 }
 
@@ -213,46 +232,40 @@ export function TimelineCard({
             onAction={() => void load()}
           />
         ) : entries.length === 0 ? (
-          <Empty title={t("timelineCard")} description={t("noActivityYet")} />
+          <Empty
+            title={t("noActivityYet")}
+            description={t("timelineEmptyDescription")}
+            primaryAction={{
+              label: tCommon("refresh"),
+              onClick: () => void load(),
+            }}
+          />
         ) : (
-          <ol className="space-y-0" aria-label={t("timelineAriaLabel")}>
-            {entries.map((entry, index) => {
+          <Timeline
+            aria-label={t("timelineAriaLabel")}
+            items={entries.map((entry): TimelineItem => {
               const type = activityType(entry);
-              const isLast = index === entries.length - 1;
-              return (
-                <li key={entry.id} className="relative flex gap-3 pb-5 last:pb-0">
-                  {!isLast ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute left-[15px] top-8 bottom-0 w-px bg-ecmp-border"
-                    />
-                  ) : null}
+              const when = entry.eventAt || entry.createdAt;
+              return {
+                id: entry.id,
+                title: activityMessage(entry),
+                actor: entry.actorName?.trim() || t("systemActor"),
+                time: (
+                  <time dateTime={when}>{formatDateTime(when, locale)}</time>
+                ),
+                status: t(activityTypeLabelKey(type)),
+                statusTone: activityTone(type),
+                icon: (
                   <span
-                    aria-hidden="true"
-                    className={cn(
-                      "relative z-[1] flex size-8 shrink-0 items-center justify-center rounded-full border border-ecmp-border bg-ecmp-surface text-sm font-semibold text-ecmp-text-primary",
-                    )}
-                    title={t(activityTypeLabelKey(type))}
+                    className="text-[length:var(--ecmp-font-caption-size)] font-[number:var(--ecmp-font-section-title-weight)]"
+                    aria-hidden
                   >
                     {activityIcon(type)}
                   </span>
-                  <div className="min-w-0 flex-1 space-y-1 border-b border-ecmp-border pb-5 last:border-b-0 last:pb-0">
-                    <p className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                      {activityMessage(entry)}
-                    </p>
-                    <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                      {entry.actorName?.trim() || t("systemActor")}
-                    </p>
-                    <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                      <time dateTime={entry.eventAt || entry.createdAt}>
-                        {formatDateTime(entry.eventAt || entry.createdAt, locale)}
-                      </time>
-                    </p>
-                  </div>
-                </li>
-              );
+                ),
+              };
             })}
-          </ol>
+          />
         )}
       </CardBody>
     </Card>

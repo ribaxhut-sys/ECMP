@@ -7,13 +7,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions
-from app.core.schemas import DataResponse
+from app.core.auth import (
+    OrgUnitResolver,
+    Principal,
+    enforce_org_scope,
+    require_permissions,
+)
+from app.core.config import Settings, get_settings
+from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.modules.cm_case.api.schemas import (
     AddCaseRequest,
     CaseResolutionResponse,
     CaseResponse,
+    CaseSummaryResponse,
     CloseCaseRequest,
     CreateCaseRequest,
     ResolveCaseRequest,
@@ -92,6 +99,45 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
     )
 
 
+@router.get("/api/v1/cm/cases")
+def list_cases(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
+    complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
+    status: Annotated[str | None, Query()] = None,
+) -> ListResponse[CaseSummaryResponse]:
+    """API-536 / DEC-024 — visibility-scoped Case list."""
+    items, total = service.list_cases(
+        principal,
+        page=page,
+        page_size=page_size,
+        complaint_id=complaint_id,
+        status=status,
+    )
+    return ListResponse(
+        data=[
+            CaseSummaryResponse(
+                caseId=i.case_id,
+                caseNumber=i.case_number,
+                complaintId=i.complaint_id,
+                status=i.status,
+                caseType=i.case_type,
+                category=i.category,
+                priority=i.priority,
+                subject=i.subject,
+                owningUnitId=i.owning_unit_id,
+                customerId=i.customer_id,
+                createdAt=i.created_at,
+                createdBy=i.created_by,
+            )
+            for i in items
+        ],
+        meta=PageMeta(page=page, pageSize=page_size, totalItems=total),
+    )
+
+
 @router.post("/api/v1/cm/cases", status_code=201)
 def create_case(
     body: CreateCaseRequest,
@@ -148,9 +194,13 @@ def get_case(
     case_id: str,
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
 ) -> DataResponse[CaseResponse]:
-    _ = principal
+    """SECMIG-P4 parity: org scope on approved read (after permission)."""
+    resource_org = OrgUnitResolver(session).resolve_case(case_id)
+    enforce_org_scope(principal, resource_org, settings)
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
     return DataResponse(data=_to_response(dto))
 
@@ -161,9 +211,14 @@ def update_case_status(
     body: UpdateCaseStatusRequest,
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> DataResponse[CaseResponse]:
+    """SECMIG-P4 parity: org scope after permission check, before mutation."""
     _ = idempotency_key
+    resource_org = OrgUnitResolver(session).resolve_case(case_id)
+    enforce_org_scope(principal, resource_org, settings)
     dto = service.update_status(
         UpdateStatusCommand(
             case_id=case_id,
@@ -184,9 +239,14 @@ def resolve_case(
     body: ResolveCaseRequest,
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> DataResponse[CaseResponse]:
+    """SECMIG-P4 parity: org scope after permission check, before mutation."""
     _ = idempotency_key
+    resource_org = OrgUnitResolver(session).resolve_case(case_id)
+    enforce_org_scope(principal, resource_org, settings)
     dto = service.resolve(
         ResolveCaseCommand(
             case_id=case_id,
@@ -209,10 +269,15 @@ def close_case(
     case_id: str,
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     body: CloseCaseRequest | None = None,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> DataResponse[CaseResponse]:
+    """SECMIG-P4 parity: org scope after permission check, before mutation."""
     _ = idempotency_key
+    resource_org = OrgUnitResolver(session).resolve_case(case_id)
+    enforce_org_scope(principal, resource_org, settings)
     note = body.note if body else None
     dto = service.close(
         CloseCaseCommand(

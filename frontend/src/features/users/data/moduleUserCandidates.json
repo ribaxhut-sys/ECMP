@@ -1,0 +1,1892 @@
+[
+  {
+    "username": "3100000000000001",
+    "displayName": "Ahmad Santoso",
+    "email": "3100000000000001@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANAH-ABANG",
+    "homeBranchName": "UPPPD Tanah Abang",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000002",
+    "displayName": "Dewi Hidayat",
+    "email": "3100000000000002@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANAH-ABANG",
+    "homeBranchName": "UPPPD Tanah Abang",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000003",
+    "displayName": "Galih Firmansyah",
+    "email": "3100000000000003@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANAH-ABANG",
+    "homeBranchName": "UPPPD Tanah Abang",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000004",
+    "displayName": "Joko Siregar",
+    "email": "3100000000000004@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANAH-ABANG",
+    "homeBranchName": "UPPPD Tanah Abang",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000005",
+    "displayName": "Maya Dalimunthe",
+    "email": "3100000000000005@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GAMBIR",
+    "homeBranchName": "UPPPD Gambir",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000006",
+    "displayName": "Putri Ramadhan",
+    "email": "3100000000000006@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GAMBIR",
+    "homeBranchName": "UPPPD Gambir",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000007",
+    "displayName": "Tono Kusuma",
+    "email": "3100000000000007@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GAMBIR",
+    "homeBranchName": "UPPPD Gambir",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000008",
+    "displayName": "Wawan Putri",
+    "email": "3100000000000008@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GAMBIR",
+    "homeBranchName": "UPPPD Gambir",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000009",
+    "displayName": "Agus Permata",
+    "email": "3100000000000009@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SAWAH-BESAR",
+    "homeBranchName": "UPPPD Sawah Besar",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000010",
+    "displayName": "Fajar Manurung",
+    "email": "3100000000000010@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SAWAH-BESAR",
+    "homeBranchName": "UPPPD Sawah Besar",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000011",
+    "displayName": "Intan Kurniawan",
+    "email": "3100000000000011@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SAWAH-BESAR",
+    "homeBranchName": "UPPPD Sawah Besar",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000012",
+    "displayName": "Lukman Prasetya",
+    "email": "3100000000000012@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SAWAH-BESAR",
+    "homeBranchName": "UPPPD Sawah Besar",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000013",
+    "displayName": "Prasetyo Lestari",
+    "email": "3100000000000013@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMAYORAN",
+    "homeBranchName": "UPPPD Kemayoran",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000014",
+    "displayName": "Tari Wibowo",
+    "email": "3100000000000014@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMAYORAN",
+    "homeBranchName": "UPPPD Kemayoran",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000015",
+    "displayName": "Citra Syahputra",
+    "email": "3100000000000015@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMAYORAN",
+    "homeBranchName": "UPPPD Kemayoran",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000016",
+    "displayName": "Fitri Situmorang",
+    "email": "3100000000000016@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMAYORAN",
+    "homeBranchName": "UPPPD Kemayoran",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000017",
+    "displayName": "Indra Handayani",
+    "email": "3100000000000017@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SENEN",
+    "homeBranchName": "UPPPD Senen",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000018",
+    "displayName": "Lestari Susanti",
+    "email": "3100000000000018@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SENEN",
+    "homeBranchName": "UPPPD Senen",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000019",
+    "displayName": "Oki Nugroho",
+    "email": "3100000000000019@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SENEN",
+    "homeBranchName": "UPPPD Senen",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000020",
+    "displayName": "Sari Halim",
+    "email": "3100000000000020@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SENEN",
+    "homeBranchName": "UPPPD Senen",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000021",
+    "displayName": "Vina Simanjuntak",
+    "email": "3100000000000021@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CEMPAKA-PUTIH",
+    "homeBranchName": "UPPPD Cempaka Putih",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000022",
+    "displayName": "Zaki Lubis",
+    "email": "3100000000000022@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CEMPAKA-PUTIH",
+    "homeBranchName": "UPPPD Cempaka Putih",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000023",
+    "displayName": "Dian Maulana",
+    "email": "3100000000000023@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CEMPAKA-PUTIH",
+    "homeBranchName": "UPPPD Cempaka Putih",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000024",
+    "displayName": "Hendra Wijaya",
+    "email": "3100000000000024@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CEMPAKA-PUTIH",
+    "homeBranchName": "UPPPD Cempaka Putih",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000025",
+    "displayName": "Kirana Putra",
+    "email": "3100000000000025@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MENTENG",
+    "homeBranchName": "UPPPD Menteng",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000026",
+    "displayName": "Nurul Mahendra",
+    "email": "3100000000000026@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MENTENG",
+    "homeBranchName": "UPPPD Menteng",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000027",
+    "displayName": "Surya Harahap",
+    "email": "3100000000000027@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MENTENG",
+    "homeBranchName": "UPPPD Menteng",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000028",
+    "displayName": "Budi Pratama",
+    "email": "3100000000000028@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MENTENG",
+    "homeBranchName": "UPPPD Menteng",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000029",
+    "displayName": "Eko Oktaviani",
+    "email": "3100000000000029@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JOHAR-BARU",
+    "homeBranchName": "UPPPD Johar Baru",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000030",
+    "displayName": "Hana Saputra",
+    "email": "3100000000000030@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JOHAR-BARU",
+    "homeBranchName": "UPPPD Johar Baru",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000031",
+    "displayName": "Kartika Sari",
+    "email": "3100000000000031@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JOHAR-BARU",
+    "homeBranchName": "UPPPD Johar Baru",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000032",
+    "displayName": "Nanda Anggraini",
+    "email": "3100000000000032@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JOHAR-BARU",
+    "homeBranchName": "UPPPD Johar Baru",
+    "region": "Jakarta Pusat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000033",
+    "displayName": "Rudi Panggabean",
+    "email": "3100000000000033@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PENJARINGAN",
+    "homeBranchName": "UPPPD Penjaringan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000034",
+    "displayName": "Umi Setiawan",
+    "email": "3100000000000034@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PENJARINGAN",
+    "homeBranchName": "UPPPD Penjaringan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000035",
+    "displayName": "Yuni Cahyadi",
+    "email": "3100000000000035@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PENJARINGAN",
+    "homeBranchName": "UPPPD Penjaringan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000036",
+    "displayName": "Bayu Rahayu",
+    "email": "3100000000000036@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PENJARINGAN",
+    "homeBranchName": "UPPPD Penjaringan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000037",
+    "displayName": "Gilang Gunawan",
+    "email": "3100000000000037@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PADEMANGAN",
+    "homeBranchName": "UPPPD Pademangan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000038",
+    "displayName": "Jihan Nasution",
+    "email": "3100000000000038@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PADEMANGAN",
+    "homeBranchName": "UPPPD Pademangan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000039",
+    "displayName": "Mega Hutagalung",
+    "email": "3100000000000039@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PADEMANGAN",
+    "homeBranchName": "UPPPD Pademangan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000040",
+    "displayName": "Rina Safitri",
+    "email": "3100000000000040@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PADEMANGAN",
+    "homeBranchName": "UPPPD Pademangan",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000041",
+    "displayName": "Budi Rahayu",
+    "email": "3100000000000041@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANJUNG-PRIOK",
+    "homeBranchName": "UPPPD Tanjung Priok",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000042",
+    "displayName": "Eko Gunawan",
+    "email": "3100000000000042@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANJUNG-PRIOK",
+    "homeBranchName": "UPPPD Tanjung Priok",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000043",
+    "displayName": "Hana Nasution",
+    "email": "3100000000000043@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANJUNG-PRIOK",
+    "homeBranchName": "UPPPD Tanjung Priok",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000044",
+    "displayName": "Kartika Hutagalung",
+    "email": "3100000000000044@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANJUNG-PRIOK",
+    "homeBranchName": "UPPPD Tanjung Priok",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000045",
+    "displayName": "Nanda Safitri",
+    "email": "3100000000000045@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KOJA",
+    "homeBranchName": "UPPPD Koja",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000046",
+    "displayName": "Rudi Santoso",
+    "email": "3100000000000046@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KOJA",
+    "homeBranchName": "UPPPD Koja",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000047",
+    "displayName": "Umi Hidayat",
+    "email": "3100000000000047@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KOJA",
+    "homeBranchName": "UPPPD Koja",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000048",
+    "displayName": "Yuni Firmansyah",
+    "email": "3100000000000048@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KOJA",
+    "homeBranchName": "UPPPD Koja",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000049",
+    "displayName": "Bayu Siregar",
+    "email": "3100000000000049@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KELAPA-GADING",
+    "homeBranchName": "UPPPD Kelapa Gading",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000050",
+    "displayName": "Gilang Dalimunthe",
+    "email": "3100000000000050@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KELAPA-GADING",
+    "homeBranchName": "UPPPD Kelapa Gading",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000051",
+    "displayName": "Jihan Ramadhan",
+    "email": "3100000000000051@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KELAPA-GADING",
+    "homeBranchName": "UPPPD Kelapa Gading",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000052",
+    "displayName": "Mega Kusuma",
+    "email": "3100000000000052@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KELAPA-GADING",
+    "homeBranchName": "UPPPD Kelapa Gading",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000053",
+    "displayName": "Rina Putri",
+    "email": "3100000000000053@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILINCING",
+    "homeBranchName": "UPPPD Cilincing",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000054",
+    "displayName": "Ahmad Permata",
+    "email": "3100000000000054@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILINCING",
+    "homeBranchName": "UPPPD Cilincing",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000055",
+    "displayName": "Dewi Manurung",
+    "email": "3100000000000055@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILINCING",
+    "homeBranchName": "UPPPD Cilincing",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000056",
+    "displayName": "Galih Kurniawan",
+    "email": "3100000000000056@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILINCING",
+    "homeBranchName": "UPPPD Cilincing",
+    "region": "Jakarta Utara",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000057",
+    "displayName": "Joko Prasetya",
+    "email": "3100000000000057@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GROGOL-PETAMBURAN",
+    "homeBranchName": "UPPPD Grogol Petamburan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000058",
+    "displayName": "Maya Lestari",
+    "email": "3100000000000058@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GROGOL-PETAMBURAN",
+    "homeBranchName": "UPPPD Grogol Petamburan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000059",
+    "displayName": "Putri Wibowo",
+    "email": "3100000000000059@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GROGOL-PETAMBURAN",
+    "homeBranchName": "UPPPD Grogol Petamburan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000060",
+    "displayName": "Tono Syahputra",
+    "email": "3100000000000060@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GROGOL-PETAMBURAN",
+    "homeBranchName": "UPPPD Grogol Petamburan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000061",
+    "displayName": "Wawan Situmorang",
+    "email": "3100000000000061@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMAN-SARI",
+    "homeBranchName": "UPPPD Taman Sari",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000062",
+    "displayName": "Agus Handayani",
+    "email": "3100000000000062@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMAN-SARI",
+    "homeBranchName": "UPPPD Taman Sari",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000063",
+    "displayName": "Fajar Susanti",
+    "email": "3100000000000063@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMAN-SARI",
+    "homeBranchName": "UPPPD Taman Sari",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000064",
+    "displayName": "Intan Nugroho",
+    "email": "3100000000000064@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMAN-SARI",
+    "homeBranchName": "UPPPD Taman Sari",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000065",
+    "displayName": "Lukman Halim",
+    "email": "3100000000000065@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMBORA",
+    "homeBranchName": "UPPPD Tambora",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000066",
+    "displayName": "Prasetyo Simanjuntak",
+    "email": "3100000000000066@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMBORA",
+    "homeBranchName": "UPPPD Tambora",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000067",
+    "displayName": "Tari Lubis",
+    "email": "3100000000000067@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMBORA",
+    "homeBranchName": "UPPPD Tambora",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000068",
+    "displayName": "Citra Maulana",
+    "email": "3100000000000068@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMBORA",
+    "homeBranchName": "UPPPD Tambora",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000069",
+    "displayName": "Fitri Wijaya",
+    "email": "3100000000000069@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBON-JERUK",
+    "homeBranchName": "UPPPD Kebon Jeruk",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000070",
+    "displayName": "Indra Putra",
+    "email": "3100000000000070@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBON-JERUK",
+    "homeBranchName": "UPPPD Kebon Jeruk",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000071",
+    "displayName": "Lestari Mahendra",
+    "email": "3100000000000071@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBON-JERUK",
+    "homeBranchName": "UPPPD Kebon Jeruk",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000072",
+    "displayName": "Oki Harahap",
+    "email": "3100000000000072@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBON-JERUK",
+    "homeBranchName": "UPPPD Kebon Jeruk",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000073",
+    "displayName": "Sari Pratama",
+    "email": "3100000000000073@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PALMERAH",
+    "homeBranchName": "UPPPD Palmerah",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000074",
+    "displayName": "Vina Oktaviani",
+    "email": "3100000000000074@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PALMERAH",
+    "homeBranchName": "UPPPD Palmerah",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000075",
+    "displayName": "Zaki Saputra",
+    "email": "3100000000000075@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PALMERAH",
+    "homeBranchName": "UPPPD Palmerah",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000076",
+    "displayName": "Dian Sari",
+    "email": "3100000000000076@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PALMERAH",
+    "homeBranchName": "UPPPD Palmerah",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000077",
+    "displayName": "Hendra Anggraini",
+    "email": "3100000000000077@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMBANGAN",
+    "homeBranchName": "UPPPD Kembangan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000078",
+    "displayName": "Kirana Panggabean",
+    "email": "3100000000000078@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMBANGAN",
+    "homeBranchName": "UPPPD Kembangan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000079",
+    "displayName": "Nurul Setiawan",
+    "email": "3100000000000079@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMBANGAN",
+    "homeBranchName": "UPPPD Kembangan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000080",
+    "displayName": "Surya Cahyadi",
+    "email": "3100000000000080@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMBANGAN",
+    "homeBranchName": "UPPPD Kembangan",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000081",
+    "displayName": "Citra Sari",
+    "email": "3100000000000081@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CENGKARENG",
+    "homeBranchName": "UPPPD Cengkareng",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000082",
+    "displayName": "Fitri Anggraini",
+    "email": "3100000000000082@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CENGKARENG",
+    "homeBranchName": "UPPPD Cengkareng",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000083",
+    "displayName": "Indra Panggabean",
+    "email": "3100000000000083@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CENGKARENG",
+    "homeBranchName": "UPPPD Cengkareng",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000084",
+    "displayName": "Lestari Setiawan",
+    "email": "3100000000000084@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CENGKARENG",
+    "homeBranchName": "UPPPD Cengkareng",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000085",
+    "displayName": "Oki Cahyadi",
+    "email": "3100000000000085@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KALIDERES",
+    "homeBranchName": "UPPPD Kalideres",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000086",
+    "displayName": "Sari Rahayu",
+    "email": "3100000000000086@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KALIDERES",
+    "homeBranchName": "UPPPD Kalideres",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000087",
+    "displayName": "Vina Gunawan",
+    "email": "3100000000000087@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KALIDERES",
+    "homeBranchName": "UPPPD Kalideres",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000088",
+    "displayName": "Zaki Nasution",
+    "email": "3100000000000088@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KALIDERES",
+    "homeBranchName": "UPPPD Kalideres",
+    "region": "Jakarta Barat",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000089",
+    "displayName": "Dian Hutagalung",
+    "email": "3100000000000089@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-BARU",
+    "homeBranchName": "UPPPD Kebayoran Baru",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000090",
+    "displayName": "Hendra Safitri",
+    "email": "3100000000000090@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-BARU",
+    "homeBranchName": "UPPPD Kebayoran Baru",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000091",
+    "displayName": "Kirana Santoso",
+    "email": "3100000000000091@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-BARU",
+    "homeBranchName": "UPPPD Kebayoran Baru",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000092",
+    "displayName": "Nurul Hidayat",
+    "email": "3100000000000092@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-BARU",
+    "homeBranchName": "UPPPD Kebayoran Baru",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000093",
+    "displayName": "Surya Firmansyah",
+    "email": "3100000000000093@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-LAMA",
+    "homeBranchName": "UPPPD Kebayoran Lama",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000094",
+    "displayName": "Budi Siregar",
+    "email": "3100000000000094@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-LAMA",
+    "homeBranchName": "UPPPD Kebayoran Lama",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000095",
+    "displayName": "Eko Dalimunthe",
+    "email": "3100000000000095@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-LAMA",
+    "homeBranchName": "UPPPD Kebayoran Lama",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000096",
+    "displayName": "Hana Ramadhan",
+    "email": "3100000000000096@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-LAMA",
+    "homeBranchName": "UPPPD Kebayoran Lama",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000097",
+    "displayName": "Kartika Kusuma",
+    "email": "3100000000000097@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PESANGGRAHAN",
+    "homeBranchName": "UPPPD Pesanggrahan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000098",
+    "displayName": "Nanda Putri",
+    "email": "3100000000000098@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PESANGGRAHAN",
+    "homeBranchName": "UPPPD Pesanggrahan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000099",
+    "displayName": "Rudi Permata",
+    "email": "3100000000000099@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PESANGGRAHAN",
+    "homeBranchName": "UPPPD Pesanggrahan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000100",
+    "displayName": "Umi Manurung",
+    "email": "3100000000000100@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PESANGGRAHAN",
+    "homeBranchName": "UPPPD Pesanggrahan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000101",
+    "displayName": "Yuni Kurniawan",
+    "email": "3100000000000101@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILANDAK",
+    "homeBranchName": "UPPPD Cilandak",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000102",
+    "displayName": "Bayu Prasetya",
+    "email": "3100000000000102@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILANDAK",
+    "homeBranchName": "UPPPD Cilandak",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000103",
+    "displayName": "Gilang Lestari",
+    "email": "3100000000000103@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILANDAK",
+    "homeBranchName": "UPPPD Cilandak",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000104",
+    "displayName": "Jihan Wibowo",
+    "email": "3100000000000104@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILANDAK",
+    "homeBranchName": "UPPPD Cilandak",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000105",
+    "displayName": "Mega Syahputra",
+    "email": "3100000000000105@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-MINGGU",
+    "homeBranchName": "UPPPD Pasar Minggu",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000106",
+    "displayName": "Rina Situmorang",
+    "email": "3100000000000106@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-MINGGU",
+    "homeBranchName": "UPPPD Pasar Minggu",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000107",
+    "displayName": "Ahmad Handayani",
+    "email": "3100000000000107@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-MINGGU",
+    "homeBranchName": "UPPPD Pasar Minggu",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000108",
+    "displayName": "Dewi Susanti",
+    "email": "3100000000000108@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-MINGGU",
+    "homeBranchName": "UPPPD Pasar Minggu",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000109",
+    "displayName": "Galih Nugroho",
+    "email": "3100000000000109@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JAGAKARSA",
+    "homeBranchName": "UPPPD Jagakarsa",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000110",
+    "displayName": "Joko Halim",
+    "email": "3100000000000110@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JAGAKARSA",
+    "homeBranchName": "UPPPD Jagakarsa",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000111",
+    "displayName": "Maya Simanjuntak",
+    "email": "3100000000000111@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JAGAKARSA",
+    "homeBranchName": "UPPPD Jagakarsa",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000112",
+    "displayName": "Putri Lubis",
+    "email": "3100000000000112@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JAGAKARSA",
+    "homeBranchName": "UPPPD Jagakarsa",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000113",
+    "displayName": "Tono Maulana",
+    "email": "3100000000000113@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAMPANG-PRAPATAN",
+    "homeBranchName": "UPPPD Mampang Prapatan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000114",
+    "displayName": "Wawan Wijaya",
+    "email": "3100000000000114@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAMPANG-PRAPATAN",
+    "homeBranchName": "UPPPD Mampang Prapatan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000115",
+    "displayName": "Agus Putra",
+    "email": "3100000000000115@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAMPANG-PRAPATAN",
+    "homeBranchName": "UPPPD Mampang Prapatan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000116",
+    "displayName": "Fajar Mahendra",
+    "email": "3100000000000116@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAMPANG-PRAPATAN",
+    "homeBranchName": "UPPPD Mampang Prapatan",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000117",
+    "displayName": "Intan Harahap",
+    "email": "3100000000000117@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PANCORAN",
+    "homeBranchName": "UPPPD Pancoran",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000118",
+    "displayName": "Lukman Pratama",
+    "email": "3100000000000118@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PANCORAN",
+    "homeBranchName": "UPPPD Pancoran",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000119",
+    "displayName": "Prasetyo Oktaviani",
+    "email": "3100000000000119@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PANCORAN",
+    "homeBranchName": "UPPPD Pancoran",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000120",
+    "displayName": "Tari Saputra",
+    "email": "3100000000000120@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PANCORAN",
+    "homeBranchName": "UPPPD Pancoran",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000121",
+    "displayName": "Dewi Mahendra",
+    "email": "3100000000000121@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TEBET",
+    "homeBranchName": "UPPPD Tebet",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000122",
+    "displayName": "Galih Harahap",
+    "email": "3100000000000122@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TEBET",
+    "homeBranchName": "UPPPD Tebet",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000123",
+    "displayName": "Joko Pratama",
+    "email": "3100000000000123@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TEBET",
+    "homeBranchName": "UPPPD Tebet",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000124",
+    "displayName": "Maya Oktaviani",
+    "email": "3100000000000124@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TEBET",
+    "homeBranchName": "UPPPD Tebet",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000125",
+    "displayName": "Putri Saputra",
+    "email": "3100000000000125@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SETIABUDI",
+    "homeBranchName": "UPPPD Setiabudi",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000126",
+    "displayName": "Tono Sari",
+    "email": "3100000000000126@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SETIABUDI",
+    "homeBranchName": "UPPPD Setiabudi",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000127",
+    "displayName": "Wawan Anggraini",
+    "email": "3100000000000127@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SETIABUDI",
+    "homeBranchName": "UPPPD Setiabudi",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000128",
+    "displayName": "Agus Panggabean",
+    "email": "3100000000000128@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SETIABUDI",
+    "homeBranchName": "UPPPD Setiabudi",
+    "region": "Jakarta Selatan",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000129",
+    "displayName": "Fajar Setiawan",
+    "email": "3100000000000129@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MATRAMAN",
+    "homeBranchName": "UPPPD Matraman",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000130",
+    "displayName": "Intan Cahyadi",
+    "email": "3100000000000130@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MATRAMAN",
+    "homeBranchName": "UPPPD Matraman",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000131",
+    "displayName": "Lukman Rahayu",
+    "email": "3100000000000131@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MATRAMAN",
+    "homeBranchName": "UPPPD Matraman",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000132",
+    "displayName": "Prasetyo Gunawan",
+    "email": "3100000000000132@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MATRAMAN",
+    "homeBranchName": "UPPPD Matraman",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000133",
+    "displayName": "Tari Nasution",
+    "email": "3100000000000133@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PULOGADUNG",
+    "homeBranchName": "UPPPD Pulogadung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000134",
+    "displayName": "Citra Hutagalung",
+    "email": "3100000000000134@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PULOGADUNG",
+    "homeBranchName": "UPPPD Pulogadung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000135",
+    "displayName": "Fitri Safitri",
+    "email": "3100000000000135@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PULOGADUNG",
+    "homeBranchName": "UPPPD Pulogadung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000136",
+    "displayName": "Indra Santoso",
+    "email": "3100000000000136@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PULOGADUNG",
+    "homeBranchName": "UPPPD Pulogadung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000137",
+    "displayName": "Lestari Hidayat",
+    "email": "3100000000000137@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JATINEGARA",
+    "homeBranchName": "UPPPD Jatinegara",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000138",
+    "displayName": "Oki Firmansyah",
+    "email": "3100000000000138@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JATINEGARA",
+    "homeBranchName": "UPPPD Jatinegara",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000139",
+    "displayName": "Sari Siregar",
+    "email": "3100000000000139@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JATINEGARA",
+    "homeBranchName": "UPPPD Jatinegara",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000140",
+    "displayName": "Vina Dalimunthe",
+    "email": "3100000000000140@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JATINEGARA",
+    "homeBranchName": "UPPPD Jatinegara",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000141",
+    "displayName": "Zaki Ramadhan",
+    "email": "3100000000000141@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-DUREN-SAWIT",
+    "homeBranchName": "UPPPD Duren Sawit",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000142",
+    "displayName": "Dian Kusuma",
+    "email": "3100000000000142@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-DUREN-SAWIT",
+    "homeBranchName": "UPPPD Duren Sawit",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000143",
+    "displayName": "Hendra Putri",
+    "email": "3100000000000143@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-DUREN-SAWIT",
+    "homeBranchName": "UPPPD Duren Sawit",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000144",
+    "displayName": "Kirana Permata",
+    "email": "3100000000000144@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-DUREN-SAWIT",
+    "homeBranchName": "UPPPD Duren Sawit",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000145",
+    "displayName": "Nurul Manurung",
+    "email": "3100000000000145@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KRAMAT-JATI",
+    "homeBranchName": "UPPPD Kramat Jati",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000146",
+    "displayName": "Surya Kurniawan",
+    "email": "3100000000000146@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KRAMAT-JATI",
+    "homeBranchName": "UPPPD Kramat Jati",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000147",
+    "displayName": "Budi Prasetya",
+    "email": "3100000000000147@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KRAMAT-JATI",
+    "homeBranchName": "UPPPD Kramat Jati",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000148",
+    "displayName": "Eko Lestari",
+    "email": "3100000000000148@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KRAMAT-JATI",
+    "homeBranchName": "UPPPD Kramat Jati",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000149",
+    "displayName": "Hana Wibowo",
+    "email": "3100000000000149@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAKASAR",
+    "homeBranchName": "UPPPD Makasar",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000150",
+    "displayName": "Kartika Syahputra",
+    "email": "3100000000000150@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAKASAR",
+    "homeBranchName": "UPPPD Makasar",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000151",
+    "displayName": "Nanda Situmorang",
+    "email": "3100000000000151@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAKASAR",
+    "homeBranchName": "UPPPD Makasar",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000152",
+    "displayName": "Rudi Handayani",
+    "email": "3100000000000152@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAKASAR",
+    "homeBranchName": "UPPPD Makasar",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000153",
+    "displayName": "Umi Susanti",
+    "email": "3100000000000153@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-REBO",
+    "homeBranchName": "UPPPD Pasar Rebo",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000154",
+    "displayName": "Yuni Nugroho",
+    "email": "3100000000000154@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-REBO",
+    "homeBranchName": "UPPPD Pasar Rebo",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000155",
+    "displayName": "Bayu Halim",
+    "email": "3100000000000155@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-REBO",
+    "homeBranchName": "UPPPD Pasar Rebo",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000156",
+    "displayName": "Gilang Simanjuntak",
+    "email": "3100000000000156@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-REBO",
+    "homeBranchName": "UPPPD Pasar Rebo",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000157",
+    "displayName": "Jihan Lubis",
+    "email": "3100000000000157@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIRACAS",
+    "homeBranchName": "UPPPD Ciracas",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000158",
+    "displayName": "Mega Maulana",
+    "email": "3100000000000158@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIRACAS",
+    "homeBranchName": "UPPPD Ciracas",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000159",
+    "displayName": "Rina Wijaya",
+    "email": "3100000000000159@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIRACAS",
+    "homeBranchName": "UPPPD Ciracas",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000160",
+    "displayName": "Ahmad Putra",
+    "email": "3100000000000160@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIRACAS",
+    "homeBranchName": "UPPPD Ciracas",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000161",
+    "displayName": "Eko Simanjuntak",
+    "email": "3100000000000161@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIPAYUNG",
+    "homeBranchName": "UPPPD Cipayung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000162",
+    "displayName": "Hana Lubis",
+    "email": "3100000000000162@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIPAYUNG",
+    "homeBranchName": "UPPPD Cipayung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000163",
+    "displayName": "Kartika Maulana",
+    "email": "3100000000000163@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIPAYUNG",
+    "homeBranchName": "UPPPD Cipayung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000164",
+    "displayName": "Nanda Wijaya",
+    "email": "3100000000000164@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CIPAYUNG",
+    "homeBranchName": "UPPPD Cipayung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000165",
+    "displayName": "Rudi Putra",
+    "email": "3100000000000165@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CAKUNG",
+    "homeBranchName": "UPPPD Cakung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000166",
+    "displayName": "Umi Mahendra",
+    "email": "3100000000000166@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CAKUNG",
+    "homeBranchName": "UPPPD Cakung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000167",
+    "displayName": "Yuni Harahap",
+    "email": "3100000000000167@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CAKUNG",
+    "homeBranchName": "UPPPD Cakung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000168",
+    "displayName": "Bayu Pratama",
+    "email": "3100000000000168@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CAKUNG",
+    "homeBranchName": "UPPPD Cakung",
+    "region": "Jakarta Timur",
+    "cohort": "DIRECTORY_POOL"
+  },
+  {
+    "username": "3100000000000169",
+    "displayName": "Gilang Oktaviani",
+    "email": "3100000000000169@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANAH-ABANG",
+    "homeBranchName": "UPPPD Tanah Abang",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000170",
+    "displayName": "Jihan Saputra",
+    "email": "3100000000000170@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GAMBIR",
+    "homeBranchName": "UPPPD Gambir",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000171",
+    "displayName": "Mega Sari",
+    "email": "3100000000000171@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SAWAH-BESAR",
+    "homeBranchName": "UPPPD Sawah Besar",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000172",
+    "displayName": "Rina Anggraini",
+    "email": "3100000000000172@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMAYORAN",
+    "homeBranchName": "UPPPD Kemayoran",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000173",
+    "displayName": "Ahmad Panggabean",
+    "email": "3100000000000173@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SENEN",
+    "homeBranchName": "UPPPD Senen",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000174",
+    "displayName": "Dewi Setiawan",
+    "email": "3100000000000174@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CEMPAKA-PUTIH",
+    "homeBranchName": "UPPPD Cempaka Putih",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000175",
+    "displayName": "Galih Cahyadi",
+    "email": "3100000000000175@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MENTENG",
+    "homeBranchName": "UPPPD Menteng",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000176",
+    "displayName": "Joko Rahayu",
+    "email": "3100000000000176@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JOHAR-BARU",
+    "homeBranchName": "UPPPD Johar Baru",
+    "region": "Jakarta Pusat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000177",
+    "displayName": "Maya Gunawan",
+    "email": "3100000000000177@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PENJARINGAN",
+    "homeBranchName": "UPPPD Penjaringan",
+    "region": "Jakarta Utara",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000178",
+    "displayName": "Putri Nasution",
+    "email": "3100000000000178@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PADEMANGAN",
+    "homeBranchName": "UPPPD Pademangan",
+    "region": "Jakarta Utara",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000179",
+    "displayName": "Tono Hutagalung",
+    "email": "3100000000000179@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TANJUNG-PRIOK",
+    "homeBranchName": "UPPPD Tanjung Priok",
+    "region": "Jakarta Utara",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000180",
+    "displayName": "Wawan Safitri",
+    "email": "3100000000000180@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KOJA",
+    "homeBranchName": "UPPPD Koja",
+    "region": "Jakarta Utara",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000181",
+    "displayName": "Agus Santoso",
+    "email": "3100000000000181@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KELAPA-GADING",
+    "homeBranchName": "UPPPD Kelapa Gading",
+    "region": "Jakarta Utara",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000182",
+    "displayName": "Fajar Hidayat",
+    "email": "3100000000000182@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILINCING",
+    "homeBranchName": "UPPPD Cilincing",
+    "region": "Jakarta Utara",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000183",
+    "displayName": "Intan Firmansyah",
+    "email": "3100000000000183@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-GROGOL-PETAMBURAN",
+    "homeBranchName": "UPPPD Grogol Petamburan",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000184",
+    "displayName": "Lukman Siregar",
+    "email": "3100000000000184@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMAN-SARI",
+    "homeBranchName": "UPPPD Taman Sari",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000185",
+    "displayName": "Prasetyo Dalimunthe",
+    "email": "3100000000000185@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TAMBORA",
+    "homeBranchName": "UPPPD Tambora",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000186",
+    "displayName": "Tari Ramadhan",
+    "email": "3100000000000186@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBON-JERUK",
+    "homeBranchName": "UPPPD Kebon Jeruk",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000187",
+    "displayName": "Citra Kusuma",
+    "email": "3100000000000187@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PALMERAH",
+    "homeBranchName": "UPPPD Palmerah",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000188",
+    "displayName": "Fitri Putri",
+    "email": "3100000000000188@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEMBANGAN",
+    "homeBranchName": "UPPPD Kembangan",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000189",
+    "displayName": "Indra Permata",
+    "email": "3100000000000189@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CENGKARENG",
+    "homeBranchName": "UPPPD Cengkareng",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000190",
+    "displayName": "Lestari Manurung",
+    "email": "3100000000000190@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KALIDERES",
+    "homeBranchName": "UPPPD Kalideres",
+    "region": "Jakarta Barat",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000191",
+    "displayName": "Oki Kurniawan",
+    "email": "3100000000000191@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-BARU",
+    "homeBranchName": "UPPPD Kebayoran Baru",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000192",
+    "displayName": "Sari Prasetya",
+    "email": "3100000000000192@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-KEBAYORAN-LAMA",
+    "homeBranchName": "UPPPD Kebayoran Lama",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000193",
+    "displayName": "Vina Lestari",
+    "email": "3100000000000193@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PESANGGRAHAN",
+    "homeBranchName": "UPPPD Pesanggrahan",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000194",
+    "displayName": "Zaki Wibowo",
+    "email": "3100000000000194@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-CILANDAK",
+    "homeBranchName": "UPPPD Cilandak",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000195",
+    "displayName": "Dian Syahputra",
+    "email": "3100000000000195@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PASAR-MINGGU",
+    "homeBranchName": "UPPPD Pasar Minggu",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000196",
+    "displayName": "Hendra Situmorang",
+    "email": "3100000000000196@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-JAGAKARSA",
+    "homeBranchName": "UPPPD Jagakarsa",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000197",
+    "displayName": "Kirana Handayani",
+    "email": "3100000000000197@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-MAMPANG-PRAPATAN",
+    "homeBranchName": "UPPPD Mampang Prapatan",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000198",
+    "displayName": "Nurul Susanti",
+    "email": "3100000000000198@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-PANCORAN",
+    "homeBranchName": "UPPPD Pancoran",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000199",
+    "displayName": "Surya Nugroho",
+    "email": "3100000000000199@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-TEBET",
+    "homeBranchName": "UPPPD Tebet",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000200",
+    "displayName": "Budi Halim",
+    "email": "3100000000000200@lab.ecmp.local",
+    "homeBranchCode": "UPPPD-SETIABUDI",
+    "homeBranchName": "UPPPD Setiabudi",
+    "region": "Jakarta Selatan",
+    "cohort": "EXTRA_CANDIDATE"
+  },
+  {
+    "username": "3100000000000201",
+    "displayName": "Sri Wahyuni",
+    "email": "3100000000000201@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000202",
+    "displayName": "Bambang Nugroho",
+    "email": "3100000000000202@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000203",
+    "displayName": "Ratna Kusuma",
+    "email": "3100000000000203@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000204",
+    "displayName": "Hendra Wijaya",
+    "email": "3100000000000204@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000205",
+    "displayName": "Maya Anggraini",
+    "email": "3100000000000205@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000206",
+    "displayName": "Teguh Prasetyo",
+    "email": "3100000000000206@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000207",
+    "displayName": "Lina Marlina",
+    "email": "3100000000000207@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000208",
+    "displayName": "Fajar Ramadhan",
+    "email": "3100000000000208@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000209",
+    "displayName": "Siti Nurhaliza",
+    "email": "3100000000000209@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  },
+  {
+    "username": "3100000000000210",
+    "displayName": "Andi Pratama",
+    "email": "3100000000000210@lab.ecmp.local",
+    "homeBranchCode": "PUSAT",
+    "homeBranchName": "Pusat",
+    "region": "Jakarta Pusat",
+    "cohort": "HEAD_OFFICE_POOL"
+  }
+]

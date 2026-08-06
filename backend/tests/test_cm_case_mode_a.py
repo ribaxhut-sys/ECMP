@@ -15,6 +15,7 @@ from app.core.authorization.authentication import get_current_principal
 from app.core.authorization.principal import Principal
 from app.core.errors import ApiError
 from app.db.base import Base
+from app.db.session import get_db_session
 from app.main import create_app
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.api.router import get_case_service
@@ -322,6 +323,7 @@ def api_client(db_session: Session) -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_case_service] = lambda: svc
     app.dependency_overrides[get_current_principal] = _principal
+    app.dependency_overrides[get_db_session] = lambda: db_session
     client = TestClient(app)
     try:
         yield client
@@ -470,3 +472,225 @@ def test_audit_timeline_side_effects_records_audit_and_timeline() -> None:
     assert timeline.add.call_count == 1
     assert audit.log.call_args.kwargs["entity_type"] == "Case"
     assert audit.log.call_args.kwargs["event_type"] == "CaseCreated"
+
+
+# --- P0 gap closure: org-scope enforcement on /api/v1/cm/cases ------------
+
+
+@pytest.fixture()
+def jwt_org_api_client(
+    db_session: Session,
+) -> Generator[dict[str, object], None, None]:
+    """Same real SQLite-backed case service as ``api_client``, but jwt-mode
+    org-scope settings + a swappable principal, to prove the P0 fix denies
+    cross-unit access to a real persisted CmCaseORM row (not a mock)."""
+    from app.core.config import Settings, get_settings
+
+    app = create_app()
+    svc = CaseApplicationService(
+        SqlAlchemyCaseRepository(db_session),
+        side_effects=NoOpSideEffects(),
+    )
+    settings = Settings(
+        environment="development",
+        ecmp_auth_mode="jwt",
+        ecmp_env="shared",
+        oidc_issuer="http://localhost:8180/realms/ecmp",
+        oidc_audience="ecmp-api",
+        oidc_jwks_url="http://jwks.test/certs",
+        jwt_secret_key="test-secret-key-for-cm-case-org-scope",
+        jwt_algorithm="HS256",
+    )
+    state: dict[str, Principal] = {
+        "principal": Principal(
+            user_id=uuid.uuid4(),
+            permissions=frozenset(
+                {"complaints:create", "complaints:read", "complaints:update"}
+            ),
+            org_unit_id="OU-A",
+        )
+    }
+
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: db_session
+    app.dependency_overrides[get_settings] = lambda: settings
+    client = TestClient(app)
+    try:
+        yield {"client": client, "state": state}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _principal_for(org_unit_id: str | None) -> Principal:
+    return Principal(
+        user_id=uuid.uuid4(),
+        permissions=frozenset(
+            {"complaints:create", "complaints:read", "complaints:update"}
+        ),
+        org_unit_id=org_unit_id,
+    )
+
+
+def test_http_cross_unit_case_read_denied(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(db_session)
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Org scope case",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+
+    # Cross-unit read denied.
+    state["principal"] = _principal_for("OU-B")
+    denied = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "ORG_SCOPE_DENIED"
+
+    # Same-unit read allowed.
+    state["principal"] = _principal_for("OU-A")
+    allowed = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert allowed.status_code == 200
+    assert allowed.json()["data"]["caseId"] == case_id
+
+
+def test_http_cross_unit_case_mutation_denied(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    """Cross-unit status change / resolve / close must 403 before mutating."""
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(db_session)
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Org scope case",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    case_id = create.json()["data"]["caseId"]
+
+    state["principal"] = _principal_for("OU-B")
+    status_denied = client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    assert status_denied.status_code == 403
+    assert status_denied.json()["code"] == "ORG_SCOPE_DENIED"
+
+    # Mutation must not have gone through despite the earlier gap.
+    state["principal"] = _principal_for("OU-A")
+    unchanged = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert unchanged.json()["data"]["status"] == "ASSIGNED"
+
+    state["principal"] = _principal_for("OU-B")
+    close_denied = client.post(f"/api/v1/cm/cases/{case_id}/close", json={})
+    assert close_denied.status_code == 403
+    assert close_denied.json()["code"] == "ORG_SCOPE_DENIED"
+
+
+def test_api_536_list_visibility_self_unit_admin(db_session: Session) -> None:
+    """DEC-024: agent SELF vs supervisor UNIT vs admin ALL."""
+    from app.modules.cm_case.application.dto import CreateCaseCommand
+
+    agent_a = uuid.uuid4()
+    agent_b = uuid.uuid4()
+    repo = SqlAlchemyCaseRepository(db_session)
+    svc = CaseApplicationService(repo, side_effects=NoOpSideEffects())
+    c1 = _seed_complaint(db_session)
+    c2 = _seed_complaint(db_session)
+
+    case_a = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=c1,
+            case_type="BILLING",
+            subject="Agent A case",
+            description="a",
+            priority="MEDIUM",
+            destination_unit_id="BR-A",
+            actor_id=str(agent_a),
+        )
+    )
+    case_b = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=c2,
+            case_type="BILLING",
+            subject="Agent B case",
+            description="b",
+            priority="MEDIUM",
+            destination_unit_id="BR-B",
+            actor_id=str(agent_b),
+        )
+    )
+
+    app = create_app()
+    state: dict[str, Principal] = {
+        "principal": Principal(
+            user_id=agent_a,
+            roles=("AGENT",),
+            permissions=frozenset({"complaints:read"}),
+            org_unit_id="BR-A",
+        )
+    }
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: db_session
+    with TestClient(app) as client:
+        self_list = client.get("/api/v1/cm/cases")
+        assert self_list.status_code == 200, self_list.text
+        ids = {row["caseId"] for row in self_list.json()["data"]}
+        assert case_a.case_id in ids
+        assert case_b.case_id not in ids
+
+        state["principal"] = Principal(
+            user_id=uuid.uuid4(),
+            roles=("SUPERVISOR",),
+            permissions=frozenset({"complaints:read"}),
+            org_unit_id="BR-A",
+        )
+        unit_list = client.get("/api/v1/cm/cases")
+        assert unit_list.status_code == 200, unit_list.text
+        unit_ids = {row["caseId"] for row in unit_list.json()["data"]}
+        assert case_a.case_id in unit_ids
+        assert case_b.case_id not in unit_ids
+
+        state["principal"] = Principal(
+            user_id=uuid.uuid4(),
+            roles=("SUPERVISOR",),
+            permissions=frozenset({"complaints:read"}),
+            org_unit_id="BR-B",
+        )
+        other_branch = client.get("/api/v1/cm/cases")
+        other_ids = {row["caseId"] for row in other_branch.json()["data"]}
+        assert case_a.case_id not in other_ids
+        assert case_b.case_id in other_ids
+
+        state["principal"] = Principal(
+            user_id=uuid.uuid4(),
+            roles=("ADMIN",),
+            permissions=frozenset({"complaints:read", "*"}),
+        )
+        admin_list = client.get("/api/v1/cm/cases")
+        assert admin_list.status_code == 200
+        admin_ids = {row["caseId"] for row in admin_list.json()["data"]}
+        assert case_a.case_id in admin_ids and case_b.case_id in admin_ids
+        assert admin_list.json()["meta"]["totalItems"] >= 2
+
+    app.dependency_overrides.clear()

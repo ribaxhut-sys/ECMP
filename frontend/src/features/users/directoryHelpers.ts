@@ -16,6 +16,67 @@ export type DirectoryRoleFamily =
   | "viewer"
   | "other";
 
+/**
+ * Canonical personas for Mode A user create/edit pickers.
+ * System role aliases (ADMINISTRATOR, BRANCH_OFFICER, HO_ENGINEER, …) remain
+ * in the catalog for compatibility but are hidden from operator UX.
+ */
+export const CANONICAL_USER_FORM_ROLE_CODES = [
+  "ADMIN",
+  "SUPERVISOR",
+  "BRANCH_SUPERVISOR",
+  "AGENT",
+  "VIEWER",
+] as const;
+
+const CANONICAL_USER_FORM_ROLE_ORDER = new Map<string, number>(
+  CANONICAL_USER_FORM_ROLE_CODES.map((code, index) => [code, index]),
+);
+
+/** Keep only canonical roles, sorted Admin → Supervisor → Agent → Viewer. */
+export function filterRolesForUserForm(roles: RoleRef[]): RoleRef[] {
+  return roles
+    .filter((row) => CANONICAL_USER_FORM_ROLE_ORDER.has(row.code))
+    .sort(
+      (a, b) =>
+        (CANONICAL_USER_FORM_ROLE_ORDER.get(a.code) ?? 99) -
+        (CANONICAL_USER_FORM_ROLE_ORDER.get(b.code) ?? 99),
+    );
+}
+
+/** Mirrors backend BRANCH_SCOPED_ROLE_CODES. */
+export const BRANCH_SCOPED_ROLE_CODES = new Set([
+  "AGENT",
+  "CS_AGENT",
+  "BRANCH_OFFICER",
+  "SUPERVISOR",
+  "BRANCH_SUPERVISOR",
+]);
+
+/** Mirrors backend HEAD_OFFICE_SCOPED_ROLE_CODES (Commit 2). */
+export const HEAD_OFFICE_SCOPED_ROLE_CODES = new Set([
+  "ADMIN",
+  "ADMINISTRATOR",
+  "HO_SCHEDULER",
+  "HEAD_OFFICE_SCHEDULER",
+  "SCHEDULER",
+  "HO_ENGINEER",
+  "HEAD_OFFICE_ENGINEER",
+]);
+
+/**
+ * Role picker by home unit:
+ * - Cabang: all personas except Admin / other head-office-only codes.
+ * - Pusat: same set as cabang **plus** Admin (Pusat also handles complaints).
+ */
+export function filterRolesForHomeUnit(
+  roles: RoleRef[],
+  atHeadOffice: boolean,
+): RoleRef[] {
+  if (atHeadOffice) return roles;
+  return roles.filter((row) => !HEAD_OFFICE_SCOPED_ROLE_CODES.has(row.code));
+}
+
 export function userInitials(user: Pick<UserRef, "fullName" | "username">): string {
   const name = user.fullName?.trim() || user.username;
   const parts = name.split(/\s+/).filter(Boolean);
@@ -35,30 +96,6 @@ export function formatWhen(value: string | null | undefined): string | null {
   } catch {
     return value;
   }
-}
-
-export function formatBranch(
-  branchId: string | null,
-  unassignedLabel: string,
-): string {
-  if (!branchId) return unassignedLabel;
-  if (branchId.length <= 12) return branchId;
-  return `${branchId.slice(0, 8)}…${branchId.slice(-4)}`;
-}
-
-/** Organization-location badge — mirrors the backend rule (Commit 2): a
- * branch-scoped role always carries a branchId, a head-office scoped role
- * never does, so branchId presence alone is the reliable signal. */
-export type DirectoryLocationKind = "headOffice" | "branch";
-
-export function userLocationKind(
-  user: Pick<UserRef, "branchId">,
-): DirectoryLocationKind {
-  return user.branchId ? "branch" : "headOffice";
-}
-
-export function directoryLocationTone(kind: DirectoryLocationKind): BadgeTone {
-  return kind === "branch" ? "info" : "primary";
 }
 
 /** BRANCH_SUPERVISOR presentation override (Commit 5) — role.code and
@@ -138,9 +175,6 @@ export function matchesDirectorySearch(user: UserRef, query: string): boolean {
   if (!q) return true;
   return (
     user.username.toLowerCase().includes(q) ||
-    user.fullName.toLowerCase().includes(q) ||
-    user.email.toLowerCase().includes(q) ||
-    (user.roleName ?? "").toLowerCase().includes(q) ||
-    (user.roleCode ?? "").toLowerCase().includes(q)
+    user.fullName.toLowerCase().includes(q)
   );
 }

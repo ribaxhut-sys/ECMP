@@ -28,6 +28,7 @@ def _to_attachment(row: CmBatch1AttachmentORM) -> Batch1AttachmentRecord:
         classification=row.classification,
         staging_token=row.staging_token,
         complaint_id=str(row.complaint_id) if row.complaint_id else None,
+        customer_id=row.customer_id,
         original_name=row.original_name,
         mime_type=row.mime_type,
         size_bytes=row.size_bytes,
@@ -127,6 +128,7 @@ class CmBatch1AttachmentRepository:
         classification: str,
         staging_token: str | None,
         complaint_id: uuid.UUID | None,
+        customer_id: str | None,
         original_name: str,
         mime_type: str,
         size_bytes: int,
@@ -140,6 +142,7 @@ class CmBatch1AttachmentRepository:
             platform_attachment_id=platform_attachment_id,
             staging_token=staging_token,
             complaint_id=complaint_id,
+            customer_id=(customer_id or "").strip() or None,
             classification=classification,
             status=status,
             original_name=original_name,
@@ -216,11 +219,14 @@ class CmBatch1AttachmentRepository:
         *,
         complaint_id: str,
         status: str,
+        customer_id: str | None = None,
     ) -> Batch1AttachmentRecord:
         row = self._session.get(CmBatch1AttachmentORM, uuid.UUID(attachment_id))
         assert row is not None
         row.complaint_id = uuid.UUID(complaint_id)
         row.status = status
+        if customer_id and customer_id.strip():
+            row.customer_id = customer_id.strip()
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_attachment(row)
@@ -231,8 +237,14 @@ class CmBatch1AttachmentRepository:
         *,
         complaint_id: str,
         status: str = "TRANSFERRED",
+        customer_id: str | None = None,
     ) -> Batch1AttachmentRecord:
-        return self.bind(attachment_id, complaint_id=complaint_id, status=status)
+        return self.bind(
+            attachment_id,
+            complaint_id=complaint_id,
+            status=status,
+            customer_id=customer_id,
+        )
 
     def void(
         self, attachment_id: str, *, reason: str

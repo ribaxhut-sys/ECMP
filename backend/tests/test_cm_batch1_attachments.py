@@ -324,6 +324,154 @@ def test_duplicate_checksum_policy(
         )
 
 
+def test_duplicate_checksum_allowed_across_complaints(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    first = _create_complaint(cm_service, "att-dup-cross-a")
+    second = _create_complaint(cm_service, "att-dup-cross-b")
+    payload = b"same-bytes-cross-complaint"
+    batch1_attachments.upload(
+        data=payload,
+        filename="a.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        complaint_id=first,
+    )
+    again = batch1_attachments.upload(
+        data=payload,
+        filename="b.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        complaint_id=second,
+    )
+    assert again.checksum_sha256 == hashlib.sha256(payload).hexdigest()
+
+
+def test_duplicate_checksum_allowed_across_staging_sessions(
+    batch1_attachments: CmBatch1AttachmentService,
+) -> None:
+    payload = b"same-bytes-cross-staging"
+    batch1_attachments.upload(
+        data=payload,
+        filename="a.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        staging_token="STG-DUP-A",
+        customer_id="CUST-A",
+    )
+    again = batch1_attachments.upload(
+        data=payload,
+        filename="b.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        staging_token="STG-DUP-B",
+        customer_id="CUST-A",
+    )
+    assert again.checksum_sha256 == hashlib.sha256(payload).hexdigest()
+
+
+def test_duplicate_checksum_allowed_same_staging_different_customer(
+    batch1_attachments: CmBatch1AttachmentService,
+) -> None:
+    payload = b"same-bytes-diff-customer"
+    batch1_attachments.upload(
+        data=payload,
+        filename="a.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        staging_token="STG-DUP-CUST",
+        customer_id="CUST-A",
+    )
+    again = batch1_attachments.upload(
+        data=payload,
+        filename="b.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        staging_token="STG-DUP-CUST",
+        customer_id="CUST-B",
+    )
+    assert again.customer_id == "CUST-B"
+    assert again.checksum_sha256 == hashlib.sha256(payload).hexdigest()
+
+
+def test_duplicate_checksum_rejected_within_staging_session(
+    batch1_attachments: CmBatch1AttachmentService,
+) -> None:
+    payload = b"same-bytes-same-staging"
+    batch1_attachments.upload(
+        data=payload,
+        filename="a.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        staging_token="STG-DUP-SAME",
+        customer_id="CUST-A",
+    )
+    with pytest.raises(ConflictError):
+        batch1_attachments.upload(
+            data=payload,
+            filename="b.txt",
+            content_type="text/plain",
+            classification="customer_evidence",
+            actor_id="a1",
+            staging_token="STG-DUP-SAME",
+            customer_id="CUST-A",
+        )
+
+
+def test_bind_missing_staging_is_noop(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-bind-noop")
+    assert (
+        batch1_attachments.bind_staging_to_complaint(
+            staging_token="STG-DOES-NOT-EXIST",
+            complaint_id=complaint_id,
+            actor_id="a1",
+        )
+        == []
+    )
+
+
+def test_upload_to_complaint_closes_attachment_bind_later_review(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-lr-close")
+    cm_service.enqueue_later_review(
+        customer_id="CUST-10001",
+        reason="attachment_bind_failed",
+        complaint_id=complaint_id,
+    )
+    open_before = [
+        i
+        for i in cm_service._store.list_later_review_items(status="OPEN")
+        if i.complaint_id == complaint_id
+    ]
+    assert len(open_before) == 1
+
+    batch1_attachments.upload(
+        data=b"recover-evidence",
+        filename="recover.txt",
+        content_type="text/plain",
+        classification="customer_evidence",
+        actor_id="a1",
+        complaint_id=complaint_id,
+        customer_id="CUST-10001",
+    )
+    open_after = [
+        i
+        for i in cm_service._store.list_later_review_items(status="OPEN")
+        if i.complaint_id == complaint_id
+    ]
+    assert open_after == []
+
+
 def test_bind_on_create_and_link_transfer_api(
     batch1_attachments: CmBatch1AttachmentService,
     cm_service: CmBatch1Service,

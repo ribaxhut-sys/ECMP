@@ -13,12 +13,14 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, 
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions
+from app.core.auth import OrgUnitResolver, Principal, enforce_org_scope, require_permissions
+from app.core.config import Settings, get_settings
 from app.core.enums import AuditAction
-from app.core.errors import ValidationAppError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.core.user_messages import m
 from app.db.session import get_db_session
+from app.modules.attachment.domain.enums import AggregateType
 from app.modules.attachment.permissions import (
     ATTACHMENT_CREATE,
     ATTACHMENT_DELETE,
@@ -74,6 +76,7 @@ async def upload_attachment(
     aggregate_id: Annotated[uuid.UUID | None, Form(alias="aggregateId")] = None,
     staging_token: Annotated[str | None, Form(alias="stagingToken")] = None,
     complaint_id: Annotated[str | None, Form(alias="complaintId")] = None,
+    customer_id: Annotated[str | None, Form(alias="customerId")] = None,
     classification: Annotated[str | None, Form()] = None,
     case_id: Annotated[str | None, Form(alias="caseId")] = None,
     supersedes_attachment_id: Annotated[
@@ -88,6 +91,7 @@ async def upload_attachment(
         or classification
         or case_id
         or supersedes_attachment_id
+        or customer_id
     )
     if batch1_requested:
         result = batch1.upload(
@@ -98,6 +102,7 @@ async def upload_attachment(
             actor_id=str(principal.user_id),
             staging_token=staging_token,
             complaint_id=complaint_id,
+            customer_id=customer_id,
             case_id=case_id,
             supersedes_attachment_id=supersedes_attachment_id,
             uploaded_by=principal.user_id,
@@ -192,11 +197,42 @@ def download_attachment(
         CmBatch1AttachmentService, Depends(get_cm_batch1_attachment_service)
     ],
     principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
-    """API-325 / API-511 — stream file bytes with original filename."""
-    _ = principal
+    """API-325 / API-511 — stream file bytes with original filename.
+
+    SECMIG-P4 parity: org scope on approved read (after permission), resolved
+    via the attachment's owning complaint (Foundation or Batch 1 Aggregate).
+    Queue / Notification aggregate types are out of this fix's scope.
+    """
+    linked = batch1.try_get_by_platform_id(attachment_id) or batch1.try_get(
+        str(attachment_id)
+    )
     platform_id = batch1.resolve_platform_attachment_id(attachment_id)
     entity, data = service.download(platform_id)
+
+    # CAPABILITY-011 is deliberately aggregate-agnostic (no FK to Complaint) —
+    # only enforce when the attachment is actually bound to a resolvable
+    # complaint; nothing to scope against otherwise.
+    if linked is not None:
+        if linked.complaint_id:
+            try:
+                resource_org = OrgUnitResolver(session).resolve_cm_complaint(
+                    linked.complaint_id
+                )
+            except NotFoundError:
+                pass
+            else:
+                enforce_org_scope(principal, resource_org, settings)
+    elif entity.aggregate_type == AggregateType.COMPLAINT.value:
+        try:
+            resource_org = OrgUnitResolver(session).resolve_complaint(entity.aggregate_id)
+        except NotFoundError:
+            pass
+        else:
+            enforce_org_scope(principal, resource_org, settings)
+
     headers = {
         "Content-Disposition": f'attachment; filename="{entity.original_name}"',
         "X-Checksum-SHA256": entity.checksum_sha256,

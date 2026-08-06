@@ -3,9 +3,11 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type FormEvent,
 } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { fetchSettings, updateSetting } from "@/lib/api";
@@ -16,23 +18,35 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
   CardHeader,
-  CardTitle,
   Empty,
   ErrorState,
   Input,
+  PanelHeader,
+  SectionHeader,
   Skeleton,
-  Table,
-  type TableColumn,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { useToast } from "@/shared/providers";
+import {
+  matchesSearch,
+  settingDisplayTitle,
+  settingStatus,
+} from "./configurationSections";
 
-export function SystemSettingsManagement() {
+export function SystemSettingsManagement({
+  searchQuery = "",
+  onClearSearch,
+}: {
+  searchQuery?: string;
+  onClearSearch?: () => void;
+}) {
   const t = useTranslations("settings");
   const tCommon = useTranslations("common");
+  const router = useRouter();
   const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const canRead = hasPermission("settings:read");
   const canUpdate = hasPermission("settings:update");
 
@@ -40,7 +54,6 @@ export function SystemSettingsManagement() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -71,11 +84,68 @@ export function SystemSettingsManagement() {
     void load();
   }, [load]);
 
+  const categoryLabel = useCallback(
+    (category: string): string => {
+      const map: Record<string, string> = {
+        app: t("categoryApp"),
+        company: t("categoryCompany"),
+        complaint: t("categoryComplaint"),
+        dashboard: t("categoryDashboard"),
+        notification: t("categoryNotification"),
+        storage: t("categoryStorage"),
+      };
+      return map[category] ?? category.replace(/\b\w/g, (c) => c.toUpperCase());
+    },
+    [t],
+  );
+
+  const statusLabel = useCallback(
+    (key: ReturnType<typeof settingStatus>["key"]): string => {
+      switch (key) {
+        case "configured":
+          return t("statusConfigured");
+        case "needsReview":
+          return t("statusNeedsReview");
+        case "disabled":
+          return t("statusDisabled");
+        case "default":
+          return t("statusDefault");
+        default:
+          return t("statusConfigured");
+      }
+    },
+    [t],
+  );
+
+  const filteredSettings = useMemo(() => {
+    return settings.filter((row) =>
+      matchesSearch(
+        searchQuery,
+        settingDisplayTitle(row),
+        row.description,
+        categoryLabel(row.category),
+        row.value,
+      ),
+    );
+  }, [categoryLabel, searchQuery, settings]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, Setting[]>();
+    for (const row of filteredSettings) {
+      const key = row.category || "app";
+      const list = map.get(key) ?? [];
+      list.push(row);
+      map.set(key, list);
+    }
+    return [...map.entries()].sort(([a], [b]) =>
+      categoryLabel(a).localeCompare(categoryLabel(b)),
+    );
+  }, [categoryLabel, filteredSettings]);
+
   function startEdit(row: Setting) {
     setEditingKey(row.key);
     setDraftValue(row.value);
     setActionError(null);
-    setActionSuccess(null);
   }
 
   function cancelEdit() {
@@ -88,13 +158,17 @@ export function SystemSettingsManagement() {
     if (!editingKey || !canUpdate) return;
     setSaving(true);
     setActionError(null);
-    setActionSuccess(null);
     try {
       const res = await updateSetting(editingKey, { value: draftValue });
       setSettings((prev) =>
         prev.map((item) => (item.key === editingKey ? res.data : item)),
       );
-      setActionSuccess(t("updatedKeyMessage", { key: editingKey }));
+      pushSuccess(
+        t("saved"),
+        t("updatedSettingMessage", {
+          name: settingDisplayTitle(res.data),
+        }),
+      );
       cancelEdit();
     } catch (err) {
       setActionError(
@@ -105,146 +179,180 @@ export function SystemSettingsManagement() {
     }
   }
 
-  const categoryLabel = (category: string): string => {
-    const map: Record<string, string> = {
-      app: t("categoryApp"),
-      company: t("categoryCompany"),
-      complaint: t("categoryComplaint"),
-      dashboard: t("categoryDashboard"),
-      notification: t("categoryNotification"),
-      storage: t("categoryStorage"),
-    };
-    return map[category] ?? category;
-  };
-
-  const visibilityLabel = (visibility: string): string => {
-    if (visibility === "PUBLIC") return t("visibilityPublic");
-    if (visibility === "PROTECTED") return t("visibilityProtected");
-    return visibility;
-  };
-
   if (!canRead) {
     return (
       <Empty
         title={tCommon("accessRestricted")}
         description={t("accessRestrictedSystem")}
+        primaryAction={{
+          label: tCommon("goHome"),
+          onClick: () => router.push("/dashboard"),
+        }}
       />
     );
   }
 
-  const columns: TableColumn<Setting>[] = [
-    {
-      key: "key",
-      header: t("keyColumn"),
-      cell: (row) => <code data-testid={`setting-key-${row.key}`}>{row.key}</code>,
-    },
-    {
-      key: "value",
-      header: t("valueColumn"),
-      cell: (row) =>
-        editingKey === row.key ? (
-          <Input
-            value={draftValue}
-            onChange={(e) => setDraftValue(e.target.value)}
-            aria-label={t("valueAriaLabel", { key: row.key })}
-          />
-        ) : (
-          <span>{row.value === "" ? "—" : row.value}</span>
-        ),
-    },
-    {
-      key: "valueType",
-      header: t("typeColumn"),
-      cell: (row) => <Badge tone="info">{row.valueType}</Badge>,
-    },
-    {
-      key: "visibility",
-      header: t("visibilityColumn"),
-      cell: (row) => (
-        <Badge tone={row.visibility === "PUBLIC" ? "success" : "neutral"}>
-          {visibilityLabel(row.visibility)}
-        </Badge>
-      ),
-    },
-    {
-      key: "category",
-      header: t("categoryColumn"),
-      cell: (row) => categoryLabel(row.category),
-    },
-    {
-      key: "actions",
-      header: tCommon("actions"),
-      hideOnMobile: false,
-      cell: (row) => {
-        if (!canUpdate) return null;
-        if (editingKey === row.key) {
-          return (
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" size="sm" loading={saving}>
-                {tCommon("save")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={cancelEdit}
-                disabled={saving}
-              >
-                {tCommon("cancel")}
-              </Button>
-            </div>
-          );
-        }
-        return (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => startEdit(row)}
-            disabled={editingKey !== null}
-          >
-            {tCommon("edit")}
-          </Button>
-        );
-      },
-    },
-  ];
-
   return (
-    <Card data-testid="system-settings-card">
-      <CardHeader>
-        <CardTitle>{t("systemSettingsTitle")}</CardTitle>
-        <CardDescription>
-          {t("systemSettingsDescription")}
-        </CardDescription>
-      </CardHeader>
-      <CardBody className="space-y-4">
-        {loadError ? (
-          <ErrorState
-            title={t("unableToLoad")}
-            message={loadError}
-            onRetry={() => void load()}
-          />
-        ) : null}
-        {actionError ? (
-          <Alert tone="danger" title={t("updateFailed")} description={actionError} />
-        ) : null}
-        {actionSuccess ? (
-          <Alert tone="success" title={t("saved")} description={actionSuccess} />
-        ) : null}
-        <form onSubmit={onSave}>
-          {loading ? (
-            <Skeleton rows={5} />
-          ) : !loadError ? (
-            <Table
-              columns={columns}
-              rows={settings}
-              getRowKey={(row) => row.key}
-              emptyMessage={t("noSettingsFound")}
-            />
-          ) : null}
+    <section
+      className="space-y-[var(--ecmp-panel-gap)]"
+      data-testid="system-settings-card"
+    >
+      <SectionHeader
+        title={t("systemSettingsTitle")}
+        description={t("systemSettingsDescription")}
+      />
+
+      {loadError ? (
+        <ErrorState
+          title={t("unableToLoad")}
+          message={loadError}
+          onRetry={() => void load()}
+        />
+      ) : null}
+      {actionError ? (
+        <Alert tone="danger" title={t("updateFailed")} description={actionError} />
+      ) : null}
+
+      {loading ? (
+        <Skeleton rows={5} />
+      ) : !loadError && grouped.length === 0 ? (
+        <Empty
+          title={t("noSettingsFound")}
+          description={
+            searchQuery.trim()
+              ? t("noSettingsMatchSearch")
+              : t("noSettingsFoundDescription")
+          }
+          primaryAction={{
+            label: t("refreshSettings"),
+            onClick: () => void load(),
+          }}
+          secondaryAction={
+            searchQuery.trim() && onClearSearch
+              ? {
+                  label: t("clearSearch"),
+                  onClick: onClearSearch,
+                }
+              : undefined
+          }
+        />
+      ) : !loadError ? (
+        <form onSubmit={onSave} className="space-y-[var(--ecmp-card-gap)]">
+          {grouped.map(([category, rows]) => (
+            <Card key={category}>
+              <CardHeader
+                action={
+                  <Badge tone="info">
+                    {t("categorySettingsCount", { count: rows.length })}
+                  </Badge>
+                }
+              >
+                <PanelHeader
+                  title={categoryLabel(category)}
+                  description={t("categoryGroupDescription", {
+                    category: categoryLabel(category),
+                  })}
+                  className="mb-0 border-0 pb-0"
+                />
+              </CardHeader>
+              <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                {rows.map((row) => {
+                  const title = settingDisplayTitle(row);
+                  const status = settingStatus(row);
+                  const editing = editingKey === row.key;
+
+                  return (
+                    <article
+                      key={row.id}
+                      data-testid={`setting-key-${row.key}`}
+                      className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-[var(--ecmp-panel-gap)]"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <h4 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
+                            {title}
+                          </h4>
+                          {row.description &&
+                          row.description.trim() !== title ? (
+                            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                              {row.description}
+                            </p>
+                          ) : (
+                            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                              {t("settingValueHelper")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone={status.tone}>{statusLabel(status.key)}</Badge>
+                          <Badge tone="neutral" variant="outline">
+                            {row.visibility === "PUBLIC"
+                              ? t("visibilityPublic")
+                              : t("visibilityProtected")}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {editing ? (
+                          <Input
+                            value={draftValue}
+                            onChange={(e) => setDraftValue(e.target.value)}
+                            label={t("valueColumn")}
+                            aria-label={t("valueAriaLabel", { key: title })}
+                          />
+                        ) : (
+                          <p className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                            {row.value === "" ? tCommon("emDash") : row.value}
+                          </p>
+                        )}
+
+                        {canUpdate ? (
+                          <div className="flex flex-wrap gap-2">
+                            {editing ? (
+                              <>
+                                <Button
+                                  type="submit"
+                                  size="sm"
+                                  loading={saving}
+                                  className="min-h-[var(--ecmp-touch-min)]"
+                                >
+                                  {tCommon("save")}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={cancelEdit}
+                                  disabled={saving}
+                                  className="min-h-[var(--ecmp-touch-min)]"
+                                >
+                                  {tCommon("cancel")}
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => startEdit(row)}
+                                disabled={editingKey !== null}
+                                className="min-h-[var(--ecmp-touch-min)]"
+                              >
+                                {tCommon("edit")}
+                              </Button>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </CardBody>
+            </Card>
+          ))}
         </form>
-      </CardBody>
-    </Card>
+      ) : null}
+    </section>
   );
 }

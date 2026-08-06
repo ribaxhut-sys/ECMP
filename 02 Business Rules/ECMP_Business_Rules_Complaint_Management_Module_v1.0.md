@@ -3,14 +3,16 @@
 | Field | Value |
 |---|---|
 | ID | BR-CM-CAT-001 |
-| Version | 1.3 |
+| Version | 1.3.1 |
 | Owner | Business Analyst / Domain PO ECMF |
 | Reviewer | Solution Architect, Operations Lead, Compliance |
 | Approver | Business Owner / Architecture Board |
 | Status | 🟢 Locked |
-| Last Review | 2026-08-01 |
+| Last Review | 2026-08-05 |
 | Next Review | 2026-10-29 |
-| Related DEC | [DEC-F4](../18%20Architecture%20Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md) (escalation visibility / return / result audience); [DEC-BQ001](../18%20Architecture%20Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md) (Case Aggregate SoT / Option O3 APPROVED); [DEC-MODEA-B2-001](../18%20Architecture%20Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md) (Mode A Delivery Baseline BQ lock — CAP-008) |
+| Related DEC | [DEC-F4](../18%20Architecture%20Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md) (**detail Reserved** for Mode A force until Board countersign / DL-012 — see BR-007 note; path Branch↔HO remains binding); [DEC-BQ001](../18%20Architecture%20Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md) (Case Aggregate SoT / Option O3 APPROVED); [DEC-MODEA-B2-001](../18%20Architecture%20Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md) (Mode A Delivery Baseline BQ lock — CAP-008) |
+| Related Governance Baseline | `docs/governance/BC-000-Business-Constitution.md`; `docs/governance/BC-001-Business-Principles.md`; `docs/governance/BC-002-Business-Rules.md`; `docs/governance/BC-003-Business-Glossary.md`; `docs/business/BW-000-Business-Workflow-Constitution.md` |
+| Precedence | If this catalog conflicts with the approved Mode A governance baseline (BC-000…BC-003, BW-000), **the baseline prevails**. This document remains the Complaint Aggregate domain catalog under dual-SoT (DEC-BQ001 O3 / DEC-020). |
 
 ## Mode A Delivery Baseline (Batch-2) — Policy Notes
 
@@ -18,7 +20,7 @@
 
 | BQ | Mode A policy (LOCKED) |
 |---|---|
-| BQ-002 | Complaint MAY register without Case; MUST have ≥1 Case within **1 business day** after `REGISTERED`; Supervisor Queue MUST show exceedances |
+| BQ-002 | Complaint MAY register without Case; MUST have ≥1 Case within **1 working day** after `REGISTERED` (BC-5.4 timing threshold; **not** activation of Working Day SLA calendar); Supervisor Queue MUST show exceedances |
 | BQ-003 | Default max Cases per Complaint = **5**; future override outside Mode A |
 | BQ-004 | Case Number independent of Complaint Number; format **`CASE-YYYY-NNNNNN`** |
 | BQ-005 | Case SHALL bind SLA Policy Version; SLA countdown **NOT** activated in Mode A |
@@ -39,7 +41,7 @@ Dokumen ini menetapkan **Business Rules Enterprise** untuk **Complaint Managemen
 2. Satu Complaint dapat memiliki satu atau lebih **Case**.
 3. **Case** adalah unit kerja operasional.
 4. **Assignment** berada pada level Case.
-5. **SLA** berada pada level Case dan dihitung dengan **Working Day**.
+5. **SLA** berada pada level Case. Mode A: Case **SHALL bind** SLA Policy Version; countdown **NOT** activated (BQ-005 / BC-9.10). Baseline kalender Mode A = **24×7** (BC-6.5 / BR-SLA-003). **Working Day** calendars, pause/resume, and case-type differentiation remain **Deferred** (BR-SLA-004) — not Mode A force.
 6. Complaint hanya menyimpan **CustomerId**; data pelanggan bersumber dari Master Customer eksternal.
 7. Prinsip eskalasi: **NO INFORMATION LOST DURING ESCALATION**.
 
@@ -75,15 +77,18 @@ Single Source of Truth · No Duplicate Work · Full Traceability · Auditability
 
 ### Aktor Bisnis (referensi lintas rule)
 
+> **Persona alignment (BC-8 / BG-018):** Operational closed set = **Complaint Officer**, **Supervisor**, **Manager**. Legacy labels Agent / Petugas Frontline / Case Handler map to **Complaint Officer** (situational modes: intake | active handling). **Manager** remains a valid business persona; Manager Workspace/Dashboard **MAY** remain deferred (DL-068).
+
 | Aktor | Peran Ringkas |
 |---|---|
-| Agent / Petugas Frontline | Menerima keluhan, membuat Complaint, mencari pelanggan, mencatat komunikasi |
-| Case Handler | Menangani Case yang di-assign, menambah catatan, attachment, usulan resolusi |
+| Complaint Officer *(legacy: Agent / Petugas Frontline — intake mode)* | Menerima keluhan, membuat Complaint, mencari pelanggan, mencatat komunikasi |
+| Complaint Officer *(legacy: Case Handler — active handling mode)* | Menangani Case yang di-assign, menambah catatan, attachment, usulan resolusi |
 | Supervisor Unit | Assignment, reassignment, review, eskalasi unit, approval operasional |
-| Petugas Regional | *(Opsional / di luar jalur DEC-F4)* Menerima Case bila jalur Regional diaktifkan di konfigurasi enterprise lain; **tidak** dipakai pada jalur eskalasi Cabang → Pusat per DEC-F4 |
-| Petugas Kantor Pusat | Menerima Case yang dieskalasikan ke Kantor Pusat; boleh Return; set/ubah `result_visibility` saat/setelah Resolve (DEC-F4) |
-| Administrator | Mengelola SLA Policy, parameter workflow, kategori, prioritas |
-| System | Otomasi SLA clock, deteksi duplicate, pembentukan timeline, audit emit |
+| Manager | Persona bisnis sah (BC-8.4); workspace/dashboard **MAY** deferred — bukan syarat validitas persona |
+| Petugas Regional | **Out of Scope for Mode A.** Not an actor on the Branch ↔ Head Office escalation path (BC-7.1 / BR-ESC-002 / BR-ORG-001). Listed only so readers do not invent Regional as Mode A delivery. |
+| Petugas Kantor Pusat / Head Office | Menerima Case yang dieskalasikan ke Head Office; return / `result_visibility` detail = **DEC-F4 provisional** (not Mode A BR force until countersign — BR-ESC-003) |
+| Administrator | Mengelola SLA Policy, parameter workflow, kategori, prioritas (di luar closed set operasional) |
+| System | Otomasi (Mode A: bind SLA tanpa countdown); deteksi duplicate; pembentukan timeline; audit emit |
 | Customer | Pihak yang menyampaikan keluhan (tidak login ke modul ini secara langsung dalam scope ini) |
 
 ### Glosarium Domain
@@ -93,11 +98,11 @@ Single Source of Truth · No Duplicate Work · Full Traceability · Auditability
 | Complaint | Aggregate Root yang merepresentasikan keluhan/permintaan pelanggan sebagai satu kesatuan bisnis |
 | Case | Unit kerja operasional di bawah Complaint; memiliki assignment dan SLA sendiri |
 | CustomerId | Identitas pelanggan dari Master Customer; satu-satunya referensi pelanggan yang disimpan Complaint |
-| Working Day | Hari kerja: Senin–Jumat, tidak termasuk Sabtu, Minggu, dan hari libur resmi menurut Calendar Platform |
-| SLA Policy | Konfigurasi Administrator yang menentukan target Working Day per kategori/prioritas/tipe Case |
+| Working Day | **Deferred** for Mode A SLA enforcement (BR-SLA-004). Historical catalog meaning: Senin–Jumat excluding Sabtu, Minggu, and official holidays (Calendar Platform). **Not** Mode A calendar baseline — baseline is 24×7 (BR-SLA-003). Do not confuse with the BC-5.4 “1 working day” Case-establishment **timing** threshold. |
+| SLA Policy | Konfigurasi Administrator untuk target SLA per kategori/prioritas/tipe Case; Mode A = bind Policy Version without countdown (BQ-005) |
 | Escalation Package | Seluruh konteks operasional Case/Complaint yang berpindah utuh saat eskalasi |
-| Return / De-escalation | Pengembalian Case dari Pusat ke cabang asal karena kelengkapan kurang; wajib `return_reason_code` + `return_note` (DEC-F4) |
-| `result_visibility` | Audience hasil setelah Resolve oleh Pusat: `ORIGIN_BRANCH` \| `ALL_BRANCHES` (DEC-F4) |
+| Return / De-escalation | Pengembalian Case dari Head Office ke cabang asal; `return_reason_code` + `return_note` = **DEC-F4 detail** (Reserved for Mode A BR force until countersign) |
+| `result_visibility` | Audience hasil setelah Resolve oleh Head Office: `ORIGIN_BRANCH` \| `ALL_BRANCHES` — **DEC-F4 detail** (Reserved for Mode A BR force until countersign) |
 | Customer 360 View | Pandangan terpadu profil + riwayat interaksi Complaint/Case yang dimiliki ECMP, diperkaya data Master Customer |
 
 ### Complaint State Machine (ringkas — tidak diubah oleh DEC-BQ001)
@@ -1017,6 +1022,8 @@ Working Day SLA
 
 Mengukur dan menegakkan target penyelesaian Case berdasarkan **hari kerja (Working Day)** yang dapat dikonfigurasi melalui SLA Policy, sehingga kinerja operasional adil terhadap kalender kerja organisasi dan tetap auditabel.
 
+> **Mode A / governance baseline (alignment):** This rule body is **target catalog** content. Mode A **SHALL NOT** treat Working Day countdown/enforcement as active. Mode A = bind SLA Policy Version **without** countdown (BQ-005 / BR-SLA-002). Baseline calendar = **24×7** (BR-SLA-003 / BC-6.5). Working Day / pause / case-type differentiation = **Deferred** (BR-SLA-004). No countdown logic is introduced or activated by this alignment note.
+
 ## Business Description
 
 SLA melekat pada **Case**, bukan Complaint. Satu Complaint dengan beberapa Case memiliki jam SLA independen per Case. Perhitungan Working Day mengikuti keputusan domain yang dikunci:
@@ -1110,7 +1117,7 @@ Ditolak; mencegah manipulasi MET/BREACHED.
 1. SLA tidak dihitung di level Complaint Aggregate.
 2. Default eskalasi **tidak** mereset SLA (No Duplicate Work / tidak mengulang pekerjaan cabang dari sisi waktu).
 3. Hasil MET/BREACHED immutable setelah close Case, kecuali koreksi formal beraudit.
-4. Working Day adalah aturan bisnis keras untuk modul ini; menyimpang ke 24x7 hanya lewat policy eksplisit bertipe kalender berbeda (bila suatu tipe Case dikecualikan di masa depan) — tetapi keputusan terkunci saat ini menetapkan Working Day sebagai standar Complaint Management Module.
+4. Working Day enforcement is **Deferred** for Mode A (BR-SLA-004). Baseline calendar for Mode A interpretation is **24×7** (BR-SLA-003). Catalog text below that describes Working Day exclusion of weekends/holidays is **not** Mode A mandatory force until a Business Owner DEC activates Working Day calendars. Mode A delivery remains bind-without-clock (BQ-005).
 
 ## Data Affected
 
@@ -1146,7 +1153,9 @@ Escalation
 
 ## Purpose
 
-Memindahkan Case ke tingkat penanganan yang lebih tinggi (**Kantor Pusat** pada jalur DEC-F4) **beserta seluruh informasi terkait**, sehingga petugas penerima melanjutkan pekerjaan cabang — bukan mengulang dari nol — sesuai prinsip **NO INFORMATION LOST DURING ESCALATION**.
+Memindahkan Case ke tingkat penanganan yang lebih tinggi (**Kantor Pusat / Head Office** pada jalur Branch ↔ Head Office) **beserta seluruh informasi terkait**, sehingga petugas penerima melanjutkan pekerjaan cabang — bukan mengulang dari nol — sesuai prinsip **NO INFORMATION LOST DURING ESCALATION**.
+
+> **DEC-F4 qualification (alignment; BC-7.3 / BR-ESC-003):** Detailed visibility, return (`return_reason_code` / `return_note`), and result-audience (`result_visibility`) rules from DEC-F4 are **workshop/catalog content**. They are **not** elevated to Mode A Business Rules force until Architecture Board countersign is complete (DL-012 PENDING). **Path scope** Branch ↔ Head Office remains binding (BR-ESC-002). Mode A delivery surface does **not** expose `PENDING`/`ESCALATED` (BQ-009). Do not read the F4 subsections below as mandatory Mode A delivery obligations.
 
 ## Business Description
 
@@ -1170,9 +1179,9 @@ Tidak boleh ada informasi yang hilang, tersembunyi tanpa alasan keamanan yang sa
 
 Complaint Aggregate tetap sama; Case tetap identitas yang sama (tidak membuat Case baru hanya karena eskalasi, kecuali kebijakan split eksplisit). Ini menjaga Full Traceability dan Single Source of Truth.
 
-### Jalur eskalasi yang dikunci (DEC-F4 / F4.1)
+### Jalur eskalasi yang dikunci (DEC-F4 / F4.1) — provisional detail
 
-Untuk penerapan yang mengikuti DEC-F4:
+Untuk penerapan yang mengikuti DEC-F4 **after** formal countersign (until then: path Branch↔HO binds; F4 detail Reserved):
 
 - Jalur operasional = **Cabang → Pusat** saja.
 - **Regional tidak** menjadi target eskalasi pada jalur ini (UI/API tidak menawarkan Regional).
@@ -1327,6 +1336,8 @@ Resolution adalah pernyataan hasil penanganan pada level **Case**: akar masalah 
 Prinsip: No Duplicate Work — resolusi memanfaatkan Timeline, komunikasi, dan work notes yang sudah ada; bukan memaksa petugas menulis ulang seluruh kronologi (cukup ringkasan resolusi + referensi).
 
 ### Visibilitas hasil setelah Resolve oleh Pusat (DEC-F4 / F4.2 / F4.3 / F4.3a)
+
+> **Reserved for Mode A BR force** until DEC-F4 countersign (BR-ESC-003). Catalog retention only.
 
 Jika Case diselesaikan oleh **Kantor Pusat** (setelah eskalasi):
 
@@ -2647,7 +2658,7 @@ Kegagalan checklist → eskalasi tidak boleh diselesaikan sebagai sukses.
 | Status | Locked v1.3 (+ Mode A Delivery Baseline policy notes 2026-08-01; Transition Matrix unchanged) |
 | Model domain | Complaint Aggregate → multi Case |
 | Konflik dengan SoT Sprint-01 | Ya (case-centric delivery BR-0xx) — perlu DEC remapping sebelum implementasi menggantikan SoT |
-| Keputusan terkunci yang dihormati | Prinsip pembuka dokumen + **DEC-F4** (F4…F4.5) pada BR-007 / BR-008 |
+| Keputusan terkunci yang dihormati | Prinsip pembuka dokumen + path Branch↔HO; **DEC-F4 detail** retained as catalog/provisional (not Mode A BR force until countersign) on BR-007 / BR-008 |
 | DEC terkait | `18 Architecture Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md`; `ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md`; `ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md` |
 | FRD Batch 1 | **Tidak diubah** (LOCKED FRD-CM-001 v1.1); DEC-F4 untuk batch eskalasi/resolusi berikutnya |
 | Rekomendasi berikutnya | Countersign Architecture Board; Impact Analysis BR-007/BR-008; petakan ke FRD batch eskalasi; formalisasi UAT-F4 di Test Strategy |
@@ -2663,7 +2674,8 @@ Kegagalan checklist → eskalasi tidak boleh diselesaikan sebagai sukses.
 | 1.2 | 2026-08-01 | BU-02: Case Aggregate Transition Matrix menggantikan State Machine Ringkas untuk Case; governing DEC-BQ001 O3 APPROVED; Complaint state machine tidak diubah; status dokumen tetap Draft |
 | 1.3 | 2026-08-01 | BU-04: Status Draft → **Locked** setelah BU-01 (DEC-BQ001 O3 APPROVED) + BU-02 (Transition Matrix SoT); tidak mengubah Business Rules, Transition Matrix, atau Complaint state machine |
 | 1.3+notes | 2026-08-01 | DEC-MODEA-B2-001: Mode A Delivery Baseline policy notes (CAP-008); Transition Matrix **unchanged** |
+| 1.3.1 | 2026-08-05 | Alignment patch P-01…P-08 vs BC/BW baseline: Working Day Deferred/24×7 note; persona → Complaint Officer + Manager; DEC-F4 Reserved qualify; BC/BW precedence; BQ-002 working day wording; Regional OOS Mode A. **No rule redesign.** |
 
 ---
 
-*Akhir dokumen BR-CM-CAT-001 v1.3 — ECMP Complaint Management Module Business Rules (+ Mode A Delivery Baseline notes).*
+*Akhir dokumen BR-CM-CAT-001 v1.3.1 — ECMP Complaint Management Module Business Rules (+ Mode A Delivery Baseline notes; governance alignment).*

@@ -22,6 +22,8 @@ interface ToastItem {
 
 interface ToastContextValue {
   push: (toast: Omit<ToastItem, "id">) => void;
+  /** Transient success feedback — prefer over Alert tone="success". */
+  pushSuccess: (title: string, description?: string) => void;
   pushError: (error: unknown, title?: string) => void;
 }
 
@@ -63,6 +65,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setCurrent({ ...toast, id: toastSeq });
   }, []);
 
+  const pushSuccess = useCallback(
+    (title: string, description?: string) => {
+      push({ title, description, tone: "success" });
+    },
+    [push],
+  );
+
   const pushError = useCallback(
     (error: unknown, title?: string) => {
       const described = describeError(error);
@@ -82,8 +91,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [pushError]);
 
   const value = useMemo<ToastContextValue>(
-    () => ({ push, pushError }),
-    [push, pushError],
+    () => ({ push, pushSuccess, pushError }),
+    [push, pushSuccess, pushError],
   );
 
   return (

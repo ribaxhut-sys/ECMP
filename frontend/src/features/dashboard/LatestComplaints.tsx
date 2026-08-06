@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Complaint } from "@/lib/api/types";
 import { formatDateTime } from "@/i18n/formatting";
@@ -9,7 +10,7 @@ import {
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
+  PanelHeader,
   Empty,
   Skeleton,
   Table,
@@ -33,14 +34,18 @@ function priorityTone(priority: string): BadgeTone {
 export function LatestComplaints({
   rows,
   loading,
+  onRefresh,
 }: {
   rows: Complaint[] | null;
   loading: boolean;
+  onRefresh?: () => void;
 }) {
+  const router = useRouter();
   const t = useTranslations("dashboard");
   const tComplaints = useTranslations("complaints");
   const tStatus = useTranslations("status");
   const tPriority = useTranslations("priority");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
 
   const columns: TableColumn<Complaint>[] = [
@@ -90,7 +95,7 @@ export function LatestComplaints({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("latestComplaints")}</CardTitle>
+          <PanelHeader title={t("recentComplaints")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Skeleton rows={5} />
@@ -103,12 +108,20 @@ export function LatestComplaints({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("latestComplaints")}</CardTitle>
+          <PanelHeader title={t("recentComplaints")} className="mb-0 border-0 pb-0" />
         </CardHeader>
         <CardBody>
           <Empty
             title={t("noComplaints")}
             description={t("noComplaintsDescription")}
+            primaryAction={{
+              label: t("refreshDashboard"),
+              onClick: onRefresh,
+            }}
+            secondaryAction={{
+              label: tCommon("goToComplaints"),
+              onClick: () => router.push("/complaints"),
+            }}
           />
         </CardBody>
       </Card>
@@ -118,14 +131,14 @@ export function LatestComplaints({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("latestComplaints")}</CardTitle>
+        <PanelHeader title={t("recentComplaints")} className="mb-0 border-0 pb-0" />
       </CardHeader>
       <CardBody>
         <Table
           columns={columns}
           rows={rows}
           getRowKey={(row) => row.id}
-          caption={t("latestComplaints")}
+          caption={t("recentComplaints")}
           emptyMessage={t("noComplaintsDescription")}
         />
       </CardBody>

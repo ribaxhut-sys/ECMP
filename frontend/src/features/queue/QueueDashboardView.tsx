@@ -27,22 +27,38 @@ import type {
 } from "@/lib/api/types";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
+  IconAlert,
+  IconAssignments,
+  IconCheck,
+  IconComplaints,
+  IconQueue,
+} from "@/shared/icons";
+import {
   Badge,
   Button,
   Card,
   CardBody,
-  CardHeader,
-  CardTitle,
+  Checkbox,
   Empty,
   ErrorState,
+  FilterBar,
   Input,
   PageContainer,
   PageHeader,
+  Pagination,
+  ProgressMeter,
+  QuickFilters,
   Select,
+  DensityToggle,
   Skeleton,
+  StatCard,
   Table,
+  WorkspaceToolbar,
   type BadgeTone,
+  type ProgressMeterTone,
+  type StatAccent,
   type TableColumn,
+  type TableDensity,
 } from "@/shared/ui";
 import { QueueRowActions } from "./QueueRowActions";
 import {
@@ -58,6 +74,8 @@ type RowEnrichment = {
   assigneeName: string | null;
   slaStatus: SlaStatus | null;
 };
+
+type QuickFilterId = "all" | "mine" | "critical" | "overSla" | "waiting";
 
 function formatWhen(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
@@ -117,6 +135,35 @@ function slaTone(status: SlaStatus | null): BadgeTone {
   }
 }
 
+function deriveQuickFilterId(filters: QueueListFilters): QuickFilterId | null {
+  if (filters.mineOnly) return "mine";
+  if (filters.priority === "CRITICAL") return "critical";
+  if (filters.slaStatus === "BREACHED") return "overSla";
+  if (filters.status === "PENDING") return "waiting";
+  if (
+    !filters.status &&
+    !filters.priority &&
+    !filters.slaStatus &&
+    !filters.mineOnly &&
+    !filters.assignedTo
+  ) {
+    return "all";
+  }
+  return null;
+}
+
+function healthTone(openRatio: number): ProgressMeterTone {
+  if (openRatio >= 0.7) return "critical";
+  if (openRatio >= 0.4) return "attention";
+  return "healthy";
+}
+
+function healthAccent(openRatio: number): StatAccent {
+  if (openRatio >= 0.7) return "critical";
+  if (openRatio >= 0.4) return "attention";
+  return "healthy";
+}
+
 export function QueueDashboardView() {
   const router = useRouter();
   const pathname = usePathname();
@@ -129,6 +176,7 @@ export function QueueDashboardView() {
   const tPriority = useTranslations("priority");
   const tComplaints = useTranslations("complaints");
   const tErrors = useTranslations("errors");
+  const tReports = useTranslations("reports");
   const { hasPermission, userId } = useAuth();
   const canRead = hasPermission("complaints:read");
   const canReadDashboard = hasPermission("dashboard:read");
@@ -139,6 +187,7 @@ export function QueueDashboardView() {
   );
 
   const [draft, setDraft] = useState<QueueListFilters>(filters);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [rows, setRows] = useState<Complaint[]>([]);
   const [enrichment, setEnrichment] = useState<Record<string, RowEnrichment>>(
     {},
@@ -154,6 +203,8 @@ export function QueueDashboardView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | undefined>();
+  const [density, setDensity] = useState<TableDensity>("comfortable");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(filters);
@@ -284,6 +335,89 @@ export function QueueDashboardView() {
     setDraft(next);
     applyFilters(next);
   }
+
+  function applyQuickFilter(id: QuickFilterId): void {
+    const preserved = {
+      keyword: filters.keyword,
+      pageSize: filters.pageSize,
+      sort: filters.sort,
+      order: filters.order,
+      page: 1,
+    };
+
+    switch (id) {
+      case "all":
+        applyFilters({ ...defaultQueueFilters(), ...preserved });
+        break;
+      case "mine":
+        applyFilters({
+          ...defaultQueueFilters(),
+          ...preserved,
+          mineOnly: true,
+        });
+        break;
+      case "critical":
+        applyFilters({
+          ...defaultQueueFilters(),
+          ...preserved,
+          priority: "CRITICAL",
+        });
+        break;
+      case "overSla":
+        applyFilters({
+          ...defaultQueueFilters(),
+          ...preserved,
+          slaStatus: "BREACHED",
+        });
+        break;
+      case "waiting":
+        applyFilters({
+          ...defaultQueueFilters(),
+          ...preserved,
+          status: "PENDING",
+        });
+        break;
+    }
+  }
+
+  const activeQuickFilter = deriveQuickFilterId(filters);
+
+  const quickFilterOptions = useMemo(
+    () => [
+      {
+        id: "all",
+        label: t("qfAll"),
+        active: activeQuickFilter === "all",
+      },
+      {
+        id: "mine",
+        label: t("qfMine"),
+        active: activeQuickFilter === "mine",
+      },
+      {
+        id: "critical",
+        label: t("qfCritical"),
+        active: activeQuickFilter === "critical",
+        tone: "critical" as const,
+        count: summary?.escalatedComplaints,
+      },
+      {
+        id: "overSla",
+        label: t("qfOverSla"),
+        active: activeQuickFilter === "overSla",
+        tone: "attention" as const,
+        count: summary?.overdueComplaints,
+      },
+      {
+        id: "waiting",
+        label: t("qfWaiting"),
+        active: activeQuickFilter === "waiting",
+        tone: "attention" as const,
+        count: summary?.pendingComplaints,
+      },
+    ],
+    [activeQuickFilter, summary, t],
+  );
 
   const statusFilterOptions = useMemo(
     () => [
@@ -442,20 +576,23 @@ export function QueueDashboardView() {
           total: totalItems,
         });
 
-  const summaryCards = summary
-    ? [
-        { label: t("openLabel"), value: summary.openComplaints },
-        { label: t("pendingLabel"), value: summary.pendingComplaints },
-        { label: t("overdueLabel"), value: summary.overdueComplaints },
-        { label: t("escalatedLabel"), value: summary.escalatedComplaints },
-        { label: t("todayLabel"), value: summary.todayComplaints },
-        { label: t("totalLabel"), value: summary.totalComplaints },
-      ]
-    : [];
+  const pageSummary =
+    totalPages > 0
+      ? tCommon("pageOf", { page: filters.page, totalPages })
+      : t("pageLabel", { page: filters.page });
+
+  const openRatio =
+    summary && summary.totalComplaints > 0
+      ? summary.openComplaints / summary.totalComplaints
+      : 0;
+  const healthPct = Math.round(openRatio * 100);
+  const queueHealthTone = healthTone(openRatio);
+  const queueHealthAccent = healthAccent(openRatio);
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
+        overline={t("overline")}
         title={t("title")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
@@ -470,48 +607,123 @@ export function QueueDashboardView() {
       />
 
       {canReadDashboard ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("summary")}</CardTitle>
-          </CardHeader>
-          <CardBody>
-            {summaryError ? (
-              <AlertBlock
-                message={summaryError}
-                onRetry={() => void loadSummary()}
-                retryLabel={t("retrySummary")}
+        <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("summary")}>
+          {summaryError ? (
+            <ErrorState
+              title={t("unableToLoad")}
+              message={summaryError}
+              onRetry={() => void loadSummary()}
+            />
+          ) : !summary ? (
+            <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-2 xl:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <StatCard key={index} title="…" loading />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-2 xl:grid-cols-5">
+              <StatCard
+                hierarchy="secondary"
+                accent="attention"
+                title={t("waitingLabel")}
+                value={
+                  <span className="tabular-nums">{summary.pendingComplaints}</span>
+                }
+                icon={<IconQueue className="size-5" aria-hidden />}
+                subtitle={t("pendingLabel")}
+                description={`${summary.todayComplaints} ${t("todayLabel").toLowerCase()}`}
+                status={
+                  summary.pendingComplaints > 0
+                    ? tReports("attention")
+                    : tReports("healthy")
+                }
+                statusTone={summary.pendingComplaints > 0 ? "warning" : "success"}
               />
-            ) : !summary ? (
-              <Skeleton rows={2} />
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                {summaryCards.map((card) => (
-                  <div
-                    key={card.label}
-                    className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-background px-4 py-4"
-                  >
-                    <p className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
-                      {card.label}
-                    </p>
-                    <p className="mt-2 text-[length:var(--ecmp-font-heading-size)] font-semibold tabular-nums text-ecmp-text-primary">
-                      {card.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardBody>
-        </Card>
+              <StatCard
+                hierarchy="primary"
+                accent="critical"
+                title={t("criticalLabel")}
+                value={
+                  <span className="tabular-nums">{summary.overdueComplaints}</span>
+                }
+                icon={<IconAlert className="size-5" aria-hidden />}
+                subtitle={t("overdueLabel")}
+                description={`${summary.escalatedComplaints} ${t("escalatedLabel").toLowerCase()}`}
+                status={
+                  summary.overdueComplaints > 0
+                    ? tReports("critical")
+                    : tReports("healthy")
+                }
+                statusTone={summary.overdueComplaints > 0 ? "danger" : "success"}
+              />
+              <StatCard
+                hierarchy="secondary"
+                accent="attention"
+                title={t("avgWaitingLabel")}
+                value={
+                  <span className="tabular-nums">{summary.pendingComplaints}</span>
+                }
+                icon={<IconComplaints className="size-5" aria-hidden />}
+                subtitle={t("pendingLabel")}
+                description={`${summary.todayComplaints} ${t("todayLabel").toLowerCase()}`}
+              />
+              <StatCard
+                hierarchy="secondary"
+                accent="normal"
+                title={t("assignmentsLabel")}
+                value={
+                  <span className="tabular-nums">{summary.openComplaints}</span>
+                }
+                icon={<IconAssignments className="size-5" aria-hidden />}
+                subtitle={t("openLabel")}
+                description={`${summary.escalatedComplaints} ${t("escalatedLabel").toLowerCase()}`}
+              />
+              <StatCard
+                hierarchy="supporting"
+                accent={queueHealthAccent}
+                title={t("healthLabel")}
+                value={<span className="tabular-nums">{healthPct}%</span>}
+                icon={<IconCheck className="size-5" aria-hidden />}
+                subtitle={t("healthCaption")}
+                description={
+                  <ProgressMeter
+                    value={summary.openComplaints}
+                    max={summary.totalComplaints}
+                    tone={queueHealthTone}
+                    showValue={false}
+                    className="mt-1"
+                  />
+                }
+                status={
+                  queueHealthTone === "critical"
+                    ? tReports("critical")
+                    : queueHealthTone === "attention"
+                      ? tReports("attention")
+                      : tReports("healthy")
+                }
+                statusTone={
+                  queueHealthTone === "critical"
+                    ? "danger"
+                    : queueHealthTone === "attention"
+                      ? "warning"
+                      : "success"
+                }
+              />
+            </div>
+          )}
+        </section>
       ) : null}
 
-      <Card>
-        <CardBody>
-          <form
-            onSubmit={onSubmitFilters}
-            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
-            aria-label={t("searchFiltersAriaLabel")}
-          >
-            <div className="md:col-span-2 xl:col-span-2">
+      <section aria-label={t("filterWorkspace")} className="space-y-[var(--ecmp-panel-gap)]">
+        <QuickFilters
+          label={t("quickFiltersLabel")}
+          options={quickFilterOptions}
+          onSelect={(id) => applyQuickFilter(id as QuickFilterId)}
+        />
+
+        <form onSubmit={onSubmitFilters} aria-label={t("searchFiltersAriaLabel")}>
+          <FilterBar
+            search={
               <Input
                 name="keyword"
                 label={tCommon("search")}
@@ -522,94 +734,98 @@ export function QueueDashboardView() {
                 }
                 maxLength={200}
               />
-            </div>
-            <Select
-              name="status"
-              label={tComplaints("status")}
-              options={statusFilterOptions}
-              value={draft.status}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, status: e.target.value }))
-              }
-            />
-            <Select
-              name="priority"
-              label={tComplaints("priority")}
-              options={priorityFilterOptions}
-              value={draft.priority}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, priority: e.target.value }))
-              }
-            />
-            <Select
-              name="slaStatus"
-              label={t("slaStatusLabel")}
-              options={slaStatusFilterOptions}
-              value={draft.slaStatus}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, slaStatus: e.target.value }))
-              }
-            />
-            <Select
-              name="sort"
-              label={tTable("sortBy")}
-              options={sortFieldOptions}
-              value={draft.sort}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  sort: e.target.value as QueueListFilters["sort"],
-                }))
-              }
-            />
-            <Select
-              name="order"
-              label={tTable("order")}
-              options={sortOrderOptions}
-              value={draft.order}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  order: e.target.value as QueueListFilters["order"],
-                }))
-              }
-            />
-            <Select
-              name="pageSize"
-              label={tTable("pageSize")}
-              options={pageSizeOptions}
-              value={String(draft.pageSize)}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  pageSize: Number(e.target.value) || 20,
-                }))
-              }
-            />
-            <label className="flex items-end gap-2 pb-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-              <input
-                type="checkbox"
-                className="size-4 rounded border-ecmp-border"
-                checked={draft.mineOnly}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    mineOnly: e.target.checked,
-                    assignedTo: e.target.checked ? "" : prev.assignedTo,
-                  }))
-                }
-              />
-              {t("mineOnlyLabel")}
-            </label>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-end md:col-span-2 xl:col-span-4">
-              <Button type="submit">{tCommon("apply")}</Button>
+            }
+            advanced={
+              <>
+                <Select
+                  name="status"
+                  label={tComplaints("status")}
+                  options={statusFilterOptions}
+                  value={draft.status}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, status: e.target.value }))
+                  }
+                />
+                <Select
+                  name="priority"
+                  label={tComplaints("priority")}
+                  options={priorityFilterOptions}
+                  value={draft.priority}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, priority: e.target.value }))
+                  }
+                />
+                <Select
+                  name="slaStatus"
+                  label={t("slaStatusLabel")}
+                  options={slaStatusFilterOptions}
+                  value={draft.slaStatus}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, slaStatus: e.target.value }))
+                  }
+                />
+                <Select
+                  name="sort"
+                  label={tTable("sortBy")}
+                  options={sortFieldOptions}
+                  value={draft.sort}
+                  onChange={(e) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      sort: e.target.value as QueueListFilters["sort"],
+                    }))
+                  }
+                />
+                <Select
+                  name="order"
+                  label={tTable("order")}
+                  options={sortOrderOptions}
+                  value={draft.order}
+                  onChange={(e) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      order: e.target.value as QueueListFilters["order"],
+                    }))
+                  }
+                />
+                <Select
+                  name="pageSize"
+                  label={tTable("pageSize")}
+                  options={pageSizeOptions}
+                  value={String(draft.pageSize)}
+                  onChange={(e) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      pageSize: Number(e.target.value) || 20,
+                    }))
+                  }
+                />
+                <Checkbox
+                  name="mineOnly"
+                  label={t("mineOnlyLabel")}
+                  checked={draft.mineOnly}
+                  onChange={(e) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      mineOnly: e.target.checked,
+                      assignedTo: e.target.checked ? "" : prev.assignedTo,
+                    }))
+                  }
+                />
+              </>
+            }
+            advancedOpen={advancedOpen}
+            onAdvancedToggle={() => setAdvancedOpen((open) => !open)}
+            advancedToggleLabel={t("advancedFilters")}
+            actions={<Button type="submit">{tCommon("apply")}</Button>}
+            reset={
               <Button type="button" variant="outline" onClick={onResetFilters}>
                 {tCommon("reset")}
               </Button>
-            </div>
-          </form>
-        </CardBody>
-      </Card>
+            }
+          />
+        </form>
+      </section>
 
       {loading ? <Skeleton rows={6} /> : null}
 
@@ -626,80 +842,69 @@ export function QueueDashboardView() {
         <Empty
           title={t("noItems")}
           description={t("noItemsDescription")}
-          action={
-            <Button type="button" variant="outline" onClick={refreshAll}>
-              {tCommon("refresh")}
-            </Button>
-          }
+          primaryAction={{
+            label: t("refreshQueue"),
+            onClick: refreshAll,
+          }}
+          secondaryAction={{
+            label: t("clearFilters"),
+            onClick: onResetFilters,
+          }}
         />
       ) : null}
 
       {!loading && !error && rows.length > 0 ? (
-        <Card>
-          <CardBody className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-              <span>{rangeLabel}</span>
-              <span>
-                {totalPages > 0
-                  ? tCommon("pageOf", { page: filters.page, totalPages })
-                  : t("pageLabel", { page: filters.page })}
-              </span>
-            </div>
+        <Card padding={false} className="overflow-hidden">
+          <CardBody className="space-y-[var(--ecmp-panel-gap)] p-4 md:p-6">
+            <WorkspaceToolbar
+              summary={t("workspaceSummary", { count: totalItems })}
+              density={<DensityToggle value={density} onChange={setDensity} />}
+              actions={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={refreshAll}
+                >
+                  {tCommon("refresh")}
+                </Button>
+              }
+            />
             <Table
               columns={columns}
               rows={rows}
               getRowKey={(row) => row.id}
               caption={t("caption")}
+              density={density}
+              stickyHeader
+              selectedKeys={selectedId ? new Set([selectedId]) : undefined}
+              onRowClick={(row) => setSelectedId(row.id)}
             />
-            <div className="flex flex-col-reverse gap-2 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasPrevious}
-                onClick={() =>
-                  applyFilters({
-                    ...filters,
-                    page: Math.max(1, filters.page - 1),
-                  })
-                }
-              >
-                {tCommon("previous")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!hasNext}
-                onClick={() =>
-                  applyFilters({ ...filters, page: filters.page + 1 })
-                }
-              >
-                {tCommon("next")}
-              </Button>
-            </div>
+            <Pagination
+              summary={
+                <span>
+                  {rangeLabel}
+                  <span className="mx-2 text-ecmp-border">·</span>
+                  {pageSummary}
+                </span>
+              }
+              previousLabel={tCommon("previous")}
+              nextLabel={tCommon("next")}
+              previousDisabled={!hasPrevious}
+              nextDisabled={!hasNext}
+              onPrevious={() =>
+                applyFilters({
+                  ...filters,
+                  page: Math.max(1, filters.page - 1),
+                })
+              }
+              onNext={() =>
+                applyFilters({ ...filters, page: filters.page + 1 })
+              }
+            />
           </CardBody>
         </Card>
       ) : null}
     </PageContainer>
-  );
-}
-
-function AlertBlock({
-  message,
-  onRetry,
-  retryLabel,
-}: {
-  message: string;
-  onRetry: () => void;
-  retryLabel: string;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-danger">
-        {message}
-      </p>
-      <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-        {retryLabel}
-      </Button>
-    </div>
   );
 }

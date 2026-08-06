@@ -185,6 +185,32 @@ export function IconChevronRight(props: IconProps) {
   );
 }
 
+export function IconChevronDown(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </IconBase>
+  );
+}
+
+export function IconTrendUp(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 14l6-6 4 4 6-6" />
+      <path d="M14 6h6v6" />
+    </IconBase>
+  );
+}
+
+export function IconTrendDown(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 10l6 6 4-4 6 6" />
+      <path d="M14 18h6v-6" />
+    </IconBase>
+  );
+}
+
 export function IconAlert(props: IconProps) {
   return (
     <IconBase {...props}>
@@ -284,6 +310,15 @@ export function IconZoomOut(props: IconProps) {
       <circle cx="11" cy="11" r="6" />
       <path d="M8 11h6" />
       <path d="m20 20-3.5-3.5" />
+    </IconBase>
+  );
+}
+
+export function IconRefresh(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
     </IconBase>
   );
 }

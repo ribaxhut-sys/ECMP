@@ -15,8 +15,8 @@ import {
   Button,
   Modal,
   Select,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 import { statusActionsFor } from "@/features/complaints/statusTransitions";
 
 export type QueueRowMeta = {
@@ -37,6 +37,7 @@ export function QueueRowActions({
   onChanged?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("queue");
   const tCommon = useTranslations("common");
   const tComplaints = useTranslations("complaints");
@@ -55,8 +56,6 @@ export function QueueRowActions({
   const [statusTarget, setStatusTarget] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastTitle, setToastTitle] = useState("");
 
   if (!canTake && !canRelease && !canChangeStatus) {
     return null;
@@ -83,12 +82,13 @@ export function QueueRowActions({
     setSubmitting(true);
     setError(null);
     try {
+      let successTitle = "";
       if (action === "take") {
         await takeQueue(row.id, { assigneeId: userId });
-        setToastTitle(t("queueItemTaken"));
+        successTitle = t("queueItemTaken");
       } else if (action === "release") {
         await releaseQueue(row.id, { releasedBy: userId });
-        setToastTitle(t("queueItemReleased"));
+        successTitle = t("queueItemReleased");
       } else if (action === "status") {
         if (!statusTarget) {
           setError(t("selectStatusError"));
@@ -98,10 +98,12 @@ export function QueueRowActions({
         await updateQueueStatus(row.id, {
           status: statusTarget as ComplaintStatus,
         });
-        setToastTitle(t("statusUpdatedToast"));
+        successTitle = t("statusUpdatedToast");
       }
       setAction(null);
-      setToastOpen(true);
+      if (successTitle) {
+        pushSuccess(successTitle, t("queueRefreshedDescription"));
+      }
       onChanged?.();
     } catch (err) {
       setError(
@@ -185,7 +187,7 @@ export function QueueRowActions({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {action === "take"
               ? t("assignToYouHint", { number: row.complaintNumber })
@@ -211,13 +213,6 @@ export function QueueRowActions({
           ) : null}
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        title={toastTitle}
-        description={t("queueRefreshedDescription")}
-        onClose={() => setToastOpen(false)}
-      />
     </>
   );
 }

@@ -20,6 +20,8 @@ export function cmBatch1Paths() {
     complaints: `${CM_BATCH1_BASE}/complaints`,
     complaint: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}`,
+    intakeEscalationDecision: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/intake-escalation/decision`,
     duplicatesCheck: `${CM_BATCH1_BASE}/duplicates/check`,
     duplicatesDecisions: `${CM_BATCH1_BASE}/duplicates/decisions`,
     attachmentsTransfer: `${CM_BATCH1_BASE}/attachments/transfer`,

@@ -42,19 +42,24 @@ Source catalog: `13 Test Strategy/ECMP_Test_Case_Catalog_CM_Batch1_v1.0.md` v1.0
 
 | FR | TC count | Automated | Pending | Manual |
 |---|---|---|---|---|
-| FR-001 | 12 | 9 | 3 | 0 |
+| FR-001 | 12 | 11 | 1 | 0 |
 | FR-002 | 9 | 9 | 0 | 0 |
 | FR-003 | 8 | 8 | 0 | 0 |
 | FR-004 | 9 | 9 | 0 | 0 |
-| **Total** | **38** | **35** | **3** | **0** |
+| **Total** | **38** | **37** | **1** | **0** |
 
 ### Pending Must TCs (explicit — not Manual)
 
 | TC ID | Reason (repository fact) |
 |---|---|
-| TC-CM-FR001-05 | No dedicated unauthorized/authz-deny automated test in `test_cm_batch1*.py` |
-| TC-CM-FR001-08 | No API-500 create reject for strict + Master unavailable (search-path only exists) |
-| TC-CM-FR001-09 | No notification-down / EVT-CM-005 automated path in Batch-1 suite |
+| TC-CM-FR001-09 | Blocked, not a test gap — EVT-CM-005 (`NotificationOutboxEnqueued`) is catalogued **Planned**; no notification-enqueue call exists in the create-complaint path to test. Re-open once EVT-CM-005 ships. |
+
+### Newly automated (this pass)
+
+| TC ID | Test(s) |
+|---|---|
+| TC-CM-FR001-05 | `test_cm_batch1.py::test_tc_cm_fr001_05_unauthorized_create_rejected` + `test_tc_cm_fr001_05_unauthorized_create_writes_security_audit` (`@requires_postgres`) |
+| TC-CM-FR001-08 | `test_cm_batch1.py::test_tc_cm_fr001_08_strict_master_unavailable_create_rejected` |
 
 ### Validation (TASK-006-01)
 
@@ -67,6 +72,19 @@ Source catalog: `13 Test Strategy/ECMP_Test_Case_Catalog_CM_Batch1_v1.0.md` v1.0
 | Runtime / API / DB changes | **None** |
 
 Companion evidence (not counted in 38-TC denominator): GOV-MODEA-M3C-001 §5 suite counts; API-513 `test_api_513_*`; confirm-lock TD-CM-001.
+
+---
+
+### Addendum — 2026-08-04 (Batch-1 Mode A finalization)
+
+The TASK-006-01 validation above is a point-in-time record as of 2026-08-01 and is left unedited. Since that sync:
+
+| Check | Result |
+|---|---|
+| New tests authored | **2** — `test_tc_cm_fr001_05_unauthorized_create_rejected`, `test_tc_cm_fr001_05_unauthorized_create_writes_security_audit`, `test_tc_cm_fr001_08_strict_master_unavailable_create_rejected` (3 test functions covering 2 TCs) |
+| Business logic changed | **None** — both TCs covered existing, already-implemented reject paths (`require_permissions("complaints:create")` at the router; `self._customers.exists(...)` strict-mode check at `service.py` ~L723) |
+| TC-CM-FR001-09 | Investigated and found **not implementable without new business logic** (EVT-CM-005 Planned, no notification integration exists) — reclassified from "Pending" to "Blocked, not a test gap"; not authored, per this batch's explicit no-new-features constraint |
+| Suite run | `pytest tests/test_cm_batch1.py tests/test_cm_batch1_attachments.py tests/test_cm_batch1_foundation.py tests/test_cm_batch1_customer_provider.py tests/test_cm_batch1_ops_hygiene.py` — 89 passed, 1 skipped (`@requires_postgres`, no live Postgres in this environment) |
 
 Do **not** equate this ~92% TC mapping with G2 case-service pack (103) — dual-tree / dual claim (see Mode A SIT SoT).
 

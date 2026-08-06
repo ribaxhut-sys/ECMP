@@ -22,12 +22,13 @@ import type {
 import {
   Alert,
   Button,
+  Checkbox,
   Input,
   Modal,
   Select,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 const CATEGORY_VALUES: readonly ResolutionCategory[] = [
   "SOLVED",
@@ -84,6 +85,7 @@ export function ResolutionRowActions({
   onChanged?: () => void;
 }) {
   const { hasPermission, userId } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("resolutions");
   const tCommon = useTranslations("common");
   const tComplaints = useTranslations("complaints");
@@ -116,8 +118,6 @@ export function ResolutionRowActions({
   const [action, setAction] = useState<ActionKind>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastTitle, setToastTitle] = useState("");
 
   // Resolve form
   const [category, setCategory] = useState<ResolutionCategory | "">("");
@@ -174,6 +174,7 @@ export function ResolutionRowActions({
     setSubmitting(true);
     setError(null);
     try {
+      let successTitle = "";
       if (action === "resolve") {
         if (!category) {
           setError(tComplaints("categoryRequired"));
@@ -191,7 +192,7 @@ export function ResolutionRowActions({
           resolutionNotes: resolutionNotes.trim(),
           resolvedBy: userId ?? undefined,
         });
-        setToastTitle(t("resolutionSubmitted"));
+        successTitle = t("resolutionSubmitted");
       } else if (action === "final") {
         if (!finalSummary.trim() || !finalNotes.trim()) {
           setError(t("summaryAndNotesRequired"));
@@ -203,7 +204,7 @@ export function ResolutionRowActions({
           notes: finalNotes.trim(),
           followUpRequired,
         });
-        setToastTitle(tComplaints("finalResolutionSubmitted"));
+        successTitle = tComplaints("finalResolutionSubmitted");
       } else if (action === "escalate") {
         if (!reasonCode) {
           setError(tComplaints("reasonCodeRequired"));
@@ -221,7 +222,7 @@ export function ResolutionRowActions({
           diagnosis: diagnosis.trim(),
           notes: escalateNotes.trim() || null,
         });
-        setToastTitle(tComplaints("escalationRequested"));
+        successTitle = tComplaints("escalationRequested");
       } else if (action === "closeEscalation") {
         if (!row.escalation?.id) {
           setError(t("noEscalationToClose"));
@@ -236,7 +237,7 @@ export function ResolutionRowActions({
         await closeEscalationForComplaint(row.escalation.id, {
           notes: closeNotes.trim(),
         });
-        setToastTitle(tComplaints("escalationClosed"));
+        successTitle = tComplaints("escalationClosed");
       } else if (action === "closeComplaint") {
         if (!closeNotes.trim()) {
           setError(tComplaints("closureNotesRequired"));
@@ -246,10 +247,12 @@ export function ResolutionRowActions({
         await closeComplaintFromResolution(row.id, {
           notes: closeNotes.trim(),
         });
-        setToastTitle(tComplaints("complaintClosed"));
+        successTitle = tComplaints("complaintClosed");
       }
       setAction(null);
-      setToastOpen(true);
+      if (successTitle) {
+        pushSuccess(successTitle, t("listRefreshed"));
+      }
       onChanged?.();
     } catch (err) {
       setError(
@@ -357,7 +360,7 @@ export function ResolutionRowActions({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {row.complaintNumber} — {row.subject}
           </p>
@@ -423,16 +426,13 @@ export function ResolutionRowActions({
                 disabled={submitting}
                 onChange={(e) => setFinalNotes(e.target.value)}
               />
-              <label className="flex items-center gap-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-ecmp-border"
-                  checked={followUpRequired}
-                  disabled={submitting}
-                  onChange={(e) => setFollowUpRequired(e.target.checked)}
-                />
-                {tComplaints("followUpRequired")}
-              </label>
+              <Checkbox
+                name="followUpRequired"
+                label={tComplaints("followUpRequired")}
+                checked={followUpRequired}
+                disabled={submitting}
+                onChange={(e) => setFollowUpRequired(e.target.checked)}
+              />
             </>
           ) : null}
 
@@ -503,13 +503,6 @@ export function ResolutionRowActions({
           ) : null}
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        title={toastTitle}
-        description={t("listRefreshed")}
-        onClose={() => setToastOpen(false)}
-      />
     </>
   );
 }

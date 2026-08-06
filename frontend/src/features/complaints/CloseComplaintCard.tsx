@@ -15,13 +15,13 @@ import {
   CardTitle,
   Modal,
   Textarea,
-  Toast,
 } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 space-y-1">
-      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary">
+      <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
         {label}
       </dt>
       <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -39,6 +39,7 @@ export function CloseComplaintCard({
   onClosed?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const { pushSuccess } = useToast();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
@@ -53,7 +54,6 @@ export function CloseComplaintCard({
   const [notesError, setNotesError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
 
   function openDialog() {
     setNotes("");
@@ -80,7 +80,7 @@ export function CloseComplaintCard({
     try {
       await closeComplaint(complaint.id, { notes: trimmed });
       setDialogOpen(false);
-      setToastOpen(true);
+      pushSuccess(t("complaintClosed"), t("complaintClosedHint"));
       onClosed?.();
     } catch (err) {
       setSubmitError(
@@ -101,9 +101,9 @@ export function CloseComplaintCard({
         <CardHeader>
           <CardTitle>{t("closeCard")}</CardTitle>
         </CardHeader>
-        <CardBody className="space-y-4">
+        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
           {isClosed ? (
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
               <DetailField label={t("status")} value={tStatus("CLOSED")} />
               <DetailField
                 label={t("closedAt")}
@@ -163,7 +163,7 @@ export function CloseComplaintCard({
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-[var(--ecmp-panel-gap)]">
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
             {t("confirmClosureHint")}
           </p>
@@ -175,7 +175,7 @@ export function CloseComplaintCard({
           <div className="space-y-1">
             <label
               htmlFor="closure-notes"
-              className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-wide text-ecmp-text-secondary"
+              className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary"
             >
               {t("closureNotes")}
             </label>
@@ -195,14 +195,6 @@ export function CloseComplaintCard({
           </div>
         </div>
       </Modal>
-
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        tone="success"
-        title={t("complaintClosed")}
-        description={t("complaintClosedHint")}
-      />
     </>
   );
 }

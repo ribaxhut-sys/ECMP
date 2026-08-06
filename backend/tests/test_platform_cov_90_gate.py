@@ -72,6 +72,22 @@ def _principal() -> Principal:
     )
 
 
+def _org_scope_bypass() -> tuple[MagicMock, MagicMock]:
+    """Dev-mode-shaped (session, settings) pair for direct router-call tests.
+
+    ``session.get`` returns a row with no branch/deleted markers so the
+    SECMIG-P4 resolver returns cleanly (no org unit), and a plain settings
+    mock keeps ``org_scope_enforcement_enabled`` False (not jwt mode) — the
+    added org-scope check becomes a documented no-op, matching how these
+    handlers already ran before the check existed.
+    """
+    session = MagicMock()
+    session.get.return_value = SimpleNamespace(
+        deleted_at=None, branch_id=None, complaint_id=uuid.uuid4()
+    )
+    return session, MagicMock()
+
+
 def test_resolutions_router_happy_and_not_found() -> None:
     cid = uuid.uuid4()
     rid = uuid.uuid4()
@@ -123,25 +139,37 @@ def test_resolutions_router_happy_and_not_found() -> None:
         followUpRequired=False,
     )
 
-    out = resolutions_router_mod.resolve_complaint(cid, payload, service, principal)
+    session, settings = _org_scope_bypass()
+
+    out = resolutions_router_mod.resolve_complaint(
+        cid, payload, service, principal, session, settings
+    )
     assert out.data.complaint_id == cid
 
     with pytest.raises(NotFoundError):
-        resolutions_router_mod.get_complaint_resolution(cid, service, principal)
+        resolutions_router_mod.get_complaint_resolution(
+            cid, service, principal, session, settings
+        )
     assert (
-        resolutions_router_mod.get_complaint_resolution(cid, service, principal).data.id
+        resolutions_router_mod.get_complaint_resolution(
+            cid, service, principal, session, settings
+        ).data.id
         == rid
     )
 
     out_final = resolutions_router_mod.submit_final_resolution(
-        cid, final_payload, service, principal
+        cid, final_payload, service, principal, session, settings
     )
     assert out_final.data.complaint_id == cid
 
     with pytest.raises(NotFoundError):
-        resolutions_router_mod.get_final_resolution(cid, service, principal)
+        resolutions_router_mod.get_final_resolution(
+            cid, service, principal, session, settings
+        )
     assert (
-        resolutions_router_mod.get_final_resolution(cid, service, principal).data.summary
+        resolutions_router_mod.get_final_resolution(
+            cid, service, principal, session, settings
+        ).data.summary
         == "summary"
     )
 
@@ -185,26 +213,35 @@ def test_escalations_and_appointments_and_reports_routers() -> None:
     review_payload = EscalationReviewRequest(reviewNotes="ok")
     close_payload = CloseEscalationRequest(notes="done")
 
+    session, settings = _org_scope_bypass()
+
     escalations_router_mod.escalate_complaint(
-        cid, escalate_payload, esc_service, principal
+        cid, escalate_payload, esc_service, principal, session, settings
     )
     escalations_router_mod.request_escalation(
-        cid, request_payload, esc_service, principal
+        cid, request_payload, esc_service, principal, session, settings
     )
     assert (
-        escalations_router_mod.list_escalations(cid, esc_service, principal).data[0].id
+        escalations_router_mod.list_escalations(
+            cid, esc_service, principal, session, settings
+        ).data[0].id
         == eid
     )
     assert (
-        escalations_router_mod.get_escalation(eid, esc_service, principal).data.id == eid
+        escalations_router_mod.get_escalation(
+            eid, esc_service, principal, session, settings
+        ).data.id
+        == eid
     )
     escalations_router_mod.approve_escalation(
-        eid, review_payload, esc_service, principal
+        eid, review_payload, esc_service, principal, session, settings
     )
     escalations_router_mod.reject_escalation(
-        eid, review_payload, esc_service, principal
+        eid, review_payload, esc_service, principal, session, settings
     )
-    escalations_router_mod.close_escalation(eid, close_payload, esc_service, principal)
+    escalations_router_mod.close_escalation(
+        eid, close_payload, esc_service, principal, session, settings
+    )
     assert isinstance(
         escalations_router_mod.get_escalation_service(MagicMock()),
         type(escalations_router_mod.EscalationService(MagicMock())),
@@ -349,12 +386,12 @@ def test_master_customer_stub_search_paths() -> None:
     assert stub.available is False
     stub.available = True
     assert stub.search() == []
-    found = stub.search(customer_number="CN-10001")
+    found = stub.search(customer_number="CN-10000001")
     assert found
     assert stub.search(identity_number="ID-MISSING-XYZ") == []
     # Ambiguous / unavailable via force-unavailable
     stub.available = False
-    assert stub.search(customer_number="CN-10001") == []
+    assert stub.search(customer_number="CN-10000001") == []
     stub.available = True
     cust = stub.get("CUST-10001")
     assert cust is not None or cust is None  # both acceptable depending on seed ids
@@ -536,7 +573,13 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
             staging_token="STG-NEW",
         )
 
-    prior = SimpleNamespace(id="ATT-1", status="ACTIVE")
+    prior = SimpleNamespace(
+        id="ATT-1",
+        status="ACTIVE",
+        staging_token="STG-OK",
+        complaint_id=None,
+        customer_id=None,
+    )
     repo.find_by_checksum.return_value = prior
     repo.get_staging.side_effect = None
     repo.get_staging.return_value = SimpleNamespace(
@@ -567,12 +610,14 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         )
 
     repo.get_staging.return_value = None
-    with pytest.raises(NotFoundError, match="[Ss]taging"):
+    assert (
         svc.bind_staging_to_complaint(
             staging_token="missing",
             complaint_id=str(uuid.uuid4()),
             actor_id="u1",
         )
+        == []
+    )
     repo.get_staging.return_value = SimpleNamespace(status="CLOSED", staging_token="x")
     with pytest.raises(ValidationAppError, match="tidak terbuka"):
         svc.bind_staging_to_complaint(

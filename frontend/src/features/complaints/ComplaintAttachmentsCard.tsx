@@ -93,7 +93,7 @@ export function ComplaintAttachmentsCard({
 
   return (
     <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader className="flex flex-col gap-[var(--ecmp-form-gap)] sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>{t("attachmentsCard")}</CardTitle>
         {canCreate ? (
           <div className="flex flex-col gap-1 sm:items-end">
@@ -114,7 +114,7 @@ export function ComplaintAttachmentsCard({
           </div>
         ) : null}
       </CardHeader>
-      <CardBody className="space-y-4">
+      <CardBody className="space-y-[var(--ecmp-panel-gap)]">
         {!canRead ? (
           <Alert
             tone="warning"

@@ -19,20 +19,11 @@ from app.core.authorization.jwt_validator import JwtValidator
 from app.core.authorization.principal import Principal
 from app.core.authorization.role_mapper import RoleMapper
 from app.core.config import Settings
-from app.core.errors import ForbiddenError, UnauthenticatedError
+from app.core.errors import UnauthenticatedError
 from app.core.security import decode_access_token
 from app.core.user_messages import m
 from app.models import User
 from app.modules.iam.permission_resolver import PermissionResolver
-
-# Paths allowed while ``force_password_change`` is true (dev mode only).
-_FORCE_PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(
-    {
-        "/api/v1/auth/me",
-        "/api/v1/auth/logout",
-        "/api/v1/users/me/change-password",
-    }
-)
 
 _strategy: AuthenticationStrategy | None = None
 
@@ -106,6 +97,7 @@ class DevAuthenticationStrategy(AuthenticationStrategy):
         *,
         request_path: str | None = None,
     ) -> Principal:
+        del request_path  # force-password gate retired; DB passwords usable as-is
         user_id, roles, payload = self.extract_identity(credentials)
         if "permissions" in payload:
             permissions = frozenset(_as_string_list(payload.get("permissions")))
@@ -122,12 +114,8 @@ class DevAuthenticationStrategy(AuthenticationStrategy):
                 payload.get("orgUnitId") or payload.get("org_unit_id")
             ),
         )
-        if force and request_path and request_path not in _FORCE_PASSWORD_CHANGE_ALLOWED_PATHS:
-            raise ForbiddenError(
-                m("auth.password_change_required"),
-                code="PASSWORD_CHANGE_REQUIRED",
-                details={"forcePasswordChange": True},
-            )
+        # Self-service / forced password-change UX retired: Mode A uses DB passwords
+        # as-is. Flag remains on Principal for API compatibility only.
         return principal
 
 

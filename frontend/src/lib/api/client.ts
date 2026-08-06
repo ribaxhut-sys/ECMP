@@ -4,7 +4,6 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from "axios";
-import { PASSWORD_CHANGE_ROUTE } from "@/features/auth/routes";
 import type { ApiErrorBody } from "./types";
 
 export class ApiError extends Error {
@@ -244,19 +243,9 @@ axiosClient.interceptors.response.use(
 
     const apiError = toApiError(error);
 
-    // Safety net: force-password gate — avoid looping on the change-password call itself.
-    if (
-      typeof window !== "undefined" &&
-      apiError.code === "PASSWORD_CHANGE_REQUIRED" &&
-      !window.location.pathname.startsWith(PASSWORD_CHANGE_ROUTE)
-    ) {
-      window.location.replace(PASSWORD_CHANGE_ROUTE);
-    }
-
     const shouldNotify =
       !config.skipGlobalError &&
       !isAuthPath(url) &&
-      apiError.code !== "PASSWORD_CHANGE_REQUIRED" &&
       (apiError.status === 0 || apiError.status >= 500);
 
     if (shouldNotify) {

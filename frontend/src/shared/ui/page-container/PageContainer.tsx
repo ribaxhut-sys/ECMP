@@ -7,6 +7,9 @@ export interface PageContainerProps extends HTMLAttributes<HTMLDivElement> {
   constrained?: boolean;
 }
 
+/**
+ * Standard page content wrapper — consumes layout tokens for gutter / max width.
+ */
 export function PageContainer({
   className,
   children,
@@ -16,8 +19,8 @@ export function PageContainer({
   return (
     <div
       className={cn(
-        "w-full px-4 py-4 sm:px-6 lg:px-8 lg:py-6",
-        constrained && "mx-auto max-w-7xl",
+        "w-full px-[var(--ecmp-page-gutter)] py-[var(--ecmp-section-gap)] sm:px-6 lg:px-8",
+        constrained && "mx-auto max-w-[var(--ecmp-content-max-width)]",
         className,
       )}
       {...props}

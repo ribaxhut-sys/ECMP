@@ -3613,6 +3613,53 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/customers/{customerId}:
+    patch:
+      summary: Update local customer reference phone (Mode A cache)
+      operationId: updateCustomerPhone
+      x-ear-id: API-222
+      tags: [Customers]
+      security:
+        - bearerAuth: []
+      description: |
+        Updates `phone` on the local customers reference-cache row only.
+        This is **not** Customer Master SoR write-back (ADR-002); Enterprise
+        master remains authoritative when Mode B unlocks.
+        Requires permission `complaints:create`.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  maxLength: 32
+                  description: Replacement phone for the lab reference cache
+      responses:
+        "200":
+          description: Updated customer reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/branches:
     get:
       summary: List branch references
@@ -3943,7 +3990,8 @@ paths:
         - bearerAuth: []
       description: |
         Soft activate/deactivate via `isActive`. Does not hard-delete the user.
-        Requires permission `users:update`.
+        Requires permission `users:update` and Head Office Admin role
+        (`ADMIN`, `ADMINISTRATOR`, or `SUPER_ADMIN`).
       parameters:
         - $ref: "#/components/parameters/UserId"
       requestBody:
@@ -5847,6 +5895,11 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Customer" }
         meta: { $ref: "#/components/schemas/PageMeta" }
+    CustomerDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Customer" }
     Branch:
       type: object
       required: [id, code, name]

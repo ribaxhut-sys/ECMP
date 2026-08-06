@@ -9,12 +9,15 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
+    OrgUnitResolver,
     Principal,
+    enforce_org_scope,
     require_escalation_close,
     require_escalation_review,
     require_permissions,
     require_supervisor_escalate,
 )
+from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.escalations.repository import EscalationRepository
@@ -55,7 +58,12 @@ def escalate_complaint(
     payload: EscalateComplaintRequest,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
     principal: Annotated[Principal, Depends(require_supervisor_escalate)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[EscalateComplaintResult]:
+    """SECMIG-P4 parity: org scope after permission check, before mutation."""
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.escalate(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)
 
@@ -71,8 +79,15 @@ def request_escalation(
     payload: EscalationRequestCreate,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[EscalationRequestResult]:
-    """API-301 — create Escalation Request (status REQUESTED)."""
+    """API-301 — create Escalation Request (status REQUESTED).
+
+    SECMIG-P4 parity: org scope after permission check, before mutation.
+    """
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.request_escalation(
         id, payload, actor_user_id=principal.user_id
     )
@@ -89,8 +104,12 @@ def list_escalations(
     id: uuid.UUID,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[list[EscalationResponse]]:
-    _ = principal
+    """SECMIG-P4 parity: org scope on approved read (after permission)."""
+    resource_org = OrgUnitResolver(session).resolve_complaint(id)
+    enforce_org_scope(principal, resource_org, settings)
     return DataResponse(data=service.list_escalations(id))
 
 
@@ -104,9 +123,16 @@ def get_escalation(
     id: uuid.UUID,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
     principal: Annotated[Principal, Depends(require_permissions("escalations:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[EscalationResponse]:
-    """API-302 — get escalation detail by id."""
-    _ = principal
+    """API-302 — get escalation detail by id.
+
+    SECMIG-P4 parity: org scope on approved read (after permission), resolved
+    via the escalation's parent complaint.
+    """
+    resource_org = OrgUnitResolver(session).resolve_escalation(id)
+    enforce_org_scope(principal, resource_org, settings)
     return DataResponse(data=service.get_escalation(id))
 
 
@@ -121,8 +147,15 @@ def approve_escalation(
     payload: EscalationReviewRequest,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
     principal: Annotated[Principal, Depends(require_escalation_review)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[EscalationReviewResult]:
-    """API-303 — approve REQUESTED escalation (HO Scheduler / Admin)."""
+    """API-303 — approve REQUESTED escalation (HO Scheduler / Admin).
+
+    SECMIG-P4 parity: org scope after permission check, before mutation.
+    """
+    resource_org = OrgUnitResolver(session).resolve_escalation(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.approve(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)
 
@@ -138,8 +171,15 @@ def reject_escalation(
     payload: EscalationReviewRequest,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
     principal: Annotated[Principal, Depends(require_escalation_review)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[EscalationReviewResult]:
-    """API-304 — reject REQUESTED escalation (HO Scheduler / Admin)."""
+    """API-304 — reject REQUESTED escalation (HO Scheduler / Admin).
+
+    SECMIG-P4 parity: org scope after permission check, before mutation.
+    """
+    resource_org = OrgUnitResolver(session).resolve_escalation(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.reject(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)
 
@@ -155,8 +195,15 @@ def close_escalation(
     payload: CloseEscalationRequest,
     service: Annotated[EscalationService, Depends(get_escalation_service)],
     principal: Annotated[Principal, Depends(require_escalation_close)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[CloseEscalationResult]:
-    """API-313 — explicit Escalation Closure after Complaint Closure (TASK-020)."""
+    """API-313 — explicit Escalation Closure after Complaint Closure (TASK-020).
+
+    SECMIG-P4 parity: org scope after permission check, before mutation.
+    """
+    resource_org = OrgUnitResolver(session).resolve_escalation(id)
+    enforce_org_scope(principal, resource_org, settings)
     result = service.close(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=result)
 

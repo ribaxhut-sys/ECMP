@@ -205,6 +205,8 @@ Business Rule
 | API-CM-B1-012 | Download attachment | `API-325` / `API-511` `GET /api/v1/attachments/{id}/download` | FR-004 | UC-CM-004 | **Implemented (lab; shared)** |
 | API-CM-B1-013 | Logical void | `API-326` / `API-512` (semantics MUST match BR-012 void) | FR-004 | UC-CM-004 | **Implemented (lab; shared void)** |
 | API-CM-B1-014 | Supervisor later-review / no-Case aging queue | `API-513` `GET /api/v1/cm/supervisor/queue` | FR-001 | UC-CM-001 (visibility) | **Implemented (lab; read-only)** |
+| API-CM-B1-015 | List Aggregate Complaints | `API-514` `GET /api/v1/cm/complaints` | FR-001 | UC-CM-001 | **Implemented (lab; coexistence)** |
+| API-CM-B1-016 | Intake escalation approve/reject | `API-515` `POST /api/v1/cm/complaints/{id}/intake-escalation/decision` | FR-001 | UC-CM-001 | **Implemented (lab; disposition only, no Case)** |
 
 ### 7.1 Requirement check
 

@@ -1,7 +1,16 @@
-# ECMP edge deploy — `pengaduan.layanankami.tech`
+# ECMP edge deploy — `pengaduan.layanankami.tech` (+ apex landing opsional)
 
 Lab Mode A (IP + ports 3000/8000) can keep running until DNS is ready.
 This folder adds **Caddy TLS reverse proxy** only — **no SSO**.
+
+## Hosts (Opsi A / DEC-023)
+
+| Host | Peran |
+|------|--------|
+| `pengaduan.layanankami.tech` (`ECMP_DOMAIN`) | Modul pengaduan (login Mode A) |
+| `layanankami.tech` (`ECMP_APEX_DOMAIN`) | Landing statis → link ke modul |
+
+Cutover apex: [`APEX_LANDING_CUTOVER_CHECKLIST.md`](APEX_LANDING_CUTOVER_CHECKLIST.md).
 
 ## Auth (DEC-020)
 
@@ -10,11 +19,11 @@ This folder adds **Caddy TLS reverse proxy** only — **no SSO**.
 | Now (lab / first shared URL) | Local JWT users (`admin` / password in DB) |
 | Later | SSO/OIDC as **target** login (not temporary stopgap) |
 
-## Cutover checklist
+## Cutover checklist (modul)
 
 1. **DNS** — create A record `pengaduan` → VPS IPv4 (`187.124.137.64`).
 2. **Wait** until `dig +short pengaduan.layanankami.tech A` returns that IP.
-3. **Env** — `cp .env.prod.example .env.prod` and set strong `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, `CADDY_ACME_EMAIL`.
+3. **Env** — `cp .env.prod.example .env.prod` and set strong `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, `CADDY_ACME_EMAIL`; set `ECMP_APEX_DOMAIN` only when siap cutover apex.
 4. **Bring up overlay**:
    ```bash
    cd /opt/ECMP

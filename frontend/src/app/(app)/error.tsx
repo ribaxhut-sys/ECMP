@@ -19,11 +19,10 @@ export default function AppError({
   }, [error]);
 
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <ErrorState
         title={t("appErrorTitle")}
         message={t("appErrorMessage")}
-        code={error.digest}
         actionLabel={tCommon("retry")}
         onRetry={reset}
       />

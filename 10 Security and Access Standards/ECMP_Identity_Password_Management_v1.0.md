@@ -5,16 +5,53 @@
 | ID | SEC-PWD-001 |
 | Version | 1.0 |
 | Status | Implemented |
+| Applies to | **Mode A (Lab / Standalone) behavior only** |
 | Related | API-410…API-413, Alembic `0037_password_management` |
 | Last Review | 2026-07-28 |
 
+> **Scope note:** This document describes **Mode A (Lab / Standalone)** behavior
+> only. It records how the local operational surface behaves; it does **not**
+> assert ECMP product ownership of authentication, identity, password, or MFA.
+> See **Scope & Ownership** below.
+
+## Scope & Ownership
+
+**Enterprise owns** (as product capabilities):
+
+- Authentication
+- Identity
+- Password
+- MFA
+
+**ECMP does NOT own:**
+
+- Password
+- Temporary Password
+- Reset Password
+
+The password-related capabilities described here (self-service change,
+forgot/reset, admin/supervisor temporary reset, password policy) exist **only as
+a Mode A operational surface** so the standalone lab can function without the
+Enterprise identity provider. They are **not** ECMP product ownership of
+identity or password domains. When Enterprise integration is enabled (Mode B),
+these responsibilities are served by the Enterprise Platform.
+
 ## Summary
 
-ECMP supports self-service password change, forgot/reset password (tokenized),
-admin/supervisor temporary reset with forced change on next login, and a
-configurable password policy.
+**Mode A operational behavior.** In Mode A (Lab / Standalone), ECMP provides a
+local operational surface for self-service password change, forgot/reset password
+(tokenized), admin/supervisor temporary reset with forced change on next login,
+and a configurable password policy.
+
+This is an operational surface for standalone lab/ops use only and is **not**
+Enterprise product ownership of authentication, identity, password, or MFA —
+those remain owned by the Enterprise Platform (see **Scope & Ownership**).
 
 ## APIs
+
+> These endpoints are the **Mode A operational surface** only. They implement
+> local password/reset behavior for standalone lab/ops use and do not represent
+> ECMP ownership of the identity/password domain (Enterprise-owned).
 
 | ID | Method | Path |
 |---|---|---|
@@ -41,6 +78,7 @@ configurable password policy.
    providers; SMTP/SendGrid/SES/Mailgun are future swaps via `EMAIL_PROVIDER`.
 8. **Password policy** — composable rules (`PASSWORD_MIN_LENGTH` default 8);
    reject blank, too short, and same-as-current; extensible for complexity later.
+   *(Mode A operational surface only; password policy ownership is Enterprise's.)*
 9. **Cookie CSRF posture unchanged** — refresh cookie remains HttpOnly +
    SameSite=Lax; password endpoints use Bearer JSON (not cookie auth) except
    login/refresh/logout.
@@ -103,3 +141,9 @@ When `/auth/me` reports `forcePasswordChange: true`, the UI redirects to
 Admin reset (API-413) returns a **temporary password once** in the API response.
 The Users UI shows it in a single dialog (copy / print); closing the dialog
 discards it from UI state. Audit event: `password.admin_reset`.
+
+> **Ownership clarification:** Temporary Password and Reset Password described
+> above are **Mode A operational behavior** only. ECMP does not own Temporary
+> Password or Reset Password as product capabilities — these belong to the
+> Enterprise Platform (see **Scope & Ownership**). The description above is
+> retained as an implementation reference for the standalone lab surface.

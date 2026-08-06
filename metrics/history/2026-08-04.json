@@ -1,0 +1,76 @@
+{
+  "date": "2026-08-04",
+  "health": 89,
+  "markdown_files": 691,
+  "adr_count": 18,
+  "api_spec_count": 9,
+  "event_count": 40,
+  "business_rules_referenced": 9,
+  "fr_referenced": 18,
+  "domains_in_traceability": 6,
+  "traceability_links": 16,
+  "metadata_complete_pct": 54,
+  "reviewed_pct": 33,
+  "trends_generated": true,
+  "top_changed_files": [
+    {
+      "path": "CHANGELOG.md",
+      "count": 13
+    },
+    {
+      "path": "frontend/src/lib/api/index.ts",
+      "count": 10
+    },
+    {
+      "path": "backend/app/core/config.py",
+      "count": 10
+    },
+    {
+      "path": "frontend/messages/en.json",
+      "count": 9
+    },
+    {
+      "path": "frontend/messages/id.json",
+      "count": 9
+    },
+    {
+      "path": ".env.example",
+      "count": 9
+    },
+    {
+      "path": ".github/workflows/root-frontend-ci.yml",
+      "count": 8
+    },
+    {
+      "path": "frontend/package.json",
+      "count": 8
+    },
+    {
+      "path": "frontend/src/shared/layouts/app-layout/Sidebar.tsx",
+      "count": 8
+    },
+    {
+      "path": "frontend/src/shared/layouts/app-layout/nav.ts",
+      "count": 8
+    }
+  ],
+  "active_areas": {
+    "Portal Docs": 269,
+    "Implementation": 194,
+    "Domain Architecture": 89,
+    "AI Context": 71,
+    "ADR": 39,
+    "API": 34,
+    "Tooling": 26,
+    "FRD": 24,
+    "Business": 9,
+    "Business Rules": 7,
+    "Solution Architecture": 7,
+    "Event": 6,
+    "Core Platform": 1,
+    "CRM": 1,
+    "Dashboard": 1
+  },
+  "coverage_overall": 66.46,
+  "docs_sync_signal": "n/a"
+}

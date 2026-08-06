@@ -93,7 +93,7 @@ export function StatusActionsCard({
       <CardHeader>
         <CardTitle>{t("statusCard")}</CardTitle>
       </CardHeader>
-      <CardBody className="space-y-4">
+      <CardBody className="space-y-[var(--ecmp-panel-gap)]">
         <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
           {t("availableActionsFor")}{" "}
           <span className="font-medium text-ecmp-text-primary">

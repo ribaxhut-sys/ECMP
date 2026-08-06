@@ -33,6 +33,22 @@ export function emptyCreateCaseForm(): CreateCaseFormValues {
   };
 }
 
+export function mergeCreateCaseForm(
+  partial?: Partial<CreateCaseFormValues> | null,
+): CreateCaseFormValues {
+  const base = emptyCreateCaseForm();
+  if (!partial) return base;
+  return {
+    caseType: partial.caseType?.trim() || base.caseType,
+    category: partial.category?.trim() || base.category,
+    subject: partial.subject?.trim() || base.subject,
+    description: partial.description?.trim() || base.description,
+    priority: partial.priority?.trim() || base.priority,
+    destinationUnitId:
+      partial.destinationUnitId?.trim() || base.destinationUnitId,
+  };
+}
+
 export const CASE_PRIORITY_OPTIONS = [
   { value: "LOW", label: "low" },
   { value: "MEDIUM", label: "medium" },

@@ -4,21 +4,28 @@ import { cn } from "@/shared/utils";
 export interface CardProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
   padding?: boolean;
+  /** Adds hover elevation for clickable/navigable cards. */
+  interactive?: boolean;
 }
 
 export function Card({
   className,
   children,
   padding = true,
+  interactive = false,
   ...props
 }: CardProps) {
   return (
     <section
       className={cn(
-        "rounded-[var(--ecmp-radius-lg)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-sm",
-        padding && "p-4 md:p-6",
+        "rounded-[var(--ecmp-radius-card)] border border-ecmp-border/80 bg-ecmp-surface shadow-ecmp-raised",
+        "transition-[box-shadow,border-color,transform] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+        interactive &&
+          "cursor-pointer hover:-translate-y-[2px] hover:border-ecmp-secondary/40 hover:shadow-ecmp-hover motion-reduce:hover:translate-y-0",
+        padding && "p-[var(--ecmp-card-padding)]",
         className,
       )}
+      data-interactive={interactive || undefined}
       {...props}
     >
       {children}
@@ -35,7 +42,7 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        "mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        "mb-[var(--ecmp-card-gap)] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
       {...props}
@@ -54,7 +61,7 @@ export function CardTitle({
   return (
     <h2
       className={cn(
-        "text-[length:var(--ecmp-font-title-size)] font-[number:var(--ecmp-font-title-weight)] text-ecmp-text-primary",
+        "text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] leading-[var(--ecmp-font-card-title-line)] tracking-tight text-ecmp-text-primary",
         className,
       )}
       {...props}
@@ -72,7 +79,7 @@ export function CardDescription({
   return (
     <p
       className={cn(
-        "mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary",
+        "mt-1 text-[length:var(--ecmp-font-body-small-size)] leading-[var(--ecmp-font-body-small-line)] text-ecmp-text-secondary",
         className,
       )}
       {...props}
@@ -89,6 +96,24 @@ export function CardBody({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn("min-w-0", className)} {...props}>
+      {children}
+    </div>
+  );
+}
+
+export function CardFooter({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        "mt-[var(--ecmp-card-gap)] flex flex-wrap items-center gap-2 border-t border-ecmp-border/80 pt-[var(--ecmp-card-gap)]",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </div>
   );

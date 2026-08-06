@@ -4,9 +4,9 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
-  type FormEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -28,14 +28,11 @@ import {
   Button,
   Card,
   CardBody,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Empty,
   Input,
   PageContainer,
   PageHeader,
-  Select,
+  SectionHeader,
   Textarea,
 } from "@/shared/ui";
 import { CustomerSearchPanel } from "./CustomerSearchPanel";
@@ -50,17 +47,18 @@ import {
   type CreateComplaintFieldErrors,
   type CreateComplaintFormValues,
 } from "./createComplaintForm";
+import { stashEscalateIntakeDraft } from "./escalateIntakeDraft";
+
+export type IntakeSubmitIntent = "resolve_branch" | "escalate";
 
 /**
  * Create Complaint — Mode A Batch-1 Aggregate intake (API-500).
- * Dual SoT (DEC-020): posts to `/api/v1/cm/complaints`, not foundation.
- * Confirmation lands on `/complaints/cm/[id]` (Aggregate read path).
+ * Dual outcomes: selesai di cabang (CLOSED) vs ajukan eskalasi (priority step).
  */
 export function CreateComplaintView() {
   const router = useRouter();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
-  const tPriority = useTranslations("priority");
   const tValidation = useTranslations("validation");
   const tErrors = useTranslations("errors");
   const { user, hasPermission } = useAuth();
@@ -68,7 +66,7 @@ export function CreateComplaintView() {
   const agentBranchId = user?.branchId ?? null;
 
   const [values, setValues] = useState<CreateComplaintFormValues>(() =>
-    createEmptyComplaintForm({ branchId: agentBranchId }),
+    createEmptyComplaintForm({ branchId: agentBranchId, channel: "BRANCH" }),
   );
   const [errors, setErrors] = useState<CreateComplaintFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -88,27 +86,10 @@ export function CreateComplaintView() {
   const [stagingToken, setStagingToken] = useState(() =>
     newCmBatch1StagingToken(),
   );
-
-  const priorityOptions = useMemo(
-    () => [
-      { value: "LOW", label: tPriority("LOW") },
-      { value: "MEDIUM", label: tPriority("MEDIUM") },
-      { value: "HIGH", label: tPriority("HIGH") },
-      { value: "CRITICAL", label: tPriority("CRITICAL") },
-    ],
-    [tPriority],
-  );
-
-  const channelOptions = useMemo(
-    () => [
-      { value: "CALL", label: t("channelCall") },
-      { value: "EMAIL", label: t("channelEmail") },
-      { value: "BRANCH", label: t("channelBranch") },
-      { value: "WEB", label: t("channelWeb") },
-      { value: "OTHER", label: t("channelOther") },
-    ],
-    [t],
-  );
+  const [hasStagedAttachments, setHasStagedAttachments] = useState(false);
+  const [activeIntent, setActiveIntent] =
+    useState<IntakeSubmitIntent>("resolve_branch");
+  const intakeIntentRef = useRef<IntakeSubmitIntent>("resolve_branch");
 
   useEffect(() => {
     if (!canCreate) {
@@ -121,16 +102,20 @@ export function CreateComplaintView() {
       setBranchesError(null);
       try {
         const res = await fetchBranches(100);
-        if (!cancelled) {
-          setBranches(res.data);
-          if (agentBranchId) {
-            const match = res.data.find((b) => b.id === agentBranchId);
-            if (match) {
-              setValues((prev) =>
-                prev.branchId ? prev : { ...prev, branchId: match.id },
-              );
-            }
-          }
+        if (cancelled) return;
+        setBranches(res.data);
+        const locked =
+          (agentBranchId
+            ? res.data.find((b) => b.id === agentBranchId)
+            : null) ??
+          res.data.find((b) => b.code.toUpperCase() === "PUSAT") ??
+          null;
+        if (locked) {
+          setValues((prev) => ({
+            ...prev,
+            branchId: locked.id,
+            channel: prev.channel || "BRANCH",
+          }));
         }
       } catch (err) {
         if (!cancelled) {
@@ -147,6 +132,19 @@ export function CreateComplaintView() {
       cancelled = true;
     };
   }, [agentBranchId, canCreate, t, tCommon, tErrors]);
+
+  const lockedBranch = useMemo(() => {
+    if (agentBranchId) {
+      return branches.find((b) => b.id === agentBranchId) ?? null;
+    }
+    return branches.find((b) => b.code.toUpperCase() === "PUSAT") ?? null;
+  }, [agentBranchId, branches]);
+
+  const lockedBranchLabel = lockedBranch
+    ? `${lockedBranch.code} — ${lockedBranch.name}`
+    : branchesLoading
+      ? t("loadingBranches")
+      : t("noActiveBranches");
 
   const updateField = useCallback(
     <K extends keyof CreateComplaintFormValues>(
@@ -196,7 +194,7 @@ export function CreateComplaintView() {
 
   if (!canCreate) {
     return (
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader
           title={t("create")}
           breadcrumbs={[
@@ -205,19 +203,14 @@ export function CreateComplaintView() {
             { label: tCommon("create") },
           ]}
         />
-        <Empty
-          title={tCommon("accessRestricted")}
-          description={t("createAccessRestrictedDescription")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints")}
-            >
-              {t("backToList")}
-            </Button>
-          }
-        />
+          <Empty
+            title={tCommon("accessRestricted")}
+            description={t("createAccessRestrictedDescription")}
+            primaryAction={{
+              label: tCommon("goHome"),
+              onClick: () => router.push("/dashboard"),
+            }}
+          />
       </PageContainer>
     );
   }
@@ -248,15 +241,20 @@ export function CreateComplaintView() {
     const response = await createCmBatch1Complaint(
       toCmBatch1CreateRequest(values, {
         duplicateOverrideJustification: justification,
-        stagingToken,
+        stagingToken: hasStagedAttachments ? stagingToken : null,
+        closeAtBranch: true,
       }),
       { idempotencyKey: newCmBatch1IdempotencyKey() },
     );
-    router.push(`/complaints/cm/${response.data.complaintId}`);
+    const complaintId = response.data.complaintId;
+    router.push(
+      `/complaints/cm/${encodeURIComponent(complaintId)}?intake=closed`,
+    );
   }
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function submitIntake(intent: IntakeSubmitIntent): Promise<void> {
+    intakeIntentRef.current = intent;
+    setActiveIntent(intent);
     setSubmitError(null);
     setInfoMessage(null);
 
@@ -264,11 +262,25 @@ export function CreateComplaintView() {
       validateCmBatch1CreateForm(values),
       tValidation,
     );
+    if (intent === "resolve_branch" && !values.resolution.trim()) {
+      nextErrors.resolution = tValidation("resolutionRequired");
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       const firstKey = Object.keys(nextErrors)[0];
       const el = firstKey ? document.getElementById(firstKey) : null;
       el?.focus();
+      return;
+    }
+
+    if (intent === "escalate") {
+      stashEscalateIntakeDraft({
+        values,
+        stagingToken,
+        hasStagedAttachments,
+        overrideJustification,
+      });
+      router.push("/complaints/new/escalate");
       return;
     }
 
@@ -281,7 +293,7 @@ export function CreateComplaintView() {
 
       const dup = await checkCmBatch1Duplicates({
         customerId: values.customerId.trim(),
-        category: values.category.trim(),
+        category: values.category.trim() || "GENERAL",
         subject: values.subject.trim(),
         channel: values.channel.trim(),
       });
@@ -332,7 +344,7 @@ export function CreateComplaintView() {
           decision: "link_existing",
           customerId: values.customerId.trim(),
           survivingComplaintId: surviving,
-          stagingToken,
+          stagingToken: hasStagedAttachments ? stagingToken : null,
         });
         setDuplicateOpen(false);
         router.push(`/complaints/cm/${surviving}`);
@@ -370,13 +382,8 @@ export function CreateComplaintView() {
     }
   }
 
-  const branchOptions = branches.map((b) => ({
-    value: b.id,
-    label: b.name,
-  }));
-
   return (
-    <PageContainer className="space-y-6">
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("create")}
         breadcrumbs={[
@@ -389,9 +396,12 @@ export function CreateComplaintView() {
 
       <form
         noValidate
-        onSubmit={(event) => void onSubmit(event)}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submitIntake("resolve_branch");
+        }}
         aria-label={t("createFormAriaLabel")}
-        className="space-y-6"
+        className="space-y-[var(--ecmp-section-gap)]"
       >
         {submitError ? (
           <Alert
@@ -433,125 +443,94 @@ export function CreateComplaintView() {
           />
         ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle id="section-complaint-info">
-              {t("complaintInformation")}
-            </CardTitle>
-            <CardDescription>
-              {t("complaintInformationDescription")}
-            </CardDescription>
-          </CardHeader>
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader
+            id="section-complaint-info"
+            title={t("complaintInformation")}
+            description={t("complaintInformationDescription")}
+          />
+          <Card>
           <CardBody>
             <fieldset
               aria-labelledby="section-complaint-info"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
+              className="grid grid-cols-1 gap-[var(--ecmp-form-gap)]"
             >
               <legend className="sr-only">{t("complaintInformation")}</legend>
-              <div className="md:col-span-2">
-                <Input
-                  name="subject"
-                  id="subject"
-                  label={t("subject")}
-                  required
-                  maxLength={200}
-                  value={values.subject}
-                  onChange={onTextChange("subject")}
-                  error={errors.subject}
-                  aria-required="true"
-                  autoComplete="off"
-                />
-              </div>
-              <Select
-                name="priority"
-                id="priority"
-                label={t("priority")}
-                placeholder={t("selectPriorityOptional")}
-                options={priorityOptions}
-                value={values.priority}
-                onChange={onTextChange("priority")}
-                error={errors.priority}
-              />
-              <Select
-                name="channel"
-                id="channel"
-                label={t("channel")}
-                required
-                placeholder={t("selectChannel")}
-                options={channelOptions}
-                value={values.channel}
-                onChange={onTextChange("channel")}
-                error={errors.channel}
-                aria-required="true"
-              />
               <Input
-                name="category"
-                id="category"
-                label={t("category")}
+                name="subject"
+                id="subject"
+                label={t("subject")}
                 required
-                maxLength={64}
-                value={values.category}
-                onChange={onTextChange("category")}
-                error={errors.category}
+                maxLength={200}
+                value={values.subject}
+                onChange={onTextChange("subject")}
+                error={errors.subject}
                 aria-required="true"
                 autoComplete="off"
               />
-              <div className="md:col-span-2">
-                <Textarea
-                  name="description"
-                  id="description"
-                  label={t("description")}
-                  required
-                  rows={5}
-                  maxLength={5000}
-                  value={values.description}
-                  onChange={onTextChange("description")}
-                  error={errors.description}
-                  aria-required="true"
-                  hint={t("charCounter", {
-                    count: values.description.trim().length,
-                    max: 5000,
-                  })}
-                />
-              </div>
-            </fieldset>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle id="section-location">{t("recordingUnit")}</CardTitle>
-            <CardDescription>{t("recordingUnitDescription")}</CardDescription>
-          </CardHeader>
-          <CardBody>
-            <fieldset
-              aria-labelledby="section-location"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
-            >
-              <legend className="sr-only">{t("recordingUnit")}</legend>
-              <Select
-                name="branchId"
-                id="branchId"
-                label={t("branch")}
-                placeholder={
-                  branchesLoading
-                    ? t("loadingBranches")
-                    : t("selectBranchPlaceholder")
-                }
-                options={branchOptions}
-                value={values.branchId}
-                onChange={onTextChange("branchId")}
-                error={errors.branchId}
-                disabled={branchesLoading || branchOptions.length === 0}
-                hint={
-                  branchOptions.length === 0 && !branchesLoading
-                    ? t("noActiveBranches")
-                    : t("optionalLabBranches")
-                }
+              <Textarea
+                name="description"
+                id="description"
+                label={t("descriptionComplaint")}
+                required
+                rows={5}
+                maxLength={5000}
+                value={values.description}
+                onChange={onTextChange("description")}
+                error={errors.description}
+                aria-required="true"
+                hint={t("charCounter", {
+                  count: values.description.trim().length,
+                  max: 5000,
+                })}
+              />
+              <Textarea
+                name="resolution"
+                id="resolution"
+                label={t("resolution")}
+                rows={5}
+                maxLength={5000}
+                value={values.resolution}
+                onChange={onTextChange("resolution")}
+                error={errors.resolution}
+                hint={t("resolutionHint", {
+                  count: values.resolution.trim().length,
+                  max: 5000,
+                })}
               />
             </fieldset>
           </CardBody>
-        </Card>
+          </Card>
+        </section>
+
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader
+            id="section-location"
+            title={t("recordingUnit")}
+            description={t("recordingUnitLockedHint")}
+          />
+          <Card>
+          <CardBody>
+            <fieldset
+              aria-labelledby="section-location"
+              className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2"
+            >
+              <legend className="sr-only">{t("recordingUnit")}</legend>
+              <Input
+                name="branchId"
+                id="branchId"
+                label={t("branch")}
+                value={lockedBranchLabel}
+                readOnly
+                disabled
+                error={errors.branchId}
+                hint={t("recordingUnitLockedHint")}
+                aria-readonly="true"
+              />
+            </fieldset>
+          </CardBody>
+          </Card>
+        </section>
 
         {overrideJustification ? (
           <Alert
@@ -563,27 +542,43 @@ export function CreateComplaintView() {
 
         <StagingAttachmentsPanel
           stagingToken={stagingToken}
+          customerId={values.customerId}
           disabled={submitting || duplicateBusy}
           onStagingTokenResolved={setStagingToken}
+          onHasStagedChange={setHasStagedAttachments}
         />
 
-        <div className="flex flex-col-reverse gap-3 border-t border-ecmp-border pt-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end">
           <Button
             type="button"
             variant="outline"
             onClick={onCancel}
             disabled={submitting || duplicateBusy}
-            aria-label={t("cancelAriaLabel")}
+            aria-label={t("backAriaLabel")}
           >
-            {tCommon("cancel")}
+            {tCommon("back")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            loading={submitting && activeIntent === "escalate"}
+            disabled={submitting || duplicateBusy}
+            onClick={() => void submitIntake("escalate")}
+            aria-label={t("submitEscalateAriaLabel")}
+          >
+            {submitting && activeIntent === "escalate"
+              ? t("creating")
+              : t("submitEscalate")}
           </Button>
           <Button
             type="submit"
-            loading={submitting}
-            disabled={duplicateBusy}
-            aria-label={t("createAriaLabel")}
+            loading={submitting && activeIntent === "resolve_branch"}
+            disabled={submitting || duplicateBusy}
+            aria-label={t("submitResolveBranchAriaLabel")}
           >
-            {submitting ? t("creating") : t("create")}
+            {submitting && activeIntent === "resolve_branch"
+              ? t("creating")
+              : t("submitResolveBranch")}
           </Button>
         </div>
       </form>
