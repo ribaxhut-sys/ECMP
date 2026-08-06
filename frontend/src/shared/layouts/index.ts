@@ -9,3 +9,16 @@ export type { AppLayoutProps, NavItem, NavGroup } from "./app-layout";
 
 export { AuthLayout, IdentityBrand, IdentityTrustFooter } from "./auth-layout";
 export type { AuthLayoutProps } from "./auth-layout";
+
+export {
+  WorkspaceLayout,
+  EmptyWorkspace,
+  PermissionGuard,
+  LoadingScreen,
+} from "./shell";
+export type {
+  WorkspaceLayoutProps,
+  EmptyWorkspaceProps,
+  PermissionGuardProps,
+  LoadingScreenProps,
+} from "./shell";

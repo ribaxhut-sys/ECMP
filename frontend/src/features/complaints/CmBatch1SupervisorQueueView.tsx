@@ -72,6 +72,9 @@ export function CmBatch1SupervisorQueueView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agingHours, setAgingHours] = useState(24);
+  const [workItemStatus, setWorkItemStatus] = useState<
+    "OPEN" | "CLOSED" | "ALL"
+  >("OPEN");
   const [density, setDensity] = useState<TableDensity>("comfortable");
 
   const load = useCallback(async () => {
@@ -83,7 +86,7 @@ export function CmBatch1SupervisorQueueView() {
     setError(null);
     try {
       const res = await fetchCmBatch1SupervisorQueue({
-        workItemStatus: "OPEN",
+        workItemStatus,
         agingHours,
         limit: CM_BATCH1_SUPERVISOR_QUEUE_LIMIT_DEFAULT,
       });
@@ -98,7 +101,7 @@ export function CmBatch1SupervisorQueueView() {
     } finally {
       setLoading(false);
     }
-  }, [agingHours, canRead, t]);
+  }, [agingHours, canRead, t, workItemStatus]);
 
   useEffect(() => {
     void load();
@@ -270,18 +273,35 @@ export function CmBatch1SupervisorQueueView() {
 
       <FilterBar
         filters={
-          <Select
-            name="agingHours"
-            label={t("agingThreshold")}
-            value={String(agingHours)}
-            onChange={(e) => setAgingHours(Number(e.target.value))}
-            options={[
-              { value: "24", label: "24h" },
-              { value: "48", label: "48h" },
-              { value: "72", label: "72h" },
-              { value: "168", label: "7d" },
-            ]}
-          />
+          <>
+            <Select
+              name="workItemStatus"
+              label={t("laterReviewStatusFilter")}
+              value={workItemStatus}
+              onChange={(e) =>
+                setWorkItemStatus(
+                  e.target.value as "OPEN" | "CLOSED" | "ALL",
+                )
+              }
+              options={[
+                { value: "OPEN", label: t("statusOpen") },
+                { value: "CLOSED", label: t("statusClosed") },
+                { value: "ALL", label: t("statusAll") },
+              ]}
+            />
+            <Select
+              name="agingHours"
+              label={t("agingThreshold")}
+              value={String(agingHours)}
+              onChange={(e) => setAgingHours(Number(e.target.value))}
+              options={[
+                { value: "24", label: "24h" },
+                { value: "48", label: "48h" },
+                { value: "72", label: "72h" },
+                { value: "168", label: "7d" },
+              ]}
+            />
+          </>
         }
       />
 
@@ -318,7 +338,13 @@ export function CmBatch1SupervisorQueueView() {
               <Skeleton rows={6} />
             ) : !data?.laterReviewItems.length ? (
               <Empty
-                title={t("noOpenLaterReview")}
+                title={
+                  workItemStatus === "CLOSED"
+                    ? t("noClosedLaterReview")
+                    : workItemStatus === "ALL"
+                      ? t("noLaterReviewItems")
+                      : t("noOpenLaterReview")
+                }
                 description={t("queueEmptyForFilter")}
                 primaryAction={{
                   label: tCommon("refreshPage"),

@@ -84,6 +84,22 @@ class ResolutionDTO:
 
 
 @dataclass
+class CaseSummaryDTO:
+    case_id: str
+    case_number: str
+    complaint_id: str
+    status: str
+    case_type: str
+    subject: str
+    priority: str
+    created_at: datetime
+    created_by: str
+    category: str | None = None
+    owning_unit_id: str | None = None
+    customer_id: str | None = None
+
+
+@dataclass
 class CaseDTO:
     case_id: str
     case_number: str

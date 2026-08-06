@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   fetchCmBatch1ComplaintAttachments,
+  uploadCmBatch1Attachment,
   voidCmBatch1Attachment,
+  type CmBatch1AttachmentClassification,
   type CmBatch1AttachmentResponse,
 } from "@/lib/api";
 import {
@@ -24,31 +26,53 @@ import {
   Empty,
   Input,
   SectionHeader,
+  Select,
   Skeleton,
 } from "@/shared/ui";
 
+const CLASSIFICATION_OPTIONS = [
+  { value: "customer_evidence", label: "classificationCustomerEvidence" },
+  { value: "internal_evidence", label: "classificationInternalEvidence" },
+  { value: "official_letter", label: "classificationOfficialLetter" },
+] as const;
+
+const ACCEPT_MIME =
+  "application/pdf,image/jpeg,image/png,image/webp,video/mp4,text/plain,.pdf,.jpg,.jpeg,.png,.webp,.mp4,.txt";
+
 /**
- * Bound attachments on Aggregate confirmation (API-509 list + optional API-512 void).
- * Dual SoT: uses complaint id from `/api/v1/cm` create/confirmation path.
+ * Bound attachments on Aggregate confirmation (API-509 list + API-507 upload + API-512 void).
+ * Attachments are optional — upload here recovers attachment_bind_failed later-review.
  */
 export function CmBatch1BoundAttachmentsCard({
   complaintId,
+  customerId = null,
   allowVoid = true,
+  allowUpload = true,
 }: {
   complaintId: string;
+  customerId?: string | null;
   allowVoid?: boolean;
+  allowUpload?: boolean;
 }) {
   const t = useTranslations("complaints");
   const { hasPermission } = useAuth();
   const canRead =
     hasPermission("attachment:read") || hasPermission("*");
+  const canUpload =
+    allowUpload &&
+    (hasPermission("attachment:create") || hasPermission("*"));
   const canVoid =
     allowVoid &&
     (hasPermission("attachment:delete") || hasPermission("*"));
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [items, setItems] = useState<CmBatch1AttachmentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [classification, setClassification] =
+    useState<CmBatch1AttachmentClassification>("customer_evidence");
   const [voidTargetId, setVoidTargetId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const [voidingId, setVoidingId] = useState<string | null>(null);
@@ -79,6 +103,39 @@ export function CmBatch1BoundAttachmentsCard({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const onFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file || !canUpload || uploading) return;
+
+      setUploading(true);
+      setError(null);
+      setInfo(null);
+      try {
+        const res = await uploadCmBatch1Attachment({
+          file,
+          classification,
+          complaintId: complaintId.trim(),
+          customerId: customerId?.trim() || null,
+        });
+        setItems((prev) => [res.data, ...prev]);
+        setInfo(t("attachmentAddedOptional"));
+      } catch (err) {
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : t("unableToUploadAttachment"),
+        );
+      } finally {
+        setUploading(false);
+      }
+    },
+    [canUpload, classification, complaintId, customerId, t, uploading],
+  );
 
   const onConfirmVoid = useCallback(async () => {
     if (!voidTargetId || !canVoid) return;
@@ -130,7 +187,7 @@ export function CmBatch1BoundAttachmentsCard({
     >
       <SectionHeader
         title={t("boundAttachments")}
-        description={t("boundAttachmentsDescription")}
+        description={t("boundAttachmentsOptionalDescription")}
       />
       <Card>
         <CardBody className="space-y-[var(--ecmp-panel-gap)]">
@@ -142,6 +199,55 @@ export function CmBatch1BoundAttachmentsCard({
               title={t("couldNotLoadAttachments")}
               description={error}
             />
+          ) : null}
+
+          {!loading && info ? (
+            <Alert tone="info" title={t("notice")} description={info} />
+          ) : null}
+
+          {canUpload ? (
+            <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2 md:items-end">
+              <Select
+                name="boundAttachmentClassification"
+                id="boundAttachmentClassification"
+                label={t("classification")}
+                options={CLASSIFICATION_OPTIONS.map((option) => ({
+                  ...option,
+                  label: t(option.label),
+                }))}
+                value={classification}
+                onChange={(event) =>
+                  setClassification(
+                    event.target.value as CmBatch1AttachmentClassification,
+                  )
+                }
+                disabled={uploading || loading}
+              />
+              <div className="flex flex-col gap-2">
+                <input
+                  ref={inputRef}
+                  type="file"
+                  className="sr-only"
+                  accept={ACCEPT_MIME}
+                  disabled={uploading || loading}
+                  onChange={(event) => void onFileChange(event)}
+                  aria-label={t("chooseFile")}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => inputRef.current?.click()}
+                  loading={uploading}
+                  disabled={uploading || loading}
+                  aria-label={t("uploadBoundAttachment")}
+                >
+                  {uploading ? t("uploading") : t("addAttachment")}
+                </Button>
+                <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                  {t("filePolicy")}
+                </p>
+              </div>
+            </div>
           ) : null}
 
           {!loading && !error && voidTargetId ? (
@@ -187,11 +293,18 @@ export function CmBatch1BoundAttachmentsCard({
             <div data-testid="bound-empty">
               <Empty
                 title={t(cmBatch1AttachmentListLabel(0))}
-                description={t("boundAttachmentsDescription")}
-                primaryAction={{
-                  label: t("refreshList"),
-                  onClick: () => void load(),
-                }}
+                description={t("boundAttachmentsOptionalDescription")}
+                primaryAction={
+                  canUpload
+                    ? {
+                        label: t("addAttachment"),
+                        onClick: () => inputRef.current?.click(),
+                      }
+                    : {
+                        label: t("refreshList"),
+                        onClick: () => void load(),
+                      }
+                }
               />
             </div>
           ) : null}

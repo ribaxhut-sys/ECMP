@@ -21,7 +21,9 @@ class CustomerCandidate(BaseModel):
 
     customer_id: str = Field(alias="customerId")
     display_name: str = Field(alias="displayName")
+    customer_number: str | None = Field(default=None, alias="customerNumber")
     masked_identity: str | None = Field(default=None, alias="maskedIdentity")
+    phone: str | None = None
 
 
 class CustomerSearchResponse(BaseModel):
@@ -63,6 +65,9 @@ class Customer360Batch1Response(BaseModel):
     customer_id: str = Field(alias="customerId")
     profile: dict[str, Any]
     active_complaints: list[dict[str, Any]] = Field(alias="activeComplaints")
+    complaint_history: list[dict[str, Any]] = Field(
+        default_factory=list, alias="complaintHistory"
+    )
     complaint_count: int = Field(alias="complaintCount")
     as_of: datetime = Field(alias="asOf")
 
@@ -81,6 +86,9 @@ class CreateComplaintBatch1Request(BaseModel):
         default=None, alias="duplicateOverrideJustification"
     )
     staging_token: str | None = Field(default=None, alias="stagingToken")
+    intake_disposition: Literal["BRANCH_CLOSED", "ESCALATE_PENDING_APPROVAL"] | None = (
+        Field(default=None, alias="intakeDisposition")
+    )
 
 
 class ComplaintBatch1Response(BaseModel):
@@ -88,8 +96,13 @@ class ComplaintBatch1Response(BaseModel):
 
     complaint_id: str = Field(alias="complaintId")
     complaint_number: str = Field(alias="complaintNumber")
-    status: Literal["REGISTERED"] = "REGISTERED"
+    status: Literal["REGISTERED", "CLOSED"] = "REGISTERED"
     customer_id: str = Field(alias="customerId")
+    customer_display_name: str | None = Field(
+        default=None, alias="customerDisplayName"
+    )
+    customer_number: str | None = Field(default=None, alias="customerNumber")
+    intake_disposition: str | None = Field(default=None, alias="intakeDisposition")
     case_created: Literal[False] = Field(default=False, alias="caseCreated")
     replayed: bool = False
     category: str | None = None
@@ -100,6 +113,13 @@ class ComplaintBatch1Response(BaseModel):
     duplicate_check_result: str | None = Field(
         default=None, alias="duplicateCheckResult"
     )
+
+
+class IntakeEscalationDecisionRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    decision: Literal["APPROVE", "REJECT"]
+    note: str | None = None
 
 
 class DuplicateCheckRequest(BaseModel):
@@ -159,6 +179,7 @@ class Batch1AttachmentResponse(BaseModel):
     classification: str
     staging_token: str | None = Field(default=None, alias="stagingToken")
     complaint_id: str | None = Field(default=None, alias="complaintId")
+    customer_id: str | None = Field(default=None, alias="customerId")
     original_name: str = Field(alias="originalName")
     mime_type: str = Field(alias="mimeType")
     size_bytes: int = Field(alias="sizeBytes")

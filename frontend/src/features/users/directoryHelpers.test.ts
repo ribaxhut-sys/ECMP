@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { RoleRef, UserRef } from "@/lib/api";
 import {
-  directoryLocationTone,
   directoryRoleFamily,
   directoryRoleLabel,
+  filterRolesForHomeUnit,
   filterRolesForUserForm,
   matchesDirectoryFilter,
   matchesDirectorySearch,
   roleDisplayName,
   userInitials,
-  userLocationKind,
 } from "./directoryHelpers";
 
 function user(partial: Partial<UserRef>): UserRef {
@@ -97,28 +96,13 @@ describe("matchesDirectoryFilter", () => {
 });
 
 describe("matchesDirectorySearch", () => {
-  it("matches name username email and role", () => {
+  it("matches only name and employee ID", () => {
     const row = user({ roleName: "Supervisor" });
     expect(matchesDirectorySearch(row, "jane")).toBe(true);
-    expect(matchesDirectorySearch(row, "superv")).toBe(true);
+    expect(matchesDirectorySearch(row, "jdoe")).toBe(true);
+    expect(matchesDirectorySearch(row, "superv")).toBe(false);
+    expect(matchesDirectorySearch(row, "jdoe@example.com")).toBe(false);
     expect(matchesDirectorySearch(row, "zzz")).toBe(false);
-  });
-});
-
-describe("userLocationKind", () => {
-  it("is headOffice when branchId is null (Commit 2 invariant)", () => {
-    expect(userLocationKind(user({ branchId: null }))).toBe("headOffice");
-  });
-
-  it("is branch when branchId is present", () => {
-    expect(userLocationKind(user({ branchId: "b1" }))).toBe("branch");
-  });
-});
-
-describe("directoryLocationTone", () => {
-  it("maps branch and headOffice to distinct tones", () => {
-    expect(directoryLocationTone("branch")).toBe("info");
-    expect(directoryLocationTone("headOffice")).toBe("primary");
   });
 });
 
@@ -171,9 +155,48 @@ describe("filterRolesForUserForm", () => {
       role({ code: "HO_ENGINEER" }),
       role({ code: "AGENT" }),
       role({ code: "SUPERVISOR" }),
+      role({ code: "BRANCH_SUPERVISOR" }),
       role({ code: "ADMINISTRATOR" }),
     ]);
     expect(filtered.map((row) => row.code)).toEqual([
+      "ADMIN",
+      "SUPERVISOR",
+      "BRANCH_SUPERVISOR",
+      "AGENT",
+      "VIEWER",
+    ]);
+  });
+});
+
+describe("filterRolesForHomeUnit", () => {
+  function role(code: string): RoleRef {
+    return {
+      id: code,
+      code,
+      name: code,
+      description: null,
+      isSystem: true,
+      isActive: true,
+    };
+  }
+
+  const pool = [
+    role("ADMIN"),
+    role("SUPERVISOR"),
+    role("AGENT"),
+    role("VIEWER"),
+  ];
+
+  it("hides head-office roles for branch members", () => {
+    expect(filterRolesForHomeUnit(pool, false).map((r) => r.code)).toEqual([
+      "SUPERVISOR",
+      "AGENT",
+      "VIEWER",
+    ]);
+  });
+
+  it("offers the full persona set for Pusat members including Admin", () => {
+    expect(filterRolesForHomeUnit(pool, true).map((r) => r.code)).toEqual([
       "ADMIN",
       "SUPERVISOR",
       "AGENT",

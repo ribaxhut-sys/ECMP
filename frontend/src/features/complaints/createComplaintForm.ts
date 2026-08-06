@@ -6,9 +6,12 @@ export interface CreateComplaintFormValues {
   customerId: string;
   subject: string;
   description: string;
+  /** Agent disposition / resolution note at intake (persisted into description). */
+  resolution: string;
   priority: Priority | "";
   branchId: string;
   channel: string;
+  /** Hidden in UI; API-500 still requires category — default GENERAL. */
   category: string;
   reportedAt: string;
 }
@@ -24,17 +27,18 @@ export function defaultReportedAtLocal(date = new Date()): string {
 }
 
 export function createEmptyComplaintForm(
-  defaults?: { branchId?: string | null },
+  defaults?: { branchId?: string | null; channel?: string | null },
 ): CreateComplaintFormValues {
   return {
     customerName: "",
     customerId: "",
     subject: "",
     description: "",
+    resolution: "",
     priority: "",
     branchId: defaults?.branchId?.trim() || "",
-    channel: "",
-    category: "",
+    channel: defaults?.channel?.trim() || "BRANCH",
+    category: "GENERAL",
     reportedAt: defaultReportedAtLocal(),
   };
 }
@@ -187,12 +191,18 @@ export function validateCmBatch1CreateForm(
     errors.description = "descriptionMax";
   }
 
-  const category = values.category.trim();
-  if (!category) {
-    errors.category = "categoryRequired";
-  } else if (category.length > 64) {
-    errors.category = "categoryMax";
+  const resolution = values.resolution.trim();
+  if (resolution.length > 5000) {
+    errors.resolution = "descriptionMax";
   }
+  const composedLen =
+    description.length +
+    (resolution ? `\n\n---\nPenyelesaian:\n${resolution}`.length : 0);
+  if (composedLen > 5000) {
+    errors.resolution = "descriptionMax";
+  }
+
+  // category is system-defaulted (GENERAL) — not collected on intake UI
 
   const channel = values.channel.trim();
   if (!channel) {
@@ -213,23 +223,49 @@ export function validateCmBatch1CreateForm(
   return errors;
 }
 
+/** Compose Aggregate description; optional intake resolution is appended. */
+export function composeCmBatch1Description(
+  description: string,
+  resolution: string,
+  options?: { escalate?: boolean },
+): string {
+  const body = description.trim();
+  const note = resolution.trim();
+  const parts = [body];
+  if (note) {
+    parts.push(`---\nPenyelesaian:\n${note}`);
+  }
+  if (options?.escalate) {
+    parts.push(
+      "---\nAjuan eskalasi:\nMenunggu persetujuan Supervisor/Manager cabang untuk eskalasi ke Pusat.",
+    );
+  }
+  return parts.filter(Boolean).join("\n\n");
+}
+
 /** Map form values → API-500 CreateComplaintBatch1Request. */
 export function toCmBatch1CreateRequest(
   values: CreateComplaintFormValues,
   options?: {
     duplicateOverrideJustification?: string | null;
     stagingToken?: string | null;
+    escalate?: boolean;
+    closeAtBranch?: boolean;
   },
 ): CmBatch1CreateComplaintRequest {
   const body: CmBatch1CreateComplaintRequest = {
     customerId: values.customerId.trim(),
-    category: values.category.trim(),
+    category: values.category.trim() || "GENERAL",
     channel: values.channel.trim(),
     subject: values.subject.trim(),
-    description: values.description.trim(),
+    description: composeCmBatch1Description(
+      values.description,
+      values.resolution,
+      { escalate: Boolean(options?.escalate) },
+    ),
   };
 
-  if (values.priority) {
+  if (values.priority && options?.escalate) {
     body.priority = values.priority;
   }
   const recordingUnitId = values.branchId.trim();
@@ -243,6 +279,12 @@ export function toCmBatch1CreateRequest(
   const stagingToken = options?.stagingToken?.trim();
   if (stagingToken) {
     body.stagingToken = stagingToken;
+  }
+  if (options?.closeAtBranch) {
+    body.intakeDisposition = "BRANCH_CLOSED";
+  }
+  if (options?.escalate) {
+    body.intakeDisposition = "ESCALATE_PENDING_APPROVAL";
   }
 
   return body;

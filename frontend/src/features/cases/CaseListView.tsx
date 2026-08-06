@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { ApiError, fetchCmCase, type CmCase } from "@/lib/api";
+import {
+  ApiError,
+  fetchCmCases,
+  type CmCaseSummary,
+} from "@/lib/api";
 import {
   Alert,
   Button,
@@ -19,28 +23,38 @@ import {
 import { useToast } from "@/shared/providers";
 import { CaseSummaryCard } from "./CaseSummaryCard";
 import { CreateCaseDialog } from "./CreateCaseDialog";
-import { listKnownCaseIds, rememberCaseId } from "./caseSessionRegistry";
+import {
+  takeCaseCreatePrefill,
+  type CaseCreatePrefill,
+} from "./caseCreatePrefill";
+import type { CreateCaseFormValues } from "./caseForms";
+import { rememberCaseId } from "./caseSessionRegistry";
 
 /**
- * Case List for a Complaint — Mode A has no List API.
- * Loads Case IDs remembered in session (created/added in this browser) and
- * hydrates each via GET /api/v1/cm/cases/{caseId}.
+ * Case List for a Complaint — API-536 with complaintId filter (DEC-024).
+ * `?createCase=1` opens Buat Case once (after Aggregate create), with optional prefill.
  */
 export function CaseListView({ complaintId }: { complaintId: string }) {
   const t = useTranslations("cases");
   const tCommon = useTranslations("common");
   const tTable = useTranslations("table");
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { hasPermission } = useAuth();
   const { pushSuccess } = useToast();
   const canRead = hasPermission("complaints:read");
   const canCreate = hasPermission("complaints:create");
 
-  const [cases, setCases] = useState<CmCase[]>([]);
+  const [cases, setCases] = useState<CmCaseSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [createInitial, setCreateInitial] = useState<Partial<CreateCaseFormValues> | null>(
+    null,
+  );
+  const autoCreateHandled = useRef(false);
 
   const reload = useCallback(async () => {
     if (!canRead || !complaintId.trim()) {
@@ -49,33 +63,71 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
     }
     setLoading(true);
     setError(null);
-    const ids = listKnownCaseIds(complaintId);
-    const loaded: CmCase[] = [];
-    const failures: string[] = [];
-    for (const id of ids) {
-      try {
-        const res = await fetchCmCase(id, { complaintId });
-        loaded.push(res.data);
-      } catch (err) {
-        failures.push(
-          err instanceof ApiError ? `${id}: ${err.message}` : `${id}: ${t("unableToLoad")}`,
-        );
-      }
+    try {
+      const res = await fetchCmCases({
+        complaintId: complaintId.trim(),
+        page: 1,
+        pageSize: 50,
+      });
+      setCases(res.data ?? []);
+    } catch (err) {
+      setCases([]);
+      setError(
+        err instanceof ApiError ? err.message : t("unableToLoadList"),
+      );
+    } finally {
+      setLoading(false);
     }
-    setCases(loaded);
-    if (failures.length && loaded.length === 0) {
-      setError(failures.join("; "));
-    }
-    setLoading(false);
   }, [canRead, complaintId, t]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  function onCreated(caseData: CmCase) {
+  useEffect(() => {
+    if (autoCreateHandled.current) return;
+    if (searchParams.get("createCase") !== "1") return;
+    if (!canCreate || loading) return;
+
+    autoCreateHandled.current = true;
+    const clearQuery = () => {
+      router.replace(pathname);
+    };
+
+    if (cases.length > 0) {
+      clearQuery();
+      return;
+    }
+
+    const prefill: CaseCreatePrefill | null = takeCaseCreatePrefill(complaintId);
+    if (prefill) {
+      setCreateInitial({
+        caseType: prefill.caseType,
+        category: prefill.category,
+        subject: prefill.subject,
+        description: prefill.description,
+        priority: prefill.priority,
+        destinationUnitId: prefill.destinationUnitId,
+      });
+    } else {
+      setCreateInitial(null);
+    }
+    setCreateOpen(true);
+    clearQuery();
+  }, [
+    canCreate,
+    cases.length,
+    complaintId,
+    loading,
+    pathname,
+    router,
+    searchParams,
+  ]);
+
+  function onCreated(caseData: { caseId: string; caseNumber: string }) {
     rememberCaseId(complaintId, caseData.caseId);
     pushSuccess(t("success"), t("created", { number: caseData.caseNumber }));
+    setCreateInitial(null);
     void reload();
   }
 
@@ -106,7 +158,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
-        description={t("modeADescription")}
+        description={t("modeADescription", { id: complaintId })}
         breadcrumbs={[
           { label: t("back"), href: "/dashboard" },
           { label: t("confirmation"), href: "/complaints" },
@@ -129,9 +181,22 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
             >
               {t("back")}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/complaints/cm/cases")}
+            >
+              {t("inboxTitle")}
+            </Button>
             {canCreate ? (
               <>
-                <Button type="button" onClick={() => setCreateOpen(true)}>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setCreateInitial(null);
+                    setCreateOpen(true);
+                  }}
+                >
                   {t("create")}
                 </Button>
                 <Button
@@ -157,16 +222,19 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
       ) : null}
       {!loading && !error && cases.length === 0 ? (
         <Empty
-          title={t("noSessionCases")}
-          description={t("noSessionCasesDescription")}
+          title={t("noCases")}
+          description={t("noCasesDescription")}
           primaryAction={
             canCreate
               ? {
                   label: t("create"),
-                  onClick: () => setCreateOpen(true),
+                  onClick: () => {
+                    setCreateInitial(null);
+                    setCreateOpen(true);
+                  },
                 }
               : {
-                  label: t("refreshCases"),
+                  label: tCommon("refresh"),
                   onClick: () => void reload(),
                 }
           }
@@ -180,7 +248,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         <section className="space-y-[var(--ecmp-panel-gap)]">
           <SectionHeader
             title={t("title")}
-            description={t("modeADescription")}
+            description={t("modeADescription", { id: complaintId })}
           />
           <WorkspaceToolbar
             summary={tTable("itemsInView", { count: cases.length })}
@@ -213,9 +281,13 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
 
       <CreateCaseDialog
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false);
+          setCreateInitial(null);
+        }}
         complaintId={complaintId}
         mode="create"
+        initialValues={createInitial}
         onCreated={onCreated}
       />
       <CreateCaseDialog

@@ -2,30 +2,28 @@
 
 import { useTranslations } from "next-intl";
 import type { UserRef } from "@/lib/api";
-import {
-  Badge,
-  Button,
-  Card,
-  CardBody,
-  Empty,
-  PanelHeader,
-} from "@/shared/ui";
+import { Badge, Button, Card, CardBody, Empty, PanelHeader } from "@/shared/ui";
 import { DirectoryAvatar } from "./DirectoryAvatar";
-import { DirectoryLocationBadge } from "./DirectoryLocationBadge";
 import { DirectoryRoleBadge } from "./DirectoryRoleBadge";
-import { formatBranch, formatWhen } from "./directoryHelpers";
+import { formatWhen } from "./directoryHelpers";
 
 export function DirectoryPreviewPanel({
   user,
-  canReset,
-  currentUserId,
-  onResetPassword,
+  unitLabel,
+  canUpdateStatus,
+  updatingStatus,
+  onRequestStatusChange,
+  canUpdateRole,
+  onRequestRoleChange,
   onClose,
 }: {
   user: UserRef | null;
-  canReset: boolean;
-  currentUserId: string | null | undefined;
-  onResetPassword: (user: UserRef) => void;
+  unitLabel: string | null;
+  canUpdateStatus: boolean;
+  updatingStatus: boolean;
+  onRequestStatusChange: (user: UserRef) => void;
+  canUpdateRole: boolean;
+  onRequestRoleChange: (user: UserRef) => void;
   onClose: () => void;
 }) {
   const t = useTranslations("users");
@@ -53,7 +51,6 @@ export function DirectoryPreviewPanel({
   const lastLogin = formatWhen(user.lastLoginAt);
   const updated = formatWhen(user.updatedAt);
   const created = formatWhen(user.createdAt);
-  const isSelf = user.id === currentUserId;
 
   return (
     <Card
@@ -85,9 +82,6 @@ export function DirectoryPreviewPanel({
             <p className="truncate text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
               @{user.username}
             </p>
-            <p className="mt-1 truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-              {user.email}
-            </p>
           </div>
         </div>
 
@@ -102,11 +96,10 @@ export function DirectoryPreviewPanel({
           </div>
           <div>
             <dt className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-              {t("branch")}
+              {t("unit")}
             </dt>
-            <dd className="mt-1 flex flex-wrap items-center gap-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-              <DirectoryLocationBadge user={user} />
-              <span>{formatBranch(user.branchId, t("noDepartment"))}</span>
+            <dd className="mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+              {unitLabel}
             </dd>
           </div>
           <div>
@@ -120,6 +113,33 @@ export function DirectoryPreviewPanel({
             </dd>
           </div>
         </dl>
+
+        {canUpdateStatus || canUpdateRole ? (
+          <div className="flex flex-wrap gap-2">
+            {canUpdateRole ? (
+              <Button
+                variant="outline"
+                disabled={updatingStatus}
+                onClick={() => onRequestRoleChange(user)}
+              >
+                {t("changeRole")}
+              </Button>
+            ) : null}
+            {canUpdateStatus ? (
+              <Button
+                variant={user.isActive ? "outline" : "primary"}
+                disabled={updatingStatus}
+                onClick={() => onRequestStatusChange(user)}
+              >
+                {updatingStatus
+                  ? t("updating")
+                  : user.isActive
+                    ? t("deactivate")
+                    : t("activate")}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
         <section aria-label={t("recentActivity")} className="space-y-[var(--ecmp-space-8)]">
           <h4 className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
@@ -139,37 +159,6 @@ export function DirectoryPreviewPanel({
               {created ?? tCommon("emDash")}
             </li>
           </ul>
-        </section>
-
-        <section aria-label={t("quickActions")} className="space-y-[var(--ecmp-space-8)]">
-          <h4 className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-            {t("quickActions")}
-          </h4>
-          <div className="flex flex-col gap-[var(--ecmp-space-8)]">
-            {canReset ? (
-              <Button
-                variant="outline"
-                className="min-h-[var(--ecmp-touch-min)] justify-start"
-                disabled={!user.isActive || isSelf}
-                title={
-                  isSelf
-                    ? t("resetOwnPasswordHint")
-                    : user.isActive
-                      ? t("resetPasswordHint")
-                      : t("inactiveResetHint")
-                }
-                onClick={() => onResetPassword(user)}
-              >
-                {t("resetPassword")}
-              </Button>
-            ) : (
-              <Empty
-                className="border-0 bg-transparent px-2 py-4"
-                title={t("noQuickActions")}
-                description={t("noQuickActionsDescription")}
-              />
-            )}
-          </div>
         </section>
       </CardBody>
     </Card>

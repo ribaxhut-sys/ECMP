@@ -214,7 +214,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0** — FRD-CM-B2-001 🔒 LOCKED / CAP-008 Mode A
 
-> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…535** (logical **API-CM-B2-001…006**). **Implemented (lab)** — root `backend/app/modules/cm_case/`; REL-RC-001 PASS; annotated tag `v1.2.0-rc.1` @ `6890f50`. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A. SoT Closure: `../deploy/evidence/CAP-008_SoT_Closure_20260801.md`.
+> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…536** (logical **API-CM-B2-001…007**). **Implemented (lab)** — root `backend/app/modules/cm_case/`; REL-RC-001 PASS; annotated tag `v1.2.0-rc.1` @ `6890f50`. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A. API-536 = DEC-024 visibility list (not API-526 F4 unlock). SoT Closure: `../deploy/evidence/CAP-008_SoT_Closure_20260801.md`.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
@@ -224,6 +224,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-533 | API-CM-B2-004 | PATCH /api/v1/cm/cases/{caseId}/status | FR-004 Update Case Status | 🟢 Implemented (lab) |
 | API-534 | API-CM-B2-005 | POST /api/v1/cm/cases/{caseId}/resolve | FR-005 Resolve Case | 🟢 Implemented (lab) |
 | API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟢 Implemented (lab) |
+| API-536 | API-CM-B2-007 | GET /api/v1/cm/cases | DEC-024 Case list (visibility) | 🟢 Implemented (lab) |
 
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 
@@ -260,7 +261,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-214 | GET /api/v1/users | List users (paginated) | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-215 | GET /api/v1/users/{id} | Get user by id | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-216 | PUT /api/v1/users/{id} | Update user (password re-hashed when provided; hash never exposed) | bearerAuth, permission `users:update` | 🟢 Implemented |
-| API-217 | PATCH /api/v1/users/{id}/status | Soft activate/deactivate (`isActive`) | bearerAuth, permission `users:update` | 🟢 Implemented |
+| API-217 | PATCH /api/v1/users/{id}/status | Soft activate/deactivate (`isActive`) | bearerAuth, Head Office Admin + permission `users:update` | 🟢 Implemented |
 | API-218 | POST /api/v1/auth/login | Login (bcrypt; JWT access 15m; HttpOnly refresh cookie 7d; audit `auth.login`) | None (public) | 🟢 Implemented |
 | API-219 | POST /api/v1/auth/refresh | Rotate refresh cookie; issue new access token (audit `auth.refresh`) | Refresh cookie | 🟢 Implemented |
 | API-220 | POST /api/v1/auth/logout | Revoke refresh token + clear cookie (audit `auth.logout`) | Refresh cookie | 🟢 Implemented |

@@ -42,8 +42,8 @@ Harap: `health_http=200`, `login_page_http=200`, `docs_http=404`, `smoke_ok`.
 
 | Jalur | Kapan dipakai di UAT ini |
 |---|---|
-| Foundation UI `/complaints` (+ API `/api/v1/complaints`) | **Utama** untuk 10 langkah di atas |
-| Aggregate CM `/complaints/cm/…` (+ `/api/v1/cm`) | Opsional / terpisah — jangan anggap menggantikan foundation |
+| Foundation UI `/complaints` (+ API `/api/v1/complaints`) | **Utama** untuk 10 langkah di atas (lifecycle fondasi) |
+| Aggregate CM `/complaints/cm/…` (+ `/api/v1/cm`) | **Utama** jika menguji form create Batch-1 — lihat `UAT_LAB_BATCH1_AGENT_10_MIN.md` |
 
 Jangan force-merge atau “pindah semua ke CM” tanpa Retirement DEC.
 

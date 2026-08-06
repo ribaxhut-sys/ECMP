@@ -3,20 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { formatIdentityWhen } from "@/features/auth";
 import {
-  PASSWORD_CHANGE_ROUTE,
-  formatIdentityWhen,
-} from "@/features/auth";
-import {
-  Badge,
-  Button,
   Card,
   CardBody,
-  CardHeader,
   Empty,
   PageContainer,
   PageHeader,
-  PanelHeader,
   SectionHeader,
   Skeleton,
 } from "@/shared/ui";
@@ -48,56 +41,6 @@ export default function ProfileSecurityPage() {
         ]}
         description={t("securityPageDescription")}
       />
-
-      <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader
-          title={t("securityStatus")}
-          description={t("securityStatusDescription")}
-        />
-        <Card>
-          <CardHeader
-            action={
-              <Badge tone={user?.forcePasswordChange ? "warning" : "success"}>
-                {user?.forcePasswordChange
-                  ? t("securityNeedsAttention")
-                  : t("securityHealthy")}
-              </Badge>
-            }
-          >
-            <PanelHeader
-              title={t("securityStatusTitle")}
-              description={
-                user?.forcePasswordChange
-                  ? t("securityStatusForced")
-                  : t("securityStatusOk")
-              }
-              className="mb-0 border-0 pb-0"
-            />
-          </CardHeader>
-        </Card>
-      </section>
-
-      <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader
-          title={t("passwordSection")}
-          description={t("passwordSectionDescription")}
-        />
-        <Card>
-          <CardBody className="space-y-[var(--ecmp-panel-gap)]">
-            <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-              {t("passwordSectionGuidance")}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-[var(--ecmp-touch-min)]"
-              onClick={() => router.push(PASSWORD_CHANGE_ROUTE)}
-            >
-              {t("changePassword")}
-            </Button>
-          </CardBody>
-        </Card>
-      </section>
 
       <section className="space-y-[var(--ecmp-panel-gap)]">
         <SectionHeader

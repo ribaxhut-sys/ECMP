@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type {
   CmBatch1DuplicateCheckResponse,
   CmBatch1DuplicateDecision,
 } from "@/lib/api";
-import { Alert, Button, Empty, Input, Modal, Textarea } from "@/shared/ui";
+import { Alert, Badge, Button, Empty, Input, Modal, Textarea } from "@/shared/ui";
 
 export interface DuplicateWarningPanelProps {
   open: boolean;
@@ -20,9 +21,21 @@ export interface DuplicateWarningPanelProps {
   }) => void | Promise<void>;
 }
 
+function formatWhen(value: string | null | undefined): string {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
 /**
  * SCR-CM-003 — Duplicate warning dialog (detect/warn/link/override/recommend).
- * Batch-1: no Add Case.
+ * Batch-1: no Add Case. Candidates include status + review link (FR-003 §9).
  */
 export function DuplicateWarningPanel({
   open,
@@ -155,7 +168,7 @@ export function DuplicateWarningPanel({
             }}
           />
         ) : (
-          <ul className="max-h-48 space-y-2 overflow-auto">
+          <ul className="max-h-64 space-y-2 overflow-auto">
             {candidates.map((c, index) => {
               const id =
                 typeof c.complaintId === "string"
@@ -171,23 +184,62 @@ export function DuplicateWarningPanel({
                 typeof c.score === "number" ? c.score : undefined;
               const subject =
                 typeof c.subject === "string" ? c.subject : undefined;
+              const statusRaw =
+                typeof c.status === "string" ? c.status.toUpperCase() : "";
+              const isClosed = statusRaw === "CLOSED" || c.open === false;
+              const createdLabel = formatWhen(
+                typeof c.createdAt === "string" ? c.createdAt : undefined,
+              );
+              const selected = effectiveSurviving === id;
+              const detailHref = `/complaints/cm/${encodeURIComponent(id)}`;
               return (
                 <li
                   key={id}
-                  className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border p-2 font-mono text-[length:var(--ecmp-font-helper-size)]"
+                  className={
+                    selected
+                      ? "rounded-[var(--ecmp-radius-md)] border border-ecmp-primary bg-ecmp-primary-muted/40 p-3"
+                      : "rounded-[var(--ecmp-radius-md)] border border-ecmp-border p-3"
+                  }
                 >
-                  <button
-                    type="button"
-                    className="w-full text-left hover:underline"
-                    onClick={() => setSurvivingId(id)}
-                    disabled={busy}
-                  >
-                    {number ?? id}
-                    {score != null
-                      ? ` · ${t("scoreLabel", { score })}`
-                      : ""}
-                    {subject ? ` · ${subject}` : ""}
-                  </button>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => setSurvivingId(id)}
+                      disabled={busy}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[length:var(--ecmp-font-body-small-size)] font-medium text-ecmp-text-primary">
+                          {number ?? id}
+                        </span>
+                        <Badge tone={isClosed ? "success" : "info"}>
+                          {isClosed ? t("statusClosed") : t("statusOpen")}
+                        </Badge>
+                        {score != null ? (
+                          <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                            {t("scoreLabel", { score })}
+                          </span>
+                        ) : null}
+                      </div>
+                      {subject ? (
+                        <p className="mt-1 text-ecmp-text-primary">{subject}</p>
+                      ) : null}
+                      {createdLabel ? (
+                        <p className="mt-0.5 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                          {t("candidateCreatedAt", { date: createdLabel })}
+                        </p>
+                      ) : null}
+                    </button>
+                    <Link
+                      href={detailHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex shrink-0 items-center justify-center rounded-[var(--ecmp-radius-button)] border border-ecmp-border bg-ecmp-surface px-3 py-1.5 text-[length:var(--ecmp-font-helper-size)] font-medium text-ecmp-primary underline-offset-2 hover:bg-ecmp-hover hover:underline"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {t("reviewCandidate")}
+                    </Link>
+                  </div>
                 </li>
               );
             })}

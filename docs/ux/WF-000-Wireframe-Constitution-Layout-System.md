@@ -4,12 +4,13 @@
 |---|---|
 | Document ID | WF-000 |
 | Title | Wireframe Constitution & Layout System |
-| Status | Draft |
+| Status | Draft — revisi mengikuti merge persona PDS-001 (UX-001 Documentation Update) |
 | Lifecycle | Draft → Reviewed → Approved → Baseline → Locked |
-| Version | 1.0 |
-| Date | 2026-08-03 |
+| Version | 1.1 |
+| Date | 2026-08-05 |
 | Parent | NAV-001 |
-| Subordination | ECMP-CONSTITUTION-001 → PDS-000 → PWDM-001 → IA-001 → NAV-001 → **WF-000** → (future) WF-001 |
+| Subordination | ECMP-CONSTITUTION-001 → PDS-001 → PWDM-001 → IA-001 → NAV-001 → **WF-000** → WF-PLAN-001 → WF-001-R1 / WF-001-* |
+| Revision note | Customer Service dan Resolver/Handler digabung menjadi **Complaint Officer** di Zone Priority (Bagian 4) dan seluruh prosa terkait. Status kehadiran zona diambil dari nilai terkuat antara dua kolom lama (Always Visible > Conditionally Visible > Contextual > Collapsed > Hidden). **2026-08-05:** R1 LF package tersedia di WF-001-R1. |
 
 ## Single responsibility
 
@@ -17,7 +18,7 @@
 
 WF-000 **tidak** mendesain layar. Dokumen ini adalah cetak biru untuk seluruh wireframe masa depan (WF-001 dan seterusnya), bukan salah satu dari wireframe itu sendiri.
 
-WF-000 **bukan** tempat mendefinisikan: Business Rule, Persona (PDS-000), Workflow/Decision (PWDM-001), Information Architecture/Zona/Objek Informasi (IA-001), Navigasi/Destinasi (NAV-001), komponen UI, warna, tipografi, ikon, atau teknologi implementasi (React/Tailwind/CSS). Semua istilah zona, destinasi, persona, dan tier informasi yang dipakai di sini sudah ada di keempat baseline tersebut — WF-000 hanya merujuk, tidak mendefinisikan ulang.
+WF-000 **bukan** tempat mendefinisikan: Business Rule, Persona (PDS-001), Workflow/Decision (PWDM-001), Information Architecture/Zona/Objek Informasi (IA-001), Navigasi/Destinasi (NAV-001), komponen UI, warna, tipografi, ikon, atau teknologi implementasi (React/Tailwind/CSS). Semua istilah zona, destinasi, persona, dan tier informasi yang dipakai di sini sudah ada di keempat baseline tersebut — WF-000 hanya merujuk, tidak mendefinisikan ulang.
 
 ---
 
@@ -26,7 +27,7 @@ WF-000 **bukan** tempat mendefinisikan: Business Rule, Persona (PDS-000), Workfl
 Enam prinsip berikut mengikat setiap wireframe turunan.
 
 ### 1.1 Information First
-Informasi ditampilkan sebelum aksi ditawarkan. Menegakkan **Work Before Screen** (IA-001 §8 poin 2) dan **Work Before Interface** (PDS-000 §7 poin 4): pengguna harus bisa memahami konteks case sebelum dihadapkan pada pilihan tindakan.
+Informasi ditampilkan sebelum aksi ditawarkan. Menegakkan **Work Before Screen** (IA-001 §8 poin 2) dan **Work Before Interface** (PDS-001 §7 poin 4): pengguna harus bisa memahami konteks case sebelum dihadapkan pada pilihan tindakan.
 
 ### 1.2 Actions After Context
 Aksi (Decision zone) selalu diletakkan setelah konteks (Context zone) dalam urutan perhatian pengguna — tidak pernah sebaliknya. Ini bukan aturan visual, melainkan aturan urutan: pengguna tidak boleh diminta memutuskan sebelum tahu apa yang sedang diputuskan.
@@ -38,10 +39,10 @@ Setiap tampilan case memiliki tepat satu keputusan utama yang ditawarkan pada sa
 Informasi ditampilkan sesuai tier-nya (IA-001 §3, §6): Primary/Secondary selalu terlihat, Supporting/Contextual muncul saat dibutuhkan, Hidden hanya lewat navigasi eksplisit. Wireframe tidak boleh menaikkan tier informasi secara diam-diam — perubahan tier adalah revisi IA-001, bukan keputusan wireframe.
 
 ### 1.5 Never Duplicate Context
-Satu Complaint Workspace (IA-001 §7, NAV-001 §4) berarti satu wireframe layout dasar untuk Customer Service, Handler, dan Supervisor — bukan tiga layout terpisah dengan versi konteks case yang berbeda-beda. Duplikasi konteks pada wireframe adalah pelanggaran terhadap "satu identitas case yang konsisten" (PDS-000 §6).
+Satu Complaint Workspace (IA-001 §7, NAV-001 §4) berarti satu wireframe layout dasar untuk Complaint Officer (kedua mode) dan Supervisor — bukan layout terpisah per persona atau per mode dengan versi konteks case yang berbeda-beda. Duplikasi konteks pada wireframe adalah pelanggaran terhadap "satu identitas case yang konsisten" (PDS-001 §6).
 
 ### 1.6 Stable Workspace
-Membuka Supporting Views atau History tidak boleh mengganti destinasi (NAV-001: "navigasi tidak berubah" pada interupsi CS; "dari dalam Workspace" untuk Handler/Supervisor). Workspace utama tetap ada dan tidak ditutup selama panel pendukung dibuka.
+Membuka Supporting Views atau History tidak boleh mengganti destinasi (NAV-001: "navigasi tidak berubah" pada interupsi mode intake; "dari dalam Workspace" untuk mode penanganan/Supervisor). Workspace utama tetap ada dan tidak ditutup selama panel pendukung dibuka.
 
 ---
 
@@ -51,7 +52,7 @@ Alur baca mengikuti lima band, dipetakan langsung dari Information Hierarchy (IA
 
 | Band | Isi | Alasan |
 |---|---|---|
-| **Top** | Zona Context (Primary/Secondary tier persona yang aktif) | Yang harus terlihat pertama tanpa dicari (PDS-000 §4 Immediate) — identitas case/pelanggan/assignment. |
+| **Top** | Zona Context (Primary/Secondary tier persona yang aktif) | Yang harus terlihat pertama tanpa dicari (PDS-001 §4 Immediate) — identitas case/pelanggan/assignment. |
 | **Middle** | Zona Current Work + Zona Decision | Di sinilah Critical Decision terjadi (PWDM-001 §2); aksi selalu setelah konteks (Prinsip 1.2). |
 | **Lower** | Zona Evidence (Supporting tier) | Bukti yang mendukung satu keputusan spesifik, bukan latar belakang umum — dibaca setelah keputusan diidentifikasi, sebelum diambil. |
 | **Reference** | Zona Reference (Contextual/On-demand tier) | Lintas-case/agregat, tidak terikat satu case operasional (IA-001 §4) — diakses, bukan disodorkan. |
@@ -68,7 +69,7 @@ Enam region logis. Tidak ada piksel, tidak ada CSS — hanya penempatan relatif 
 | Region | Definisi Logis | Sumber |
 |---|---|---|
 | **Header** | Orientasi tingkat modul, tidak spesifik-case; persisten di seluruh sesi | Setara tahap `Login` (PWDM-001 §1) — bukan bagian dari case manapun. |
-| **Entry Area** | Titik masuk sebelum case dipilih: Queue (Handler/Supervisor) atau Dashboard (Manager); tidak ada untuk CS | Entry Point per persona (NAV-001 §1). |
+| **Entry Area** | Titik masuk sebelum case dipilih: Queue (Complaint Officer mode penanganan/Supervisor) atau Dashboard (Manager); tidak ada untuk Complaint Officer mode intake | Entry Point per persona/mode (NAV-001 §1). |
 | **Primary Workspace** | Zona Context + Zona Current Work + Zona Decision, digabung dalam satu region operasional | Destinasi **Complaint Workspace** (IA-001 §5; NAV-001 §1) — inti case yang sedang dikerjakan. |
 | **Supporting Workspace** | Zona Evidence, dibuka dari dalam Primary Workspace, tidak menggantikannya | Destinasi **Supporting Views** (IA-001 §5; NAV-001 "dari dalam Workspace"). |
 | **History Area** | Zona History, dibuka dari dalam Primary Workspace | Destinasi **History** (IA-001 §5; NAV-001 "dari dalam Workspace"). |
@@ -88,14 +89,16 @@ Diturunkan **hanya** dari IA-001 (§3 Information Hierarchy, §4 Workspace Zones
 - **Collapsed** — zona ada dalam workspace persona tersebut tetapi didominasi tier Hidden; terlipat default.
 - **Hidden** — zona tidak memiliki footprint di workspace persona tersebut sama sekali (bukan sekadar terlipat — secara struktural tidak hadir).
 
-| Zona | Customer Service | Resolver/Handler | Supervisor | Manager |
-|---|---|---|---|---|
-| **Context** | Always Visible *(Customer Information, Complaint Identity — Primary/Secondary)* | Always Visible *(Assignment — Primary)* | Contextual *(Case Summary/Complaint Identity — Contextual tier)* | Hidden *(IA-001 §4: tanpa footprint default)* |
-| **Current Work** | Hidden *(§3: Current Work eksplisit Hidden bagi CS)* | Always Visible *(SLA, Current Work — Secondary)* | Always Visible *(SLA, Queue — Secondary)* | Hidden |
-| **Evidence** | Conditionally Visible *(Data Completeness Status — Supporting)* | Conditionally Visible *(Evidence/Attachment — Supporting)* | Conditionally Visible *(Evidence/Attachment, Workload — Supporting)* | Hidden |
-| **Decision** | Conditionally Visible *(Reopen Request routing — Supporting; sisa objek zona ini Hidden bagi CS)* | Contextual *(Escalation — Contextual "saat diminta konteks"; Handler tidak approve sendiri)* | Always Visible *(Escalation — Primary)* | Hidden *(IA-001 §5: tidak ada Decision sebagai destinasi navigasi Manager)* |
-| **History** | Hidden *(§3: Decision History eksplisit Hidden bagi CS)* | Conditionally Visible *(Decision History — Supporting, "bila reject/reopen")* | Contextual *(Decision History — Contextual, "riwayat closure")* | Hidden |
-| **Reference** | Contextual *(Customer Interaction History — on-demand, "tersembunyi default, tetap bisa dinavigasi")* | Contextual *(Related Cases — on-demand, pola sama)* | Hidden *(§3: Aggregate KPI/Trend & Reconciliation Status eksplisit Hidden bagi Supervisor)* | Always Visible *(Aggregate KPI/Trend — Primary; satu-satunya zona rumah Manager)* |
+**Catatan penggabungan kolom:** kolom Complaint Officer di bawah digabung dari kolom Customer Service dan Resolver/Handler versi sebelumnya, mengambil status terkuat (Always Visible > Conditionally Visible > Contextual > Collapsed > Hidden) — merefleksikan bahwa kedua mode kerja kini berada dalam satu persona.
+
+| Zona | Complaint Officer | Supervisor | Manager |
+|---|---|---|---|
+| **Context** | Always Visible *(Customer Information, Complaint Identity — Primary/Secondary mode intake; Assignment — Primary mode penanganan)* | Contextual *(Case Summary/Complaint Identity — Contextual tier)* | Hidden *(IA-001 §4: tanpa footprint default)* |
+| **Current Work** | Always Visible *(SLA, Current Work — Secondary mode penanganan; Hidden bagi mode intake saja — digabung Always Visible karena persona yang sama menjalankan kedua mode)* | Always Visible *(SLA, Queue — Secondary)* | Hidden |
+| **Evidence** | Conditionally Visible *(Data Completeness Status — Supporting mode intake; Evidence/Attachment — Supporting mode penanganan)* | Conditionally Visible *(Evidence/Attachment, Workload — Supporting)* | Hidden |
+| **Decision** | Conditionally Visible *(Reopen Request routing — Supporting mode intake; Escalation — Contextual mode penanganan "saat diminta konteks", digabung ke status terkuat Conditionally Visible)* | Always Visible *(Escalation — Primary)* | Hidden *(IA-001 §5: tidak ada Decision sebagai destinasi navigasi Manager)* |
+| **History** | Conditionally Visible *(Decision History — Supporting mode penanganan, "bila reject/reopen"; Hidden bagi mode intake saja — digabung ke status terkuat)* | Contextual *(Decision History — Contextual, "riwayat closure")* | Hidden |
+| **Reference** | Contextual *(Customer Interaction History — on-demand mode intake; Related Cases — on-demand mode penanganan, pola sama)* | Hidden *(§3: Aggregate KPI/Trend & Reconciliation Status eksplisit Hidden bagi Supervisor)* | Always Visible *(Aggregate KPI/Trend — Primary; satu-satunya zona rumah Manager)* |
 
 ---
 
@@ -107,7 +110,7 @@ Tanpa UI — ini adalah aturan urutan keputusan, bukan pola interaksi visual.
 - **Primary Action Isolation** — satu keputusan kritikal per case per waktu (PWDM-001 §2 Critical Decisions); tidak ada dua aksi Decision-zone yang ditawarkan berdampingan pada case yang sama.
 - **One Decision at a Time** — hasil dari satu Critical Decision (mis. approve/reject) harus tuntas sebelum Decision berikutnya pada case yang sama muncul.
 - **Preserve Focus** — membuka Supporting Workspace atau History Area tidak memindahkan pengguna keluar dari Primary Workspace (Prinsip 1.6; NAV-001 "dari dalam Workspace").
-- **Avoid Context Switching** — saat Decision zone membuka kembali case (reject/reopen/eskalasi), History Area wajib tersedia tanpa pengguna mencarinya terpisah, menegakkan Continuity (PWDM-001 §4; IA-001 §8 poin 9).
+- **Avoid Context Switching** — saat Decision zone membuka kembali case (reject/reopen/eskalasi), History Area wajib tersedia tanpa pengguna mencarinya terpisah, menegakkan Continuity (PWDM-001 §4; IA-001 §8 poin 9). Berlaku juga saat Complaint Officer berpindah antara mode intake dan mode penanganan dalam satu sesi.
 
 ---
 
@@ -115,14 +118,14 @@ Tanpa UI — ini adalah aturan urutan keputusan, bukan pola interaksi visual.
 
 ### Harus identik untuk semua persona
 - **Struktur zona yang sama** — enam zona (Context, Current Work, Evidence, Decision, History, Reference) adalah closed set (IA-001 §8 poin 6); setiap wireframe menggunakan struktur region yang sama dari Bagian 3, meski sebagian zona Hidden bagi persona tertentu.
-- **Satu Primary Workspace** — CS, Handler, dan Supervisor berbagi wireframe Complaint Workspace yang sama; tidak ada versi berbeda dari case yang sama (PDS-000 §6 Common; IA-001 §7).
+- **Satu Primary Workspace** — Complaint Officer (kedua mode) dan Supervisor berbagi wireframe Complaint Workspace yang sama; tidak ada versi berbeda dari case yang sama (PDS-001 §6 Common; IA-001 §7).
 - **Destinasi navigasi yang sama** — closed set Dashboard/Queue/Complaint Workspace/Supporting Views/History/Return to Queue berlaku untuk semua wireframe (NAV-001 §4).
-- **Reading Flow yang sama** — urutan Top→Middle→Lower→Reference/History (Bagian 2) tidak berubah antar persona; yang berubah adalah zona mana yang mengisi Top bagi persona itu.
+- **Reading Flow yang sama** — urutan Top→Middle→Lower→Reference/History (Bagian 2) tidak berubah antar persona; yang berubah adalah zona mana yang mengisi Top bagi persona/mode itu.
 
 ### Boleh berbeda per persona
 - **Prioritas zona** (Bagian 4) — zona mana Always Visible vs Hidden berbeda per persona, tapi selalu diturunkan dari IA-001, bukan preferensi wireframe.
-- **Kehadiran Entry Area** — Queue untuk Handler/Supervisor, Dashboard untuk Manager, tidak ada untuk CS (NAV-001 §1).
-- **Penekanan default** — zona mana yang mendominasi Top band berbeda (Context untuk CS, Current Work untuk Handler, Decision untuk Supervisor, Reference untuk Manager) — ini "different priorities", bukan "different destinations" (NAV-001 §4).
+- **Kehadiran Entry Area** — Queue untuk Complaint Officer mode penanganan/Supervisor, Dashboard untuk Manager, tidak ada untuk Complaint Officer mode intake (NAV-001 §1).
+- **Penekanan default** — zona mana yang mendominasi Top band berbeda (Context/Current Work untuk Complaint Officer tergantung mode aktif, Decision untuk Supervisor, Reference untuk Manager) — ini "different priorities", bukan "different destinations" (NAV-001 §4).
 
 ---
 
@@ -153,10 +156,10 @@ Tanpa warna, tanpa komponen.
 
 Aturan permanen — mengikat WF-001 dan seluruh wireframe turunan berikutnya.
 
-1. **Reference, Don't Redesign** — WF-000 dan turunannya tidak mendefinisikan ulang Persona (PDS-000), Workflow (PWDM-001), Information Architecture (IA-001), atau Navigasi (NAV-001). Wireframe hanya menyusun tata letak dari apa yang sudah ditetapkan.
+1. **Reference, Don't Redesign** — WF-000 dan turunannya tidak mendefinisikan ulang Persona (PDS-001), Workflow (PWDM-001), Information Architecture (IA-001), atau Navigasi (NAV-001). Wireframe hanya menyusun tata letak dari apa yang sudah ditetapkan.
 2. **Closed Zone Set** — enam zona (Context, Current Work, Evidence, Decision, History, Reference) adalah satu-satunya unit pengelompokan; zona baru memerlukan revisi IA-001, bukan keputusan wireframe.
 3. **Closed Destination Set** — enam destinasi NAV-001 (Dashboard, Queue, Complaint Workspace, Supporting Views, History, Return to Queue) adalah satu-satunya region navigasi; wireframe tidak menciptakan destinasi baru.
-4. **One Primary Workspace** — CS, Handler, dan Supervisor berbagi satu wireframe Complaint Workspace; tidak ada wireframe case terpisah per persona.
+4. **One Primary Workspace** — Complaint Officer (kedua mode) dan Supervisor berbagi satu wireframe Complaint Workspace; tidak ada wireframe case terpisah per persona atau per mode.
 5. **Information First, Always** — setiap wireframe menampilkan Context sebelum Decision (Prinsip 1.1–1.2); tidak ada pengecualian tanpa revisi WF-000.
 6. **One Primary Action per Case** — setiap wireframe case menawarkan tepat satu Critical Decision aktif pada satu waktu (Prinsip 1.3, 1.5).
 7. **Progressive Disclosure Mengikat** — tier informasi (IA-001 §3) menentukan status zona (Bagian 4); menaikkan visibilitas suatu zona pada wireframe tanpa revisi IA-001 adalah pelanggaran konstitusi ini.
@@ -164,16 +167,18 @@ Aturan permanen — mengikat WF-001 dan seluruh wireframe turunan berikutnya.
 9. **Stable Workspace, Preserved Focus** — membuka Supporting Workspace, History Area, atau Reference Area tidak pernah menutup atau memindahkan Primary Workspace; fokus kembali ke titik asal saat ditutup.
 10. **Reading Order = Visual Order = Keyboard Order** — ketiganya wajib identik (Bagian 2, Bagian 8); divergensi di antara ketiganya adalah cacat wireframe, bukan variasi desain yang sah.
 11. **Responsive Mengurangi Keserempakan, Bukan Prioritas** — di ukuran perangkat mana pun, urutan prioritas zona (Bagian 4) tidak berubah; yang berubah hanya berapa zona tampil bersamaan (Bagian 7).
-12. **No Persona-Specific Screens** — mengikuti PDS-000 §7 poin 9 (persona memodelkan mode kerja, bukan akun tetap): wireframe dibangun per zona/destinasi, bukan per akun pengguna.
+12. **No Persona-Specific Screens** — mengikuti PDS-001 §7 poin 9 (persona memodelkan mode kerja, bukan akun tetap): wireframe dibangun per zona/destinasi, bukan per akun pengguna. Berlaku juga antar mode kerja dalam satu persona Complaint Officer.
 
 ---
 
 ## Related
 - `docs/ux/UX-FOUNDATION-000-Complaint-Module-UX-Foundation.md`
-- `docs/ux/PDS-000-Persona-Design-Specification.md`
+- `docs/ux/PDS-001-Persona-Design-Specification.md`
 - `docs/ux/PWDM-001-Persona-Workflow-Decision-Model.md`
 - `docs/ux/IA-001-Information-Architecture.md`
 - `docs/ux/NAV-001-Navigation-Architecture.md`
+- `docs/ux/WF-PLAN-001-Wireframe-Roadmap-Backlog.md`
+- `docs/ux/WF-001-R1-Wireframe-Package.md`
 
 ## Future Work
-WF-001 Low Fidelity Wireframes — penerapan konstitusi ini ke layar nyata per persona/zona — di luar ruang lingkup dokumen ini.
+WF-001 Release 2–3 packages; UI-001 High Fidelity — di luar ruang lingkup dokumen ini. Release 1: lihat **WF-001-R1**.

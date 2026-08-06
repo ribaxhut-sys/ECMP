@@ -20,12 +20,12 @@ Mendefinisikan aturan bisnis yang mengikat proses ECMP (workflow, SLA, akses, va
 - Reviewers: Product Owners (ECMF/CRM/KPI), Operations, Compliance
 
 ## Status
-Approved — katalog enterprise v1.2 baseline (seluruh `[TBD]` ditutup per DEC-004); katalog delivery Sprint-01 Approved (SoT implementasi per DEC-003); katalog modul Complaint **BR-CM-CAT-001 Locked** (v1.3; DEC-BQ001 O3 + Case Aggregate Transition Matrix).
+Approved — katalog enterprise v1.2 baseline (seluruh `[TBD]` ditutup per DEC-004); katalog delivery Sprint-01 Approved (SoT implementasi per DEC-003); katalog modul Complaint **BR-CM-CAT-001 Locked** (v1.3.1; DEC-BQ001 O3 + Case Aggregate Transition Matrix; aligned to BC/BW Mode A baseline).
 
 ## Documents
 - [`ECMP_Business_Rules_Sprint01_v0.1.md`](./ECMP_Business_Rules_Sprint01_v0.1.md) — **SoT delivery** (`BR-0xx`) untuk implementasi/tes/traceability (DEC-003); BR-002/005/006 reserved untuk sprint berikut
 - [`ECMP_Business_Rules_v1.0.md`](./ECMP_Business_Rules_v1.0.md) — katalog enterprise referensi (BR-CAT-001, konten v1.2) per domain (Core Platform, CRM, ECMF, KPI, Dashboard, Notification, Administration); nama file mempertahankan baseline mayor v1.0, versi konten lihat header dokumen
-- [`ECMP_Business_Rules_Complaint_Management_Module_v1.0.md`](./ECMP_Business_Rules_Complaint_Management_Module_v1.0.md) — **Locked v1.3** katalog modul Complaint (BR-CM-CAT-001): model **Complaint Aggregate → multi Case**, Working Day SLA, eskalasi *No Information Lost* (BR-001…BR-020); **DEC-F4** mengunci jalur Cabang→Pusat, Return (kode+catatan), dan `result_visibility`; **DEC-BQ001 O3** mengunci dual SoT Case (Aggregate = Definition B di dokumen ini; Sprint = DOM-ECMF-003); Case Aggregate Transition Matrix = SoT Batch-2 Mode A / CAP-02; dual SoT implementasi tetap per DEC-020
+- [`ECMP_Business_Rules_Complaint_Management_Module_v1.0.md`](./ECMP_Business_Rules_Complaint_Management_Module_v1.0.md) — **Locked v1.3.1** katalog modul Complaint (BR-CM-CAT-001): model **Complaint Aggregate → multi Case**; Mode A SLA = bind-without-clock / baseline 24×7 (Working Day Deferred); eskalasi *No Information Lost*; path Branch↔HO; **DEC-F4 detail Reserved** for Mode A force until countersign; **DEC-BQ001 O3** dual SoT Case; Transition Matrix = SoT Batch-2 Mode A; precedence: BC-000…003 + BW-000 prevail on conflict
 - DEC terkait: [`../18 Architecture Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md`](../18%20Architecture%20Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md); [`../18 Architecture Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md`](../18%20Architecture%20Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md)
 
 ## Minimum Contents (v1)

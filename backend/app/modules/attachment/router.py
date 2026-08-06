@@ -76,6 +76,7 @@ async def upload_attachment(
     aggregate_id: Annotated[uuid.UUID | None, Form(alias="aggregateId")] = None,
     staging_token: Annotated[str | None, Form(alias="stagingToken")] = None,
     complaint_id: Annotated[str | None, Form(alias="complaintId")] = None,
+    customer_id: Annotated[str | None, Form(alias="customerId")] = None,
     classification: Annotated[str | None, Form()] = None,
     case_id: Annotated[str | None, Form(alias="caseId")] = None,
     supersedes_attachment_id: Annotated[
@@ -90,6 +91,7 @@ async def upload_attachment(
         or classification
         or case_id
         or supersedes_attachment_id
+        or customer_id
     )
     if batch1_requested:
         result = batch1.upload(
@@ -100,6 +102,7 @@ async def upload_attachment(
             actor_id=str(principal.user_id),
             staging_token=staging_token,
             complaint_id=complaint_id,
+            customer_id=customer_id,
             case_id=case_id,
             supersedes_attachment_id=supersedes_attachment_id,
             uploaded_by=principal.user_id,

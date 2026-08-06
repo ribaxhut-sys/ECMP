@@ -38,8 +38,11 @@ const ACCEPT_MIME =
 
 export interface StagingAttachmentsPanelProps {
   stagingToken: string;
+  customerId?: string | null;
   disabled?: boolean;
   onStagingTokenResolved?: (token: string) => void;
+  /** True when at least one non-void staged file exists (create must send stagingToken). */
+  onHasStagedChange?: (hasStaged: boolean) => void;
 }
 
 /**
@@ -47,8 +50,10 @@ export interface StagingAttachmentsPanelProps {
  */
 export function StagingAttachmentsPanel({
   stagingToken,
+  customerId = null,
   disabled = false,
   onStagingTokenResolved,
+  onHasStagedChange,
 }: StagingAttachmentsPanelProps) {
   const t = useTranslations("complaints");
   const { hasPermission } = useAuth();
@@ -67,6 +72,17 @@ export function StagingAttachmentsPanel({
   const [voidReason, setVoidReason] = useState("");
   const [voidTargetId, setVoidTargetId] = useState<string | null>(null);
 
+  const customerLocked = Boolean(customerId?.trim());
+  const uploadBlocked = disabled || !customerLocked;
+
+  const notifyStaged = useCallback(
+    (next: CmBatch1AttachmentResponse[]) => {
+      const hasStaged = next.some((item) => item.status !== "VOID");
+      onHasStagedChange?.(hasStaged);
+    },
+    [onHasStagedChange],
+  );
+
   const onPick = useCallback(() => {
     inputRef.current?.click();
   }, []);
@@ -75,7 +91,12 @@ export function StagingAttachmentsPanel({
     async (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       event.target.value = "";
-      if (!file || !canUpload || disabled) return;
+      if (!file || !canUpload || uploadBlocked) return;
+      const lockedCustomerId = customerId?.trim();
+      if (!lockedCustomerId) {
+        setError(t("attachAfterCustomerConfirm"));
+        return;
+      }
 
       setUploading(true);
       setError(null);
@@ -84,9 +105,14 @@ export function StagingAttachmentsPanel({
           file,
           classification,
           stagingToken,
+          customerId: lockedCustomerId,
         });
         const data = res.data;
-        setItems((prev) => [data, ...prev]);
+        setItems((prev) => {
+          const next = [data, ...prev];
+          notifyStaged(next);
+          return next;
+        });
         const resolved = data.stagingToken?.trim() || stagingToken;
         if (resolved && resolved !== stagingToken) {
           onStagingTokenResolved?.(resolved);
@@ -106,10 +132,12 @@ export function StagingAttachmentsPanel({
     [
       canUpload,
       classification,
-      disabled,
+      customerId,
+      notifyStaged,
       onStagingTokenResolved,
       stagingToken,
       t,
+      uploadBlocked,
     ],
   );
 
@@ -124,11 +152,13 @@ export function StagingAttachmentsPanel({
     setError(null);
     try {
       const res = await voidCmBatch1Attachment(voidTargetId, reason);
-      setItems((prev) =>
-        prev.map((item) =>
+      setItems((prev) => {
+        const next = prev.map((item) =>
           item.attachmentId === voidTargetId ? res.data : item,
-        ),
-      );
+        );
+        notifyStaged(next);
+        return next;
+      });
       setVoidTargetId(null);
       setVoidReason("");
     } catch (err) {
@@ -142,7 +172,7 @@ export function StagingAttachmentsPanel({
     } finally {
       setVoidingId(null);
     }
-  }, [canVoid, disabled, voidReason, voidTargetId, t]);
+  }, [canVoid, disabled, notifyStaged, voidReason, voidTargetId, t]);
 
   const visible = items.filter((item) => item.status !== "VOID");
 
@@ -168,6 +198,14 @@ export function StagingAttachmentsPanel({
             <Alert tone="danger" title={t("attachmentError")} description={error} />
           ) : null}
 
+          {!customerLocked ? (
+            <Alert
+              tone="info"
+              title={t("attachNeedsCustomerTitle")}
+              description={t("attachAfterCustomerConfirm")}
+            />
+          ) : null}
+
           <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2 md:items-end">
             <Select
               name="attachmentClassification"
@@ -183,7 +221,7 @@ export function StagingAttachmentsPanel({
                   event.target.value as CmBatch1AttachmentClassification,
                 )
               }
-              disabled={disabled || uploading}
+              disabled={uploadBlocked || uploading}
             />
             <div className="flex flex-col gap-2">
               <input
@@ -191,7 +229,7 @@ export function StagingAttachmentsPanel({
                 type="file"
                 className="sr-only"
                 accept={ACCEPT_MIME}
-                disabled={disabled || uploading}
+                disabled={uploadBlocked || uploading}
                 onChange={(event) => void onFileChange(event)}
                 aria-label={t("chooseFile")}
               />
@@ -200,7 +238,7 @@ export function StagingAttachmentsPanel({
                 variant="outline"
                 onClick={onPick}
                 loading={uploading}
-                disabled={disabled || uploading}
+                disabled={uploadBlocked || uploading}
                 aria-label={t("uploadStagedAttachment")}
               >
                 {uploading ? t("uploading") : t("uploadFile")}

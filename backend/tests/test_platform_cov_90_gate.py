@@ -573,7 +573,13 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
             staging_token="STG-NEW",
         )
 
-    prior = SimpleNamespace(id="ATT-1", status="ACTIVE")
+    prior = SimpleNamespace(
+        id="ATT-1",
+        status="ACTIVE",
+        staging_token="STG-OK",
+        complaint_id=None,
+        customer_id=None,
+    )
     repo.find_by_checksum.return_value = prior
     repo.get_staging.side_effect = None
     repo.get_staging.return_value = SimpleNamespace(
@@ -604,12 +610,14 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         )
 
     repo.get_staging.return_value = None
-    with pytest.raises(NotFoundError, match="[Ss]taging"):
+    assert (
         svc.bind_staging_to_complaint(
             staging_token="missing",
             complaint_id=str(uuid.uuid4()),
             actor_id="u1",
         )
+        == []
+    )
     repo.get_staging.return_value = SimpleNamespace(status="CLOSED", staging_token="x")
     with pytest.raises(ValidationAppError, match="tidak terbuka"):
         svc.bind_staging_to_complaint(

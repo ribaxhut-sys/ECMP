@@ -436,9 +436,10 @@ def test_admin_reset_forbidden_without_permission(
     assert resp.status_code == 403
 
 
-def test_force_password_change_blocks_app_access(
+def test_force_password_change_does_not_block_app_access(
     client: TestClient, db_session: Session
 ) -> None:
+    """Forced change-password UX retired — DB password remains usable as-is."""
     user = _make_user(db_session, force_password_change=True)
     headers = _auth_header(user, permissions=["users:read", "complaints:read"])
 
@@ -446,22 +447,8 @@ def test_force_password_change_blocks_app_access(
     assert me.status_code == 200
     assert me.json()["data"]["forcePasswordChange"] is True
 
-    blocked = client.get("/api/v1/users", headers=headers)
-    assert blocked.status_code == 403
-    assert blocked.json()["code"] == "PASSWORD_CHANGE_REQUIRED"
-
-    allowed = client.post(
-        "/api/v1/users/me/change-password",
-        headers=headers,
-        json={
-            "currentPassword": "Secret123!",
-            "newPassword": "Changed99!",
-            "confirmPassword": "Changed99!",
-        },
-    )
-    assert allowed.status_code == 200, allowed.text
-    db_session.refresh(user)
-    assert user.force_password_change is False
+    listed = client.get("/api/v1/users", headers=headers)
+    assert listed.status_code == 200
 
 
 # ---------------------------------------------------------------------------

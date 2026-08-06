@@ -525,3 +525,52 @@ def attachment_transferred(
         outbox_event_id="EVT-CM-033",
         occurred_at=now,
     )
+
+
+def intake_escalation_decided(
+    *,
+    complaint_id: str,
+    complaint_number: str,
+    decision: str,
+    next_disposition: str,
+    actor_id: str | None,
+    note_present: bool,
+) -> DomainEvent:
+    """Audit/timeline only — no EVT-CM catalog row for intake escalation decision."""
+    now = datetime.now(UTC)
+    payload = {
+        "complaintId": complaint_id,
+        "complaintNumber": complaint_number,
+        "decision": decision,
+        "intakeDisposition": next_disposition,
+        "notePresent": note_present,
+        "decidedAt": now.isoformat(),
+        "actorId": actor_id,
+    }
+    title = (
+        "Intake Escalation Approved"
+        if decision == "APPROVE"
+        else "Intake Escalation Rejected"
+    )
+    return DomainEvent(
+        name="IntakeEscalationDecided",
+        aggregate_type="Complaint",
+        aggregate_id=complaint_id,
+        actor_id=actor_id,
+        payload=payload,
+        idempotency_key=f"IntakeEscalationDecided:{complaint_id}:{decision}:{now.isoformat()}",
+        audit_operation=f"IntakeEscalation:{decision}",
+        audit_action="UPDATE",
+        after=payload,
+        timeline_event_type="IntakeEscalationDecided",
+        timeline_title=title,
+        timeline_description=(
+            f"Complaint {complaint_number} intake escalation {decision.lower()}"
+        ),
+        timeline_metadata={
+            "decision": decision,
+            "intakeDisposition": next_disposition,
+        },
+        outbox_event_id=None,
+        occurred_at=now,
+    )

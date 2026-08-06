@@ -9,6 +9,7 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -29,6 +30,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import NotFoundError, OrgScopeDeniedError
 from app.db.session import get_db_session
 from app.main import create_app
+from app.models import Branch, User
 from app.modules.assignments.router import get_assignment_service
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_batch1.router import get_cm_batch1_attachment_service, get_cm_batch1_service
@@ -38,6 +40,8 @@ from app.modules.cm_batch1.schemas import (
     TransferAttachmentsResponse,
 )
 from app.modules.complaints.router import get_complaint_service
+from app.modules.users.router import get_user_service
+from app.modules.users.schemas import UserResponse
 
 
 def _jwt_settings(**overrides: object) -> Settings:
@@ -1009,3 +1013,622 @@ def test_download_attachment_not_a_real_complaint_skips_enforcement(
         uuid.uuid4(), service, batch1, principal, MagicMock(), settings
     )
     assert resp.body == b"data"
+
+
+# --- UX-CU-002 R2 — users:create Unit-scope guard reuse -----------------------
+
+
+class _StubUserService:
+    """Returns the declared payload verbatim — service.create() is not under test here."""
+
+    def create(self, payload: Any, *, actor_user_id: uuid.UUID, actor_roles: Any) -> UserResponse:
+        _ = actor_user_id, actor_roles
+        now = datetime.now(UTC)
+        return UserResponse.model_validate(
+            {
+                "id": uuid.uuid4(),
+                "username": payload.username,
+                "email": payload.email,
+                "fullName": payload.full_name,
+                "roleId": payload.role_id,
+                "branchId": payload.branch_id,
+                "isActive": payload.is_active,
+                "forcePasswordChange": True,
+                "createdAt": now,
+                "updatedAt": now,
+            }
+        )
+
+
+class _BranchLookupSession:
+    """Fake session — only ``.get(Branch, id)`` is exercised by the users router."""
+
+    def __init__(self, branches: dict[uuid.UUID, str]) -> None:
+        self._branches = branches
+
+    def get(self, model: type, key: object) -> Any:
+        if model is Branch and key in self._branches:
+            return SimpleNamespace(id=key, code=self._branches[key], deleted_at=None)
+        return None
+
+
+@pytest.fixture()
+def users_http_client(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """HTTP TestClient for POST /api/v1/users with jwt org-scope settings."""
+    settings = _jwt_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    session = _BranchLookupSession({branch_a: "OU-A", branch_b: "OU-B"})
+
+    app = create_app()
+    state: dict[str, Any] = {
+        "principal": _principal(
+            org_unit_id="OU-A",
+            roles=("ADMIN",),
+            permissions=frozenset({"users:create"}),
+        )
+    }
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: _StubUserService()
+    client = TestClient(app)
+    try:
+        yield {
+            "client": client,
+            "state": state,
+            "branch_a": branch_a,
+            "branch_b": branch_b,
+        }
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+def _create_user_payload(branch_id: uuid.UUID | None) -> dict[str, Any]:
+    return {
+        "username": "new.agent",
+        "email": "new.agent@example.com",
+        "fullName": "New Agent",
+        "password": "Sementara123!",
+        "roleId": str(uuid.uuid4()),
+        "branchId": str(branch_id) if branch_id else None,
+        "isActive": True,
+    }
+
+
+def test_http_create_user_same_unit_allowed(users_http_client: dict[str, Any]) -> None:
+    client: TestClient = users_http_client["client"]
+    resp = client.post(
+        "/api/v1/users", json=_create_user_payload(users_http_client["branch_a"])
+    )
+    assert resp.status_code == 201, resp.text
+
+
+def test_http_create_user_cross_unit_denied(users_http_client: dict[str, Any]) -> None:
+    """T-1 (UX-CU-002 §6) — admin scoped to OU-A must not place a user in OU-B."""
+    client: TestClient = users_http_client["client"]
+    resp = client.post(
+        "/api/v1/users", json=_create_user_payload(users_http_client["branch_b"])
+    )
+    assert resp.status_code == 403
+    body = resp.json()
+    assert body["code"] == "ORG_SCOPE_DENIED"
+    assert body["details"]["reason"] == "org_unit_mismatch"
+
+
+def test_http_create_user_missing_admin_claim_denied(
+    users_http_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_http_client["client"]
+    users_http_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:create"}),
+    )
+    resp = client.post(
+        "/api/v1/users", json=_create_user_payload(users_http_client["branch_a"])
+    )
+    assert resp.status_code == 403
+    assert resp.json()["details"]["reason"] == "missing_org_unit_claim"
+
+
+def test_http_create_user_head_office_role_denied_when_enforced(
+    users_http_client: dict[str, Any],
+) -> None:
+    """Known consequence (see UX-CU-002 follow-up): OrgUnitGuard has no GLOBAL/HQ
+    bypass, so a declared-unit-less (head-office) create is denied once org-scope
+    enforcement is on — identical to how cm_batch1's optional recordingUnitId
+    already behaves. Not a new rule introduced by this change; documented here so
+    the behavior is explicit and covered rather than discovered later."""
+    client: TestClient = users_http_client["client"]
+    resp = client.post("/api/v1/users", json=_create_user_payload(None))
+    assert resp.status_code == 403
+    assert resp.json()["details"]["reason"] == "missing_resource_org_unit"
+
+
+def test_http_create_user_org_scope_noop_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression — Mode A (dev) must behave exactly as before this change."""
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    session = _BranchLookupSession({branch_a: "OU-A", branch_b: "OU-B"})
+
+    app = create_app()
+    principal = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:create"}),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: _StubUserService()
+    client = TestClient(app)
+    try:
+        # Cross-unit and missing-claim cases that would 403 under jwt mode
+        # must both succeed here — org-scope enforcement is jwt-mode only.
+        resp = client.post("/api/v1/users", json=_create_user_payload(branch_b))
+        assert resp.status_code == 201, resp.text
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+# --- UM-SEC-001 — users:read (list) and users:update (status) scope reuse ---
+
+
+class _UsersScopeSession:
+    """Fake session for the list/status scope tests — no real DB involved.
+
+    Supports the two lookup shapes the router actually issues: ``session.get``
+    (Branch, User — same pattern OrgUnitResolver already uses elsewhere) and
+    the single ``session.scalar(select(Branch.id).where(Branch.code == ...))``
+    call used to resolve an admin's own branch id when no ``branchId`` filter
+    was supplied.
+    """
+
+    def __init__(
+        self,
+        *,
+        branches_by_id: dict[uuid.UUID, Any] | None = None,
+        users_by_id: dict[uuid.UUID, Any] | None = None,
+        branch_id_by_code: dict[str, uuid.UUID] | None = None,
+    ) -> None:
+        self._branches_by_id = branches_by_id or {}
+        self._users_by_id = users_by_id or {}
+        self._branch_id_by_code = branch_id_by_code or {}
+
+    def get(self, model: type, key: object) -> Any:
+        if model is Branch:
+            return self._branches_by_id.get(key)
+        if model is User:
+            return self._users_by_id.get(key)
+        return None
+
+    def scalar(self, stmt: Any) -> Any:
+        code = stmt.whereclause.right.value
+        return self._branch_id_by_code.get(code)
+
+
+def _fake_branch(branch_id: uuid.UUID, code: str) -> SimpleNamespace:
+    return SimpleNamespace(id=branch_id, code=code, deleted_at=None)
+
+
+def _fake_member(user_id: uuid.UUID, branch_id: uuid.UUID | None) -> SimpleNamespace:
+    return SimpleNamespace(id=user_id, branch_id=branch_id, deleted_at=None)
+
+
+def _fake_user_response(**overrides: Any) -> UserResponse:
+    now = datetime.now(UTC)
+    base: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "username": "member.one",
+        "email": "member.one@example.com",
+        "fullName": "Member One",
+        "roleId": uuid.uuid4(),
+        "isActive": True,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    base.update(overrides)
+    return UserResponse.model_validate(base)
+
+
+@pytest.fixture()
+def users_scope_client(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """HTTP TestClient covering GET /users and PATCH /users/{id}/status."""
+    settings = _jwt_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    member_in_a = uuid.uuid4()
+    member_in_b = uuid.uuid4()
+    member_head_office = uuid.uuid4()
+
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={
+            member_in_a: _fake_member(member_in_a, branch_a),
+            member_in_b: _fake_member(member_in_b, branch_b),
+            member_head_office: _fake_member(member_head_office, None),
+        },
+        branch_id_by_code={"OU-A": branch_a, "OU-B": branch_b},
+    )
+
+    list_service = MagicMock()
+    list_service.list.return_value = ([], 0)
+    list_service.update_status.return_value = _fake_user_response()
+    list_service.get.return_value = _fake_user_response()
+
+    app = create_app()
+    state: dict[str, Any] = {
+        "principal": _principal(
+            org_unit_id="OU-A",
+            roles=("ADMIN",),
+            permissions=frozenset({"users:read", "users:update"}),
+        )
+    }
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: list_service
+    client = TestClient(app)
+    try:
+        yield {
+            "client": client,
+            "state": state,
+            "service": list_service,
+            "branch_a": branch_a,
+            "branch_b": branch_b,
+            "member_in_a": member_in_a,
+            "member_in_b": member_in_b,
+            "member_head_office": member_head_office,
+        }
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+# --- List (TASK 1 / TASK 2 / TASK 7 — Regional/Branch cannot read another Unit) ---
+
+
+def test_http_list_users_branch_admin_defaults_to_own_unit(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """No branchId filter supplied → silently narrowed to the admin's own unit."""
+    client: TestClient = users_scope_client["client"]
+    resp = client.get("/api/v1/users")
+    assert resp.status_code == 200, resp.text
+    kwargs = users_scope_client["service"].list.call_args.kwargs
+    assert kwargs["branch_id"] == users_scope_client["branch_a"]
+
+
+def test_http_list_users_branch_admin_same_unit_explicit_allowed(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    resp = client.get(
+        "/api/v1/users", params={"branchId": str(users_scope_client["branch_a"])}
+    )
+    assert resp.status_code == 200, resp.text
+    kwargs = users_scope_client["service"].list.call_args.kwargs
+    assert kwargs["branch_id"] == users_scope_client["branch_a"]
+
+
+def test_http_list_users_branch_admin_cross_unit_denied(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """T-1-class read: Regional/Branch admin cannot ask to see another Unit."""
+    client: TestClient = users_scope_client["client"]
+    resp = client.get(
+        "/api/v1/users", params={"branchId": str(users_scope_client["branch_b"])}
+    )
+    assert resp.status_code == 403
+    body = resp.json()
+    assert body["code"] == "ORG_SCOPE_DENIED"
+    assert body["details"]["reason"] == "org_unit_mismatch"
+    users_scope_client["service"].list.assert_not_called()
+
+
+def test_http_list_users_head_office_unrestricted(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """Documented open gap (UX-UM-001 §8.1): no repo rule yet says whether
+    head-office-scoped roles should be GLOBAL-scoped for list reads, so the
+    endpoint's pre-existing unrestricted behavior is preserved for them
+    rather than 403ing every head-office administrator off the member list."""
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:read"}),
+    )
+    resp = client.get("/api/v1/users")
+    assert resp.status_code == 200, resp.text
+    kwargs = users_scope_client["service"].list.call_args.kwargs
+    assert kwargs["branch_id"] is None
+
+
+def test_http_list_users_org_scope_noop_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        branch_id_by_code={"OU-A": branch_a, "OU-B": branch_b},
+    )
+    service = MagicMock()
+    service.list.return_value = ([], 0)
+
+    app = create_app()
+    principal = _principal(
+        org_unit_id="OU-A", roles=("ADMIN",), permissions=frozenset({"users:read"})
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    client = TestClient(app)
+    try:
+        # Regression: cross-unit filter is untouched in Mode A.
+        resp = client.get("/api/v1/users", params={"branchId": str(branch_b)})
+        assert resp.status_code == 200, resp.text
+        assert service.list.call_args.kwargs["branch_id"] == branch_b
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+# --- Status update (TASK 3 / TASK 7 — Regional/Branch cannot activate/deactivate another Unit) ---
+
+
+def test_http_update_status_branch_role_denied_even_same_unit(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_in_a']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 403
+    users_scope_client["service"].update_status.assert_not_called()
+
+
+def test_http_update_status_branch_role_denied_cross_unit(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_in_b']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 403
+    users_scope_client["service"].update_status.assert_not_called()
+
+
+def test_http_update_status_head_office_admin_allowed(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_in_a']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 200, resp.text
+    users_scope_client["service"].update_status.assert_called_once()
+
+
+def test_http_update_status_super_admin_allowed(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """SUPER_ADMIN is the ADMIN family repo-wide (rbac.py, role_assignment_policy)."""
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("SUPER_ADMIN",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_in_a']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 200, resp.text
+    users_scope_client["service"].update_status.assert_called_once()
+
+
+def test_http_update_status_head_office_admin_can_update_head_office_member(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_head_office']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_http_update_status_role_gate_applies_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    member_in_b = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={member_in_b: _fake_member(member_in_b, branch_b)},
+    )
+    service = MagicMock()
+    service.update_status.return_value = _fake_user_response()
+
+    app = create_app()
+    principal = _principal(
+        org_unit_id="OU-A",
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"users:update"}),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    client = TestClient(app)
+    try:
+        resp = client.patch(
+            f"/api/v1/users/{member_in_b}/status", json={"isActive": False}
+        )
+        assert resp.status_code == 403
+        service.update_status.assert_not_called()
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+# --- Membership Detail (UM-SEC-002 — GET /users/{id}) -----------------------
+
+
+def test_http_get_user_same_unit_allowed(users_scope_client: dict[str, Any]) -> None:
+    client: TestClient = users_scope_client["client"]
+    resp = client.get(f"/api/v1/users/{users_scope_client['member_in_a']}")
+    assert resp.status_code == 200, resp.text
+    users_scope_client["service"].get.assert_called_once_with(
+        users_scope_client["member_in_a"]
+    )
+
+
+def test_http_get_user_cross_unit_denied(users_scope_client: dict[str, Any]) -> None:
+    """T-1-class read: Regional/Branch admin cannot view another Unit's
+    Membership Detail."""
+    client: TestClient = users_scope_client["client"]
+    resp = client.get(f"/api/v1/users/{users_scope_client['member_in_b']}")
+    assert resp.status_code == 403
+    body = resp.json()
+    assert body["code"] == "ORG_SCOPE_DENIED"
+    assert body["details"]["reason"] == "org_unit_mismatch"
+    users_scope_client["service"].get.assert_not_called()
+
+
+def test_http_get_user_missing_admin_claim_denied(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """Missing authorization claim — same fail-closed reason code already
+    used by users:create and the status-update endpoint."""
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:read"}),
+    )
+    resp = client.get(f"/api/v1/users/{users_scope_client['member_in_a']}")
+    assert resp.status_code == 403
+    assert resp.json()["details"]["reason"] == "missing_org_unit_claim"
+    users_scope_client["service"].get.assert_not_called()
+
+
+def test_http_get_user_head_office_target_denied_for_branch_admin(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """Document only (TASK 4): repository does not define a Head Office
+    bypass for single-resource actions — it never has, for any endpoint this
+    milestone or UM-SEC-001 touched. OrgUnitGuard's existing, already-shipped
+    fail-closed behavior is reused unmodified: a head-office member (no
+    branch) is not "in" any admin's unit, so viewing them is denied exactly
+    like updating their status already is (UM-SEC-001)."""
+    client: TestClient = users_scope_client["client"]
+    resp = client.get(f"/api/v1/users/{users_scope_client['member_head_office']}")
+    assert resp.status_code == 403
+    assert resp.json()["details"]["reason"] == "missing_resource_org_unit"
+
+
+def test_http_get_user_org_scope_noop_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    member_in_b = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={member_in_b: _fake_member(member_in_b, branch_b)},
+    )
+    service = MagicMock()
+    service.get.return_value = _fake_user_response()
+
+    app = create_app()
+    principal = _principal(
+        org_unit_id="OU-A", roles=("ADMIN",), permissions=frozenset({"users:read"})
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    client = TestClient(app)
+    try:
+        # Regression: cross-unit membership detail read is untouched in Mode A.
+        resp = client.get(f"/api/v1/users/{member_in_b}")
+        assert resp.status_code == 200, resp.text
+        service.get.assert_called_once_with(member_in_b)
+    finally:
+        app.dependency_overrides.clear()
+        client.close()

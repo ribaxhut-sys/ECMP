@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
@@ -45,6 +45,7 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         description=row.description,
         priority=row.priority,
         status=row.status,
+        intake_disposition=row.intake_disposition,
         created_at=row.created_at,
         created_by=row.created_by,
         case_created=False,
@@ -268,6 +269,29 @@ class CmBatch1Repository:
         ).all()
         return [_to_entity(r) for r in rows]
 
+    def count_for_customer(self, customer_id: str) -> int:
+        return int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(CmBatch1ComplaintORM.customer_id == customer_id)
+            )
+            or 0
+        )
+
+    def list_for_customer(
+        self, customer_id: str, *, limit: int = 50
+    ) -> list[ComplaintAggregate]:
+        """Newest-first history (open + closed) for Customer 360 / BR-010."""
+        lim = max(1, min(int(limit), 100))
+        rows = self._session.scalars(
+            select(CmBatch1ComplaintORM)
+            .where(CmBatch1ComplaintORM.customer_id == customer_id)
+            .order_by(CmBatch1ComplaintORM.created_at.desc())
+            .limit(lim)
+        ).all()
+        return [_to_entity(r) for r in rows]
+
     def _next_complaint_number(self) -> str:
         row = self._session.scalar(
             select(CmBatch1NumberCounterORM)
@@ -349,6 +373,8 @@ class CmBatch1Repository:
         created_by: str | None,
         request_id: str,
         channel_message_id: str | None,
+        status: str = "REGISTERED",
+        intake_disposition: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         """Atomic Claim create — ``created=False`` on idempotent / race-loser replay.
 
@@ -372,6 +398,10 @@ class CmBatch1Repository:
         complaint_id = uuid.uuid4()
         now = datetime.now(UTC)
         complaint_number = self._next_complaint_number()
+        initial_status = (status or "REGISTERED").strip().upper() or "REGISTERED"
+        if initial_status not in {"REGISTERED", "CLOSED"}:
+            initial_status = "REGISTERED"
+        disposition = (intake_disposition or "").strip().upper() or None
         orm = CmBatch1ComplaintORM(
             id=complaint_id,
             complaint_number=complaint_number,
@@ -381,7 +411,8 @@ class CmBatch1Repository:
             subject=subject,
             description=description,
             priority=priority,
-            status="REGISTERED",
+            status=initial_status,
+            intake_disposition=disposition,
             case_created=False,
             created_by=created_by,
             created_at=now,
@@ -601,14 +632,128 @@ class CmBatch1Repository:
             for r in rows
         ]
 
+    def close_later_review_items(
+        self,
+        *,
+        complaint_id: str,
+        reason: str = "attachment_bind_failed",
+    ) -> int:
+        """Close OPEN later-review rows for a complaint (internal compensation)."""
+        cid = (complaint_id or "").strip()
+        if not cid:
+            return 0
+        rows = list(
+            self._session.scalars(
+                select(CmBatch1LaterReviewItemORM)
+                .where(CmBatch1LaterReviewItemORM.complaint_id == cid)
+                .where(CmBatch1LaterReviewItemORM.status == "OPEN")
+                .where(CmBatch1LaterReviewItemORM.reason == reason)
+            ).all()
+        )
+        for row in rows:
+            row.status = "CLOSED"
+        if rows:
+            self._session.flush()
+        return len(rows)
+
     def list_aging_without_case(
         self, *, older_than: datetime, limit: int = 100
     ) -> list[ComplaintAggregate]:
         rows = self._session.scalars(
             select(CmBatch1ComplaintORM)
             .where(CmBatch1ComplaintORM.case_created.is_(False))
+            .where(CmBatch1ComplaintORM.status != "CLOSED")
             .where(CmBatch1ComplaintORM.created_at <= older_than)
             .order_by(CmBatch1ComplaintORM.created_at.asc())
             .limit(limit)
         ).all()
         return [_to_entity(r) for r in rows]
+
+    def update_intake_disposition(
+        self,
+        complaint_id: str,
+        *,
+        intake_disposition: str,
+    ) -> ComplaintAggregate | None:
+        """Update intake path label only (API-515). Status / Case untouched."""
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        disposition = (intake_disposition or "").strip().upper() or None
+        row.intake_disposition = disposition
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def list_complaints(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: str | None = None,
+        priority: str | None = None,
+        category: str | None = None,
+        status: str | None = None,
+        intake_disposition: str | None = None,
+    ) -> tuple[list[ComplaintAggregate], int]:
+        """Newest-first Aggregate list (API-514 coexistence read)."""
+        page = max(1, int(page))
+        page_size = max(1, min(int(page_size), 100))
+        stmt = select(CmBatch1ComplaintORM)
+        count_stmt = select(func.count()).select_from(CmBatch1ComplaintORM)
+
+        kw = (keyword or "").strip()
+        if kw:
+            escaped = (
+                kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            )
+            pattern = f"%{escaped}%"
+            keyword_clause = (
+                CmBatch1ComplaintORM.complaint_number.ilike(pattern, escape="\\")
+                | CmBatch1ComplaintORM.subject.ilike(pattern, escape="\\")
+                | CmBatch1ComplaintORM.customer_id.ilike(pattern, escape="\\")
+            )
+            stmt = stmt.where(keyword_clause)
+            count_stmt = count_stmt.where(keyword_clause)
+
+        st = (status or "").strip().upper()
+        if st in {"REGISTERED", "CLOSED"}:
+            stmt = stmt.where(CmBatch1ComplaintORM.status == st)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.status == st)
+
+        disp = (intake_disposition or "").strip().upper()
+        _allowed_disp = {
+            "BRANCH_CLOSED",
+            "ESCALATE_PENDING_APPROVAL",
+            "ESCALATE_APPROVED",
+            "ESCALATE_REJECTED",
+        }
+        if disp in _allowed_disp:
+            stmt = stmt.where(CmBatch1ComplaintORM.intake_disposition == disp)
+            count_stmt = count_stmt.where(
+                CmBatch1ComplaintORM.intake_disposition == disp
+            )
+
+        pri = (priority or "").strip().upper()
+        if pri:
+            stmt = stmt.where(CmBatch1ComplaintORM.priority == pri)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.priority == pri)
+
+        cat = (category or "").strip()
+        if cat:
+            # Case-insensitive exact match on trimmed category.
+            cat_clause = func.lower(CmBatch1ComplaintORM.category) == cat.lower()
+            stmt = stmt.where(cat_clause)
+            count_stmt = count_stmt.where(cat_clause)
+
+        total = int(self._session.scalar(count_stmt) or 0)
+        rows = self._session.scalars(
+            stmt.order_by(CmBatch1ComplaintORM.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
+        return [_to_entity(r) for r in rows], total

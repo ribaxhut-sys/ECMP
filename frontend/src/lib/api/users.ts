@@ -1,7 +1,5 @@
 import { apiRequest } from "./client";
 import type {
-  AdminResetPasswordResponse,
-  ChangePasswordResponse,
   DataResponse,
   ListResponse,
 } from "./types";
@@ -40,31 +38,38 @@ export function fetchUsers(options?: {
   );
 }
 
-/** API-412 — self-service change password (also clears forcePasswordChange). */
-export async function changePassword(payload: {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}): Promise<ChangePasswordResponse> {
-  const body = await apiRequest<DataResponse<ChangePasswordResponse>>(
-    "/api/v1/users/me/change-password",
+/** API-217 — soft activate/deactivate (requires users:update). */
+export async function updateUserStatus(
+  userId: string,
+  isActive: boolean,
+): Promise<UserRef> {
+  const body = await apiRequest<DataResponse<UserRef>>(
+    `/api/v1/users/${encodeURIComponent(userId)}/status`,
     {
-      method: "POST",
-      body: JSON.stringify(payload),
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
       skipGlobalError: true,
     },
   );
   return body.data;
 }
 
-/** API-413 — admin/supervisor reset; temporary password returned once. */
-export async function adminResetPassword(
+/**
+ * API-216 — change a user's primary role (requires users:update; backend also
+ * applies the UAT-020 escalation guard). `branchId` is sent so the backend's
+ * role↔unit rule (service.py `_ensure_branch_for_role`) stays satisfied: a
+ * head-office role must carry no unit, a branch role keeps the existing one.
+ */
+export async function updateUserRole(
   userId: string,
-): Promise<AdminResetPasswordResponse> {
-  const body = await apiRequest<DataResponse<AdminResetPasswordResponse>>(
-    `/api/v1/users/${userId}/reset-password`,
+  roleId: string,
+  branchId: string | null,
+): Promise<UserRef> {
+  const body = await apiRequest<DataResponse<UserRef>>(
+    `/api/v1/users/${encodeURIComponent(userId)}`,
     {
-      method: "POST",
+      method: "PUT",
+      body: JSON.stringify({ roleId, branchId }),
       skipGlobalError: true,
     },
   );

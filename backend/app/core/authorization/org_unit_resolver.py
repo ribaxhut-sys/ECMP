@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
 from app.core.user_messages import m
-from app.models import Branch, Complaint, ComplaintEscalation
+from app.models import Branch, Complaint, ComplaintEscalation, User
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
@@ -42,6 +42,18 @@ class OrgUnitResolver:
         row = self._session.get(Complaint, complaint_id)
         if row is None or row.deleted_at is not None:
             raise NotFoundError(m("complaint.not_found"))
+        if row.branch_id is None:
+            return None
+        branch = self._session.get(Branch, row.branch_id)
+        if branch is None or branch.deleted_at is not None:
+            return None
+        return self.normalize(branch.code)
+
+    def resolve_user(self, user_id: uuid.UUID) -> str | None:
+        """Map ECMP User membership → Branch.code (org unit key, UM-SEC-001)."""
+        row = self._session.get(User, user_id)
+        if row is None or row.deleted_at is not None:
+            raise NotFoundError(m("user.not_found"))
         if row.branch_id is None:
             return None
         branch = self._session.get(Branch, row.branch_id)

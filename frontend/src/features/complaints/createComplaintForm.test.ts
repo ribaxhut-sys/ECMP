@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  composeCmBatch1Description,
   createEmptyComplaintForm,
   defaultReportedAtLocal,
   newCmBatch1IdempotencyKey,
@@ -18,11 +19,17 @@ describe("defaultReportedAtLocal", () => {
   });
 });
 
-describe("createEmptyComplaintForm", () => {
-  it("applies optional branch default", () => {
-    const form = createEmptyComplaintForm({ branchId: VALID_UUID });
-    expect(form.branchId).toBe(VALID_UUID);
-    expect(form.subject).toBe("");
+describe("composeCmBatch1Description", () => {
+  it("appends resolution when present", () => {
+    expect(composeCmBatch1Description("Laporan", "Sudah diganti")).toBe(
+      "Laporan\n\n---\nPenyelesaian:\nSudah diganti",
+    );
+  });
+
+  it("appends escalate marker when requested", () => {
+    expect(
+      composeCmBatch1Description("Laporan", "", { escalate: true }),
+    ).toContain("Ajuan eskalasi:");
   });
 });
 
@@ -75,13 +82,21 @@ describe("validateCreateComplaintForm", () => {
 });
 
 describe("validateCmBatch1CreateForm", () => {
-  it("requires customer, subject, description, category, and channel", () => {
+  it("requires customer, subject, and description (category defaults to GENERAL)", () => {
     const errors = validateCmBatch1CreateForm(createEmptyComplaintForm());
     expect(errors.customerId).toBeTruthy();
     expect(errors.subject).toBeTruthy();
     expect(errors.description).toBeTruthy();
-    expect(errors.category).toBeTruthy();
-    expect(errors.channel).toBeTruthy();
+    expect(errors.category).toBeUndefined();
+    expect(errors.channel).toBeUndefined();
+  });
+
+  it("rejects empty channel when cleared", () => {
+    const errors = validateCmBatch1CreateForm({
+      ...createEmptyComplaintForm(),
+      channel: "",
+    });
+    expect(errors.channel).toBe("channelRequired");
   });
 
   it("accepts opaque customer id (not UUID-only)", () => {
@@ -97,13 +112,14 @@ describe("validateCmBatch1CreateForm", () => {
     expect(errors).toEqual({});
   });
 
-  it("maps to API-500 body", () => {
+  it("maps to API-500 body without priority unless escalate", () => {
     const body = toCmBatch1CreateRequest({
       ...createEmptyComplaintForm({ branchId: VALID_UUID }),
       customerId: "CUST-LAB-001",
       customerName: "Ada",
       subject: "Printer offline",
       description: "Cannot print invoices",
+      resolution: "Replaced toner",
       category: "SERVICE",
       channel: "CALL",
       priority: "HIGH",
@@ -113,10 +129,43 @@ describe("validateCmBatch1CreateForm", () => {
       category: "SERVICE",
       channel: "CALL",
       subject: "Printer offline",
-      description: "Cannot print invoices",
-      priority: "HIGH",
+      description:
+        "Cannot print invoices\n\n---\nPenyelesaian:\nReplaced toner",
       recordingUnitId: VALID_UUID,
     });
+    expect(body.priority).toBeUndefined();
+  });
+
+  it("includes priority when escalating", () => {
+    const body = toCmBatch1CreateRequest(
+      {
+        ...createEmptyComplaintForm({ branchId: VALID_UUID }),
+        customerId: "CUST-LAB-001",
+        customerName: "Ada",
+        subject: "Printer offline",
+        description: "Cannot print",
+        category: "SERVICE",
+        channel: "CALL",
+        priority: "HIGH",
+      },
+      { escalate: true },
+    );
+    expect(body.priority).toBe("HIGH");
+    expect(body.description).toContain("Ajuan eskalasi:");
+    expect(body.intakeDisposition).toBe("ESCALATE_PENDING_APPROVAL");
+  });
+
+  it("defaults category to GENERAL when empty", () => {
+    const body = toCmBatch1CreateRequest({
+      ...createEmptyComplaintForm(),
+      customerId: "CUST-1",
+      customerName: "Ada",
+      subject: "S",
+      description: "D",
+      category: "",
+      channel: "BRANCH",
+    });
+    expect(body.category).toBe("GENERAL");
   });
 
   it("includes stagingToken when provided (FR-004 bind on create)", () => {
@@ -133,6 +182,41 @@ describe("validateCmBatch1CreateForm", () => {
       { stagingToken: "STG-abc123" },
     );
     expect(body.stagingToken).toBe("STG-abc123");
+  });
+
+  it("maps escalate flag into description", () => {
+    const body = toCmBatch1CreateRequest(
+      {
+        ...createEmptyComplaintForm(),
+        customerId: "CUST-LAB-001",
+        customerName: "Ada",
+        subject: "Printer offline",
+        description: "Cannot print",
+        category: "SERVICE",
+        channel: "CALL",
+      },
+      { escalate: true },
+    );
+    expect(body.description).toContain("Ajuan eskalasi:");
+    expect(body.intakeDisposition).toBe("ESCALATE_PENDING_APPROVAL");
+  });
+
+  it("sets BRANCH_CLOSED disposition when closing at branch", () => {
+    const body = toCmBatch1CreateRequest(
+      {
+        ...createEmptyComplaintForm(),
+        customerId: "CUST-LAB-001",
+        customerName: "Ada",
+        subject: "Printer offline",
+        description: "Cannot print",
+        resolution: "Toner diganti",
+        category: "SERVICE",
+        channel: "CALL",
+      },
+      { closeAtBranch: true },
+    );
+    expect(body.intakeDisposition).toBe("BRANCH_CLOSED");
+    expect(body.description).toContain("Penyelesaian:");
   });
 });
 

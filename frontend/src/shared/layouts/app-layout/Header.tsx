@@ -8,6 +8,7 @@ import {
   identityInitials,
   primaryRoleLabel,
 } from "@/features/auth/identityHelpers";
+import { isShellUiBatch } from "@/shared/config/uiBatch";
 import { IconLogout, IconMenu, IconSearch } from "@/shared/icons";
 import { useSidebar } from "@/shared/hooks";
 import { Button } from "@/shared/ui/button";
@@ -139,15 +140,31 @@ function ProfileChip({
 
 export function Header() {
   const router = useRouter();
-  const { user, logout, hasPermission } = useAuth();
+  const {
+    user,
+    logout,
+    hasPermission,
+    isMockSession,
+    mockPersona,
+    officerWorkMode,
+    setOfficerWorkMode,
+  } = useAuth();
   const { toggle, open } = useSidebar();
   const t = useTranslations("header");
+  const tShell = useTranslations("shell");
   const tCommon = useTranslations("common");
   const displayName = user?.fullName ?? user?.username ?? tCommon("user");
   const roleLabel = primaryRoleLabel(user, t("roleFallback"));
-  const canSearch = hasPermission("complaints:read");
+  const batchB0 = isShellUiBatch() || isMockSession;
+  /** B0: no complaint search (out of scope). */
+  const canSearch = !batchB0 && hasPermission("complaints:read");
   const [keyword, setKeyword] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  function switchOfficerMode(mode: "intake" | "handling"): void {
+    setOfficerWorkMode(mode);
+    router.push(mode === "intake" ? "/workspace" : "/queue");
+  }
 
   function submitSearch(event?: FormEvent): void {
     event?.preventDefault();
@@ -244,6 +261,35 @@ export function Header() {
       ) : null}
 
       <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+        {batchB0 && mockPersona === "complaint_officer" ? (
+          <div
+            className="mr-1 hidden items-center gap-1 rounded-[var(--ecmp-radius-md)] border border-ecmp-border/80 p-0.5 sm:flex"
+            role="group"
+            aria-label={tShell("workModeLabel")}
+          >
+            <Button
+              type="button"
+              variant={officerWorkMode === "intake" ? "secondary" : "ghost"}
+              size="sm"
+              className="!min-h-8 px-2 text-[length:var(--ecmp-font-caption-size)]"
+              aria-pressed={officerWorkMode === "intake"}
+              onClick={() => switchOfficerMode("intake")}
+            >
+              {tShell("modeIntake")}
+            </Button>
+            <Button
+              type="button"
+              variant={officerWorkMode === "handling" ? "secondary" : "ghost"}
+              size="sm"
+              className="!min-h-8 px-2 text-[length:var(--ecmp-font-caption-size)]"
+              aria-pressed={officerWorkMode === "handling"}
+              onClick={() => switchOfficerMode("handling")}
+            >
+              {tShell("modeHandling")}
+            </Button>
+          </div>
+        ) : null}
+
         {canSearch ? (
           <Button
             variant="ghost"

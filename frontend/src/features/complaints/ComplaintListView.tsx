@@ -444,13 +444,22 @@ export function ComplaintListView() {
           canCreate || canRead ? (
             <div className="flex flex-wrap gap-2">
               {canRead ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push("/complaints/cm/supervisor")}
-                >
-                  {t("supervisorQueue")}
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push("/complaints")}
+                  >
+                    {t("aggregateListTitle")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push("/complaints/cm/supervisor")}
+                  >
+                    {t("supervisorQueue")}
+                  </Button>
+                </>
               ) : null}
               {canCreate ? (
                 <Button

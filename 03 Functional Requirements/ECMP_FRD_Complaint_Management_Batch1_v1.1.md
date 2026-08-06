@@ -13,6 +13,8 @@
 | Last Review | 2026-07-29 |
 | Next Review | 2026-10-29 |
 | Related BR Catalog | `02 Business Rules/ECMP_Business_Rules_Complaint_Management_Module_v1.0.md` (BR-CM-CAT-001) |
+| Related Governance Baseline | `docs/governance/BC-000-Business-Constitution.md`; `docs/governance/BC-001-Business-Principles.md`; `docs/governance/BC-002-Business-Rules.md`; `docs/governance/BC-003-Business-Glossary.md`; `docs/business/BW-000-Business-Workflow-Constitution.md` |
+| Precedence | If this FRD conflicts with the approved Mode A governance baseline (BC-000…BC-003, BW-000), **the baseline prevails**. |
 | Related DEC | DEC-020 (Complaint Implementation SoT & Namespace Remapping — Accepted; closes OQ-CM-B1-001) |
 | Related ADRs | ADR-014 (Enterprise Business Module), ADR-015 (Enterprise Identity Contract), ADR-002 (Customer Master non-SoR), ADR-008 (Role-Permission), ADR-009 (Outbox) |
 | Related Revision Plan | `18 Architecture Governance/reviews/ECMP_FRD_CM_001_Revision_Plan_v1.1.md` (GOV-RP-FRD-CM-001) |
@@ -125,10 +127,10 @@ The following decisions are **LOCKED** and MUST NOT be changed by this FRD:
 | 2 | Complaint contains one or many Cases |
 | 3 | Assignment belongs to Case |
 | 4 | SLA belongs to Case |
-| 5 | SLA uses Working Days only |
-| 6 | Saturday is excluded from Working Days |
-| 7 | Sunday is excluded from Working Days |
-| 8 | Holidays are excluded from Working Days (Calendar Platform) |
+| 5 | **Mode A:** SLA Policy Version bind-without-clock (BQ-005 / BC-9.10). Baseline calendar **24×7** (BC-6.5). **Working Day** SLA calendars = **Deferred** for Mode A (BR-SLA-004) — not Batch-1/Mode A enforcement. Historical catalog “Working Days only” is superseded for Mode A by the governance baseline. |
+| 6 | *(Deferred with #5)* Saturday exclusion under Working Day calendars — **not** Mode A force |
+| 7 | *(Deferred with #5)* Sunday exclusion under Working Day calendars — **not** Mode A force |
+| 8 | *(Deferred with #5)* Holiday exclusion under Working Day calendars — **not** Mode A force |
 | 9 | Complaint stores only `CustomerId` |
 | 10 | Customer data comes from Master Customer API; customer data is not duplicated as SoR |
 | 11 | Escalation principle: **No Information Lost During Escalation** |
@@ -163,11 +165,14 @@ ECMP integrates with the following **external enterprise systems via APIs only**
 
 ## 5. Actors
 
+> **Persona alignment (BC-8 / BG-018):** Operational closed set = **Complaint Officer**, **Supervisor**, **Manager**. Legacy Agent / Petugas Frontline / Case Handler → **Complaint Officer**. **Manager** remains valid; workspace **MAY** deferred.
+
 | Actor | Batch 1 Relevance |
 |---|---|
-| Agent / Petugas Frontline | Primary actor for FR-001…FR-004 |
+| Complaint Officer *(legacy: Agent / Petugas Frontline — intake)* | Primary actor for FR-001…FR-004 |
 | Supervisor Unit | May create Complaint; may override duplicate warning with justification (FR-003); receives aging / abuse alerts per policy |
-| Case Handler | May upload attachments on existing Complaint (FR-004). Case create is out of Batch 1 |
+| Complaint Officer *(legacy: Case Handler — active handling)* | May upload attachments on existing Complaint (FR-004). Case create is out of Batch 1 |
+| Manager | Valid business persona (BC-8.4); Batch-1 delivery surface **MAY** omit Manager workspace (DL-068) |
 | Administrator | Configures categories, channels, attachment policy, duplicate thresholds, idempotency and enumeration policies |
 | System | Generates Complaint Number, enforces idempotency, runs duplicate scoring, enforces validations, writes audit/timeline, transfers staged evidence |
 | Customer | Source of complaint; does not log into this module in Batch 1 scope |
@@ -1286,7 +1291,7 @@ This FRD Batch 1 does **not** include:
 | OQ-CM-B1-001 | DEC remapping date: when does BR-CM-CAT-001 replace Sprint delivery SoT for implementation? | ID namespace / implementation sequencing | Business Owner + Architecture Board | **Closed — remapped by dual SoT (DEC-020)** |
 | OQ-CM-B1-002 | Exact Master Customer search API fields and identity-number masking contract | FR-002 audit/display | Integration Lead + Security | v1.1 close |
 | OQ-CM-B1-003 | Default duplicate threshold, window (days), and hard-block category list | FR-003 behavior | Operations Lead + Administrator | v1.1 close |
-| OQ-CM-B1-004 | Production policy for when Batch 2 Case create becomes mandatory after REGISTERED | Aging KPI / supervisor queue SLAs | Domain PO ECMF | **Closed 2026-08-01** — BQ-002 / DEC-MODEA-B2-001: MAY register without Case; MUST ≥1 Case within **1 business day** after REGISTERED; Supervisor Queue MUST display exceedances |
+| OQ-CM-B1-004 | Production policy for when Batch 2 Case create becomes mandatory after REGISTERED | Aging KPI / supervisor queue SLAs | Domain PO ECMF | **Closed 2026-08-01** — BQ-002 / DEC-MODEA-B2-001: MAY register without Case; MUST ≥1 Case within **1 working day** after REGISTERED (BC-5.4 timing; not Working Day SLA calendar); Supervisor Queue MUST display exceedances |
 | OQ-CM-B1-005 | Attachment max sizes per media type, aggregate payload max, and mandatory malware scan environments | FR-004 validation | Security + Administrator | v1.1 close |
 | OQ-CM-B1-006 | Who may override recording unit; multi-unit actor behaviour; mandatory audit fields | FR-001 validation | Operations Lead | v1.1 |
 | OQ-CM-B1-007 | How should ECMP react to upstream Customer merge / retirement / superseded CustomerId? | 360, duplicate correlation, history | Integration Lead + Architect | **v1.2 (CTO D-07)** — do not design in Batch 1 |
@@ -1318,13 +1323,14 @@ The following are **implementation-level** decisions parked at LOCK. They MUST N
 | 1.1 | 2026-07-29 | Requirements Manager / Solution Architect | Draft v1.1 per GOV-RP-FRD-CM-001 + CTO Decisions D-01…D-07; Security Considerations added to all FRs; Case create removed from Batch 1; idempotency + enumeration MUST + 360 minimum + evidence transfer |
 | 1.1 LOCKED | 2026-07-29 | Requirements Manager / CTO | CTO Decision D-08: LOCK after GOV-DELTA-FRD-CM-001; OQ-CM-B1-012…014 + ADR candidates; no FR redesign; no Batch 1 scope change |
 | 1.1 LOCKED + DEC-020 sync | 2026-07-30 | Documentation Architect | PROGRAM-DOC-001: OQ-CM-B1-001 Closed (DEC-020); dual-SoT narrative; §13 Aggregate path refs → `/api/v1/cm` (API-500…512). **No BR/FR redesign** |
+| 1.1 LOCKED + BC/BW align | 2026-08-05 | Documentation Architect | Alignment P-02/P-03/P-06/P-07: Working Day Deferred for Mode A; persona → Complaint Officer + Manager; BC/BW precedence; BQ-002 wording. **No FR redesign.** |
 
 ---
 
 ## Architecture Review Checklist
 
 - [x] Scope limited to Complaint Management Module Batch 1
-- [x] Locked Aggregate / CustomerId / Working Day / No Information Lost decisions respected
+- [x] Locked Aggregate / CustomerId / No Information Lost decisions respected; Working Day SLA = **Deferred** for Mode A (baseline 24×7 / bind-without-clock)
 - [x] All FR BR references exist in BR-CM-CAT-001 (no invented BRs)
 - [x] External systems treated as API dependencies only; Authorization is ECMP-internal
 - [x] Frontend → ECMP Backend → Enterprise APIs path explicit

@@ -14,12 +14,18 @@ from app.modules.audit.service import AuditService
 from app.modules.cm_case.application.dto import (
     AddCaseCommand,
     CaseDTO,
+    CaseSummaryDTO,
     CloseCaseCommand,
     CreateCaseCommand,
     ResolutionDTO,
     ResolveCaseCommand,
     UpdateStatusCommand,
 )
+from app.modules.cm_case.application.visibility import (
+    DEFAULT_PUSAT_UNIT_CODES,
+    resolve_case_visibility,
+)
+from app.core.authorization.principal import Principal
 from app.modules.cm_case.domain import errors as err
 from app.modules.cm_case.domain.aggregate import CaseAggregate, ResolutionRecord
 from app.modules.cm_case.domain.repositories import CaseRepository
@@ -288,6 +294,45 @@ class CaseApplicationService:
                     "CaseId is not a member of the supplied Complaint context.",
                 )
         return to_case_dto(case)
+
+    def list_cases(
+        self,
+        principal: Principal,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        complaint_id: str | None = None,
+        status: str | None = None,
+    ) -> tuple[list[CaseSummaryDTO], int]:
+        visibility = resolve_case_visibility(principal)
+        rows, total = self._repo.list_summaries(
+            visibility=visibility.value,
+            actor_id=str(principal.user_id),
+            org_unit_id=principal.org_unit_id,
+            pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
+            complaint_id=complaint_id,
+            status=status,
+            page=page,
+            page_size=page_size,
+        )
+        items = [
+            CaseSummaryDTO(
+                case_id=str(row.id),
+                case_number=row.case_number,
+                complaint_id=row.complaint_id,
+                status=row.status,
+                case_type=row.case_type,
+                subject=row.subject,
+                priority=row.priority,
+                created_at=row.created_at,
+                created_by=row.created_by,
+                category=row.category,
+                owning_unit_id=row.owning_unit_id,
+                customer_id=row.customer_id,
+            )
+            for row in rows
+        ]
+        return items, total
 
     def update_status(self, cmd: UpdateStatusCommand) -> CaseDTO:
         case = self._require(cmd.case_id)

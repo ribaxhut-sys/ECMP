@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
   IconAssignments,
   IconComplaints,
@@ -23,6 +24,7 @@ import {
   isNavItemVisible,
   type NavItem,
 } from "./nav";
+import { B0_NAV_GROUPS, B0_NAV_ITEMS } from "./b0Nav";
 
 const iconMap = {
   dashboard: IconDashboard,
@@ -35,10 +37,6 @@ const iconMap = {
   settings: IconSettings,
   attachments: IconPaperclip,
 } as const;
-
-const itemsById = Object.fromEntries(
-  APP_NAV_ITEMS.map((item) => [item.id, item]),
-) as Record<string, NavItem>;
 
 function NavBadge({ value }: { value: number | string }) {
   const label = typeof value === "number" && value > 99 ? "99+" : String(value);
@@ -108,9 +106,11 @@ function NavLink({
 
 function Brand({
   asLink,
+  href,
   onNavigate,
 }: {
   asLink: boolean;
+  href: string;
   onNavigate?: () => void;
 }) {
   const tCommon = useTranslations("common");
@@ -119,7 +119,7 @@ function Brand({
 
   if (asLink) {
     return (
-      <Link href="/dashboard" onClick={onNavigate} className={className}>
+      <Link href={href} onClick={onNavigate} className={className}>
         {tCommon("appName")}
       </Link>
     );
@@ -128,21 +128,71 @@ function Brand({
   return <span className={className}>{tCommon("appName")}</span>;
 }
 
+function useShellNav(): {
+  groups: typeof APP_NAV_GROUPS;
+  itemsById: Record<string, NavItem>;
+  homeHref: string;
+  isItemVisible: (item: NavItem) => boolean;
+} {
+  const {
+    hasPermission,
+    isMockSession,
+    mockPersona,
+    officerWorkMode,
+  } = useAuth();
+  const batchB0 = isShellUiBatch() || isMockSession;
+
+  if (!batchB0) {
+    const itemsById = Object.fromEntries(
+      APP_NAV_ITEMS.map((item) => [item.id, item]),
+    ) as Record<string, NavItem>;
+    return {
+      groups: APP_NAV_GROUPS,
+      itemsById,
+      homeHref: "/dashboard",
+      isItemVisible: (item) => isNavItemVisible(item, hasPermission),
+    };
+  }
+
+  const itemsById = Object.fromEntries(
+    B0_NAV_ITEMS.map((item) => [item.id, item]),
+  ) as Record<string, NavItem>;
+
+  return {
+    groups: B0_NAV_GROUPS,
+    itemsById,
+    homeHref:
+      mockPersona === "supervisor"
+        ? "/queue"
+        : mockPersona === "administrator"
+          ? "/settings"
+          : "/workspace",
+    isItemVisible: (item) => {
+      if (mockPersona === "complaint_officer") {
+        if (item.id === "workspace") return officerWorkMode === "intake";
+        if (item.id === "queue") return officerWorkMode === "handling";
+        return false;
+      }
+      return isNavItemVisible(item, hasPermission);
+    },
+  };
+}
+
 function NavSections({ onNavigate }: { onNavigate?: () => void }) {
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
-  const { hasPermission } = useAuth();
+  const { groups, itemsById, isItemVisible } = useShellNav();
 
   return (
     <nav
       aria-label={tCommon("primaryNav")}
       className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4"
     >
-      {APP_NAV_GROUPS.map((group) => {
+      {groups.map((group) => {
         const items = group.itemIds
           .map((id) => itemsById[id])
           .filter(Boolean)
-          .filter((item) => isNavItemVisible(item, hasPermission));
+          .filter((item) => isItemVisible(item));
         if (items.length === 0) return null;
         const headingId = `nav-group-${group.id}`;
         return (
@@ -177,21 +227,20 @@ export function Sidebar() {
   const { open, setOpen, isDesktop } = useSidebar();
   const closeDrawer = () => setOpen(false);
   const tCommon = useTranslations("common");
+  const { homeHref } = useShellNav();
 
   return (
     <>
-      {/* Desktop persistent sidebar */}
       <aside
         className="hidden w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border/80 bg-ecmp-surface lg:flex lg:flex-col"
         aria-label={tCommon("appSidebar")}
       >
         <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
-          <Brand asLink />
+          <Brand asLink href={homeHref} />
         </div>
         <NavSections />
       </aside>
 
-      {/* Mobile / tablet drawer */}
       <div
         className={cn(
           "fixed inset-0 z-[var(--ecmp-z-sidebar)] lg:hidden",
@@ -220,7 +269,11 @@ export function Sidebar() {
           aria-label={tCommon("mobileNav")}
         >
           <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
-            <Brand asLink onNavigate={isDesktop ? undefined : closeDrawer} />
+            <Brand
+              asLink
+              href={homeHref}
+              onNavigate={isDesktop ? undefined : closeDrawer}
+            />
           </div>
           <NavSections onNavigate={isDesktop ? undefined : closeDrawer} />
         </aside>

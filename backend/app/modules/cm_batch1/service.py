@@ -6,9 +6,10 @@ import json
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.core.errors import (
+    InvalidStateError,
     NotFoundError,
     RateLimitedError,
     ValidationAppError,
@@ -17,10 +18,12 @@ from app.core.user_messages import m
 from app.integrations.customer import (
     CustomerLookupStatus,
     CustomerProvider,
+    MinimalCustomer,
     build_customer_provider,
     mask_identity,
 )
 from app.modules.cm_batch1 import event_factory as events
+from app.modules.cm_batch1.customer_search_key import validate_customer_search_key
 from app.modules.cm_batch1.duplicate_config import (
     DEFAULT_DUPLICATE_CONFIG,
     DuplicateConfig,
@@ -45,6 +48,7 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    IntakeEscalationDecisionRequest,
     LaterReviewWorkItemResponse,
     SupervisorQueueResponse,
 )
@@ -53,6 +57,18 @@ from app.modules.cm_batch1.side_effects import (
     SideEffectRecorder,
 )
 from app.modules.cm_batch1.store import STORE, Batch1Store
+
+
+def _candidate_from_minimal(customer: MinimalCustomer) -> CustomerCandidate:
+    """Operator-facing candidate: full customer number, mask kept for compatibility."""
+    phone = (customer.phone or customer.reference_number or "").strip() or None
+    return CustomerCandidate(
+        customerId=customer.customer_id,
+        displayName=customer.display_name,
+        customerNumber=customer.customer_number,
+        maskedIdentity=mask_identity(customer.identity_number),
+        phone=phone,
+    )
 
 
 class CmBatch1StoreProtocol(Protocol):
@@ -80,6 +96,12 @@ class CmBatch1StoreProtocol(Protocol):
 
     def list_active_for_customer(self, customer_id: str) -> list[ComplaintAggregate]: ...
 
+    def count_for_customer(self, customer_id: str) -> int: ...
+
+    def list_for_customer(
+        self, customer_id: str, *, limit: int = 50
+    ) -> list[ComplaintAggregate]: ...
+
     def create(
         self,
         *,
@@ -92,6 +114,8 @@ class CmBatch1StoreProtocol(Protocol):
         created_by: str | None,
         request_id: str,
         channel_message_id: str | None,
+        status: str = "REGISTERED",
+        intake_disposition: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]: ...
 
     def commit(self) -> None: ...
@@ -140,6 +164,25 @@ class CmBatch1StoreProtocol(Protocol):
     def list_aging_without_case(
         self, *, older_than: datetime, limit: int = 100
     ) -> list[ComplaintAggregate]: ...
+
+    def list_complaints(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: str | None = None,
+        priority: str | None = None,
+        category: str | None = None,
+        status: str | None = None,
+        intake_disposition: str | None = None,
+    ) -> tuple[list[ComplaintAggregate], int]: ...
+
+    def update_intake_disposition(
+        self,
+        complaint_id: str,
+        *,
+        intake_disposition: str,
+    ) -> ComplaintAggregate | None: ...
 
 
 DEFAULT_AGING_THRESHOLD_HOURS = 24
@@ -209,6 +252,16 @@ class CmBatch1Service:
 
         key_name, key_value = provided[0]
         assert key_value is not None
+        key_check = validate_customer_search_key(key_value)
+        if not key_check.ok:
+            raise ValidationAppError(
+                m(key_check.error_code or "customer.search_key_empty"),
+                details={
+                    "keyType": key_name,
+                    "kind": key_check.kind,
+                    "digitCount": key_check.digit_count,
+                },
+            )
         if key_name == "customerNumber":
             lookup = self._customers.find_by_customer_number(key_value)
         elif key_name == "identityNumber":
@@ -249,12 +302,7 @@ class CmBatch1Service:
                 customerId=None,
                 asOf=as_of,
                 candidates=[
-                    CustomerCandidate(
-                        customerId=m.customer_id,
-                        displayName=m.display_name,
-                        maskedIdentity=mask_identity(m.identity_number),
-                    )
-                    for m in lookup.candidates
+                    _candidate_from_minimal(m) for m in lookup.candidates
                 ],
                 enumerationOutcome="allowed",
             )
@@ -266,18 +314,13 @@ class CmBatch1Service:
             verificationStatus="verified",
             customerId=hit.customer_id,
             asOf=as_of,
-            candidates=[
-                CustomerCandidate(
-                    customerId=hit.customer_id,
-                    displayName=hit.display_name,
-                    maskedIdentity=mask_identity(hit.identity_number),
-                )
-            ],
+            candidates=[_candidate_from_minimal(hit)],
             enumerationOutcome="allowed",
             briefProfile={
                 "customerId": hit.customer_id,
                 "displayName": hit.display_name,
                 "status": hit.status,
+                "customerNumber": hit.customer_number,
                 "asOf": as_of.isoformat(),
             },
         )
@@ -304,25 +347,33 @@ class CmBatch1Service:
             raise NotFoundError(m("customer.not_found"))
         row = lookup.customer
         active = self._store.list_active_for_customer(customer_id)
+        history = self._store.list_for_customer(customer_id, limit=50)
+        total = self._store.count_for_customer(customer_id)
         as_of = self._as_of()
+
+        def _brief(c: ComplaintAggregate) -> dict[str, Any]:
+            return {
+                "complaintId": c.complaint_id,
+                "complaintNumber": c.complaint_number,
+                "status": c.status,
+                "subject": c.subject,
+                "category": c.category,
+                "channel": c.channel,
+                "createdAt": c.created_at.isoformat() if c.created_at else None,
+            }
+
         return Customer360Batch1Response(
             customerId=customer_id,
             profile={
                 "customerId": row.customer_id,
                 "displayName": row.display_name,
-                "status": row.status,
                 "customerNumber": row.customer_number,
+                "phone": row.phone or row.reference_number,
+                "email": row.email,
             },
-            activeComplaints=[
-                {
-                    "complaintId": c.complaint_id,
-                    "complaintNumber": c.complaint_number,
-                    "status": c.status,
-                    "subject": c.subject,
-                }
-                for c in active
-            ],
-            complaintCount=len(active),
+            activeComplaints=[_brief(c) for c in active],
+            complaintHistory=[_brief(c) for c in history],
+            complaintCount=total,
             asOf=as_of,
         )
 
@@ -746,6 +797,28 @@ class CmBatch1Service:
                     details={"field": field_name},
                 )
 
+        intake_disposition = (body.intake_disposition or "").strip().upper() or None
+        initial_status = "REGISTERED"
+        if intake_disposition == "BRANCH_CLOSED":
+            # Thin BR-009 lab path: branch walk-away close without Case (BQ-011).
+            desc = body.description.strip()
+            if "Penyelesaian:" not in desc:
+                raise ValidationAppError(
+                    "resolution note required for BRANCH_CLOSED",
+                    details={
+                        "field": "description",
+                        "intakeDisposition": "BRANCH_CLOSED",
+                    },
+                )
+            initial_status = "CLOSED"
+        elif intake_disposition == "ESCALATE_PENDING_APPROVAL":
+            initial_status = "REGISTERED"
+        elif intake_disposition is not None:
+            raise ValidationAppError(
+                "unsupported intakeDisposition",
+                details={"intakeDisposition": body.intake_disposition},
+            )
+
         dup_result = self._enforce_duplicate_on_create(body)
 
         row, created = self._store.create(
@@ -758,6 +831,8 @@ class CmBatch1Service:
             created_by=actor_id,
             request_id=cleaned_request_id,
             channel_message_id=cleaned_channel,
+            status=initial_status,
+            intake_disposition=intake_disposition,
         )
         assert row.case_created is False
 
@@ -848,15 +923,142 @@ class CmBatch1Service:
             raise NotFoundError(m("complaint.not_found"))
         return self._to_complaint_response(row, replayed=False)
 
-    @staticmethod
-    def _to_complaint_response(
-        row: ComplaintAggregate, *, replayed: bool
+    def decide_intake_escalation(
+        self,
+        complaint_id: str,
+        body: IntakeEscalationDecisionRequest,
+        *,
+        actor_id: str | None,
     ) -> ComplaintBatch1Response:
+        """API-515 — supervisor approve/reject intake escalate (disposition only)."""
+        row = self._store.get(complaint_id)
+        if row is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        current = (row.intake_disposition or "").strip().upper()
+        if row.status != "REGISTERED" or current != "ESCALATE_PENDING_APPROVAL":
+            raise InvalidStateError(
+                "intake escalation is not awaiting approval",
+                details={
+                    "status": row.status,
+                    "intakeDisposition": row.intake_disposition,
+                },
+            )
+
+        decision = (body.decision or "").strip().upper()
+        note = (body.note or "").strip()
+        if decision == "APPROVE":
+            next_disp = "ESCALATE_APPROVED"
+        elif decision == "REJECT":
+            if len(note) < 20:
+                raise ValidationAppError(
+                    "reject note must be at least 20 characters",
+                    details={"field": "note", "minLength": 20},
+                )
+            next_disp = "ESCALATE_REJECTED"
+        else:
+            raise ValidationAppError(
+                "unsupported intake escalation decision",
+                details={"decision": body.decision},
+            )
+
+        updated = self._store.update_intake_disposition(
+            complaint_id, intake_disposition=next_disp
+        )
+        if updated is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        self._side_effects.record(
+            events.intake_escalation_decided(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                decision=decision,
+                next_disposition=next_disp,
+                actor_id=actor_id,
+                note_present=bool(note),
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(updated, replayed=False)
+
+    def list_complaints(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: str | None = None,
+        priority: str | None = None,
+        category: str | None = None,
+        status: str | None = None,
+        intake_disposition: str | None = None,
+    ) -> tuple[list[ComplaintBatch1Response], int]:
+        rows, total = self._store.list_complaints(
+            page=page,
+            page_size=page_size,
+            keyword=keyword,
+            priority=priority,
+            category=category,
+            status=status,
+            intake_disposition=intake_disposition,
+        )
+        labels = self._customer_labels_for(
+            {row.customer_id for row in rows if row.customer_id}
+        )
+        return (
+            [
+                self._to_complaint_response(
+                    row, replayed=False, customer_labels=labels
+                )
+                for row in rows
+            ],
+            total,
+        )
+
+    def _customer_labels_for(
+        self, customer_ids: set[str]
+    ) -> dict[str, tuple[str | None, str | None]]:
+        """Resolve display name + business customer number (not internal UUID)."""
+        out: dict[str, tuple[str | None, str | None]] = {}
+        for customer_id in customer_ids:
+            display_name: str | None = None
+            customer_number: str | None = None
+            try:
+                lookup = self._customers.get_minimal_customer(customer_id)
+            except Exception:
+                out[customer_id] = (None, None)
+                continue
+            if (
+                lookup.status == CustomerLookupStatus.FOUND
+                and lookup.customer is not None
+            ):
+                display_name = (lookup.customer.display_name or "").strip() or None
+                customer_number = (
+                    lookup.customer.customer_number or ""
+                ).strip() or None
+            out[customer_id] = (display_name, customer_number)
+        return out
+
+    def _to_complaint_response(
+        self,
+        row: ComplaintAggregate,
+        *,
+        replayed: bool,
+        customer_labels: dict[str, tuple[str | None, str | None]] | None = None,
+    ) -> ComplaintBatch1Response:
+        labels = customer_labels
+        if labels is None and row.customer_id:
+            labels = self._customer_labels_for({row.customer_id})
+        display_name, customer_number = (None, None)
+        if labels and row.customer_id in labels:
+            display_name, customer_number = labels[row.customer_id]
         return ComplaintBatch1Response(
             complaintId=row.complaint_id,
             complaintNumber=row.complaint_number,
-            status="REGISTERED",
+            status="CLOSED" if row.status == "CLOSED" else "REGISTERED",
             customerId=row.customer_id,
+            customerDisplayName=display_name,
+            customerNumber=customer_number,
+            intakeDisposition=row.intake_disposition,
             caseCreated=False,
             replayed=replayed,
             category=row.category,

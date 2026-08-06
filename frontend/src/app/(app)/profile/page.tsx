@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  PASSWORD_CHANGE_ROUTE,
   formatIdentityBranch,
   formatIdentityWhen,
   identityInitials,
@@ -95,14 +94,6 @@ export default function ProfilePage() {
             >
               {t("openSecurity")}
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-[var(--ecmp-touch-min)]"
-              onClick={() => router.push(PASSWORD_CHANGE_ROUTE)}
-            >
-              {t("changePassword")}
-            </Button>
           </div>
         </CardBody>
       </Card>
@@ -176,15 +167,7 @@ export default function ProfilePage() {
           description={t("securityDescription")}
         />
         <Card>
-          <CardHeader
-            action={
-              <Badge tone={user?.forcePasswordChange ? "warning" : "success"}>
-                {user?.forcePasswordChange
-                  ? t("securityNeedsAttention")
-                  : t("securityHealthy")}
-              </Badge>
-            }
-          >
+          <CardHeader>
             <PanelHeader
               title={t("securitySummaryTitle")}
               description={t("securitySummaryDescription")}
@@ -199,14 +182,6 @@ export default function ProfilePage() {
               onClick={() => router.push("/profile/security")}
             >
               {t("openSecurity")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-[var(--ecmp-touch-min)]"
-              onClick={() => router.push(PASSWORD_CHANGE_ROUTE)}
-            >
-              {t("changePassword")}
             </Button>
           </CardBody>
         </Card>

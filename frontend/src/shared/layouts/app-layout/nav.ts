@@ -53,6 +53,7 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
   {
     id: "complaints",
     labelKey: "complaints",
+    // Mode A primary entry = Aggregate list at /complaints (detail stays /complaints/cm/[id]).
     href: "/complaints",
     icon: "complaints",
     requiredPermissions: [

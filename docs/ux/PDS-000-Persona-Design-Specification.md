@@ -3,11 +3,13 @@
 | Field | Value |
 |---|---|
 | Document ID | PDS-000 |
-| Status | Reviewed — revisi diterapkan per temuan Product Design Review; menunggu Approval |
-| Lifecycle | Draft → **Reviewed** → Approved → Baseline → Locked |
+| Status | **Superseded by PDS-001** (2026-08-05) — dipertahankan sebagai baseline historis, bukan rujukan aktif untuk closed set persona |
+| Lifecycle | Draft → Reviewed → Approved → Baseline → **Superseded** |
 | Date | 2026-08-03 |
 | Parent | ECMP-CONSTITUTION-001 |
-| Subordination | Board → ADR → EA → ECMP-CONSTITUTION-001 → **PDS-000** → (future) persona-informed workflow/wireframe work |
+| Subordination | Board → ADR → EA → ECMP-CONSTITUTION-001 → **PDS-000 (superseded)** → `PDS-001-Persona-Design-Specification.md` |
+
+> **Catatan supersession:** Setelah UX Review, persona **Customer Service** dan **Resolver / Case Handler** di dokumen ini digabung menjadi satu persona **Complaint Officer** di `PDS-001-Persona-Design-Specification.md`. Dokumen ini tidak diedit lebih lanjut untuk mencerminkan closed set baru — lih. PDS-001 untuk model tiga-persona yang berlaku (Complaint Officer · Supervisor · Manager). Isi di bawah ini dipertahankan apa adanya sebagai jejak keputusan sebelum merge.
 
 ## Single responsibility
 

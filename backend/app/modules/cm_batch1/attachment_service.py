@@ -90,7 +90,10 @@ class CmBatch1AttachmentService:
                 m("staging.token_closed"),
                 details={"stagingToken": token, "status": existing.status},
             )
-        if existing.expires_at < datetime.now(UTC):
+        expires_at = existing.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at < datetime.now(UTC):
             raise ValidationAppError(
                 m("staging.token_expired"),
                 details={"stagingToken": token},
@@ -107,6 +110,7 @@ class CmBatch1AttachmentService:
         actor_id: str | None,
         staging_token: str | None = None,
         complaint_id: str | None = None,
+        customer_id: str | None = None,
         case_id: str | None = None,
         supersedes_attachment_id: str | None = None,
         uploaded_by: uuid.UUID | None = None,
@@ -165,21 +169,9 @@ class CmBatch1AttachmentService:
                 m("attachment.unsupported_checksum_algorithm"),
                 details={"checksumAlgorithm": cfg.checksum_algorithm},
             )
-        checksum = hashlib.sha256(data).hexdigest()
-        if cfg.duplicate_checksum_policy == "REJECT_WITH_EXISTING_REFERENCE":
-            prior = self._repo.find_by_checksum(checksum)
-            if prior is not None:
-                raise ConflictError(
-                    m("attachment.duplicate_checksum"),
-                    details={
-                        "checksumSha256": checksum,
-                        "existingAttachmentId": prior.id,
-                        "existingStatus": prior.status,
-                    },
-                )
 
         complaint_uuid: uuid.UUID | None = None
-        complaint_customer_id: str | None = None
+        complaint_customer_id: str | None = (customer_id or "").strip() or None
         status = ATTACHMENT_STATUS_STAGED
         token: str | None = None
 
@@ -199,6 +191,56 @@ class CmBatch1AttachmentService:
             aggregate_id = uuid.uuid5(
                 uuid.NAMESPACE_URL, f"cm-batch1-staging:{token}"
             )
+
+        checksum = hashlib.sha256(data).hexdigest()
+        if cfg.duplicate_checksum_policy == "REJECT_WITH_EXISTING_REFERENCE":
+            # Integrity hash is mandatory (FR-004). Duplicate rejection is scoped
+            # to the same customer within the same complaint or staging session —
+            # identical bytes for a different customer MUST be allowed.
+            prior = self._repo.find_by_checksum(checksum)
+            superseding = bool(
+                supersedes_attachment_id and supersedes_attachment_id.strip()
+            )
+            if prior is not None and not superseding:
+                complaint_key = (complaint_id or "").strip() or None
+                staging_key = (token or staging_token or "").strip() or None
+                same_complaint = bool(
+                    complaint_key
+                    and prior.complaint_id
+                    and prior.complaint_id == complaint_key
+                )
+                same_staging = bool(
+                    staging_key
+                    and prior.staging_token
+                    and prior.staging_token == staging_key
+                )
+                prior_customer = self._customer_for_attachment(prior)
+                same_customer = bool(
+                    complaint_customer_id
+                    and prior_customer
+                    and complaint_customer_id == prior_customer
+                )
+                reject = False
+                if same_complaint:
+                    reject = True
+                elif same_staging and same_customer:
+                    reject = True
+                elif (
+                    same_staging
+                    and not complaint_customer_id
+                    and not prior_customer
+                ):
+                    reject = True
+                if reject:
+                    raise ConflictError(
+                        m("attachment.duplicate_checksum"),
+                        details={
+                            "checksumSha256": checksum,
+                            "existingAttachmentId": prior.id,
+                            "existingStatus": prior.status,
+                            "customerId": complaint_customer_id,
+                        },
+                    )
 
         supersedes_uuid: uuid.UUID | None = None
         prior_batch: Batch1AttachmentRecord | None = None
@@ -235,6 +277,7 @@ class CmBatch1AttachmentService:
                 classification=classification_clean,
                 staging_token=token,
                 complaint_id=complaint_uuid,
+                customer_id=complaint_customer_id,
                 original_name=safe_name,
                 mime_type=mime_type,
                 size_bytes=len(data),
@@ -302,7 +345,26 @@ class CmBatch1AttachmentService:
                 details={"platformAttachmentId": str(platform.id), "error": str(exc)},
             ) from exc
 
+        if complaint_uuid is not None:
+            closed = self._complaints.close_later_review_items(
+                complaint_id=str(complaint_uuid),
+                reason="attachment_bind_failed",
+            )
+            if closed:
+                self._complaints.commit()
+
         return self._to_response(record)
+
+    def _customer_for_attachment(
+        self, row: Batch1AttachmentRecord
+    ) -> str | None:
+        if row.customer_id and row.customer_id.strip():
+            return row.customer_id.strip()
+        if row.complaint_id:
+            complaint = self._complaints.get(row.complaint_id)
+            if complaint is not None and complaint.customer_id:
+                return complaint.customer_id
+        return None
 
     def bind_staging_to_complaint(
         self,
@@ -311,9 +373,15 @@ class CmBatch1AttachmentService:
         complaint_id: str,
         actor_id: str | None,
     ) -> list[Batch1AttachmentResponse]:
+        """Bind staged evidence to Complaint.
+
+        Missing staging session or zero STAGED rows is a successful no-op —
+        attachments are optional at create (FR-004). Later-review E8 applies
+        only when staged bytes exist and bind fails.
+        """
         session = self._repo.get_staging(staging_token)
         if session is None:
-            raise NotFoundError(m("staging.token_not_found"))
+            return []
         if session.status != "OPEN":
             raise ValidationAppError(
                 m("staging.token_not_open"),
@@ -324,10 +392,14 @@ class CmBatch1AttachmentService:
             raise NotFoundError(m("complaint.not_found"))
 
         rows = self._repo.list_by_staging_token(staging_token)
+        staged = [row for row in rows if row.status == ATTACHMENT_STATUS_STAGED]
+        if not staged:
+            self._repo.close_staging(staging_token, status="BOUND")
+            self._repo.commit()
+            return []
+
         results: list[Batch1AttachmentResponse] = []
-        for row in rows:
-            if row.status != ATTACHMENT_STATUS_STAGED:
-                continue
+        for row in staged:
             self._attachments.rebind(
                 uuid.UUID(row.platform_attachment_id),
                 aggregate_type=AggregateType.COMPLAINT.value,
@@ -338,6 +410,7 @@ class CmBatch1AttachmentService:
                 row.id,
                 complaint_id=complaint_id,
                 status=ATTACHMENT_STATUS_ACTIVE,
+                customer_id=complaint.customer_id,
             )
             self._repo.append_history(
                 attachment_id=row.id,
@@ -358,6 +431,13 @@ class CmBatch1AttachmentService:
             results.append(self._to_response(updated))
         self._repo.close_staging(staging_token, status="BOUND")
         self._repo.commit()
+        if results:
+            closed = self._complaints.close_later_review_items(
+                complaint_id=complaint_id,
+                reason="attachment_bind_failed",
+            )
+            if closed:
+                self._complaints.commit()
         return results
 
     def transfer(
@@ -391,6 +471,7 @@ class CmBatch1AttachmentService:
                 row.id,
                 complaint_id=surviving,
                 status=ATTACHMENT_STATUS_TRANSFERRED,
+                customer_id=complaint.customer_id,
             )
             self._repo.append_history(
                 attachment_id=row.id,
@@ -575,6 +656,7 @@ class CmBatch1AttachmentService:
             classification=row.classification,
             stagingToken=row.staging_token,
             complaintId=row.complaint_id,
+            customerId=row.customer_id,
             originalName=row.original_name or "",
             mimeType=row.mime_type or "",
             sizeBytes=row.size_bytes or 0,

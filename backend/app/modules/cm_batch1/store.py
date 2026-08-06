@@ -153,6 +153,24 @@ class Batch1Store:
                 if c.customer_id == customer_id and c.status != "CLOSED"
             ]
 
+    def count_for_customer(self, customer_id: str) -> int:
+        with self._lock:
+            return sum(
+                1 for c in self._complaints.values() if c.customer_id == customer_id
+            )
+
+    def list_for_customer(
+        self, customer_id: str, *, limit: int = 50
+    ) -> list[ComplaintAggregate]:
+        with self._lock:
+            rows = [
+                c
+                for c in self._complaints.values()
+                if c.customer_id == customer_id
+            ]
+            rows.sort(key=lambda c: c.created_at, reverse=True)
+            return rows[: max(1, min(int(limit), 100))]
+
     def create(
         self,
         *,
@@ -165,6 +183,8 @@ class Batch1Store:
         created_by: str | None,
         request_id: str,
         channel_message_id: str | None,
+        status: str = "REGISTERED",
+        intake_disposition: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         with self._lock:
             by_req_rec = self._idempotency.get(request_id)
@@ -228,6 +248,10 @@ class Batch1Store:
             n = next(self._seq)
             complaint_id = str(uuid.uuid4())
             complaint_number = f"CM-{n:08d}"
+            initial_status = (status or "REGISTERED").strip().upper() or "REGISTERED"
+            if initial_status not in {"REGISTERED", "CLOSED"}:
+                initial_status = "REGISTERED"
+            disposition = (intake_disposition or "").strip().upper() or None
             row = ComplaintAggregate(
                 complaint_id=complaint_id,
                 complaint_number=complaint_number,
@@ -237,6 +261,8 @@ class Batch1Store:
                 subject=subject,
                 description=description,
                 priority=priority,
+                status=initial_status,
+                intake_disposition=disposition,
                 created_by=created_by,
                 case_created=False,
             )
@@ -342,6 +368,27 @@ class Batch1Store:
             rows.sort(key=lambda r: r.created_at)
             return rows[:limit]
 
+    def close_later_review_items(
+        self,
+        *,
+        complaint_id: str,
+        reason: str = "attachment_bind_failed",
+    ) -> int:
+        cid = (complaint_id or "").strip()
+        if not cid:
+            return 0
+        with self._lock:
+            closed = 0
+            for item in self._later_reviews:
+                if (
+                    item.status == "OPEN"
+                    and item.reason == reason
+                    and item.complaint_id == cid
+                ):
+                    item.status = "CLOSED"
+                    closed += 1
+            return closed
+
     def list_aging_without_case(
         self, *, older_than: datetime, limit: int = 100
     ) -> list[ComplaintAggregate]:
@@ -349,10 +396,77 @@ class Batch1Store:
             rows = [
                 c
                 for c in self._complaints.values()
-                if not c.case_created and c.created_at <= older_than
+                if not c.case_created
+                and c.status != "CLOSED"
+                and c.created_at <= older_than
             ]
             rows.sort(key=lambda c: c.created_at)
             return rows[:limit]
+
+    def update_intake_disposition(
+        self,
+        complaint_id: str,
+        *,
+        intake_disposition: str,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            disposition = (intake_disposition or "").strip().upper() or None
+            row.intake_disposition = disposition
+            return row
+
+    def list_complaints(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: str | None = None,
+        priority: str | None = None,
+        category: str | None = None,
+        status: str | None = None,
+        intake_disposition: str | None = None,
+    ) -> tuple[list[ComplaintAggregate], int]:
+        page = max(1, int(page))
+        page_size = max(1, min(int(page_size), 100))
+        with self._lock:
+            rows = list(self._complaints.values())
+            kw = (keyword or "").strip().lower()
+            if kw:
+                rows = [
+                    c
+                    for c in rows
+                    if kw in c.complaint_number.lower()
+                    or kw in (c.subject or "").lower()
+                    or kw in (c.customer_id or "").lower()
+                ]
+            st = (status or "").strip().upper()
+            if st in {"REGISTERED", "CLOSED"}:
+                rows = [c for c in rows if (c.status or "").upper() == st]
+            disp = (intake_disposition or "").strip().upper()
+            _allowed_disp = {
+                "BRANCH_CLOSED",
+                "ESCALATE_PENDING_APPROVAL",
+                "ESCALATE_APPROVED",
+                "ESCALATE_REJECTED",
+            }
+            if disp in _allowed_disp:
+                rows = [
+                    c
+                    for c in rows
+                    if (c.intake_disposition or "").upper() == disp
+                ]
+            pri = (priority or "").strip().upper()
+            if pri:
+                rows = [c for c in rows if (c.priority or "").upper() == pri]
+            cat = (category or "").strip().lower()
+            if cat:
+                rows = [c for c in rows if (c.category or "").lower() == cat]
+            rows = sorted(rows, key=lambda c: c.created_at, reverse=True)
+            total = len(rows)
+            start = (page - 1) * page_size
+            return rows[start : start + page_size], total
 
 
 # Retained for rare process-local fallbacks / migrations; router uses DB repo.

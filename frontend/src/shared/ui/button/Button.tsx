@@ -30,19 +30,22 @@ const variantClass: Record<ButtonVariant, string> = {
     "hover:bg-[color-mix(in_srgb,var(--ecmp-color-primary)_88%,black)] hover:shadow-ecmp-hover",
     "active:bg-[color-mix(in_srgb,var(--ecmp-color-primary)_78%,black)] active:shadow-ecmp-surface",
   ),
-  /** Outline secondary — filled secondary kept via legacy usage of size/color mix below. */
+  /**
+   * Neutral variants carry a faint foreground tint so the control stays
+   * visible on any container (page background, card, or modal surface).
+   */
   secondary: cn(
-    "border border-ecmp-border bg-ecmp-surface text-ecmp-text-primary shadow-ecmp-surface",
+    "border border-ecmp-border bg-[color-mix(in_srgb,var(--ecmp-color-text-primary)_7%,var(--ecmp-color-surface))] text-ecmp-text-primary shadow-ecmp-surface",
     "hover:border-ecmp-secondary/50 hover:bg-ecmp-hover hover:shadow-ecmp-raised",
     "active:bg-ecmp-pressed",
   ),
   outline: cn(
-    "border border-ecmp-border bg-transparent text-ecmp-text-primary shadow-ecmp-surface",
+    "border border-ecmp-border bg-[color-mix(in_srgb,var(--ecmp-color-text-primary)_5%,transparent)] text-ecmp-text-primary shadow-ecmp-surface",
     "hover:border-ecmp-secondary hover:bg-ecmp-hover",
     "active:bg-ecmp-pressed",
   ),
   ghost: cn(
-    "border border-transparent bg-transparent text-ecmp-text-primary shadow-none",
+    "border border-transparent bg-[color-mix(in_srgb,var(--ecmp-color-text-primary)_4%,transparent)] text-ecmp-text-primary shadow-none",
     "hover:bg-ecmp-hover",
     "active:bg-ecmp-pressed",
   ),

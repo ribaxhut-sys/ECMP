@@ -7,6 +7,23 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class CaseSummaryResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    case_id: str = Field(alias="caseId")
+    case_number: str = Field(alias="caseNumber")
+    complaint_id: str = Field(alias="complaintId")
+    status: str
+    case_type: str | None = Field(default=None, alias="caseType")
+    category: str | None = None
+    priority: str | None = None
+    subject: str | None = None
+    owning_unit_id: str | None = Field(default=None, alias="owningUnitId")
+    customer_id: str | None = Field(default=None, alias="customerId")
+    created_at: datetime | None = Field(default=None, alias="createdAt")
+    created_by: str | None = Field(default=None, alias="createdBy")
+
+
 class CaseResolutionResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

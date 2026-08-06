@@ -23,6 +23,8 @@
 | Related Transition Matrix | BR-CM-CAT-001 Case Aggregate Transition Matrix — LOCKED |
 | Related Operational Specification | Embedded herein (Unit Ownership · Mode A Delivery Transition Subset · Close Case Checklist · FR-004 Rename) — LOCKED |
 | Related Batch-1 | `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (FRD-CM-001) — LOCKED |
+| Related Governance Baseline | `docs/governance/BC-000-Business-Constitution.md`; `docs/governance/BC-001-Business-Principles.md`; `docs/governance/BC-002-Business-Rules.md`; `docs/governance/BC-003-Business-Glossary.md`; `docs/business/BW-000-Business-Workflow-Constitution.md` |
+| Precedence | If this FRD conflicts with the approved Mode A governance baseline (BC-000…BC-003, BW-000), **the baseline prevails**. |
 | Related DEC | DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; CTO D-02 |
 | Gate status | Business Lock READY · Board Unlock READY · Residual BQ **ZERO** |
 
@@ -145,7 +147,7 @@ Per BR-CM-CAT-001 and CAP-008:
 
 | BQ | Locked policy |
 |---|---|
-| BQ-002 | MAY register without Case; MUST ≥1 Case within **1 business day** after `REGISTERED`; Supervisor Queue shows exceedances |
+| BQ-002 | MAY register without Case; MUST ≥1 Case within **1 working day** after `REGISTERED` (BC-5.4 timing threshold; **not** Working Day SLA calendar activation); Supervisor Queue shows exceedances |
 | BQ-003 | Max Cases per Complaint = **5** (Mode A) |
 | BQ-004 | Case Number independent; format **`CASE-YYYY-NNNNNN`** |
 | BQ-005 | Bind SLA Policy Version; countdown **NOT** activated |
@@ -204,7 +206,7 @@ Mode A Case operational responsibility attaches to the **owning Unit**. There is
 `PENDING` / `ESCALATED`: Aggregate ownership remains defined in BR-CM-CAT; **not exposed** in Mode A Delivery (BQ-009).
 
 **Resolve responsibility**  
-Case Handler proposes; Supervisor approves on Mode A path (BQ-008). Case → `RESOLVED` only after Resolution **Accepted** (BR-008). Resolve of another’s Case without Supervisor rights is rejected (BR-008 E3).
+Complaint Officer (active handling) proposes; Supervisor approves on Mode A path (BQ-008). Case → `RESOLVED` only after Resolution **Accepted** (BR-008). Resolve of another’s Case without Supervisor rights is rejected (BR-008 E3).
 
 **Supervisor responsibility**  
 Unit assign/reassign; multi-Case oversight; approve/reject Resolution; Close Case (primary); aging exceedance Supervisor Queue (BQ-002).
@@ -222,28 +224,31 @@ Aggregate SoT states: `CREATED` · `ASSIGNED` · `IN_PROGRESS` · `PENDING` · `
 
 ## 6. Actors
 
+> **Persona alignment (BC-8 / BG-018):** Operational closed set = **Complaint Officer**, **Supervisor**, **Manager**. Legacy Agent / Petugas Frontline / Case Handler → **Complaint Officer**. **Manager** remains valid; CAP-008 delivery surface **MAY** omit Manager workspace (DL-068).
+
 | Actor | Role in CAP-008 Mode A |
 |---|---|
-| Agent / Petugas Frontline | Create / Add Case; View Case & Timeline in scope |
-| Case Handler | View; Update Status (subset); propose Resolve; read Timeline/Attachment/Comment per rights |
+| Complaint Officer *(legacy: Agent / Petugas Frontline — intake)* | Create / Add Case; View Case & Timeline in scope |
+| Complaint Officer *(legacy: Case Handler — active handling)* | View; Update Status (subset); propose Resolve; read Timeline/Attachment/Comment per rights |
 | Supervisor Unit | Create/Add; Unit assign/reassign; View across handlers in unit; approve/reject Resolution; Close Case (primary); aging queue |
+| Manager | Valid business persona; Mode A CAP-008 workspace **MAY** deferred |
 | Administrator | Configure Case types/categories, resolution catalog, max Case, workflow parameters |
 | System | Case Number; enforce preconditions; Audit + Timeline; reject orphan Case; reject hard-delete; Complaint `REGISTERED`→`IN_PROGRESS` on first Case |
 | Customer | Complaint source; **no** direct module login in Mode A CAP-008 |
 
-Regional / Pusat officers are **not** primary CAP-008 Mode A actors (Escalation not exposed).
+Regional / Head Office officers are **not** primary CAP-008 Mode A actors (Escalation Engine full / DEC-F4 detail delivery not exposed; Regional = **Out of Scope for Mode A** path).
 
 ### 6.1 Allowed actor matrix (Mode A)
 
 | Action | Actors (SoT) | Mode A bound |
 |---|---|---|
-| Create / Add Case | Agent, Supervisor Unit, System (± Case Handler if granted) | Authorized unit/role; valid destination Unit |
+| Create / Add Case | Complaint Officer, Supervisor Unit, System (± Complaint Officer active-handling if granted) | Authorized unit/role; valid destination Unit |
 | Assign / reassign Unit | Supervisor Unit / System | Unit only; Assigned User rejected |
-| `ASSIGNED`→`IN_PROGRESS` | Case Handler in owning Unit **or** Supervisor Unit | No new roles |
-| Update Case Status | Case Handler, Supervisor Unit, System | Role + Unit guard |
-| Resolve (propose) | Case Handler | Comment required (BQ-010) |
+| `ASSIGNED`→`IN_PROGRESS` | Complaint Officer in owning Unit **or** Supervisor Unit | No new roles |
+| Update Case Status | Complaint Officer, Supervisor Unit, System | Role + Unit guard |
+| Resolve (propose) | Complaint Officer (active handling) | Comment required (BQ-010) |
 | Resolve (approve) | Supervisor Unit | BQ-008 |
-| Close Case | Supervisor Unit (primary); Case Handler **if configured** | Handler-close activation Mode A = **NOT SPECIFIED** |
+| Close Case | Supervisor Unit (primary); Complaint Officer **if configured** | Handler-close activation Mode A = **NOT SPECIFIED** |
 | Cancel | Supervisor (primary) / authorized actor | Mode A reasons BQ-014 |
 
 ---
@@ -363,7 +368,7 @@ Forbidden: orphan Case; DOM-ECMF-003 enums; Assigned User.
 2. AC-02: First Case on Batch-1 `REGISTERED` → Case count = 1 and Complaint = `IN_PROGRESS`.
 3. AC-04: Complaint `CLOSED` → Create rejected.
 4. AC-05: Case without parent Complaint → rejected.
-5. AC-05b: `REGISTERED` without Case &gt; 1 business day → Supervisor Queue exceedance. **[BQ-002]**
+5. AC-05b: `REGISTERED` without Case &gt; 1 working day → Supervisor Queue exceedance. **[BQ-002]**
 6. AC-17: SLA Policy Version bound; countdown NOT activated. **[BQ-005]**
 7. AC-18: No Assignment Engine auto-route/claim/bulk; Unit assignment only. **[BQ-006]**
 
@@ -938,7 +943,7 @@ DEC-MODEA-B2-001 (BQ-007, BQ-008).
 |---|---|
 | V-01 | Case MUST have a valid parent Complaint |
 | V-02 | One Complaint MAY have 1..N Cases; Mode A max N = **5** |
-| V-03 | Batch-1 Complaint MAY start without Case (D-02); MUST have ≥1 Case within 1 business day after `REGISTERED` (BQ-002) |
+| V-03 | Batch-1 Complaint MAY start without Case (D-02); MUST have ≥1 Case within 1 working day after `REGISTERED` (BQ-002; BC-5.4 timing) |
 | V-04 | Case Number = `CASE-YYYY-NNNNNN`, unique, independent of Complaint Number |
 | V-05 | Mode A assignment = Unit only; Assigned User rejected |
 | V-06 | SLA Policy Version MUST bind; countdown MUST NOT activate in Mode A |
@@ -971,7 +976,7 @@ Catalog from CAP-008 BCS §9 + Mode A locks (cross-FR).
 | AC-03 | Add Case N&lt;5 → N+1; N=5 → reject **[BQ-003]** |
 | AC-04 | Complaint `CLOSED` → Create/Add reject |
 | AC-05 | Case without Complaint → reject 100% |
-| AC-05b | Aging &gt;1 business day without Case → Supervisor Queue exceedance **[BQ-002]** |
+| AC-05b | Aging &gt;1 working day without Case → Supervisor Queue exceedance **[BQ-002]** |
 
 ### View / Timeline
 
@@ -1145,3 +1150,4 @@ See FR-006 Preconditions. Normative minimum = #1–#4. Items #5–#8 = **NOT SPE
 |---|---|---|---|
 | 1.0 | 2026-08-01 | ECMP Functional Specification Author | Draft v1.0 complete authoring from locked CAP-008, BR-CM-CAT, Transition Matrix, DEC-MODEA-B2-001, DEC-BQ001 O3, and locked Operational Specification (embedded). Status = Draft v1.0. NOT SPECIFIED copied without invention. BR/CAP/Matrix/DEC not modified. |
 | 1.0 LOCKED | 2026-08-01 | Architecture Review Board (SoT Closure) | Status → **LOCKED**. Sync API-530…535 + lab test suite refs to match RC-validated implementation. EVT IDs remain NOT SPECIFIED. No FR redesign; no BR/BCS/scope/Mode B change. Evidence: `deploy/evidence/CAP-008_SoT_Closure_20260801.md`. |
+| 1.0 LOCKED + BC/BW align | 2026-08-05 | Documentation Architect | Alignment P-03/P-06/P-07/P-08: BC/BW precedence; persona → Complaint Officer + Manager; BQ-002 working day wording; Regional OOS note. **No FR redesign.** |

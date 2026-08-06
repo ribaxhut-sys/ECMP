@@ -1,11 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { PASSWORD_CHANGE_ROUTE } from "@/features/auth";
+import { MOCK_ACCOUNTS, mockEntryHref, readMockSession } from "@/auth/mockAuth";
+import { isMockAuthEnabled, isShellUiBatch } from "@/shared/config/uiBatch";
 import { AuthLayout, IdentityBrand } from "@/shared/layouts";
 import {
   Alert,
@@ -20,24 +20,26 @@ import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { status, login, user } = useAuth();
+  const { status, login, isMockSession } = useAuth();
   const t = useTranslations("auth");
+  const tShell = useTranslations("shell");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const mockEnabled = isMockAuthEnabled();
 
   useEffect(() => {
-    if (status === "authenticated") {
-      if (user?.forcePasswordChange) {
-        router.replace(PASSWORD_CHANGE_ROUTE);
-      } else {
-        router.replace("/dashboard");
-      }
+    if (status !== "authenticated") return;
+    if (isMockSession || isShellUiBatch()) {
+      const session = readMockSession();
+      router.replace(session ? mockEntryHref(session) : "/workspace");
+      return;
     }
-  }, [status, router, user?.forcePasswordChange]);
+    router.replace("/dashboard");
+  }, [status, router, isMockSession]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,16 +47,27 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(username, password);
-      // AuthProvider updates user asynchronously via loadMe inside login.
-      // Redirect is handled by the authenticated effect above after me loads.
     } catch (err) {
+      const mockMsg =
+        err instanceof Error &&
+        (err.message === "MOCK_USER_NOT_FOUND" ||
+          err.message === "MOCK_PASSWORD_REQUIRED")
+          ? tShell("mockLoginFailed")
+          : null;
       setError(
-        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+        mockMsg ||
+          resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
           t("loginFailed"),
       );
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function fillDemo(accountUsername: string) {
+    setUsername(accountUsername);
+    setPassword("mock");
+    setError(null);
   }
 
   if (status === "loading" || status === "authenticated") {
@@ -79,7 +92,9 @@ export default function LoginPage() {
           >
             <IdentityBrand
               title={t("signIn")}
-              subtitle={t("signInSubtitle")}
+              subtitle={
+                mockEnabled ? tShell("signInSubtitleMock") : t("signInSubtitle")
+              }
             />
 
             <Input
@@ -91,25 +106,15 @@ export default function LoginPage() {
               required
             />
 
-            <div className="space-y-2">
-              <Input
-                name="password"
-                type="password"
-                label={t("password")}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <div className="flex justify-end">
-                <Link
-                  href="/forgot-password"
-                  className="min-h-[var(--ecmp-touch-min)] inline-flex items-center text-[length:var(--ecmp-font-helper-size)] text-ecmp-primary underline-offset-2 transition-colors duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-hover)] hover:underline focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus focus-visible:ring-offset-[length:var(--ecmp-focus-ring-offset)]"
-                >
-                  {t("forgotPassword")}
-                </Link>
-              </div>
-            </div>
+            <Input
+              name="password"
+              type="password"
+              label={t("password")}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
 
             {error ? (
               <Alert tone="danger" title={t("signInFailed")} description={error} />
@@ -123,6 +128,27 @@ export default function LoginPage() {
             >
               {submitting ? t("signingIn") : t("signIn")}
             </Button>
+
+            {mockEnabled ? (
+              <div className="space-y-2 border-t border-ecmp-border/70 pt-[var(--ecmp-form-gap)]">
+                <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-muted">
+                  {tShell("demoAccountsHint")}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {MOCK_ACCOUNTS.map((account) => (
+                    <Button
+                      key={account.username}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => fillDemo(account.username)}
+                    >
+                      {account.user.roles[0]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </form>
         </CardBody>
       </Card>

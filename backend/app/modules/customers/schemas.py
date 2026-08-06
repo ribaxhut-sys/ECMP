@@ -15,3 +15,11 @@ class CustomerResponse(BaseModel):
     full_name: str = Field(alias="fullName")
     email: str | None = None
     phone: str | None = None
+
+
+class CustomerPhoneUpdateRequest(BaseModel):
+    """Local reference-cache phone update (Mode A lab) — not Customer Master SoR."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    phone: str = Field(min_length=0, max_length=32)

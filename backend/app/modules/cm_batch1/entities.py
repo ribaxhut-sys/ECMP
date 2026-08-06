@@ -17,6 +17,7 @@ class ComplaintAggregate:
     description: str
     priority: str
     status: str = "REGISTERED"
+    intake_disposition: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     created_by: str | None = None
     case_created: bool = False
@@ -76,6 +77,7 @@ class Batch1AttachmentRecord:
     classification: str
     staging_token: str | None = None
     complaint_id: str | None = None
+    customer_id: str | None = None
     original_name: str | None = None
     mime_type: str | None = None
     size_bytes: int | None = None

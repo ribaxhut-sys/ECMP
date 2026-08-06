@@ -118,6 +118,60 @@ class SqlAlchemyCaseRepository:
         )
         return mappers.case_from_orm(row, resolutions)
 
+    def list_summaries(
+        self,
+        *,
+        visibility: str,
+        actor_id: str,
+        org_unit_id: str | None,
+        pusat_unit_codes: frozenset[str],
+        complaint_id: str | None = None,
+        status: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[CmCaseORM], int]:
+        """Newest-first Case rows filtered by DEC-024 visibility class."""
+        page = max(1, int(page))
+        page_size = max(1, min(int(page_size), 100))
+        stmt = select(CmCaseORM)
+        if complaint_id and complaint_id.strip():
+            stmt = stmt.where(CmCaseORM.complaint_id == complaint_id.strip())
+        if status and status.strip():
+            stmt = stmt.where(CmCaseORM.status == status.strip().upper())
+
+        vis = (visibility or "").upper()
+        if vis == "ALL":
+            pass
+        elif vis == "SELF":
+            # Mode A interim (BQ-006): no assigned_user column → created_by only
+            stmt = stmt.where(CmCaseORM.created_by == actor_id)
+        elif vis == "UNIT":
+            unit = (org_unit_id or "").strip()
+            if not unit:
+                return [], 0
+            stmt = stmt.where(CmCaseORM.owning_unit_id == unit)
+        elif vis == "PUSAT":
+            codes = {c.upper() for c in pusat_unit_codes}
+            # SQLite/Postgres: compare upper(owning_unit_id)
+            stmt = stmt.where(
+                func.upper(CmCaseORM.owning_unit_id).in_(sorted(codes))
+            )
+        else:
+            return [], 0
+
+        total = int(
+            self._session.scalar(select(func.count()).select_from(stmt.subquery()))
+            or 0
+        )
+        rows = list(
+            self._session.scalars(
+                stmt.order_by(CmCaseORM.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return rows, total
+
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         try:
             uid = UUID(complaint_id)

@@ -39,14 +39,18 @@ export function Modal({
   const t = useTranslations("common");
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
+  // Only on open/close transitions — do not re-run when parent passes a new
+  // inline onClose each render (that steals focus from inputs inside the modal).
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     }
 
     document.addEventListener("keydown", onKeyDown);
@@ -58,7 +62,7 @@ export function Modal({
       document.body.style.overflow = originalOverflow;
       previous?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -68,7 +72,7 @@ export function Modal({
         type="button"
         aria-label={t("closeDialogOverlay")}
         className="absolute inset-0 bg-ecmp-overlay backdrop-blur-[3px] transition-opacity duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-exit)]"
-        onClick={onClose}
+        onClick={() => onCloseRef.current()}
       />
       <div
         ref={dialogRef}
@@ -95,7 +99,7 @@ export function Modal({
             variant="ghost"
             size="sm"
             aria-label={t("closeDialog")}
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             className="!min-h-[44px] !min-w-[44px] px-0"
           >
             <IconClose />

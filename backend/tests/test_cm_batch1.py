@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.authorization.principal import Principal
-from app.core.errors import RateLimitedError, ValidationAppError
+from app.core.errors import InvalidStateError, RateLimitedError, ValidationAppError
 from app.db.base import Base
 from app.integrations.customer import StubCustomerProvider
 from app.main import create_app
@@ -36,6 +36,7 @@ from app.modules.cm_batch1.schemas import (
     CustomerSearchRequest,
     DuplicateCheckRequest,
     DuplicateDecisionRequest,
+    IntakeEscalationDecisionRequest,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.store import Batch1Store
@@ -98,6 +99,24 @@ def test_tc_cm_fr002_01_unique_customer_number(service: CmBatch1Service) -> None
     assert result.verification_status == "verified"
     assert result.customer_id == "CUST-10001"
     assert result.enumeration_outcome == "allowed"
+
+
+def test_customer_search_rejects_short_id(service: CmBatch1Service) -> None:
+    with pytest.raises(ValidationAppError) as exc:
+        service.search_customer(
+            CustomerSearchRequest(customerNumber="32"),
+            principal_key="p-short-id",
+        )
+    assert "8" in exc.value.message or "pendek" in exc.value.message.lower()
+
+
+def test_customer_search_rejects_short_phone(service: CmBatch1Service) -> None:
+    with pytest.raises(ValidationAppError) as exc:
+        service.search_customer(
+            CustomerSearchRequest(customerNumber="0833"),
+            principal_key="p-short-phone",
+        )
+    assert "10" in exc.value.message or "telepon" in exc.value.message.lower()
 
 
 def test_tc_cm_fr002_02_ambiguous_no_lock(service: CmBatch1Service) -> None:
@@ -210,6 +229,50 @@ def test_tc_cm_fr001_01_create_registered_no_case(service: CmBatch1Service) -> N
     assert created.status == "REGISTERED"
     assert created.case_created is False
     assert created.complaint_number.startswith("CM-")
+
+
+def test_create_branch_closed_without_case(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Walk-in resolved",
+            description="Keluhan singkat\n\n---\nPenyelesaian:\nSudah diganti",
+            intakeDisposition="BRANCH_CLOSED",
+        ),
+        request_id="req-branch-closed",
+        channel_message_id=None,
+        actor_id="actor-1",
+    )
+    assert created.status == "CLOSED"
+    assert created.case_created is False
+
+
+def test_create_branch_closed_requires_resolution(service: CmBatch1Service) -> None:
+    from app.core.errors import ValidationAppError
+
+    try:
+        confirmed_create(
+            service,
+            CreateComplaintBatch1Request(
+                customerId="CUST-10001",
+                category="BILLING",
+                channel="BRANCH",
+                subject="No resolution",
+                description="Keluhan tanpa penyelesaian",
+                intakeDisposition="BRANCH_CLOSED",
+            ),
+            request_id="req-branch-closed-bad",
+            channel_message_id=None,
+            actor_id="actor-1",
+        )
+        raise AssertionError("expected ValidationAppError")
+    except ValidationAppError as exc:
+        assert "resolution" in str(exc).lower() or "BRANCH_CLOSED" in str(
+            getattr(exc, "details", {})
+        )
 
 
 def test_tc_cm_fr001_02_customer_id_only(service: CmBatch1Service) -> None:
@@ -363,6 +426,8 @@ def test_tc_cm_fr001_12_360_after_create(service: CmBatch1Service) -> None:
     view = service.customer_360_minimum("CUST-10001")
     assert view.complaint_count == 1
     assert len(view.active_complaints) == 1
+    assert len(view.complaint_history) == 1
+    assert view.complaint_history[0]["complaintNumber"]
 
 
 # --- API smoke (auth override) ---
@@ -453,6 +518,30 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
     assert replay.status_code == 200, replay.text
     assert replay.json()["data"]["complaintId"] == data["complaintId"]
     assert replay.json()["data"]["replayed"] is True
+
+    listed = api_client.get("/api/v1/cm/complaints?page=1&pageSize=20")
+    assert listed.status_code == 200, listed.text
+    list_body = listed.json()
+    assert list_body["meta"]["page"] == 1
+    assert list_body["meta"]["pageSize"] == 20
+    assert list_body["meta"]["totalItems"] >= 1
+    assert any(row["complaintId"] == data["complaintId"] for row in list_body["data"])
+
+    by_kw = api_client.get("/api/v1/cm/complaints?keyword=API%20create")
+    assert by_kw.status_code == 200, by_kw.text
+    assert any(row["complaintId"] == data["complaintId"] for row in by_kw.json()["data"])
+
+    by_pri = api_client.get("/api/v1/cm/complaints?priority=MEDIUM")
+    assert by_pri.status_code == 200, by_pri.text
+    assert by_pri.json()["meta"]["totalItems"] >= 1
+
+    by_cat = api_client.get("/api/v1/cm/complaints?category=BILLING")
+    assert by_cat.status_code == 200, by_cat.text
+    assert any(row["complaintId"] == data["complaintId"] for row in by_cat.json()["data"])
+
+    miss = api_client.get("/api/v1/cm/complaints?keyword=zzznomatch999")
+    assert miss.status_code == 200, miss.text
+    assert miss.json()["meta"]["totalItems"] == 0
 
 
 @pytest.fixture()
@@ -1236,3 +1325,162 @@ def test_api_505_and_506_roundtrip(
         },
     )
     assert rejected.status_code == 400
+
+
+def test_api_515_approve_intake_escalation(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate pending",
+            description="Ajuan eskalasi: butuh pusat karena kompleks",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-approve-1",
+        actor_id="agent-1",
+    )
+    assert created.intake_disposition == "ESCALATE_PENDING_APPROVAL"
+    assert created.status == "REGISTERED"
+
+    decided = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(decision="APPROVE", note="ok lanjut"),
+        actor_id="supervisor-1",
+    )
+    assert decided.status == "REGISTERED"
+    assert decided.intake_disposition == "ESCALATE_APPROVED"
+    assert decided.case_created is False
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert row.intake_disposition == "ESCALATE_APPROVED"
+
+
+def test_api_515_reject_requires_note(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate reject",
+            description="Ajuan eskalasi: uji tolak",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-reject-1",
+        actor_id="agent-1",
+    )
+    with pytest.raises(ValidationAppError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="REJECT", note="short"),
+            actor_id="supervisor-1",
+        )
+
+    decided = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="REJECT",
+            note="Tolak: masih bisa diselesaikan di cabang dengan bukti lengkap.",
+        ),
+        actor_id="supervisor-1",
+    )
+    assert decided.intake_disposition == "ESCALATE_REJECTED"
+    assert decided.status == "REGISTERED"
+    assert decided.case_created is False
+
+
+def test_api_515_wrong_disposition_conflict(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="No escalate flag",
+            description="Ordinary registered complaint",
+        ),
+        request_id="esc-wrong-1",
+        actor_id="agent-1",
+    )
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="APPROVE"),
+            actor_id="supervisor-1",
+        )
+
+
+def test_api_515_list_filter_intake_disposition(service: CmBatch1Service) -> None:
+    pending = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Pending filter unique A",
+            description="Ajuan eskalasi: filter list",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for filter test pending disposition row."
+            ),
+        ),
+        request_id="esc-filter-1",
+        actor_id="agent-1",
+    )
+    confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Ordinary filter unique B",
+            description="No disposition",
+            duplicateOverrideJustification=(
+                "Lab override for filter test ordinary disposition row."
+            ),
+        ),
+        request_id="esc-filter-2",
+        actor_id="agent-1",
+    )
+    rows, total = service.list_complaints(
+        page=1,
+        page_size=20,
+        intake_disposition="ESCALATE_PENDING_APPROVAL",
+    )
+    assert total >= 1
+    assert all(r.intake_disposition == "ESCALATE_PENDING_APPROVAL" for r in rows)
+    assert any(r.complaint_id == pending.complaint_id for r in rows)
+
+
+def test_api_515_second_decision_invalid_state(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Second decision",
+            description="Ajuan eskalasi: second decision guard",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for second decision invalid-state guard."
+            ),
+        ),
+        request_id="esc-second-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(decision="APPROVE"),
+        actor_id="supervisor-1",
+    )
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="APPROVE"),
+            actor_id="supervisor-1",
+        )

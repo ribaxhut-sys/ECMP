@@ -4,3 +4,4 @@ export { AuthenticatedShell } from "./AuthenticatedShell";
 export { RequireAuth } from "./RequireAuth";
 export { APP_NAV_ITEMS, APP_NAV_GROUPS } from "./nav";
 export type { NavItem, NavGroup } from "./nav";
+export { B0_NAV_ITEMS, B0_NAV_GROUPS } from "./b0Nav";

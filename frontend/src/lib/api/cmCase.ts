@@ -1,8 +1,8 @@
 /**
- * CAP-008 Case Management Mode A API client — FRD-CM-B2-001 / API-530…535.
+ * CAP-008 Case Management Mode A API client — FRD-CM-B2-001 / API-530…536.
  *
  * Dual SoT Aggregate `/api/v1/cm/cases`. Not interchangeable with foundation
- * complaints or Sprint case-service. No List/Timeline endpoints in Mode A.
+ * complaints or Sprint case-service.
  */
 import { apiRequest } from "./client";
 import {
@@ -10,7 +10,7 @@ import {
   cmCasePaths,
   type CmCaseMutateOptions,
 } from "./cmCaseContract";
-import type { DataResponse } from "./types";
+import type { DataResponse, ListResponse } from "./types";
 
 export {
   CM_CASE_BASE,
@@ -48,6 +48,21 @@ export interface CmCaseResolution {
   decidedBy?: string | null;
   decidedAt?: string | null;
   rejectionReason?: string | null;
+}
+
+export interface CmCaseSummary {
+  caseId: string;
+  caseNumber: string;
+  complaintId: string;
+  status: CmCaseStatus;
+  caseType?: string | null;
+  category?: string | null;
+  priority?: string | null;
+  subject?: string | null;
+  owningUnitId?: string | null;
+  customerId?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
 }
 
 export interface CmCase {
@@ -169,6 +184,25 @@ export function fetchCmCase(
       method: "GET",
     }),
   );
+}
+
+/** API-536 — GET /api/v1/cm/cases (DEC-024 visibility-scoped list). */
+export function fetchCmCases(options?: {
+  page?: number;
+  pageSize?: number;
+  complaintId?: string;
+  status?: string;
+}): Promise<ListResponse<CmCaseSummary>> {
+  const params = new URLSearchParams();
+  params.set("page", String(options?.page ?? 1));
+  params.set("pageSize", String(options?.pageSize ?? 20));
+  if (options?.complaintId?.trim()) {
+    params.set("complaintId", options.complaintId.trim());
+  }
+  if (options?.status?.trim()) {
+    params.set("status", options.status.trim());
+  }
+  return apiRequest(`${cmCasePaths().cases}?${params.toString()}`);
 }
 
 export function updateCmCaseStatus(

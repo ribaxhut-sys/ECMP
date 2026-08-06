@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import type { CmCase } from "@/lib/api/cmCase";
+import type { CmCase, CmCaseSummary } from "@/lib/api/cmCase";
 import { cn } from "@/shared/utils";
 import {
   Card,
@@ -17,7 +17,7 @@ export function CaseSummaryCard({
   caseData,
   href,
 }: {
-  caseData: CmCase;
+  caseData: CmCase | CmCaseSummary;
   href?: string;
 }) {
   const t = useTranslations("cases");
@@ -29,7 +29,9 @@ export function CaseSummaryCard({
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-[var(--ecmp-form-gap)]">
         <div className="min-w-0 space-y-1">
           <CardTitle className="truncate">{caseData.caseNumber}</CardTitle>
-          <CardDescription className="truncate">{caseData.subject}</CardDescription>
+          <CardDescription className="truncate">
+            {caseData.subject?.trim() || "—"}
+          </CardDescription>
         </div>
         <CaseStatusBadge status={caseData.status} />
       </CardHeader>
@@ -39,13 +41,17 @@ export function CaseSummaryCard({
             <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
               {t("type")}
             </dt>
-            <dd className="text-ecmp-text-primary">{caseData.caseType}</dd>
+            <dd className="text-ecmp-text-primary">
+              {caseData.caseType?.trim() || "—"}
+            </dd>
           </div>
           <div className="space-y-1">
             <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
               {t("priority")}
             </dt>
-            <dd className="text-ecmp-text-primary">{caseData.priority}</dd>
+            <dd className="text-ecmp-text-primary">
+              {caseData.priority?.trim() || "—"}
+            </dd>
           </div>
           <div className="space-y-1">
             <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
@@ -57,7 +63,9 @@ export function CaseSummaryCard({
             <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
               {t("customer")}
             </dt>
-            <dd className="truncate text-ecmp-text-primary">{caseData.customerId}</dd>
+            <dd className="truncate text-ecmp-text-primary">
+              {caseData.customerId ?? "—"}
+            </dd>
           </div>
         </dl>
         <Link

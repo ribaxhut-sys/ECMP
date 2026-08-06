@@ -27,10 +27,6 @@ const FRONTEND_ROOT = path.resolve(__dirname, "..");
 /** App Router pages that own Mode A local credential AuthN UX (FE-ARCH §5.3). */
 export const MODE_A_CREDENTIAL_ROUTES = Object.freeze([
   "src/app/login/page.tsx",
-  "src/app/forgot-password/page.tsx",
-  "src/app/reset-password/page.tsx",
-  "src/app/change-password/page.tsx",
-  "src/app/(app)/profile/security/change-password/page.tsx",
 ]);
 
 export function resolveMode(argv) {

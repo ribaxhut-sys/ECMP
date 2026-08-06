@@ -1,2 +1,2 @@
-/** Canonical route for mandatory and self-service password change. */
-export const PASSWORD_CHANGE_ROUTE = "/profile/security/change-password";
+/** Mode A local credential AuthN routes (login / recovery). Change-password UI retired. */
+export const LOGIN_ROUTE = "/login";

@@ -62,7 +62,12 @@ describe("StagingAttachmentsPanel", () => {
       },
     });
 
-    renderWithProviders(<StagingAttachmentsPanel stagingToken="STG-panel" />);
+    renderWithProviders(
+      <StagingAttachmentsPanel
+        stagingToken="STG-panel"
+        customerId="CUST-LAB-001"
+      />,
+    );
     expect(screen.getByTestId("staging-empty")).toBeInTheDocument();
 
     const file = new File(["x"], "shot.png", { type: "image/png" });
@@ -71,6 +76,10 @@ describe("StagingAttachmentsPanel", () => {
 
     await waitFor(() => {
       expect(uploadCmBatch1Attachment).toHaveBeenCalled();
+    });
+    expect(uploadCmBatch1Attachment.mock.calls[0]?.[0]).toMatchObject({
+      customerId: "CUST-LAB-001",
+      stagingToken: "STG-panel",
     });
     expect(screen.getByTestId("staging-item-att-staged-1")).toBeInTheDocument();
     expect(screen.getByText("shot.png")).toBeInTheDocument();
@@ -107,7 +116,12 @@ describe("StagingAttachmentsPanel", () => {
       },
     });
 
-    renderWithProviders(<StagingAttachmentsPanel stagingToken="STG-panel" />);
+    renderWithProviders(
+      <StagingAttachmentsPanel
+        stagingToken="STG-panel"
+        customerId="CUST-LAB-001"
+      />,
+    );
     const file = new File(["x"], "doc.pdf", { type: "application/pdf" });
     await user.upload(screen.getByLabelText("Choose file to stage"), file);
     await waitFor(() => {

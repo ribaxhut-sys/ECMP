@@ -25,6 +25,8 @@ class MinimalCustomer:
     reference_number: str
     display_name: str
     status: str = "ACTIVE"
+    phone: str = ""
+    email: str = ""
 
 
 @dataclass(frozen=True)

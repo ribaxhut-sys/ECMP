@@ -19,6 +19,9 @@
 | Related UAT | TC-CAT-CM-F4-001 |
 | Related OpenAPI | `07 API Catalog/openapi/complaint-management-esc-res.v1.yaml` |
 | Does not modify | FRD-CM-001 v1.1 LOCKED |
+| Related Governance Baseline | `docs/governance/BC-000-Business-Constitution.md`; `docs/governance/BC-001-Business-Principles.md`; `docs/governance/BC-002-Business-Rules.md`; `docs/governance/BC-003-Business-Glossary.md`; `docs/business/BW-000-Business-Workflow-Constitution.md` |
+| Precedence | If this Draft conflicts with the approved Mode A governance baseline (BC-000…BC-003, BW-000), **the baseline prevails**. |
+| Mode A delivery note | **Not** CAP-008 Mode A delivery SoT (FRD-CM-B2-001). Escalation Engine full / DEC-F4 detail delivery remains outside CAP-008 Mode A surface; `PENDING`/`ESCALATED` labels remain non-exposed (BQ-009 / BW DG-08). |
 
 ---
 
@@ -40,8 +43,8 @@ Define Draft functional requirements for:
 | Dependency | Requirement |
 |---|---|
 | Case exists under Complaint Aggregate | Case create/assignment MUST exist (Batch 2+ / foundation Case path). This FRD does **not** redefine Case create. |
-| DEC-F4 | Normative business decisions F4…F4.5 + F4-OQ-01/02 |
-| BR-007 / BR-008 | Normative business rules (Draft catalog) |
+| DEC-F4 | **Provisional** workshop/catalog decisions F4…F4.5 + F4-OQ-01/02 — **not** Mode A Business Rules force until Architecture Board countersign (align BC-7.3 / BR-ESC-003; DL-012 PENDING). Path Branch ↔ Head Office remains binding. |
+| BR-007 / BR-008 | Catalog business rules (F4 detail sections provisional for Mode A force) |
 | Identity / org claims | `branch_id` (and related) available for authorization |
 
 ### 1.3 Quality rules
@@ -72,15 +75,18 @@ Define Draft functional requirements for:
 
 ### Out of scope
 
-- Regional escalation path
+- Regional escalation path (**Out of Scope for Mode A**; BC-7.1)
 - Complaint Closure aggregate rules beyond Case resolve side-effects (BR-009 detail remains separate)
 - SSO protocol selection
 - Batch 1 intake redesign
 - Implementation against foundation complaint escalate APIs (API-207/301…) — separate namespace under DEC-020 coexistence (not interchangeable with Aggregate `/api/v1/cm`)
+- Treating this Draft as CAP-008 Mode A delivery SoT or as mandatory Mode A enforcement of DEC-F4 detail before countersign
 
 ---
 
 ## 3. Actors
+
+> Legacy Branch Agent / Pusat Handler labels below map to **Complaint Officer** situational modes where applicable (BC-8). Content of capabilities is unchanged.
 
 | Actor | Capabilities in this FRD |
 |---|---|
@@ -308,6 +314,7 @@ F4-OQ-01 and F4-OQ-02 are **Closed** (see §1.4).
 | Version | Date | Notes |
 |---|---|---|
 | 0.1 | 2026-07-29 | Draft from DEC-F4 + outline; OQ-01/02 closed |
+| 0.1 + align | 2026-08-05 | Alignment P-05/P-06/P-08: DEC-F4 “Normative” → provisional (BR-ESC-003); not CAP-008 Mode A SoT; BC/BW precedence; Regional OOS Mode A note. **Draft content retained; no FR redesign.** |
 
 ---
 
