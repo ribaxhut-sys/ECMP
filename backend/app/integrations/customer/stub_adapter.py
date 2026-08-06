@@ -16,16 +16,16 @@ from app.integrations.customer.types import (
 _SEED: tuple[MinimalCustomer, ...] = (
     MinimalCustomer(
         customer_id="CUST-10001",
-        customer_number="CN-10001",
-        identity_number="ID-10001",
-        reference_number="REF-10001",
+        customer_number="CN-10000001",
+        identity_number="ID-10000001",
+        reference_number="REF-10000001",
         display_name="Synthetic Customer One",
     ),
     MinimalCustomer(
         customer_id="CUST-10002",
-        customer_number="CN-10002",
-        identity_number="ID-10002",
-        reference_number="REF-10002",
+        customer_number="CN-10000002",
+        identity_number="ID-10000002",
+        reference_number="REF-10000002",
         display_name="Synthetic Customer Two",
     ),
     # Ambiguous identity shared by two records when searching a special key.

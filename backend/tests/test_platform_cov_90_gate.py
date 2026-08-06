@@ -386,12 +386,12 @@ def test_master_customer_stub_search_paths() -> None:
     assert stub.available is False
     stub.available = True
     assert stub.search() == []
-    found = stub.search(customer_number="CN-10001")
+    found = stub.search(customer_number="CN-10000001")
     assert found
     assert stub.search(identity_number="ID-MISSING-XYZ") == []
     # Ambiguous / unavailable via force-unavailable
     stub.available = False
-    assert stub.search(customer_number="CN-10001") == []
+    assert stub.search(customer_number="CN-10000001") == []
     stub.available = True
     cust = stub.get("CUST-10001")
     assert cust is not None or cust is None  # both acceptable depending on seed ids

@@ -93,7 +93,7 @@ def persistent_service(db_session: Session) -> CmBatch1Service:
 
 def test_tc_cm_fr002_01_unique_customer_number(service: CmBatch1Service) -> None:
     result = service.search_customer(
-        CustomerSearchRequest(customerNumber="CN-10001"),
+        CustomerSearchRequest(customerNumber="CN-10000001"),
         principal_key="p1",
     )
     assert result.verification_status == "verified"
@@ -152,7 +152,7 @@ def test_tc_cm_fr002_05_strict_unavailable(store: Batch1Store) -> None:
     )
     with pytest.raises(ValidationAppError):
         svc.search_customer(
-            CustomerSearchRequest(customerNumber="CN-10001"),
+            CustomerSearchRequest(customerNumber="CN-10000001"),
             principal_key="p1",
         )
 
@@ -160,7 +160,7 @@ def test_tc_cm_fr002_05_strict_unavailable(store: Batch1Store) -> None:
 def test_tc_cm_fr002_07_two_keys_rejected(service: CmBatch1Service) -> None:
     with pytest.raises(ValidationAppError) as exc:
         service.search_customer(
-            CustomerSearchRequest(customerNumber="CN-10001", identityNumber="ID-10001"),
+            CustomerSearchRequest(customerNumber="CN-10000001", identityNumber="ID-10000001"),
             principal_key="p1",
         )
     assert "Tepat satu" in exc.value.message
@@ -183,7 +183,7 @@ def test_tc_cm_fr002_08_enumeration_blocks(service: CmBatch1Service) -> None:
 
 def test_tc_cm_fr002_09_as_of_present(service: CmBatch1Service) -> None:
     result = service.search_customer(
-        CustomerSearchRequest(customerNumber="CN-10001"),
+        CustomerSearchRequest(customerNumber="CN-10000001"),
         principal_key="p1",
     )
     assert result.as_of is not None
@@ -475,7 +475,7 @@ def api_client(service: CmBatch1Service) -> Generator[TestClient, None, None]:
 def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
     search = api_client.post(
         "/api/v1/cm/customers/search",
-        json={"customerNumber": "CN-10001"},
+        json={"customerNumber": "CN-10000001"},
     )
     assert search.status_code == 200, search.text
     body = search.json()["data"]
