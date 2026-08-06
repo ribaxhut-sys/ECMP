@@ -1053,8 +1053,6 @@
     "statusOpen": "Terbuka",
     "statusClosed": "Ditutup",
     "awaitingApproval": "Menunggu persetujuan",
-    "escalationApproved": "Eskalasi disetujui",
-    "escalationRejected": "Eskalasi ditolak",
     "intakeDispositionFilterAll": "Semua situasi intake",
     "intakeDispositionFilter": "Situasi intake",
     "approveEscalation": "Setujui",
@@ -1593,8 +1591,6 @@
     "matchDelayed": "Kecocokan ditunda",
     "matchBlocked": "Kecocokan diblokir",
     "matchAlerted": "Kecocokan ditandai untuk ditinjau",
-    "statusOpen": "Terbuka",
-    "statusClosed": "Ditutup",
     "reasonDuplicateCheckLimited": "Pemeriksaan duplikat terbatas",
     "reasonAttachmentBindFailed": "Pengikatan lampiran gagal"
   },

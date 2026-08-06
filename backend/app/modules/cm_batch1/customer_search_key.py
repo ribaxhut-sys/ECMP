@@ -60,7 +60,10 @@ def validate_customer_search_key(raw: str) -> SearchKeyValidation:
     if kind == "name":
         if len(q) < MIN_NAME_CHARS:
             return SearchKeyValidation(
-                ok=False, kind=kind, digit_count=len(digits), error_code="customer.search_name_too_short"
+                ok=False,
+                kind=kind,
+                digit_count=len(digits),
+                error_code="customer.search_name_too_short",
             )
         return SearchKeyValidation(ok=True, kind=kind, digit_count=len(digits))
 

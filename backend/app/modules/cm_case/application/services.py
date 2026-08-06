@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
+from app.core.authorization.principal import Principal
 from app.modules.audit.repository import AuditRepository
 from app.modules.audit.service import AuditService
 from app.modules.cm_case.application.dto import (
@@ -25,7 +26,6 @@ from app.modules.cm_case.application.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
     resolve_case_visibility,
 )
-from app.core.authorization.principal import Principal
 from app.modules.cm_case.domain import errors as err
 from app.modules.cm_case.domain.aggregate import CaseAggregate, ResolutionRecord
 from app.modules.cm_case.domain.repositories import CaseRepository

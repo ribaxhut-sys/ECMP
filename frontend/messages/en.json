@@ -1067,8 +1067,6 @@
     "statusOpen": "Open",
     "statusClosed": "Closed",
     "awaitingApproval": "Awaiting approval",
-    "escalationApproved": "Escalation approved",
-    "escalationRejected": "Escalation rejected",
     "intakeDispositionFilterAll": "All intake situations",
     "intakeDispositionFilter": "Intake situation",
     "approveEscalation": "Approve",
@@ -1593,8 +1591,6 @@
     "matchDelayed": "Match delayed",
     "matchBlocked": "Match blocked",
     "matchAlerted": "Match flagged for review",
-    "statusOpen": "Open",
-    "statusClosed": "Closed",
     "reasonDuplicateCheckLimited": "Duplicate check limited",
     "reasonAttachmentBindFailed": "Attachment bind failed"
   },
