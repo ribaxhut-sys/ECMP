@@ -240,6 +240,7 @@ def test_resolver_cm_complaint_from_outbox_payload() -> None:
     complaint_id = uuid.uuid4()
     cm_row = MagicMock(spec=CmBatch1ComplaintORM)
     cm_row.id = complaint_id
+    cm_row.owning_unit_id = None
 
     session = MagicMock()
     session.get.return_value = cm_row
@@ -251,6 +252,19 @@ def test_resolver_cm_complaint_from_outbox_payload() -> None:
         }
     )
     assert OrgUnitResolver(session).resolve_cm_complaint(complaint_id) == "OU-SIT-01"
+
+
+def test_resolver_cm_complaint_prefers_owning_unit_column() -> None:
+    complaint_id = uuid.uuid4()
+    cm_row = MagicMock(spec=CmBatch1ComplaintORM)
+    cm_row.id = complaint_id
+    cm_row.owning_unit_id = "OU-COLUMN-01"
+
+    session = MagicMock()
+    session.get.return_value = cm_row
+    session.scalar.return_value = json.dumps({"recordingUnitId": "OU-OUTBOX-01"})
+    assert OrgUnitResolver(session).resolve_cm_complaint(complaint_id) == "OU-COLUMN-01"
+    session.scalar.assert_not_called()
 
 
 def test_resolver_cm_complaint_not_found() -> None:

@@ -16,10 +16,12 @@ import { Empty, Select, Skeleton, Timeline } from "@/shared/ui";
 import { resolveActivityMeta } from "./activityLabels";
 import {
   actorInitials,
+  branchOptionLabel,
   DASHBOARD_CAPTION,
   DASHBOARD_SECTION_TITLE,
   DASHBOARD_SURFACE_QUIET,
   formatRelativeTime,
+  sortBranchesHeadOfficeFirst,
 } from "./dashboardUtils";
 
 const RECENT_ACTIVITY_LIMIT = 10;
@@ -71,9 +73,9 @@ export function RecentActivity() {
 
   const branchOptions = [
     { value: "", label: t("recentActivityAllBranches") },
-    ...branches.map((branch) => ({
+    ...sortBranchesHeadOfficeFirst(branches).map((branch) => ({
       value: branch.id,
-      label: `${branch.code} — ${branch.name}`,
+      label: branchOptionLabel(branch),
     })),
   ];
 
@@ -96,7 +98,7 @@ export function RecentActivity() {
             options={branchOptions}
             value={branchId}
             onChange={(e) => setBranchId(e.target.value)}
-            className="min-w-[12rem]"
+            className="w-full max-w-[14rem] truncate"
           />
         ) : null}
       </div>

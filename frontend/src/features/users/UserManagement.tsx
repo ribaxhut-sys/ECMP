@@ -100,9 +100,8 @@ export function UserManagement() {
     }
 
     // Branch reference list is only needed for cosmetic unit labels
-    // (unitLabelByBranchId). It requires complaints:read, which branch-scoped
-    // personas without complaint operational access (e.g. Manager, BC-8.4)
-    // never have — that must not block the primary directory listing above.
+    // (unitLabelByBranchId). Accessible with users:read (MANAGER) or
+    // complaints:read — failure must not block the primary directory listing.
     try {
       const branchRes = await fetchBranches(100);
       setBranches(branchRes.data);

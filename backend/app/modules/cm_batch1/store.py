@@ -10,6 +10,10 @@ import uuid
 from datetime import UTC, datetime
 from threading import Lock
 
+from app.core.authorization.visibility import (
+    DEFAULT_PUSAT_UNIT_CODES,
+    complaint_visible_for_pusat,
+)
 from app.modules.cm_batch1.entities import (
     ComplaintAggregate,
     DuplicateDecisionRecord,
@@ -185,6 +189,7 @@ class Batch1Store:
         channel_message_id: str | None,
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
+        owning_unit_id: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         with self._lock:
             by_req_rec = self._idempotency.get(request_id)
@@ -252,6 +257,7 @@ class Batch1Store:
             if initial_status not in {"REGISTERED", "CLOSED"}:
                 initial_status = "REGISTERED"
             disposition = (intake_disposition or "").strip().upper() or None
+            unit = (owning_unit_id or "").strip() or None
             row = ComplaintAggregate(
                 complaint_id=complaint_id,
                 complaint_number=complaint_number,
@@ -263,6 +269,7 @@ class Batch1Store:
                 priority=priority,
                 status=initial_status,
                 intake_disposition=disposition,
+                owning_unit_id=unit,
                 created_by=created_by,
                 case_created=False,
             )
@@ -473,11 +480,42 @@ class Batch1Store:
         intake_disposition: str | None = None,
         created_by: str | None = None,
         decided_by: str | None = None,
+        visibility: str | None = None,
+        actor_id: str | None = None,
+        org_unit_id: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
     ) -> tuple[list[ComplaintAggregate], int]:
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
         with self._lock:
             rows = list(self._complaints.values())
+            vis = (visibility or "ALL").strip().upper()
+            codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+            if vis == "ALL":
+                pass
+            elif vis == "SELF":
+                actor = (actor_id or "").strip()
+                if not actor:
+                    return [], 0
+                rows = [c for c in rows if (c.created_by or "") == actor]
+            elif vis == "UNIT":
+                unit = (org_unit_id or "").strip()
+                if not unit:
+                    return [], 0
+                rows = [c for c in rows if (c.owning_unit_id or "") == unit]
+            elif vis == "PUSAT":
+                rows = [
+                    c
+                    for c in rows
+                    if complaint_visible_for_pusat(
+                        owning_unit_id=c.owning_unit_id,
+                        intake_disposition=c.intake_disposition,
+                        hq_accepted_at=c.hq_accepted_at,
+                        pusat_unit_codes=codes,
+                    )
+                ]
+            else:
+                return [], 0
             kw = (keyword or "").strip().lower()
             if kw:
                 rows = [

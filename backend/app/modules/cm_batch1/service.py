@@ -8,6 +8,11 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol
 
+from app.core.authorization.principal import Principal
+from app.core.authorization.visibility import (
+    DEFAULT_PUSAT_UNIT_CODES,
+    resolve_row_visibility,
+)
 from app.core.errors import (
     InvalidStateError,
     NotFoundError,
@@ -132,6 +137,7 @@ class CmBatch1StoreProtocol(Protocol):
         channel_message_id: str | None,
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
+        owning_unit_id: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]: ...
 
     def commit(self) -> None: ...
@@ -193,6 +199,10 @@ class CmBatch1StoreProtocol(Protocol):
         intake_disposition: str | None = None,
         created_by: str | None = None,
         decided_by: str | None = None,
+        visibility: str | None = None,
+        actor_id: str | None = None,
+        org_unit_id: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
     ) -> tuple[list[ComplaintAggregate], int]: ...
 
     def work_stats_for_user(self, user_key: str) -> dict[str, int]: ...
@@ -781,6 +791,7 @@ class CmBatch1Service:
         actor_id: str | None,
         principal_key: str | None = None,
         authorize_replay: Callable[[str], None] | None = None,
+        owning_unit_id: str | None = None,
     ) -> ComplaintBatch1Response:
         if not request_id or not request_id.strip():
             raise ValidationAppError(m("common.idempotency_key_required"))
@@ -885,6 +896,7 @@ class CmBatch1Service:
 
         dup_result = self._enforce_duplicate_on_create(body)
 
+        unit = (owning_unit_id or body.recording_unit_id or "").strip() or None
         row, created = self._store.create(
             customer_id=customer_id,
             category=body.category.strip(),
@@ -897,6 +909,7 @@ class CmBatch1Service:
             channel_message_id=cleaned_channel,
             status=initial_status,
             intake_disposition=intake_disposition,
+            owning_unit_id=unit,
         )
         assert row.case_created is False
 
@@ -920,7 +933,7 @@ class CmBatch1Service:
                 channel_message_id=cleaned_channel,
                 actor_id=actor_id,
                 created_at=row.created_at,
-                recording_unit_id=body.recording_unit_id,
+                recording_unit_id=unit or body.recording_unit_id,
                 note=parsed_intake.narrative or None,
                 priority=row.priority,
             )
@@ -1372,7 +1385,22 @@ class CmBatch1Service:
         intake_disposition: str | None = None,
         created_by: str | None = None,
         decided_by: str | None = None,
+        principal: Principal | None = None,
+        org_unit_id: str | None = None,
     ) -> tuple[list[ComplaintBatch1Response], int]:
+        if principal is not None:
+            visibility = resolve_row_visibility(principal).value
+            actor_id = str(principal.user_id)
+            effective_org = (
+                org_unit_id
+                if org_unit_id is not None
+                else principal.org_unit_id
+            )
+        else:
+            # Unit-test / internal callers without a principal see all rows.
+            visibility = "ALL"
+            actor_id = None
+            effective_org = org_unit_id
         rows, total = self._store.list_complaints(
             page=page,
             page_size=page_size,
@@ -1383,6 +1411,10 @@ class CmBatch1Service:
             intake_disposition=intake_disposition,
             created_by=created_by,
             decided_by=decided_by,
+            visibility=visibility,
+            actor_id=actor_id,
+            org_unit_id=effective_org,
+            pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
         )
         labels = self._customer_labels_for(
             {row.customer_id for row in rows if row.customer_id}
@@ -1489,6 +1521,7 @@ class CmBatch1Service:
             hqArrivalTime=row.hq_arrival_time,
             hqAcceptanceNote=parsed.hq_acceptance_note,
             hqArrivalNote=parsed.hq_arrival_note,
+            owningUnitId=row.owning_unit_id,
             priority=row.priority,
             createdAt=row.created_at,
         )

@@ -1,5 +1,6 @@
 import { apiRequest } from "./client";
 import type {
+  DashboardAggregateKpis,
   DashboardRecentActivityItem,
   DashboardSummary,
   DashboardTrends,
@@ -12,6 +13,22 @@ export function fetchDashboardSummary(): Promise<
 > {
   return apiRequest<DataResponse<DashboardSummary>>(
     "/api/v1/dashboard/overview",
+  );
+}
+
+/**
+ * DEC-020 — GET /api/v1/dashboard/aggregate-kpis.
+ * Gated by dashboard:read (not complaints:read). Branch-scoped principals
+ * are locked server-side to their own branch.
+ */
+export function fetchDashboardAggregateKpis(
+  options: { branchId?: string } = {},
+): Promise<DataResponse<DashboardAggregateKpis>> {
+  const params = new URLSearchParams();
+  if (options.branchId) params.set("branchId", options.branchId);
+  const qs = params.toString();
+  return apiRequest<DataResponse<DashboardAggregateKpis>>(
+    `/api/v1/dashboard/aggregate-kpis${qs ? `?${qs}` : ""}`,
   );
 }
 

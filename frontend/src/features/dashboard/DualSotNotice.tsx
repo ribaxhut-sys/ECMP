@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import { DASHBOARD_CAPTION, DASHBOARD_SURFACE_QUIET } from "./dashboardUtils";
 
 /**
@@ -14,7 +15,10 @@ export function DualSotNotice({
   complaintKpiSource: "aggregate" | "foundation" | null;
 }) {
   const t = useTranslations("dashboard");
+  const { hasPermission } = useAuth();
   const fromAggregate = complaintKpiSource === "aggregate";
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
 
   return (
     <aside
@@ -30,13 +34,18 @@ export function DualSotNotice({
         </span>{" "}
         {fromAggregate
           ? t("dualSotKpiAggregateBody")
-          : t("dualSotNoticeBody")}{" "}
-        <Link
-          href={fromAggregate ? "/complaints/cm" : "/complaints"}
-          className="font-medium text-ecmp-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
-        >
-          {t("dualSotNoticeLink")}
-        </Link>
+          : t("dualSotNoticeBody")}
+        {canOpenComplaintList ? (
+          <>
+            {" "}
+            <Link
+              href={fromAggregate ? "/complaints/cm" : "/complaints"}
+              className="font-medium text-ecmp-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+            >
+              {t("dualSotNoticeLink")}
+            </Link>
+          </>
+        ) : null}
       </p>
     </aside>
   );

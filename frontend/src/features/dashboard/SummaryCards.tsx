@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import type {
   DashboardHeader,
   DashboardSlaSummary,
@@ -105,6 +106,11 @@ export function SummaryCards({
   const router = useRouter();
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
+  const { hasPermission } = useAuth();
+  // Aggregate list (/complaints/cm) requires complaints:read. MANAGER KPI
+  // cards use dashboard:read only — do not deep-link into a 403 list.
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
 
   if (loading) {
     return (
@@ -181,11 +187,16 @@ export function SummaryCards({
             // /queue reads /api/v1/complaints/search — foundation-only. When
             // the hero number is Aggregate-sourced (DEC-020), send people to
             // where those complaints actually live instead of an empty
-            // foundation list.
-            onActivate={() =>
-              router.push(
-                complaintKpiSource === "aggregate" ? "/complaints/cm" : "/queue",
-              )
+            // foundation list — only if they hold complaints:read.
+            onActivate={
+              complaintKpiSource === "aggregate" && !canOpenComplaintList
+                ? undefined
+                : () =>
+                    router.push(
+                      complaintKpiSource === "aggregate"
+                        ? "/complaints/cm"
+                        : "/queue",
+                    )
             }
             trailing={
               trend && trend.length > 1 ? (

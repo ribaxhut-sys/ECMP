@@ -20,6 +20,7 @@ from app.main import create_app
 from app.models import User
 from app.modules.dashboard.domain.dto import TrendPeriod
 from app.modules.dashboard.router import (
+    get_dashboard_aggregate_kpis,
     get_dashboard_kpi,
     get_dashboard_notifications,
     get_dashboard_overview,
@@ -31,6 +32,7 @@ from app.modules.dashboard.router import (
     get_dashboard_trends,
 )
 from app.modules.dashboard.schemas import (
+    DashboardAggregateKpiResponse,
     DashboardComplaintSummaryResponse,
     DashboardKpiResponse,
     DashboardNotificationsResponse,
@@ -229,6 +231,44 @@ def test_summary_branch_scoped_principal_locked_to_own_branch() -> None:
     assert called_filters.branch_id == own_branch
 
 
+def test_aggregate_kpis_branch_scoped_principal_locked_to_own_branch() -> None:
+    """MANAGER Aggregate KPI cannot be widened via branchId query param."""
+    svc = MagicMock()
+    svc.aggregate_kpis.return_value = DashboardAggregateKpiResponse(
+        total=1, open=1, closed=0, escalatePending=1
+    )
+    principal = Principal(user_id=uuid.uuid4(), roles=("MANAGER",))
+    own_branch = uuid.uuid4()
+    other_branch = uuid.uuid4()
+    session = MagicMock()
+    session.scalar.return_value = own_branch
+
+    get_dashboard_aggregate_kpis(
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=other_branch,
+    )
+
+    svc.aggregate_kpis.assert_called_once_with(branch_id=own_branch)
+
+
+def test_aggregate_kpis_head_office_defaults_to_all_branches() -> None:
+    svc = MagicMock()
+    svc.aggregate_kpis.return_value = DashboardAggregateKpiResponse(
+        total=0, open=0, closed=0, escalatePending=0
+    )
+    principal = Principal(user_id=uuid.uuid4(), roles=("ADMIN",))
+    session = MagicMock()
+    session.scalar.return_value = None
+
+    get_dashboard_aggregate_kpis(
+        service=svc, principal=principal, session=session, branch_id=None
+    )
+
+    svc.aggregate_kpis.assert_called_once_with(branch_id=None)
+
+
 def test_overview_router_handler() -> None:
     from app.modules.dashboard.schemas import (
         DashboardHeader,
@@ -344,10 +384,18 @@ def test_capability013_endpoints_shape(
         "/api/v1/dashboard/trends?period=7d",
         "/api/v1/dashboard/kpi",
         "/api/v1/dashboard/overview",
+        "/api/v1/dashboard/aggregate-kpis",
     ):
         resp = client.get(path, headers=auth_header)
         assert resp.status_code == 200, path
         assert "data" in resp.json()
+
+    aggregate = client.get(
+        "/api/v1/dashboard/aggregate-kpis", headers=auth_header
+    ).json()["data"]
+    for key in ("total", "open", "closed", "escalatePending"):
+        assert key in aggregate
+        assert isinstance(aggregate[key], int)
 
     summary = client.get(
         "/api/v1/dashboard/summary", headers=auth_header

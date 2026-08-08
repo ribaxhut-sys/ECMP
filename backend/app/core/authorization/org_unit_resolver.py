@@ -1,9 +1,9 @@
 """OrgUnitResolver — single resource → organization-unit lookup (SECMIG-P4).
 
 Endpoints must not implement ad-hoc org lookup. All G1 org binding goes through
-this component. No database schema redesign: Complaint uses ``Branch.code``;
-CM Batch 1 uses ``recordingUnitId`` recorded on ``ComplaintCreated`` outbox
-payload (JSON), or a declared unit supplied at create time.
+this component. Complaint uses ``Branch.code``; CM Batch 1 prefers column
+``owning_unit_id``, falling back to ``recordingUnitId`` on ``ComplaintCreated``
+outbox payload (JSON) for rows created before the column existed.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ class OrgUnitResolver:
             return None
 
     def resolve_cm_complaint(self, complaint_id: str | uuid.UUID) -> str | None:
-        """Map CM Batch 1 complaint → recordingUnitId from ComplaintCreated outbox."""
+        """Map CM Batch 1 complaint → owning_unit_id (column), else outbox JSON."""
         aggregate_id = str(complaint_id).strip()
         if not aggregate_id:
             raise NotFoundError(m("complaint.not_found"))
@@ -90,6 +90,10 @@ class OrgUnitResolver:
             row = None
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
+
+        from_column = self.normalize(row.owning_unit_id)
+        if from_column:
+            return from_column
 
         stmt = (
             select(CmBatch1OutboxORM.payload_json)

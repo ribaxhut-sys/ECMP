@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import type { DashboardSlaSummary, StatusCount } from "@/lib/api/types";
 import { IconChevronRight, IconCheck } from "@/shared/icons";
 import { Skeleton } from "@/shared/ui";
@@ -20,7 +21,7 @@ type AlertRow = {
   id: string;
   tone: OpsTone;
   title: string;
-  href: string;
+  href: string | null;
 };
 
 export function CriticalAlerts({
@@ -36,13 +37,21 @@ export function CriticalAlerts({
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
+  const { hasPermission } = useAuth();
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
   // /resolutions reads the foundation Complaint aggregate only —
   // Aggregate-sourced (cm_batch1) counts have nowhere to land there (Batch-1
   // assignment workflow is DEFERRED, GOV-MODEA-NEXT-001 M4). SLA breach
   // alerts stay foundation-linked below since sla.* is always
-  // foundation-sourced regardless of complaintKpiSource.
+  // foundation-sourced regardless of complaintKpiSource. MANAGER sees
+  // Aggregate KPI via dashboard:read only — no deep-link into a 403 list.
   const isAggregate = complaintKpiSource === "aggregate";
-  const escalationHref = isAggregate ? "/complaints/cm/supervisor" : "/resolutions";
+  const escalationHref = isAggregate
+    ? canOpenComplaintList
+      ? "/complaints/cm/supervisor"
+      : null
+    : "/resolutions";
 
   if (loading) {
     return (
@@ -131,28 +140,53 @@ export function CriticalAlerts({
         <ul className="mt-3 flex-1 space-y-1">
           {alerts.map((alert) => (
             <li key={alert.id}>
-              <button
-                type="button"
-                onClick={() => activate(alert.href)}
-                className={`${DASHBOARD_HOVER_ROW} flex w-full items-center gap-3 rounded-[var(--ecmp-radius-md)] px-2 py-2.5 text-left`}
-              >
-                <span
-                  className={`h-8 w-0.5 shrink-0 rounded-full ${OPS_TONE_RAIL[alert.tone]}`}
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-ecmp-text-primary">
-                    {alert.title}
+              {alert.href ? (
+                <button
+                  type="button"
+                  onClick={() => activate(alert.href!)}
+                  className={`${DASHBOARD_HOVER_ROW} flex w-full items-center gap-3 rounded-[var(--ecmp-radius-md)] px-2 py-2.5 text-left`}
+                >
+                  <span
+                    className={`h-8 w-0.5 shrink-0 rounded-full ${OPS_TONE_RAIL[alert.tone]}`}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-medium text-ecmp-text-primary">
+                      {alert.title}
+                    </span>
+                    <span
+                      className={`block ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[alert.tone]}`}
+                    >
+                      {alert.tone === "critical"
+                        ? t("kpiCritical")
+                        : t("kpiAttention")}
+                    </span>
                   </span>
-                  <span className={`block ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[alert.tone]}`}>
-                    {alert.tone === "critical" ? t("kpiCritical") : t("kpiAttention")}
+                  <IconChevronRight
+                    className="size-4 shrink-0 text-ecmp-text-secondary"
+                    aria-hidden
+                  />
+                </button>
+              ) : (
+                <div className="flex w-full items-center gap-3 rounded-[var(--ecmp-radius-md)] px-2 py-2.5">
+                  <span
+                    className={`h-8 w-0.5 shrink-0 rounded-full ${OPS_TONE_RAIL[alert.tone]}`}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-medium text-ecmp-text-primary">
+                      {alert.title}
+                    </span>
+                    <span
+                      className={`block ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[alert.tone]}`}
+                    >
+                      {alert.tone === "critical"
+                        ? t("kpiCritical")
+                        : t("kpiAttention")}
+                    </span>
                   </span>
-                </span>
-                <IconChevronRight
-                  className="size-4 shrink-0 text-ecmp-text-secondary"
-                  aria-hidden
-                />
-              </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -45,6 +45,10 @@ paths:
         Read-only list of CM Batch-1 Aggregate complaints (DEC-020 coexistence).
         Not interchangeable with foundation GET /api/v1/complaints.
         Enables agents to reopen REGISTERED complaints (detail, attachments).
+        Server applies DEC-024-style row visibility (SELF / UNIT / PUSAT / ALL):
+        Agent sees own creates; branch supervisor/manager sees owningUnitId = unit;
+        Pusat handlers see owningUnitId in Pusat codes OR ESCALATE_APPROVED OR
+        hqAcceptedAt set (DEC-024 OQ-2). Not a Mode B unlock.
       parameters:
         - name: page
           in: query
@@ -824,6 +828,12 @@ components:
           nullable: true
           description: |
             When set, Pusat has accepted/claimed — Batalkan Eskalasi blocked.
+        owningUnitId:
+          type: string
+          nullable: true
+          description: |
+            Organization unit key for the Aggregate (Branch.code or PUSAT).
+            Server-side list visibility SoT (DEC-024 pattern).
         priority:
           type: string
           nullable: true

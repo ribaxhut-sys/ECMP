@@ -18,6 +18,7 @@ from app.modules.dashboard.domain.dto import DashboardFilters, TrendPeriod
 from app.modules.dashboard.permissions import DASHBOARD_READ
 from app.modules.dashboard.registration import build_dashboard_service
 from app.modules.dashboard.schemas import (
+    DashboardAggregateKpiResponse,
     DashboardComplaintSummaryResponse,
     DashboardKpiResponse,
     DashboardNotificationsResponse,
@@ -88,6 +89,29 @@ def get_dashboard_summary(
             _filters(branch_id=branch_id, date_from=date_from, date_to=date_to)
         )
     )
+
+
+@router.get(
+    "/aggregate-kpis",
+    response_model=DataResponse[DashboardAggregateKpiResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Aggregate (CM Batch-1) complaint KPI counts (DEC-020)",
+)
+def get_dashboard_aggregate_kpis(
+    service: Annotated[DashboardService, Depends(get_dashboard_service)],
+    principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
+    branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
+) -> DataResponse[DashboardAggregateKpiResponse]:
+    """Branch-scoped Aggregate KPI for dashboard cards without ``complaints:read``.
+
+    Head Office (no own branch) may pick any branch or leave unset for all
+    branches. A branch-scoped principal (e.g. Manager, BC-8.4) is always locked
+    to their own branch — same ``_effective_branch_id`` convention as
+    recent-activity (UM-BUG-009).
+    """
+    branch_id = _effective_branch_id(session, principal, branch_id)
+    return DataResponse(data=service.aggregate_kpis(branch_id=branch_id))
 
 
 @router.get(

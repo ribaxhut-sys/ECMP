@@ -135,28 +135,26 @@ def test_complaint_ids_for_branch_returns_matching_ids() -> None:
     provider, *_ = _provider()
     session = provider._session
     branch_id = uuid.uuid4()
-    user_id = uuid.uuid4()
     complaint_id = uuid.uuid4()
-    member_result = MagicMock()
-    member_result.all.return_value = [user_id]
+    session.get.return_value = SimpleNamespace(code="UPPPD-A", deleted_at=None)
     complaint_result = MagicMock()
     complaint_result.all.return_value = [complaint_id]
-    session.scalars.side_effect = [member_result, complaint_result]
+    session.scalars.return_value = complaint_result
 
     ids = provider._complaint_ids_for_branch(branch_id)
     assert ids == {complaint_id}
+    session.get.assert_called_once()
+    session.scalars.assert_called_once()
 
 
-def test_complaint_ids_for_branch_short_circuits_when_no_members() -> None:
+def test_complaint_ids_for_branch_short_circuits_when_branch_missing() -> None:
     provider, *_ = _provider()
     session = provider._session
-    empty_result = MagicMock()
-    empty_result.all.return_value = []
-    session.scalars.return_value = empty_result
+    session.get.return_value = None
 
     ids = provider._complaint_ids_for_branch(uuid.uuid4())
     assert ids == set()
-    assert session.scalars.call_count == 1  # no second query when no members
+    session.scalars.assert_not_called()
 
 
 def test_list_recent_with_branch_id_filters_via_complaint_ids() -> None:
@@ -194,3 +192,45 @@ def test_list_recent_forwards_aggregate_type_and_limit() -> None:
     timeline.list_recent.assert_called_once_with(
         aggregate_type="Complaint", limit=7, aggregate_ids=None
     )
+
+
+def test_complaint_kpis_unrestricted_counts() -> None:
+    provider, *_ = _provider()
+    provider._count_complaints = MagicMock(side_effect=[5, 3, 2, 1])
+
+    kpis = provider.complaint_kpis(branch_id=None)
+
+    assert kpis.total == 5
+    assert kpis.open == 3
+    assert kpis.closed == 2
+    assert kpis.escalate_pending == 1
+    assert provider._count_complaints.call_count == 4
+    # First call is unrestricted (owning_unit_id=None)
+    assert provider._count_complaints.call_args_list[0].args[0] is None
+
+
+def test_complaint_kpis_branch_with_unknown_unit_is_zero() -> None:
+    provider, *_ = _provider()
+    provider._owning_unit_for_branch = MagicMock(return_value=None)
+    provider._count_complaints = MagicMock()
+
+    kpis = provider.complaint_kpis(branch_id=uuid.uuid4())
+
+    assert kpis.total == 0
+    assert kpis.open == 0
+    assert kpis.closed == 0
+    assert kpis.escalate_pending == 0
+    provider._count_complaints.assert_not_called()
+
+
+def test_complaint_kpis_branch_passes_owning_unit_scope() -> None:
+    provider, *_ = _provider()
+    provider._owning_unit_for_branch = MagicMock(return_value="UPPPD-A")
+    provider._count_complaints = MagicMock(return_value=0)
+    branch_id = uuid.uuid4()
+
+    provider.complaint_kpis(branch_id=branch_id)
+
+    provider._owning_unit_for_branch.assert_called_once_with(branch_id)
+    for call in provider._count_complaints.call_args_list:
+        assert call.args[0] == "UPPPD-A"

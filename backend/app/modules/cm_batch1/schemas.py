@@ -180,6 +180,14 @@ class ComplaintBatch1Response(BaseModel):
         alias="hqArrivalNote",
         description="Jadwal kedatangan history section",
     )
+    owning_unit_id: str | None = Field(
+        default=None,
+        alias="owningUnitId",
+        description=(
+            "Organization unit key for the Aggregate (Branch.code or PUSAT). "
+            "Server-side list visibility SoT (DEC-024 pattern)."
+        ),
+    )
     priority: str | None = None
     created_at: datetime | None = Field(default=None, alias="createdAt")
     duplicate_check_result: str | None = Field(

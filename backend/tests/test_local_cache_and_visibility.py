@@ -163,3 +163,10 @@ def test_case_visibility_classes() -> None:
         permissions=frozenset({"complaints:read"}),
     )
     assert resolve_case_visibility(viewer) == CaseVisibilityClass.SELF
+
+    ho_scheduler = Principal(
+        user_id=uuid.uuid4(),
+        roles=("HO_SCHEDULER",),
+        permissions=frozenset({"complaints:read"}),
+    )
+    assert resolve_case_visibility(ho_scheduler) == CaseVisibilityClass.PUSAT

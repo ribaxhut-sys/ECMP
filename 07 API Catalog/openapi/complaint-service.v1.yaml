@@ -1928,6 +1928,48 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/aggregate-kpis:
+    get:
+      summary: Aggregate (CM Batch-1) complaint KPI counts
+      operationId: getDashboardAggregateKpis
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        DEC-020 coexistence: complaint KPI counts from the CM Batch-1 Aggregate
+        (`cm_batch1_complaints`), not the legacy `complaints` table.
+        Requires `dashboard:read` only — branch Manager (BC-8.4) can view
+        own-branch numbers without `complaints:read` / list access.
+        Branch-scoped principals are locked to their own branch via
+        `_effective_branch_id` (same convention as recent-activity / UM-BUG-009).
+        Head Office (no own branch) may pass `branchId` or omit for all branches.
+      parameters:
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional branch filter (ignored / overridden for branch-scoped principals).
+      responses:
+        "200":
+          description: Aggregate complaint KPI counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardAggregateKpiDataResponse"
+              example:
+                data:
+                  total: 3
+                  open: 1
+                  closed: 2
+                  escalatePending: 1
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/dashboard/overview:
     get:
       summary: Dashboard overview composition
@@ -5120,6 +5162,26 @@ components:
         timestamp: { type: string, format: date-time }
         actor: { type: string }
       description: Latest timeline event (max 10 on dashboard summary).
+    DashboardAggregateKpis:
+      type: object
+      required: [total, open, closed, escalatePending]
+      properties:
+        total: { type: integer, minimum: 0 }
+        open: { type: integer, minimum: 0, description: status=REGISTERED }
+        closed: { type: integer, minimum: 0, description: status=CLOSED }
+        escalatePending:
+          type: integer
+          minimum: 0
+          description: intakeDisposition=ESCALATE_PENDING_APPROVAL
+      description: |
+        DEC-020 Aggregate complaint KPI counts for dashboard cards.
+        Branch scope = Aggregate owningUnitId matched to Branch.code
+        (aligned with CM Batch-1 list visibility; not creator membership).
+    DashboardAggregateKpiDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardAggregateKpis" }
     DashboardSummary:
       type: object
       required: [header, sla, recentActivity]

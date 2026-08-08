@@ -211,3 +211,30 @@ export const OPS_TONE_RAIL: Record<OpsTone, string> = {
   critical: "bg-ecmp-danger",
   neutral: "bg-ecmp-border",
 };
+
+/**
+ * Branch picker label. Most branch codes are just the name reformatted
+ * (e.g. "UPPPD-GAMBIR" / "UPPPD Gambir") — showing both repeats the same
+ * text. Only prefix the code when it carries information the name doesn't
+ * (e.g. "JKT-01" / "Cabang Jakarta Pusat").
+ */
+export function branchOptionLabel(branch: { code: string; name: string }): string {
+  const normalize = (value: string) => value.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  return normalize(branch.code) === normalize(branch.name)
+    ? branch.name
+    : `${branch.code} — ${branch.name}`;
+}
+
+const HEAD_OFFICE_UNIT_CODE = "PUSAT";
+
+/** Head Office (Pusat) first, then every other branch alphabetically by name. */
+export function sortBranchesHeadOfficeFirst<T extends { code: string; name: string }>(
+  branches: readonly T[],
+): T[] {
+  return [...branches].sort((a, b) => {
+    const aIsHeadOffice = a.code.toUpperCase() === HEAD_OFFICE_UNIT_CODE;
+    const bIsHeadOffice = b.code.toUpperCase() === HEAD_OFFICE_UNIT_CODE;
+    if (aIsHeadOffice !== bIsHeadOffice) return aIsHeadOffice ? -1 : 1;
+    return a.name.localeCompare(b.name, "id");
+  });
+}

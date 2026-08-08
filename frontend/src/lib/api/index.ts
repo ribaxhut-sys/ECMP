@@ -68,6 +68,7 @@ export {
 export { fetchKpiSummary } from "./kpi";
 export type { KpiSummaryFilters } from "./kpi";
 export {
+  fetchDashboardAggregateKpis,
   fetchDashboardRecentActivity,
   fetchDashboardSummary,
   fetchDashboardTrends,

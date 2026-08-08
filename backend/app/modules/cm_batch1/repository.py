@@ -9,12 +9,13 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
+from app.core.authorization.visibility import DEFAULT_PUSAT_UNIT_CODES
 from app.modules.cm_batch1.entities import (
     ComplaintAggregate,
     DuplicateDecisionRecord,
@@ -49,6 +50,7 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         hq_accepted_at=row.hq_accepted_at,
         hq_arrival_date=row.hq_arrival_date,
         hq_arrival_time=row.hq_arrival_time,
+        owning_unit_id=row.owning_unit_id,
         created_at=row.created_at,
         created_by=row.created_by,
         decided_by=row.decided_by,
@@ -380,6 +382,7 @@ class CmBatch1Repository:
         channel_message_id: str | None,
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
+        owning_unit_id: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         """Atomic Claim create — ``created=False`` on idempotent / race-loser replay.
 
@@ -407,6 +410,7 @@ class CmBatch1Repository:
         if initial_status not in {"REGISTERED", "CLOSED"}:
             initial_status = "REGISTERED"
         disposition = (intake_disposition or "").strip().upper() or None
+        unit = (owning_unit_id or "").strip() or None
         orm = CmBatch1ComplaintORM(
             id=complaint_id,
             complaint_number=complaint_number,
@@ -418,6 +422,7 @@ class CmBatch1Repository:
             priority=priority,
             status=initial_status,
             intake_disposition=disposition,
+            owning_unit_id=unit,
             case_created=False,
             created_by=created_by,
             created_at=now,
@@ -760,12 +765,44 @@ class CmBatch1Repository:
         intake_disposition: str | None = None,
         created_by: str | None = None,
         decided_by: str | None = None,
+        visibility: str | None = None,
+        actor_id: str | None = None,
+        org_unit_id: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
     ) -> tuple[list[ComplaintAggregate], int]:
-        """Newest-first Aggregate list (API-514 coexistence read)."""
+        """Newest-first Aggregate list (API-514) with DEC-024 row visibility."""
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
         stmt = select(CmBatch1ComplaintORM)
         count_stmt = select(func.count()).select_from(CmBatch1ComplaintORM)
+
+        vis = (visibility or "ALL").strip().upper()
+        codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+        if vis == "ALL":
+            pass
+        elif vis == "SELF":
+            actor = (actor_id or "").strip()
+            if not actor:
+                return [], 0
+            stmt = stmt.where(CmBatch1ComplaintORM.created_by == actor)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.created_by == actor)
+        elif vis == "UNIT":
+            unit = (org_unit_id or "").strip()
+            if not unit:
+                return [], 0
+            stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
+        elif vis == "PUSAT":
+            upper_codes = sorted({c.upper() for c in codes})
+            pusat_clause = or_(
+                func.upper(CmBatch1ComplaintORM.owning_unit_id).in_(upper_codes),
+                CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+                CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
+            )
+            stmt = stmt.where(pusat_clause)
+            count_stmt = count_stmt.where(pusat_clause)
+        else:
+            return [], 0
 
         kw = (keyword or "").strip()
         if kw:

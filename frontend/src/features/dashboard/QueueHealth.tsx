@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import type { DashboardHeader, StatusCount } from "@/lib/api/types";
 import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
@@ -110,6 +111,9 @@ export function QueueHealth({
   const router = useRouter();
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
+  const { hasPermission } = useAuth();
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
 
   if (loading) {
     return (
@@ -133,9 +137,14 @@ export function QueueHealth({
   // /assignments reads the foundation Complaint aggregate only — an
   // Aggregate-sourced (cm_batch1) count has nowhere to land there
   // (assignment workflow for Batch-1 intake is DEFERRED,
-  // GOV-MODEA-NEXT-001 M4). Route to the Aggregate list instead.
+  // GOV-MODEA-NEXT-001 M4). Route to the Aggregate list only when the
+  // principal can open it (complaints:read); MANAGER KPI is dashboard:read.
   const waitingAssignmentHref =
-    complaintKpiSource === "aggregate" ? "/complaints/cm" : "/assignments";
+    complaintKpiSource === "aggregate"
+      ? canOpenComplaintList
+        ? "/complaints/cm"
+        : null
+      : "/assignments";
 
   // "SLA terlampaui" and "Eskalasi tertunda" are NOT repeated here — they're
   // already the top-line KPI strip above (SummaryCards) and, when nonzero,
@@ -188,10 +197,14 @@ export function QueueHealth({
             icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
             title={t("noSummaryYet")}
             description={t("noSummaryDescription")}
-            primaryAction={{
-              label: tCommon("goToQueue"),
-              onClick: () => router.push("/queue"),
-            }}
+            primaryAction={
+              complaintKpiSource === "aggregate" && !canOpenComplaintList
+                ? undefined
+                : {
+                    label: tCommon("goToQueue"),
+                    onClick: () => router.push("/queue"),
+                  }
+            }
           />
         </div>
       ) : (

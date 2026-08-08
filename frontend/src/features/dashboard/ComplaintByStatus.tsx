@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import type { ComplaintStatus, StatusCount } from "@/lib/api/types";
 import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
@@ -48,6 +49,9 @@ export function ComplaintByStatus({
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
+  const { hasPermission } = useAuth();
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
   const [highlight, setHighlight] = useState<ComplaintStatus | null>(null);
@@ -90,10 +94,14 @@ export function ComplaintByStatus({
             icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
             title={t("noStatusData")}
             description={t("noStatusDataDescription")}
-            primaryAction={{
-              label: tCommon("goToComplaints"),
-              onClick: () => router.push("/complaints"),
-            }}
+            primaryAction={
+              canOpenComplaintList
+                ? {
+                    label: tCommon("goToComplaints"),
+                    onClick: () => router.push("/complaints"),
+                  }
+                : undefined
+            }
           />
         </div>
       ) : (

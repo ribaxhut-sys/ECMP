@@ -127,9 +127,10 @@ _VIEWER_PERMISSIONS: frozenset[str] = frozenset(
 )
 
 # Distinct business persona (BC-8/BG-018, BC-8.4) — not a Supervisor alias.
-# Own-branch user membership + own-branch dashboard visibility; no operational
-# complaint permissions (assign/escalate/close) were ever specified for
-# Manager (see 0054_manager_role, 0055_manager_dashboard_read).
+# Own-branch user membership + own-branch dashboard visibility (including
+# Aggregate KPI via GET /dashboard/aggregate-kpis — dashboard:read only, not
+# complaints:read). No operational complaint permissions (assign/escalate/close)
+# — see 0054_manager_role, 0055_manager_dashboard_read.
 _MANAGER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "users:read",

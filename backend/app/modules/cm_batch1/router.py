@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
@@ -197,6 +198,19 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
 )
 
 
+def _effective_org_unit(
+    resolver: OrgUnitResolver, principal: Principal
+) -> str | None:
+    """Claim first; membership fallback fail-open (Mode A / offline lab)."""
+    claimed = resolver.normalize(principal.org_unit_id)
+    if claimed:
+        return claimed
+    try:
+        return resolver.resolve_principal_membership(principal.user_id)
+    except Exception:
+        return None
+
+
 @router.get(
     "/complaints",
     response_model=ListResponse[ComplaintBatch1Response],
@@ -206,6 +220,7 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
 def list_complaints(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     keyword: Annotated[str | None, Query(max_length=200)] = None,
@@ -218,7 +233,6 @@ def list_complaints(
     created_by: Annotated[str | None, Query(alias="createdBy")] = None,
     decided_by: Annotated[str | None, Query(alias="decidedBy")] = None,
 ) -> ListResponse[ComplaintBatch1Response]:
-    _ = principal
     pri = (priority or "").strip().upper() or None
     if pri is not None and pri not in _ALLOWED_PRIORITIES:
         pri = None
@@ -228,6 +242,9 @@ def list_complaints(
     disp = (intake_disposition or "").strip().upper() or None
     if disp is not None and disp not in _ALLOWED_INTAKE_DISPOSITIONS:
         disp = None
+    resolver = OrgUnitResolver(session)
+    effective_org = _effective_org_unit(resolver, principal)
+    vis_principal = replace(principal, org_unit_id=effective_org)
     items, total = service.list_complaints(
         page=page,
         page_size=page_size,
@@ -238,6 +255,8 @@ def list_complaints(
         category=category,
         created_by=(created_by or "").strip() or None,
         decided_by=(decided_by or "").strip() or None,
+        principal=vis_principal,
+        org_unit_id=effective_org,
     )
     return ListResponse(
         data=items,
@@ -281,14 +300,16 @@ def create_complaint(
     ] = None,
 ) -> DataResponse[ComplaintBatch1Response]:
     # SECMIG-P4: pre-check declared unit before write (new create fail-closed).
-    declared_org = OrgUnitResolver(session).resolve_declared(body.recording_unit_id)
+    resolver = OrgUnitResolver(session)
+    declared_org = resolver.resolve_declared(body.recording_unit_id)
     enforce_org_scope(principal, declared_org, settings)
+    owning_unit_id = declared_org or _effective_org_unit(resolver, principal)
     # SECMIG-P4-001R2 FIX 2: authorize the *actual* replay target before any
     # create_replayed commit / outbox. Declared recordingUnitId alone is insufficient.
     def _authorize_replay(complaint_id: str) -> None:
         if not org_scope_enforcement_enabled(settings):
             return
-        actual_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+        actual_org = resolver.resolve_cm_complaint(complaint_id)
         enforce_org_scope(principal, actual_org, settings)
 
     if org_scope_enforcement_enabled(settings):
@@ -312,6 +333,7 @@ def create_complaint(
         actor_id=_principal_key(principal),
         principal_key=_principal_key(principal),
         authorize_replay=_authorize_replay,
+        owning_unit_id=owning_unit_id,
     )
     if (
         not result.replayed

@@ -112,6 +112,23 @@ class DashboardRecentActivityItem(BaseModel):
     actor: str
 
 
+class DashboardAggregateKpiResponse(BaseModel):
+    """DEC-020 Aggregate complaint KPI counts (CM Batch-1), branch-lockable.
+
+    Gated by ``dashboard:read`` so branch Manager (BC-8.4) can see own-branch
+    numbers without receiving operational ``complaints:read`` / list access.
+    Branch scope uses Aggregate ``owningUnitId`` (= ``Branch.code``), aligned
+    with list visibility — not the creating officer's membership.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    total: int = 0
+    open: int = 0
+    closed: int = 0
+    escalate_pending: int = Field(default=0, alias="escalatePending")
+
+
 class DashboardOverviewResponse(BaseModel):
     """API-319 composition payload — never persisted."""
 

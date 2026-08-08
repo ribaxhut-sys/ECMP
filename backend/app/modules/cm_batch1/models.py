@@ -41,6 +41,7 @@ class CmBatch1ComplaintORM(Base):
         Index("ix_cm_batch1_complaints_intake_disposition", "intake_disposition"),
         Index("ix_cm_batch1_complaints_hq_accepted_at", "hq_accepted_at"),
         Index("ix_cm_batch1_complaints_decided_by", "decided_by"),
+        Index("ix_cm_batch1_complaints_owning_unit_id", "owning_unit_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -67,6 +68,8 @@ class CmBatch1ComplaintORM(Base):
     hq_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Org unit key (Branch.code / "PUSAT") — list visibility SoT (DEC-024 pattern).
+    owning_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Customer visit schedule at HQ (Batch-1 lab; not foundation Appointment).
     hq_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     hq_arrival_time: Mapped[str | None] = mapped_column(String(5), nullable=True)

@@ -1,5 +1,5 @@
 import {
-  fetchCmBatch1Complaints,
+  fetchDashboardAggregateKpis,
   fetchDashboardSummary,
   fetchDashboardTrends,
   fetchReportByBranch,
@@ -15,8 +15,10 @@ import type {
 } from "@/lib/api/types";
 
 /**
- * Mode A operational KPI from Aggregate (API-514 meta totals).
+ * Mode A operational KPI from Aggregate (dashboard/aggregate-kpis).
  * Fills dashboard numbers for Batch-1 intake without Retirement DEC / foundation merge.
+ * Gated by dashboard:read so MANAGER (BC-8.4) can see own-branch KPIs without
+ * complaints:read / unscoped list access.
  */
 export type AggregateDashboardKpis = {
   total: number;
@@ -42,13 +44,6 @@ export type DashboardData = {
   /** True when complaint KPI numbers come from Aggregate (DEC-020 coexistence). */
   complaintKpiSource: "aggregate" | "foundation";
 };
-
-async function metaTotal(
-  filters: Parameters<typeof fetchCmBatch1Complaints>[0],
-): Promise<number> {
-  const res = await fetchCmBatch1Complaints(filters);
-  return res.meta?.totalItems ?? res.data?.length ?? 0;
-}
 
 export function buildAggregateKpis(input: {
   total: number;
@@ -86,22 +81,19 @@ export function buildAggregateKpis(input: {
 }
 
 async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
-  const [total, open, closed, escalatePending] = await Promise.all([
-    metaTotal({ page: 1, pageSize: 1 }),
-    metaTotal({ page: 1, pageSize: 1, status: "REGISTERED" }),
-    metaTotal({ page: 1, pageSize: 1, status: "CLOSED" }),
-    metaTotal({
-      page: 1,
-      pageSize: 1,
-      intakeDisposition: "ESCALATE_PENDING_APPROVAL",
-    }),
-  ]);
-  return buildAggregateKpis({ total, open, closed, escalatePending });
+  const res = await fetchDashboardAggregateKpis();
+  const data = res.data;
+  return buildAggregateKpis({
+    total: data.total,
+    open: data.open,
+    closed: data.closed,
+    escalatePending: data.escalatePending,
+  });
 }
 
 /**
  * Dashboard payload:
- * - Complaint KPI numbers prefer Aggregate (API-514) — where Batch-1 intake writes
+ * - Complaint KPI numbers prefer Aggregate (dashboard/aggregate-kpis) — where Batch-1 intake writes
  * - SLA / branch / foundation activity remain foundation until Retirement DEC
  */
 export async function loadDashboardData(): Promise<DashboardData> {

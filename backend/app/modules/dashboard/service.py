@@ -20,6 +20,7 @@ from app.modules.dashboard.providers.notification_provider import (
 from app.modules.dashboard.providers.queue_provider import QueueDashboardProvider
 from app.modules.dashboard.providers.sla_provider import SlaDashboardProvider
 from app.modules.dashboard.schemas import (
+    DashboardAggregateKpiResponse,
     DashboardComplaintSummaryResponse,
     DashboardHeader,
     DashboardKpiResponse,
@@ -117,6 +118,14 @@ class DashboardService:
         if self._activity is None:
             raise RuntimeError("Dashboard recent_activity requires Activity wiring")
         return self._activity.list_recent(limit=limit, branch_id=branch_id)
+
+    def aggregate_kpis(
+        self, *, branch_id: uuid.UUID | None = None
+    ) -> DashboardAggregateKpiResponse:
+        """DEC-020 Aggregate complaint KPI counts (branch-lockable via router)."""
+        if self._activity is None:
+            raise RuntimeError("Dashboard aggregate_kpis requires Activity wiring")
+        return self._activity.complaint_kpis(branch_id=branch_id)
 
     def queue(
         self, filters: DashboardFilters | None = None
