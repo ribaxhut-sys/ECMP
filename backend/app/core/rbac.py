@@ -39,6 +39,7 @@ _SUPERVISOR_PERMISSIONS: frozenset[str] = frozenset(
         "users:read",
         "users:create",
         "users:update",
+        "role:read",
     }
 )
 
@@ -125,6 +126,18 @@ _VIEWER_PERMISSIONS: frozenset[str] = frozenset(
     }
 )
 
+# Distinct business persona (BC-8/BG-018, BC-8.4) — not a Supervisor alias.
+# Own-branch user membership + own-branch dashboard visibility; no operational
+# complaint permissions (assign/escalate/close) were ever specified for
+# Manager (see 0054_manager_role, 0055_manager_dashboard_read).
+_MANAGER_PERMISSIONS: frozenset[str] = frozenset(
+    {
+        "users:read",
+        "users:update",
+        "dashboard:read",
+    }
+)
+
 # Deprecated: seed/reference only. Authorization Engine must not use this map.
 _LEGACY_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "AGENT": _AGENT_PERMISSIONS,
@@ -133,6 +146,7 @@ _LEGACY_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "BRANCH_OFFICER": _AGENT_PERMISSIONS,
     "SUPERVISOR": _SUPERVISOR_PERMISSIONS,
     "BRANCH_SUPERVISOR": _SUPERVISOR_PERMISSIONS,
+    "MANAGER": _MANAGER_PERMISSIONS,
     "HO_SCHEDULER": _HO_SCHEDULER_PERMISSIONS,
     "HEAD_OFFICE_SCHEDULER": _HO_SCHEDULER_PERMISSIONS,
     "SCHEDULER": _HO_SCHEDULER_PERMISSIONS,

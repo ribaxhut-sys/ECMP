@@ -7,11 +7,13 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.auth import Principal, require_permissions
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
+from app.models import User
 from app.modules.dashboard.domain.dto import DashboardFilters, TrendPeriod
 from app.modules.dashboard.permissions import DASHBOARD_READ
 from app.modules.dashboard.registration import build_dashboard_service
@@ -21,12 +23,14 @@ from app.modules.dashboard.schemas import (
     DashboardNotificationsResponse,
     DashboardOverviewResponse,
     DashboardQueueResponse,
+    DashboardRecentActivityItem,
     DashboardSlaResponse,
     DashboardTrendsResponse,
 )
 from app.modules.dashboard.service import DashboardService
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
+_DEFAULT_ACTIVITY_LIMIT = 10
 
 
 def get_dashboard_service(
@@ -48,6 +52,21 @@ def _filters(
     )
 
 
+def _effective_branch_id(
+    session: Session,
+    principal: Principal,
+    branch_id: uuid.UUID | None,
+) -> uuid.UUID | None:
+    """Lock branch-scoped principals (e.g. Manager, BC-8.4) to their own
+    branch regardless of the requested branchId — same convention as
+    recent-activity and users/router.py's Manager status-update gate
+    (UM-BUG-007/008/009)."""
+    own_branch_id = session.scalar(
+        select(User.branch_id).where(User.id == principal.user_id)
+    )
+    return own_branch_id if own_branch_id is not None else branch_id
+
+
 @router.get(
     "/summary",
     response_model=DataResponse[DashboardComplaintSummaryResponse],
@@ -57,16 +76,40 @@ def _filters(
 def get_dashboard_summary(
     service: Annotated[DashboardService, Depends(get_dashboard_service)],
     principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[DashboardComplaintSummaryResponse]:
     """API-389 — CAPABILITY-013 complaint KPI summary (read-only SQL aggregates)."""
-    _ = principal
+    branch_id = _effective_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.summary(
             _filters(branch_id=branch_id, date_from=date_from, date_to=date_to)
         )
+    )
+
+
+@router.get(
+    "/recent-activity",
+    response_model=DataResponse[list[DashboardRecentActivityItem]],
+    status_code=status.HTTP_200_OK,
+    summary="Recent activity feed, optionally filtered by branch (UM-BUG-009)",
+)
+def get_dashboard_recent_activity(
+    service: Annotated[DashboardService, Depends(get_dashboard_service)],
+    principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
+    branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = _DEFAULT_ACTIVITY_LIMIT,
+) -> DataResponse[list[DashboardRecentActivityItem]]:
+    """Head Office (no own branch) may pick any branch or leave it unset for
+    all branches. A branch-scoped principal is always locked to their own
+    branch regardless of the requested branchId — same convention as
+    users/router.py's Manager status-update gate (UM-BUG-007/008)."""
+    branch_id = _effective_branch_id(session, principal, branch_id)
+    return DataResponse(
+        data=service.recent_activity(limit=limit, branch_id=branch_id)
     )
 
 
@@ -79,12 +122,13 @@ def get_dashboard_summary(
 def get_dashboard_queue(
     service: Annotated[DashboardService, Depends(get_dashboard_service)],
     principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[DashboardQueueResponse]:
     """API-390 — CAPABILITY-013 queue ticket aggregates."""
-    _ = principal
+    branch_id = _effective_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.queue(
             _filters(branch_id=branch_id, date_from=date_from, date_to=date_to)
@@ -101,12 +145,13 @@ def get_dashboard_queue(
 def get_dashboard_sla(
     service: Annotated[DashboardService, Depends(get_dashboard_service)],
     principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[DashboardSlaResponse]:
     """API-391 — CAPABILITY-013 SLA compliance aggregates."""
-    _ = principal
+    branch_id = _effective_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.sla(
             _filters(branch_id=branch_id, date_from=date_from, date_to=date_to)
@@ -144,13 +189,14 @@ def get_dashboard_notifications(
 def get_dashboard_trends(
     service: Annotated[DashboardService, Depends(get_dashboard_service)],
     principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
     period: Annotated[TrendPeriod, Query()] = TrendPeriod.SEVEN_D,
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[DashboardTrendsResponse]:
     """API-393 — CAPABILITY-013 daily complaint counts (today / 7d / 30d)."""
-    _ = principal
+    branch_id = _effective_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.trends(
             period=period,
@@ -170,12 +216,13 @@ def get_dashboard_trends(
 def get_dashboard_kpi(
     service: Annotated[DashboardService, Depends(get_dashboard_service)],
     principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[DashboardKpiResponse]:
     """API-394 — CAPABILITY-013 numeric KPI rates (no charts)."""
-    _ = principal
+    branch_id = _effective_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.kpi(
             _filters(branch_id=branch_id, date_from=date_from, date_to=date_to)
