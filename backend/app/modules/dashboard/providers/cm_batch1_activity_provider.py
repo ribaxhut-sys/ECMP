@@ -40,6 +40,9 @@ _SYSTEM_ACTOR = "SYSTEM"
 # SoT switch — only the read source changed.
 _EVENT_TYPE_MAP: dict[str, str] = {
     "ComplaintRegistered": "complaint.created",
+    "HqAccepted": "complaint.updated",
+    "HqReturned": "complaint.updated",
+    "HqArrivalScheduled": "complaint.updated",
 }
 _DECISION_EVENT_TYPE_MAP: dict[str, str] = {
     "APPROVE": "complaint.escalation_approved",
@@ -47,12 +50,19 @@ _DECISION_EVENT_TYPE_MAP: dict[str, str] = {
     "RE_ESCALATE": "complaint.escalation_requested",
     "CANCEL": "complaint.updated",
 }
+_DISPOSITION_EVENT_TYPE_MAP: dict[str, str] = {
+    "ESCALATE_PENDING_APPROVAL": "complaint.escalation_requested",
+    "BRANCH_CLOSED": "complaint.closed",
+}
 
 
 def _map_event_type(event_type: str, metadata: dict) -> str:
     if event_type == "IntakeEscalationDecided":
         decision = str(metadata.get("decision") or "").upper()
         return _DECISION_EVENT_TYPE_MAP.get(decision, "complaint.updated")
+    if event_type == "IntakeDispositionRecorded":
+        disposition = str(metadata.get("intakeDisposition") or "").upper()
+        return _DISPOSITION_EVENT_TYPE_MAP.get(disposition, "complaint.updated")
     return _EVENT_TYPE_MAP.get(event_type, "complaint.updated")
 
 
@@ -104,7 +114,29 @@ class CmBatch1ActivityDashboardProvider:
                     actor=actor_name,
                 )
             )
-        return items
+        # Same-second create+escalate often lists "created" above "escalation"
+        # (registration is written first). Prefer pending-approval on top for
+        # that pair only — do not re-sort the whole feed by timestamp.
+        out = list(items)
+        i = 0
+        while i < len(out) - 1:
+            a, b = out[i], out[i + 1]
+            close_in_time = (
+                a.timestamp is not None
+                and b.timestamp is not None
+                and abs((a.timestamp - b.timestamp).total_seconds()) <= 1
+            )
+            if (
+                a.complaint_number == b.complaint_number
+                and close_in_time
+                and a.event_type == "complaint.created"
+                and b.event_type == "complaint.escalation_requested"
+            ):
+                out[i], out[i + 1] = b, a
+                i += 2
+                continue
+            i += 1
+        return out
 
     def complaint_kpis(
         self, *, branch_id: uuid.UUID | None = None

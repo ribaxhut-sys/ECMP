@@ -955,13 +955,21 @@ class CmBatch1Service:
             )
         )
         if intake_disposition:
+            # Sort above ComplaintRegistered on the dashboard feed when times
+            # would otherwise collide (create + escalate is one user action).
+            disposition_at = row.created_at
+            if (
+                intake_disposition == "ESCALATE_PENDING_APPROVAL"
+                and disposition_at is not None
+            ):
+                disposition_at = disposition_at + timedelta(seconds=1)
             self._side_effects.record(
                 events.intake_disposition_recorded(
                     complaint_id=row.complaint_id,
                     complaint_number=row.complaint_number,
                     intake_disposition=intake_disposition,
                     actor_id=actor_id,
-                    occurred_at=row.created_at,
+                    occurred_at=disposition_at,
                     note=(
                         parsed_intake.branch_resolution
                         if intake_disposition == "BRANCH_CLOSED"

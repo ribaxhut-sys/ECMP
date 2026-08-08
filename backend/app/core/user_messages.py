@@ -317,6 +317,9 @@ MESSAGES: dict[str, str] = {
     ),
     "attachment.deleted_cannot_become_failed": ("Lampiran terhapus tidak dapat menjadi FAILED."),
     "attachment.void_reason_required": "Alasan pembatalan wajib diisi.",
+    "attachment.void_forbidden": (
+        "Hanya pengunggah, pembuat pengaduan, atau admin yang dapat menghapus lampiran."
+    ),
     # --- Storage / upload ---
     "storage.aggregate_type_id_required": (
         "aggregateType dan aggregateId diperlukan untuk unggahan platform."
@@ -814,6 +817,7 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "value must be an integer": "config.value_integer",
     "value must be valid JSON": "config.value_json",
     "void reason is required (void-with-reason)": "attachment.void_reason_required",
+    "attachment void forbidden": "attachment.void_forbidden",
     "workItemStatus must be OPEN, CLOSED, or ALL": "config.work_item_status_values",
     "NEW complaints cannot be escalated": "escalation.rejected_new",
     "RESOLVED complaints cannot be escalated": "escalation.rejected_resolved",

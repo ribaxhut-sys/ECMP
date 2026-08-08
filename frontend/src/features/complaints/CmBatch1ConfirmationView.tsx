@@ -200,6 +200,7 @@ export function CmBatch1ConfirmationView({
   const [rejectNote, setRejectNote] = useState("");
   const [cancelNote, setCancelNote] = useState("");
   const [reRequestReason, setReRequestReason] = useState("");
+  const [reRequestPriority, setReRequestPriority] = useState("");
   const [hqReturnNote, setHqReturnNote] = useState("");
   const [hqReturnReasonCode, setHqReturnReasonCode] =
     useState<CmBatch1HqReturnReasonCode>("MISSING_ATTACHMENT");
@@ -345,16 +346,20 @@ export function CmBatch1ConfirmationView({
   async function submitReRequest(): Promise<void> {
     if (!data || deciding) return;
     const reason = reRequestReason.trim();
+    const priority = reRequestPriority.trim().toUpperCase();
     if (reason.length < REJECT_NOTE_MIN) return;
+    if (!(APPROVE_PRIORITIES as readonly string[]).includes(priority)) return;
     setDeciding(true);
     try {
       const res = await requestCmBatch1IntakeEscalation(data.complaintId, {
         reason,
+        priority: priority as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
       });
       setData(res.data);
       void reloadHistory();
       setReRequestOpen(false);
       setReRequestReason("");
+      setReRequestPriority("");
       pushSuccess(
         t("reRequestEscalationToast"),
         t("reRequestEscalationToastDescription", {
@@ -366,6 +371,17 @@ export function CmBatch1ConfirmationView({
     } finally {
       setDeciding(false);
     }
+  }
+
+  function openReRequestModal(): void {
+    const current = (data?.priority || "MEDIUM").toUpperCase();
+    setReRequestPriority(
+      (APPROVE_PRIORITIES as readonly string[]).includes(current)
+        ? current
+        : "MEDIUM",
+    );
+    setReRequestReason("");
+    setReRequestOpen(true);
   }
 
   function openApproveModal(): void {
@@ -562,6 +578,10 @@ export function CmBatch1ConfirmationView({
   const rejectNoteOk = rejectNote.trim().length >= REJECT_NOTE_MIN;
   const cancelNoteOk = cancelNote.trim().length >= REJECT_NOTE_MIN;
   const reRequestReasonOk = reRequestReason.trim().length >= REJECT_NOTE_MIN;
+  const reRequestPriorityOk = (APPROVE_PRIORITIES as readonly string[]).includes(
+    reRequestPriority.trim().toUpperCase(),
+  );
+  const reRequestReady = reRequestReasonOk && reRequestPriorityOk;
   const approveNoteOk = approveNote.trim().length >= REJECT_NOTE_MIN;
   const approvePriorityOk = (APPROVE_PRIORITIES as readonly string[]).includes(
     approvePriority.trim().toUpperCase(),
@@ -1098,7 +1118,7 @@ export function CmBatch1ConfirmationView({
             {showReRequestEscalation ? (
               <Button
                 type="button"
-                onClick={() => setReRequestOpen(true)}
+                onClick={() => openReRequestModal()}
                 disabled={deciding}
               >
                 {t("reRequestEscalation")}
@@ -1153,16 +1173,21 @@ export function CmBatch1ConfirmationView({
               </Button>
             ) : null}
             {showManageCases ? (
-              <Button
-                type="button"
-                onClick={() =>
-                  router.push(
-                    `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases?createCase=1`,
-                  )
-                }
-              >
-                {t("manageCases")}
-              </Button>
+              <div className="flex w-full flex-col gap-1 sm:w-auto">
+                <Button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases?createCase=1`,
+                    )
+                  }
+                >
+                  {t("manageCases")}
+                </Button>
+                <p className="max-w-sm text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                  {t("manageCasesHint")}
+                </p>
+              </div>
             ) : null}
             <Button
               type="button"
@@ -1359,7 +1384,7 @@ export function CmBatch1ConfirmationView({
             <Button
               type="button"
               loading={deciding}
-              disabled={!reRequestReasonOk || deciding}
+              disabled={!reRequestReady || deciding}
               onClick={() => void submitReRequest()}
             >
               {t("reRequestEscalation")}
@@ -1383,6 +1408,27 @@ export function CmBatch1ConfirmationView({
             disabled={deciding}
             required
             aria-required="true"
+          />
+          <Select
+            name="reRequestPriority"
+            id="reRequestPriority"
+            label={t("reRequestEscalationPriorityLabel")}
+            hint={t("reRequestEscalationPriorityHint")}
+            placeholder={t("selectPriorityPlaceholder")}
+            options={PRIORITY_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: tPriority(opt.value),
+            }))}
+            value={reRequestPriority}
+            onChange={(e) => setReRequestPriority(e.target.value)}
+            error={
+              reRequestOpen && reRequestReasonOk && !reRequestPriorityOk
+                ? tValidation("priorityRequired")
+                : undefined
+            }
+            required
+            aria-required="true"
+            disabled={deciding}
           />
         </div>
       </Modal>

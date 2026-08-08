@@ -342,7 +342,12 @@ def test_concurrent_replay_single_winner(tmp_path: Path, monkeypatch: pytest.Mon
     seq = itertools.count(1)
     seq_lock = threading.Lock()
 
-    def _local_next(self: CmBatch1Repository) -> str:
+    def _local_next(
+        self: CmBatch1Repository,
+        *,
+        owning_unit_id: str | None = None,
+        at=None,
+    ) -> str:
         with seq_lock:
             return f"CM-{next(seq):08d}"
 

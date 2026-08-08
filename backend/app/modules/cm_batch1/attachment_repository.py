@@ -35,6 +35,7 @@ def _to_attachment(row: CmBatch1AttachmentORM) -> Batch1AttachmentRecord:
         checksum_sha256=row.checksum_sha256,
         supersedes_id=str(row.supersedes_id) if row.supersedes_id else None,
         void_reason=row.void_reason,
+        uploaded_by=row.uploaded_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

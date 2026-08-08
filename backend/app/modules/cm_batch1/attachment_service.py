@@ -6,7 +6,12 @@ import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import (
+    ConflictError,
+    NotFoundError,
+    PermissionDeniedError,
+    ValidationAppError,
+)
 from app.core.logging import get_logger
 from app.core.user_messages import m
 from app.modules.attachment.domain.enums import AggregateType
@@ -545,6 +550,7 @@ class CmBatch1AttachmentService:
         *,
         reason: str,
         actor_id: str | None,
+        is_admin: bool = False,
     ) -> Batch1AttachmentResponse:
         reason_clean = (reason or "").strip()
         if not reason_clean:
@@ -560,6 +566,7 @@ class CmBatch1AttachmentService:
                 m("attachment.already_void"),
                 details={"attachmentId": attachment_id},
             )
+        self._assert_can_void(row, actor_id=actor_id, is_admin=is_admin)
         self._attachments.soft_delete(
             uuid.UUID(row.platform_attachment_id), commit=not self._share_tx
         )
@@ -582,6 +589,37 @@ class CmBatch1AttachmentService:
         )
         self._repo.commit()
         return self._to_response(updated)
+
+    def _assert_can_void(
+        self,
+        row: Batch1AttachmentRecord,
+        *,
+        actor_id: str | None,
+        is_admin: bool,
+    ) -> None:
+        """Uploader, complaint creator, or admin may void; others are denied."""
+        if is_admin:
+            return
+        actor = (actor_id or "").strip()
+        if not actor:
+            raise PermissionDeniedError(
+                m("attachment.void_forbidden"),
+                details={"attachmentId": row.id},
+            )
+        if (row.uploaded_by or "").strip() == actor:
+            return
+        if row.complaint_id:
+            complaint = self._complaints.get(str(row.complaint_id))
+            if complaint is not None and (complaint.created_by or "").strip() == actor:
+                return
+        if row.staging_token:
+            staging = self._repo.get_staging(row.staging_token)
+            if staging is not None and (staging.created_by or "").strip() == actor:
+                return
+        raise PermissionDeniedError(
+            m("attachment.void_forbidden"),
+            details={"attachmentId": row.id},
+        )
 
     def void_abandoned_staging(self, *, actor_id: str | None = "system") -> int:
         cfg = self._cfg()

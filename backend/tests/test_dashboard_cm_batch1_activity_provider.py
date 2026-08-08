@@ -102,6 +102,51 @@ def test_list_recent_maps_escalation_decisions_by_metadata() -> None:
     ]
 
 
+def test_list_recent_maps_intake_disposition_escalation_requested() -> None:
+    """Create-with-escalate must show as escalation requested, not generic update."""
+    provider, timeline, complaints, directory = _provider()
+    entry = _entry(
+        event_type="IntakeDispositionRecorded",
+        metadata={"intakeDisposition": "ESCALATE_PENDING_APPROVAL"},
+    )
+    timeline.list_recent.return_value = [entry]
+    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000009")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert len(items) == 1
+    assert items[0].event_type == "complaint.escalation_requested"
+
+
+def test_list_recent_ranks_escalation_above_created_when_same_timestamp() -> None:
+    provider, timeline, complaints, directory = _provider()
+    when = datetime(2026, 8, 8, 7, 30, tzinfo=UTC)
+    aggregate_id = uuid.uuid4()
+    created = _entry(
+        aggregate_id=aggregate_id,
+        event_type="ComplaintRegistered",
+        created_at=when,
+    )
+    escalated = _entry(
+        aggregate_id=aggregate_id,
+        event_type="IntakeDispositionRecorded",
+        metadata={"intakeDisposition": "ESCALATE_PENDING_APPROVAL"},
+        created_at=when,
+    )
+    # Deliberately return created first — provider must re-rank.
+    timeline.list_recent.return_value = [created, escalated]
+    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000006")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == [
+        "complaint.escalation_requested",
+        "complaint.created",
+    ]
+
+
 def test_list_recent_resolves_actor_via_directory() -> None:
     provider, timeline, complaints, directory = _provider()
     actor_id = "11111111-1111-1111-1111-111111111111"

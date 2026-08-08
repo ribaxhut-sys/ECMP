@@ -179,7 +179,7 @@ class CmBatch1CustomerLockORM(Base):
 
 
 class CmBatch1NumberCounterORM(Base):
-    """Portable complaint-number counter (CM-########)."""
+    """Portable counter — key ``cn:UNIT:YYYYMM`` for format B ``UNIT-YYMM-NNNN``."""
 
     __tablename__ = "cm_batch1_number_counters"
 

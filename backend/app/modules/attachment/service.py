@@ -80,6 +80,10 @@ def build_storage_provider(settings: SettingsService) -> StorageProvider:
                 m("storage.root_path_not_empty"),
                 details={"key": SETTING_STORAGE_ROOT_PATH},
             )
+        # Lab guard: pytest fixtures must not leave /tmp/pytest-* in shared DB.
+        normalized = root.replace("\\", "/")
+        if "/pytest-" in normalized or normalized.startswith("/tmp/pytest"):
+            root = _DEFAULT_ROOT_PATH
         return LocalStorageProvider(root)
     raise ValidationAppError(
         f"penyedia storage tidak didukung: {provider}",

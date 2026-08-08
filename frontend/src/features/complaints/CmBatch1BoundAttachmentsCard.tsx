@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
+  downloadAttachment,
   fetchCmBatch1ComplaintAttachments,
   uploadCmBatch1Attachment,
   voidCmBatch1Attachment,
@@ -12,10 +13,17 @@ import {
   type CmBatch1AttachmentResponse,
 } from "@/lib/api";
 import {
+  CM_BATCH1_MAX_MULTI_UPLOAD,
+  CM_BATCH1_VOID_REASON_UPLOADER_REMOVED,
   cmBatch1AttachmentListLabel,
+  cmBatch1VoidTargetId,
   formatCmBatch1AttachmentBytes,
   isCmBatch1AttachmentVoidable,
-  normalizeCmBatch1VoidReason,
+  isSameCmBatch1Attachment,
+  normalizeCmBatch1Attachment,
+  openBlankAttachmentTab,
+  pickCmBatch1UploadFiles,
+  showAttachmentInTab,
 } from "./cmBatch1Attachments";
 import {
   Alert,
@@ -24,7 +32,6 @@ import {
   Card,
   CardBody,
   Empty,
-  Input,
   SectionHeader,
   Select,
   Skeleton,
@@ -73,9 +80,21 @@ export function CmBatch1BoundAttachmentsCard({
   const [uploading, setUploading] = useState(false);
   const [classification, setClassification] =
     useState<CmBatch1AttachmentClassification>("customer_evidence");
-  const [voidTargetId, setVoidTargetId] = useState<string | null>(null);
-  const [voidReason, setVoidReason] = useState("");
   const [voidingId, setVoidingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const previewTabsRef = useRef<Map<string, Window>>(new Map());
+
+  const closePreviewTab = useCallback((attachmentId: string) => {
+    const tab = previewTabsRef.current.get(attachmentId);
+    if (tab && !tab.closed) {
+      try {
+        tab.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    previewTabsRef.current.delete(attachmentId);
+  }, []);
 
   const load = useCallback(async () => {
     if (!canRead || !complaintId.trim()) {
@@ -87,7 +106,14 @@ export function CmBatch1BoundAttachmentsCard({
     setError(null);
     try {
       const res = await fetchCmBatch1ComplaintAttachments(complaintId.trim());
-      setItems(res.data ?? []);
+      setItems(
+        (res.data ?? []).map(
+          (row) =>
+            normalizeCmBatch1Attachment(
+              row as unknown as Record<string, unknown>,
+            ) as CmBatch1AttachmentResponse,
+        ),
+      );
     } catch (err) {
       setItems([]);
       setError(
@@ -106,30 +132,80 @@ export function CmBatch1BoundAttachmentsCard({
 
   const onFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
+      const { files, truncated } = pickCmBatch1UploadFiles(event.target.files);
       event.target.value = "";
-      if (!file || !canUpload || uploading) return;
+      if (files.length === 0 || !canUpload || uploading) return;
 
       setUploading(true);
       setError(null);
       setInfo(null);
+      const uploaded: CmBatch1AttachmentResponse[] = [];
+      const failures: string[] = [];
       try {
-        const res = await uploadCmBatch1Attachment({
-          file,
-          classification,
-          complaintId: complaintId.trim(),
-          customerId: customerId?.trim() || null,
-        });
-        setItems((prev) => [res.data, ...prev]);
-        setInfo(t("attachmentAddedOptional"));
-      } catch (err) {
-        setError(
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : t("unableToUploadAttachment"),
-        );
+        for (const file of files) {
+          try {
+            const res = await uploadCmBatch1Attachment({
+              file,
+              classification,
+              complaintId: complaintId.trim(),
+              customerId: customerId?.trim() || null,
+            });
+            const data = normalizeCmBatch1Attachment(
+              res.data as unknown as Record<string, unknown>,
+            ) as CmBatch1AttachmentResponse;
+            if (!data.attachmentId && !data.platformAttachmentId) {
+              failures.push(
+                t("attachmentUploadNamedFailed", {
+                  name: file.name,
+                  detail: t("unableToUploadAttachment"),
+                }),
+              );
+              continue;
+            }
+            uploaded.push(data);
+          } catch (err) {
+            const detail =
+              err instanceof ApiError
+                ? err.message
+                : err instanceof Error
+                  ? err.message
+                  : t("unableToUploadAttachment");
+            failures.push(
+              t("attachmentUploadNamedFailed", {
+                name: file.name,
+                detail,
+              }),
+            );
+          }
+        }
+        if (uploaded.length > 0) {
+          setItems((prev) => [...uploaded, ...prev]);
+          setInfo(
+            uploaded.length === 1
+              ? t("attachmentAddedOptional")
+              : t("attachmentMultiUploadSuccess", { count: uploaded.length }),
+          );
+        }
+        const notes: string[] = [];
+        if (truncated) {
+          notes.push(
+            t("attachmentMultiUploadTruncated", {
+              max: CM_BATCH1_MAX_MULTI_UPLOAD,
+            }),
+          );
+        }
+        if (failures.length > 0) {
+          notes.push(
+            t("attachmentMultiUploadPartial", {
+              ok: uploaded.length,
+              fail: failures.length,
+              details: failures.join("; "),
+            }),
+          );
+        }
+        if (notes.length > 0) {
+          setError(notes.join(" "));
+        }
       } finally {
         setUploading(false);
       }
@@ -137,36 +213,85 @@ export function CmBatch1BoundAttachmentsCard({
     [canUpload, classification, complaintId, customerId, t, uploading],
   );
 
-  const onConfirmVoid = useCallback(async () => {
-    if (!voidTargetId || !canVoid) return;
-    const reason = normalizeCmBatch1VoidReason(voidReason);
-    if (!reason) {
-      setError(t("voidReasonRequired"));
-      return;
-    }
-    setVoidingId(voidTargetId);
-    setError(null);
-    try {
-      const res = await voidCmBatch1Attachment(voidTargetId, reason);
-      setItems((prev) =>
-        prev.map((item) =>
-          item.attachmentId === voidTargetId ? res.data : item,
-        ),
-      );
-      setVoidTargetId(null);
-      setVoidReason("");
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
+  const onVoid = useCallback(
+    async (item: CmBatch1AttachmentResponse) => {
+      if (!canVoid || voidingId) return;
+      const targetId = cmBatch1VoidTargetId(item);
+      if (!targetId) {
+        setError(t("unableToVoidAttachment"));
+        return;
+      }
+      setVoidingId(targetId);
+      setError(null);
+      let snapshot: CmBatch1AttachmentResponse[] = [];
+      setItems((prev) => {
+        snapshot = prev;
+        return prev.filter((row) => !isSameCmBatch1Attachment(row, targetId));
+      });
+      closePreviewTab(targetId);
+      try {
+        await voidCmBatch1Attachment(
+          targetId,
+          CM_BATCH1_VOID_REASON_UPLOADER_REMOVED,
+        );
+      } catch (err) {
+        setItems(snapshot);
+        setError(
+          err instanceof ApiError
             ? err.message
-            : t("unableToVoidAttachment"),
-      );
-    } finally {
-      setVoidingId(null);
-    }
-  }, [canVoid, voidReason, voidTargetId, t]);
+            : err instanceof Error
+              ? err.message
+              : t("unableToVoidAttachment"),
+        );
+      } finally {
+        setVoidingId(null);
+      }
+    },
+    [canVoid, closePreviewTab, t, voidingId],
+  );
+
+  const onOpen = useCallback(
+    async (item: CmBatch1AttachmentResponse) => {
+      if (!canRead || busyId) return;
+      const rowId = cmBatch1VoidTargetId(item);
+      const platformId = item.platformAttachmentId?.trim() || rowId;
+      if (!rowId || !platformId) {
+        setError(t("unableToOpenAttachment"));
+        return;
+      }
+      const preview = openBlankAttachmentTab();
+      if (!preview) {
+        setError(t("attachmentPopupBlocked"));
+        return;
+      }
+      setBusyId(rowId);
+      setError(null);
+      try {
+        const result = await downloadAttachment(platformId);
+        const url = URL.createObjectURL(result.blob);
+        showAttachmentInTab(preview, url);
+        previewTabsRef.current.set(rowId, preview);
+        // Revoke later so the new tab can still read the blob.
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (err) {
+        try {
+          preview.close();
+        } catch {
+          /* ignore */
+        }
+        setError(
+          err instanceof ApiError
+            ? err.status === 404
+              ? t("attachmentBlobMissing")
+              : err.message
+            : t("unableToOpenAttachment"),
+        );
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [busyId, canRead, t],
+  );
 
   if (!canRead) {
     return (
@@ -178,7 +303,9 @@ export function CmBatch1BoundAttachmentsCard({
     );
   }
 
-  const visible = items.filter((item) => item.status !== "VOID");
+  const visible = items.filter(
+    (item) => item.status !== "VOID" && item.status !== "SUPERSEDED",
+  );
 
   return (
     <section
@@ -196,7 +323,7 @@ export function CmBatch1BoundAttachmentsCard({
           {!loading && error ? (
             <Alert
               tone="danger"
-              title={t("couldNotLoadAttachments")}
+              title={t("attachmentError")}
               description={error}
             />
           ) : null}
@@ -229,6 +356,7 @@ export function CmBatch1BoundAttachmentsCard({
                   type="file"
                   className="sr-only"
                   accept={ACCEPT_MIME}
+                  multiple
                   disabled={uploading || loading}
                   onChange={(event) => void onFileChange(event)}
                   aria-label={t("chooseFile")}
@@ -246,45 +374,6 @@ export function CmBatch1BoundAttachmentsCard({
                 <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                   {t("filePolicy")}
                 </p>
-              </div>
-            </div>
-          ) : null}
-
-          {!loading && !error && voidTargetId ? (
-            <div
-              className="space-y-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-3"
-              data-testid="bound-void-form"
-            >
-              <Input
-                id="boundVoidReason"
-                name="boundVoidReason"
-                label={t("voidReason")}
-                value={voidReason}
-                onChange={(event) => setVoidReason(event.target.value)}
-                disabled={voidingId !== null}
-                hint={t("voidReasonHint")}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setVoidTargetId(null);
-                    setVoidReason("");
-                  }}
-                  disabled={voidingId !== null}
-                >
-                  {t("cancel")}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => void onConfirmVoid()}
-                  loading={voidingId !== null}
-                  disabled={voidingId !== null}
-                  aria-label={t("confirmVoid")}
-                >
-                  {t("confirmVoid")}
-                </Button>
               </div>
             </div>
           ) : null}
@@ -321,11 +410,13 @@ export function CmBatch1BoundAttachmentsCard({
                 data-testid="bound-list"
                 aria-label={t("boundAttachmentsAria")}
               >
-                {visible.map((item) => (
+                {visible.map((item) => {
+                  const rowId = cmBatch1VoidTargetId(item) ?? item.originalName;
+                  return (
                   <li
-                    key={item.attachmentId}
+                    key={rowId}
                     className="flex flex-col gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
-                    data-testid={`bound-item-${item.attachmentId}`}
+                    data-testid={`bound-item-${rowId}`}
                   >
                     <div className="min-w-0 space-y-1">
                       <span className="block truncate font-medium text-ecmp-text-primary">
@@ -339,24 +430,41 @@ export function CmBatch1BoundAttachmentsCard({
                         </span>
                       </div>
                     </div>
-                    {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={voidingId !== null}
-                        onClick={() => {
-                          setVoidTargetId(item.attachmentId);
-                          setVoidReason("");
-                          setError(null);
-                        }}
-                        aria-label={t("voidNamed", { name: item.originalName })}
-                      >
-                        {t("void")}
-                      </Button>
-                    ) : null}
+                    <div className="flex flex-shrink-0 flex-wrap gap-2">
+                      {canRead ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busyId !== null || voidingId !== null}
+                          loading={busyId === rowId}
+                          onClick={() => void onOpen(item)}
+                          aria-label={t("openAttachmentNamed", {
+                            name: item.originalName,
+                          })}
+                        >
+                          {t("openAttachment")}
+                        </Button>
+                      ) : null}
+                      {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busyId !== null || voidingId !== null}
+                          loading={voidingId === rowId}
+                          onClick={() => void onVoid(item)}
+                          aria-label={t("voidNamed", {
+                            name: item.originalName,
+                          })}
+                        >
+                          {t("void")}
+                        </Button>
+                      ) : null}
+                    </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </>
           ) : null}

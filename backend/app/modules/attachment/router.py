@@ -265,10 +265,14 @@ def delete_attachment(
         str(attachment_id)
     )
     if linked is not None:
+        is_admin = principal.has_permission("*") or principal.has_any_role(
+            "ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"
+        )
         voided = batch1.void(
             linked.attachment_id,
             reason=reason or "void_via_api",
             actor_id=str(principal.user_id),
+            is_admin=is_admin,
         )
         return DataResponse(data=voided)
 

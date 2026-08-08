@@ -16,6 +16,11 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from app.core.authorization.visibility import DEFAULT_PUSAT_UNIT_CODES
+from app.modules.cm_batch1.complaint_number import (
+    counter_name as complaint_counter_name,
+    next_complaint_number as format_next_complaint_number,
+    resolve_unit_code,
+)
 from app.modules.cm_batch1.entities import (
     ComplaintAggregate,
     DuplicateDecisionRecord,
@@ -31,8 +36,6 @@ from app.modules.cm_batch1.models import (
     CmBatch1LaterReviewItemORM,
     CmBatch1NumberCounterORM,
 )
-
-_COUNTER_NAME = "complaint_number"
 
 
 def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
@@ -299,25 +302,40 @@ class CmBatch1Repository:
         ).all()
         return [_to_entity(r) for r in rows]
 
-    def _next_complaint_number(self) -> str:
+    def _next_complaint_number(
+        self,
+        *,
+        owning_unit_id: str | None = None,
+        at: datetime | None = None,
+    ) -> str:
+        """Allocate ``UNIT-YYMM-NNNN`` (format B); counter per unit+month."""
+        when = at or datetime.now(UTC)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        unit = resolve_unit_code(owning_unit_id)
+        name = complaint_counter_name(unit, year=when.year, month=when.month)
         row = self._session.scalar(
             select(CmBatch1NumberCounterORM)
-            .where(CmBatch1NumberCounterORM.name == _COUNTER_NAME)
+            .where(CmBatch1NumberCounterORM.name == name)
             .with_for_update()
         )
         if row is None:
-            row = CmBatch1NumberCounterORM(name=_COUNTER_NAME, value=0)
+            row = CmBatch1NumberCounterORM(name=name, value=0)
             self._session.add(row)
             self._session.flush()
             row = self._session.scalar(
                 select(CmBatch1NumberCounterORM)
-                .where(CmBatch1NumberCounterORM.name == _COUNTER_NAME)
+                .where(CmBatch1NumberCounterORM.name == name)
                 .with_for_update()
             )
             assert row is not None
         row.value += 1
         self._session.flush()
-        return f"CM-{row.value:08d}"
+        return format_next_complaint_number(
+            owning_unit_id=unit,
+            sequence=row.value,
+            at=when,
+        )
 
     def _dialect_name(self) -> str:
         bind = self._session.get_bind()
@@ -405,12 +423,14 @@ class CmBatch1Repository:
 
         complaint_id = uuid.uuid4()
         now = datetime.now(UTC)
-        complaint_number = self._next_complaint_number()
+        unit = (owning_unit_id or "").strip() or None
+        complaint_number = self._next_complaint_number(
+            owning_unit_id=unit, at=now
+        )
         initial_status = (status or "REGISTERED").strip().upper() or "REGISTERED"
         if initial_status not in {"REGISTERED", "CLOSED"}:
             initial_status = "REGISTERED"
         disposition = (intake_disposition or "").strip().upper() or None
-        unit = (owning_unit_id or "").strip() or None
         orm = CmBatch1ComplaintORM(
             id=complaint_id,
             complaint_number=complaint_number,

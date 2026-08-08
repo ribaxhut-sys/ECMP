@@ -228,7 +228,49 @@ def test_tc_cm_fr001_01_create_registered_no_case(service: CmBatch1Service) -> N
     )
     assert created.status == "REGISTERED"
     assert created.case_created is False
-    assert created.complaint_number.startswith("CM-")
+    assert created.complaint_number.count("-") == 2
+    unit, yymm, seq = created.complaint_number.split("-")
+    assert len(unit) == 3 and unit.isalpha()
+    assert len(yymm) == 4 and yymm.isdigit()
+    assert seq.isdigit() and int(seq) >= 1
+
+
+def test_create_complaint_number_format_b_tanah_abang(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Format B",
+            description="Nomor unit-bulan",
+            recordingUnitId="UPPPD-TANAH-ABANG",
+        ),
+        request_id="req-format-b-tab",
+        channel_message_id=None,
+        actor_id="actor-1",
+    )
+    assert created.complaint_number.startswith("TAB-")
+    _, yymm, seq = created.complaint_number.split("-")
+    assert len(yymm) == 4 and yymm.isdigit()
+    assert seq == "0001"
+
+    second = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10002",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Format B 2",
+            description="Seq naik",
+            recordingUnitId="UPPPD-TANAH-ABANG",
+        ),
+        request_id="req-format-b-tab-2",
+        channel_message_id=None,
+        actor_id="actor-1",
+    )
+    assert second.complaint_number.startswith("TAB-")
+    assert second.complaint_number.split("-")[2] == "0002"
 
 
 def test_create_branch_closed_without_case(service: CmBatch1Service) -> None:
@@ -733,7 +775,11 @@ def test_s2_persistence_create_get_idempotent(persistent_service: CmBatch1Servic
     )
     assert created.status == "REGISTERED"
     assert created.case_created is False
-    assert created.complaint_number.startswith("CM-")
+    assert created.complaint_number.count("-") == 2
+    unit, yymm, seq = created.complaint_number.split("-")
+    assert len(unit) == 3 and unit.isalpha()
+    assert len(yymm) == 4 and yymm.isdigit()
+    assert seq.isdigit() and int(seq) >= 1
 
     loaded = persistent_service.get_complaint(created.complaint_id)
     assert loaded.complaint_id == created.complaint_id

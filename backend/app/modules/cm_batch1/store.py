@@ -5,7 +5,6 @@ Production path uses :class:`CmBatch1Repository` (SQLAlchemy).
 
 from __future__ import annotations
 
-import itertools
 import uuid
 from datetime import UTC, datetime
 from threading import Lock
@@ -13,6 +12,11 @@ from threading import Lock
 from app.core.authorization.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
     complaint_visible_for_pusat,
+)
+from app.modules.cm_batch1.complaint_number import (
+    counter_name as complaint_counter_name,
+    next_complaint_number as format_next_complaint_number,
+    resolve_unit_code,
 )
 from app.modules.cm_batch1.entities import (
     ComplaintAggregate,
@@ -35,7 +39,7 @@ class Batch1Store:
         self._confirmed: dict[str, str] = {}
         self._decisions: list[DuplicateDecisionRecord] = []
         self._later_reviews: list[LaterReviewWorkItem] = []
-        self._seq = itertools.count(1)
+        self._counters: dict[str, int] = {}
         self.force_degraded: bool = False
 
     def reset(self) -> None:
@@ -47,7 +51,7 @@ class Batch1Store:
             self._confirmed.clear()
             self._decisions.clear()
             self._later_reviews.clear()
-            self._seq = itertools.count(1)
+            self._counters.clear()
             self.force_degraded = False
 
     def commit(self) -> None:
@@ -250,14 +254,22 @@ class Batch1Store:
                 )
                 return by_ch, False
 
-            n = next(self._seq)
+            now = datetime.now(UTC)
+            unit = (owning_unit_id or "").strip() or None
+            unit_code = resolve_unit_code(unit)
+            key = complaint_counter_name(
+                unit_code, year=now.year, month=now.month
+            )
+            n = self._counters.get(key, 0) + 1
+            self._counters[key] = n
             complaint_id = str(uuid.uuid4())
-            complaint_number = f"CM-{n:08d}"
+            complaint_number = format_next_complaint_number(
+                owning_unit_id=unit_code, sequence=n, at=now
+            )
             initial_status = (status or "REGISTERED").strip().upper() or "REGISTERED"
             if initial_status not in {"REGISTERED", "CLOSED"}:
                 initial_status = "REGISTERED"
             disposition = (intake_disposition or "").strip().upper() or None
-            unit = (owning_unit_id or "").strip() or None
             row = ComplaintAggregate(
                 complaint_id=complaint_id,
                 complaint_number=complaint_number,

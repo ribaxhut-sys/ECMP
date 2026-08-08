@@ -90,6 +90,7 @@ class Batch1AttachmentRecord:
     checksum_sha256: str | None = None
     supersedes_id: str | None = None
     void_reason: str | None = None
+    uploaded_by: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 

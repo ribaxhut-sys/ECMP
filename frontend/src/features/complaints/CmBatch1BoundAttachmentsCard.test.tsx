@@ -72,6 +72,12 @@ describe("CmBatch1BoundAttachmentsCard", () => {
     });
     expect(fetchCmBatch1ComplaintAttachments).toHaveBeenCalledWith(COMPLAINT_ID);
     expect(screen.getByText("1 attachment")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open bound.pdf" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Download bound.pdf" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows empty label when none bound", async () => {
@@ -85,7 +91,7 @@ describe("CmBatch1BoundAttachmentsCard", () => {
     });
   });
 
-  it("voids a bound attachment with reason", async () => {
+  it("voids a bound attachment in one click", async () => {
     const user = userEvent.setup();
     fetchCmBatch1ComplaintAttachments.mockResolvedValue({
       data: [
@@ -113,7 +119,7 @@ describe("CmBatch1BoundAttachmentsCard", () => {
         mimeType: "application/pdf",
         sizeBytes: 100,
         checksumSha256: "qqq",
-        voidReason: "wrong upload",
+        voidReason: "removed_by_uploader",
         createdAt: "2026-07-31T00:00:00Z",
       },
     });
@@ -123,16 +129,15 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       expect(screen.getByTestId("bound-item-att-bound-2")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: "Mark as void: letter.pdf" }));
-    await user.type(screen.getByLabelText("Void reason"), "wrong upload");
     await user.click(
-      screen.getByRole("button", { name: "Confirm void" }),
+      screen.getByRole("button", { name: "Delete attachment: letter.pdf" }),
     );
+    expect(screen.queryByTestId("bound-void-form")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(voidCmBatch1Attachment).toHaveBeenCalledWith(
         "att-bound-2",
-        "wrong upload",
+        "removed_by_uploader",
       );
     });
     expect(screen.getByTestId("bound-empty")).toBeInTheDocument();

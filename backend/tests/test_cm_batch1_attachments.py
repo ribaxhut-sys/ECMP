@@ -228,6 +228,36 @@ def test_tc_cm_fr004_04_void_with_reason(
     assert voided.void_reason == "customer_retract"
 
 
+def test_void_forbidden_for_non_uploader_non_creator(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    from app.core.errors import PermissionDeniedError
+
+    complaint_id = _create_complaint(cm_service, "att-void-deny")
+    uploaded = batch1_attachments.upload(
+        data=b"secret",
+        filename="note.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="actor",
+        complaint_id=complaint_id,
+    )
+    with pytest.raises(PermissionDeniedError):
+        batch1_attachments.void(
+            uploaded.attachment_id,
+            reason="removed_by_uploader",
+            actor_id="other-agent",
+        )
+    # Admin bypass
+    voided = batch1_attachments.void(
+        uploaded.attachment_id,
+        reason="admin_cleanup",
+        actor_id="other-agent",
+        is_admin=True,
+    )
+    assert voided.status == "VOID"
+
+
 def test_tc_cm_fr004_05_supersede(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:
