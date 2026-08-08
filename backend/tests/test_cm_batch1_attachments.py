@@ -258,6 +258,49 @@ def test_void_forbidden_for_non_uploader_non_creator(
     assert voided.status == "VOID"
 
 
+def test_void_allowed_for_complaint_creator_not_uploader(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-void-creator")
+    uploaded = batch1_attachments.upload(
+        data=b"by-officer",
+        filename="scan.pdf",
+        content_type="application/pdf",
+        classification="customer_evidence",
+        actor_id="uploader-only",
+        complaint_id=complaint_id,
+    )
+    # Complaint created_by is "actor" from _create_complaint helper.
+    voided = batch1_attachments.void(
+        uploaded.attachment_id,
+        reason="creator_cleanup",
+        actor_id="actor",
+    )
+    assert voided.status == "VOID"
+
+
+def test_void_rejects_empty_actor_and_empty_reason(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    from app.core.errors import PermissionDeniedError, ValidationAppError
+
+    complaint_id = _create_complaint(cm_service, "att-void-empty")
+    uploaded = batch1_attachments.upload(
+        data=b"x",
+        filename="a.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="actor",
+        complaint_id=complaint_id,
+    )
+    with pytest.raises(ValidationAppError):
+        batch1_attachments.void(uploaded.attachment_id, reason="  ", actor_id="actor")
+    with pytest.raises(PermissionDeniedError):
+        batch1_attachments.void(
+            uploaded.attachment_id, reason="needs actor", actor_id=None
+        )
+
+
 def test_tc_cm_fr004_05_supersede(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:

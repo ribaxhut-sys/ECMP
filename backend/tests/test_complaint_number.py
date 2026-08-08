@@ -24,6 +24,10 @@ def test_resolve_pusat_and_unknown() -> None:
     assert resolve_unit_code(None) == "UNK"
     assert resolve_unit_code("") == "UNK"
     assert resolve_unit_code("TAB") == "TAB"
+    # Short letter slug: pad to 3.
+    assert resolve_unit_code("AB") == "ABX"
+    # Non-mapped long slug: first 3 letters.
+    assert resolve_unit_code("CUSTOM-BRANCH-XYZ") == "CUS"
 
 
 def test_counter_name_per_unit_month() -> None:
@@ -64,3 +68,19 @@ def test_next_complaint_number_uses_at() -> None:
 def test_format_rejects_non_positive_sequence(seq: int) -> None:
     with pytest.raises(ValueError):
         format_complaint_number("TAB", year=2026, month=8, sequence=seq)
+
+
+@pytest.mark.parametrize("month", [0, 13])
+def test_format_rejects_invalid_month(month: int) -> None:
+    with pytest.raises(ValueError):
+        format_complaint_number("TAB", year=2026, month=month, sequence=1)
+
+
+def test_next_complaint_number_naive_datetime_assumes_utc() -> None:
+    naive = datetime(2026, 8, 8, 12, 0)  # noqa: DTZ001 — intentional naive
+    assert (
+        next_complaint_number(
+            owning_unit_id="UPPPD-GAMBIR", sequence=3, at=naive
+        )
+        == "GAM-2608-0003"
+    )
