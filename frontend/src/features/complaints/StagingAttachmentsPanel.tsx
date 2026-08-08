@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -41,8 +41,10 @@ export interface StagingAttachmentsPanelProps {
   customerId?: string | null;
   disabled?: boolean;
   onStagingTokenResolved?: (token: string) => void;
-  /** True when at least one non-void staged file exists (create must send stagingToken). */
+  /** True when at least one non-void staged file exists (informational). */
   onHasStagedChange?: (hasStaged: boolean) => void;
+  /** True while a staging upload/void is in flight — parent should block submit. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /**
@@ -54,6 +56,7 @@ export function StagingAttachmentsPanel({
   disabled = false,
   onStagingTokenResolved,
   onHasStagedChange,
+  onBusyChange,
 }: StagingAttachmentsPanelProps) {
   const t = useTranslations("complaints");
   const { hasPermission } = useAuth();
@@ -74,6 +77,10 @@ export function StagingAttachmentsPanel({
 
   const customerLocked = Boolean(customerId?.trim());
   const uploadBlocked = disabled || !customerLocked;
+
+  useEffect(() => {
+    onBusyChange?.(uploading || Boolean(voidingId));
+  }, [onBusyChange, uploading, voidingId]);
 
   const notifyStaged = useCallback(
     (next: CmBatch1AttachmentResponse[]) => {

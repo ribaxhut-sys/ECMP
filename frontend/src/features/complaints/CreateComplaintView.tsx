@@ -87,6 +87,7 @@ export function CreateComplaintView() {
     newCmBatch1StagingToken(),
   );
   const [hasStagedAttachments, setHasStagedAttachments] = useState(false);
+  const [stagingBusy, setStagingBusy] = useState(false);
   const [activeIntent, setActiveIntent] =
     useState<IntakeSubmitIntent>("resolve_branch");
   const intakeIntentRef = useRef<IntakeSubmitIntent>("resolve_branch");
@@ -241,7 +242,9 @@ export function CreateComplaintView() {
     const response = await createCmBatch1Complaint(
       toCmBatch1CreateRequest(values, {
         duplicateOverrideJustification: justification,
-        stagingToken: hasStagedAttachments ? stagingToken : null,
+        // Always send token: BE bind is a no-op if nothing staged; omitting
+        // it after upload (race / stale hasStaged flag) leaves orphans.
+        stagingToken: stagingToken.trim() || null,
         closeAtBranch: true,
         recordingUnitCode: lockedBranch?.code ?? null,
       }),
@@ -349,7 +352,7 @@ export function CreateComplaintView() {
           decision: "link_existing",
           customerId: values.customerId.trim(),
           survivingComplaintId: surviving,
-          stagingToken: hasStagedAttachments ? stagingToken : null,
+          stagingToken: stagingToken.trim() || null,
         });
         setDuplicateOpen(false);
         router.push(`/complaints/cm/${surviving}`);
@@ -551,6 +554,7 @@ export function CreateComplaintView() {
           disabled={submitting || duplicateBusy}
           onStagingTokenResolved={setStagingToken}
           onHasStagedChange={setHasStagedAttachments}
+          onBusyChange={setStagingBusy}
         />
 
         <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end">
@@ -558,7 +562,7 @@ export function CreateComplaintView() {
             type="button"
             variant="outline"
             onClick={onCancel}
-            disabled={submitting || duplicateBusy}
+            disabled={submitting || duplicateBusy || stagingBusy}
             aria-label={t("backAriaLabel")}
           >
             {tCommon("back")}
@@ -567,7 +571,7 @@ export function CreateComplaintView() {
             type="button"
             variant="outline"
             loading={submitting && activeIntent === "escalate"}
-            disabled={submitting || duplicateBusy}
+            disabled={submitting || duplicateBusy || stagingBusy}
             onClick={() => void submitIntake("escalate")}
             aria-label={t("submitEscalateAriaLabel")}
           >
@@ -578,7 +582,7 @@ export function CreateComplaintView() {
           <Button
             type="submit"
             loading={submitting && activeIntent === "resolve_branch"}
-            disabled={submitting || duplicateBusy}
+            disabled={submitting || duplicateBusy || stagingBusy}
             aria-label={t("submitResolveBranchAriaLabel")}
           >
             {submitting && activeIntent === "resolve_branch"

@@ -91,12 +91,11 @@ export function EscalateIntakeView() {
     values: CreateComplaintFormValues,
     justification: string | null,
     stagingToken: string,
-    hasStagedAttachments: boolean,
   ): Promise<void> {
     const response = await createCmBatch1Complaint(
       toCmBatch1CreateRequest(withPriority(values), {
         duplicateOverrideJustification: justification,
-        stagingToken: hasStagedAttachments ? stagingToken : null,
+        stagingToken: stagingToken.trim() || null,
         escalate: true,
         recordingUnitCode: draft?.recordingUnitCode ?? null,
       }),
@@ -125,7 +124,6 @@ export function EscalateIntakeView() {
           draft.values,
           draft.overrideJustification,
           draft.stagingToken,
-          draft.hasStagedAttachments,
         );
         return;
       }
@@ -145,7 +143,6 @@ export function EscalateIntakeView() {
         draft.values,
         null,
         draft.stagingToken,
-        draft.hasStagedAttachments,
       );
     } catch (err) {
       setSubmitError(
@@ -187,9 +184,7 @@ export function EscalateIntakeView() {
           decision: "link_existing",
           customerId: draft.values.customerId.trim(),
           survivingComplaintId: surviving,
-          stagingToken: draft.hasStagedAttachments
-            ? draft.stagingToken
-            : null,
+          stagingToken: draft.stagingToken.trim() || null,
         });
         clearEscalateIntakeDraft();
         setDuplicateOpen(false);
@@ -212,7 +207,6 @@ export function EscalateIntakeView() {
             next.values,
             justification,
             next.stagingToken,
-            next.hasStagedAttachments,
           );
         } finally {
           setSubmitting(false);
