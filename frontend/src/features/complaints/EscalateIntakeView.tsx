@@ -98,6 +98,7 @@ export function EscalateIntakeView() {
         duplicateOverrideJustification: justification,
         stagingToken: hasStagedAttachments ? stagingToken : null,
         escalate: true,
+        recordingUnitCode: draft?.recordingUnitCode ?? null,
       }),
       { idempotencyKey: newCmBatch1IdempotencyKey() },
     );

@@ -243,6 +243,7 @@ export function CreateComplaintView() {
         duplicateOverrideJustification: justification,
         stagingToken: hasStagedAttachments ? stagingToken : null,
         closeAtBranch: true,
+        recordingUnitCode: lockedBranch?.code ?? null,
       }),
       { idempotencyKey: newCmBatch1IdempotencyKey() },
     );
@@ -282,6 +283,7 @@ export function CreateComplaintView() {
         stagingToken,
         hasStagedAttachments,
         overrideJustification,
+        recordingUnitCode: lockedBranch?.code ?? null,
       });
       router.push("/complaints/new/escalate");
       return;

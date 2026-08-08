@@ -356,6 +356,8 @@ export function toCmBatch1CreateRequest(
     stagingToken?: string | null;
     escalate?: boolean;
     closeAtBranch?: boolean;
+    /** Branch.code — preferred org key (not Branch.id UUID). */
+    recordingUnitCode?: string | null;
   },
 ): CmBatch1CreateComplaintRequest {
   const body: CmBatch1CreateComplaintRequest = {
@@ -373,7 +375,8 @@ export function toCmBatch1CreateRequest(
   if (values.priority && options?.escalate) {
     body.priority = values.priority;
   }
-  const recordingUnitId = values.branchId.trim();
+  const recordingUnitId =
+    (options?.recordingUnitCode || "").trim() || values.branchId.trim();
   if (recordingUnitId) {
     body.recordingUnitId = recordingUnitId;
   }

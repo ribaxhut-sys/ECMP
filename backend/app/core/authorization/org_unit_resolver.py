@@ -34,8 +34,23 @@ class OrgUnitResolver:
         return cleaned or None
 
     def resolve_declared(self, org_unit_id: str | None) -> str | None:
-        """Normalize a caller-/body-declared organization unit (create path)."""
-        return self.normalize(org_unit_id)
+        """Normalize a caller-/body-declared organization unit (create path).
+
+        Lab FE historically sent ``Branch.id`` (UUID) as ``recordingUnitId``.
+        Canonical org key is ``Branch.code`` (e.g. ``PUSAT``, ``UPPPD-…``) —
+        resolve UUID → code when the id matches an active branch.
+        """
+        cleaned = self.normalize(org_unit_id)
+        if not cleaned:
+            return None
+        try:
+            branch_uuid = uuid.UUID(cleaned)
+        except ValueError:
+            return cleaned
+        branch = self._session.get(Branch, branch_uuid)
+        if branch is None or branch.deleted_at is not None:
+            return cleaned
+        return self.normalize(branch.code)
 
     def resolve_complaint(self, complaint_id: uuid.UUID) -> str | None:
         """Map legacy Complaint → Branch.code (org unit key)."""

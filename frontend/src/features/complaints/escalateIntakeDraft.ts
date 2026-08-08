@@ -7,6 +7,8 @@ export interface EscalateIntakeDraft {
   stagingToken: string;
   hasStagedAttachments: boolean;
   overrideJustification: string | null;
+  /** Branch.code for recordingUnitId (preferred over values.branchId UUID). */
+  recordingUnitCode?: string | null;
 }
 
 const STORAGE_KEY = "ecmp.cm.escalateIntakeDraft.v1";

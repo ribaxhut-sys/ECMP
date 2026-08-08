@@ -41,6 +41,27 @@ def test_resolve_ho_scheduler_is_pusat() -> None:
     assert resolve_row_visibility(principal) == VisibilityClass.PUSAT
 
 
+def test_resolve_agent_on_pusat_unit_is_pusat() -> None:
+    """Lab Agent Pusat is AGENT + branch PUSAT (not HO_SCHEDULER)."""
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id="PUSAT",
+    )
+    assert resolve_row_visibility(principal) == VisibilityClass.PUSAT
+
+
+def test_resolve_branch_agent_remains_self() -> None:
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id="UPPPD-A",
+    )
+    assert resolve_row_visibility(principal) == VisibilityClass.SELF
+
+
 def test_complaint_visible_for_pusat_predicates() -> None:
     assert (
         complaint_visible_for_pusat(
@@ -191,6 +212,20 @@ def test_list_visibility_self_unit_pusat() -> None:
     assert approved.complaint_id in pusat_ids
     assert pending.complaint_id not in pusat_ids
     assert own_a.complaint_id not in pusat_ids
+
+    agent_pusat_items, _ = service.list_complaints(
+        principal=Principal(
+            user_id=uuid.uuid4(),
+            roles=("AGENT",),
+            permissions=frozenset({"complaints:read"}),
+            org_unit_id="PUSAT",
+        ),
+        org_unit_id="PUSAT",
+    )
+    agent_pusat_ids = {i.complaint_id for i in agent_pusat_items}
+    assert approved.complaint_id in agent_pusat_ids
+    assert pending.complaint_id not in agent_pusat_ids
+    assert own_a.complaint_id not in agent_pusat_ids
 
     _admin_items, admin_total = service.list_complaints(
         principal=Principal(

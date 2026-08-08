@@ -74,6 +74,10 @@ def resolve_row_visibility(principal: Principal) -> VisibilityClass:
         return VisibilityClass.UNIT
 
     if principal.has_any_role(*_AGENT_ROLES):
+        # Lab "Agent Pusat" = AGENT (branch-scoped) on unit PUSAT — same inbox
+        # as HO handlers: Pusat-owned + escalations approved to Pusat (OQ-2 / BR-2).
+        if is_pusat_unit(principal.org_unit_id):
+            return VisibilityClass.PUSAT
         return VisibilityClass.SELF
 
     # Default deny-broad: treat as SELF (only own creates) rather than ALL

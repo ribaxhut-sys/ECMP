@@ -160,6 +160,22 @@ describe("validateCmBatch1CreateForm", () => {
     expect(body.priority).toBeUndefined();
   });
 
+  it("prefers recordingUnitCode over branchId UUID for recordingUnitId", () => {
+    const body = toCmBatch1CreateRequest(
+      {
+        ...createEmptyComplaintForm({ branchId: VALID_UUID }),
+        customerId: "CUST-1",
+        category: "BILLING",
+        channel: "BRANCH",
+        subject: "Subject",
+        description: "Narrative",
+        resolution: "Resolved at branch",
+      },
+      { closeAtBranch: true, recordingUnitCode: "UPPPD-TANAH-ABANG" },
+    );
+    expect(body.recordingUnitId).toBe("UPPPD-TANAH-ABANG");
+  });
+
   it("includes priority when escalating", () => {
     const body = toCmBatch1CreateRequest(
       {
