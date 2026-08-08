@@ -6,13 +6,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
-  acceptCmBatch1HqEscalation,
+  acceptAndScheduleCmBatch1HqEscalation,
   decideCmBatch1IntakeEscalation,
+  fetchBranches,
   fetchCmBatch1Complaint,
   fetchCmBatch1ComplaintHistory,
   requestCmBatch1IntakeEscalation,
+  returnCmBatch1HqEscalation,
   scheduleCmBatch1HqArrival,
   type CmBatch1ComplaintResponse,
+  type CmBatch1HqReturnReasonCode,
   type CmBatch1IntakeHistoryEntry,
 } from "@/lib/api";
 import {
@@ -43,8 +46,23 @@ import {
 } from "./createComplaintForm";
 
 const REJECT_NOTE_MIN = 20;
+const HQ_RETURN_NOTE_MIN = 10;
 const LOG_PAGE_SIZE = 10;
 const APPROVE_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+const HQ_RETURN_REASON_CODES: CmBatch1HqReturnReasonCode[] = [
+  "MISSING_ATTACHMENT",
+  "INCOMPLETE_CHRONOLOGY",
+  "UNCLEAR_CUSTOMER_DATA",
+  "WRONG_CATEGORY_OR_ROUTING",
+  "ADDITIONAL_EVIDENCE_REQUIRED",
+  "OTHER",
+];
+const PUSAT_AGENT_ROLES = new Set([
+  "AGENT",
+  "CS_AGENT",
+  "HANDLER",
+  "BRANCH_OFFICER",
+]);
 
 /** Event code → badge tone. Unknown codes stay neutral rather than disappear. */
 const HISTORY_TONES: Record<string, BadgeTone> = {
@@ -56,6 +74,7 @@ const HISTORY_TONES: Record<string, BadgeTone> = {
   ESCALATION_CANCELLED: "neutral",
   ESCALATION_RE_REQUESTED: "warning",
   HQ_ACCEPTED: "info",
+  HQ_RETURNED: "warning",
   HQ_ARRIVAL_SCHEDULED: "info",
 };
 
@@ -68,6 +87,7 @@ const HISTORY_LABEL_KEYS: Record<string, string> = {
   ESCALATION_CANCELLED: "escalationCancelled",
   ESCALATION_RE_REQUESTED: "tagEscalationReRequested",
   HQ_ACCEPTED: "tagHqAccepted",
+  HQ_RETURNED: "tagHqReturned",
   HQ_ARRIVAL_SCHEDULED: "tagHqScheduled",
 };
 
@@ -121,7 +141,7 @@ export function CmBatch1ConfirmationView({
   const searchParams = useSearchParams();
   const intakeEscalate = searchParams.get("intake") === "escalate";
   const intakeClosed = searchParams.get("intake") === "closed";
-  const { hasPermission } = useAuth();
+  const { hasPermission, user, roles } = useAuth();
   const { pushSuccess, pushError } = useToast();
   const canRead =
     hasPermission("complaints:read") || hasPermission("complaints:create");
@@ -129,7 +149,37 @@ export function CmBatch1ConfirmationView({
   const canRequestEscalation =
     hasPermission("complaints:create") ||
     hasPermission("complaints:escalate");
-  const canHqReview = hasPermission("escalations:review");
+  const [isPusatUnitMember, setIsPusatUnitMember] = useState(false);
+  useEffect(() => {
+    const branchId = user?.branchId?.trim();
+    if (!branchId) {
+      setIsPusatUnitMember(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchBranches(100);
+        if (cancelled) return;
+        const mine = res.data.find((b) => b.id === branchId);
+        setIsPusatUnitMember(
+          Boolean(mine && mine.code.toUpperCase() === "PUSAT"),
+        );
+      } catch {
+        if (!cancelled) setIsPusatUnitMember(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.branchId]);
+  const isPusatAgent = roles.some((r) =>
+    PUSAT_AGENT_ROLES.has((r || "").toUpperCase()),
+  )
+    ? isPusatUnitMember
+    : false;
+  const canHqReview =
+    hasPermission("escalations:review") || isPusatAgent;
 
   const [data, setData] = useState<CmBatch1ComplaintResponse | null>(null);
   const [history, setHistory] = useState<CmBatch1IntakeHistoryEntry[]>([]);
@@ -143,13 +193,16 @@ export function CmBatch1ConfirmationView({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reRequestOpen, setReRequestOpen] = useState(false);
   const [hqAcceptOpen, setHqAcceptOpen] = useState(false);
+  const [hqReturnOpen, setHqReturnOpen] = useState(false);
   const [hqScheduleOpen, setHqScheduleOpen] = useState(false);
   const [approveNote, setApproveNote] = useState("");
   const [approvePriority, setApprovePriority] = useState("");
   const [rejectNote, setRejectNote] = useState("");
   const [cancelNote, setCancelNote] = useState("");
   const [reRequestReason, setReRequestReason] = useState("");
-  const [hqAcceptNote, setHqAcceptNote] = useState("");
+  const [hqReturnNote, setHqReturnNote] = useState("");
+  const [hqReturnReasonCode, setHqReturnReasonCode] =
+    useState<CmBatch1HqReturnReasonCode>("MISSING_ATTACHMENT");
   const [arrivalDate, setArrivalDate] = useState("");
   const [arrivalTime, setArrivalTime] = useState("");
   const [arrivalNote, setArrivalNote] = useState("");
@@ -325,25 +378,59 @@ export function CmBatch1ConfirmationView({
     setApproveOpen(true);
   }
 
-  async function submitHqAccept(): Promise<void> {
+  async function submitHqAcceptAndSchedule(): Promise<void> {
     if (!data) return;
-    const note = hqAcceptNote.trim();
-    if (note && note.length < REJECT_NOTE_MIN) return;
+    const note = arrivalNote.trim();
+    if (!arrivalDate.trim() || !arrivalTime.trim()) return;
+    if (note.length < HQ_RETURN_NOTE_MIN) return;
     setDeciding(true);
     try {
-      const res = await acceptCmBatch1HqEscalation(data.complaintId, {
-        note: note || undefined,
+      const res = await acceptAndScheduleCmBatch1HqEscalation(data.complaintId, {
+        arrivalDate: arrivalDate.trim(),
+        arrivalTime: arrivalTime.trim(),
+        note,
       });
       setData(res.data);
       void reloadHistory();
       setHqAcceptOpen(false);
-      setHqAcceptNote("");
+      setArrivalDate("");
+      setArrivalTime("");
+      setArrivalNote("");
       pushSuccess(
-        t("hqAcceptedToast"),
-        t("hqAcceptedToastDescription", { number: res.data.complaintNumber }),
+        t("hqAcceptScheduledToast"),
+        t("hqAcceptScheduledToastDescription", {
+          number: res.data.complaintNumber,
+          date: res.data.hqArrivalDate ?? arrivalDate,
+          time: res.data.hqArrivalTime ?? arrivalTime,
+        }),
       );
     } catch (err) {
-      pushError(err, t("hqAcceptFailed"));
+      pushError(err, t("hqAcceptScheduleFailed"));
+    } finally {
+      setDeciding(false);
+    }
+  }
+
+  async function submitHqReturn(): Promise<void> {
+    if (!data) return;
+    const note = hqReturnNote.trim();
+    if (note.length < HQ_RETURN_NOTE_MIN) return;
+    setDeciding(true);
+    try {
+      const res = await returnCmBatch1HqEscalation(data.complaintId, {
+        reasonCode: hqReturnReasonCode,
+        note,
+      });
+      setData(res.data);
+      void reloadHistory();
+      setHqReturnOpen(false);
+      setHqReturnNote("");
+      pushSuccess(
+        t("hqReturnedToast"),
+        t("hqReturnedToastDescription", { number: res.data.complaintNumber }),
+      );
+    } catch (err) {
+      pushError(err, t("hqReturnFailed"));
     } finally {
       setDeciding(false);
     }
@@ -423,19 +510,38 @@ export function CmBatch1ConfirmationView({
   const canReRequestDisposition =
     data?.status === "REGISTERED" &&
     (disposition === "ESCALATE_CANCELLED" ||
-      disposition === "ESCALATE_REJECTED");
+      disposition === "ESCALATE_REJECTED" ||
+      disposition === "RETURNED_TO_BRANCH");
   const showReRequestEscalation =
     Boolean(canReRequestDisposition) &&
     canRequestEscalation &&
     !data?.hqAcceptedAt &&
     !data?.caseCreated;
-  const showHqAccept =
+  const showHqAcceptAndSchedule =
     approvedEscalation && canHqReview && !data?.hqAcceptedAt;
-  const showHqSchedule =
-    approvedEscalation && canHqReview && Boolean(data?.hqAcceptedAt);
-  const hqAcceptNoteOk =
-    !hqAcceptNote.trim() || hqAcceptNote.trim().length >= REJECT_NOTE_MIN;
-  const hqScheduleReady = Boolean(arrivalDate.trim() && arrivalTime.trim());
+  const showHqReturn =
+    approvedEscalation && canHqReview && !data?.hqAcceptedAt;
+  const hqScheduled =
+    data?.status === "REGISTERED" && disposition === "HQ_SCHEDULED";
+  const showHqReschedule =
+    canHqReview &&
+    Boolean(data?.hqAcceptedAt) &&
+    (approvedEscalation || hqScheduled);
+  const showBranchNotifyBanner =
+    hqScheduled && Boolean(data?.hqArrivalDate) && !canHqReview;
+  const showManageCases =
+    !intakeClosed &&
+    !pendingEscalation &&
+    !intakeEscalate &&
+    !canHqReview &&
+    !isPusatUnitMember;
+  const hqReturnNoteOk = hqReturnNote.trim().length >= HQ_RETURN_NOTE_MIN;
+  const hqAcceptScheduleReady =
+    Boolean(arrivalDate.trim() && arrivalTime.trim()) &&
+    arrivalNote.trim().length >= HQ_RETURN_NOTE_MIN;
+  const hqScheduleReady =
+    Boolean(arrivalDate.trim() && arrivalTime.trim()) &&
+    (!arrivalNote.trim() || arrivalNote.trim().length >= HQ_RETURN_NOTE_MIN);
 
   const priorityRaw = (data?.priority || "").toUpperCase();
   const priorityKnown = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -519,6 +625,8 @@ export function CmBatch1ConfirmationView({
         return intakeHistory.cancellationNote;
       case "HQ_ACCEPTED":
         return data?.hqAcceptanceNote?.trim() || null;
+      case "HQ_RETURNED":
+        return data?.hqReturnNote?.trim() || null;
       case "HQ_ARRIVAL_SCHEDULED":
         return data?.hqArrivalDate && data?.hqArrivalTime
           ? t("hqArrivalValue", {
@@ -651,6 +759,17 @@ export function CmBatch1ConfirmationView({
         />
       ) : null}
 
+      {showBranchNotifyBanner ? (
+        <Alert
+          tone="warning"
+          title={t("hqScheduledBranchNotifyTitle")}
+          description={t("hqScheduledBranchNotifyBody", {
+            date: data?.hqArrivalDate ?? "",
+            time: data?.hqArrivalTime ?? "",
+          })}
+        />
+      ) : null}
+
       {loading ? <Skeleton rows={5} /> : null}
 
       {!loading && error ? (
@@ -716,6 +835,12 @@ export function CmBatch1ConfirmationView({
                       ) : null}
                       {data.intakeDisposition === "ESCALATE_CANCELLED" ? (
                         <Badge tone="neutral">{t("escalationCancelled")}</Badge>
+                      ) : null}
+                      {data.intakeDisposition === "RETURNED_TO_BRANCH" ? (
+                        <Badge tone="warning">{t("returnedToBranch")}</Badge>
+                      ) : null}
+                      {data.intakeDisposition === "HQ_SCHEDULED" ? (
+                        <Badge tone="warning">{t("hqScheduled")}</Badge>
                       ) : null}
                     </dd>
                   </div>
@@ -979,21 +1104,37 @@ export function CmBatch1ConfirmationView({
                 {t("reRequestEscalation")}
               </Button>
             ) : null}
-            {showHqAccept ? (
+            {showHqAcceptAndSchedule ? (
               <Button
                 type="button"
-                onClick={() => setHqAcceptOpen(true)}
+                onClick={() => {
+                  setArrivalDate("");
+                  setArrivalTime("");
+                  setArrivalNote("");
+                  setHqAcceptOpen(true);
+                }}
                 disabled={deciding}
               >
-                {t("hqAccept")}
+                {t("hqAcceptAndSchedule")}
               </Button>
             ) : null}
-            {showHqSchedule ? (
+            {showHqReturn ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setHqReturnOpen(true)}
+                disabled={deciding}
+              >
+                {t("hqReturn")}
+              </Button>
+            ) : null}
+            {showHqReschedule ? (
               <Button
                 type="button"
                 onClick={() => {
                   setArrivalDate(data?.hqArrivalDate ?? "");
                   setArrivalTime(data?.hqArrivalTime ?? "");
+                  setArrivalNote("");
                   setHqScheduleOpen(true);
                 }}
                 disabled={deciding}
@@ -1011,7 +1152,7 @@ export function CmBatch1ConfirmationView({
                 {t("openSupervisorQueue")}
               </Button>
             ) : null}
-            {!intakeClosed && !pendingEscalation && !intakeEscalate ? (
+            {showManageCases ? (
               <Button
                 type="button"
                 onClick={() =>
@@ -1249,7 +1390,7 @@ export function CmBatch1ConfirmationView({
       <Modal
         open={hqAcceptOpen}
         onClose={() => (!deciding ? setHqAcceptOpen(false) : undefined)}
-        title={t("hqAcceptTitle")}
+        title={t("hqAcceptAndScheduleTitle")}
         size="sm"
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1264,26 +1405,104 @@ export function CmBatch1ConfirmationView({
             <Button
               type="button"
               loading={deciding}
-              disabled={!hqAcceptNoteOk}
-              onClick={() => void submitHqAccept()}
+              disabled={!hqAcceptScheduleReady || deciding}
+              onClick={() => void submitHqAcceptAndSchedule()}
             >
-              {t("hqAccept")}
+              {t("hqAcceptAndSchedule")}
             </Button>
           </div>
         }
       >
         <div className="space-y-3">
           <p className="text-ecmp-text-primary">
-            {t("hqAcceptBody", { number: data?.complaintNumber ?? "" })}
+            {t("hqAcceptAndScheduleBody", {
+              number: data?.complaintNumber ?? "",
+            })}
           </p>
+          <Input
+            type="date"
+            label={t("hqArrivalDateLabel")}
+            value={arrivalDate}
+            onChange={(e) => setArrivalDate(e.target.value)}
+            disabled={deciding}
+            required
+          />
+          <Input
+            type="time"
+            label={t("hqArrivalTimeLabel")}
+            value={arrivalTime}
+            onChange={(e) => setArrivalTime(e.target.value)}
+            disabled={deciding}
+            required
+          />
           <Textarea
-            label={t("hqAcceptNoteLabel")}
-            hint={t("hqAcceptNoteHint")}
-            value={hqAcceptNote}
-            onChange={(e) => setHqAcceptNote(e.target.value)}
-            rows={3}
+            label={t("hqAcceptScheduleNoteLabel")}
+            hint={t("hqAcceptScheduleNoteHint")}
+            value={arrivalNote}
+            onChange={(e) => setArrivalNote(e.target.value)}
+            rows={4}
             maxLength={2000}
             disabled={deciding}
+            required
+            aria-required="true"
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={hqReturnOpen}
+        onClose={() => (!deciding ? setHqReturnOpen(false) : undefined)}
+        title={t("hqReturnTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqReturnOpen(false)}
+              disabled={deciding}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={deciding}
+              disabled={!hqReturnNoteOk || deciding}
+              onClick={() => void submitHqReturn()}
+            >
+              {t("hqReturn")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("hqReturnBody", { number: data?.complaintNumber ?? "" })}
+          </p>
+          <Select
+            name="hqReturnReasonCode"
+            label={t("hqReturnReasonLabel")}
+            options={HQ_RETURN_REASON_CODES.map((code) => ({
+              value: code,
+              label: t(`hqReturnReason_${code}`),
+            }))}
+            value={hqReturnReasonCode}
+            onChange={(e) =>
+              setHqReturnReasonCode(e.target.value as CmBatch1HqReturnReasonCode)
+            }
+            disabled={deciding}
+            required
+          />
+          <Textarea
+            label={t("hqReturnNoteLabel")}
+            hint={t("hqReturnNoteHint")}
+            value={hqReturnNote}
+            onChange={(e) => setHqReturnNote(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={deciding}
+            required
+            aria-required="true"
           />
         </div>
       </Modal>

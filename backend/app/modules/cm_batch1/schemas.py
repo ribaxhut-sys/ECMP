@@ -180,6 +180,11 @@ class ComplaintBatch1Response(BaseModel):
         alias="hqArrivalNote",
         description="Jadwal kedatangan history section",
     )
+    hq_return_note: str | None = Field(
+        default=None,
+        alias="hqReturnNote",
+        description="Pengembalian Pusat history section (HQ return to branch)",
+    )
     owning_unit_id: str | None = Field(
         default=None,
         alias="owningUnitId",
@@ -245,6 +250,55 @@ class HqAcceptRequest(BaseModel):
         default=None,
         max_length=2000,
         description="Optional note (≥20 if provided) — Penerimaan Pusat history",
+    )
+
+
+class HqAcceptAndScheduleRequest(BaseModel):
+    """Pusat accepts escalation and schedules arrival in one step (lab).
+
+    Sets intakeDisposition=HQ_SCHEDULED so originating branch can inform
+    the customer — distinct from RETURNED_TO_BRANCH (incomplete package).
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    arrival_date: date = Field(alias="arrivalDate")
+    arrival_time: str = Field(
+        alias="arrivalTime",
+        min_length=4,
+        max_length=5,
+        description="HH:MM (24h)",
+    )
+    note: str = Field(
+        min_length=1,
+        max_length=2000,
+        description=(
+            "Mandatory info for branch/customer (min 10 after trim) — "
+            "stored under Jadwal kedatangan / Penerimaan Pusat history"
+        ),
+    )
+
+
+_HQ_RETURN_REASON_CODES = Literal[
+    "MISSING_ATTACHMENT",
+    "INCOMPLETE_CHRONOLOGY",
+    "UNCLEAR_CUSTOMER_DATA",
+    "WRONG_CATEGORY_OR_ROUTING",
+    "ADDITIONAL_EVIDENCE_REQUIRED",
+    "OTHER",
+]
+
+
+class HqReturnRequest(BaseModel):
+    """Pusat returns approved escalation to originating branch (DEC-F4 lab)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    reason_code: _HQ_RETURN_REASON_CODES = Field(alias="reasonCode")
+    note: str = Field(
+        min_length=1,
+        max_length=2000,
+        description="Mandatory free-text note (min 10 after trim) — Pengembalian Pusat",
     )
 
 

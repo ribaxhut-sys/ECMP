@@ -9,11 +9,16 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends
+from sqlalchemy.orm import Session
 
+from app.core.authorization.authentication import get_current_principal
+from app.core.authorization.org_unit_resolver import OrgUnitResolver
 from app.core.authorization.permission_check import require_permissions
 from app.core.authorization.principal import Principal
+from app.core.authorization.visibility import is_pusat_unit
 from app.core.errors import PermissionDeniedError
 from app.core.user_messages import m
+from app.db.session import get_db_session
 
 
 def require_supervisor_assign(
@@ -46,6 +51,14 @@ _ESCALATION_REVIEW_ROLES = (
     "ADMINISTRATOR",
 )
 
+# Lab persona "Agent Pusat" = AGENT-family on unit PUSAT (not HO_SCHEDULER).
+_PUSAT_AGENT_ROLES = (
+    "AGENT",
+    "CS_AGENT",
+    "HANDLER",
+    "BRANCH_OFFICER",
+)
+
 
 def require_escalation_review(
     principal: Annotated[
@@ -58,6 +71,33 @@ def require_escalation_review(
             m("escalation.only_scheduler_admin_review")
         )
     return principal
+
+
+def require_hq_intake_action(
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> Principal:
+    """CM Batch-1 HQ accept / return / schedule (lab).
+
+    Allows classic ``escalations:review`` + HO Scheduler/Admin, **or** Agent
+    (family) whose membership unit is Pusat — Mode A lab "Agent Pusat".
+    """
+    if principal.has_permission("escalations:review") and principal.has_any_role(
+        *_ESCALATION_REVIEW_ROLES
+    ):
+        return principal
+
+    if principal.has_permission("complaints:read") and principal.has_any_role(
+        *_PUSAT_AGENT_ROLES
+    ):
+        resolver = OrgUnitResolver(session)
+        org = resolver.normalize(principal.org_unit_id) or (
+            resolver.resolve_principal_membership(principal.user_id)
+        )
+        if is_pusat_unit(org):
+            return principal
+
+    raise PermissionDeniedError(m("escalation.only_scheduler_admin_review"))
 
 
 _APPOINTMENT_COMPLETE_ROLES = (

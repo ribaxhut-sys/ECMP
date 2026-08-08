@@ -152,6 +152,8 @@ export interface CmBatch1ComplaintResponse {
   hqArrivalTime?: string | null;
   hqAcceptanceNote?: string | null;
   hqArrivalNote?: string | null;
+  hqReturnNote?: string | null;
+  owningUnitId?: string | null;
   priority?: string | null;
   createdAt?: string | null;
   duplicateCheckResult?: string | null;
@@ -167,6 +169,7 @@ export type CmBatch1HistoryEventCode =
   | "ESCALATION_CANCELLED"
   | "ESCALATION_RE_REQUESTED"
   | "HQ_ACCEPTED"
+  | "HQ_RETURNED"
   | "HQ_ARRIVAL_SCHEDULED"
   | (string & {});
 
@@ -448,10 +451,30 @@ export interface CmBatch1HqAcceptRequest {
   note?: string | null;
 }
 
+export interface CmBatch1HqAcceptAndScheduleRequest {
+  arrivalDate: string;
+  arrivalTime: string;
+  /** Mandatory info for branch to relay to the customer (min 10). */
+  note: string;
+}
+
 export interface CmBatch1HqScheduleArrivalRequest {
   arrivalDate: string;
   arrivalTime: string;
   note?: string | null;
+}
+
+export type CmBatch1HqReturnReasonCode =
+  | "MISSING_ATTACHMENT"
+  | "INCOMPLETE_CHRONOLOGY"
+  | "UNCLEAR_CUSTOMER_DATA"
+  | "WRONG_CATEGORY_OR_ROUTING"
+  | "ADDITIONAL_EVIDENCE_REQUIRED"
+  | "OTHER";
+
+export interface CmBatch1HqReturnRequest {
+  reasonCode: CmBatch1HqReturnReasonCode;
+  note: string;
 }
 
 /** API-516 lab — Pusat menerima eskalasi yang sudah APPROVED. */
@@ -460,6 +483,28 @@ export function acceptCmBatch1HqEscalation(
   body: CmBatch1HqAcceptRequest = {},
 ): Promise<DataResponse<CmBatch1ComplaintResponse>> {
   return apiRequest(cmBatch1Paths().hqAccept(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Lab — Terima + jadwalkan sekaligus → HQ_SCHEDULED (cabang kabari customer). */
+export function acceptAndScheduleCmBatch1HqEscalation(
+  complaintId: string,
+  body: CmBatch1HqAcceptAndScheduleRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqAcceptAndSchedule(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** API-519 lab — Pusat mengembalikan eskalasi ke cabang. */
+export function returnCmBatch1HqEscalation(
+  complaintId: string,
+  body: CmBatch1HqReturnRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqReturn(complaintId), {
     method: "POST",
     body: JSON.stringify(body),
   });

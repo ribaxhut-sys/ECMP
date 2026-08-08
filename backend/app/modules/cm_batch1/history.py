@@ -31,6 +31,7 @@ _DISPOSITION_CODES = {
 _EVENT_TYPE_CODES = {
     "ComplaintRegistered": "REGISTERED",
     "HqAccepted": "HQ_ACCEPTED",
+    "HqReturned": "HQ_RETURNED",
     "HqArrivalScheduled": "HQ_ARRIVAL_SCHEDULED",
     "AttachmentUploaded": "ATTACHMENT_UPLOADED",
     "AttachmentBound": "ATTACHMENT_BOUND",

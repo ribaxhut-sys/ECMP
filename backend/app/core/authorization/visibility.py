@@ -105,6 +105,6 @@ def complaint_visible_for_pusat(
     if unit and unit.upper() in {c.upper() for c in pusat_unit_codes}:
         return True
     disp = (intake_disposition or "").strip().upper()
-    if disp == "ESCALATE_APPROVED":
+    if disp in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
         return True
     return hq_accepted_at is not None

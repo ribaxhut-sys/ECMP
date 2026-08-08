@@ -15,8 +15,9 @@ from app.core.auth import (
     require_any_permission,
     require_permissions,
 )
-from app.core.authorization.gates import require_escalation_review
+from app.core.authorization.gates import require_hq_intake_action
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
+from app.core.authorization.visibility import is_pusat_unit
 from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
@@ -39,7 +40,9 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    HqAcceptAndScheduleRequest,
     HqAcceptRequest,
+    HqReturnRequest,
     HqScheduleArrivalRequest,
     IntakeEscalationDecisionRequest,
     IntakeEscalationRequestBody,
@@ -192,6 +195,8 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
         "ESCALATE_APPROVED",
         "ESCALATE_REJECTED",
         "ESCALATE_CANCELLED",
+        "RETURNED_TO_BRANCH",
+        "HQ_SCHEDULED",
         # Pseudo-value: any escalate-family state (Users directory drill-down).
         "ESCALATED",
     }
@@ -209,6 +214,25 @@ def _effective_org_unit(
         return resolver.resolve_principal_membership(principal.user_id)
     except Exception:
         return None
+
+
+def _enforce_cm_org_or_pusat_hq(
+    *,
+    principal: Principal,
+    resource_org: str | None,
+    session: Session,
+    settings: Settings,
+) -> None:
+    """Org-scope with Pusat HQ exception for escalated branch work."""
+    if not org_scope_enforcement_enabled(settings):
+        return
+    effective = _effective_org_unit(OrgUnitResolver(session), principal)
+    if is_pusat_unit(effective) or principal.has_any_role(
+        "ADMIN", "ADMINISTRATOR", "SUPER_ADMIN", "HO_SCHEDULER",
+        "HEAD_OFFICE_SCHEDULER", "SCHEDULER",
+    ):
+        return
+    enforce_org_scope(principal, resource_org, settings)
 
 
 @router.get(
@@ -373,7 +397,12 @@ def get_complaint(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintBatch1Response]:
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
-    enforce_org_scope(principal, resource_org, settings)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
     return DataResponse(data=service.get_complaint(complaint_id))
 
 
@@ -394,7 +423,12 @@ def get_complaint_history(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ListResponse[IntakeHistoryEntry]:
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
-    enforce_org_scope(principal, resource_org, settings)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
     # 404 before reading the log — history is not an existence oracle.
     service.get_complaint(complaint_id)
     items = history.list_history(complaint_id)
@@ -475,15 +509,82 @@ def request_intake_escalation(
 def hq_accept_escalation(
     complaint_id: str,
     body: HqAcceptRequest,
-    principal: Annotated[Principal, Depends(require_escalation_review)],
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
     service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintBatch1Response]:
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
-    enforce_org_scope(principal, resource_org, settings)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
     return DataResponse(
         data=service.accept_at_hq(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-accept-and-schedule",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ accept and schedule arrival (lab) → HQ_SCHEDULED",
+)
+def hq_accept_and_schedule(
+    complaint_id: str,
+    body: HqAcceptAndScheduleRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """Terima + jadwal sekaligus; cabang melihat sinyal untuk informasikan customer."""
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    return DataResponse(
+        data=service.accept_and_schedule_at_hq(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-return",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ return approved escalation to branch (API-519 lab / DEC-F4)",
+)
+def hq_return_escalation(
+    complaint_id: str,
+    body: HqReturnRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """Tolak/kembalikan ke cabang dengan reason code + catatan (sebelum HQ accept)."""
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    return DataResponse(
+        data=service.return_from_hq(
             complaint_id,
             body,
             actor_id=_principal_key(principal),
@@ -500,13 +601,18 @@ def hq_accept_escalation(
 def hq_schedule_arrival(
     complaint_id: str,
     body: HqScheduleArrivalRequest,
-    principal: Annotated[Principal, Depends(require_escalation_review)],
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
     service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintBatch1Response]:
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
-    enforce_org_scope(principal, resource_org, settings)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
     return DataResponse(
         data=service.schedule_hq_arrival(
             complaint_id,

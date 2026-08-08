@@ -1963,6 +1963,7 @@ def test_api_516_hq_accept_and_517_schedule(
     from datetime import date
 
     from app.modules.cm_batch1.schemas import (
+        HqAcceptAndScheduleRequest,
         HqAcceptRequest,
         HqScheduleArrivalRequest,
     )
@@ -1976,29 +1977,36 @@ def test_api_516_hq_accept_and_517_schedule(
             actor_id="hq-1",
         )
 
-    accepted = service.accept_at_hq(
+    scheduled = service.accept_and_schedule_at_hq(
         created.complaint_id,
-        HqAcceptRequest(note="Diterima Pusat untuk penjadwalan kedatangan pelanggan."),
-        actor_id="hq-1",
-    )
-    assert accepted.hq_accepted_at is not None
-    assert accepted.hq_acceptance_note is not None
-
-    scheduled = service.schedule_hq_arrival(
-        created.complaint_id,
-        HqScheduleArrivalRequest(
+        HqAcceptAndScheduleRequest(
             arrivalDate=date(2026, 8, 10),
             arrivalTime="09:30",
-            note="Bawa KTP asli",
+            note="Bawa KTP asli dan bukti pembayaran terakhir.",
         ),
         actor_id="hq-1",
     )
+    assert scheduled.hq_accepted_at is not None
+    assert scheduled.intake_disposition == "HQ_SCHEDULED"
     assert scheduled.hq_arrival_date == date(2026, 8, 10)
     assert scheduled.hq_arrival_time == "09:30"
     row = store.get(created.complaint_id)
     assert row is not None
     assert "Penerimaan Pusat:" in (row.description or "")
     assert "Jadwal kedatangan:" in (row.description or "")
+    assert row.intake_disposition == "HQ_SCHEDULED"
+
+    rescheduled = service.schedule_hq_arrival(
+        created.complaint_id,
+        HqScheduleArrivalRequest(
+            arrivalDate=date(2026, 8, 11),
+            arrivalTime="10:00",
+            note="Jadwal digeser — kabari pelanggan lagi.",
+        ),
+        actor_id="hq-1",
+    )
+    assert rescheduled.hq_arrival_date == date(2026, 8, 11)
+    assert rescheduled.intake_disposition == "HQ_SCHEDULED"
 
     with pytest.raises(InvalidStateError):
         service.decide_intake_escalation(
@@ -2009,6 +2017,79 @@ def test_api_516_hq_accept_and_517_schedule(
             ),
             actor_id="supervisor-1",
         )
+
+    with pytest.raises(InvalidStateError):
+        service.accept_at_hq(
+            created.complaint_id,
+            HqAcceptRequest(note="Sudah diterima sebelumnya."),
+            actor_id="hq-1",
+        )
+
+
+def test_api_519_hq_return_to_branch(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="HQ return to branch",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh berkas pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for HQ return to branch test."
+            ),
+        ),
+        request_id="esc-hq-return-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui agar Pusat dapat mengembalikan ke cabang.",
+            priority="MEDIUM",
+        ),
+        actor_id="supervisor-1",
+    )
+
+    from app.modules.cm_batch1.schemas import (
+        HqReturnRequest,
+        IntakeEscalationRequestBody,
+    )
+
+    with pytest.raises(ValidationAppError):
+        service.return_from_hq(
+            created.complaint_id,
+            HqReturnRequest(reasonCode="MISSING_ATTACHMENT", note="short"),
+            actor_id="hq-1",
+        )
+
+    returned = service.return_from_hq(
+        created.complaint_id,
+        HqReturnRequest(
+            reasonCode="MISSING_ATTACHMENT",
+            note="Lampirkan bukti pembayaran dan KTP asli pelanggan.",
+        ),
+        actor_id="hq-1",
+    )
+    assert returned.intake_disposition == "RETURNED_TO_BRANCH"
+    assert returned.hq_return_note is not None
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert "Pengembalian Pusat" in (row.description or "")
+    assert "[MISSING_ATTACHMENT]" in (row.description or "")
+
+    re_requested = service.request_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationRequestBody(
+            reason="Berkas sudah dilengkapi: bukti bayar + KTP terlampir lengkap."
+        ),
+        actor_id="agent-1",
+    )
+    assert re_requested.intake_disposition == "ESCALATE_PENDING_APPROVAL"
 
 
 def test_api_515_cancel_requires_note(service: CmBatch1Service) -> None:

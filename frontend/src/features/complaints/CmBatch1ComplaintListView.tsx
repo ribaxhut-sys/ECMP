@@ -172,6 +172,8 @@ export function CmBatch1ComplaintListView() {
       { value: "ESCALATE_APPROVED", label: t("escalationApproved") },
       { value: "ESCALATE_REJECTED", label: t("escalationRejected") },
       { value: "ESCALATE_CANCELLED", label: t("escalationCancelled") },
+      { value: "RETURNED_TO_BRANCH", label: t("returnedToBranch") },
+      { value: "HQ_SCHEDULED", label: t("hqScheduled") },
     ],
     [t],
   );
@@ -246,6 +248,14 @@ export function CmBatch1ComplaintListView() {
           {row.status !== "CLOSED" &&
           row.intakeDisposition === "ESCALATE_CANCELLED" ? (
             <Badge tone="neutral">{t("escalationCancelled")}</Badge>
+          ) : null}
+          {row.status !== "CLOSED" &&
+          row.intakeDisposition === "RETURNED_TO_BRANCH" ? (
+            <Badge tone="warning">{t("returnedToBranch")}</Badge>
+          ) : null}
+          {row.status !== "CLOSED" &&
+          row.intakeDisposition === "HQ_SCHEDULED" ? (
+            <Badge tone="warning">{t("hqScheduled")}</Badge>
           ) : null}
         </div>
       ),

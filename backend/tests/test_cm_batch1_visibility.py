@@ -90,6 +90,14 @@ def test_complaint_visible_for_pusat_predicates() -> None:
     assert (
         complaint_visible_for_pusat(
             owning_unit_id="UPPPD-A",
+            intake_disposition="HQ_SCHEDULED",
+            hq_accepted_at=None,
+        )
+        is True
+    )
+    assert (
+        complaint_visible_for_pusat(
+            owning_unit_id="UPPPD-A",
             intake_disposition="ESCALATE_PENDING_APPROVAL",
             hq_accepted_at=datetime.now(UTC),
         )

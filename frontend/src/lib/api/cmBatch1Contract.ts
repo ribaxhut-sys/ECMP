@@ -28,6 +28,10 @@ export function cmBatch1Paths() {
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/intake-escalation/request`,
     hqAccept: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-accept`,
+    hqAcceptAndSchedule: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-accept-and-schedule`,
+    hqReturn: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-return`,
     hqScheduleArrival: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-schedule-arrival`,
     userWorkStats: (userId: string) =>

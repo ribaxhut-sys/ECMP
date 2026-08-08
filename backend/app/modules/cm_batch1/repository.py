@@ -715,6 +715,7 @@ class CmBatch1Repository:
         *,
         hq_accepted_at: datetime,
         description: str | None = None,
+        intake_disposition: str | None = None,
     ) -> ComplaintAggregate | None:
         try:
             uid = uuid.UUID(str(complaint_id).strip())
@@ -726,6 +727,8 @@ class CmBatch1Repository:
         row.hq_accepted_at = hq_accepted_at
         if description is not None:
             row.description = description
+        if intake_disposition is not None:
+            row.intake_disposition = intake_disposition
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)
@@ -737,6 +740,7 @@ class CmBatch1Repository:
         arrival_date: date,
         arrival_time: str,
         description: str | None = None,
+        intake_disposition: str | None = None,
     ) -> ComplaintAggregate | None:
         try:
             uid = uuid.UUID(str(complaint_id).strip())
@@ -749,6 +753,34 @@ class CmBatch1Repository:
         row.hq_arrival_time = arrival_time
         if description is not None:
             row.description = description
+        if intake_disposition is not None:
+            row.intake_disposition = intake_disposition
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def accept_and_schedule_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        arrival_date: date,
+        arrival_time: str,
+        description: str,
+        intake_disposition: str = "HQ_SCHEDULED",
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.hq_accepted_at = hq_accepted_at
+        row.hq_arrival_date = arrival_date
+        row.hq_arrival_time = arrival_time
+        row.description = description
+        row.intake_disposition = intake_disposition
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)
@@ -796,7 +828,9 @@ class CmBatch1Repository:
             upper_codes = sorted({c.upper() for c in codes})
             pusat_clause = or_(
                 func.upper(CmBatch1ComplaintORM.owning_unit_id).in_(upper_codes),
-                CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+                CmBatch1ComplaintORM.intake_disposition.in_(
+                    ["ESCALATE_APPROVED", "HQ_SCHEDULED"]
+                ),
                 CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
             )
             stmt = stmt.where(pusat_clause)
@@ -829,6 +863,8 @@ class CmBatch1Repository:
             "ESCALATE_APPROVED",
             "ESCALATE_REJECTED",
             "ESCALATE_CANCELLED",
+            "RETURNED_TO_BRANCH",
+            "HQ_SCHEDULED",
         }
         _allowed_disp = {"BRANCH_CLOSED", *_escalate_family}
         if disp == "ESCALATED":

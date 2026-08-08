@@ -724,6 +724,43 @@ def hq_accepted(
     )
 
 
+def hq_returned(
+    *,
+    complaint_id: str,
+    complaint_number: str,
+    actor_id: str | None,
+    reason_code: str,
+    note: str | None = None,
+) -> DomainEvent:
+    now = datetime.now(UTC)
+    payload = {
+        "complaintId": complaint_id,
+        "complaintNumber": complaint_number,
+        "reasonCode": reason_code,
+        "actorId": actor_id,
+        "nextDisposition": "RETURNED_TO_BRANCH",
+    }
+    return DomainEvent(
+        name="HqReturned",
+        aggregate_type="Complaint",
+        aggregate_id=complaint_id,
+        actor_id=actor_id,
+        payload=payload,
+        idempotency_key=f"HqReturned:{complaint_id}:{now.isoformat()}",
+        audit_operation="HqReturned",
+        audit_action="UPDATE",
+        after=payload,
+        timeline_event_type="HqReturned",
+        timeline_title="HQ Returned Escalation",
+        timeline_description=(
+            f"Complaint {complaint_number} returned to branch ({reason_code})"
+        ),
+        timeline_metadata={**payload, "note": clip_note(note)},
+        outbox_event_id=None,
+        occurred_at=now,
+    )
+
+
 def hq_arrival_scheduled(
     *,
     complaint_id: str,
@@ -732,6 +769,7 @@ def hq_arrival_scheduled(
     arrival_date: str,
     arrival_time: str,
     note: str | None = None,
+    next_disposition: str | None = "HQ_SCHEDULED",
 ) -> DomainEvent:
     now = datetime.now(UTC)
     payload = {
@@ -740,6 +778,8 @@ def hq_arrival_scheduled(
         "arrivalDate": arrival_date,
         "arrivalTime": arrival_time,
         "actorId": actor_id,
+        "nextDisposition": next_disposition,
+        "branchNotify": True,
     }
     return DomainEvent(
         name="HqArrivalScheduled",
@@ -749,6 +789,7 @@ def hq_arrival_scheduled(
         payload=payload,
         idempotency_key=(
             f"HqArrivalScheduled:{complaint_id}:{arrival_date}:{arrival_time}"
+            f":{now.isoformat()}"
         ),
         audit_operation="HqArrivalScheduled",
         audit_action="UPDATE",
@@ -757,7 +798,7 @@ def hq_arrival_scheduled(
         timeline_title="HQ Arrival Scheduled",
         timeline_description=(
             f"Complaint {complaint_number} customer arrival scheduled "
-            f"{arrival_date} {arrival_time}"
+            f"{arrival_date} {arrival_time} — branch to notify customer"
         ),
         timeline_metadata={**payload, "note": clip_note(note)},
         outbox_event_id=None,

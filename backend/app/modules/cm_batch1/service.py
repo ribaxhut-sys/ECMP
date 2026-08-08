@@ -45,6 +45,7 @@ from app.modules.cm_batch1.intake_narrative import (
     append_cancellation_note,
     append_hq_acceptance_note,
     append_hq_arrival_note,
+    append_hq_return_note,
     append_re_escalation_reason,
     append_rejection_note,
     append_supervisor_note,
@@ -65,7 +66,9 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    HqAcceptAndScheduleRequest,
     HqAcceptRequest,
+    HqReturnRequest,
     HqScheduleArrivalRequest,
     IntakeEscalationDecisionRequest,
     IntakeEscalationRequestBody,
@@ -223,6 +226,7 @@ class CmBatch1StoreProtocol(Protocol):
         *,
         hq_accepted_at: datetime,
         description: str | None = None,
+        intake_disposition: str | None = None,
     ) -> ComplaintAggregate | None: ...
 
     def schedule_hq_arrival(
@@ -232,6 +236,18 @@ class CmBatch1StoreProtocol(Protocol):
         arrival_date: date,
         arrival_time: str,
         description: str | None = None,
+        intake_disposition: str | None = None,
+    ) -> ComplaintAggregate | None: ...
+
+    def accept_and_schedule_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        arrival_date: date,
+        arrival_time: str,
+        description: str,
+        intake_disposition: str = "HQ_SCHEDULED",
     ) -> ComplaintAggregate | None: ...
 
 
@@ -1176,9 +1192,14 @@ class CmBatch1Service:
         # Idempotent: already awaiting approval again (e.g. double-submit after success).
         if current == "ESCALATE_PENDING_APPROVAL":
             return self._to_complaint_response(row, replayed=False)
-        if current not in {"ESCALATE_CANCELLED", "ESCALATE_REJECTED"}:
+        if current not in {
+            "ESCALATE_CANCELLED",
+            "ESCALATE_REJECTED",
+            "RETURNED_TO_BRANCH",
+        }:
             raise InvalidStateError(
-                "re-escalate only allowed after ESCALATE_CANCELLED or ESCALATE_REJECTED",
+                "re-escalate only allowed after ESCALATE_CANCELLED, "
+                "ESCALATE_REJECTED, or RETURNED_TO_BRANCH",
                 details={
                     "status": row.status,
                     "intakeDisposition": row.intake_disposition,
@@ -1249,6 +1270,66 @@ class CmBatch1Service:
         self._store.commit()
         return self._to_complaint_response(updated, replayed=False)
 
+    def return_from_hq(
+        self,
+        complaint_id: str,
+        body: HqReturnRequest,
+        *,
+        actor_id: str | None,
+    ) -> ComplaintBatch1Response:
+        """Pusat menolak/mengembalikan eskalasi ke cabang (sebelum HQ accept)."""
+        row = self._store.get(complaint_id)
+        if row is None:
+            raise NotFoundError(m("complaint.not_found"))
+        if row.status != "REGISTERED":
+            raise InvalidStateError(
+                "HQ return requires REGISTERED complaint",
+                details={"status": row.status},
+            )
+        current = (row.intake_disposition or "").strip().upper()
+        if current != "ESCALATE_APPROVED":
+            raise InvalidStateError(
+                "HQ return only allowed when ESCALATE_APPROVED",
+                details={"intakeDisposition": row.intake_disposition},
+            )
+        if row.hq_accepted_at is not None:
+            raise InvalidStateError(
+                "cannot return after HQ accepted — schedule or handle at HQ",
+                details={"hqAcceptedAt": row.hq_accepted_at.isoformat()},
+            )
+
+        note = (body.note or "").strip()
+        if len(note) < 10:
+            raise ValidationAppError(
+                "HQ return note must be at least 10 characters",
+                details={"field": "note", "minLength": 10},
+            )
+        reason_code = (body.reason_code or "").strip().upper()
+        return_body = f"[{reason_code}] {note}"
+        next_description = append_hq_return_note(
+            row.description or "", return_body
+        )
+        updated = self._store.update_intake_disposition(
+            complaint_id,
+            intake_disposition="RETURNED_TO_BRANCH",
+            description=next_description,
+            decided_by=actor_id,
+        )
+        if updated is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        self._side_effects.record(
+            events.hq_returned(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                actor_id=actor_id,
+                reason_code=reason_code,
+                note=note,
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(updated, replayed=False)
+
     def accept_at_hq(
         self,
         complaint_id: str,
@@ -1256,7 +1337,7 @@ class CmBatch1Service:
         *,
         actor_id: str | None,
     ) -> ComplaintBatch1Response:
-        """Pusat menerima/mengambil eskalasi yang sudah ESCALATE_APPROVED."""
+        """Pusat menerima eskalasi (tanpa jadwal) — prefer accept_and_schedule_at_hq."""
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -1310,6 +1391,93 @@ class CmBatch1Service:
         self._store.commit()
         return self._to_complaint_response(updated, replayed=False)
 
+    def accept_and_schedule_at_hq(
+        self,
+        complaint_id: str,
+        body: HqAcceptAndScheduleRequest,
+        *,
+        actor_id: str | None,
+    ) -> ComplaintBatch1Response:
+        """Terima + jadwalkan sekaligus → HQ_SCHEDULED (cabang informasikan customer)."""
+        row = self._store.get(complaint_id)
+        if row is None:
+            raise NotFoundError(m("complaint.not_found"))
+        if row.status != "REGISTERED":
+            raise InvalidStateError(
+                "HQ accept-and-schedule requires REGISTERED complaint",
+                details={"status": row.status},
+            )
+        current = (row.intake_disposition or "").strip().upper()
+        if current != "ESCALATE_APPROVED":
+            raise InvalidStateError(
+                "HQ accept-and-schedule only allowed when ESCALATE_APPROVED",
+                details={"intakeDisposition": row.intake_disposition},
+            )
+        if row.hq_accepted_at is not None:
+            raise InvalidStateError(
+                "escalation already accepted by HQ",
+                details={"hqAcceptedAt": row.hq_accepted_at.isoformat()},
+            )
+
+        arrival_time = (body.arrival_time or "").strip()
+        if not _is_hhmm(arrival_time):
+            raise ValidationAppError(
+                "arrivalTime must be HH:MM",
+                details={"field": "arrivalTime"},
+            )
+        note = (body.note or "").strip()
+        if len(note) < 10:
+            raise ValidationAppError(
+                "HQ schedule info note must be at least 10 characters",
+                details={"field": "note", "minLength": 10},
+            )
+
+        accepted_at = datetime.now(UTC)
+        accept_text = (
+            "Pengaduan diterima Pusat; jadwal kedatangan diset untuk "
+            "diinformasikan ke pelanggan oleh cabang."
+        )
+        schedule_body = (
+            f"{body.arrival_date.isoformat()} {arrival_time}\n{note}"
+        )
+        next_description = append_hq_arrival_note(
+            append_hq_acceptance_note(row.description or "", accept_text),
+            schedule_body,
+        )
+        updated = self._store.accept_and_schedule_at_hq(
+            complaint_id,
+            hq_accepted_at=accepted_at,
+            arrival_date=body.arrival_date,
+            arrival_time=arrival_time,
+            description=next_description,
+            intake_disposition="HQ_SCHEDULED",
+        )
+        if updated is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        self._side_effects.record(
+            events.hq_accepted(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                actor_id=actor_id,
+                accepted_at=accepted_at,
+                note=accept_text,
+            )
+        )
+        self._side_effects.record(
+            events.hq_arrival_scheduled(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                actor_id=actor_id,
+                arrival_date=body.arrival_date.isoformat(),
+                arrival_time=arrival_time,
+                note=schedule_body,
+                next_disposition="HQ_SCHEDULED",
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(updated, replayed=False)
+
     def schedule_hq_arrival(
         self,
         complaint_id: str,
@@ -1317,7 +1485,7 @@ class CmBatch1Service:
         *,
         actor_id: str | None,
     ) -> ComplaintBatch1Response:
-        """Jadwalkan kedatangan pelanggan di Pusat (tanggal + jam)."""
+        """Jadwalkan / ubah jadwal kedatangan (setelah accept atau HQ_SCHEDULED)."""
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -1327,9 +1495,9 @@ class CmBatch1Service:
                 details={"status": row.status},
             )
         current = (row.intake_disposition or "").strip().upper()
-        if current != "ESCALATE_APPROVED":
+        if current not in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
             raise InvalidStateError(
-                "HQ schedule only allowed when ESCALATE_APPROVED",
+                "HQ schedule only allowed when ESCALATE_APPROVED or HQ_SCHEDULED",
                 details={"intakeDisposition": row.intake_disposition},
             )
         if row.hq_accepted_at is None:
@@ -1356,6 +1524,7 @@ class CmBatch1Service:
             arrival_date=body.arrival_date,
             arrival_time=arrival_time,
             description=next_description,
+            intake_disposition="HQ_SCHEDULED",
         )
         if updated is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -1368,6 +1537,7 @@ class CmBatch1Service:
                 arrival_date=body.arrival_date.isoformat(),
                 arrival_time=arrival_time,
                 note=schedule_body,
+                next_disposition="HQ_SCHEDULED",
             )
         )
         self._store.commit()
@@ -1521,6 +1691,7 @@ class CmBatch1Service:
             hqArrivalTime=row.hq_arrival_time,
             hqAcceptanceNote=parsed.hq_acceptance_note,
             hqArrivalNote=parsed.hq_arrival_note,
+            hqReturnNote=parsed.hq_return_note,
             owningUnitId=row.owning_unit_id,
             priority=row.priority,
             createdAt=row.created_at,

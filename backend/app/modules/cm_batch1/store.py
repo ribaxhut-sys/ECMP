@@ -440,6 +440,7 @@ class Batch1Store:
         *,
         hq_accepted_at: datetime,
         description: str | None = None,
+        intake_disposition: str | None = None,
     ) -> ComplaintAggregate | None:
         with self._lock:
             row = self._complaints.get(str(complaint_id).strip())
@@ -448,6 +449,8 @@ class Batch1Store:
             row.hq_accepted_at = hq_accepted_at
             if description is not None:
                 row.description = description
+            if intake_disposition is not None:
+                row.intake_disposition = intake_disposition
             return row
 
     def schedule_hq_arrival(
@@ -457,6 +460,7 @@ class Batch1Store:
         arrival_date,
         arrival_time: str,
         description: str | None = None,
+        intake_disposition: str | None = None,
     ) -> ComplaintAggregate | None:
         with self._lock:
             row = self._complaints.get(str(complaint_id).strip())
@@ -466,6 +470,29 @@ class Batch1Store:
             row.hq_arrival_time = arrival_time
             if description is not None:
                 row.description = description
+            if intake_disposition is not None:
+                row.intake_disposition = intake_disposition
+            return row
+
+    def accept_and_schedule_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        arrival_date,
+        arrival_time: str,
+        description: str,
+        intake_disposition: str = "HQ_SCHEDULED",
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.hq_accepted_at = hq_accepted_at
+            row.hq_arrival_date = arrival_date
+            row.hq_arrival_time = arrival_time
+            row.description = description
+            row.intake_disposition = intake_disposition
             return row
 
     def list_complaints(
@@ -534,6 +561,8 @@ class Batch1Store:
                 "ESCALATE_APPROVED",
                 "ESCALATE_REJECTED",
                 "ESCALATE_CANCELLED",
+                "RETURNED_TO_BRANCH",
+                "HQ_SCHEDULED",
             }
             _allowed_disp = {"BRANCH_CLOSED", *_escalate_family}
             if disp == "ESCALATED":

@@ -91,6 +91,8 @@ paths:
               - ESCALATE_APPROVED
               - ESCALATE_REJECTED
               - ESCALATE_CANCELLED
+              - RETURNED_TO_BRANCH
+              - HQ_SCHEDULED
         - name: priority
           in: query
           required: false
@@ -279,10 +281,11 @@ paths:
         - bearerAuth: []
       description: |
         Mode A Batch-1 re-ajukan eskalasi on an existing Aggregate (no new create).
-        From ESCALATE_CANCELLED or ESCALATE_REJECTED → ESCALATE_PENDING_APPROVAL.
+        From ESCALATE_CANCELLED, ESCALATE_REJECTED, or RETURNED_TO_BRANCH
+        → ESCALATE_PENDING_APPROVAL.
         Appends alasan (ajuan ulang) to Alasan eskalasi; refreshes Ajuan eskalasi
-        marker. Prior Batalkan Eskalasi / Penolakan Eskalasi / Catatan Supervisor
-        sections MUST remain (append-only history). MUST NOT create Case.
+        marker. Prior Batalkan Eskalasi / Penolakan Eskalasi / Catatan Supervisor /
+        Pengembalian Pusat sections MUST remain (append-only history). MUST NOT create Case.
         Blocked when hqAcceptedAt is set or Case exists.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
@@ -295,6 +298,170 @@ paths:
       responses:
         "200":
           description: Re-request applied — awaiting supervisor approval again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-accept:
+    post:
+      summary: HQ accept approved intake escalation
+      operationId: cmB1HqAcceptEscalation
+      x-ear-id: API-516
+      x-ecmp-logical-id: API-CM-B1-021
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1: Pusat menerima eskalasi yang sudah ESCALATE_APPROVED
+        **without** scheduling. Prefer hq-accept-and-schedule for the happy path
+        (sets HQ_SCHEDULED for branch customer notify). Gate: escalations:review
+        + HO Scheduler/Admin, or Agent-family on unit PUSAT. MUST NOT create Case.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqAcceptRequest"
+      responses:
+        "200":
+          description: Accepted at HQ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-accept-and-schedule:
+    post:
+      summary: HQ accept and schedule arrival (branch notify)
+      operationId: cmB1HqAcceptAndSchedule
+      x-ecmp-logical-id: API-CM-B1-024
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 lab happy path: Terima + jadwalkan sekaligus.
+        Sets hqAcceptedAt, arrival date/time, intakeDisposition=HQ_SCHEDULED
+        (distinct from RETURNED_TO_BRANCH). Originating branch agents see the
+        Aggregate in their unit list with a notify-customer signal.
+        Mandatory note (≥10) is info for the branch to relay to the customer.
+        Same HQ gate as API-516. MUST NOT create Case.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqAcceptAndScheduleRequest"
+      responses:
+        "200":
+          description: Accepted and scheduled (HQ_SCHEDULED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-return:
+    post:
+      summary: HQ return approved escalation to branch
+      operationId: cmB1HqReturnEscalation
+      x-ear-id: API-519
+      x-ecmp-logical-id: API-CM-B1-022
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 / DEC-F4 lab: Pusat menolak/mengembalikan eskalasi
+        ESCALATE_APPROVED ke cabang asal (sebelum hqAcceptedAt).
+        → RETURNED_TO_BRANCH. Mandatory reasonCode + note (≥10). Cabang may
+        re-request via API-518. Same HQ gate as API-516. MUST NOT create Case.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqReturnRequest"
+      responses:
+        "200":
+          description: Returned to branch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-schedule-arrival:
+    post:
+      summary: Schedule customer arrival at HQ (lab)
+      operationId: cmB1HqScheduleArrival
+      x-ecmp-logical-id: API-CM-B1-023
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 lab: after HQ accept (hqAcceptedAt set), schedule/reschedule
+        customer visit (arrivalDate + arrivalTime HH:MM). Allowed when disposition
+        is ESCALATE_APPROVED (legacy two-step) or HQ_SCHEDULED (reschedule).
+        Always leaves/sets intakeDisposition=HQ_SCHEDULED so branch can notify
+        the customer. Same HQ gate as API-516.
+        Note: Chronological history read model remains API-517; this path is the
+        HQ schedule write (historically tagged "API-517 lab" in router — not the
+        same EAR as history). MUST NOT create Case.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqScheduleArrivalRequest"
+      responses:
+        "200":
+          description: Arrival scheduled
           content:
             application/json:
               schema:
@@ -777,9 +944,13 @@ components:
             - ESCALATE_APPROVED
             - ESCALATE_REJECTED
             - ESCALATE_CANCELLED
+            - RETURNED_TO_BRANCH
+            - HQ_SCHEDULED
           description: |
             Intake path label (not Aggregate status). Pending = await supervisor;
-            APPROVED/REJECTED/CANCELLED after API-515 decision.
+            APPROVED/REJECTED/CANCELLED after API-515 decision;
+            RETURNED_TO_BRANCH after HQ return (API-519);
+            HQ_SCHEDULED after accept-and-schedule (branch notify customer).
         category:
           type: string
           nullable: true
@@ -822,12 +993,35 @@ components:
           type: string
           nullable: true
           description: Batalkan Eskalasi reason — history when CANCEL before HQ accepted
+        hqReturnNote:
+          type: string
+          nullable: true
+          description: |
+            Pengembalian Pusat note (reason code + free text) when HQ returned
+            escalation to branch (API-519).
         hqAcceptedAt:
           type: string
           format: date-time
           nullable: true
           description: |
             When set, Pusat has accepted/claimed — Batalkan Eskalasi blocked.
+        hqAcceptanceNote:
+          type: string
+          nullable: true
+          description: Optional note from HQ accept (API-516)
+        hqArrivalDate:
+          type: string
+          format: date
+          nullable: true
+          description: Scheduled customer arrival date at HQ
+        hqArrivalTime:
+          type: string
+          nullable: true
+          description: Scheduled arrival time HH:MM (24h)
+        hqArrivalNote:
+          type: string
+          nullable: true
+          description: Optional note with HQ arrival schedule
         owningUnitId:
           type: string
           nullable: true
@@ -884,6 +1078,63 @@ components:
           type: string
           enum: [LOW, MEDIUM, HIGH, CRITICAL]
           description: Optional priority refresh on re-request.
+    HqAcceptRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 2000
+          description: Optional note (≥20 if provided) — Penerimaan Pusat history
+    HqAcceptAndScheduleRequest:
+      type: object
+      required: [arrivalDate, arrivalTime, note]
+      properties:
+        arrivalDate:
+          type: string
+          format: date
+        arrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: HH:MM (24h)
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Mandatory info for branch/customer (min 10 after trim)
+    HqReturnRequest:
+      type: object
+      required: [reasonCode, note]
+      properties:
+        reasonCode:
+          type: string
+          enum:
+            - MISSING_ATTACHMENT
+            - INCOMPLETE_CHRONOLOGY
+            - UNCLEAR_CUSTOMER_DATA
+            - WRONG_CATEGORY_OR_ROUTING
+            - ADDITIONAL_EVIDENCE_REQUIRED
+            - OTHER
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Mandatory free-text note (min 10 after trim)
+    HqScheduleArrivalRequest:
+      type: object
+      required: [arrivalDate, arrivalTime]
+      properties:
+        arrivalDate:
+          type: string
+          format: date
+        arrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: HH:MM (24h)
+        note:
+          type: string
+          maxLength: 2000
     CustomerSearchRequest:
       type: object
       description: Supply exactly one key

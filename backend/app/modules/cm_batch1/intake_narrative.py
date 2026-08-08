@@ -18,6 +18,7 @@ SECTION_CANCEL_NOTE = "Batalkan Eskalasi"
 SECTION_CANCEL_NOTE_LEGACY = "Batal Eskalasi"
 SECTION_HQ_ACCEPTANCE = "Penerimaan Pusat"
 SECTION_HQ_ARRIVAL = "Jadwal kedatangan"
+SECTION_HQ_RETURN = "Pengembalian Pusat"
 
 _SECTION_SEP = "\n\n---\n"
 
@@ -33,6 +34,7 @@ class ParsedIntakeNarrative:
     cancellation_note: str | None = None
     hq_acceptance_note: str | None = None
     hq_arrival_note: str | None = None
+    hq_return_note: str | None = None
 
 
 def parse_intake_description(raw: str) -> ParsedIntakeNarrative:
@@ -50,6 +52,7 @@ def parse_intake_description(raw: str) -> ParsedIntakeNarrative:
     cancellation_note: str | None = None
     hq_acceptance_note: str | None = None
     hq_arrival_note: str | None = None
+    hq_return_note: str | None = None
 
     for part in parts[1:]:
         chunk = part.strip()
@@ -72,6 +75,8 @@ def parse_intake_description(raw: str) -> ParsedIntakeNarrative:
             hq_acceptance_note = chunk.split(":", 1)[1].strip() or None
         elif chunk.startswith(f"{SECTION_HQ_ARRIVAL}:"):
             hq_arrival_note = chunk.split(":", 1)[1].strip() or None
+        elif chunk.startswith(f"{SECTION_HQ_RETURN}:"):
+            hq_return_note = chunk.split(":", 1)[1].strip() or None
 
     return ParsedIntakeNarrative(
         narrative=narrative,
@@ -83,6 +88,7 @@ def parse_intake_description(raw: str) -> ParsedIntakeNarrative:
         cancellation_note=cancellation_note,
         hq_acceptance_note=hq_acceptance_note,
         hq_arrival_note=hq_arrival_note,
+        hq_return_note=hq_return_note,
     )
 
 
@@ -133,6 +139,10 @@ def append_hq_acceptance_note(raw: str, note: str) -> str:
 
 def append_hq_arrival_note(raw: str, note: str) -> str:
     return append_history_section(raw, SECTION_HQ_ARRIVAL, note)
+
+
+def append_hq_return_note(raw: str, note: str) -> str:
+    return append_history_section(raw, SECTION_HQ_RETURN, note)
 
 
 _RE_ESCALATE_REQUEST_NOTE = (

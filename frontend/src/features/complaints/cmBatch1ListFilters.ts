@@ -7,6 +7,8 @@ export type CmBatch1ListIntakeDisposition =
   | "ESCALATE_APPROVED"
   | "ESCALATE_REJECTED"
   | "ESCALATE_CANCELLED"
+  | "RETURNED_TO_BRANCH"
+  | "HQ_SCHEDULED"
   | "BRANCH_CLOSED"
   /** Pseudo-value: any escalate-family state (Users directory drill-down). */
   | "ESCALATED";
@@ -17,6 +19,8 @@ const INTAKE_DISPOSITIONS = new Set<string>([
   "ESCALATE_APPROVED",
   "ESCALATE_REJECTED",
   "ESCALATE_CANCELLED",
+  "RETURNED_TO_BRANCH",
+  "HQ_SCHEDULED",
   "BRANCH_CLOSED",
   "ESCALATED",
 ]);
