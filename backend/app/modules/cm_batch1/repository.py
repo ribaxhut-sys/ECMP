@@ -18,7 +18,11 @@ from sqlalchemy.orm import Session
 from app.core.authorization.visibility import DEFAULT_PUSAT_UNIT_CODES
 from app.modules.cm_batch1.complaint_number import (
     counter_name as complaint_counter_name,
+)
+from app.modules.cm_batch1.complaint_number import (
     next_complaint_number as format_next_complaint_number,
+)
+from app.modules.cm_batch1.complaint_number import (
     resolve_unit_code,
 )
 from app.modules.cm_batch1.entities import (

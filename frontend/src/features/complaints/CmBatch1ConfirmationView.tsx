@@ -1021,7 +1021,9 @@ export function CmBatch1ConfirmationView({
                                   >
                                     {t("priorityTag", {
                                       value: tPriority.has(row.priority)
-                                        ? tPriority(row.priority)
+                                        ? tPriority(
+                                            row.priority as (typeof priorityKnown)[number],
+                                          )
                                         : row.priority,
                                     })}
                                   </Badge>
