@@ -12,7 +12,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.authorization.principal import Principal
-from app.core.errors import InvalidStateError, RateLimitedError, ValidationAppError
+from app.core.errors import (
+    InvalidStateError,
+    NotFoundError,
+    RateLimitedError,
+    ValidationAppError,
+)
 from app.db.base import Base
 from app.integrations.customer import StubCustomerProvider
 from app.main import create_app
@@ -2475,3 +2480,69 @@ def test_event_note_is_clipped_not_dropped() -> None:
     clipped = ev.clip_note(long_note)
     assert clipped is not None
     assert len(clipped) == 4001 and clipped.endswith("…")
+
+
+def test_api_516_hq_accept_without_schedule(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    from app.modules.cm_batch1.schemas import HqAcceptRequest
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="HQ accept only",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh terima pusat saja",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for HQ accept-only (no schedule) path."
+            ),
+        ),
+        request_id="esc-hq-accept-only-1",
+        actor_id="agent-1",
+    )
+    with pytest.raises(InvalidStateError):
+        service.accept_at_hq(
+            created.complaint_id,
+            HqAcceptRequest(note="Belum disetujui supervisor cabang."),
+            actor_id="hq-1",
+        )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui agar Pusat menerima tanpa menjadwalkan dulu.",
+            priority="HIGH",
+        ),
+        actor_id="supervisor-1",
+    )
+    with pytest.raises(ValidationAppError):
+        service.accept_at_hq(
+            created.complaint_id,
+            HqAcceptRequest(note="terlalu pendek"),
+            actor_id="hq-1",
+        )
+    with pytest.raises(NotFoundError):
+        service.accept_at_hq(
+            str(uuid.uuid4()),
+            HqAcceptRequest(),
+            actor_id="hq-1",
+        )
+    accepted = service.accept_at_hq(
+        created.complaint_id,
+        HqAcceptRequest(),
+        actor_id="hq-1",
+    )
+    assert accepted.hq_accepted_at is not None
+    assert accepted.intake_disposition == "ESCALATE_APPROVED"
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert "Penerimaan Pusat:" in (row.description or "")
+    with pytest.raises(InvalidStateError):
+        service.accept_at_hq(
+            created.complaint_id,
+            HqAcceptRequest(note="Sudah diterima sebelumnya oleh Pusat."),
+            actor_id="hq-1",
+        )

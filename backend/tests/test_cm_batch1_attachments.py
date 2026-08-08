@@ -301,6 +301,47 @@ def test_void_rejects_empty_actor_and_empty_reason(
         )
 
 
+def test_attachment_get_list_and_try_helpers(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    from app.core.errors import NotFoundError
+
+    missing_complaint = str(uuid.uuid4())
+    with pytest.raises(NotFoundError):
+        batch1_attachments.list_for_complaint(missing_complaint)
+
+    complaint_id = _create_complaint(cm_service, "att-try-get")
+    assert batch1_attachments.list_for_complaint(complaint_id) == []
+    with pytest.raises(NotFoundError):
+        batch1_attachments.get(str(uuid.uuid4()))
+    assert batch1_attachments.try_get(str(uuid.uuid4())) is None
+    assert (
+        batch1_attachments.try_get_by_platform_id(uuid.uuid4()) is None
+    )
+
+    uploaded = batch1_attachments.upload(
+        data=b"payload",
+        filename="doc.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="actor",
+        complaint_id=complaint_id,
+    )
+    got = batch1_attachments.get(uploaded.attachment_id)
+    assert got.attachment_id == uploaded.attachment_id
+    assert batch1_attachments.try_get(uploaded.attachment_id) is not None
+    platform_id = uuid.UUID(uploaded.platform_attachment_id)
+    assert batch1_attachments.try_get_by_platform_id(platform_id) is not None
+    assert (
+        batch1_attachments.resolve_platform_attachment_id(platform_id) == platform_id
+    )
+    assert batch1_attachments.resolve_platform_attachment_id(
+        uuid.UUID(uploaded.attachment_id)
+    ) == platform_id
+    orphan = uuid.uuid4()
+    assert batch1_attachments.resolve_platform_attachment_id(orphan) == orphan
+
+
 def test_tc_cm_fr004_05_supersede(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:
