@@ -136,6 +136,17 @@ export interface DashboardSummary {
   recentActivity: DashboardRecentActivityItem[];
 }
 
+/** API-393 daily complaint trend (foundation-scoped — see DEC-020). */
+export interface DashboardTrendItem {
+  date: string;
+  count: number;
+}
+
+export interface DashboardTrends {
+  period: string;
+  items: DashboardTrendItem[];
+}
+
 /** API-320–322 System Settings (TASK-028). */
 export type SettingValueType =
   | "STRING"

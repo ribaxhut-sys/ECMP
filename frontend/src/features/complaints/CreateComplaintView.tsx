@@ -265,6 +265,9 @@ export function CreateComplaintView() {
     if (intent === "resolve_branch" && !values.resolution.trim()) {
       nextErrors.resolution = tValidation("resolutionRequired");
     }
+    if (intent === "escalate" && !values.resolution.trim()) {
+      nextErrors.resolution = tValidation("escalationReasonRequired");
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       const firstKey = Object.keys(nextErrors)[0];
@@ -487,13 +490,13 @@ export function CreateComplaintView() {
               <Textarea
                 name="resolution"
                 id="resolution"
-                label={t("resolution")}
+                label={t("resolutionOrEscalationReason")}
                 rows={5}
                 maxLength={5000}
                 value={values.resolution}
                 onChange={onTextChange("resolution")}
                 error={errors.resolution}
-                hint={t("resolutionHint", {
+                hint={t("resolutionOrEscalationReasonHint", {
                   count: values.resolution.trim().length,
                   max: 5000,
                 })}

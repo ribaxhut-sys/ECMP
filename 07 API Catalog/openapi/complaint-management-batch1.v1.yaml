@@ -86,6 +86,7 @@ paths:
               - ESCALATE_PENDING_APPROVAL
               - ESCALATE_APPROVED
               - ESCALATE_REJECTED
+              - ESCALATE_CANCELLED
         - name: priority
           in: query
           required: false
@@ -190,6 +191,32 @@ paths:
                 $ref: "#/components/schemas/ComplaintBatch1Response"
         "404":
           $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/history:
+    get:
+      summary: Chronological intake history (append-only event log projection)
+      operationId: cmB1GetComplaintHistory
+      x-ear-id: API-517
+      x-ecmp-logical-id: API-CM-B1-018
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IntakeHistoryEntry"
+        "404":
+          $ref: "#/components/responses/Error"
   /api/v1/cm/complaints/{complaintId}/intake-escalation/decision:
     post:
       summary: Approve or reject intake escalation (supervisor)
@@ -202,10 +229,15 @@ paths:
         - bearerAuth: []
       description: |
         Mode A Batch-1 supervisor decision on intake escalate request.
-        Requires current intakeDisposition=ESCALATE_PENDING_APPROVAL and status=REGISTERED.
-        APPROVE → intakeDisposition=ESCALATE_APPROVED; REJECT → ESCALATE_REJECTED.
         Aggregate status stays REGISTERED. MUST NOT create Case (CTO D-02).
         Distinct from foundation Case escalation approve/reject (API-303/304).
+
+        - From ESCALATE_PENDING_APPROVAL:
+          APPROVE → ESCALATE_APPROVED (note ≥20 + priority required; Catatan Supervisor history);
+          REJECT → ESCALATE_REJECTED (note ≥20; Penolakan Eskalasi history).
+        - From ESCALATE_APPROVED (before HQ accepted — hqAcceptedAt null):
+          CANCEL → ESCALATE_CANCELLED (note ≥20; Batalkan Eskalasi history).
+          Blocked when hqAcceptedAt is set or Case exists.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -217,6 +249,48 @@ paths:
       responses:
         "200":
           description: Decision applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/intake-escalation/request:
+    post:
+      summary: Re-request intake escalation after cancel or reject
+      operationId: cmB1RequestIntakeEscalation
+      x-ear-id: API-518
+      x-ecmp-logical-id: API-CM-B1-017
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 re-ajukan eskalasi on an existing Aggregate (no new create).
+        From ESCALATE_CANCELLED or ESCALATE_REJECTED → ESCALATE_PENDING_APPROVAL.
+        Appends alasan (ajuan ulang) to Alasan eskalasi; refreshes Ajuan eskalasi
+        marker. Prior Batalkan Eskalasi / Penolakan Eskalasi / Catatan Supervisor
+        sections MUST remain (append-only history). MUST NOT create Case.
+        Blocked when hqAcceptedAt is set or Case exists.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntakeEscalationRequestBody"
+      responses:
+        "200":
+          description: Re-request applied — awaiting supervisor approval again
           content:
             application/json:
               schema:
@@ -625,9 +699,42 @@ components:
           enum: [BRANCH_CLOSED, ESCALATE_PENDING_APPROVAL]
           description: |
             Optional. BRANCH_CLOSED = handled and closed at branch on intake
-            (resolution note MUST appear in description). ESCALATE_PENDING_APPROVAL =
-            registered and awaiting supervisor/manager approval for HQ escalation.
+            (section `Penyelesaian:` MUST appear in description). ESCALATE_PENDING_APPROVAL =
+            registered and awaiting supervisor/manager approval for HQ escalation
+            (section `Alasan eskalasi:` MUST appear in description — becomes history for HQ).
             No Case is created.
+    IntakeHistoryEntry:
+      type: object
+      required: [entryId, eventCode, eventType, occurredAt]
+      properties:
+        entryId:
+          type: string
+        eventCode:
+          type: string
+          description: >-
+            Stable UI code (REGISTERED, ESCALATION_REQUESTED, ESCALATION_APPROVED,
+            ESCALATION_REJECTED, ESCALATION_CANCELLED, ESCALATION_RE_REQUESTED,
+            BRANCH_CLOSED, HQ_ACCEPTED, HQ_ARRIVAL_SCHEDULED, …). Labels are client-side.
+        eventType:
+          type: string
+          description: Raw timeline event type, for codes the client does not know yet
+        occurredAt:
+          type: string
+          format: date-time
+        actorId:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+          description: Resolved via user directory — identity is not ECMP SoR
+        priority:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+          description: Operator note captured with this event; null for pre-API-517 rows
     ComplaintBatch1Response:
       type: object
       required: [complaintId, complaintNumber, status, customerId]
@@ -649,6 +756,14 @@ components:
           type: string
           nullable: true
           description: External/business customer id from provider (not internal UUID)
+        createdBy:
+          type: string
+          nullable: true
+          description: Actor id of the intake officer (PIC) — identity is not ECMP SoR
+        createdByName:
+          type: string
+          nullable: true
+          description: Operator-facing name of the intake officer, resolved via directory
         intakeDisposition:
           type: string
           nullable: true
@@ -657,9 +772,10 @@ components:
             - ESCALATE_PENDING_APPROVAL
             - ESCALATE_APPROVED
             - ESCALATE_REJECTED
+            - ESCALATE_CANCELLED
           description: |
             Intake path label (not Aggregate status). Pending = await supervisor;
-            APPROVED/REJECTED after API-515 decision.
+            APPROVED/REJECTED/CANCELLED after API-515 decision.
         category:
           type: string
           nullable: true
@@ -669,6 +785,45 @@ components:
         subject:
           type: string
           nullable: true
+        description:
+          type: string
+          nullable: true
+          description: |
+            Full intake narrative blob. Structured sections (Penyelesaian /
+            Alasan eskalasi / Ajuan eskalasi / Catatan Supervisor /
+            Penolakan Eskalasi / Batal Eskalasi) are history for Supervisor and HQ.
+        intakeNarrative:
+          type: string
+          nullable: true
+          description: Customer complaint body parsed from description
+        branchResolution:
+          type: string
+          nullable: true
+          description: Branch close note (Penyelesaian section)
+        escalationReason:
+          type: string
+          nullable: true
+          description: Why escalate to HQ (Alasan eskalasi section) — HQ history
+        supervisorNote:
+          type: string
+          nullable: true
+          description: |
+            Supervisor/Manager note for HQ (Catatan Supervisor section).
+            Required on APPROVE via API-515; retained as history for Pusat.
+        rejectionNote:
+          type: string
+          nullable: true
+          description: Reject reason (Penolakan Eskalasi section) — history
+        cancellationNote:
+          type: string
+          nullable: true
+          description: Batalkan Eskalasi reason — history when CANCEL before HQ accepted
+        hqAcceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When set, Pusat has accepted/claimed — Batalkan Eskalasi blocked.
         priority:
           type: string
           nullable: true
@@ -690,12 +845,35 @@ components:
       properties:
         decision:
           type: string
-          enum: [APPROVE, REJECT]
+          enum: [APPROVE, REJECT, CANCEL]
         note:
           type: string
           description: |
-            Optional on APPROVE. Required on REJECT (min 20 characters after trim).
+            Required on APPROVE / REJECT / CANCEL (min 20 characters after trim).
+            Persisted as history sections:
+            APPROVE → Catatan Supervisor; REJECT → Penolakan Eskalasi;
+            CANCEL → Batalkan Eskalasi.
           maxLength: 2000
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: |
+            Required on APPROVE — Supervisor/Manager sets HQ triage priority
+            after the note for Pusat. Ignored on REJECT and CANCEL.
+    IntakeEscalationRequestBody:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: |
+            Alasan eskalasi for ajuan ulang (min 20 characters after trim).
+            Appended under Alasan eskalasi; prior cancel/reject history kept.
+          maxLength: 2000
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Optional priority refresh on re-request.
     CustomerSearchRequest:
       type: object
       description: Supply exactly one key

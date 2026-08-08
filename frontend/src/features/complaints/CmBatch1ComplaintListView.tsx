@@ -117,6 +117,8 @@ export function CmBatch1ComplaintListView() {
         keyword: filters.keyword,
         status: filters.status,
         intakeDisposition: filters.intakeDisposition,
+        createdBy: filters.createdBy,
+        decidedBy: filters.decidedBy,
       });
       setRows(res.data ?? []);
       setTotal(res.meta?.totalItems ?? res.data?.length ?? 0);
@@ -169,6 +171,7 @@ export function CmBatch1ComplaintListView() {
       { value: "ESCALATE_PENDING_APPROVAL", label: t("awaitingApproval") },
       { value: "ESCALATE_APPROVED", label: t("escalationApproved") },
       { value: "ESCALATE_REJECTED", label: t("escalationRejected") },
+      { value: "ESCALATE_CANCELLED", label: t("escalationCancelled") },
     ],
     [t],
   );
@@ -200,12 +203,17 @@ export function CmBatch1ComplaintListView() {
       key: "complaintNumber",
       header: t("complaintNumber"),
       cell: (row) => (
-        <Link
-          href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
-          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
-        >
-          {row.complaintNumber}
-        </Link>
+        <div className="min-w-0">
+          <Link
+            href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
+            className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+          >
+            {row.complaintNumber}
+          </Link>
+          <div className="truncate text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+            {row.createdByName?.trim() || tCommon("emDash")}
+          </div>
+        </div>
       ),
     },
     {
@@ -234,6 +242,10 @@ export function CmBatch1ComplaintListView() {
           {row.status !== "CLOSED" &&
           row.intakeDisposition === "ESCALATE_REJECTED" ? (
             <Badge tone="neutral">{t("escalationRejected")}</Badge>
+          ) : null}
+          {row.status !== "CLOSED" &&
+          row.intakeDisposition === "ESCALATE_CANCELLED" ? (
+            <Badge tone="neutral">{t("escalationCancelled")}</Badge>
           ) : null}
         </div>
       ),
@@ -388,6 +400,31 @@ export function CmBatch1ComplaintListView() {
           actions={<Button type="submit">{t("applyFilters")}</Button>}
         />
       </form>
+
+      {filters.createdBy || filters.decidedBy ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken px-4 py-2 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+          <span>
+            {filters.decidedBy
+              ? t("workStatsFilterActiveDecided")
+              : t("workStatsFilterActiveCreated")}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              applyFilters({
+                ...filters,
+                createdBy: "",
+                decidedBy: "",
+                page: 1,
+              })
+            }
+          >
+            {tCommon("clear")}
+          </Button>
+        </div>
+      ) : null}
 
       {error ? (
         <ErrorState

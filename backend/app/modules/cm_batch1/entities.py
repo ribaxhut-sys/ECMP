@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 
 @dataclass
@@ -18,8 +18,13 @@ class ComplaintAggregate:
     priority: str
     status: str = "REGISTERED"
     intake_disposition: str | None = None
+    hq_accepted_at: datetime | None = None
+    hq_arrival_date: date | None = None
+    hq_arrival_time: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     created_by: str | None = None
+    decided_by: str | None = None
+    decided_at: datetime | None = None
     case_created: bool = False
 
 

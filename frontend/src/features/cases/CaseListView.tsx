@@ -37,6 +37,7 @@ import { rememberCaseId } from "./caseSessionRegistry";
 export function CaseListView({ complaintId }: { complaintId: string }) {
   const t = useTranslations("cases");
   const tCommon = useTranslations("common");
+  const tNav = useTranslations("nav");
   const tTable = useTranslations("table");
   const router = useRouter();
   const pathname = usePathname();
@@ -137,8 +138,8 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         <PageHeader
           title={t("title")}
           breadcrumbs={[
-            { label: t("back"), href: "/dashboard" },
-            { label: t("confirmation"), href: "/complaints" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: tNav("complaints"), href: "/complaints" },
             { label: t("title") },
           ]}
         />
@@ -160,8 +161,8 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         title={t("title")}
         description={t("modeADescription", { id: complaintId })}
         breadcrumbs={[
-          { label: t("back"), href: "/dashboard" },
-          { label: t("confirmation"), href: "/complaints" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: tNav("complaints"), href: "/complaints" },
           {
             label: t("confirmation"),
             href: `/complaints/cm/${encodeURIComponent(complaintId)}`,
@@ -170,17 +171,6 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                router.push(
-                  `/complaints/cm/${encodeURIComponent(complaintId)}`,
-                )
-              }
-            >
-              {t("back")}
-            </Button>
             <Button
               type="button"
               variant="outline"

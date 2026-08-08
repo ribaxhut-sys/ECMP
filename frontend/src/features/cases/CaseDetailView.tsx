@@ -59,6 +59,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const t = useTranslations("cases");
   const tCwx = useTranslations("cwx");
   const tCommon = useTranslations("common");
+  const tNav = useTranslations("nav");
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
@@ -103,8 +104,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
 
   const breadcrumbs = useMemo(
     () => [
-      { label: t("back"), href: "/dashboard" },
-      { label: t("confirmation"), href: "/complaints" },
+      { label: tCommon("home"), href: "/dashboard" },
+      { label: tNav("complaints"), href: "/complaints" },
       ...(data
         ? [
             {
@@ -115,7 +116,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         : []),
       { label: data?.caseNumber ?? t("detailFallback") },
     ],
-    [data, t],
+    [data, t, tCommon, tNav],
   );
 
   if (!canRead) {

@@ -275,6 +275,33 @@ def test_create_branch_closed_requires_resolution(service: CmBatch1Service) -> N
         )
 
 
+def test_create_escalate_requires_escalation_reason(
+    service: CmBatch1Service,
+) -> None:
+    from app.core.errors import ValidationAppError
+
+    try:
+        confirmed_create(
+            service,
+            CreateComplaintBatch1Request(
+                customerId="CUST-10001",
+                category="BILLING",
+                channel="BRANCH",
+                subject="No escalation reason",
+                description="Keluhan tanpa alasan eskalasi",
+                intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            ),
+            request_id="req-escalate-missing-reason",
+            channel_message_id=None,
+            actor_id="actor-1",
+        )
+        raise AssertionError("expected ValidationAppError")
+    except ValidationAppError as exc:
+        assert "escalation reason" in str(exc).lower() or "Alasan eskalasi" in str(
+            getattr(exc, "details", {})
+        )
+
+
 def test_tc_cm_fr001_02_customer_id_only(service: CmBatch1Service) -> None:
     created = confirmed_create(service,
         CreateComplaintBatch1Request(
@@ -1337,7 +1364,7 @@ def test_api_515_approve_intake_escalation(
             category="BILLING",
             channel="BRANCH",
             subject="Escalate pending",
-            description="Ajuan eskalasi: butuh pusat karena kompleks",
+            description="Keluhan singkat\n\n---\nAlasan eskalasi:\nButuh pusat karena kompleks",
             intakeDisposition="ESCALATE_PENDING_APPROVAL",
         ),
         request_id="esc-approve-1",
@@ -1345,18 +1372,224 @@ def test_api_515_approve_intake_escalation(
     )
     assert created.intake_disposition == "ESCALATE_PENDING_APPROVAL"
     assert created.status == "REGISTERED"
+    assert created.escalation_reason == "Butuh pusat karena kompleks"
+    assert created.intake_narrative == "Keluhan singkat"
 
     decided = service.decide_intake_escalation(
         created.complaint_id,
-        IntakeEscalationDecisionRequest(decision="APPROVE", note="ok lanjut"),
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui: lanjut ke Pusat untuk konfigurasi parameter terminal.",
+            priority="HIGH",
+        ),
         actor_id="supervisor-1",
     )
     assert decided.status == "REGISTERED"
     assert decided.intake_disposition == "ESCALATE_APPROVED"
     assert decided.case_created is False
+    assert decided.supervisor_note is not None
+    assert "konfigurasi parameter" in decided.supervisor_note
+    assert decided.priority == "HIGH"
     row = store.get(created.complaint_id)
     assert row is not None
     assert row.intake_disposition == "ESCALATE_APPROVED"
+    assert row.priority == "HIGH"
+    assert "Catatan Supervisor:" in (row.description or "")
+
+
+def test_api_515_approve_sets_decided_by(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate decided-by",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat karena kompleks",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-decided-by-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui: lanjut ke Pusat untuk konfigurasi parameter terminal.",
+            priority="HIGH",
+        ),
+        actor_id="supervisor-1",
+    )
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert row.decided_by == "supervisor-1"
+    assert row.decided_at is not None
+
+
+def test_work_stats_for_user_counts_created_and_decisions(
+    service: CmBatch1Service,
+) -> None:
+    approved = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate to be approved",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="stats-approved",
+        actor_id="agent-1",
+    )
+    rejected = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10002",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate to be rejected",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="stats-rejected",
+        actor_id="agent-1",
+    )
+    confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10002",
+            category="SERVICE",
+            channel="ONLINE",
+            subject="Not escalated at all, distinct enough subject line",
+            description="Keluhan biasa tanpa eskalasi, tidak ada hubungan dengan yang lain.",
+        ),
+        request_id="stats-plain",
+        actor_id="agent-1",
+    )
+
+    service.decide_intake_escalation(
+        approved.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui: lanjut ke Pusat untuk konfigurasi parameter terminal.",
+            priority="HIGH",
+        ),
+        actor_id="supervisor-1",
+    )
+    service.decide_intake_escalation(
+        rejected.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="REJECT",
+            note="Ditolak: kurang bukti pendukung untuk diteruskan ke Pusat.",
+        ),
+        actor_id="supervisor-1",
+    )
+
+    agent_stats = service.work_stats_for_user("agent-1")
+    assert agent_stats.created_count == 3
+    assert agent_stats.escalation_requested_count == 2
+    assert agent_stats.escalation_approved_count == 0
+    assert agent_stats.escalation_rejected_count == 0
+
+    supervisor_stats = service.work_stats_for_user("supervisor-1")
+    assert supervisor_stats.created_count == 0
+    assert supervisor_stats.escalation_approved_count == 1
+    assert supervisor_stats.escalation_rejected_count == 1
+
+    assert service.work_stats_for_user("nobody").created_count == 0
+
+
+def test_list_complaints_filters_by_created_by(service: CmBatch1Service) -> None:
+    confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Agent one complaint",
+            description="Keluhan agent satu.",
+        ),
+        request_id="filter-agent-1",
+        actor_id="agent-1",
+    )
+    confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10002",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Agent two complaint",
+            description="Keluhan agent dua.",
+        ),
+        request_id="filter-agent-2",
+        actor_id="agent-2",
+    )
+
+    items, total = service.list_complaints(created_by="agent-1")
+    assert total == 1
+    assert len(items) == 1
+    assert items[0].created_by == "agent-1"
+
+
+def test_api_515_approve_requires_supervisor_note(
+    service: CmBatch1Service,
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate pending note",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-approve-note-required",
+        actor_id="agent-1",
+    )
+    with pytest.raises(ValidationAppError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(
+                decision="APPROVE", note="short", priority="HIGH"
+            ),
+            actor_id="supervisor-1",
+        )
+    with pytest.raises(ValidationAppError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="APPROVE", priority="HIGH"),
+            actor_id="supervisor-1",
+        )
+
+
+def test_api_515_approve_requires_priority(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate pending priority",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            priority="LOW",
+        ),
+        request_id="esc-approve-priority-required",
+        actor_id="agent-1",
+    )
+    with pytest.raises(ValidationAppError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(
+                decision="APPROVE",
+                note="Catatan supervisor cukup panjang untuk lolos validasi.",
+            ),
+            actor_id="supervisor-1",
+        )
 
 
 def test_api_515_reject_requires_note(service: CmBatch1Service) -> None:
@@ -1367,7 +1600,7 @@ def test_api_515_reject_requires_note(service: CmBatch1Service) -> None:
             category="BILLING",
             channel="BRANCH",
             subject="Escalate reject",
-            description="Ajuan eskalasi: uji tolak",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nUji tolak dari supervisor",
             intakeDisposition="ESCALATE_PENDING_APPROVAL",
         ),
         request_id="esc-reject-1",
@@ -1391,6 +1624,425 @@ def test_api_515_reject_requires_note(service: CmBatch1Service) -> None:
     assert decided.intake_disposition == "ESCALATE_REJECTED"
     assert decided.status == "REGISTERED"
     assert decided.case_created is False
+    assert decided.rejection_note is not None
+    assert "cabang" in decided.rejection_note.lower() or len(
+        decided.rejection_note
+    ) >= 20
+
+
+def test_api_515_cancel_batal_eskalasi(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate then cancel",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat untuk batal uji",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-cancel-1",
+        actor_id="agent-1",
+    )
+    approved = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui sementara sebelum dibatalkan oleh supervisor.",
+            priority="MEDIUM",
+        ),
+        actor_id="supervisor-1",
+    )
+    assert approved.intake_disposition == "ESCALATE_APPROVED"
+
+    cancelled = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="CANCEL",
+            note="Batalkan Eskalasi: pelanggan sudah setuju diselesaikan di cabang.",
+        ),
+        actor_id="supervisor-1",
+    )
+    assert cancelled.intake_disposition == "ESCALATE_CANCELLED"
+    assert cancelled.cancellation_note is not None
+    assert "cabang" in cancelled.cancellation_note.lower()
+    assert cancelled.supervisor_note is not None
+    assert cancelled.hq_accepted_at is None
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert "Batalkan Eskalasi:" in (row.description or "")
+    assert "Catatan Supervisor:" in (row.description or "")
+
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(
+                decision="CANCEL",
+                note="Tidak boleh batalkan lagi setelah ESCALATE_CANCELLED status.",
+            ),
+            actor_id="supervisor-1",
+        )
+
+
+def test_api_518_re_escalate_after_cancelled_keeps_history(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    from app.modules.cm_batch1.schemas import IntakeEscalationRequestBody
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Cancel then re-escalate",
+            description="Keluhan awal\n\n---\nAlasan eskalasi:\nButuh pusat untuk kasus kompleks",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-re-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui sementara sebelum dibatalkan oleh supervisor.",
+            priority="HIGH",
+        ),
+        actor_id="supervisor-1",
+    )
+    cancelled = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="CANCEL",
+            note="Batalkan Eskalasi: pelanggan minta ditangani di cabang dulu.",
+        ),
+        actor_id="supervisor-1",
+    )
+    assert cancelled.intake_disposition == "ESCALATE_CANCELLED"
+    assert cancelled.cancellation_note is not None
+
+    re_requested = service.request_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationRequestBody(
+            reason="Ajuan ulang: bukti cabang tidak cukup, perlu tinjauan Pusat."
+        ),
+        actor_id="agent-1",
+    )
+    assert re_requested.intake_disposition == "ESCALATE_PENDING_APPROVAL"
+    assert re_requested.cancellation_note is not None
+    assert "cabang" in re_requested.cancellation_note.lower()
+    assert re_requested.supervisor_note is not None
+    assert re_requested.escalation_reason is not None
+    assert "Ajuan ulang" in re_requested.escalation_reason
+    assert "kasus kompleks" in re_requested.escalation_reason.lower()
+    assert "bukti cabang tidak cukup" in re_requested.escalation_reason.lower()
+
+    row = store.get(created.complaint_id)
+    assert row is not None
+    desc = row.description or ""
+    assert "Batalkan Eskalasi:" in desc
+    assert "Catatan Supervisor:" in desc
+    assert "Alasan eskalasi:" in desc
+    assert "[Ajuan ulang]" in desc
+
+
+def test_api_518_re_escalate_after_rejected_keeps_history(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    from app.modules.cm_batch1.schemas import IntakeEscalationRequestBody
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Reject then re-escalate",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nPerlu eskalasi karena regulasi",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-re-2",
+        actor_id="agent-1",
+    )
+    rejected = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="REJECT",
+            note="Tolak: masih bisa diselesaikan di cabang dengan bukti lengkap.",
+        ),
+        actor_id="supervisor-1",
+    )
+    assert rejected.intake_disposition == "ESCALATE_REJECTED"
+
+    re_requested = service.request_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationRequestBody(
+            reason="Ajuan ulang setelah bukti tambahan: lampiran kontrak lengkap."
+        ),
+        actor_id="agent-1",
+    )
+    assert re_requested.intake_disposition == "ESCALATE_PENDING_APPROVAL"
+    assert re_requested.rejection_note is not None
+    assert "cabang" in re_requested.rejection_note.lower()
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert "Penolakan Eskalasi:" in (row.description or "")
+
+
+def test_api_518_re_escalate_idempotent_when_already_pending(
+    service: CmBatch1Service,
+) -> None:
+    from app.modules.cm_batch1.schemas import IntakeEscalationRequestBody
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Idempotent re-escalate",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat untuk uji idempotent",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-re-idem-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui sementara sebelum dibatalkan untuk uji idempotent.",
+            priority="MEDIUM",
+        ),
+        actor_id="supervisor-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="CANCEL",
+            note="Batalkan Eskalasi: uji double submit setelah ajuan ulang.",
+        ),
+        actor_id="supervisor-1",
+    )
+    first = service.request_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationRequestBody(
+            reason="Ajuan ulang pertama setelah batalkan untuk uji idempotent."
+        ),
+        actor_id="agent-1",
+    )
+    assert first.intake_disposition == "ESCALATE_PENDING_APPROVAL"
+    second = service.request_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationRequestBody(
+            reason="Ajuan ulang kedua yang harus idempotent tanpa error state."
+        ),
+        actor_id="agent-1",
+    )
+    assert second.intake_disposition == "ESCALATE_PENDING_APPROVAL"
+    assert second.cancellation_note is not None
+
+
+def test_api_518_re_escalate_blocked_when_approved(
+    service: CmBatch1Service,
+) -> None:
+    from app.modules.cm_batch1.schemas import IntakeEscalationRequestBody
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Approved cannot re-escalate",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nSudah disetujui belum dibatalkan",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-re-3",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui ke Pusat; jangan ajukan ulang tanpa batalkan.",
+            priority="HIGH",
+        ),
+        actor_id="supervisor-1",
+    )
+    with pytest.raises(InvalidStateError):
+        service.request_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationRequestBody(
+                reason="Tidak boleh ajukan ulang saat masih ESCALATE_APPROVED."
+            ),
+            actor_id="agent-1",
+        )
+
+
+def test_api_515_cancel_blocked_after_hq_accepted(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    from datetime import UTC, datetime
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="HQ accepted blocks cancel",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat HQ accept",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for HQ-accepted cancel block test."
+            ),
+        ),
+        request_id="esc-hq-accepted-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui sebelum Pusat menerima pengaduan ini.",
+            priority="HIGH",
+        ),
+        actor_id="supervisor-1",
+    )
+    row = store.get(created.complaint_id)
+    assert row is not None
+    row.hq_accepted_at = datetime.now(UTC)
+
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(
+                decision="CANCEL",
+                note="Tidak boleh batalkan setelah Pusat menerima pengaduan.",
+            ),
+            actor_id="supervisor-1",
+        )
+    loaded = service.get_complaint(created.complaint_id)
+    assert loaded.hq_accepted_at is not None
+    assert loaded.intake_disposition == "ESCALATE_APPROVED"
+
+
+def test_api_516_hq_accept_and_517_schedule(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="HQ accept and schedule",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh jadwal pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for HQ accept and schedule arrival test."
+            ),
+        ),
+        request_id="esc-hq-schedule-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui agar Pusat dapat menerima dan menjadwalkan.",
+            priority="MEDIUM",
+        ),
+        actor_id="supervisor-1",
+    )
+
+    from datetime import date
+
+    from app.modules.cm_batch1.schemas import (
+        HqAcceptRequest,
+        HqScheduleArrivalRequest,
+    )
+
+    with pytest.raises(InvalidStateError):
+        service.schedule_hq_arrival(
+            created.complaint_id,
+            HqScheduleArrivalRequest(
+                arrivalDate=date(2026, 8, 10), arrivalTime="09:30"
+            ),
+            actor_id="hq-1",
+        )
+
+    accepted = service.accept_at_hq(
+        created.complaint_id,
+        HqAcceptRequest(note="Diterima Pusat untuk penjadwalan kedatangan pelanggan."),
+        actor_id="hq-1",
+    )
+    assert accepted.hq_accepted_at is not None
+    assert accepted.hq_acceptance_note is not None
+
+    scheduled = service.schedule_hq_arrival(
+        created.complaint_id,
+        HqScheduleArrivalRequest(
+            arrivalDate=date(2026, 8, 10),
+            arrivalTime="09:30",
+            note="Bawa KTP asli",
+        ),
+        actor_id="hq-1",
+    )
+    assert scheduled.hq_arrival_date == date(2026, 8, 10)
+    assert scheduled.hq_arrival_time == "09:30"
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert "Penerimaan Pusat:" in (row.description or "")
+    assert "Jadwal kedatangan:" in (row.description or "")
+
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(
+                decision="CANCEL",
+                note="Tidak boleh batalkan setelah Pusat menerima pengaduan ini.",
+            ),
+            actor_id="supervisor-1",
+        )
+
+
+def test_api_515_cancel_requires_note(service: CmBatch1Service) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Cancel note required unique",
+            description="Keluhan unik cancel note\n\n---\nAlasan eskalasi:\nButuh pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification=(
+                "Lab override for cancel-note validation test row."
+            ),
+        ),
+        request_id="esc-cancel-note",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui agar bisa diuji validasi batal eskalasi.",
+            priority="LOW",
+        ),
+        actor_id="supervisor-1",
+    )
+    with pytest.raises(ValidationAppError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(decision="CANCEL", note="short"),
+            actor_id="supervisor-1",
+        )
 
 
 def test_api_515_wrong_disposition_conflict(service: CmBatch1Service) -> None:
@@ -1402,6 +2054,9 @@ def test_api_515_wrong_disposition_conflict(service: CmBatch1Service) -> None:
             channel="BRANCH",
             subject="No escalate flag",
             description="Ordinary registered complaint",
+            duplicateOverrideJustification=(
+                "Lab override for wrong-disposition conflict guard."
+            ),
         ),
         request_id="esc-wrong-1",
         actor_id="agent-1",
@@ -1422,7 +2077,7 @@ def test_api_515_list_filter_intake_disposition(service: CmBatch1Service) -> Non
             category="BILLING",
             channel="BRANCH",
             subject="Pending filter unique A",
-            description="Ajuan eskalasi: filter list",
+            description="Keluhan filter\n\n---\nAlasan eskalasi:\nFilter list perlu pusat",
             intakeDisposition="ESCALATE_PENDING_APPROVAL",
             duplicateOverrideJustification=(
                 "Lab override for filter test pending disposition row."
@@ -1464,7 +2119,7 @@ def test_api_515_second_decision_invalid_state(service: CmBatch1Service) -> None
             category="BILLING",
             channel="BRANCH",
             subject="Second decision",
-            description="Ajuan eskalasi: second decision guard",
+            description="Keluhan second\n\n---\nAlasan eskalasi:\nSecond decision guard",
             intakeDisposition="ESCALATE_PENDING_APPROVAL",
             duplicateOverrideJustification=(
                 "Lab override for second decision invalid-state guard."
@@ -1475,12 +2130,221 @@ def test_api_515_second_decision_invalid_state(service: CmBatch1Service) -> None
     )
     service.decide_intake_escalation(
         created.complaint_id,
-        IntakeEscalationDecisionRequest(decision="APPROVE"),
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui untuk uji guard keputusan kedua ke Pusat.",
+            priority="CRITICAL",
+        ),
         actor_id="supervisor-1",
     )
     with pytest.raises(InvalidStateError):
         service.decide_intake_escalation(
             created.complaint_id,
-            IntakeEscalationDecisionRequest(decision="APPROVE"),
+            IntakeEscalationDecisionRequest(
+                decision="APPROVE",
+                note="Disetujui ulang tidak boleh setelah APPROVED.",
+                priority="HIGH",
+            ),
             actor_id="supervisor-1",
         )
+
+
+class _StubDirectory:
+    """Directory port double — Mode B swaps the adapter, not this contract."""
+
+    def __init__(self, names: dict[str, str]) -> None:
+        self._names = names
+
+    def display_names(self, user_ids: set[str]) -> dict[str, str]:
+        return {uid: self._names[uid] for uid in user_ids if uid in self._names}
+
+
+def test_pic_name_exposed_on_list_and_detail(store: Batch1Store) -> None:
+    """Supervisor/Manager must see who handled intake (createdBy → createdByName)."""
+    service = CmBatch1Service(
+        customer_provider=StubCustomerProvider(),
+        guard=EnumerationGuard(max_failures=3, window_seconds=60, block_seconds=30),
+        store=store,
+        user_directory=_StubDirectory({"agent-77": "Ayu Kusuma"}),
+    )
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="PIC visibility unique subject",
+            description="Keluhan untuk uji PIC",
+            duplicateOverrideJustification=(
+                "Lab override for PIC visibility assertion row."
+            ),
+        ),
+        request_id="pic-1",
+        actor_id="agent-77",
+    )
+    assert created.created_by == "agent-77"
+    assert created.created_by_name == "Ayu Kusuma"
+
+    rows, _ = service.list_complaints(page=1, page_size=20)
+    row = next(r for r in rows if r.complaint_id == created.complaint_id)
+    assert row.created_by_name == "Ayu Kusuma"
+
+
+def test_pic_name_absent_when_directory_has_no_entry(service: CmBatch1Service) -> None:
+    """Unknown actor keys degrade to null — never block the Aggregate read."""
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="PIC unresolved unique subject",
+            description="Keluhan tanpa direktori",
+            duplicateOverrideJustification=(
+                "Lab override for unresolved PIC assertion row."
+            ),
+        ),
+        request_id="pic-2",
+        actor_id="agent-unknown",
+    )
+    assert created.created_by == "agent-unknown"
+    assert created.created_by_name is None
+
+
+class _FakeTimelineRepo:
+    def __init__(self, entries: list) -> None:
+        self._entries = entries
+
+    def list_by_aggregate(self, *, aggregate_type, aggregate_id, page=1, page_size=100):
+        _ = aggregate_type, aggregate_id, page, page_size
+        return list(self._entries), len(self._entries)
+
+
+def _timeline_entry(event_type: str, metadata: dict, *, minute: int, actor: str):
+    from datetime import UTC, datetime
+
+    from app.modules.timeline.domain.entity import TimelineEntry
+
+    return TimelineEntry(
+        id=uuid.uuid4(),
+        aggregate_type="Complaint",
+        aggregate_id=uuid.uuid4(),
+        event_type=event_type,
+        title=event_type,
+        description=None,
+        actor_type="USER",
+        actor_id=actor,
+        actor_name=None,
+        metadata=metadata,
+        created_at=datetime(2026, 8, 7, 9, minute, tzinfo=UTC),
+    )
+
+
+def test_intake_history_is_chronological_with_stable_codes() -> None:
+    """Every decision is its own entry — the description blob cannot show this."""
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    entries = [
+        _timeline_entry("ComplaintRegistered", {}, minute=1, actor="agent-77"),
+        _timeline_entry(
+            "IntakeDispositionRecorded",
+            {"intakeDisposition": "ESCALATE_PENDING_APPROVAL"},
+            minute=2,
+            actor="agent-77",
+        ),
+        _timeline_entry(
+            "IntakeEscalationDecided",
+            {"decision": "CANCEL"},
+            minute=3,
+            actor="spv-1",
+        ),
+        _timeline_entry(
+            "IntakeEscalationDecided",
+            {"decision": "RE_ESCALATE"},
+            minute=4,
+            actor="agent-77",
+        ),
+        _timeline_entry(
+            "IntakeEscalationDecided",
+            {"decision": "APPROVE", "priority": "HIGH"},
+            minute=5,
+            actor="spv-1",
+        ),
+    ]
+    service = CmBatch1HistoryService(
+        _FakeTimelineRepo(entries),
+        user_directory=_StubDirectory({"agent-77": "Ayu Kusuma", "spv-1": "Budi"}),
+    )
+    items = service.list_history(str(uuid.uuid4()))
+
+    assert [i.event_code for i in items] == [
+        "REGISTERED",
+        "ESCALATION_REQUESTED",
+        "ESCALATION_CANCELLED",
+        "ESCALATION_RE_REQUESTED",
+        "ESCALATION_APPROVED",
+    ]
+    assert [i.actor_name for i in items] == [
+        "Ayu Kusuma",
+        "Ayu Kusuma",
+        "Budi",
+        "Ayu Kusuma",
+        "Budi",
+    ]
+    assert items[-1].priority == "HIGH"
+    assert items[0].occurred_at < items[-1].occurred_at
+
+
+def test_intake_history_empty_for_unknown_complaint_id() -> None:
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    service = CmBatch1HistoryService(_FakeTimelineRepo([]))
+    assert service.list_history("not-a-uuid") == []
+
+
+def test_history_carries_note_and_priority_per_event() -> None:
+    """Each row must stand alone: who, when, priority, and the note itself."""
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    entries = [
+        _timeline_entry(
+            "IntakeEscalationDecided",
+            {
+                "decision": "CANCEL",
+                "note": "Pelanggan menarik permintaan eskalasi hari ini.",
+            },
+            minute=1,
+            actor="spv-1",
+        ),
+        _timeline_entry(
+            "IntakeEscalationDecided",
+            {
+                "decision": "APPROVE",
+                "priority": "HIGH",
+                "note": "Disetujui, Pusat menangani karena nilai transaksi besar.",
+            },
+            minute=2,
+            actor="spv-1",
+        ),
+    ]
+    service = CmBatch1HistoryService(
+        _FakeTimelineRepo(entries),
+        user_directory=_StubDirectory({"spv-1": "Budi"}),
+    )
+    items = service.list_history(str(uuid.uuid4()))
+
+    assert items[0].note == "Pelanggan menarik permintaan eskalasi hari ini."
+    assert items[0].priority is None
+    assert items[1].note.startswith("Disetujui, Pusat menangani")
+    assert items[1].priority == "HIGH"
+
+
+def test_event_note_is_clipped_not_dropped() -> None:
+    from app.modules.cm_batch1 import event_factory as ev
+
+    assert ev.clip_note("  ") is None
+    assert ev.clip_note(" catatan ") == "catatan"
+    long_note = "x" * 5000
+    clipped = ev.clip_note(long_note)
+    assert clipped is not None
+    assert len(clipped) == 4001 and clipped.endswith("…")

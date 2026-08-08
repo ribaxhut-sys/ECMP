@@ -6,14 +6,19 @@ export type CmBatch1ListIntakeDisposition =
   | "ESCALATE_PENDING_APPROVAL"
   | "ESCALATE_APPROVED"
   | "ESCALATE_REJECTED"
-  | "BRANCH_CLOSED";
+  | "ESCALATE_CANCELLED"
+  | "BRANCH_CLOSED"
+  /** Pseudo-value: any escalate-family state (Users directory drill-down). */
+  | "ESCALATED";
 
 const STATUSES = new Set<string>(["REGISTERED", "CLOSED"]);
 const INTAKE_DISPOSITIONS = new Set<string>([
   "ESCALATE_PENDING_APPROVAL",
   "ESCALATE_APPROVED",
   "ESCALATE_REJECTED",
+  "ESCALATE_CANCELLED",
   "BRANCH_CLOSED",
+  "ESCALATED",
 ]);
 
 export interface CmBatch1ListFilters {
@@ -22,6 +27,9 @@ export interface CmBatch1ListFilters {
   status: string;
   /** Empty = all intake dispositions. */
   intakeDisposition: string;
+  /** Set via drill-down from the Users directory work-stats panel (UM-BUG-006). */
+  createdBy: string;
+  decidedBy: string;
   page: number;
   pageSize: number;
 }
@@ -31,6 +39,8 @@ export function defaultCmBatch1ListFilters(): CmBatch1ListFilters {
     keyword: "",
     status: "",
     intakeDisposition: "",
+    createdBy: "",
+    decidedBy: "",
     page: 1,
     pageSize: 20,
   };
@@ -50,6 +60,8 @@ export function cmBatch1FiltersFromSearchParams(
     intakeDisposition: INTAKE_DISPOSITIONS.has(dispositionRaw)
       ? dispositionRaw
       : "",
+    createdBy: (params.get("createdBy") ?? "").slice(0, 128),
+    decidedBy: (params.get("decidedBy") ?? "").slice(0, 128),
     page: Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1,
     pageSize:
       Number.isFinite(pageSize) && pageSize >= 1 && pageSize <= 100
@@ -68,6 +80,8 @@ export function cmBatch1FiltersToSearchParams(
   if (filters.intakeDisposition) {
     params.set("intakeDisposition", filters.intakeDisposition);
   }
+  if (filters.createdBy.trim()) params.set("createdBy", filters.createdBy.trim());
+  if (filters.decidedBy.trim()) params.set("decidedBy", filters.decidedBy.trim());
   if (filters.page !== defaults.page) params.set("page", String(filters.page));
   if (filters.pageSize !== defaults.pageSize) {
     params.set("pageSize", String(filters.pageSize));

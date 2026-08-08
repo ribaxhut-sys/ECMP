@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { DashboardSlaSummary } from "@/lib/api/types";
+import { IconCheck, IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import {
   DASHBOARD_CAPTION,
@@ -18,11 +19,9 @@ import {
 export function SlaCards({
   sla,
   loading,
-  onRefresh,
 }: {
   sla: DashboardSlaSummary | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
@@ -37,6 +36,17 @@ export function SlaCards({
         { key: "overall", label: t("stageOverall"), ...sla.overall },
       ]
     : [];
+
+  // When every stage is fine, five identical "healthy" rows carry no signal
+  // — collapse to one line and only expand back to a list once something
+  // actually needs attention.
+  const allHealthy =
+    stages.length > 0 &&
+    stages.every((stage) => {
+      const level = slaHealthLevel(stage);
+      return level === "healthy" || level === "excellent";
+    });
+  const overallPct = sla ? Math.round(slaCompletionRatio(sla.overall) * 100) : 0;
 
   return (
     <section
@@ -57,17 +67,22 @@ export function SlaCards({
       ) : !sla ? (
         <div className="mt-3 flex-1">
           <Empty
+            className="py-8"
+            icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
             title={t("noSlaData")}
             description={t("noSlaDataDescription")}
             primaryAction={{
-              label: t("refreshDashboard"),
-              onClick: onRefresh,
-            }}
-            secondaryAction={{
               label: tCommon("goToQueue"),
               onClick: () => router.push("/queue"),
             }}
           />
+        </div>
+      ) : allHealthy ? (
+        <div className="mt-3 flex flex-1 items-center gap-2.5">
+          <IconCheck className="size-4 shrink-0 text-ecmp-success-text" aria-hidden />
+          <p className="text-[13px] text-ecmp-text-primary">
+            {t("slaAllStagesHealthy", { pct: overallPct })}
+          </p>
         </div>
       ) : (
         <ul className="mt-3 space-y-1">

@@ -19,11 +19,13 @@ from app.core.auth import (
 )
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.config import Settings, get_settings
+from app.core.errors import OrgScopeDeniedError
 from app.core.local_credential_auth import (
     assert_local_credential_auth_enabled,
     require_local_credential_auth,
 )
 from app.core.schemas import DataResponse, ListResponse, PageMeta
+from app.core.user_messages import m
 from app.db.session import get_db_session
 from app.models import Branch
 from app.modules.users.repository import UserRepository
@@ -136,7 +138,6 @@ def list_users(
 ) -> ListResponse[UserResponse]:
     # UM-SEC-001 TASK 1/2 — same scope predicate as users:create (OrgUnitGuard,
     # SECMIG-P4), applied as a list filter instead of a single-resource raise.
-    # No-op unless ECMP_AUTH_MODE=jwt (org_scope_enforcement_enabled).
     if org_scope_enforcement_enabled(settings):
         principal_org = OrgUnitResolver.normalize(principal.org_unit_id)
         if principal_org is not None:
@@ -165,6 +166,22 @@ def list_users(
         # change introduces — it is the endpoint's pre-existing behavior,
         # preserved because blocking it would 403 every head-office
         # administrator out of the only membership list ECMP has.
+    elif branch_id is None:
+        # UM-BUG-005 — Mode A (ECMP_AUTH_MODE=dev) issues no orgUnitId claim,
+        # so the JWT-mode narrowing above never fires locally and a branch
+        # supervisor saw every branch's users in the lab. The domain rule
+        # ("see only your own unit") must hold in both modes (CLAUDE.md §2);
+        # only the org-unit source differs — DB membership here instead of
+        # an SSO claim. Explicit ?branchId= cross-unit requests are not yet
+        # denied in dev mode (still gated by org_scope_enforcement_enabled
+        # above) — narrower, separate gap from what this fixes.
+        principal_org = OrgUnitResolver(session).resolve_principal_membership(
+            principal.user_id
+        )
+        if principal_org is not None:
+            branch_id = session.scalar(
+                select(Branch.id).where(Branch.code == principal_org)
+            )
     items, total = service.list(
         page=page,
         page_size=page_size,
@@ -224,6 +241,9 @@ def update_user(
     return DataResponse(data=updated)
 
 
+_HEAD_OFFICE_ADMIN_ROLES = ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN")
+
+
 @router.patch(
     "/{id}/status",
     response_model=DataResponse[UserResponse],
@@ -235,7 +255,25 @@ def update_user_status(
     payload: UserStatusUpdateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_user_status_update)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[UserResponse]:
+    # UM-BUG-007 — Manager (BC-8.4) is branch-scoped, unlike Head Office
+    # Admin/Administrator/Super Admin above (unrestricted, unchanged).
+    # Resolves the actor's own membership from the DB rather than relying on
+    # an orgUnitId claim, so this also holds in Mode A (no SSO token issues
+    # that claim locally) — same rationale as list_users' UM-BUG-005 fix.
+    if not principal.has_any_role(*_HEAD_OFFICE_ADMIN_ROLES):
+        resolver = OrgUnitResolver(session)
+        actor_org = OrgUnitResolver.normalize(principal.org_unit_id)
+        if actor_org is None:
+            actor_org = resolver.resolve_principal_membership(principal.user_id)
+        target_org = resolver.resolve_user(id)
+        if actor_org is None or target_org is None or actor_org != target_org:
+            raise OrgScopeDeniedError(
+                m("common.org_scope_denied"),
+                details={"reason": "org_unit_mismatch"},
+            )
     updated = service.update_status(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=updated)
 

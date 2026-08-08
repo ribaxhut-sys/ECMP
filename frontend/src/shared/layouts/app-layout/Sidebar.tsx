@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { fetchBranches } from "@/lib/api/branches";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
   IconAssignments,
@@ -25,6 +27,41 @@ import {
   type NavItem,
 } from "./nav";
 import { B0_NAV_GROUPS, B0_NAV_ITEMS } from "./b0Nav";
+
+/**
+ * Resolve the logged-in user's branch name for the sidebar subtitle.
+ * No GET /branches/{id} in the catalog — list once (same pattern as
+ * AssignmentListView / ResolutionListView) and match branchId client-side.
+ * null branchId is a valid state (head-office roles, EBS-001) — no fetch.
+ */
+function useLoggedInBranchName(): string | null {
+  const { user, hasPermission } = useAuth();
+  const branchId = user?.branchId ?? null;
+  const canReadBranches = hasPermission("complaints:read");
+  const [branchName, setBranchName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!branchId || !canReadBranches) {
+      setBranchName(null);
+      return;
+    }
+    let cancelled = false;
+    fetchBranches()
+      .then((res) => {
+        if (cancelled) return;
+        const match = res.data.find((branch) => branch.id === branchId);
+        setBranchName(match?.name ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setBranchName(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, canReadBranches]);
+
+  return branchName;
+}
 
 const iconMap = {
   dashboard: IconDashboard,
@@ -108,24 +145,36 @@ function Brand({
   asLink,
   href,
   onNavigate,
+  branchName,
 }: {
   asLink: boolean;
   href: string;
   onNavigate?: () => void;
+  branchName: string | null;
 }) {
   const tCommon = useTranslations("common");
-  const className =
-    "text-[length:var(--ecmp-font-card-title-size)] font-semibold tracking-tight text-ecmp-text-primary";
+  const content = (
+    <span className="flex flex-col gap-0.5 leading-tight">
+      <span className="text-[length:var(--ecmp-font-card-title-size)] font-semibold tracking-tight text-ecmp-text-primary">
+        {tCommon("appName")}
+      </span>
+      {branchName ? (
+        <span className="truncate text-[14px] font-medium text-ecmp-primary">
+          {branchName}
+        </span>
+      ) : null}
+    </span>
+  );
 
   if (asLink) {
     return (
-      <Link href={href} onClick={onNavigate} className={className}>
-        {tCommon("appName")}
+      <Link href={href} onClick={onNavigate} className="min-w-0">
+        {content}
       </Link>
     );
   }
 
-  return <span className={className}>{tCommon("appName")}</span>;
+  return content;
 }
 
 function useShellNav(): {
@@ -228,6 +277,7 @@ export function Sidebar() {
   const closeDrawer = () => setOpen(false);
   const tCommon = useTranslations("common");
   const { homeHref } = useShellNav();
+  const branchName = useLoggedInBranchName();
 
   return (
     <>
@@ -236,7 +286,7 @@ export function Sidebar() {
         aria-label={tCommon("appSidebar")}
       >
         <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
-          <Brand asLink href={homeHref} />
+          <Brand asLink href={homeHref} branchName={branchName} />
         </div>
         <NavSections />
       </aside>
@@ -273,6 +323,7 @@ export function Sidebar() {
               asLink
               href={homeHref}
               onNavigate={isDesktop ? undefined : closeDrawer}
+              branchName={branchName}
             />
           </div>
           <NavSections onNavigate={isDesktop ? undefined : closeDrawer} />

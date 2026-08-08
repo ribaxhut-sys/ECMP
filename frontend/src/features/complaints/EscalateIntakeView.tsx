@@ -334,6 +334,22 @@ export function EscalateIntakeView() {
               </div>
               <div className="space-y-1 md:col-span-2">
                 <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                  {t("intakeNarrativeLabel")}
+                </dt>
+                <dd className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                  {values.description.trim() || t("intakeNarrativeEmpty")}
+                </dd>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                  {t("escalationReasonLabel")}
+                </dt>
+                <dd className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                  {values.resolution.trim() || t("escalationReasonEmpty")}
+                </dd>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                   {t("customer")}
                 </dt>
                 <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">

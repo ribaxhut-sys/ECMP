@@ -112,12 +112,17 @@ export interface CmBatch1ComplaintResponse {
   customerDisplayName?: string | null;
   /** External/business customer id (not internal UUID). */
   customerNumber?: string | null;
+  /** Actor id of the intake officer (PIC). */
+  createdBy?: string | null;
+  /** Operator-facing name of the intake officer, resolved via directory. */
+  createdByName?: string | null;
   /** Intake path label; Aggregate status stays REGISTERED|CLOSED. */
   intakeDisposition?:
     | "BRANCH_CLOSED"
     | "ESCALATE_PENDING_APPROVAL"
     | "ESCALATE_APPROVED"
     | "ESCALATE_REJECTED"
+    | "ESCALATE_CANCELLED"
     | string
     | null;
   caseCreated: false;
@@ -125,9 +130,56 @@ export interface CmBatch1ComplaintResponse {
   category?: string | null;
   channel?: string | null;
   subject?: string | null;
+  /** Full intake narrative blob (Supervisor / HQ history). */
+  description?: string | null;
+  /** Customer complaint body parsed from description. */
+  intakeNarrative?: string | null;
+  /** Branch close note (Penyelesaian). */
+  branchResolution?: string | null;
+  /** Why escalate to HQ (Alasan eskalasi) — HQ history. */
+  escalationReason?: string | null;
+  /** Supervisor/Manager note for HQ — required on APPROVE. */
+  supervisorNote?: string | null;
+  /** Reject reason history (Penolakan Eskalasi). */
+  rejectionNote?: string | null;
+  /** Batalkan Eskalasi reason history. */
+  cancellationNote?: string | null;
+  /** When set, Pusat accepted — Batalkan Eskalasi blocked. */
+  hqAcceptedAt?: string | null;
+  /** Scheduled arrival date YYYY-MM-DD. */
+  hqArrivalDate?: string | null;
+  /** Scheduled arrival time HH:MM. */
+  hqArrivalTime?: string | null;
+  hqAcceptanceNote?: string | null;
+  hqArrivalNote?: string | null;
   priority?: string | null;
   createdAt?: string | null;
   duplicateCheckResult?: string | null;
+}
+
+/** Stable event codes from API-517 — labels live in the UI, not the API. */
+export type CmBatch1HistoryEventCode =
+  | "REGISTERED"
+  | "ESCALATION_REQUESTED"
+  | "BRANCH_CLOSED"
+  | "ESCALATION_APPROVED"
+  | "ESCALATION_REJECTED"
+  | "ESCALATION_CANCELLED"
+  | "ESCALATION_RE_REQUESTED"
+  | "HQ_ACCEPTED"
+  | "HQ_ARRIVAL_SCHEDULED"
+  | (string & {});
+
+export interface CmBatch1IntakeHistoryEntry {
+  entryId: string;
+  eventCode: CmBatch1HistoryEventCode;
+  eventType: string;
+  occurredAt: string;
+  actorId?: string | null;
+  actorName?: string | null;
+  priority?: string | null;
+  /** Operator note captured with this event; null for rows logged before API-517. */
+  note?: string | null;
 }
 
 export interface CmBatch1DuplicateCheckRequest {
@@ -216,8 +268,16 @@ export interface UploadCmBatch1AttachmentInput {
 }
 
 export interface CmBatch1IntakeEscalationDecisionRequest {
-  decision: "APPROVE" | "REJECT";
+  decision: "APPROVE" | "REJECT" | "CANCEL";
   note?: string | null;
+  /** Required on APPROVE — Supervisor/Manager HQ triage priority. */
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
+}
+
+export interface CmBatch1IntakeEscalationRequestBody {
+  /** Alasan ajuan ulang (≥20). Appended to history; cancel/reject notes kept. */
+  reason: string;
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
 }
 
 export interface CmBatch1LaterReviewWorkItem {
@@ -304,6 +364,8 @@ export function fetchCmBatch1Complaints(
     intakeDisposition?: string;
     priority?: string;
     category?: string;
+    createdBy?: string;
+    decidedBy?: string;
   } = 1,
   pageSizeArg = 20,
 ): Promise<ListResponse<CmBatch1ComplaintResponse>> {
@@ -325,7 +387,25 @@ export function fetchCmBatch1Complaints(
   if (priority) params.set("priority", priority);
   const category = filters.category?.trim();
   if (category) params.set("category", category);
+  const createdBy = filters.createdBy?.trim();
+  if (createdBy) params.set("createdBy", createdBy);
+  const decidedBy = filters.decidedBy?.trim();
+  if (decidedBy) params.set("decidedBy", decidedBy);
   return apiRequest(`${cmBatch1Paths().complaints}?${params.toString()}`);
+}
+
+export interface CmBatch1UserWorkStats {
+  createdCount: number;
+  escalationRequestedCount: number;
+  escalationApprovedCount: number;
+  escalationRejectedCount: number;
+}
+
+/** Per-user complaint work counters for the Users directory panel (UM-BUG-006). */
+export function fetchCmBatch1UserWorkStats(
+  userId: string,
+): Promise<DataResponse<CmBatch1UserWorkStats>> {
+  return apiRequest(cmBatch1Paths().userWorkStats(userId));
 }
 
 /** API-501 — GET /api/v1/cm/complaints/{complaintId} */
@@ -335,12 +415,62 @@ export function fetchCmBatch1Complaint(
   return apiRequest(cmBatch1Paths().complaint(complaintId));
 }
 
-/** API-515 — POST intake escalation approve/reject (disposition only; no Case). */
+/** API-517 — GET chronological intake history (append-only timeline projection). */
+export function fetchCmBatch1ComplaintHistory(
+  complaintId: string,
+): Promise<ListResponse<CmBatch1IntakeHistoryEntry>> {
+  return apiRequest(cmBatch1Paths().complaintHistory(complaintId));
+}
+
+/** API-515 — POST intake escalation approve/reject/cancel (disposition only; no Case). */
 export function decideCmBatch1IntakeEscalation(
   complaintId: string,
   body: CmBatch1IntakeEscalationDecisionRequest,
 ): Promise<DataResponse<CmBatch1ComplaintResponse>> {
   return apiRequest(cmBatch1Paths().intakeEscalationDecision(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** API-518 lab — Re-ajukan eskalasi setelah CANCELLED/REJECTED (history append-only). */
+export function requestCmBatch1IntakeEscalation(
+  complaintId: string,
+  body: CmBatch1IntakeEscalationRequestBody,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().intakeEscalationRequest(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface CmBatch1HqAcceptRequest {
+  note?: string | null;
+}
+
+export interface CmBatch1HqScheduleArrivalRequest {
+  arrivalDate: string;
+  arrivalTime: string;
+  note?: string | null;
+}
+
+/** API-516 lab — Pusat menerima eskalasi yang sudah APPROVED. */
+export function acceptCmBatch1HqEscalation(
+  complaintId: string,
+  body: CmBatch1HqAcceptRequest = {},
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqAccept(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** API-517 lab — Jadwalkan kedatangan pelanggan di Pusat. */
+export function scheduleCmBatch1HqArrival(
+  complaintId: string,
+  body: CmBatch1HqScheduleArrivalRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqScheduleArrival(complaintId), {
     method: "POST",
     body: JSON.stringify(body),
   });

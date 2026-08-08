@@ -20,6 +20,7 @@ export function DirectoryRoleBadge({
   const family = directoryRoleFamily(user);
   const labels: Record<DirectoryRoleFamily, string> = {
     administrator: t("roleAdministrator"),
+    manager: t("roleManager"),
     supervisor: t("roleSupervisor"),
     agent: t("roleAgent"),
     viewer: t("roleViewer"),

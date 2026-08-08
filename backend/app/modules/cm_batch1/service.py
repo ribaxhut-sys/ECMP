@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol
 
 from app.core.errors import (
@@ -22,6 +22,7 @@ from app.integrations.customer import (
     build_customer_provider,
     mask_identity,
 )
+from app.integrations.directory import NullUserDirectory, UserDirectory
 from app.modules.cm_batch1 import event_factory as events
 from app.modules.cm_batch1.customer_search_key import validate_customer_search_key
 from app.modules.cm_batch1.duplicate_config import (
@@ -35,6 +36,17 @@ from app.modules.cm_batch1.entities import (
     LaterReviewWorkItem,
 )
 from app.modules.cm_batch1.enumeration import EnumerationGuard
+from app.modules.cm_batch1.intake_narrative import (
+    append_cancellation_note,
+    append_hq_acceptance_note,
+    append_hq_arrival_note,
+    append_re_escalation_reason,
+    append_rejection_note,
+    append_supervisor_note,
+    has_branch_resolution,
+    has_escalation_reason,
+    parse_intake_description,
+)
 from app.modules.cm_batch1.schemas import (
     AgingComplaintItemResponse,
     ComplaintBatch1Response,
@@ -48,9 +60,13 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    HqAcceptRequest,
+    HqScheduleArrivalRequest,
     IntakeEscalationDecisionRequest,
+    IntakeEscalationRequestBody,
     LaterReviewWorkItemResponse,
     SupervisorQueueResponse,
+    UserWorkStatsResponse,
 )
 from app.modules.cm_batch1.side_effects import (
     NoOpSideEffectRecorder,
@@ -175,13 +191,37 @@ class CmBatch1StoreProtocol(Protocol):
         category: str | None = None,
         status: str | None = None,
         intake_disposition: str | None = None,
+        created_by: str | None = None,
+        decided_by: str | None = None,
     ) -> tuple[list[ComplaintAggregate], int]: ...
+
+    def work_stats_for_user(self, user_key: str) -> dict[str, int]: ...
 
     def update_intake_disposition(
         self,
         complaint_id: str,
         *,
         intake_disposition: str,
+        description: str | None = None,
+        priority: str | None = None,
+        decided_by: str | None = None,
+    ) -> ComplaintAggregate | None: ...
+
+    def accept_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        description: str | None = None,
+    ) -> ComplaintAggregate | None: ...
+
+    def schedule_hq_arrival(
+        self,
+        complaint_id: str,
+        *,
+        arrival_date: date,
+        arrival_time: str,
+        description: str | None = None,
     ) -> ComplaintAggregate | None: ...
 
 
@@ -189,11 +229,24 @@ DEFAULT_AGING_THRESHOLD_HOURS = 24
 DEFAULT_SUPERVISOR_QUEUE_LIMIT = 100
 
 
+def _is_hhmm(value: str) -> bool:
+    parts = value.split(":")
+    if len(parts) != 2:
+        return False
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+    except ValueError:
+        return False
+    return 0 <= hour <= 23 and 0 <= minute <= 59
+
+
 class CmBatch1Service:
     def __init__(
         self,
         *,
         customer_provider: CustomerProvider | None = None,
+        user_directory: UserDirectory | None = None,
         guard: EnumerationGuard | None = None,
         store: CmBatch1StoreProtocol | Batch1Store | None = None,
         strict_master: bool = True,
@@ -208,6 +261,7 @@ class CmBatch1Service:
             or master
             or build_customer_provider("stub")
         )
+        self._directory: UserDirectory = user_directory or NullUserDirectory()
         self._guard = guard or EnumerationGuard()
         self._store: CmBatch1StoreProtocol = store or STORE
         self.strict_master = strict_master
@@ -799,19 +853,29 @@ class CmBatch1Service:
 
         intake_disposition = (body.intake_disposition or "").strip().upper() or None
         initial_status = "REGISTERED"
+        desc = body.description.strip()
         if intake_disposition == "BRANCH_CLOSED":
             # Thin BR-009 lab path: branch walk-away close without Case (BQ-011).
-            desc = body.description.strip()
-            if "Penyelesaian:" not in desc:
+            if not has_branch_resolution(desc):
                 raise ValidationAppError(
                     "resolution note required for BRANCH_CLOSED",
                     details={
                         "field": "description",
                         "intakeDisposition": "BRANCH_CLOSED",
+                        "requiredSection": "Penyelesaian",
                     },
                 )
             initial_status = "CLOSED"
         elif intake_disposition == "ESCALATE_PENDING_APPROVAL":
+            if not has_escalation_reason(desc):
+                raise ValidationAppError(
+                    "escalation reason required for ESCALATE_PENDING_APPROVAL",
+                    details={
+                        "field": "description",
+                        "intakeDisposition": "ESCALATE_PENDING_APPROVAL",
+                        "requiredSection": "Alasan eskalasi",
+                    },
+                )
             initial_status = "REGISTERED"
         elif intake_disposition is not None:
             raise ValidationAppError(
@@ -846,6 +910,7 @@ class CmBatch1Service:
                 authorize_replay=authorize_replay,
             )
 
+        parsed_intake = parse_intake_description(row.description or "")
         self._side_effects.record(
             events.complaint_created(
                 complaint_id=row.complaint_id,
@@ -856,8 +921,26 @@ class CmBatch1Service:
                 actor_id=actor_id,
                 created_at=row.created_at,
                 recording_unit_id=body.recording_unit_id,
+                note=parsed_intake.narrative or None,
+                priority=row.priority,
             )
         )
+        if intake_disposition:
+            self._side_effects.record(
+                events.intake_disposition_recorded(
+                    complaint_id=row.complaint_id,
+                    complaint_number=row.complaint_number,
+                    intake_disposition=intake_disposition,
+                    actor_id=actor_id,
+                    occurred_at=row.created_at,
+                    note=(
+                        parsed_intake.branch_resolution
+                        if intake_disposition == "BRANCH_CLOSED"
+                        else parsed_intake.escalation_reason
+                    ),
+                    priority=row.priority,
+                )
+            )
         if dup_result == "overridden":
             override_rec = self._store.save_duplicate_decision(
                 customer_id=body.customer_id.strip(),
@@ -930,32 +1013,100 @@ class CmBatch1Service:
         *,
         actor_id: str | None,
     ) -> ComplaintBatch1Response:
-        """API-515 — supervisor approve/reject intake escalate (disposition only)."""
+        """API-515 — supervisor approve/reject/cancel intake escalate (disposition only)."""
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
 
-        current = (row.intake_disposition or "").strip().upper()
-        if row.status != "REGISTERED" or current != "ESCALATE_PENDING_APPROVAL":
+        if row.status != "REGISTERED":
             raise InvalidStateError(
-                "intake escalation is not awaiting approval",
+                "intake escalation decision requires REGISTERED complaint",
                 details={
                     "status": row.status,
                     "intakeDisposition": row.intake_disposition,
                 },
             )
 
+        current = (row.intake_disposition or "").strip().upper()
         decision = (body.decision or "").strip().upper()
         note = (body.note or "").strip()
-        if decision == "APPROVE":
-            next_disp = "ESCALATE_APPROVED"
-        elif decision == "REJECT":
+        next_description: str | None = None
+        next_priority: str | None = None
+
+        if decision == "CANCEL":
+            # Batalkan Eskalasi — only before HQ accepted/claimed.
+            if current != "ESCALATE_APPROVED":
+                raise InvalidStateError(
+                    "batalkan eskalasi only allowed when ESCALATE_APPROVED",
+                    details={
+                        "status": row.status,
+                        "intakeDisposition": row.intake_disposition,
+                    },
+                )
+            if row.hq_accepted_at is not None:
+                raise InvalidStateError(
+                    "cannot batalkan eskalasi after HQ accepted",
+                    details={
+                        "intakeDisposition": row.intake_disposition,
+                        "hqAcceptedAt": row.hq_accepted_at.isoformat(),
+                    },
+                )
+            if bool(getattr(row, "case_created", False)):
+                raise InvalidStateError(
+                    "cannot batalkan eskalasi after HQ work unit exists",
+                    details={
+                        "intakeDisposition": row.intake_disposition,
+                        "caseCreated": True,
+                    },
+                )
             if len(note) < 20:
                 raise ValidationAppError(
-                    "reject note must be at least 20 characters",
-                    details={"field": "note", "minLength": 20},
+                    "batalkan eskalasi note must be at least 20 characters",
+                    details={"field": "note", "minLength": 20, "decision": "CANCEL"},
                 )
-            next_disp = "ESCALATE_REJECTED"
+            next_disp = "ESCALATE_CANCELLED"
+            next_description = append_cancellation_note(row.description or "", note)
+        elif decision in {"APPROVE", "REJECT"}:
+            if current != "ESCALATE_PENDING_APPROVAL":
+                raise InvalidStateError(
+                    "intake escalation is not awaiting approval",
+                    details={
+                        "status": row.status,
+                        "intakeDisposition": row.intake_disposition,
+                    },
+                )
+            if decision == "APPROVE":
+                if len(note) < 20:
+                    raise ValidationAppError(
+                        "supervisor note for HQ must be at least 20 characters",
+                        details={
+                            "field": "note",
+                            "minLength": 20,
+                            "decision": "APPROVE",
+                        },
+                    )
+                priority = (body.priority or "").strip().upper()
+                allowed_priority = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+                if priority not in allowed_priority:
+                    raise ValidationAppError(
+                        "priority required for APPROVE (LOW|MEDIUM|HIGH|CRITICAL)",
+                        details={
+                            "field": "priority",
+                            "decision": "APPROVE",
+                            "allowed": sorted(allowed_priority),
+                        },
+                    )
+                next_disp = "ESCALATE_APPROVED"
+                next_description = append_supervisor_note(row.description or "", note)
+                next_priority = priority
+            else:
+                if len(note) < 20:
+                    raise ValidationAppError(
+                        "reject note must be at least 20 characters",
+                        details={"field": "note", "minLength": 20},
+                    )
+                next_disp = "ESCALATE_REJECTED"
+                next_description = append_rejection_note(row.description or "", note)
         else:
             raise ValidationAppError(
                 "unsupported intake escalation decision",
@@ -963,7 +1114,11 @@ class CmBatch1Service:
             )
 
         updated = self._store.update_intake_disposition(
-            complaint_id, intake_disposition=next_disp
+            complaint_id,
+            intake_disposition=next_disp,
+            description=next_description,
+            priority=next_priority,
+            decided_by=actor_id,
         )
         if updated is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -976,6 +1131,230 @@ class CmBatch1Service:
                 next_disposition=next_disp,
                 actor_id=actor_id,
                 note_present=bool(note),
+                priority=updated.priority if decision == "APPROVE" else None,
+                note=note,
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(updated, replayed=False)
+
+    def request_intake_escalation(
+        self,
+        complaint_id: str,
+        body: IntakeEscalationRequestBody,
+        *,
+        actor_id: str | None,
+    ) -> ComplaintBatch1Response:
+        """Re-ajukan eskalasi setelah CANCELLED/REJECTED — history append-only."""
+        row = self._store.get(complaint_id)
+        if row is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        if row.status != "REGISTERED":
+            raise InvalidStateError(
+                "intake escalation request requires REGISTERED complaint",
+                details={
+                    "status": row.status,
+                    "intakeDisposition": row.intake_disposition,
+                },
+            )
+
+        current = (row.intake_disposition or "").strip().upper()
+        # Idempotent: already awaiting approval again (e.g. double-submit after success).
+        if current == "ESCALATE_PENDING_APPROVAL":
+            return self._to_complaint_response(row, replayed=False)
+        if current not in {"ESCALATE_CANCELLED", "ESCALATE_REJECTED"}:
+            raise InvalidStateError(
+                "re-escalate only allowed after ESCALATE_CANCELLED or ESCALATE_REJECTED",
+                details={
+                    "status": row.status,
+                    "intakeDisposition": row.intake_disposition,
+                },
+            )
+        if row.hq_accepted_at is not None:
+            raise InvalidStateError(
+                "cannot re-escalate after HQ accepted",
+                details={
+                    "intakeDisposition": row.intake_disposition,
+                    "hqAcceptedAt": row.hq_accepted_at.isoformat(),
+                },
+            )
+        if bool(getattr(row, "case_created", False)):
+            raise InvalidStateError(
+                "cannot re-escalate after HQ work unit exists",
+                details={
+                    "intakeDisposition": row.intake_disposition,
+                    "caseCreated": True,
+                },
+            )
+
+        reason = (body.reason or "").strip()
+        if len(reason) < 20:
+            raise ValidationAppError(
+                "re-escalate reason must be at least 20 characters",
+                details={"field": "reason", "minLength": 20},
+            )
+
+        next_priority: str | None = None
+        if body.priority is not None:
+            priority = (body.priority or "").strip().upper()
+            allowed_priority = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+            if priority not in allowed_priority:
+                raise ValidationAppError(
+                    "priority must be LOW|MEDIUM|HIGH|CRITICAL",
+                    details={
+                        "field": "priority",
+                        "allowed": sorted(allowed_priority),
+                    },
+                )
+            next_priority = priority
+
+        next_disp = "ESCALATE_PENDING_APPROVAL"
+        next_description = append_re_escalation_reason(row.description or "", reason)
+
+        updated = self._store.update_intake_disposition(
+            complaint_id,
+            intake_disposition=next_disp,
+            description=next_description,
+            priority=next_priority,
+        )
+        if updated is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        self._side_effects.record(
+            events.intake_escalation_decided(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                decision="RE_ESCALATE",
+                next_disposition=next_disp,
+                actor_id=actor_id,
+                note_present=True,
+                priority=updated.priority if next_priority else None,
+                note=reason,
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(updated, replayed=False)
+
+    def accept_at_hq(
+        self,
+        complaint_id: str,
+        body: HqAcceptRequest,
+        *,
+        actor_id: str | None,
+    ) -> ComplaintBatch1Response:
+        """Pusat menerima/mengambil eskalasi yang sudah ESCALATE_APPROVED."""
+        row = self._store.get(complaint_id)
+        if row is None:
+            raise NotFoundError(m("complaint.not_found"))
+        if row.status != "REGISTERED":
+            raise InvalidStateError(
+                "HQ accept requires REGISTERED complaint",
+                details={"status": row.status},
+            )
+        current = (row.intake_disposition or "").strip().upper()
+        if current != "ESCALATE_APPROVED":
+            raise InvalidStateError(
+                "HQ accept only allowed when ESCALATE_APPROVED",
+                details={"intakeDisposition": row.intake_disposition},
+            )
+        if row.hq_accepted_at is not None:
+            raise InvalidStateError(
+                "escalation already accepted by HQ",
+                details={"hqAcceptedAt": row.hq_accepted_at.isoformat()},
+            )
+
+        note = (body.note or "").strip()
+        if note and len(note) < 20:
+            raise ValidationAppError(
+                "HQ accept note must be at least 20 characters when provided",
+                details={"field": "note", "minLength": 20},
+            )
+        accepted_at = datetime.now(UTC)
+        accept_text = note or (
+            "Pengaduan diterima oleh Pusat untuk penanganan lanjutan."
+        )
+        next_description = append_hq_acceptance_note(
+            row.description or "", accept_text
+        )
+        updated = self._store.accept_at_hq(
+            complaint_id,
+            hq_accepted_at=accepted_at,
+            description=next_description,
+        )
+        if updated is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        self._side_effects.record(
+            events.hq_accepted(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                actor_id=actor_id,
+                accepted_at=accepted_at,
+                note=accept_text,
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(updated, replayed=False)
+
+    def schedule_hq_arrival(
+        self,
+        complaint_id: str,
+        body: HqScheduleArrivalRequest,
+        *,
+        actor_id: str | None,
+    ) -> ComplaintBatch1Response:
+        """Jadwalkan kedatangan pelanggan di Pusat (tanggal + jam)."""
+        row = self._store.get(complaint_id)
+        if row is None:
+            raise NotFoundError(m("complaint.not_found"))
+        if row.status != "REGISTERED":
+            raise InvalidStateError(
+                "HQ schedule requires REGISTERED complaint",
+                details={"status": row.status},
+            )
+        current = (row.intake_disposition or "").strip().upper()
+        if current != "ESCALATE_APPROVED":
+            raise InvalidStateError(
+                "HQ schedule only allowed when ESCALATE_APPROVED",
+                details={"intakeDisposition": row.intake_disposition},
+            )
+        if row.hq_accepted_at is None:
+            raise InvalidStateError(
+                "HQ must accept escalation before scheduling arrival",
+                details={"hqAcceptedAt": None},
+            )
+
+        arrival_time = (body.arrival_time or "").strip()
+        if not _is_hhmm(arrival_time):
+            raise ValidationAppError(
+                "arrivalTime must be HH:MM",
+                details={"field": "arrivalTime"},
+            )
+        note = (body.note or "").strip()
+        schedule_body = f"{body.arrival_date.isoformat()} {arrival_time}"
+        if note:
+            schedule_body = f"{schedule_body}\n{note}"
+        next_description = append_hq_arrival_note(
+            row.description or "", schedule_body
+        )
+        updated = self._store.schedule_hq_arrival(
+            complaint_id,
+            arrival_date=body.arrival_date,
+            arrival_time=arrival_time,
+            description=next_description,
+        )
+        if updated is None:
+            raise NotFoundError(m("complaint.not_found"))
+
+        self._side_effects.record(
+            events.hq_arrival_scheduled(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                actor_id=actor_id,
+                arrival_date=body.arrival_date.isoformat(),
+                arrival_time=arrival_time,
+                note=schedule_body,
             )
         )
         self._store.commit()
@@ -991,6 +1370,8 @@ class CmBatch1Service:
         category: str | None = None,
         status: str | None = None,
         intake_disposition: str | None = None,
+        created_by: str | None = None,
+        decided_by: str | None = None,
     ) -> tuple[list[ComplaintBatch1Response], int]:
         rows, total = self._store.list_complaints(
             page=page,
@@ -1000,19 +1381,31 @@ class CmBatch1Service:
             category=category,
             status=status,
             intake_disposition=intake_disposition,
+            created_by=created_by,
+            decided_by=decided_by,
         )
         labels = self._customer_labels_for(
             {row.customer_id for row in rows if row.customer_id}
         )
+        agents = self._agent_labels_for(
+            {row.created_by for row in rows if row.created_by}
+        )
         return (
             [
                 self._to_complaint_response(
-                    row, replayed=False, customer_labels=labels
+                    row,
+                    replayed=False,
+                    customer_labels=labels,
+                    agent_labels=agents,
                 )
                 for row in rows
             ],
             total,
         )
+
+    def work_stats_for_user(self, user_key: str) -> UserWorkStatsResponse:
+        stats = self._store.work_stats_for_user(user_key)
+        return UserWorkStatsResponse.model_validate(stats)
 
     def _customer_labels_for(
         self, customer_ids: set[str]
@@ -1038,12 +1431,23 @@ class CmBatch1Service:
             out[customer_id] = (display_name, customer_number)
         return out
 
+    def _agent_labels_for(self, actor_ids: set[str]) -> dict[str, str]:
+        """Resolve intake officer (PIC) names — directory is not ECMP SoR."""
+        wanted = {a for a in actor_ids if a}
+        if not wanted:
+            return {}
+        try:
+            return self._directory.display_names(wanted)
+        except Exception:
+            return {}
+
     def _to_complaint_response(
         self,
         row: ComplaintAggregate,
         *,
         replayed: bool,
         customer_labels: dict[str, tuple[str | None, str | None]] | None = None,
+        agent_labels: dict[str, str] | None = None,
     ) -> ComplaintBatch1Response:
         labels = customer_labels
         if labels is None and row.customer_id:
@@ -1051,6 +1455,13 @@ class CmBatch1Service:
         display_name, customer_number = (None, None)
         if labels and row.customer_id in labels:
             display_name, customer_number = labels[row.customer_id]
+        agents = agent_labels
+        if agents is None and row.created_by:
+            agents = self._agent_labels_for({row.created_by})
+        created_by_name = (
+            agents.get(row.created_by) if agents and row.created_by else None
+        )
+        parsed = parse_intake_description(row.description or "")
         return ComplaintBatch1Response(
             complaintId=row.complaint_id,
             complaintNumber=row.complaint_number,
@@ -1058,12 +1469,26 @@ class CmBatch1Service:
             customerId=row.customer_id,
             customerDisplayName=display_name,
             customerNumber=customer_number,
+            createdBy=row.created_by,
+            createdByName=created_by_name,
             intakeDisposition=row.intake_disposition,
             caseCreated=False,
             replayed=replayed,
             category=row.category,
             channel=row.channel,
             subject=row.subject,
+            description=row.description,
+            intakeNarrative=parsed.narrative or None,
+            branchResolution=parsed.branch_resolution,
+            escalationReason=parsed.escalation_reason,
+            supervisorNote=parsed.supervisor_note,
+            rejectionNote=parsed.rejection_note,
+            cancellationNote=parsed.cancellation_note,
+            hqAcceptedAt=row.hq_accepted_at,
+            hqArrivalDate=row.hq_arrival_date,
+            hqArrivalTime=row.hq_arrival_time,
+            hqAcceptanceNote=parsed.hq_acceptance_note,
+            hqArrivalNote=parsed.hq_arrival_note,
             priority=row.priority,
             createdAt=row.created_at,
         )

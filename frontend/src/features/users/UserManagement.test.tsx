@@ -18,6 +18,7 @@ const fetchBranches = vi.fn();
 const updateUserStatus = vi.fn();
 const updateUserRole = vi.fn();
 let authRoles = ["ADMIN"];
+let authBranchId: string | null = null;
 const hasPermission = vi.fn((code: string) =>
   ["users:read", "users:create", "users:update"].includes(code),
 );
@@ -28,7 +29,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/auth/AuthProvider", () => ({
   useAuth: () => ({
-    user: { branchId: null },
+    user: { branchId: authBranchId },
     userId: "current-user",
     roles: authRoles,
     hasPermission,
@@ -80,6 +81,7 @@ describe("UserManagement — credential surface removed", () => {
     updateUserStatus.mockReset();
     updateUserRole.mockReset();
     authRoles = ["ADMIN"];
+    authBranchId = null;
     hasPermission.mockImplementation((code: string) =>
       ["users:read", "users:create", "users:update"].includes(code),
     );
@@ -140,20 +142,18 @@ describe("UserManagement — credential surface removed", () => {
     expect(document.body.textContent).not.toMatch(/temporary password/i);
   });
 
-  it("shows Unit name and activates or deactivates from the preview", async () => {
+  it("shows Unit code and activates or deactivates from the preview", async () => {
     const user = userEvent.setup();
     renderWithProviders(<UserManagement />);
     await screen.findByText("Member One");
 
-    expect(screen.getByText("OU-A — Regional Jawa Barat")).toBeInTheDocument();
+    expect(screen.getByText("OU-A")).toBeInTheDocument();
     expect(screen.getByText(/Role \/ Unit|Peran \/ Unit/i)).toBeInTheDocument();
 
     await user.click(screen.getByText("Member One"));
     const preview = await screen.findByLabelText(/preview/i);
     expect(within(preview).getByText("Unit")).toBeInTheDocument();
-    expect(
-      within(preview).getByText("OU-A — Regional Jawa Barat"),
-    ).toBeInTheDocument();
+    expect(within(preview).getByText("OU-A")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Deactivate" }));
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Deactivate" }));
@@ -187,6 +187,31 @@ describe("UserManagement — credential surface removed", () => {
     expect(
       screen.queryByRole("button", { name: "Change role" }),
     ).toBeNull();
+    expect(updateUserStatus).not.toHaveBeenCalled();
+  });
+
+  it("exposes status actions to Manager for a same-branch member, but not role change", async () => {
+    // UM-BUG-007 — Member One is branchId "b-1"; Manager shares that branch.
+    authRoles = ["MANAGER"];
+    authBranchId = "b-1";
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagement />);
+    await user.click(await screen.findByText("Member One"));
+
+    expect(
+      screen.getByRole("button", { name: "Deactivate" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change role" })).toBeNull();
+  });
+
+  it("does not expose status actions to Manager for a different branch", async () => {
+    authRoles = ["MANAGER"];
+    authBranchId = "b-other";
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagement />);
+    await user.click(await screen.findByText("Member One"));
+
+    expect(screen.queryByRole("button", { name: "Deactivate" })).toBeNull();
     expect(updateUserStatus).not.toHaveBeenCalled();
   });
 
@@ -268,5 +293,17 @@ describe("UserManagement — credential surface removed", () => {
     expect(screen.queryByLabelText(/Temporary password/i)).toBeNull();
     expect(screen.queryByText(/temporary password/i)).toBeNull();
     expect(document.body.textContent).not.toMatch(/temporary password/i);
+  });
+
+  it("still shows own-branch members when the branch reference list 403s (Manager, BC-8.4)", async () => {
+    // Manager has users:read but not complaints:read, which GET /api/v1/branches
+    // requires. That must not blank out the primary member directory.
+    fetchBranches.mockRejectedValue(
+      Object.assign(new Error("Forbidden"), { status: 403, code: "FORBIDDEN" }),
+    );
+    renderWithProviders(<UserManagement />);
+    await waitFor(() => expect(fetchUsers).toHaveBeenCalled());
+    await screen.findByText("Member One");
+    expect(screen.queryByText(/tidak memiliki izin|unable to load/i)).toBeNull();
   });
 });

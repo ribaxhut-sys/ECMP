@@ -61,6 +61,22 @@ class OrgUnitResolver:
             return None
         return self.normalize(branch.code)
 
+    def resolve_principal_membership(self, principal_user_id: uuid.UUID) -> str | None:
+        """Map the *acting* principal's own User row → Branch.code (UM-BUG-005).
+
+        Dev mode (``ECMP_AUTH_MODE=dev``) issues no ``orgUnitId`` claim — there
+        is no Enterprise SSO token to carry one — so ``Principal.org_unit_id``
+        is always empty there. This falls back to the ECMP-owned membership
+        record so branch-scoped roles still see only their own unit locally,
+        the same domain rule Mode B enforces via the claim. Fails open (None)
+        rather than raising, matching the existing head-office/no-branch gap
+        handling — this is a fallback lookup, not a resource guard.
+        """
+        try:
+            return self.resolve_user(principal_user_id)
+        except NotFoundError:
+            return None
+
     def resolve_cm_complaint(self, complaint_id: str | uuid.UUID) -> str | None:
         """Map CM Batch 1 complaint → recordingUnitId from ComplaintCreated outbox."""
         aggregate_id = str(complaint_id).strip()

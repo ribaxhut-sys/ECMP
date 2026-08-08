@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { BranchCount } from "@/lib/api/types";
+import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import {
   branchBadgeKind,
@@ -25,11 +26,9 @@ function kindTone(kind: BranchBadgeKind): OpsTone {
 export function ComplaintByBranch({
   rows,
   loading,
-  onRefresh,
 }: {
   rows: BranchCount[] | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
@@ -61,13 +60,11 @@ export function ComplaintByBranch({
       ) : ranked.length === 0 ? (
         <div className="mt-3 flex-1">
           <Empty
+            className="py-8"
+            icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
             title={t("noBranchData")}
             description={t("noBranchDataDescription")}
             primaryAction={{
-              label: t("refreshDashboard"),
-              onClick: onRefresh,
-            }}
-            secondaryAction={{
               label: tCommon("goToReports"),
               onClick: () => router.push("/reports"),
             }}

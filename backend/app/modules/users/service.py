@@ -47,6 +47,7 @@ BRANCH_SCOPED_ROLE_CODES: frozenset[str] = frozenset(
         "BRANCH_OFFICER",
         "SUPERVISOR",
         "BRANCH_SUPERVISOR",
+        "MANAGER",
     }
 )
 

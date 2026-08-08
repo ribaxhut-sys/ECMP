@@ -7,7 +7,7 @@ Concurrency (TASK-PLATFORM-SECMIG-P5-001A): repository owns Atomic Claim via
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -46,8 +46,13 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         priority=row.priority,
         status=row.status,
         intake_disposition=row.intake_disposition,
+        hq_accepted_at=row.hq_accepted_at,
+        hq_arrival_date=row.hq_arrival_date,
+        hq_arrival_time=row.hq_arrival_time,
         created_at=row.created_at,
         created_by=row.created_by,
+        decided_by=row.decided_by,
+        decided_at=row.decided_at,
         case_created=False,
     )
 
@@ -674,8 +679,11 @@ class CmBatch1Repository:
         complaint_id: str,
         *,
         intake_disposition: str,
+        description: str | None = None,
+        priority: str | None = None,
+        decided_by: str | None = None,
     ) -> ComplaintAggregate | None:
-        """Update intake path label only (API-515). Status / Case untouched."""
+        """Update intake path label (API-515). Optionally refresh description/priority."""
         try:
             uid = uuid.UUID(str(complaint_id).strip())
         except ValueError:
@@ -685,6 +693,57 @@ class CmBatch1Repository:
             return None
         disposition = (intake_disposition or "").strip().upper() or None
         row.intake_disposition = disposition
+        if description is not None:
+            row.description = description
+        if priority is not None:
+            row.priority = priority.strip().upper()
+        if decided_by is not None:
+            row.decided_by = decided_by
+            row.decided_at = datetime.now(UTC)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def accept_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        description: str | None = None,
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.hq_accepted_at = hq_accepted_at
+        if description is not None:
+            row.description = description
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def schedule_hq_arrival(
+        self,
+        complaint_id: str,
+        *,
+        arrival_date: date,
+        arrival_time: str,
+        description: str | None = None,
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.hq_arrival_date = arrival_date
+        row.hq_arrival_time = arrival_time
+        if description is not None:
+            row.description = description
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)
@@ -699,6 +758,8 @@ class CmBatch1Repository:
         category: str | None = None,
         status: str | None = None,
         intake_disposition: str | None = None,
+        created_by: str | None = None,
+        decided_by: str | None = None,
     ) -> tuple[list[ComplaintAggregate], int]:
         """Newest-first Aggregate list (API-514 coexistence read)."""
         page = max(1, int(page))
@@ -726,13 +787,22 @@ class CmBatch1Repository:
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.status == st)
 
         disp = (intake_disposition or "").strip().upper()
-        _allowed_disp = {
-            "BRANCH_CLOSED",
+        _escalate_family = {
             "ESCALATE_PENDING_APPROVAL",
             "ESCALATE_APPROVED",
             "ESCALATE_REJECTED",
+            "ESCALATE_CANCELLED",
         }
-        if disp in _allowed_disp:
+        _allowed_disp = {"BRANCH_CLOSED", *_escalate_family}
+        if disp == "ESCALATED":
+            # Pseudo-value: any escalate-family state (Users directory drill-down).
+            stmt = stmt.where(
+                CmBatch1ComplaintORM.intake_disposition.in_(_escalate_family)
+            )
+            count_stmt = count_stmt.where(
+                CmBatch1ComplaintORM.intake_disposition.in_(_escalate_family)
+            )
+        elif disp in _allowed_disp:
             stmt = stmt.where(CmBatch1ComplaintORM.intake_disposition == disp)
             count_stmt = count_stmt.where(
                 CmBatch1ComplaintORM.intake_disposition == disp
@@ -750,6 +820,16 @@ class CmBatch1Repository:
             stmt = stmt.where(cat_clause)
             count_stmt = count_stmt.where(cat_clause)
 
+        cb = (created_by or "").strip()
+        if cb:
+            stmt = stmt.where(CmBatch1ComplaintORM.created_by == cb)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.created_by == cb)
+
+        db_ = (decided_by or "").strip()
+        if db_:
+            stmt = stmt.where(CmBatch1ComplaintORM.decided_by == db_)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.decided_by == db_)
+
         total = int(self._session.scalar(count_stmt) or 0)
         rows = self._session.scalars(
             stmt.order_by(CmBatch1ComplaintORM.created_at.desc())
@@ -757,3 +837,67 @@ class CmBatch1Repository:
             .limit(page_size)
         ).all()
         return [_to_entity(r) for r in rows], total
+
+    def work_stats_for_user(self, user_key: str) -> dict[str, int]:
+        """Complaint work counters for one actor (UM-BUG-006 / Users directory)."""
+        key = (user_key or "").strip()
+        if not key:
+            return {
+                "created_count": 0,
+                "escalation_requested_count": 0,
+                "escalation_approved_count": 0,
+                "escalation_rejected_count": 0,
+            }
+        escalate_family = (
+            "ESCALATE_PENDING_APPROVAL",
+            "ESCALATE_APPROVED",
+            "ESCALATE_REJECTED",
+            "ESCALATE_CANCELLED",
+        )
+        created_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(CmBatch1ComplaintORM.created_by == key)
+            )
+            or 0
+        )
+        escalation_requested_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(
+                    CmBatch1ComplaintORM.created_by == key,
+                    CmBatch1ComplaintORM.intake_disposition.in_(escalate_family),
+                )
+            )
+            or 0
+        )
+        escalation_approved_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(
+                    CmBatch1ComplaintORM.decided_by == key,
+                    CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+                )
+            )
+            or 0
+        )
+        escalation_rejected_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(
+                    CmBatch1ComplaintORM.decided_by == key,
+                    CmBatch1ComplaintORM.intake_disposition == "ESCALATE_REJECTED",
+                )
+            )
+            or 0
+        )
+        return {
+            "created_count": created_count,
+            "escalation_requested_count": escalation_requested_count,
+            "escalation_approved_count": escalation_approved_count,
+            "escalation_rejected_count": escalation_rejected_count,
+        }

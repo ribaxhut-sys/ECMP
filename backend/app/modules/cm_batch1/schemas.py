@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -102,12 +102,84 @@ class ComplaintBatch1Response(BaseModel):
         default=None, alias="customerDisplayName"
     )
     customer_number: str | None = Field(default=None, alias="customerNumber")
+    created_by: str | None = Field(
+        default=None,
+        alias="createdBy",
+        description="Actor id of the intake officer (PIC) — identity is not ECMP SoR",
+    )
+    created_by_name: str | None = Field(
+        default=None,
+        alias="createdByName",
+        description="Operator-facing name of the intake officer, resolved via directory",
+    )
     intake_disposition: str | None = Field(default=None, alias="intakeDisposition")
     case_created: Literal[False] = Field(default=False, alias="caseCreated")
     replayed: bool = False
     category: str | None = None
     channel: str | None = None
     subject: str | None = None
+    description: str | None = Field(
+        default=None,
+        description="Full intake narrative blob (history for Supervisor / HQ)",
+    )
+    intake_narrative: str | None = Field(
+        default=None,
+        alias="intakeNarrative",
+        description="Customer complaint body parsed from description",
+    )
+    branch_resolution: str | None = Field(
+        default=None,
+        alias="branchResolution",
+        description="Branch close note when intakeDisposition=BRANCH_CLOSED",
+    )
+    escalation_reason: str | None = Field(
+        default=None,
+        alias="escalationReason",
+        description="Why escalate to HQ — history when ESCALATE_* dispositions",
+    )
+    supervisor_note: str | None = Field(
+        default=None,
+        alias="supervisorNote",
+        description="Supervisor/Manager note for HQ — required on APPROVE (API-515)",
+    )
+    rejection_note: str | None = Field(
+        default=None,
+        alias="rejectionNote",
+        description="Reject reason history (Penolakan Eskalasi section)",
+    )
+    cancellation_note: str | None = Field(
+        default=None,
+        alias="cancellationNote",
+        description="Batalkan Eskalasi reason history — CANCEL when ESCALATE_APPROVED",
+    )
+    hq_accepted_at: datetime | None = Field(
+        default=None,
+        alias="hqAcceptedAt",
+        description=(
+            "When set, Pusat has accepted/claimed the escalation — "
+            "Batalkan Eskalasi is blocked and UI button hidden."
+        ),
+    )
+    hq_arrival_date: date | None = Field(
+        default=None,
+        alias="hqArrivalDate",
+        description="Scheduled customer arrival date at HQ (Batch-1 lab)",
+    )
+    hq_arrival_time: str | None = Field(
+        default=None,
+        alias="hqArrivalTime",
+        description="Scheduled customer arrival time HH:MM at HQ (Batch-1 lab)",
+    )
+    hq_acceptance_note: str | None = Field(
+        default=None,
+        alias="hqAcceptanceNote",
+        description="Penerimaan Pusat history section",
+    )
+    hq_arrival_note: str | None = Field(
+        default=None,
+        alias="hqArrivalNote",
+        description="Jadwal kedatangan history section",
+    )
     priority: str | None = None
     created_at: datetime | None = Field(default=None, alias="createdAt")
     duplicate_check_result: str | None = Field(
@@ -118,8 +190,67 @@ class ComplaintBatch1Response(BaseModel):
 class IntakeEscalationDecisionRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    decision: Literal["APPROVE", "REJECT"]
-    note: str | None = None
+    decision: Literal["APPROVE", "REJECT", "CANCEL"]
+    note: str | None = Field(
+        default=None,
+        description=(
+            "Required on APPROVE (≥20) — Catatan Supervisor for HQ. "
+            "Required on REJECT (≥20) — Penolakan Eskalasi history. "
+            "Required on CANCEL (≥20) — Batalkan Eskalasi history "
+            "(only when ESCALATE_APPROVED and HQ has not accepted)."
+        ),
+        max_length=2000,
+    )
+    priority: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] | None = Field(
+        default=None,
+        description=(
+            "Required on APPROVE — Supervisor/Manager priority for HQ triage. "
+            "Ignored on REJECT and CANCEL."
+        ),
+    )
+
+
+class IntakeEscalationRequestBody(BaseModel):
+    """Re-request escalate after CANCELLED / REJECTED (history append-only)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description=(
+            "Alasan eskalasi for ajuan ulang (≥20 after trim). "
+            "Appended to Alasan eskalasi history; prior cancel/reject notes kept."
+        ),
+    )
+    priority: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] | None = Field(
+        default=None,
+        description="Optional HQ triage priority refresh on re-request.",
+    )
+
+
+class HqAcceptRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    note: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Optional note (≥20 if provided) — Penerimaan Pusat history",
+    )
+
+
+class HqScheduleArrivalRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    arrival_date: date = Field(alias="arrivalDate")
+    arrival_time: str = Field(
+        alias="arrivalTime",
+        min_length=4,
+        max_length=5,
+        description="HH:MM (24h)",
+    )
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class DuplicateCheckRequest(BaseModel):
@@ -238,6 +369,27 @@ class AgingComplaintItemResponse(BaseModel):
     case_created: Literal[False] = Field(default=False, alias="caseCreated")
 
 
+class IntakeHistoryEntry(BaseModel):
+    """One chronological intake event (API-517 read model)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    entry_id: str = Field(alias="entryId")
+    event_code: str = Field(
+        alias="eventCode",
+        description="Stable UI code, e.g. ESCALATION_APPROVED — label is client-side",
+    )
+    event_type: str = Field(alias="eventType")
+    occurred_at: datetime = Field(alias="occurredAt")
+    actor_id: str | None = Field(default=None, alias="actorId")
+    actor_name: str | None = Field(default=None, alias="actorName")
+    priority: str | None = None
+    note: str | None = Field(
+        default=None,
+        description="Operator note captured with this event; null for older rows",
+    )
+
+
 class SupervisorQueueResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -249,3 +401,14 @@ class SupervisorQueueResponse(BaseModel):
     )
     aging_threshold_hours: int = Field(alias="agingThresholdHours")
     as_of: datetime = Field(alias="asOf")
+
+
+class UserWorkStatsResponse(BaseModel):
+    """Per-user complaint work counters for the Users directory panel (UM-BUG-006)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    created_count: int = Field(alias="createdCount")
+    escalation_requested_count: int = Field(alias="escalationRequestedCount")
+    escalation_approved_count: int = Field(alias="escalationApprovedCount")
+    escalation_rejected_count: int = Field(alias="escalationRejectedCount")

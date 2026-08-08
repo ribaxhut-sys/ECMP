@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import { formatDateTime } from "@/i18n/formatting";
 import type { DashboardSlaSummary } from "@/lib/api/types";
+import { IconComplaints } from "@/shared/icons";
 import { Skeleton } from "@/shared/ui";
 import {
-  DASHBOARD_STRIP,
   dashboardEnvironmentLabel,
   resolveSystemHealth,
   secondsSince,
@@ -43,6 +45,9 @@ export function LiveStatusBar({
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
   const locale = useLocale();
+  const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("complaints:create") || hasPermission("*");
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -65,20 +70,23 @@ export function LiveStatusBar({
           : t("systemDegraded");
 
   return (
+    // Command bar: scoped to the app's own dark palette (`.dark` cascades
+    // --ecmp-* overrides to this subtree only) so it's a deliberate fixed
+    // dark accent, independent of whatever theme the rest of the page uses.
     <section
       data-testid="dashboard-live-status"
       aria-label={t("liveStatusBar")}
-      className={`${DASHBOARD_STRIP} flex h-9 items-center px-0.5`}
+      className="dark flex h-11 items-center rounded-[var(--ecmp-radius-lg)] bg-ecmp-surface px-4"
     >
       {loading && !updatedAt ? (
         <div className="w-full" aria-busy="true">
           <Skeleton rows={1} />
         </div>
       ) : (
-        <div className="flex w-full min-w-0 items-center justify-between gap-3 text-[12px]">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-0.5">
+        <div className="flex w-full min-w-0 items-center justify-between gap-3 font-mono text-[12px]">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0.5">
             <p
-              className={`inline-flex items-center gap-1.5 font-medium ${HEALTH_TEXT[health]}`}
+              className={`inline-flex items-center gap-1.5 font-medium uppercase tracking-[0.06em] ${HEALTH_TEXT[health]}`}
             >
               <span
                 className={`size-1.5 shrink-0 rounded-full ${HEALTH_DOT[health]}`}
@@ -112,12 +120,22 @@ export function LiveStatusBar({
                 ? t("envProduction")
                 : t("envDevelopment")}
             </p>
+            {canCreate ? (
+              <button
+                type="button"
+                onClick={() => router.push("/complaints/new")}
+                className="flex items-center gap-1.5 rounded bg-ecmp-primary px-2.5 py-1 font-medium text-ecmp-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
+              >
+                <IconComplaints className="size-3.5 shrink-0" aria-hidden />
+                {t("createComplaint")}
+              </button>
+            ) : null}
             {onRefresh ? (
               <button
                 type="button"
                 onClick={onRefresh}
                 disabled={loading}
-                className="rounded px-1 py-0.5 font-medium text-ecmp-primary hover:bg-ecmp-primary-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus disabled:opacity-50"
+                className="rounded px-1.5 py-0.5 font-medium text-ecmp-primary hover:bg-ecmp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus disabled:opacity-50"
                 aria-label={
                   loading ? tCommon("refreshing") : tCommon("refresh")
                 }

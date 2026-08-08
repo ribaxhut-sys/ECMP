@@ -1,34 +1,105 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
+  acceptCmBatch1HqEscalation,
   decideCmBatch1IntakeEscalation,
   fetchCmBatch1Complaint,
+  fetchCmBatch1ComplaintHistory,
+  requestCmBatch1IntakeEscalation,
+  scheduleCmBatch1HqArrival,
   type CmBatch1ComplaintResponse,
+  type CmBatch1IntakeHistoryEntry,
 } from "@/lib/api";
 import {
   Alert,
   Badge,
+  type BadgeTone,
   Button,
   Card,
   CardBody,
   Empty,
   ErrorState,
+  Input,
   Modal,
   PageContainer,
   PageHeader,
   SectionHeader,
+  Select,
   Skeleton,
   Textarea,
+  Pagination,
+  WorkspaceToolbar,
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
+import {
+  PRIORITY_OPTIONS,
+  parseCmBatch1Description,
+} from "./createComplaintForm";
 
 const REJECT_NOTE_MIN = 20;
+const LOG_PAGE_SIZE = 10;
+const APPROVE_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+
+/** Event code → badge tone. Unknown codes stay neutral rather than disappear. */
+const HISTORY_TONES: Record<string, BadgeTone> = {
+  REGISTERED: "neutral",
+  ESCALATION_REQUESTED: "warning",
+  BRANCH_CLOSED: "success",
+  ESCALATION_APPROVED: "success",
+  ESCALATION_REJECTED: "danger",
+  ESCALATION_CANCELLED: "neutral",
+  ESCALATION_RE_REQUESTED: "warning",
+  HQ_ACCEPTED: "info",
+  HQ_ARRIVAL_SCHEDULED: "info",
+};
+
+const HISTORY_LABEL_KEYS: Record<string, string> = {
+  REGISTERED: "registered",
+  ESCALATION_REQUESTED: "tagEscalationRequested",
+  BRANCH_CLOSED: "tagBranchClosed",
+  ESCALATION_APPROVED: "escalationApproved",
+  ESCALATION_REJECTED: "escalationRejected",
+  ESCALATION_CANCELLED: "escalationCancelled",
+  ESCALATION_RE_REQUESTED: "tagEscalationReRequested",
+  HQ_ACCEPTED: "tagHqAccepted",
+  HQ_ARRIVAL_SCHEDULED: "tagHqScheduled",
+};
+
+/** Priority reads at a glance: urgent levels carry the danger tone. */
+function priorityTone(priority: string): BadgeTone {
+  const value = priority.trim().toUpperCase();
+  if (value === "CRITICAL") return "danger";
+  if (value === "HIGH") return "warning";
+  if (value === "LOW") return "neutral";
+  return "info";
+}
+
+function formatWhen(value: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+/** One row of the intake log: who did what, when, at which priority, with the note. */
+interface IntakeLogRow {
+  key: string;
+  code: string;
+  actor: string | null;
+  when: string | null;
+  priority: string | null;
+  note: string | null;
+}
 
 /**
  * SCR-CM-005 — Aggregate create confirmation (DEC-020 read path).
@@ -43,6 +114,9 @@ export function CmBatch1ConfirmationView({
   const tCommon = useTranslations("common");
   const tCases = useTranslations("cases");
   const tPriority = useTranslations("priority");
+  const tTable = useTranslations("table");
+  const tValidation = useTranslations("validation");
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const intakeEscalate = searchParams.get("intake") === "escalate";
@@ -52,13 +126,33 @@ export function CmBatch1ConfirmationView({
   const canRead =
     hasPermission("complaints:read") || hasPermission("complaints:create");
   const canDecideEscalation = hasPermission("complaints:escalate");
+  const canRequestEscalation =
+    hasPermission("complaints:create") ||
+    hasPermission("complaints:escalate");
+  const canHqReview = hasPermission("escalations:review");
 
   const [data, setData] = useState<CmBatch1ComplaintResponse | null>(null);
+  const [history, setHistory] = useState<CmBatch1IntakeHistoryEntry[]>([]);
+  const [historyError, setHistoryError] = useState(false);
+  const [logPage, setLogPage] = useState(1);
+  const [openLogKeys, setOpenLogKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [reRequestOpen, setReRequestOpen] = useState(false);
+  const [hqAcceptOpen, setHqAcceptOpen] = useState(false);
+  const [hqScheduleOpen, setHqScheduleOpen] = useState(false);
+  const [approveNote, setApproveNote] = useState("");
+  const [approvePriority, setApprovePriority] = useState("");
   const [rejectNote, setRejectNote] = useState("");
+  const [cancelNote, setCancelNote] = useState("");
+  const [reRequestReason, setReRequestReason] = useState("");
+  const [hqAcceptNote, setHqAcceptNote] = useState("");
+  const [arrivalDate, setArrivalDate] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
+  const [arrivalNote, setArrivalNote] = useState("");
   const [deciding, setDeciding] = useState(false);
   const announcedIdRef = useRef<string | null>(null);
 
@@ -91,6 +185,23 @@ export function CmBatch1ConfirmationView({
     };
   }, [canRead, complaintId, t]);
 
+  const reloadHistory = useCallback(async () => {
+    if (!canRead || !complaintId.trim()) return;
+    try {
+      const res = await fetchCmBatch1ComplaintHistory(complaintId.trim());
+      setHistory(res.data ?? []);
+      setHistoryError(false);
+    } catch {
+      // History is a read model; its failure must not hide the Aggregate.
+      setHistory([]);
+      setHistoryError(true);
+    }
+  }, [canRead, complaintId]);
+
+  useEffect(() => {
+    void reloadHistory();
+  }, [reloadHistory]);
+
   useEffect(() => {
     if (!data) return;
     if (announcedIdRef.current === data.complaintId) return;
@@ -116,18 +227,39 @@ export function CmBatch1ConfirmationView({
     );
   }, [data, intakeClosed, intakeEscalate, pushSuccess, t]);
 
-  async function submitDecision(decision: "APPROVE" | "REJECT"): Promise<void> {
+  async function submitDecision(
+    decision: "APPROVE" | "REJECT" | "CANCEL",
+  ): Promise<void> {
     if (!data) return;
     setDeciding(true);
     try {
+      const note =
+        decision === "APPROVE"
+          ? approveNote.trim()
+          : decision === "REJECT"
+            ? rejectNote.trim()
+            : cancelNote.trim();
       const res = await decideCmBatch1IntakeEscalation(data.complaintId, {
         decision,
-        note: decision === "REJECT" ? rejectNote.trim() : undefined,
+        note,
+        priority:
+          decision === "APPROVE"
+            ? (approvePriority.trim().toUpperCase() as
+                | "LOW"
+                | "MEDIUM"
+                | "HIGH"
+                | "CRITICAL")
+            : undefined,
       });
       setData(res.data);
+      void reloadHistory();
       setApproveOpen(false);
       setRejectOpen(false);
+      setCancelOpen(false);
+      setApproveNote("");
+      setApprovePriority("");
       setRejectNote("");
+      setCancelNote("");
       if (decision === "APPROVE") {
         pushSuccess(
           t("escalationApprovedToast"),
@@ -135,16 +267,112 @@ export function CmBatch1ConfirmationView({
             number: res.data.complaintNumber,
           }),
         );
-      } else {
+      } else if (decision === "REJECT") {
         pushSuccess(
           t("escalationRejectedToast"),
           t("escalationRejectedToastDescription", {
             number: res.data.complaintNumber,
           }),
         );
+      } else {
+        pushSuccess(
+          t("escalationCancelledToast"),
+          t("escalationCancelledToastDescription", {
+            number: res.data.complaintNumber,
+          }),
+        );
       }
     } catch (err) {
       pushError(err, t("escalationDecisionFailed"));
+    } finally {
+      setDeciding(false);
+    }
+  }
+
+  async function submitReRequest(): Promise<void> {
+    if (!data || deciding) return;
+    const reason = reRequestReason.trim();
+    if (reason.length < REJECT_NOTE_MIN) return;
+    setDeciding(true);
+    try {
+      const res = await requestCmBatch1IntakeEscalation(data.complaintId, {
+        reason,
+      });
+      setData(res.data);
+      void reloadHistory();
+      setReRequestOpen(false);
+      setReRequestReason("");
+      pushSuccess(
+        t("reRequestEscalationToast"),
+        t("reRequestEscalationToastDescription", {
+          number: res.data.complaintNumber,
+        }),
+      );
+    } catch (err) {
+      pushError(err, t("reRequestEscalationFailed"));
+    } finally {
+      setDeciding(false);
+    }
+  }
+
+  function openApproveModal(): void {
+    const current = (data?.priority || "MEDIUM").toUpperCase();
+    setApprovePriority(
+      (APPROVE_PRIORITIES as readonly string[]).includes(current)
+        ? current
+        : "MEDIUM",
+    );
+    setApproveOpen(true);
+  }
+
+  async function submitHqAccept(): Promise<void> {
+    if (!data) return;
+    const note = hqAcceptNote.trim();
+    if (note && note.length < REJECT_NOTE_MIN) return;
+    setDeciding(true);
+    try {
+      const res = await acceptCmBatch1HqEscalation(data.complaintId, {
+        note: note || undefined,
+      });
+      setData(res.data);
+      void reloadHistory();
+      setHqAcceptOpen(false);
+      setHqAcceptNote("");
+      pushSuccess(
+        t("hqAcceptedToast"),
+        t("hqAcceptedToastDescription", { number: res.data.complaintNumber }),
+      );
+    } catch (err) {
+      pushError(err, t("hqAcceptFailed"));
+    } finally {
+      setDeciding(false);
+    }
+  }
+
+  async function submitHqSchedule(): Promise<void> {
+    if (!data) return;
+    if (!arrivalDate.trim() || !arrivalTime.trim()) return;
+    setDeciding(true);
+    try {
+      const res = await scheduleCmBatch1HqArrival(data.complaintId, {
+        arrivalDate: arrivalDate.trim(),
+        arrivalTime: arrivalTime.trim(),
+        note: arrivalNote.trim() || undefined,
+      });
+      setData(res.data);
+      void reloadHistory();
+      setHqScheduleOpen(false);
+      setArrivalNote("");
+      pushSuccess(
+        t("hqScheduledToast"),
+        t("hqScheduledToastDescription", {
+          number: res.data.complaintNumber,
+          date: arrivalDate.trim(),
+          time: arrivalTime.trim(),
+        }),
+      );
+    } catch (err) {
+      pushError(err, t("hqScheduleFailed"));
     } finally {
       setDeciding(false);
     }
@@ -180,10 +408,34 @@ export function CmBatch1ConfirmationView({
         ? t("registered")
         : (data?.status ?? "");
 
+  const disposition = (data?.intakeDisposition || "").toUpperCase();
   const pendingEscalation =
     data?.status === "REGISTERED" &&
-    data.intakeDisposition === "ESCALATE_PENDING_APPROVAL";
+    disposition === "ESCALATE_PENDING_APPROVAL";
+  const approvedEscalation =
+    data?.status === "REGISTERED" && disposition === "ESCALATE_APPROVED";
   const showSupervisorActions = pendingEscalation && canDecideEscalation;
+  const showCancelEscalation =
+    approvedEscalation &&
+    canDecideEscalation &&
+    !data?.hqAcceptedAt &&
+    !data?.caseCreated;
+  const canReRequestDisposition =
+    data?.status === "REGISTERED" &&
+    (disposition === "ESCALATE_CANCELLED" ||
+      disposition === "ESCALATE_REJECTED");
+  const showReRequestEscalation =
+    Boolean(canReRequestDisposition) &&
+    canRequestEscalation &&
+    !data?.hqAcceptedAt &&
+    !data?.caseCreated;
+  const showHqAccept =
+    approvedEscalation && canHqReview && !data?.hqAcceptedAt;
+  const showHqSchedule =
+    approvedEscalation && canHqReview && Boolean(data?.hqAcceptedAt);
+  const hqAcceptNoteOk =
+    !hqAcceptNote.trim() || hqAcceptNote.trim().length >= REJECT_NOTE_MIN;
+  const hqScheduleReady = Boolean(arrivalDate.trim() && arrivalTime.trim());
 
   const priorityRaw = (data?.priority || "").toUpperCase();
   const priorityKnown = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -195,11 +447,175 @@ export function CmBatch1ConfirmationView({
   const pageTitle =
     intakeClosed || data?.status === "CLOSED"
       ? t("intakeClosedBannerTitle")
-      : pendingEscalation || intakeEscalate
-        ? t("intakeEscalateBannerTitle")
-        : t("complaintRegistered");
+      : approvedEscalation
+        ? t("escalationApproved")
+        : pendingEscalation || intakeEscalate
+          ? t("intakeEscalateBannerTitle")
+          : t("complaintRegistered");
 
   const rejectNoteOk = rejectNote.trim().length >= REJECT_NOTE_MIN;
+  const cancelNoteOk = cancelNote.trim().length >= REJECT_NOTE_MIN;
+  const reRequestReasonOk = reRequestReason.trim().length >= REJECT_NOTE_MIN;
+  const approveNoteOk = approveNote.trim().length >= REJECT_NOTE_MIN;
+  const approvePriorityOk = (APPROVE_PRIORITIES as readonly string[]).includes(
+    approvePriority.trim().toUpperCase(),
+  );
+  const approveReady = approveNoteOk && approvePriorityOk;
+
+  const intakeHistory = (() => {
+    if (!data) {
+      return {
+        narrative: "",
+        branchResolution: null as string | null,
+        escalationReason: null as string | null,
+        supervisorNote: null as string | null,
+        rejectionNote: null as string | null,
+        cancellationNote: null as string | null,
+      };
+    }
+    if (
+      data.intakeNarrative ||
+      data.branchResolution ||
+      data.escalationReason ||
+      data.supervisorNote ||
+      data.rejectionNote ||
+      data.cancellationNote
+    ) {
+      return {
+        narrative: (data.intakeNarrative ?? "").trim(),
+        branchResolution: data.branchResolution?.trim() || null,
+        escalationReason: data.escalationReason?.trim() || null,
+        supervisorNote: data.supervisorNote?.trim() || null,
+        rejectionNote: data.rejectionNote?.trim() || null,
+        cancellationNote: data.cancellationNote?.trim() || null,
+      };
+    }
+    const parsed = parseCmBatch1Description(data.description);
+    return {
+      narrative: parsed.narrative,
+      branchResolution: parsed.branchResolution,
+      escalationReason: parsed.escalationReason,
+      supervisorNote: parsed.supervisorNote,
+      rejectionNote: parsed.rejectionNote,
+      cancellationNote: parsed.cancellationNote,
+    };
+  })();
+
+  /** Note carried by the blob — the only source for events logged before API-517. */
+  function blobNoteFor(code: string): string | null {
+    switch (code) {
+      case "REGISTERED":
+        return intakeHistory.narrative || null;
+      case "ESCALATION_REQUESTED":
+      case "ESCALATION_RE_REQUESTED":
+        return intakeHistory.escalationReason;
+      case "BRANCH_CLOSED":
+        return intakeHistory.branchResolution;
+      case "ESCALATION_APPROVED":
+        return intakeHistory.supervisorNote;
+      case "ESCALATION_REJECTED":
+        return intakeHistory.rejectionNote;
+      case "ESCALATION_CANCELLED":
+        return intakeHistory.cancellationNote;
+      case "HQ_ACCEPTED":
+        return data?.hqAcceptanceNote?.trim() || null;
+      case "HQ_ARRIVAL_SCHEDULED":
+        return data?.hqArrivalDate && data?.hqArrivalTime
+          ? t("hqArrivalValue", {
+              date: data.hqArrivalDate,
+              time: data.hqArrivalTime,
+            }) + (data.hqArrivalNote ? `\n${data.hqArrivalNote}` : "")
+          : null;
+      default:
+        return null;
+    }
+  }
+
+  /** Rows reconstructed from the blob when no event log exists (pre-API-517 rows). */
+  function blobOnlyRows(): IntakeLogRow[] {
+    if (!data) return [];
+    const disposition = data.intakeDisposition ?? "";
+    const codes: string[] = ["REGISTERED"];
+    if (
+      intakeHistory.escalationReason ||
+      disposition.startsWith("ESCALATE_")
+    ) {
+      codes.push("ESCALATION_REQUESTED");
+    }
+    if (
+      intakeHistory.branchResolution ||
+      intakeClosed ||
+      disposition === "BRANCH_CLOSED"
+    ) {
+      codes.push("BRANCH_CLOSED");
+    }
+    if (intakeHistory.supervisorNote || disposition === "ESCALATE_APPROVED") {
+      codes.push("ESCALATION_APPROVED");
+    }
+    if (intakeHistory.rejectionNote || disposition === "ESCALATE_REJECTED") {
+      codes.push("ESCALATION_REJECTED");
+    }
+    if (intakeHistory.cancellationNote || disposition === "ESCALATE_CANCELLED") {
+      codes.push("ESCALATION_CANCELLED");
+    }
+    if (data.hqAcceptedAt) codes.push("HQ_ACCEPTED");
+    if (data.hqArrivalDate && data.hqArrivalTime) {
+      codes.push("HQ_ARRIVAL_SCHEDULED");
+    }
+    return codes.map((code) => ({
+      key: `blob-${code}`,
+      code,
+      actor: code === "REGISTERED" ? (data.createdByName ?? null) : null,
+      when: code === "REGISTERED" ? formatWhen(data.createdAt ?? "", locale) : null,
+      priority: null,
+      note: blobNoteFor(code),
+    }));
+  }
+
+  const logRows: IntakeLogRow[] =
+    history.length > 0
+      ? history.map((entry) => ({
+          key: entry.entryId,
+          code: entry.eventCode,
+          actor: entry.actorName?.trim() || null,
+          when: formatWhen(entry.occurredAt, locale),
+          priority: entry.priority?.trim() || null,
+          note: entry.note?.trim() || blobNoteFor(entry.eventCode),
+        }))
+      : blobOnlyRows();
+
+  const logTotalPages = Math.max(
+    1,
+    Math.ceil(logRows.length / LOG_PAGE_SIZE),
+  );
+  const safeLogPage = Math.min(logPage, logTotalPages);
+  const pagedLogRows = logRows.slice(
+    (safeLogPage - 1) * LOG_PAGE_SIZE,
+    safeLogPage * LOG_PAGE_SIZE,
+  );
+  const allOnPageOpen =
+    pagedLogRows.length > 0 &&
+    pagedLogRows.every((row) => openLogKeys.has(row.key));
+
+  function toggleLogRow(key: string): void {
+    setOpenLogKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleAllOnPage(): void {
+    setOpenLogKeys((prev) => {
+      const next = new Set(prev);
+      for (const row of pagedLogRows) {
+        if (allOnPageOpen) next.delete(row.key);
+        else next.add(row.key);
+      }
+      return next;
+    });
+  }
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -298,6 +714,9 @@ export function CmBatch1ConfirmationView({
                       {data.intakeDisposition === "ESCALATE_REJECTED" ? (
                         <Badge tone="neutral">{t("escalationRejected")}</Badge>
                       ) : null}
+                      {data.intakeDisposition === "ESCALATE_CANCELLED" ? (
+                        <Badge tone="neutral">{t("escalationCancelled")}</Badge>
+                      ) : null}
                     </dd>
                   </div>
                   {intakeEscalate ||
@@ -375,6 +794,147 @@ export function CmBatch1ConfirmationView({
             </Card>
           </section>
 
+          <section className="space-y-[var(--ecmp-panel-gap)]">
+            <SectionHeader
+              title={t("intakeHistoryTitle")}
+              description={t("intakeEventLogDescription")}
+            />
+            <Card>
+              <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                {historyError ? (
+                  <Alert
+                    tone="warning"
+                    title={t("intakeEventLogUnavailable")}
+                    description={t("intakeEventLogUnavailableDescription")}
+                  />
+                ) : null}
+                {logRows.length === 0 ? (
+                  <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                    {t("intakeEventLogEmpty")}
+                  </p>
+                ) : (
+                  <>
+                    <WorkspaceToolbar
+                      summary={tTable("itemsInView", {
+                        count: logRows.length,
+                      })}
+                      actions={
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={toggleAllOnPage}
+                        >
+                          {allOnPageOpen
+                            ? t("intakeEventLogCollapseAll")
+                            : t("intakeEventLogExpandAll")}
+                        </Button>
+                      }
+                    />
+                    <ol className="space-y-[var(--ecmp-form-gap)]">
+                      {pagedLogRows.map((row, index) => {
+                        const number = (safeLogPage - 1) * LOG_PAGE_SIZE + index + 1;
+                        const open = openLogKeys.has(row.key);
+                        return (
+                          <li
+                            key={row.key}
+                            className={`rounded-[var(--ecmp-radius-md)] border border-ecmp-border ${
+                              number % 2 === 1
+                                ? "bg-ecmp-surface"
+                                : "bg-ecmp-surface-sunken"
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleLogRow(row.key)}
+                              aria-expanded={open}
+                              aria-controls={`intake-log-note-${row.key}`}
+                              className="flex w-full items-start gap-3 rounded-[var(--ecmp-radius-md)] p-3 text-left hover:bg-ecmp-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-primary"
+                            >
+                              <span
+                                aria-hidden
+                                className="min-w-6 shrink-0 text-[length:var(--ecmp-font-body-size)] font-[number:var(--ecmp-font-overline-weight)] tabular-nums text-ecmp-text-secondary"
+                              >
+                                {number}.
+                              </span>
+                              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                                <Badge tone={HISTORY_TONES[row.code] ?? "neutral"}>
+                                  {HISTORY_LABEL_KEYS[row.code]
+                                    ? t(HISTORY_LABEL_KEYS[row.code])
+                                    : row.code}
+                                </Badge>
+                                <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                                  {row.actor || tCommon("emDash")}
+                                </span>
+                                <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                                  {row.when || tCommon("emDash")}
+                                </span>
+                                {row.priority ? (
+                                  <Badge
+                                    tone={priorityTone(row.priority)}
+                                    variant="solid"
+                                  >
+                                    {t("priorityTag", {
+                                      value: tPriority.has(row.priority)
+                                        ? tPriority(row.priority)
+                                        : row.priority,
+                                    })}
+                                  </Badge>
+                                ) : null}
+                              </span>
+                              <span className="shrink-0 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                                {open
+                                  ? t("intakeEventLogHideNote")
+                                  : t("intakeEventLogShowNote")}
+                              </span>
+                            </button>
+                            {open ? (
+                              <p
+                                id={`intake-log-note-${row.key}`}
+                                className="whitespace-pre-wrap border-t border-ecmp-border px-3 pb-3 pt-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
+                              >
+                                {row.note || t("intakeEventNoteEmpty")}
+                              </p>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                    {logTotalPages > 1 ? (
+                      <Pagination
+                        summary={
+                          <span>
+                            {tCommon("showingItems", {
+                              from: (safeLogPage - 1) * LOG_PAGE_SIZE + 1,
+                              to: Math.min(
+                                safeLogPage * LOG_PAGE_SIZE,
+                                logRows.length,
+                              ),
+                              total: logRows.length,
+                            })}
+                            <span className="mx-2 text-ecmp-border">·</span>
+                            {tCommon("pageOf", {
+                              page: safeLogPage,
+                              totalPages: logTotalPages,
+                            })}
+                          </span>
+                        }
+                        previousLabel={tCommon("previous")}
+                        nextLabel={tCommon("next")}
+                        previousDisabled={safeLogPage <= 1}
+                        nextDisabled={safeLogPage >= logTotalPages}
+                        onPrevious={() => setLogPage(Math.max(1, safeLogPage - 1))}
+                        onNext={() =>
+                          setLogPage(Math.min(logTotalPages, safeLogPage + 1))
+                        }
+                      />
+                    ) : null}
+                  </>
+                )}
+              </CardBody>
+            </Card>
+          </section>
+
           <CmBatch1BoundAttachmentsCard
             complaintId={data.complaintId}
             customerId={data.customerId}
@@ -385,7 +945,7 @@ export function CmBatch1ConfirmationView({
               <>
                 <Button
                   type="button"
-                  onClick={() => setApproveOpen(true)}
+                  onClick={() => openApproveModal()}
                   disabled={deciding}
                 >
                   {t("approveEscalation")}
@@ -400,6 +960,49 @@ export function CmBatch1ConfirmationView({
                 </Button>
               </>
             ) : null}
+            {showCancelEscalation ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCancelOpen(true)}
+                disabled={deciding}
+              >
+                {t("cancelEscalation")}
+              </Button>
+            ) : null}
+            {showReRequestEscalation ? (
+              <Button
+                type="button"
+                onClick={() => setReRequestOpen(true)}
+                disabled={deciding}
+              >
+                {t("reRequestEscalation")}
+              </Button>
+            ) : null}
+            {showHqAccept ? (
+              <Button
+                type="button"
+                onClick={() => setHqAcceptOpen(true)}
+                disabled={deciding}
+              >
+                {t("hqAccept")}
+              </Button>
+            ) : null}
+            {showHqSchedule ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setArrivalDate(data?.hqArrivalDate ?? "");
+                  setArrivalTime(data?.hqArrivalTime ?? "");
+                  setHqScheduleOpen(true);
+                }}
+                disabled={deciding}
+              >
+                {data?.hqArrivalDate
+                  ? t("hqRescheduleArrival")
+                  : t("hqScheduleArrival")}
+              </Button>
+            ) : null}
             {intakeEscalate && !showSupervisorActions ? (
               <Button
                 type="button"
@@ -413,7 +1016,7 @@ export function CmBatch1ConfirmationView({
                 type="button"
                 onClick={() =>
                   router.push(
-                    `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases`,
+                    `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases?createCase=1`,
                   )
                 }
               >
@@ -456,6 +1059,7 @@ export function CmBatch1ConfirmationView({
             <Button
               type="button"
               loading={deciding}
+              disabled={!approveReady}
               onClick={() => void submitDecision("APPROVE")}
             >
               {t("approveEscalation")}
@@ -463,11 +1067,45 @@ export function CmBatch1ConfirmationView({
           </div>
         }
       >
-        <p className="text-ecmp-text-primary">
-          {t("approveEscalationBody", {
-            number: data?.complaintNumber ?? "",
-          })}
-        </p>
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("approveEscalationBody", {
+              number: data?.complaintNumber ?? "",
+            })}
+          </p>
+          <Textarea
+            label={t("approveEscalationNoteLabel")}
+            hint={t("approveEscalationNoteHint")}
+            value={approveNote}
+            onChange={(e) => setApproveNote(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={deciding}
+            required
+            aria-required="true"
+          />
+          <Select
+            name="approvePriority"
+            id="approvePriority"
+            label={t("approveEscalationPriorityLabel")}
+            hint={t("approveEscalationPriorityHint")}
+            placeholder={t("selectPriorityPlaceholder")}
+            options={PRIORITY_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: tPriority(opt.value),
+            }))}
+            value={approvePriority}
+            onChange={(e) => setApprovePriority(e.target.value)}
+            error={
+              approveOpen && approveNoteOk && !approvePriorityOk
+                ? tValidation("priorityRequired")
+                : undefined
+            }
+            required
+            aria-required="true"
+            disabled={deciding}
+          />
+        </div>
       </Modal>
 
       <Modal
@@ -509,6 +1147,205 @@ export function CmBatch1ConfirmationView({
             value={rejectNote}
             onChange={(e) => setRejectNote(e.target.value)}
             rows={4}
+            maxLength={2000}
+            disabled={deciding}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={cancelOpen}
+        onClose={() => (!deciding ? setCancelOpen(false) : undefined)}
+        title={t("cancelEscalationTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setCancelOpen(false)}
+              disabled={deciding}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={deciding}
+              disabled={!cancelNoteOk}
+              onClick={() => void submitDecision("CANCEL")}
+            >
+              {t("cancelEscalation")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("cancelEscalationBody", {
+              number: data?.complaintNumber ?? "",
+            })}
+          </p>
+          <Textarea
+            label={t("cancelEscalationNoteLabel")}
+            hint={t("cancelEscalationNoteHint")}
+            value={cancelNote}
+            onChange={(e) => setCancelNote(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={deciding}
+            required
+            aria-required="true"
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={reRequestOpen}
+        onClose={() => (!deciding ? setReRequestOpen(false) : undefined)}
+        title={t("reRequestEscalationTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setReRequestOpen(false)}
+              disabled={deciding}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={deciding}
+              disabled={!reRequestReasonOk || deciding}
+              onClick={() => void submitReRequest()}
+            >
+              {t("reRequestEscalation")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("reRequestEscalationBody", {
+              number: data?.complaintNumber ?? "",
+            })}
+          </p>
+          <Textarea
+            label={t("reRequestEscalationReasonLabel")}
+            hint={t("reRequestEscalationReasonHint")}
+            value={reRequestReason}
+            onChange={(e) => setReRequestReason(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={deciding}
+            required
+            aria-required="true"
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={hqAcceptOpen}
+        onClose={() => (!deciding ? setHqAcceptOpen(false) : undefined)}
+        title={t("hqAcceptTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqAcceptOpen(false)}
+              disabled={deciding}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={deciding}
+              disabled={!hqAcceptNoteOk}
+              onClick={() => void submitHqAccept()}
+            >
+              {t("hqAccept")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("hqAcceptBody", { number: data?.complaintNumber ?? "" })}
+          </p>
+          <Textarea
+            label={t("hqAcceptNoteLabel")}
+            hint={t("hqAcceptNoteHint")}
+            value={hqAcceptNote}
+            onChange={(e) => setHqAcceptNote(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            disabled={deciding}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={hqScheduleOpen}
+        onClose={() => (!deciding ? setHqScheduleOpen(false) : undefined)}
+        title={t("hqScheduleTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqScheduleOpen(false)}
+              disabled={deciding}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={deciding}
+              disabled={!hqScheduleReady}
+              onClick={() => void submitHqSchedule()}
+            >
+              {t("hqScheduleSave")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("hqScheduleBody", { number: data?.complaintNumber ?? "" })}
+          </p>
+          <Input
+            name="arrivalDate"
+            id="arrivalDate"
+            type="date"
+            label={t("hqArrivalDateLabel")}
+            value={arrivalDate}
+            onChange={(e) => setArrivalDate(e.target.value)}
+            required
+            aria-required="true"
+            disabled={deciding}
+          />
+          <Input
+            name="arrivalTime"
+            id="arrivalTime"
+            type="time"
+            label={t("hqArrivalTimeLabel")}
+            value={arrivalTime}
+            onChange={(e) => setArrivalTime(e.target.value)}
+            required
+            aria-required="true"
+            disabled={deciding}
+          />
+          <Textarea
+            label={t("hqArrivalNoteLabel")}
+            hint={t("hqArrivalNoteHint")}
+            value={arrivalNote}
+            onChange={(e) => setArrivalNote(e.target.value)}
+            rows={3}
             maxLength={2000}
             disabled={deciding}
           />

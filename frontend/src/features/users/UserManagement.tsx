@@ -49,7 +49,7 @@ export function UserManagement() {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
-  const { hasPermission, roles, userId } = useAuth();
+  const { hasPermission, roles, userId, user } = useAuth();
   const { pushError, pushSuccess } = useToast();
   const canRead = hasPermission("users:read");
   const canCreate = hasPermission("users:create");
@@ -57,6 +57,9 @@ export function UserManagement() {
   const isHeadOfficeAdmin = roles.some((role) =>
     ["ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"].includes(role.toUpperCase()),
   );
+  // Branch manager persona (BC-8.4, UM-BUG-007) — own-branch member status
+  // only; matches the backend's org-scope check in users/router.py.
+  const isManager = roles.some((role) => role.toUpperCase() === "MANAGER");
 
   const [rows, setRows] = useState<UserRef[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -83,16 +86,8 @@ export function UserManagement() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [userRes, branchRes, roleRows] = await Promise.all([
-        fetchUsers({ pageSize: 100 }),
-        fetchBranches(100),
-        fetchRoles({ activeOnly: true, includeSystem: true }),
-      ]);
+      const userRes = await fetchUsers({ pageSize: 100 });
       setRows(userRes.data);
-      setBranches(branchRes.data);
-      setRoleOptions(
-        filterRolesForUserForm(roleRows.filter((row) => row.isActive)),
-      );
     } catch (err) {
       setRows([]);
       setBranches([]);
@@ -100,19 +95,47 @@ export function UserManagement() {
       setLoadError(
         resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoad"),
       );
-    } finally {
       setLoading(false);
+      return;
     }
-  }, [canRead, t, tCommon, tErrors]);
+
+    // Branch reference list is only needed for cosmetic unit labels
+    // (unitLabelByBranchId). It requires complaints:read, which branch-scoped
+    // personas without complaint operational access (e.g. Manager, BC-8.4)
+    // never have — that must not block the primary directory listing above.
+    try {
+      const branchRes = await fetchBranches(100);
+      setBranches(branchRes.data);
+    } catch {
+      setBranches([]);
+    }
+
+    // Role catalog is only needed to populate the role-assignment dropdown
+    // (create/update). A principal with read-only access to the directory
+    // (e.g. users:read without users:create/users:update) may lack
+    // role:read — that must not block the primary directory listing above.
+    if (canCreate || canUpdate) {
+      try {
+        const roleRows = await fetchRoles({
+          activeOnly: true,
+          includeSystem: true,
+        });
+        setRoleOptions(
+          filterRolesForUserForm(roleRows.filter((row) => row.isActive)),
+        );
+      } catch {
+        setRoleOptions([]);
+      }
+    } else {
+      setRoleOptions([]);
+    }
+
+    setLoading(false);
+  }, [canCreate, canRead, canUpdate, t, tCommon, tErrors]);
 
   const unitLabelByBranchId = useMemo(
     () =>
-      new Map(
-        branches.map((branch) => [
-          branch.id,
-          `${branch.code} — ${branch.name}`,
-        ]),
-      ),
+      new Map(branches.map((branch) => [branch.id, branch.code])),
     [branches],
   );
 
@@ -243,6 +266,14 @@ export function UserManagement() {
         count: rows.filter((row) =>
           matchesDirectoryFilter(row, "administrator"),
         ).length,
+      },
+      {
+        id: "manager",
+        label: t("filterManagers"),
+        active: directoryFilter === "manager",
+        tone: "attention" as const,
+        count: rows.filter((row) => matchesDirectoryFilter(row, "manager"))
+          .length,
       },
       {
         id: "supervisor",
@@ -547,8 +578,11 @@ export function UserManagement() {
                 canUpdateStatus={Boolean(
                   selectedUser &&
                     canUpdate &&
-                    isHeadOfficeAdmin &&
-                    selectedUser.id !== userId,
+                    selectedUser.id !== userId &&
+                    (isHeadOfficeAdmin ||
+                      (isManager &&
+                        selectedUser.branchId != null &&
+                        selectedUser.branchId === user?.branchId)),
                 )}
                 updatingStatus={updatingStatus}
                 onRequestStatusChange={setStatusCandidate}

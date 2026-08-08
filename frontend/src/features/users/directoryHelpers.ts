@@ -6,11 +6,13 @@ export type DirectoryFilter =
   | "active"
   | "inactive"
   | "administrator"
+  | "manager"
   | "supervisor"
   | "agent";
 
 export type DirectoryRoleFamily =
   | "administrator"
+  | "manager"
   | "supervisor"
   | "agent"
   | "viewer"
@@ -23,6 +25,7 @@ export type DirectoryRoleFamily =
  */
 export const CANONICAL_USER_FORM_ROLE_CODES = [
   "ADMIN",
+  "MANAGER",
   "SUPERVISOR",
   "BRANCH_SUPERVISOR",
   "AGENT",
@@ -51,6 +54,7 @@ export const BRANCH_SCOPED_ROLE_CODES = new Set([
   "BRANCH_OFFICER",
   "SUPERVISOR",
   "BRANCH_SUPERVISOR",
+  "MANAGER",
 ]);
 
 /** Mirrors backend HEAD_OFFICE_SCOPED_ROLE_CODES (Commit 2). */
@@ -117,6 +121,7 @@ export function directoryRoleFamily(
   const hay = roleHaystack(user);
   if (!hay.trim()) return "other";
   if (/(admin|administrator|sysadmin)/.test(hay)) return "administrator";
+  if (/\bmanager\b/.test(hay)) return "manager";
   if (/(supervisor|supervisory)/.test(hay)) return "supervisor";
   if (/(agent|officer|handler)/.test(hay)) return "agent";
   if (/(viewer|read[_-]?only|readonly)/.test(hay)) return "viewer";
@@ -127,6 +132,8 @@ export function directoryRoleTone(family: DirectoryRoleFamily): BadgeTone {
   switch (family) {
     case "administrator":
       return "danger";
+    case "manager":
+      return "primary";
     case "supervisor":
       return "warning";
     case "agent":
@@ -161,6 +168,8 @@ export function matchesDirectoryFilter(
       return !user.isActive;
     case "administrator":
       return directoryRoleFamily(user) === "administrator";
+    case "manager":
+      return directoryRoleFamily(user) === "manager";
     case "supervisor":
       return directoryRoleFamily(user) === "supervisor";
     case "agent":

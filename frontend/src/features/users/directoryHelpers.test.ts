@@ -49,6 +49,12 @@ describe("directoryRoleFamily", () => {
     );
     expect(directoryRoleFamily(user({ roleCode: "AGENT" }))).toBe("agent");
     expect(directoryRoleFamily(user({ roleCode: "VIEWER" }))).toBe("viewer");
+    expect(directoryRoleFamily(user({ roleCode: "MANAGER" }))).toBe(
+      "manager",
+    );
+    expect(directoryRoleFamily(user({ roleName: "Branch Manager" }))).toBe(
+      "manager",
+    );
   });
 });
 
@@ -59,6 +65,7 @@ describe("directoryRoleLabel", () => {
         user({ roleCode: "ADMIN" }),
         {
           administrator: "Administrator",
+          manager: "Manager",
           supervisor: "Supervisor",
           agent: "Agent",
           viewer: "Viewer",
@@ -73,6 +80,7 @@ describe("directoryRoleLabel", () => {
         user({ roleName: "Custom Lead" }),
         {
           administrator: "Administrator",
+          manager: "Manager",
           supervisor: "Supervisor",
           agent: "Agent",
           viewer: "Viewer",

@@ -1,61 +1,180 @@
-# ECMP Local Stack Foundation
+# ECMP Local Stack — PC Lab (Mode A)
 
-Docker Compose stack for ECMP **v1.0.0**.
+Jalankan di PC **fitur yang sama** dengan VPS lab Mode A, tanpa domain/Caddy/TLS.
 
-## Services
+| Di VPS lab | Di PC lokal |
+|---|---|
+| `https://pengaduan.layanankami.tech` | `http://localhost:3000` |
+| Caddy + DNS + 443 | Tidak perlu |
+| Docker Compose | Docker Compose (sama) |
+| Mode A credential login | Mode A credential login (sama) |
+| Postgres + seed pelanggan | Postgres + seed (opsional, disarankan) |
 
-| Service  | URL                         |
-|----------|-----------------------------|
-| Frontend | http://localhost:3000       |
-| Login    | http://localhost:3000/login |
-| Backend  | http://localhost:8000       |
-| Liveness | http://localhost:8000/live  |
-| Readiness| http://localhost:8000/ready |
-| API docs | http://localhost:8000/docs (development only) |
-| Postgres | localhost:5433              |
-| pgAdmin  | http://localhost:5050 (`--profile tools`) |
+Mode B / SSO **tetap CLOSED** — tidak diganti oleh setup lokal ini.
 
-> Host port **5433** avoids clashes with a local Postgres already bound to 5432. Inside the Compose network the DB remains `postgres:5432`.
+## Prasyarat (Windows)
 
-## Quick start
+1. **Git for Windows** — https://git-scm.com/download/win  
+2. **Docker Desktop for Windows** — https://www.docker.com/products/docker-desktop/  
+   - Aktifkan **WSL2** backend (Settings → General → Use WSL 2)  
+   - Pastikan Docker running (ikon whale di tray)  
+3. RAM disarankan ≥ 8 GB  
+4. Port bebas: `3000`, `8000`, `5433`
 
-```bash
-cp .env.example .env
-docker compose up --build
+Cek di **PowerShell**:
+
+```powershell
+git --version
+docker version
+docker compose version
 ```
 
-Optional pgAdmin:
+## 1. Ambil kode (`main`)
 
-```bash
-docker compose --profile tools up -d pgadmin
+PowerShell:
+
+```powershell
+cd $HOME\Projects   # atau folder kerja Anda
+git clone https://github.com/ribaxhut-sys/ECMP.git
+cd ECMP
+git checkout main
+git pull
 ```
 
-## Layout
+## 2. Environment
 
-```text
-backend/     FastAPI + SQLAlchemy + Alembic
-frontend/    Next.js (App Router) + Tailwind CSS
-database/    Postgres init scripts
-docs/        Knowledge portal + stack + release notes
+```powershell
+Copy-Item .env.example .env
+notepad .env
 ```
 
-## Production TLS (not this local file)
+Pastikan nilai ini (paritas VPS lab):
 
-Local `docker-compose.yml` publishes app ports for development. Public production uses
-`docker-compose.prod.yml` (repo root) + [`deployment/TLS_REVERSE_PROXY.md`](./deployment/TLS_REVERSE_PROXY.md) (B3).
+| Kunci | Nilai lokal |
+|---|---|
+| `ENVIRONMENT` | `development` |
+| `ECMP_AUTH_MODE` | `dev` |
+| `ECMP_LOCAL_CREDENTIAL_AUTH` | `true` |
+| `ECMP_ENTERPRISE_MODE` | `false` |
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` |
+| `ALLOWED_ORIGINS` | `http://localhost:3000` |
+| `CUSTOMER_PROVIDER` | `local` |
 
-## Release artifacts
+Jangan commit file `.env`.
 
-- [Release notes v1.0.0](./releases/v1.0.0.md)
-- [Deployment checklist](./deployment-checklist.md)
-- [Rollback package](./releases/ROLLBACK_v1.0.0.md)
-- [R6-03 Production configuration report](./releases/R6-03_PRODUCTION_CONFIGURATION_REPORT.md)
-- [Production deployment guide](./deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)
-- [TLS & reverse proxy (B3)](./deployment/TLS_REVERSE_PROXY.md)
-- [Environment variable reference](./deployment/ENVIRONMENT_VARIABLE_REFERENCE.md)
+## 3. Jalankan stack
 
-Validate local/prod config:
+Dari folder repo (`ECMP`):
 
-```bash
-python scripts/validate-production-config.py --env-file .env
+```powershell
+docker compose up -d --build
 ```
+
+Build pertama bisa 5–15 menit. Cek:
+
+```powershell
+docker compose ps
+curl.exe -fsS http://localhost:8000/live
+curl.exe -fsS http://localhost:8000/ready
+```
+
+| Layanan | URL |
+|---|---|
+| Frontend / login | http://localhost:3000/login |
+| Backend API | http://localhost:8000 |
+| OpenAPI (dev) | http://localhost:8000/docs |
+| Postgres (host) | `localhost:5433` |
+
+Buka browser: **http://localhost:3000/login**
+
+## 4. Seed data lab (paritas VPS)
+
+Tanpa seed, pencarian pelanggan sering kosong.
+
+```powershell
+Get-Content .\deploy\seed-lab-customers-500.sql -Raw |
+  docker compose exec -T postgres psql -U ecmp -d ecmp
+
+# Opsional user kandidat modul
+Get-Content .\deploy\seed-lab-module-users-200.sql -Raw |
+  docker compose exec -T postgres psql -U ecmp -d ecmp
+
+docker compose restart backend
+```
+
+Buat user lab lewat UI **Users** (perlu akun admin dulu). Password sementara create-user lab: `LabTemp!2026` (hanya Mode A lab).
+
+> DB lokal baru belum otomatis berisi user VPS (`admin` / NIK lab). Buat admin/agent/supervisor di lokal lewat UI, atau salin seed user secara terpisah — **jangan** commit password ke git.
+
+## 5. Alur uji singkat (sama VPS, host beda)
+
+1. Login → http://localhost:3000/login  
+2. Buat pengaduan → `/complaints/new`  
+3. Daftar Aggregate → `/complaints/cm`  
+4. Detail / Setujui eskalasi (supervisor) → `/complaints/cm/{id}`  
+
+Checklist: `deploy/UAT_LAB_BATCH1_AGENT_10_MIN.md` (ganti URL domain → `localhost:3000`).
+
+## 6. Perintah sehari-hari (PowerShell)
+
+```powershell
+docker compose logs -f backend frontend
+docker compose restart backend frontend
+docker compose down          # stop; data volume tetap
+docker compose down -v       # HATI-HATI: hapus DB + lampiran
+```
+
+Update kode dari GitHub:
+
+```powershell
+git pull origin main
+docker compose up -d --build
+```
+
+## Tanpa Docker penuh (opsional, advanced)
+
+Hanya Postgres di Docker; API/UI di host (butuh Python 3.13 + Node 20+).
+
+```powershell
+docker compose up -d postgres
+
+# Terminal 1 — backend
+cd backend
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+# POSTGRES_HOST=localhost POSTGRES_PORT=5433 di environment / .env
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+
+# Terminal 2 — frontend
+cd frontend
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
+
+## Bukan bagian lokal (milik VPS / Mode B)
+
+- Caddy, Let’s Encrypt, DNS `pengaduan.layanankami.tech`
+- Firewall ufw / hPanel
+- SSO / OIDC / Identity Adapter Mode B
+
+## Troubleshooting Windows
+
+| Gejala | Cek |
+|---|---|
+| `docker` tidak dikenali | Install/start Docker Desktop; restart PowerShell |
+| WSL error | Settings Docker → Use WSL 2; `wsl --update` |
+| Port bentrok | Ubah `FRONTEND_PORT` / `BACKEND_PORT` / `POSTGRES_PORT` di `.env` |
+| `curl` gagal | Pakai `curl.exe` (bukan alias `Invoke-WebRequest`) |
+| Frontend build gagal | `NEXT_PUBLIC_API_BASE_URL` wajib di `.env` |
+| Cari pelanggan kosong | `CUSTOMER_PROVIDER=local` + jalankan seed customers |
+| Login gagal berkali-kali | Rate-limit; `docker compose restart backend` |
+| File SQL pipe gagal | Pastikan path `.\deploy\...` dari root repo; encoding UTF-8 |
+
+## Referensi
+
+- Compose: `docker-compose.yml`
+- Produksi/TLS VPS: `deploy/README.md` + `docker-compose.prod.yml`
+- Validasi env: `python scripts/validate-production-config.py --env-file .env`

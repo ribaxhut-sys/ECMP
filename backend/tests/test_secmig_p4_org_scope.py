@@ -1368,9 +1368,13 @@ def test_http_list_users_head_office_unrestricted(
     assert kwargs["branch_id"] is None
 
 
-def test_http_list_users_org_scope_noop_in_dev_mode(
+def test_http_list_users_explicit_cross_unit_still_open_in_dev_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Narrower, still-open gap: an explicit ?branchId= override is only
+    denied under org_scope_enforcement_enabled (jwt mode). Unlike the
+    unfiltered case (see test_http_list_users_dev_mode_defaults_to_own_unit
+    below), this path is untouched by UM-BUG-005."""
     settings = _dev_settings()
     monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
     monkeypatch.setattr(
@@ -1398,10 +1402,93 @@ def test_http_list_users_org_scope_noop_in_dev_mode(
     app.dependency_overrides[get_user_service] = lambda: service
     client = TestClient(app)
     try:
-        # Regression: cross-unit filter is untouched in Mode A.
         resp = client.get("/api/v1/users", params={"branchId": str(branch_b)})
         assert resp.status_code == 200, resp.text
         assert service.list.call_args.kwargs["branch_id"] == branch_b
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+def test_http_list_users_dev_mode_defaults_to_own_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """UM-BUG-005 — Mode A issues no orgUnitId claim, so a branch-scoped
+    principal (Supervisor et al.) must still be narrowed to their own unit
+    when no ?branchId= is supplied, sourced from the DB membership record
+    instead of a claim (see resolve_principal_membership)."""
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    supervisor_id = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={supervisor_id: _fake_member(supervisor_id, branch_a)},
+        branch_id_by_code={"OU-A": branch_a, "OU-B": branch_b},
+    )
+    service = MagicMock()
+    service.list.return_value = ([], 0)
+
+    app = create_app()
+    # No org_unit_id claim — dev mode never issues one.
+    principal = _principal(
+        user_id=supervisor_id,
+        org_unit_id=None,
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"users:read"}),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    client = TestClient(app)
+    try:
+        resp = client.get("/api/v1/users")
+        assert resp.status_code == 200, resp.text
+        assert service.list.call_args.kwargs["branch_id"] == branch_a
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+def test_http_list_users_dev_mode_head_office_unrestricted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No-branch membership (Head Office / admin) stays unrestricted in dev
+    mode too — same open gap as the jwt-mode case, not a new bypass."""
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    admin_id = uuid.uuid4()
+    session = _UsersScopeSession(users_by_id={admin_id: _fake_member(admin_id, None)})
+    service = MagicMock()
+    service.list.return_value = ([], 0)
+
+    app = create_app()
+    principal = _principal(
+        user_id=admin_id,
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:read"}),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    client = TestClient(app)
+    try:
+        resp = client.get("/api/v1/users")
+        assert resp.status_code == 200, resp.text
+        assert service.list.call_args.kwargs["branch_id"] is None
     finally:
         app.dependency_overrides.clear()
         client.close()
@@ -1442,6 +1529,156 @@ def test_http_update_status_branch_role_denied_cross_unit(
     )
     assert resp.status_code == 403
     users_scope_client["service"].update_status.assert_not_called()
+
+
+def test_http_update_status_manager_same_unit_allowed(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """UM-BUG-007 — Manager (BC-8.4) may activate/deactivate within own unit."""
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_in_a']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 200, resp.text
+    users_scope_client["service"].update_status.assert_called_once()
+
+
+def test_http_update_status_manager_cross_unit_denied(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_in_b']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 403
+    users_scope_client["service"].update_status.assert_not_called()
+
+
+def test_http_update_status_manager_without_branch_denied(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """Fail-closed: a Manager with no resolvable branch manages nobody."""
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.patch(
+        f"/api/v1/users/{users_scope_client['member_in_a']}/status",
+        json={"isActive": False},
+    )
+    assert resp.status_code == 403
+    users_scope_client["service"].update_status.assert_not_called()
+
+
+def test_http_update_status_manager_dev_mode_same_branch_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """UM-BUG-007 in Mode A — no orgUnitId claim, DB membership fallback."""
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    manager_id = uuid.uuid4()
+    member_in_a = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={
+            manager_id: _fake_member(manager_id, branch_a),
+            member_in_a: _fake_member(member_in_a, branch_a),
+        },
+    )
+    service = MagicMock()
+    service.update_status.return_value = _fake_user_response()
+
+    app = create_app()
+    principal = _principal(
+        user_id=manager_id,
+        org_unit_id=None,
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    client = TestClient(app)
+    try:
+        resp = client.patch(
+            f"/api/v1/users/{member_in_a}/status", json={"isActive": False}
+        )
+        assert resp.status_code == 200, resp.text
+        service.update_status.assert_called_once()
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+def test_http_update_status_manager_dev_mode_cross_branch_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    manager_id = uuid.uuid4()
+    member_in_b = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={
+            manager_id: _fake_member(manager_id, branch_a),
+            member_in_b: _fake_member(member_in_b, branch_b),
+        },
+    )
+    service = MagicMock()
+    service.update_status.return_value = _fake_user_response()
+
+    app = create_app()
+    principal = _principal(
+        user_id=manager_id,
+        org_unit_id=None,
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    client = TestClient(app)
+    try:
+        resp = client.patch(
+            f"/api/v1/users/{member_in_b}/status", json={"isActive": False}
+        )
+        assert resp.status_code == 403
+        service.update_status.assert_not_called()
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
 
 
 def test_http_update_status_head_office_admin_allowed(

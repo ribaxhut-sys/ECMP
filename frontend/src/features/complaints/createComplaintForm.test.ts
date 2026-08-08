@@ -5,6 +5,7 @@ import {
   defaultReportedAtLocal,
   newCmBatch1IdempotencyKey,
   newCmBatch1StagingToken,
+  parseCmBatch1Description,
   toCmBatch1CreateRequest,
   validateCmBatch1CreateForm,
   validateCreateComplaintForm,
@@ -26,10 +27,33 @@ describe("composeCmBatch1Description", () => {
     );
   });
 
-  it("appends escalate marker when requested", () => {
-    expect(
-      composeCmBatch1Description("Laporan", "", { escalate: true }),
-    ).toContain("Ajuan eskalasi:");
+  it("appends escalation reason when escalating", () => {
+    const composed = composeCmBatch1Description("Laporan", "Butuh pusat", {
+      escalate: true,
+    });
+    expect(composed).toContain("Alasan eskalasi:\nButuh pusat");
+    expect(composed).toContain("Ajuan eskalasi:");
+    expect(composed).not.toContain("Penyelesaian:");
+  });
+});
+
+describe("parseCmBatch1Description", () => {
+  it("parses narrative and escalation reason", () => {
+    const parsed = parseCmBatch1Description(
+      "Keluhan mesin\n\n---\nAlasan eskalasi:\nPerlu parameter Pusat\n\n---\nAjuan eskalasi:\nMenunggu\n\n---\nCatatan Supervisor:\nLanjut ke Pusat\n\n---\nBatalkan Eskalasi:\nPelanggan setuju cabang",
+    );
+    expect(parsed.narrative).toBe("Keluhan mesin");
+    expect(parsed.escalationReason).toBe("Perlu parameter Pusat");
+    expect(parsed.branchResolution).toBeNull();
+    expect(parsed.supervisorNote).toBe("Lanjut ke Pusat");
+    expect(parsed.cancellationNote).toBe("Pelanggan setuju cabang");
+  });
+
+  it("parses legacy Batal Eskalasi section", () => {
+    const parsed = parseCmBatch1Description(
+      "Keluhan\n\n---\nBatal Eskalasi:\nAlasan lama",
+    );
+    expect(parsed.cancellationNote).toBe("Alasan lama");
   });
 });
 
@@ -144,6 +168,7 @@ describe("validateCmBatch1CreateForm", () => {
         customerName: "Ada",
         subject: "Printer offline",
         description: "Cannot print",
+        resolution: "Butuh konfigurasi Pusat",
         category: "SERVICE",
         channel: "CALL",
         priority: "HIGH",
@@ -151,6 +176,8 @@ describe("validateCmBatch1CreateForm", () => {
       { escalate: true },
     );
     expect(body.priority).toBe("HIGH");
+    expect(body.description).toContain("Alasan eskalasi:");
+    expect(body.description).toContain("Butuh konfigurasi Pusat");
     expect(body.description).toContain("Ajuan eskalasi:");
     expect(body.intakeDisposition).toBe("ESCALATE_PENDING_APPROVAL");
   });
@@ -184,7 +211,7 @@ describe("validateCmBatch1CreateForm", () => {
     expect(body.stagingToken).toBe("STG-abc123");
   });
 
-  it("maps escalate flag into description", () => {
+  it("maps escalate flag into description with alasan eskalasi", () => {
     const body = toCmBatch1CreateRequest(
       {
         ...createEmptyComplaintForm(),
@@ -192,11 +219,13 @@ describe("validateCmBatch1CreateForm", () => {
         customerName: "Ada",
         subject: "Printer offline",
         description: "Cannot print",
+        resolution: "Cabang tidak punya akses parameter",
         category: "SERVICE",
         channel: "CALL",
       },
       { escalate: true },
     );
+    expect(body.description).toContain("Alasan eskalasi:");
     expect(body.description).toContain("Ajuan eskalasi:");
     expect(body.intakeDisposition).toBe("ESCALATE_PENDING_APPROVAL");
   });

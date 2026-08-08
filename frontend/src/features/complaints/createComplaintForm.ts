@@ -6,7 +6,7 @@ export interface CreateComplaintFormValues {
   customerId: string;
   subject: string;
   description: string;
-  /** Agent disposition / resolution note at intake (persisted into description). */
+  /** Agent disposition note: branch resolution OR escalation reason (history). */
   resolution: string;
   priority: Priority | "";
   branchId: string;
@@ -195,9 +195,11 @@ export function validateCmBatch1CreateForm(
   if (resolution.length > 5000) {
     errors.resolution = "descriptionMax";
   }
-  const composedLen =
-    description.length +
-    (resolution ? `\n\n---\nPenyelesaian:\n${resolution}`.length : 0);
+  const composedLen = Math.max(
+    composeCmBatch1Description(description, resolution).length,
+    composeCmBatch1Description(description, resolution, { escalate: true })
+      .length,
+  );
   if (composedLen > 5000) {
     errors.resolution = "descriptionMax";
   }
@@ -223,7 +225,106 @@ export function validateCmBatch1CreateForm(
   return errors;
 }
 
-/** Compose Aggregate description; optional intake resolution is appended. */
+/** Marker labels persisted in description — history for Supervisor / HQ. */
+export const INTAKE_SECTION_BRANCH_RESOLUTION = "Penyelesaian";
+export const INTAKE_SECTION_ESCALATION_REASON = "Alasan eskalasi";
+export const INTAKE_SECTION_ESCALATION_REQUEST = "Ajuan eskalasi";
+export const INTAKE_SECTION_SUPERVISOR_NOTE = "Catatan Supervisor";
+export const INTAKE_SECTION_REJECTION_NOTE = "Penolakan Eskalasi";
+export const INTAKE_SECTION_CANCEL_NOTE = "Batalkan Eskalasi";
+/** Legacy history label — still parsed for older rows. */
+export const INTAKE_SECTION_CANCEL_NOTE_LEGACY = "Batal Eskalasi";
+
+const SECTION_SEP = "\n\n---\n";
+
+export interface ParsedCmBatch1Description {
+  narrative: string;
+  branchResolution: string | null;
+  escalationReason: string | null;
+  escalationRequestNote: string | null;
+  supervisorNote: string | null;
+  rejectionNote: string | null;
+  cancellationNote: string | null;
+}
+
+/** Parse structured intake history from the Aggregate description blob. */
+export function parseCmBatch1Description(
+  raw: string | null | undefined,
+): ParsedCmBatch1Description {
+  const text = (raw ?? "").trim();
+  if (!text) {
+    return {
+      narrative: "",
+      branchResolution: null,
+      escalationReason: null,
+      escalationRequestNote: null,
+      supervisorNote: null,
+      rejectionNote: null,
+      cancellationNote: null,
+    };
+  }
+
+  const parts = text.split(SECTION_SEP);
+  const narrative = parts[0]?.trim() ?? "";
+  let branchResolution: string | null = null;
+  let escalationReason: string | null = null;
+  let escalationRequestNote: string | null = null;
+  let supervisorNote: string | null = null;
+  let rejectionNote: string | null = null;
+  let cancellationNote: string | null = null;
+
+  for (const part of parts.slice(1)) {
+    const chunk = part.trim();
+    if (chunk.startsWith(`${INTAKE_SECTION_BRANCH_RESOLUTION}:`)) {
+      const value = chunk
+        .slice(INTAKE_SECTION_BRANCH_RESOLUTION.length + 1)
+        .trim();
+      branchResolution = value || null;
+    } else if (chunk.startsWith(`${INTAKE_SECTION_ESCALATION_REASON}:`)) {
+      const value = chunk
+        .slice(INTAKE_SECTION_ESCALATION_REASON.length + 1)
+        .trim();
+      escalationReason = value || null;
+    } else if (chunk.startsWith(`${INTAKE_SECTION_ESCALATION_REQUEST}:`)) {
+      const value = chunk
+        .slice(INTAKE_SECTION_ESCALATION_REQUEST.length + 1)
+        .trim();
+      escalationRequestNote = value || null;
+    } else if (chunk.startsWith(`${INTAKE_SECTION_SUPERVISOR_NOTE}:`)) {
+      const value = chunk.slice(INTAKE_SECTION_SUPERVISOR_NOTE.length + 1).trim();
+      supervisorNote = value || null;
+    } else if (chunk.startsWith(`${INTAKE_SECTION_REJECTION_NOTE}:`)) {
+      const value = chunk.slice(INTAKE_SECTION_REJECTION_NOTE.length + 1).trim();
+      rejectionNote = value || null;
+    } else if (chunk.startsWith(`${INTAKE_SECTION_CANCEL_NOTE}:`)) {
+      const value = chunk.slice(INTAKE_SECTION_CANCEL_NOTE.length + 1).trim();
+      cancellationNote = value || null;
+    } else if (chunk.startsWith(`${INTAKE_SECTION_CANCEL_NOTE_LEGACY}:`)) {
+      if (!cancellationNote) {
+        const value = chunk
+          .slice(INTAKE_SECTION_CANCEL_NOTE_LEGACY.length + 1)
+          .trim();
+        cancellationNote = value || null;
+      }
+    }
+  }
+
+  return {
+    narrative,
+    branchResolution,
+    escalationReason,
+    escalationRequestNote,
+    supervisorNote,
+    rejectionNote,
+    cancellationNote,
+  };
+}
+
+/**
+ * Compose Aggregate description as durable intake history.
+ * - Branch close → section Penyelesaian
+ * - Escalate → section Alasan eskalasi (+ pending-approval marker)
+ */
 export function composeCmBatch1Description(
   description: string,
   resolution: string,
@@ -233,11 +334,15 @@ export function composeCmBatch1Description(
   const note = resolution.trim();
   const parts = [body];
   if (note) {
-    parts.push(`---\nPenyelesaian:\n${note}`);
+    if (options?.escalate) {
+      parts.push(`---\n${INTAKE_SECTION_ESCALATION_REASON}:\n${note}`);
+    } else {
+      parts.push(`---\n${INTAKE_SECTION_BRANCH_RESOLUTION}:\n${note}`);
+    }
   }
   if (options?.escalate) {
     parts.push(
-      "---\nAjuan eskalasi:\nMenunggu persetujuan Supervisor/Manager cabang untuk eskalasi ke Pusat.",
+      `---\n${INTAKE_SECTION_ESCALATION_REQUEST}:\nMenunggu persetujuan Supervisor/Manager cabang untuk eskalasi ke Pusat. Deskripsi dan alasan eskalasi tersimpan sebagai riwayat untuk Pusat.`,
     );
   }
   return parts.filter(Boolean).join("\n\n");

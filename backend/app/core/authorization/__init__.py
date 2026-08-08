@@ -43,8 +43,10 @@ from app.core.authorization.org_unit_guard import (
 )
 from app.core.authorization.org_unit_resolver import OrgUnitResolver
 from app.core.authorization.permission_check import (
+    check_any_permission,
     check_permissions,
     check_roles,
+    require_any_permission,
     require_permissions,
     require_roles,
 )
@@ -70,6 +72,7 @@ __all__ = [
     "build_authentication_strategy",
     "can_assign_role",
     "check_data_scope",
+    "check_any_permission",
     "check_permissions",
     "check_roles",
     "configure_authentication",
@@ -80,6 +83,7 @@ __all__ = [
     "is_service_account_allowlisted",
     "org_scope_enforcement_enabled",
     "require_appointment_complete",
+    "require_any_permission",
     "require_complaint_close",
     "require_data_scope",
     "require_escalation_close",

@@ -7,6 +7,17 @@ from typing import Any
 
 from app.modules.cm_batch1.domain_events import DomainEvent
 
+# Operator notes are already visible on the same screen; only the length is capped.
+# Duplicate justification stays out of timeline metadata (see DomainEvent).
+_NOTE_MAX = 4000
+
+
+def clip_note(note: str | None) -> str | None:
+    text = (note or "").strip()
+    if not text:
+        return None
+    return text if len(text) <= _NOTE_MAX else f"{text[:_NOTE_MAX]}…"
+
 
 def complaint_created(
     *,
@@ -18,6 +29,8 @@ def complaint_created(
     actor_id: str | None,
     created_at: datetime | None = None,
     recording_unit_id: str | None = None,
+    note: str | None = None,
+    priority: str | None = None,
 ) -> DomainEvent:
     now = created_at or datetime.now(UTC)
     after = {
@@ -44,8 +57,70 @@ def complaint_created(
         timeline_event_type="ComplaintRegistered",
         timeline_title="Complaint Registered",
         timeline_description=f"Complaint {complaint_number} registered",
-        timeline_metadata={"complaintNumber": complaint_number, "customerId": customer_id},
+        # Note lives in timeline metadata only — payload is published to the outbox.
+        timeline_metadata={
+            "complaintNumber": complaint_number,
+            "customerId": customer_id,
+            "note": clip_note(note),
+            "priority": priority,
+        },
         outbox_event_id="EVT-CM-001",
+        occurred_at=now,
+    )
+
+
+def intake_disposition_recorded(
+    *,
+    complaint_id: str,
+    complaint_number: str,
+    intake_disposition: str,
+    actor_id: str | None,
+    occurred_at: datetime | None = None,
+    note: str | None = None,
+    priority: str | None = None,
+) -> DomainEvent:
+    """Intake path chosen at registration — keeps the history log complete.
+
+    Without this the timeline only shows ComplaintRegistered, so a branch close
+    or a first escalation request would never appear as its own entry.
+    """
+    now = occurred_at or datetime.now(UTC)
+    payload = {
+        "complaintId": complaint_id,
+        "complaintNumber": complaint_number,
+        "intakeDisposition": intake_disposition,
+        "actorId": actor_id,
+        "recordedAt": now.isoformat(),
+    }
+    title = (
+        "Branch Closed At Intake"
+        if intake_disposition == "BRANCH_CLOSED"
+        else "Intake Escalation Requested"
+        if intake_disposition == "ESCALATE_PENDING_APPROVAL"
+        else f"Intake Disposition {intake_disposition}"
+    )
+    return DomainEvent(
+        name="IntakeDispositionRecorded",
+        aggregate_type="Complaint",
+        aggregate_id=complaint_id,
+        actor_id=actor_id,
+        payload=payload,
+        idempotency_key=f"IntakeDispositionRecorded:{complaint_id}",
+        audit_operation=f"IntakeDisposition:{intake_disposition}",
+        audit_action="CREATE",
+        after=payload,
+        timeline_event_type="IntakeDispositionRecorded",
+        timeline_title=title,
+        timeline_description=(
+            f"Complaint {complaint_number} recorded with intake disposition "
+            f"{intake_disposition}"
+        ),
+        timeline_metadata={
+            "intakeDisposition": intake_disposition,
+            "note": clip_note(note),
+            "priority": priority,
+        },
+        outbox_event_id=None,
         occurred_at=now,
     )
 
@@ -535,6 +610,8 @@ def intake_escalation_decided(
     next_disposition: str,
     actor_id: str | None,
     note_present: bool,
+    priority: str | None = None,
+    note: str | None = None,
 ) -> DomainEvent:
     """Audit/timeline only — no EVT-CM catalog row for intake escalation decision."""
     now = datetime.now(UTC)
@@ -544,6 +621,7 @@ def intake_escalation_decided(
         "decision": decision,
         "intakeDisposition": next_disposition,
         "notePresent": note_present,
+        "priority": priority,
         "decidedAt": now.isoformat(),
         "actorId": actor_id,
     }
@@ -551,6 +629,12 @@ def intake_escalation_decided(
         "Intake Escalation Approved"
         if decision == "APPROVE"
         else "Intake Escalation Rejected"
+        if decision == "REJECT"
+        else "Intake Escalation Cancelled"
+        if decision == "CANCEL"
+        else "Intake Escalation Re-requested"
+        if decision == "RE_ESCALATE"
+        else f"Intake Escalation {decision}"
     )
     return DomainEvent(
         name="IntakeEscalationDecided",
@@ -566,11 +650,116 @@ def intake_escalation_decided(
         timeline_title=title,
         timeline_description=(
             f"Complaint {complaint_number} intake escalation {decision.lower()}"
+            + (
+                " with supervisor note for HQ"
+                if decision == "APPROVE" and note_present
+                else ""
+            )
+            + (
+                " (penolakan tercatat di riwayat)"
+                if decision == "REJECT" and note_present
+                else ""
+            )
+            + (
+                " (batalkan eskalasi tercatat di riwayat)"
+                if decision == "CANCEL" and note_present
+                else ""
+            )
+            + (
+                " (ajuan ulang; riwayat sebelumnya tetap)"
+                if decision == "RE_ESCALATE" and note_present
+                else ""
+            )
+            + (
+                f" (priority {priority})"
+                if decision in {"APPROVE", "RE_ESCALATE"} and priority
+                else ""
+            )
         ),
         timeline_metadata={
             "decision": decision,
             "intakeDisposition": next_disposition,
+            "notePresent": note_present,
+            "priority": priority,
+            "note": clip_note(note),
         },
+        outbox_event_id=None,
+        occurred_at=now,
+    )
+
+
+def hq_accepted(
+    *,
+    complaint_id: str,
+    complaint_number: str,
+    actor_id: str | None,
+    accepted_at: datetime,
+    note: str | None = None,
+) -> DomainEvent:
+    now = datetime.now(UTC)
+    payload = {
+        "complaintId": complaint_id,
+        "complaintNumber": complaint_number,
+        "hqAcceptedAt": accepted_at.isoformat(),
+        "actorId": actor_id,
+    }
+    return DomainEvent(
+        name="HqAccepted",
+        aggregate_type="Complaint",
+        aggregate_id=complaint_id,
+        actor_id=actor_id,
+        payload=payload,
+        idempotency_key=f"HqAccepted:{complaint_id}:{accepted_at.isoformat()}",
+        audit_operation="HqAccepted",
+        audit_action="UPDATE",
+        after=payload,
+        timeline_event_type="HqAccepted",
+        timeline_title="HQ Accepted Escalation",
+        timeline_description=(
+            f"Complaint {complaint_number} accepted by Head Office"
+        ),
+        timeline_metadata={**payload, "note": clip_note(note)},
+        outbox_event_id=None,
+        occurred_at=now,
+    )
+
+
+def hq_arrival_scheduled(
+    *,
+    complaint_id: str,
+    complaint_number: str,
+    actor_id: str | None,
+    arrival_date: str,
+    arrival_time: str,
+    note: str | None = None,
+) -> DomainEvent:
+    now = datetime.now(UTC)
+    payload = {
+        "complaintId": complaint_id,
+        "complaintNumber": complaint_number,
+        "arrivalDate": arrival_date,
+        "arrivalTime": arrival_time,
+        "actorId": actor_id,
+    }
+    return DomainEvent(
+        name="HqArrivalScheduled",
+        aggregate_type="Complaint",
+        aggregate_id=complaint_id,
+        actor_id=actor_id,
+        payload=payload,
+        idempotency_key=(
+            f"HqArrivalScheduled:{complaint_id}:{arrival_date}:{arrival_time}"
+        ),
+        audit_operation="HqArrivalScheduled",
+        audit_action="UPDATE",
+        after=payload,
+        timeline_event_type="HqArrivalScheduled",
+        timeline_title="HQ Arrival Scheduled",
+        timeline_description=(
+            f"Complaint {complaint_number} customer arrival scheduled "
+            f"{arrival_date} {arrival_time}"
+        ),
+        timeline_metadata={**payload, "note": clip_note(note)},
         outbox_event_id=None,
         occurred_at=now,
     )

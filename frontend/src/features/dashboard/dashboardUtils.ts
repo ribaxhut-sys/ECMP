@@ -14,12 +14,6 @@ export type SlaHealthLevel =
 
 export type BranchBadgeKind = "top" | "attention" | "balanced";
 
-export type InsightKind =
-  | "slaBreached"
-  | "escalationReview"
-  | "backlog"
-  | "normal";
-
 export type SystemHealthKind = "healthy" | "attention" | "syncing" | "degraded";
 
 export type OpsTone = "healthy" | "attention" | "critical" | "neutral";
@@ -88,26 +82,6 @@ export function formatRelativeTime(
   return rtf.format(Math.round(diffSec / 31_536_000), "year");
 }
 
-/** Rule-based operational insights — presentation only, no AI. */
-export function buildTodaysInsights(input: {
-  header: DashboardHeader | null;
-  sla: DashboardSlaSummary | null;
-  byStatus: StatusCount[] | null;
-}): InsightKind[] {
-  const insights: InsightKind[] = [];
-  const breached = input.sla?.overall.breached ?? 0;
-  const escalated = countByStatus(input.byStatus, "ESCALATED") ?? 0;
-  const open = input.header?.openComplaints ?? 0;
-  const closed = input.header?.closedComplaints ?? 0;
-
-  if (breached > 0) insights.push("slaBreached");
-  if (escalated > 5) insights.push("escalationReview");
-  if (input.header && open > closed) insights.push("backlog");
-
-  if (insights.length === 0) return ["normal"];
-  return insights;
-}
-
 /** Simple ranking badges for branch volume share. */
 export function branchBadgeKind(
   index: number,
@@ -152,10 +126,6 @@ export function proportionalPct(count: number, max: number): number {
   return Math.min(100, (count / max) * 100);
 }
 
-/** Flat strip — no card chrome (status / briefing). */
-export const DASHBOARD_STRIP =
-  "border-b border-ecmp-border/40 bg-transparent";
-
 /** Main visual anchor surface (Queue Health only). */
 export const DASHBOARD_SURFACE_MAIN =
   "rounded-[var(--ecmp-radius-lg)] border border-ecmp-border/50 bg-ecmp-surface shadow-[0_1px_2px_rgb(0_0_0_/0.04)]";
@@ -163,10 +133,6 @@ export const DASHBOARD_SURFACE_MAIN =
 /** Quiet secondary panel — whitespace over chrome. */
 export const DASHBOARD_SURFACE_QUIET =
   "rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken/35";
-
-/** @deprecated Prefer MAIN / QUIET / STRIP — kept for residual imports. */
-export const DASHBOARD_SURFACE = DASHBOARD_SURFACE_MAIN;
-export const DASHBOARD_SURFACE_FLAT = DASHBOARD_SURFACE_QUIET;
 
 export const DASHBOARD_PAD = "p-3.5";
 export const DASHBOARD_SECTION_GAP = "space-y-2.5";
@@ -180,14 +146,25 @@ export const DASHBOARD_SECTION_TITLE =
   "text-[13px] font-medium tracking-tight text-ecmp-text-secondary";
 export const DASHBOARD_CARD_TITLE =
   "text-[12px] font-medium leading-snug text-ecmp-text-secondary";
+/** Command-center micro label — mono, uppercase, wide-tracked. Zone 1/2 only. */
+export const DASHBOARD_COMMAND_LABEL =
+  "font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-ecmp-text-secondary";
 export const DASHBOARD_METRIC =
-  "text-[26px] font-medium leading-none tracking-tight tabular-nums text-ecmp-text-primary md:text-[28px]";
-export const DASHBOARD_METRIC_LG =
-  "text-[32px] font-medium leading-none tracking-tight tabular-nums text-ecmp-text-primary md:text-[36px]";
+  "font-mono text-[26px] font-medium leading-none tracking-tight tabular-nums text-ecmp-text-primary md:text-[28px]";
+/** Single hero figure — the one number the page wants you to see first. */
+export const DASHBOARD_METRIC_HERO =
+  "font-mono text-[52px] font-medium leading-none tracking-tight tabular-nums text-ecmp-text-primary md:text-[64px]";
+/** Seamless tile grid — 1px hairlines via bg-color gap trick, no per-tile shadow/radius. */
+export const DASHBOARD_TILE_GRID =
+  "grid gap-px overflow-hidden rounded-[var(--ecmp-radius-lg)] border border-ecmp-border/60 bg-ecmp-border/60";
+export const DASHBOARD_TILE = "bg-ecmp-surface";
 export const DASHBOARD_BODY =
   "text-[13px] leading-snug text-ecmp-text-secondary";
 export const DASHBOARD_CAPTION =
   "text-[12px] leading-snug text-ecmp-text-secondary";
+/** Small uppercase label marking a lower-priority zone (context, not decision). */
+export const DASHBOARD_ZONE_LABEL =
+  "font-mono text-[11px] font-medium uppercase tracking-wide text-ecmp-text-secondary/70";
 
 /** Open backlog accent — never critical from ratio alone (lab-safe). */
 export function openBacklogAccent(

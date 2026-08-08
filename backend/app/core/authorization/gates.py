@@ -124,6 +124,10 @@ _USER_STATUS_UPDATE_ROLES = (
     "ADMIN",
     "ADMINISTRATOR",
     "SUPER_ADMIN",
+    # Branch manager persona (BC-8.4, UM-BUG-007) — own-branch only, enforced
+    # separately in users/router.py update_user_status (not head-office-wide
+    # like Admin above).
+    "MANAGER",
 )
 
 
@@ -132,7 +136,7 @@ def require_user_status_update(
         Principal, Depends(require_permissions("users:update"))
     ],
 ) -> Principal:
-    """API-217 gate: users:update + Head Office Admin only."""
+    """API-217 gate: users:update + Head Office Admin or branch Manager."""
     if not principal.has_any_role(*_USER_STATUS_UPDATE_ROLES):
         raise PermissionDeniedError(m("user.only_head_office_admin_status"))
     return principal

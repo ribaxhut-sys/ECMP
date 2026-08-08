@@ -2,19 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type {
-  DashboardHeader,
-  DashboardSlaSummary,
-  StatusCount,
-} from "@/lib/api/types";
+import type { DashboardHeader, StatusCount } from "@/lib/api/types";
+import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import { AnimatedCount } from "./AnimatedCount";
 import {
   countByStatus,
   DASHBOARD_CAPTION,
+  DASHBOARD_COMMAND_LABEL,
   DASHBOARD_HOVER_ROW,
-  DASHBOARD_SECTION_TITLE,
-  DASHBOARD_SURFACE_MAIN,
+  DASHBOARD_TILE,
   OPS_TONE_BAR,
   OPS_TONE_DOT,
   OPS_TONE_TEXT,
@@ -27,7 +24,8 @@ type QueueRow = {
   label: string;
   count: number;
   tone: OpsTone;
-  href: string;
+  /** null = informational only. No filtered destination exists for it yet. */
+  href: string | null;
 };
 
 function QueueBar({
@@ -41,9 +39,49 @@ function QueueBar({
   count: number;
   max: number;
   tone: OpsTone;
-  onActivate: () => void;
+  onActivate?: () => void;
 }) {
   const pct = proportionalPct(count, max);
+
+  const meter = (
+    <>
+      <span className="flex w-40 shrink-0 items-center gap-2 sm:w-48">
+        <span
+          className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
+          aria-hidden
+        />
+        <span className="truncate text-[13px] text-ecmp-text-primary">
+          {label}
+        </span>
+      </span>
+      <span
+        className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-ecmp-secondary-muted/50"
+        role="meter"
+        aria-valuenow={count}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-label={label}
+      >
+        <span
+          className={`block h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${OPS_TONE_BAR[tone]}`}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span
+        className={`w-12 shrink-0 text-right font-mono text-[16px] font-medium tabular-nums ${OPS_TONE_TEXT[tone]}`}
+      >
+        <AnimatedCount value={count} />
+      </span>
+    </>
+  );
+
+  if (!onActivate) {
+    return (
+      <li>
+        <div className="flex w-full items-center gap-4 px-2 py-2.5">{meter}</div>
+      </li>
+    );
+  }
 
   return (
     <li>
@@ -52,33 +90,7 @@ function QueueBar({
         onClick={onActivate}
         className={`${DASHBOARD_HOVER_ROW} group flex w-full items-center gap-4 rounded-[var(--ecmp-radius-md)] px-2 py-2.5 text-left`}
       >
-        <span className="flex w-40 shrink-0 items-center gap-2 sm:w-48">
-          <span
-            className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
-            aria-hidden
-          />
-          <span className="truncate text-[13px] text-ecmp-text-primary">
-            {label}
-          </span>
-        </span>
-        <span
-          className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-ecmp-secondary-muted/50"
-          role="meter"
-          aria-valuenow={count}
-          aria-valuemin={0}
-          aria-valuemax={max}
-          aria-label={label}
-        >
-          <span
-            className={`block h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${OPS_TONE_BAR[tone]}`}
-            style={{ width: `${pct}%` }}
-          />
-        </span>
-        <span
-          className={`w-12 shrink-0 text-right text-[16px] font-medium tabular-nums ${OPS_TONE_TEXT[tone]}`}
-        >
-          <AnimatedCount value={count} />
-        </span>
+        {meter}
       </button>
     </li>
   );
@@ -86,16 +98,14 @@ function QueueBar({
 
 export function QueueHealth({
   header,
-  sla,
   byStatus,
+  complaintKpiSource,
   loading,
-  onRefresh,
 }: {
   header: DashboardHeader | null;
-  sla: DashboardSlaSummary | null;
   byStatus: StatusCount[] | null;
+  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
@@ -106,9 +116,9 @@ export function QueueHealth({
       <section
         data-testid="dashboard-queue-health"
         aria-label={t("queueHealth")}
-        className={`${DASHBOARD_SURFACE_MAIN} flex h-full min-h-[320px] flex-col p-5`}
+        className={`${DASHBOARD_TILE} flex h-full min-h-[320px] flex-col p-5`}
       >
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("queueHealth")}</h2>
+        <h2 className={DASHBOARD_COMMAND_LABEL}>{t("queueHealth")}</h2>
         <div className="mt-5" aria-busy="true">
           <Skeleton rows={5} />
         </div>
@@ -119,44 +129,39 @@ export function QueueHealth({
   const waitingAssignment = countByStatus(byStatus, "NEW") ?? 0;
   const waitingReview = countByStatus(byStatus, "PENDING") ?? 0;
   const inProgress = countByStatus(byStatus, "IN_PROGRESS") ?? 0;
-  const overSla = sla?.overall.breached ?? 0;
-  const escalated = countByStatus(byStatus, "ESCALATED") ?? 0;
 
+  // /assignments reads the foundation Complaint aggregate only — an
+  // Aggregate-sourced (cm_batch1) count has nowhere to land there
+  // (assignment workflow for Batch-1 intake is DEFERRED,
+  // GOV-MODEA-NEXT-001 M4). Route to the Aggregate list instead.
+  const waitingAssignmentHref =
+    complaintKpiSource === "aggregate" ? "/complaints/cm" : "/assignments";
+
+  // "SLA terlampaui" and "Eskalasi tertunda" are NOT repeated here — they're
+  // already the top-line KPI strip above (SummaryCards) and, when nonzero,
+  // in Peringatan Kritis too. A third copy of the same number added no
+  // information, just noise (see dashboard duplicate-metric audit).
   const rows: QueueRow[] = [
     {
       id: "waiting-assignment",
       label: t("waitingAssignment"),
       count: waitingAssignment,
       tone: waitingAssignment > 0 ? "attention" : "healthy",
-      href: "/assignments",
+      href: waitingAssignmentHref,
     },
     {
       id: "waiting-review",
       label: t("waitingReview"),
       count: waitingReview,
       tone: waitingReview > 0 ? "attention" : "healthy",
-      href: "/queue",
+      href: null,
     },
     {
       id: "in-progress",
       label: t("queueInProgress"),
       count: inProgress,
       tone: "neutral",
-      href: "/queue",
-    },
-    {
-      id: "over-sla",
-      label: t("overSla"),
-      count: overSla,
-      tone: overSla > 0 ? "critical" : "healthy",
-      href: "/queue",
-    },
-    {
-      id: "escalated",
-      label: t("escalationsPending"),
-      count: escalated,
-      tone: escalated > 0 ? "critical" : "healthy",
-      href: "/resolutions",
+      href: null,
     },
   ];
 
@@ -167,10 +172,10 @@ export function QueueHealth({
     <section
       data-testid="dashboard-queue-health"
       aria-label={t("queueHealth")}
-      className={`${DASHBOARD_SURFACE_MAIN} flex h-full min-h-[320px] flex-col p-5`}
+      className={`${DASHBOARD_TILE} flex h-full min-h-[320px] flex-col p-5`}
     >
       <div>
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("queueHealth")}</h2>
+        <h2 className={DASHBOARD_COMMAND_LABEL}>{t("queueHealth")}</h2>
         <p className={`mt-1 ${DASHBOARD_CAPTION}`}>
           {t("queueHealthOpsDescription")}
         </p>
@@ -179,13 +184,11 @@ export function QueueHealth({
       {emptyPortfolio ? (
         <div className="mt-5 flex-1">
           <Empty
+            className="py-8"
+            icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
             title={t("noSummaryYet")}
             description={t("noSummaryDescription")}
             primaryAction={{
-              label: t("refreshDashboard"),
-              onClick: onRefresh,
-            }}
-            secondaryAction={{
               label: tCommon("goToQueue"),
               onClick: () => router.push("/queue"),
             }}
@@ -200,7 +203,7 @@ export function QueueHealth({
               count={row.count}
               max={max}
               tone={row.tone}
-              onActivate={() => router.push(row.href)}
+              onActivate={row.href ? () => router.push(row.href!) : undefined}
             />
           ))}
         </ul>

@@ -408,6 +408,9 @@ class Batch1Store:
         complaint_id: str,
         *,
         intake_disposition: str,
+        description: str | None = None,
+        priority: str | None = None,
+        decided_by: str | None = None,
     ) -> ComplaintAggregate | None:
         with self._lock:
             row = self._complaints.get(str(complaint_id).strip())
@@ -415,6 +418,47 @@ class Batch1Store:
                 return None
             disposition = (intake_disposition or "").strip().upper() or None
             row.intake_disposition = disposition
+            if description is not None:
+                row.description = description
+            if priority is not None:
+                row.priority = priority.strip().upper()
+            if decided_by is not None:
+                row.decided_by = decided_by
+                row.decided_at = datetime.now(UTC)
+            return row
+
+    def accept_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        description: str | None = None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.hq_accepted_at = hq_accepted_at
+            if description is not None:
+                row.description = description
+            return row
+
+    def schedule_hq_arrival(
+        self,
+        complaint_id: str,
+        *,
+        arrival_date,
+        arrival_time: str,
+        description: str | None = None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.hq_arrival_date = arrival_date
+            row.hq_arrival_time = arrival_time
+            if description is not None:
+                row.description = description
             return row
 
     def list_complaints(
@@ -427,6 +471,8 @@ class Batch1Store:
         category: str | None = None,
         status: str | None = None,
         intake_disposition: str | None = None,
+        created_by: str | None = None,
+        decided_by: str | None = None,
     ) -> tuple[list[ComplaintAggregate], int]:
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
@@ -445,13 +491,20 @@ class Batch1Store:
             if st in {"REGISTERED", "CLOSED"}:
                 rows = [c for c in rows if (c.status or "").upper() == st]
             disp = (intake_disposition or "").strip().upper()
-            _allowed_disp = {
-                "BRANCH_CLOSED",
+            _escalate_family = {
                 "ESCALATE_PENDING_APPROVAL",
                 "ESCALATE_APPROVED",
                 "ESCALATE_REJECTED",
+                "ESCALATE_CANCELLED",
             }
-            if disp in _allowed_disp:
+            _allowed_disp = {"BRANCH_CLOSED", *_escalate_family}
+            if disp == "ESCALATED":
+                rows = [
+                    c
+                    for c in rows
+                    if (c.intake_disposition or "").upper() in _escalate_family
+                ]
+            elif disp in _allowed_disp:
                 rows = [
                     c
                     for c in rows
@@ -463,10 +516,48 @@ class Batch1Store:
             cat = (category or "").strip().lower()
             if cat:
                 rows = [c for c in rows if (c.category or "").lower() == cat]
+            cb = (created_by or "").strip()
+            if cb:
+                rows = [c for c in rows if (c.created_by or "") == cb]
+            db_ = (decided_by or "").strip()
+            if db_:
+                rows = [c for c in rows if (c.decided_by or "") == db_]
             rows = sorted(rows, key=lambda c: c.created_at, reverse=True)
             total = len(rows)
             start = (page - 1) * page_size
             return rows[start : start + page_size], total
+
+    def work_stats_for_user(self, user_key: str) -> dict[str, int]:
+        key = (user_key or "").strip()
+        escalate_family = {
+            "ESCALATE_PENDING_APPROVAL",
+            "ESCALATE_APPROVED",
+            "ESCALATE_REJECTED",
+            "ESCALATE_CANCELLED",
+        }
+        with self._lock:
+            rows = list(self._complaints.values())
+        if not key:
+            return {
+                "created_count": 0,
+                "escalation_requested_count": 0,
+                "escalation_approved_count": 0,
+                "escalation_rejected_count": 0,
+            }
+        created = [c for c in rows if (c.created_by or "") == key]
+        decided = [c for c in rows if (c.decided_by or "") == key]
+        return {
+            "created_count": len(created),
+            "escalation_requested_count": len(
+                [c for c in created if (c.intake_disposition or "") in escalate_family]
+            ),
+            "escalation_approved_count": len(
+                [c for c in decided if (c.intake_disposition or "") == "ESCALATE_APPROVED"]
+            ),
+            "escalation_rejected_count": len(
+                [c for c in decided if (c.intake_disposition or "") == "ESCALATE_REJECTED"]
+            ),
+        }
 
 
 # Retained for rare process-local fallbacks / migrations; router uses DB repo.

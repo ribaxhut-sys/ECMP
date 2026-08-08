@@ -67,7 +67,11 @@ export {
 } from "./reports";
 export { fetchKpiSummary } from "./kpi";
 export type { KpiSummaryFilters } from "./kpi";
-export { fetchDashboardSummary } from "./dashboard";
+export {
+  fetchDashboardRecentActivity,
+  fetchDashboardSummary,
+  fetchDashboardTrends,
+} from "./dashboard";
 export {
   fetchQueueAssignments,
   fetchQueueList,
@@ -121,9 +125,14 @@ export {
   confirmCmBatch1Customer,
   createCmBatch1Complaint,
   decideCmBatch1IntakeEscalation,
+  requestCmBatch1IntakeEscalation,
+  acceptCmBatch1HqEscalation,
+  scheduleCmBatch1HqArrival,
   fetchCmBatch1Complaint,
+  fetchCmBatch1ComplaintHistory,
   fetchCmBatch1Complaints,
   fetchCmBatch1Customer360,
+  fetchCmBatch1UserWorkStats,
   recordCmBatch1DuplicateDecision,
   searchCmBatch1Customer,
   transferCmBatch1Attachments,
@@ -152,12 +161,18 @@ export type {
   CmBatch1DuplicateDecision,
   CmBatch1DuplicateDecisionRequest,
   CmBatch1DuplicateDecisionResponse,
+  CmBatch1HistoryEventCode,
   CmBatch1IntakeEscalationDecisionRequest,
+  CmBatch1IntakeEscalationRequestBody,
+  CmBatch1IntakeHistoryEntry,
+  CmBatch1HqAcceptRequest,
+  CmBatch1HqScheduleArrivalRequest,
   CmBatch1LaterReviewWorkItem,
   CmBatch1SupervisorQueueQuery,
   CmBatch1SupervisorQueueResponse,
   CmBatch1TransferAttachmentsRequest,
   CmBatch1TransferAttachmentsResponse,
+  CmBatch1UserWorkStats,
   CmBatch1VerificationStatus,
   UploadCmBatch1AttachmentInput,
 } from "./cmBatch1";

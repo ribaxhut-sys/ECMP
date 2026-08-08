@@ -20,8 +20,18 @@ export function cmBatch1Paths() {
     complaints: `${CM_BATCH1_BASE}/complaints`,
     complaint: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}`,
+    complaintHistory: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/history`,
     intakeEscalationDecision: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/intake-escalation/decision`,
+    intakeEscalationRequest: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/intake-escalation/request`,
+    hqAccept: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-accept`,
+    hqScheduleArrival: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-schedule-arrival`,
+    userWorkStats: (userId: string) =>
+      `${CM_BATCH1_BASE}/complaints/work-stats/${encodeURIComponent(userId)}`,
     duplicatesCheck: `${CM_BATCH1_BASE}/duplicates/check`,
     duplicatesDecisions: `${CM_BATCH1_BASE}/duplicates/decisions`,
     attachmentsTransfer: `${CM_BATCH1_BASE}/attachments/transfer`,

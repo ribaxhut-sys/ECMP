@@ -7,10 +7,11 @@ No Case FK or Batch-2 columns.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -38,6 +39,8 @@ class CmBatch1ComplaintORM(Base):
         Index("ix_cm_batch1_complaints_status", "status"),
         Index("ix_cm_batch1_complaints_created_at", "created_at"),
         Index("ix_cm_batch1_complaints_intake_disposition", "intake_disposition"),
+        Index("ix_cm_batch1_complaints_hq_accepted_at", "hq_accepted_at"),
+        Index("ix_cm_batch1_complaints_decided_by", "decided_by"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -60,11 +63,24 @@ class CmBatch1ComplaintORM(Base):
     intake_disposition: Mapped[str | None] = mapped_column(
         String(64), nullable=True
     )
+    # When set, HQ has accepted/claimed — Batalkan Eskalasi blocked.
+    hq_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Customer visit schedule at HQ (Batch-1 lab; not foundation Appointment).
+    hq_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    hq_arrival_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     # Hard invariant Batch 1 (CTO D-02) — always false; Case deferred.
     case_created: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
     created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Who resolved the intake-escalation decision (APPROVE/REJECT/CANCEL) and
+    # when — UM-BUG-006, see decide_intake_escalation in service.py.
+    decided_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

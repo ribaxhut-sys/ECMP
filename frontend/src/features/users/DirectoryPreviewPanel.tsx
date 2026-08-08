@@ -1,11 +1,73 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { UserRef } from "@/lib/api";
+import {
+  fetchCmBatch1UserWorkStats,
+  type CmBatch1UserWorkStats,
+  type UserRef,
+} from "@/lib/api";
 import { Badge, Button, Card, CardBody, Empty, PanelHeader } from "@/shared/ui";
 import { DirectoryAvatar } from "./DirectoryAvatar";
 import { DirectoryRoleBadge } from "./DirectoryRoleBadge";
 import { formatWhen } from "./directoryHelpers";
+
+function WorkStatRow({
+  label,
+  value,
+  loading,
+  onClick,
+}: {
+  label: string;
+  value: number | null;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  const clickable = !loading && !!value;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!clickable}
+        title={clickable ? label : undefined}
+        className="group flex w-full items-center justify-between gap-2 rounded-[var(--ecmp-radius-sm)] px-2 py-1.5 text-left transition-colors duration-[var(--ecmp-duration-fast)] enabled:cursor-pointer enabled:hover:bg-ecmp-surface-hover disabled:cursor-default"
+      >
+        <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+          {label}
+        </span>
+        <span className="flex items-center gap-1">
+          <span
+            className={
+              value
+                ? "text-[length:var(--ecmp-font-body-size)] font-[number:var(--ecmp-font-emphasis-weight)] text-ecmp-primary underline-offset-2 group-hover:underline"
+                : "text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
+            }
+          >
+            {loading ? "…" : (value ?? 0)}
+          </span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={
+              clickable
+                ? "size-3.5 shrink-0 text-ecmp-primary opacity-0 transition-[opacity,transform] duration-[var(--ecmp-duration-fast)] group-hover:translate-x-0.5 group-hover:opacity-100"
+                : "size-3.5 shrink-0 opacity-0"
+            }
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </span>
+      </button>
+    </li>
+  );
+}
 
 export function DirectoryPreviewPanel({
   user,
@@ -28,6 +90,34 @@ export function DirectoryPreviewPanel({
 }) {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
+  const router = useRouter();
+
+  const userId = user?.id ?? null;
+  const [stats, setStats] = useState<CmBatch1UserWorkStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!userId) {
+      setStats(null);
+      return;
+    }
+    let cancelled = false;
+    setStats(null);
+    setStatsLoading(true);
+    fetchCmBatch1UserWorkStats(userId)
+      .then((res) => {
+        if (!cancelled) setStats(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setStats(null);
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   if (!user) {
     return (
@@ -113,6 +203,54 @@ export function DirectoryPreviewPanel({
             </dd>
           </div>
         </dl>
+
+        <section aria-label={t("workStats")} className="space-y-[var(--ecmp-space-8)]">
+          <h4 className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+            {t("workStats")}
+          </h4>
+          <ul className="space-y-1 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-[var(--ecmp-panel-gap)]">
+            <WorkStatRow
+              label={t("workStatsCreated")}
+              value={stats?.createdCount ?? null}
+              loading={statsLoading}
+              onClick={() =>
+                router.push(
+                  `/complaints?createdBy=${encodeURIComponent(user.id)}`,
+                )
+              }
+            />
+            <WorkStatRow
+              label={t("workStatsEscalationRequested")}
+              value={stats?.escalationRequestedCount ?? null}
+              loading={statsLoading}
+              onClick={() =>
+                router.push(
+                  `/complaints?createdBy=${encodeURIComponent(user.id)}&intakeDisposition=ESCALATED`,
+                )
+              }
+            />
+            <WorkStatRow
+              label={t("workStatsEscalationApproved")}
+              value={stats?.escalationApprovedCount ?? null}
+              loading={statsLoading}
+              onClick={() =>
+                router.push(
+                  `/complaints?decidedBy=${encodeURIComponent(user.id)}&intakeDisposition=ESCALATE_APPROVED`,
+                )
+              }
+            />
+            <WorkStatRow
+              label={t("workStatsEscalationRejected")}
+              value={stats?.escalationRejectedCount ?? null}
+              loading={statsLoading}
+              onClick={() =>
+                router.push(
+                  `/complaints?decidedBy=${encodeURIComponent(user.id)}&intakeDisposition=ESCALATE_REJECTED`,
+                )
+              }
+            />
+          </ul>
+        </section>
 
         {canUpdateStatus || canUpdateRole ? (
           <div className="flex flex-wrap gap-2">

@@ -7,15 +7,24 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import OrgUnitResolver, Principal, enforce_org_scope, require_permissions
+from app.core.auth import (
+    OrgUnitResolver,
+    Principal,
+    enforce_org_scope,
+    require_any_permission,
+    require_permissions,
+)
+from app.core.authorization.gates import require_escalation_review
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.integrations.customer import build_customer_provider
+from app.integrations.directory import LocalUserDirectory
 from app.modules.attachment.registration import build_attachment_service
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
+from app.modules.cm_batch1.history import CmBatch1HistoryService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import (
     ComplaintBatch1Response,
@@ -29,13 +38,19 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    HqAcceptRequest,
+    HqScheduleArrivalRequest,
     IntakeEscalationDecisionRequest,
+    IntakeEscalationRequestBody,
+    IntakeHistoryEntry,
     SupervisorQueueResponse,
     TransferAttachmentsRequest,
     TransferAttachmentsResponse,
+    UserWorkStatsResponse,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.side_effects import CmBatch1SideEffectRecorder
+from app.modules.timeline.repository import TimelineRepository
 
 router = APIRouter(prefix="/api/v1/cm", tags=["CM-Batch1"])
 
@@ -53,6 +68,16 @@ def get_cm_batch1_service(
             enterprise_base_url=settings.customer_provider_enterprise_base_url,
             session=session,
         ),
+        user_directory=LocalUserDirectory(session),
+    )
+
+
+def get_cm_batch1_history_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> CmBatch1HistoryService:
+    return CmBatch1HistoryService(
+        TimelineRepository(session),
+        user_directory=LocalUserDirectory(session),
     )
 
 
@@ -165,6 +190,9 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
         "ESCALATE_PENDING_APPROVAL",
         "ESCALATE_APPROVED",
         "ESCALATE_REJECTED",
+        "ESCALATE_CANCELLED",
+        # Pseudo-value: any escalate-family state (Users directory drill-down).
+        "ESCALATED",
     }
 )
 
@@ -187,6 +215,8 @@ def list_complaints(
     ] = None,
     priority: Annotated[str | None, Query()] = None,
     category: Annotated[str | None, Query(max_length=100)] = None,
+    created_by: Annotated[str | None, Query(alias="createdBy")] = None,
+    decided_by: Annotated[str | None, Query(alias="decidedBy")] = None,
 ) -> ListResponse[ComplaintBatch1Response]:
     _ = principal
     pri = (priority or "").strip().upper() or None
@@ -206,11 +236,28 @@ def list_complaints(
         intake_disposition=disp,
         priority=pri,
         category=category,
+        created_by=(created_by or "").strip() or None,
+        decided_by=(decided_by or "").strip() or None,
     )
     return ListResponse(
         data=items,
         meta=PageMeta(page=page, pageSize=page_size, totalItems=total),
     )
+
+
+@router.get(
+    "/complaints/work-stats/{user_id}",
+    response_model=DataResponse[UserWorkStatsResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Per-user complaint work counters (Users directory panel, UM-BUG-006)",
+)
+def get_user_work_stats(
+    user_id: str,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+) -> DataResponse[UserWorkStatsResponse]:
+    _ = principal
+    return DataResponse(data=service.work_stats_for_user(user_id))
 
 
 @router.post(
@@ -308,6 +355,35 @@ def get_complaint(
     return DataResponse(data=service.get_complaint(complaint_id))
 
 
+@router.get(
+    "/complaints/{complaint_id}/history",
+    response_model=ListResponse[IntakeHistoryEntry],
+    status_code=status.HTTP_200_OK,
+    summary="Chronological intake history (API-517 / FR-001)",
+)
+def get_complaint_history(
+    complaint_id: str,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    history: Annotated[
+        CmBatch1HistoryService, Depends(get_cm_batch1_history_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ListResponse[IntakeHistoryEntry]:
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    enforce_org_scope(principal, resource_org, settings)
+    # 404 before reading the log — history is not an existence oracle.
+    service.get_complaint(complaint_id)
+    items = history.list_history(complaint_id)
+    return ListResponse(
+        data=items,
+        meta=PageMeta(
+            page=1, pageSize=max(1, len(items)), totalItems=len(items)
+        ),
+    )
+
+
 @router.post(
     "/complaints/{complaint_id}/intake-escalation/decision",
     response_model=DataResponse[ComplaintBatch1Response],
@@ -328,6 +404,89 @@ def decide_intake_escalation(
     enforce_org_scope(principal, resource_org, settings)
     return DataResponse(
         data=service.decide_intake_escalation(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/intake-escalation/request",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="Re-request intake escalation after cancel/reject (API-518 lab / FR-001)",
+)
+def request_intake_escalation(
+    complaint_id: str,
+    body: IntakeEscalationRequestBody,
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission("complaints:create", "complaints:escalate")),
+    ],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """From ESCALATE_CANCELLED / ESCALATE_REJECTED → ESCALATE_PENDING_APPROVAL.
+
+    Prior Batalkan Eskalasi / Penolakan Eskalasi / Catatan Supervisor remain in
+    description history (append-only). MUST NOT create Case.
+    """
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    enforce_org_scope(principal, resource_org, settings)
+    return DataResponse(
+        data=service.request_intake_escalation(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-accept",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ accept approved intake escalation (API-516 lab)",
+)
+def hq_accept_escalation(
+    complaint_id: str,
+    body: HqAcceptRequest,
+    principal: Annotated[Principal, Depends(require_escalation_review)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    enforce_org_scope(principal, resource_org, settings)
+    return DataResponse(
+        data=service.accept_at_hq(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-schedule-arrival",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="Schedule customer arrival at HQ (API-517 lab)",
+)
+def hq_schedule_arrival(
+    complaint_id: str,
+    body: HqScheduleArrivalRequest,
+    principal: Annotated[Principal, Depends(require_escalation_review)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    enforce_org_scope(principal, resource_org, settings)
+    return DataResponse(
+        data=service.schedule_hq_arrival(
             complaint_id,
             body,
             actor_id=_principal_key(principal),

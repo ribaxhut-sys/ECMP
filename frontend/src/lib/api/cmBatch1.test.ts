@@ -20,6 +20,9 @@ describe("cmBatch1Paths", () => {
     expect(paths.attachmentsTransfer).toBe("/api/v1/cm/attachments/transfer");
     expect(paths.supervisorQueue).toBe("/api/v1/cm/supervisor/queue");
     expect(paths.complaint("c/1")).toBe("/api/v1/cm/complaints/c%2F1");
+    expect(paths.intakeEscalationRequest("c/1")).toBe(
+      "/api/v1/cm/complaints/c%2F1/intake-escalation/request",
+    );
     expect(paths.customer360("cust 1")).toBe(
       "/api/v1/cm/customers/cust%201/batch1-360",
     );
