@@ -19,6 +19,12 @@ from app.core.authorization.authentication import (
     get_current_principal,
     resolve_principal_permissions,
 )
+from app.core.authorization.case_acceptance import (
+    assert_case_acceptance_authorized,
+    assert_case_resolve_accept_authorized,
+    principal_is_case_agent,
+    principal_may_give_case_acceptance,
+)
 from app.core.authorization.data_scope_check import (
     check_data_scope,
     require_data_scope,
@@ -37,11 +43,12 @@ from app.core.authorization.gates import (
 from app.core.authorization.org_unit_guard import (
     OrgUnitGuard,
     enforce_org_scope,
+    enforce_org_scope_any,
     is_machine_service_identity,
     is_service_account_allowlisted,
     org_scope_enforcement_enabled,
 )
-from app.core.authorization.org_unit_resolver import OrgUnitResolver
+from app.core.authorization.org_unit_resolver import CaseOrgUnits, OrgUnitResolver
 from app.core.authorization.permission_check import (
     check_any_permission,
     check_permissions,
@@ -60,6 +67,7 @@ from app.core.authorization.role_mapper import RoleMapper
 
 __all__ = [
     "AuthenticationStrategy",
+    "CaseOrgUnits",
     "CurrentPrincipal",
     "DevAuthenticationStrategy",
     "JwtAuthenticationStrategy",
@@ -68,6 +76,8 @@ __all__ = [
     "Principal",
     "RoleMapper",
     "assert_can_assign_role",
+    "assert_case_acceptance_authorized",
+    "assert_case_resolve_accept_authorized",
     "authenticate_bearer",
     "build_authentication_strategy",
     "can_assign_role",
@@ -77,11 +87,14 @@ __all__ = [
     "check_roles",
     "configure_authentication",
     "enforce_org_scope",
+    "enforce_org_scope_any",
     "get_authentication_strategy",
     "get_current_principal",
     "is_machine_service_identity",
     "is_service_account_allowlisted",
     "org_scope_enforcement_enabled",
+    "principal_is_case_agent",
+    "principal_may_give_case_acceptance",
     "require_appointment_complete",
     "require_any_permission",
     "require_complaint_close",

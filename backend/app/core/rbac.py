@@ -127,15 +127,20 @@ _VIEWER_PERMISSIONS: frozenset[str] = frozenset(
 )
 
 # Distinct business persona (BC-8/BG-018, BC-8.4) — not a Supervisor alias.
-# Own-branch user membership + own-branch dashboard visibility (including
-# Aggregate KPI via GET /dashboard/aggregate-kpis — dashboard:read only, not
-# complaints:read). No operational complaint permissions (assign/escalate/close)
-# — see 0054_manager_role, 0055_manager_dashboard_read.
+# Own-branch user membership + dashboard + F4 complaint ops parity with
+# Supervisor for create/read/update/assign/escalate/close. No wildcard;
+# unit/party/SoD/state AuthZ still applies at the endpoint layer.
 _MANAGER_PERMISSIONS: frozenset[str] = frozenset(
     {
         "users:read",
         "users:update",
         "dashboard:read",
+        "complaints:create",
+        "complaints:read",
+        "complaints:update",
+        "complaints:assign",
+        "complaints:escalate",
+        "complaints:close",
     }
 )
 

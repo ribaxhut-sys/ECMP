@@ -215,4 +215,31 @@ export type {
   ResolveCmCaseRequest,
   UpdateCmCaseStatusRequest,
 } from "./cmCase";
+export {
+  INTERNAL_COMPLAINTS_BASE,
+  closeInternalComplaint,
+  createInternalComplaint,
+  fetchInternalComplaint,
+  fetchInternalComplaints,
+  internalComplaintPaths,
+  receiveInternalComplaint,
+  recordInternalAcceptance,
+  resolveInternalComplaint,
+  transferInternalComplaint,
+} from "./internalComplaints";
+export type {
+  CreateInternalComplaintRequest,
+  InternalAcceptance,
+  InternalAcceptanceDecision,
+  InternalAcceptanceParty,
+  InternalComplaint,
+  InternalComplaintStatus,
+  InternalComplaintSummary,
+  InternalHistoryEvent,
+  InternalResolution,
+  InternalResolveAction,
+  RecordInternalAcceptanceRequest,
+  ResolveInternalComplaintRequest,
+  TransferInternalComplaintRequest,
+} from "./internalComplaints";
 export type * from "./types";

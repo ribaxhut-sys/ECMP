@@ -151,14 +151,41 @@ MESSAGES: dict[str, str] = {
     ),
     "complaint.not_found": "Pengaduan tidak ditemukan.",
     "complaint.only_supervisor_admin_close": (
-        "Hanya Branch Supervisor atau Head Office Admin yang dapat menutup pengaduan."
+        "Hanya Supervisor, Manager, atau Head Office Admin yang dapat menutup pengaduan."
     ),
-    "complaint.only_supervisor_assign": "Hanya Supervisor yang dapat menugaskan pengaduan.",
-    "complaint.only_supervisor_escalate": "Hanya Supervisor yang dapat mengeskalasi pengaduan.",
+    "complaint.only_supervisor_assign": (
+        "Hanya Supervisor atau Manager yang dapat menugaskan pengaduan."
+    ),
+    "complaint.only_supervisor_escalate": (
+        "Hanya Supervisor atau Manager yang dapat mengeskalasi pengaduan."
+    ),
     "complaint.submitter_not_found": "Pengirim pengaduan tidak ditemukan atau tidak aktif.",
     "complaint.unsupported_source_type": "Pengaduan memiliki sourceType yang tidak didukung.",
     "complaint.unsupported_status": "Pengaduan memiliki status yang tidak didukung.",
     "complaint.unsupported_target_type": "Pengaduan memiliki targetType yang tidak didukung.",
+    # --- CAP-008 Case F4 acceptance ---
+    "case.acceptance_role_denied": (
+        "Hanya Supervisor atau Manager yang berwenang yang dapat memberikan "
+        "persetujuan penutupan Case."
+    ),
+    "case.acceptance_owner_unit_mismatch": (
+        "Persetujuan Owner hanya boleh dilakukan oleh Supervisor/Manager "
+        "pada unit Owner Case."
+    ),
+    "case.acceptance_handling_unit_mismatch": (
+        "Persetujuan Handling Unit hanya boleh dilakukan oleh Supervisor/Manager "
+        "pada unit penanganan Case saat ini."
+    ),
+    "case.acceptance_creator_conflict": (
+        "Pembuat pengaduan tidak boleh menjadi satu-satunya pemberi persetujuan "
+        "untuk pengaduan yang sama (pemisahan tugas)."
+    ),
+    "case.acceptance_party_invalid": "Pihak persetujuan Case tidak valid.",
+    "case.resolve_accept_role_denied": (
+        "Agent tidak boleh memberikan penerimaan Handling Unit final. "
+        "Gunakan pengajuan resolusi (PROPOSE), lalu Supervisor/Manager yang "
+        "berwenang memberikan ACCEPT."
+    ),
     # --- Escalation ---
     "escalation.already_closed": "Eskalasi sudah berstatus CLOSED.",
     "escalation.already_reviewed": "Eskalasi sudah ditinjau.",

@@ -16,6 +16,21 @@ def test_supervisor_permissions() -> None:
     assert "users:create" in perms
 
 
+def test_manager_f4_complaint_permissions() -> None:
+    """F4: Manager has create/read/update/assign/escalate/close (no wildcard)."""
+    perms = permissions_for_role("MANAGER")
+    for code in (
+        "complaints:create",
+        "complaints:read",
+        "complaints:update",
+        "complaints:assign",
+        "complaints:escalate",
+        "complaints:close",
+    ):
+        assert code in perms
+    assert "*" not in perms
+
+
 def test_unknown_role_empty() -> None:
     assert permissions_for_role("UNKNOWN") == []
     assert permissions_for_role(None) == []
@@ -57,9 +72,10 @@ def test_ho_engineer_can_submit_final_resolution() -> None:
 
 
 def test_branch_supervisor_can_close_complaint() -> None:
-    """API-312 write gate: complaints:close (Branch Supervisor / Admin)."""
+    """API-312 write gate: complaints:close (Branch Supervisor / Manager / Admin)."""
     assert "complaints:close" in permissions_for_role("BRANCH_SUPERVISOR")
     assert "complaints:close" in permissions_for_role("SUPERVISOR")
+    assert "complaints:close" in permissions_for_role("MANAGER")
     assert "complaints:close" in permissions_for_role("ADMIN")
     assert "complaints:close" not in permissions_for_role("BRANCH_OFFICER")
     assert "complaints:close" not in permissions_for_role("HO_ENGINEER")

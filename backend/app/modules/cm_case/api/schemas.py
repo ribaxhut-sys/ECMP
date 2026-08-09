@@ -18,7 +18,10 @@ class CaseSummaryResponse(BaseModel):
     category: str | None = None
     priority: str | None = None
     subject: str | None = None
+    # Current handling unit — mutated on transfer.
     owning_unit_id: str | None = Field(default=None, alias="owningUnitId")
+    # F4 owner — unit that created the parent Complaint; immutable.
+    owner_unit_id: str | None = Field(default=None, alias="ownerUnitId")
     customer_id: str | None = Field(default=None, alias="customerId")
     created_at: datetime | None = Field(default=None, alias="createdAt")
     created_by: str | None = Field(default=None, alias="createdBy")
@@ -42,6 +45,18 @@ class CaseResolutionResponse(BaseModel):
     rejection_reason: str | None = Field(default=None, alias="rejectionReason")
 
 
+class CaseAcceptanceResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    acceptance_id: str = Field(alias="acceptanceId")
+    party: str
+    decision: str
+    actor_id: str = Field(alias="actorId")
+    actor_unit_id: str | None = Field(default=None, alias="actorUnitId")
+    decided_at: datetime = Field(alias="decidedAt")
+    note: str | None = None
+
+
 class CaseResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -55,7 +70,10 @@ class CaseResponse(BaseModel):
     subject: str
     description: str
     priority: str
+    # Current handling unit — mutated on transfer (F4 handling unit rule).
     owning_unit_id: str | None = Field(default=None, alias="owningUnitId")
+    # F4 owner — unit that created the parent Complaint; never changes.
+    owner_unit_id: str | None = Field(default=None, alias="ownerUnitId")
     assigned_user_id: str | None = Field(default=None, alias="assignedUserId")
     sla_policy_version_id: str | None = Field(default=None, alias="slaPolicyVersionId")
     sla_countdown_active: bool = Field(default=False, alias="slaCountdownActive")
@@ -71,6 +89,16 @@ class CaseResponse(BaseModel):
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
     complaint_status_after_create: str | None = Field(
         default=None, alias="complaintStatusAfterCreate"
+    )
+    # F4 closure rule — current-state pointers, separate from the history list.
+    handling_unit_acceptance: CaseAcceptanceResponse | None = Field(
+        default=None, alias="handlingUnitAcceptance"
+    )
+    owner_acceptance: CaseAcceptanceResponse | None = Field(
+        default=None, alias="ownerAcceptance"
+    )
+    acceptance_history: list[CaseAcceptanceResponse] = Field(
+        default_factory=list, alias="acceptanceHistory"
     )
 
 
@@ -127,4 +155,14 @@ class ResolveCaseRequest(BaseModel):
 class CloseCaseRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
+    note: str | None = None
+
+
+class RecordAcceptanceRequest(BaseModel):
+    """F4 closure rule — Handling Unit / Owner accept or reject a resolution."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    party: str
+    decision: str
     note: str | None = None

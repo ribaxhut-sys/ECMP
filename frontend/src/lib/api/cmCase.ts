@@ -34,6 +34,10 @@ export type CmCaseCancelReason =
 
 export type CmCaseResolveAction = "PROPOSE" | "ACCEPT" | "REJECT";
 
+export type CmCaseAcceptanceParty = "OWNER" | "HANDLING_UNIT";
+
+export type CmCaseAcceptanceDecision = "ACCEPT" | "REJECT";
+
 export interface CmCaseResolution {
   resolutionId: string;
   resolutionCode: string;
@@ -50,6 +54,16 @@ export interface CmCaseResolution {
   rejectionReason?: string | null;
 }
 
+export interface CmCaseAcceptance {
+  acceptanceId: string;
+  party: CmCaseAcceptanceParty | string;
+  decision: CmCaseAcceptanceDecision | string;
+  actorId: string;
+  actorUnitId?: string | null;
+  decidedAt: string;
+  note?: string | null;
+}
+
 export interface CmCaseSummary {
   caseId: string;
   caseNumber: string;
@@ -60,6 +74,7 @@ export interface CmCaseSummary {
   priority?: string | null;
   subject?: string | null;
   owningUnitId?: string | null;
+  ownerUnitId?: string | null;
   customerId?: string | null;
   createdAt?: string | null;
   createdBy?: string | null;
@@ -77,6 +92,7 @@ export interface CmCase {
   description: string;
   priority: string;
   owningUnitId?: string | null;
+  ownerUnitId?: string | null;
   assignedUserId?: string | null;
   slaPolicyVersionId?: string | null;
   slaCountdownActive: boolean;
@@ -89,6 +105,9 @@ export interface CmCase {
   createdBy: string;
   updatedAt?: string | null;
   complaintStatusAfterCreate?: string | null;
+  handlingUnitAcceptance?: CmCaseAcceptance | null;
+  ownerAcceptance?: CmCaseAcceptance | null;
+  acceptanceHistory?: CmCaseAcceptance[];
 }
 
 export interface CreateCmCaseRequest {
@@ -134,6 +153,12 @@ export interface ResolveCmCaseRequest {
 }
 
 export interface CloseCmCaseRequest {
+  note?: string | null;
+}
+
+export interface RecordCmCaseAcceptanceRequest {
+  party: CmCaseAcceptanceParty;
+  decision: CmCaseAcceptanceDecision;
   note?: string | null;
 }
 
@@ -226,6 +251,20 @@ export function resolveCmCase(
 ): Promise<DataResponse<CmCase>> {
   return unwrap(
     apiRequest<DataResponse<CmCase>>(cmCasePaths().resolve(caseId), {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: buildCmCaseMutateHeaders(options),
+    }),
+  );
+}
+
+export function recordCmCaseAcceptance(
+  caseId: string,
+  body: RecordCmCaseAcceptanceRequest,
+  options?: CmCaseMutateOptions,
+): Promise<DataResponse<CmCase>> {
+  return unwrap(
+    apiRequest<DataResponse<CmCase>>(cmCasePaths().acceptance(caseId), {
       method: "POST",
       body: JSON.stringify(body),
       headers: buildCmCaseMutateHeaders(options),

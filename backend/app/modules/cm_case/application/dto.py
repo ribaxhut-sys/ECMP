@@ -18,6 +18,8 @@ class CreateCaseCommand:
     assigned_user_id: str | None = None
     sla_policy_version_id: str | None = None
     actor_id: str = "system"
+    # F4 history rule — acting unit, recorded on the CaseCreated event.
+    actor_unit_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,7 @@ class AddCaseCommand:
     assigned_user_id: str | None = None
     sla_policy_version_id: str | None = None
     actor_id: str = "system"
+    actor_unit_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,7 @@ class UpdateStatusCommand:
     cancel_reason: str | None = None
     reason: str | None = None
     assigned_user_id: str | None = None
+    actor_unit_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,12 +61,26 @@ class ResolveCaseCommand:
     customer_impact: str | None = None
     attachment_ids: list[str] = field(default_factory=list)
     rejection_reason: str | None = None
+    actor_unit_id: str | None = None
 
 
 @dataclass(frozen=True)
 class CloseCaseCommand:
     case_id: str
     actor_id: str
+    note: str | None = None
+    actor_unit_id: str | None = None
+
+
+@dataclass(frozen=True)
+class RecordAcceptanceCommand:
+    """F4 closure rule — Handling Unit / Owner accept or reject a resolution."""
+
+    case_id: str
+    party: str
+    decision: str
+    actor_id: str
+    actor_unit_id: str | None = None
     note: str | None = None
 
 
@@ -84,6 +102,17 @@ class ResolutionDTO:
 
 
 @dataclass
+class AcceptanceDTO:
+    acceptance_id: str
+    party: str
+    decision: str
+    actor_id: str
+    actor_unit_id: str | None
+    decided_at: datetime
+    note: str | None = None
+
+
+@dataclass
 class CaseSummaryDTO:
     case_id: str
     case_number: str
@@ -96,6 +125,7 @@ class CaseSummaryDTO:
     created_by: str
     category: str | None = None
     owning_unit_id: str | None = None
+    owner_unit_id: str | None = None
     customer_id: str | None = None
 
 
@@ -114,6 +144,7 @@ class CaseDTO:
     created_by: str
     category: str | None = None
     owning_unit_id: str | None = None
+    owner_unit_id: str | None = None
     assigned_user_id: str | None = None
     sla_policy_version_id: str | None = None
     sla_countdown_active: bool = False
@@ -124,3 +155,6 @@ class CaseDTO:
     resolution: ResolutionDTO | None = None
     resolution_history: list[ResolutionDTO] = field(default_factory=list)
     complaint_status_after_create: str | None = None
+    handling_unit_acceptance: AcceptanceDTO | None = None
+    owner_acceptance: AcceptanceDTO | None = None
+    acceptance_history: list[AcceptanceDTO] = field(default_factory=list)

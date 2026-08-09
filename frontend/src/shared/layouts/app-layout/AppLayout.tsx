@@ -15,6 +15,10 @@ export interface AppLayoutProps {
 /**
  * Enterprise shell: Header + Sidebar + Content.
  * Desktop: persistent sidebar. Mobile/tablet: drawer navigation.
+ *
+ * Viewport-locked shell (`h-dvh` + overflow hidden): only `<main>` scrolls.
+ * Document-level scroll previously dragged the sidebar with the page, and
+ * `overflow-x-hidden` on the outer flex broke `position: sticky`.
  */
 export function AppLayout({ children }: AppLayoutProps) {
   const tCommon = useTranslations("common");
@@ -23,7 +27,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarProvider>
       <NavPreferenceProvider>
-        <div className="flex min-h-screen w-full overflow-x-hidden bg-ecmp-background">
+        <div className="flex h-dvh w-full overflow-hidden bg-ecmp-background">
           <a
             href="#main-content"
             className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[var(--ecmp-z-loading)] focus:rounded-[var(--ecmp-radius-md)] focus:bg-ecmp-surface focus:px-3 focus:py-2 focus:text-ecmp-text-primary focus:shadow-ecmp-floating"
@@ -31,11 +35,11 @@ export function AppLayout({ children }: AppLayoutProps) {
             {tCommon("skipToContent")}
           </a>
           <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col bg-ecmp-background">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-ecmp-background">
             <Header />
             <main
               id="main-content"
-              className="min-w-0 flex-1 bg-ecmp-background"
+              className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-ecmp-background"
               tabIndex={-1}
             >
               <div

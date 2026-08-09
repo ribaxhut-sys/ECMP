@@ -39,6 +39,25 @@ class ResolutionProposalStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class AcceptanceParty(StrEnum):
+    """F4 closure requires agreement from both parties.
+
+    OWNER = unit that created the Complaint (immutable for its lifetime).
+    HANDLING_UNIT = unit currently responsible for working the Case
+    (``CaseAggregate.owning_unit_id`` — mutated on transfer/ASSIGNED).
+    """
+
+    OWNER = "OWNER"
+    HANDLING_UNIT = "HANDLING_UNIT"
+
+
+class AcceptanceDecision(StrEnum):
+    """A party's decision on a proposed resolution (F4 closure rule)."""
+
+    ACCEPT = "ACCEPT"
+    REJECT = "REJECT"
+
+
 _CASE_NUMBER_RE = re.compile(r"^CASE-(\d{4})-(\d{6})$")
 
 

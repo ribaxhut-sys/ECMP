@@ -54,9 +54,9 @@ describe("parseNavPreference", () => {
     expect(parseNavPreference('"remember"')).toEqual(DEFAULT_NAV_PREFERENCE_STATE);
   });
 
-  it("normalizes an invalid stored mode to auto", () => {
+  it("normalizes an invalid stored mode to the default", () => {
     const parsed = parseNavPreference(JSON.stringify({ mode: "garbage" }));
-    expect(parsed.mode).toBe("auto");
+    expect(parsed.mode).toBe(DEFAULT_NAV_PREFERENCE_MODE);
   });
 
   it("round-trips a valid remember-mode payload", () => {
@@ -98,14 +98,14 @@ describe("resolveExpandedSubgroups", () => {
     expect(result).toEqual({ taxpayerComplaints: true, internalComplaints: false });
   });
 
-  it("auto layers manual overrides on top of the active-route default", () => {
+  it("auto accordion overrides open one subgroup and close the others", () => {
     const result = resolveExpandedSubgroups({
       mode: "auto",
       subgroupIds,
       activeSubgroupId: "taxpayerComplaints",
-      overrides: { internalComplaints: true },
+      overrides: { taxpayerComplaints: false, internalComplaints: true },
     });
-    expect(result).toEqual({ taxpayerComplaints: true, internalComplaints: true });
+    expect(result).toEqual({ taxpayerComplaints: false, internalComplaints: true });
   });
 
   it("remember uses the stored choice regardless of the active route (Scenario 3)", () => {

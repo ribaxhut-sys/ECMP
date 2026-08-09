@@ -26,8 +26,10 @@ def require_supervisor_assign(
         Principal, Depends(require_permissions("complaints:assign"))
     ],
 ) -> Principal:
-    """Assign endpoint gate: permission complaints:assign + SUPERVISOR role."""
-    if not principal.has_any_role("SUPERVISOR"):
+    """Assign gate: complaints:assign + Supervisor/Manager (F4 capability parity)."""
+    if not principal.has_any_role(
+        "SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER"
+    ):
         raise PermissionDeniedError(m("complaint.only_supervisor_assign"))
     return principal
 
@@ -37,8 +39,10 @@ def require_supervisor_escalate(
         Principal, Depends(require_permissions("complaints:escalate"))
     ],
 ) -> Principal:
-    """Escalate endpoint gate: permission complaints:escalate + SUPERVISOR role."""
-    if not principal.has_any_role("SUPERVISOR", "BRANCH_SUPERVISOR"):
+    """Escalate gate: complaints:escalate + Supervisor/Manager (F4 parity)."""
+    if not principal.has_any_role(
+        "SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER"
+    ):
         raise PermissionDeniedError(m("complaint.only_supervisor_escalate"))
     return principal
 
@@ -58,6 +62,27 @@ _PUSAT_AGENT_ROLES = (
     "HANDLER",
     "BRANCH_OFFICER",
 )
+
+
+def principal_may_perform_hq_intake_action(
+    principal: Principal,
+    *,
+    org_unit_id: str | None,
+) -> bool:
+    """Pure HQ intake gate (Batch-1 lab) — org already resolved/normalized.
+
+    Mirrors ``require_hq_intake_action`` without I/O so FE/UI and tests can
+    stay aligned without inventing a second AuthZ rule.
+    """
+    if principal.has_permission("escalations:review") and principal.has_any_role(
+        *_ESCALATION_REVIEW_ROLES
+    ):
+        return True
+    if principal.has_permission("complaints:read") and principal.has_any_role(
+        *_PUSAT_AGENT_ROLES
+    ):
+        return is_pusat_unit(org_unit_id)
+    return False
 
 
 def require_escalation_review(
@@ -82,21 +107,14 @@ def require_hq_intake_action(
     Allows classic ``escalations:review`` + HO Scheduler/Admin, **or** Agent
     (family) whose membership unit is Pusat — Mode A lab "Agent Pusat".
     """
-    if principal.has_permission("escalations:review") and principal.has_any_role(
-        *_ESCALATION_REVIEW_ROLES
-    ):
+    resolver = OrgUnitResolver(session)
+    org = resolver.normalize(principal.org_unit_id) or (
+        resolver.resolve_principal_membership(principal.user_id)
+        if principal.has_any_role(*_PUSAT_AGENT_ROLES)
+        else None
+    )
+    if principal_may_perform_hq_intake_action(principal, org_unit_id=org):
         return principal
-
-    if principal.has_permission("complaints:read") and principal.has_any_role(
-        *_PUSAT_AGENT_ROLES
-    ):
-        resolver = OrgUnitResolver(session)
-        org = resolver.normalize(principal.org_unit_id) or (
-            resolver.resolve_principal_membership(principal.user_id)
-        )
-        if is_pusat_unit(org):
-            return principal
-
     raise PermissionDeniedError(m("escalation.only_scheduler_admin_review"))
 
 
@@ -137,6 +155,7 @@ def require_final_resolution(
 _COMPLAINT_CLOSE_ROLES = (
     "SUPERVISOR",
     "BRANCH_SUPERVISOR",
+    "MANAGER",
     "ADMIN",
     "ADMINISTRATOR",
 )

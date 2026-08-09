@@ -23,6 +23,13 @@ def test_supervisor_escalate_gate() -> None:
     )
     assert require_supervisor_escalate(allowed) is allowed
 
+    manager = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        permissions=frozenset({"complaints:escalate"}),
+    )
+    assert require_supervisor_escalate(manager) is manager
+
     denied = Principal(
         user_id=uuid.uuid4(),
         roles=("AGENT",),

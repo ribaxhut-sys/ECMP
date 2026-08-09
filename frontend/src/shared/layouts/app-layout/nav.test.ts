@@ -52,7 +52,7 @@ describe("Pengaduan Internal nav (prototype catalog, gated by env flag)", () => 
     }
   });
 
-  it("lives as a collapsible subgroup under the PENGADUAN group, alongside Pengaduan Wajib Pajak", () => {
+  it("lives as a collapsible subgroup under the PENGADUAN group, alongside Wajib Pajak", () => {
     const complaintsGroup = APP_NAV_GROUPS.find((g) => g.id === "complaints")!;
     const subgroupIds = (complaintsGroup.subgroups ?? []).map((s) => s.id);
     expect(subgroupIds).toContain(INTERNAL_COMPLAINTS_SUBGROUP_ID);
@@ -70,7 +70,7 @@ describe("Pengaduan Internal nav (prototype catalog, gated by env flag)", () => 
     }
   });
 
-  it("hrefs live under /internal, distinct from /complaints (Pengaduan Wajib Pajak)", () => {
+  it("hrefs live under /internal, distinct from /complaints (Wajib Pajak)", () => {
     const complaintsGroup = APP_NAV_GROUPS.find((g) => g.id === "complaints")!;
     const internalSubgroup = complaintsGroup.subgroups!.find(
       (s) => s.id === INTERNAL_COMPLAINTS_SUBGROUP_ID,
@@ -88,11 +88,35 @@ describe("Pengaduan Internal nav (prototype catalog, gated by env flag)", () => 
 });
 
 describe("APP_NAV_GROUPS", () => {
-  it("covers every primary nav item exactly once (presentation-only grouping)", () => {
-    const itemIds = APP_NAV_ITEMS.map((item) => item.id).sort();
-    const groupedIds = APP_NAV_GROUPS.flatMap((group) => group.itemIds).sort();
-    expect(groupedIds).toEqual(itemIds);
+  it("sidebar groups reference known items exactly once (hidden catalog items omitted)", () => {
+    const itemIds = new Set(APP_NAV_ITEMS.map((item) => item.id));
+    const groupedIds = APP_NAV_GROUPS.flatMap((group) => group.itemIds);
     expect(new Set(groupedIds).size).toBe(groupedIds.length);
+    for (const id of groupedIds) {
+      expect(itemIds.has(id)).toBe(true);
+    }
+    // Antrian / Penugasan / Resolusi remain routable but off the main sidebar.
+    expect(groupedIds).not.toContain("queue");
+    expect(groupedIds).not.toContain("assignments");
+    expect(groupedIds).not.toContain("resolutions");
+    expect(groupedIds).not.toContain("internalAssignments");
+  });
+
+  it("matches the target sidebar hierarchy", () => {
+    const byId = Object.fromEntries(APP_NAV_GROUPS.map((g) => [g.id, g]));
+    expect(byId.complaints.itemIds).toEqual([
+      "dashboard",
+      "complaints",
+      "reports",
+      "internalDashboard",
+      "internalComplaints",
+      "internalFollowUp",
+      "internalVerification",
+      "internalReports",
+    ]);
+    expect(byId.knowledge.itemIds).toEqual(["attachments"]);
+    expect(byId.administration.itemIds).toEqual(["users", "settings"]);
+    expect(byId.overview).toBeUndefined();
   });
 });
 
@@ -186,7 +210,7 @@ describe("isNavItemActive (longest prefix)", () => {
   });
 });
 
-describe("complaints group subgroups (collapsible PENGADUAN WAJIB PAJAK / PENGADUAN INTERNAL)", () => {
+describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () => {
   const complaintsGroup = APP_NAV_GROUPS.find((g) => g.id === "complaints")!;
 
   it("splits Wajib Pajak and Internal into distinct subgroups covering the group's items exactly once", () => {
@@ -197,33 +221,60 @@ describe("complaints group subgroups (collapsible PENGADUAN WAJIB PAJAK / PENGAD
     expect(new Set(subgroupItemIds).size).toBe(subgroupItemIds.length);
   });
 
-  it("Pengaduan Wajib Pajak subgroup carries Pengaduan, Antrean, Penugasan, Resolusi", () => {
+  it("Wajib Pajak subgroup carries Dasbor, Pengaduan, Laporan", () => {
     const taxpayer = complaintsGroup.subgroups!.find(
       (s) => s.id === TAXPAYER_COMPLAINTS_SUBGROUP_ID,
     )!;
-    expect(taxpayer.itemIds).toEqual([
-      "complaints",
-      "queue",
-      "assignments",
-      "resolutions",
+    expect(taxpayer.itemIds).toEqual(["dashboard", "complaints", "reports"]);
+    expect(taxpayer.labelKey).toBe("subgroupTaxpayerComplaints");
+  });
+
+  it("Internal subgroup omits Penugasan from the sidebar", () => {
+    const internal = complaintsGroup.subgroups!.find(
+      (s) => s.id === INTERNAL_COMPLAINTS_SUBGROUP_ID,
+    )!;
+    expect(internal.itemIds).toEqual([
+      "internalDashboard",
+      "internalComplaints",
+      "internalFollowUp",
+      "internalVerification",
+      "internalReports",
     ]);
+    expect(internal.itemIds).not.toContain("internalAssignments");
+    expect(internal.labelKey).toBe("subgroupInternalComplaints");
+  });
+
+  it("keeps distinct report routes per domain (no shared /reports)", () => {
+    const byId = Object.fromEntries(APP_NAV_ITEMS.map((i) => [i.id, i]));
+    expect(byId.reports.href).toBe("/reports");
+    expect(byId.internalReports.href).toBe("/internal/reports");
+    const knowledge = APP_NAV_GROUPS.find((g) => g.id === "knowledge")!;
+    expect(knowledge.itemIds).toEqual(["attachments"]);
+    expect(knowledge.itemIds).not.toContain("reports");
+    expect(knowledge.itemIds).not.toContain("internalReports");
   });
 });
 
 describe("resolveActiveSubgroupId", () => {
   const subgroups = [
-    { id: TAXPAYER_COMPLAINTS_SUBGROUP_ID, hrefs: ["/complaints", "/queue"] },
-    { id: INTERNAL_COMPLAINTS_SUBGROUP_ID, hrefs: ["/internal", "/internal/verification"] },
+    {
+      id: TAXPAYER_COMPLAINTS_SUBGROUP_ID,
+      hrefs: ["/dashboard", "/complaints", "/reports"],
+    },
+    {
+      id: INTERNAL_COMPLAINTS_SUBGROUP_ID,
+      hrefs: ["/internal", "/internal/verification"],
+    },
   ];
   const allHrefs = subgroups.flatMap((s) => s.hrefs);
 
-  it("resolves the subgroup owning the active route (Antrean → Pengaduan Wajib Pajak)", () => {
-    expect(resolveActiveSubgroupId("/queue", subgroups, allHrefs)).toBe(
+  it("resolves the subgroup owning the active route (Pengaduan → Wajib Pajak)", () => {
+    expect(resolveActiveSubgroupId("/complaints", subgroups, allHrefs)).toBe(
       TAXPAYER_COMPLAINTS_SUBGROUP_ID,
     );
   });
 
-  it("resolves the subgroup owning the active route (Verifikasi → Pengaduan Internal)", () => {
+  it("resolves the subgroup owning the active route (Verifikasi → Internal)", () => {
     expect(
       resolveActiveSubgroupId("/internal/verification", subgroups, allHrefs),
     ).toBe(INTERNAL_COMPLAINTS_SUBGROUP_ID);

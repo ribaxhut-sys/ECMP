@@ -21,6 +21,8 @@ export function cmCasePaths() {
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/status`,
     resolve: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/resolve`,
+    acceptance: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/acceptance`,
     close: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/close`,
   } as const;

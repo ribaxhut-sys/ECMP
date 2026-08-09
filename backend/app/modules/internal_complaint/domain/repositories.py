@@ -1,0 +1,29 @@
+"""Repository port for Pengaduan Internal."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from app.modules.internal_complaint.domain.aggregate import InternalComplaintAggregate
+
+
+class InternalComplaintRepository(Protocol):
+    def next_number(self, year: int) -> str: ...
+
+    def save(self, complaint: InternalComplaintAggregate) -> InternalComplaintAggregate: ...
+
+    def get(self, complaint_id: str) -> InternalComplaintAggregate | None: ...
+
+    def list_summaries(
+        self,
+        *,
+        visibility: str,
+        actor_id: str,
+        org_unit_id: str | None,
+        pusat_unit_codes: frozenset[str],
+        status: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list, int]: ...
+
+    def commit(self) -> None: ...

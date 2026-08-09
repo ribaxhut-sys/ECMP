@@ -72,8 +72,10 @@ tags:
     description: FR-004 Update Case Status (Mode A Delivery Transition Subset)
   - name: CM-Case-Resolve
     description: FR-005 Resolve Case
+  - name: CM-Case-Acceptance
+    description: F4 dual-party closure acceptance (Handling Unit / Owner)
   - name: CM-Case-Close
-    description: FR-006 Close Case
+    description: FR-006 Close Case (compatibility; dual-acceptance gate)
 
 paths:
   /api/v1/cm/cases:
@@ -84,8 +86,8 @@ paths:
 
         Visibility classes:
         - SELF (Agent): `createdBy = principal` (Mode A interim; BQ-006 has no assigned user column)
-        - UNIT (Supervisor/Manager cabang): `owningUnitId = principal.orgUnitId` only
-        - PUSAT: `owningUnitId` in Pusat unit codes (escalation filter when API-520 ships)
+        - UNIT (Supervisor/Manager cabang): `owningUnitId` **or** `ownerUnitId` = principal.orgUnitId (F4 Owner retains visibility after Handling Unit transfer)
+        - PUSAT: `owningUnitId` **or** `ownerUnitId` in Pusat unit codes
         - ALL (Admin): no row filter
 
         Permission gate: `complaints:read` (DEC-024 OQ-4).
@@ -660,24 +662,104 @@ paths:
                     code: INVALID_STATE
                     detail: Mode A Resolve requires Case status IN_PROGRESS.
 
+  /api/v1/cm/cases/{caseId}/acceptance:
+    post:
+      summary: Record Handling Unit / Owner closure acceptance
+      description: |
+        F4 closure rule — Handling Unit and Owner each ACCEPT or REJECT the
+        resolution independently while Case status is `RESOLVED`.
+
+        - `party=HANDLING_UNIT` — actor must be Supervisor/Manager on the
+          current handling unit (`owningUnitId`).
+        - `party=OWNER` — actor must be Supervisor/Manager on `ownerUnitId`.
+        - Creator SoD applies (creator cannot be the sole approver).
+        - Agent may not submit final acceptance.
+        - REJECT returns the Case to `IN_PROGRESS` (existing state machine).
+        - When both parties have ACCEPT, Case becomes `CLOSED` as a
+          consequence of the second acceptance (no third approval step).
+
+        Permission gate: `complaints:update` plus party/role/unit/SoD AuthZ.
+        Does not invent acceptances for Cases closed before F4.
+      operationId: cmB2RecordCaseAcceptance
+      x-ecmp-logical-id: API-CM-B2-008
+      x-ecmp-fr: FR-006
+      x-ecmp-cap: CAP-008
+      x-ecmp-dec:
+        - DEC-MODEA-B2-001
+      tags: [CM-Case-Acceptance]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordAcceptanceRequest"
+            examples:
+              ownerAccept:
+                summary: Owner accepts resolution
+                value:
+                  party: OWNER
+                  decision: ACCEPT
+              handlingUnitReject:
+                summary: Handling Unit rejects with note
+                value:
+                  party: HANDLING_UNIT
+                  decision: REJECT
+                  note: Perlu perbaikan data bukti.
+      responses:
+        "200":
+          description: |
+            Acceptance recorded. Status remains RESOLVED until both parties
+            ACCEPT, then CLOSED. REJECT → IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Case not RESOLVED / invalid acceptance state
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
   /api/v1/cm/cases/{caseId}/close:
     post:
       summary: Close Case
       description: |
-        Closes a Case after Resolution Accepted / status `RESOLVED` and Supervisor
-        Approval completed (FR-006 / BQ-008 / BR-CM-CAT `RESOLVED→CLOSED`).
+        Compatibility close endpoint (FR-006 / API-535).
+
+        F4: `CLOSED` is the consequence of dual acceptance
+        (Handling Unit ACCEPT **and** Owner ACCEPT). Prefer recording the
+        second acceptance via `POST .../acceptance`, which triggers CLOSED
+        when both parties have accepted.
+
+        This endpoint **cannot bypass** dual acceptance:
+        - missing Handling Unit ACCEPT → `HANDLING_UNIT_ACCEPTANCE_REQUIRED`
+        - missing Owner ACCEPT → `OWNER_ACCEPTANCE_REQUIRED`
+        - already CLOSED (e.g. via dual-acceptance trigger) → idempotent 200
 
         Close Case Checklist minimum (LOCKED Operational Spec):
-        1. Case status = RESOLVED
+        1. Case status = RESOLVED (or already CLOSED for idempotent replay)
         2. Final Resolution Accepted still valid
         3. Supervisor Approval after RESOLVED completed
-        4. Closer authorized — Supervisor Unit (primary)
-
-        NOT SPECIFIED (MUST NOT invent as mandatory gates):
-        - Case Handler closer activation in Mode A
-        - Comment / Attachment required at Close moment
-        - Category evidence required at Close moment
-        - Checklist items beyond #1–#4
+        4. Both F4 party acceptances = ACCEPT
+        5. Closer authorized — Supervisor/Manager Unit (primary)
 
         MUST NOT auto-close Complaint Aggregate (BQ-007), including last open Case.
       operationId: cmB2CloseCase
@@ -732,7 +814,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "409":
-          description: Checklist not met / not RESOLVED / approval missing
+          description: Checklist not met / dual acceptance missing / not RESOLVED
           content:
             application/problem+json:
               schema:
@@ -745,6 +827,20 @@ paths:
                     status: 409
                     code: INVALID_STATE
                     detail: Close requires Case status RESOLVED.
+                ownerAcceptanceRequired:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: OWNER_ACCEPTANCE_REQUIRED
+                    detail: Owner must accept the resolution before Close.
+                handlingUnitAcceptanceRequired:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: HANDLING_UNIT_ACCEPTANCE_REQUIRED
+                    detail: Handling Unit must accept the resolution before Close.
                 approvalRequired:
                   value:
                     type: about:blank
@@ -931,13 +1027,60 @@ components:
           type:
             - string
             - "null"
-          description: Unit ownership (Mode A). Null when status=CREATED without assign.
+          description: |
+            Current Handling Unit (mutable on transfer). Null when status=CREATED
+            without assign.
+        ownerUnitId:
+          type:
+            - string
+            - "null"
+          description: |
+            F4 Owner unit — unit that created the parent Complaint; immutable
+            for the Case lifecycle.
         customerId:
           type: string
           description: From parent Complaint (CustomerId only)
         createdAt:
           type: string
           format: date-time
+        createdBy:
+          type: string
+
+    CaseAcceptance:
+      type: object
+      description: F4 Handling Unit / Owner closure acceptance record
+      required:
+        - acceptanceId
+        - party
+        - decision
+        - actorId
+        - decidedAt
+      properties:
+        acceptanceId:
+          type: string
+        party:
+          type: string
+          enum:
+            - OWNER
+            - HANDLING_UNIT
+        decision:
+          type: string
+          enum:
+            - ACCEPT
+            - REJECT
+        actorId:
+          type: string
+        actorUnitId:
+          type:
+            - string
+            - "null"
+        decidedAt:
+          type: string
+          format: date-time
+        note:
+          type:
+            - string
+            - "null"
 
     CaseResolution:
       type: object
@@ -1034,7 +1177,15 @@ components:
           type:
             - string
             - "null"
-          description: Mode A Unit ownership. Assigned User is outside Mode A.
+          description: |
+            Current Handling Unit (mutable on transfer). Assigned User is outside Mode A.
+        ownerUnitId:
+          type:
+            - string
+            - "null"
+          description: |
+            F4 Owner unit snapshotted from the parent Complaint at Case creation.
+            Never changes when Handling Unit transfers.
         assignedUserId:
           type:
             - string
@@ -1092,6 +1243,43 @@ components:
             Informational. When first Case created on REGISTERED Complaint,
             Complaint becomes IN_PROGRESS (BR-004). Close Case does not set
             Complaint CLOSED (BQ-007).
+        handlingUnitAcceptance:
+          oneOf:
+            - $ref: "#/components/schemas/CaseAcceptance"
+            - type: "null"
+          description: Current Handling Unit acceptance pointer (F4).
+        ownerAcceptance:
+          oneOf:
+            - $ref: "#/components/schemas/CaseAcceptance"
+            - type: "null"
+          description: Current Owner acceptance pointer (F4).
+        acceptanceHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseAcceptance"
+          description: Append-only F4 acceptance history (immutable).
+
+    RecordAcceptanceRequest:
+      type: object
+      required:
+        - party
+        - decision
+      properties:
+        party:
+          type: string
+          enum:
+            - OWNER
+            - HANDLING_UNIT
+        decision:
+          type: string
+          enum:
+            - ACCEPT
+            - REJECT
+        note:
+          type:
+            - string
+            - "null"
+          description: Required when decision=REJECT.
 
     CreateCaseRequest:
       type: object

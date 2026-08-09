@@ -48,7 +48,11 @@ class CmCaseORM(Base):
     subject: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Current handling unit — mutated on transfer (ASSIGNED).
     owning_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # F4 owner rule — parent Complaint's owning unit, snapshotted once at
+    # Case creation. Application layer never updates this after insert.
+    owner_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sla_policy_version_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sla_countdown_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
@@ -106,6 +110,46 @@ class CmCaseResolutionORM(Base):
         DateTime(timezone=True), nullable=True
     )
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmCaseAcceptanceORM(Base):
+    """F4 closure rule — Handling Unit / Owner acceptance decisions.
+
+    Append-only audit trail (mirrors ``CmCaseResolutionORM``). Rows are
+    never updated or deleted; ``CaseAggregate.handling_unit_acceptance`` /
+    ``owner_acceptance`` are current-state pointers derived by the mapper,
+    not stored separately here.
+    """
+
+    __tablename__ = "cm_case_acceptances"
+    __table_args__ = (Index("ix_cm_case_acceptances_case_id", "case_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_cases.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    party: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    actor_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

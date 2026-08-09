@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { fetchBranches } from "@/lib/api/branches";
@@ -29,6 +29,7 @@ import { cn } from "@/shared/utils";
 import {
   APP_NAV_GROUPS,
   APP_NAV_ITEMS,
+  INTERNAL_COMPLAINTS_SUBGROUP_ID,
   isInternalNavItemId,
   isNavItemActive,
   isNavItemVisible,
@@ -139,14 +140,6 @@ function NavLink({
           : "text-ecmp-text-secondary hover:bg-ecmp-hover hover:text-ecmp-text-primary",
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-ecmp-primary",
-          "transition-opacity duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
-          active ? "opacity-100" : "opacity-0 group-hover:opacity-35",
-        )}
-      />
       <Icon
         className={cn(
           "size-5 shrink-0",
@@ -176,12 +169,12 @@ function Brand({
 }) {
   const tCommon = useTranslations("common");
   const content = (
-    <span className="flex flex-col gap-0.5 leading-tight">
-      <span className="text-[length:var(--ecmp-font-card-title-size)] font-semibold tracking-tight text-ecmp-text-primary">
+    <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
+      <span className="truncate text-[1.25rem] font-semibold tracking-tight text-ecmp-primary">
         {tCommon("appName")}
       </span>
       {branchName ? (
-        <span className="truncate text-[14px] font-medium text-ecmp-primary">
+        <span className="truncate text-[14px] font-semibold text-ecmp-text-primary">
           {branchName}
         </span>
       ) : null}
@@ -253,6 +246,40 @@ const GROUP_HEADING_CLASS =
   "px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted";
 
 /**
+ * Soft domain panel chrome — distinguishes Wajib Pajak vs Internal without
+ * heavy cards. Collapse/expand behaviour is unchanged.
+ */
+function resolveDomainChrome(subgroupId: string): {
+  panel: string;
+  label: string;
+  hoverLabel: string;
+} {
+  if (subgroupId === INTERNAL_COMPLAINTS_SUBGROUP_ID) {
+    return {
+      panel:
+        "rounded-[var(--ecmp-radius-md)] border border-ecmp-info/20 bg-ecmp-info-muted/45 pl-0.5 border-l-[3px] border-l-ecmp-info",
+      label: "text-ecmp-info",
+      hoverLabel: "hover:text-ecmp-info",
+    };
+  }
+  // Default: Wajib Pajak (and any non-internal subgroup)
+  return {
+    panel:
+      "rounded-[var(--ecmp-radius-md)] border border-ecmp-primary/15 bg-ecmp-primary-muted/40 pl-0.5 border-l-[3px] border-l-ecmp-primary",
+    label: "text-ecmp-primary",
+    hoverLabel: "hover:text-ecmp-primary",
+  };
+}
+
+/**
+ * Domain subgroup heading — uppercase + weight 600 (match PELAYANAN).
+ * `!font-[600]` beats the global `button { font: inherit }` reset that
+ * otherwise wipes Tailwind weight utilities on disclosure buttons.
+ */
+const SUBGROUP_HEADING_BASE_CLASS =
+  "px-3 pt-1 pb-1 text-[17px] !font-[600] uppercase tracking-tight";
+
+/**
  * Expand/collapse state for the complaint subgroups.
  *
  * Presentation only — `subgroups` arrives already permission-filtered, so a
@@ -272,19 +299,16 @@ function useSubgroupExpansion(
     allHrefs,
   );
 
-  // "Otomatis" re-derives from the route: entering another domain drops the
-  // manual toggles made while the previous domain was active.
-  const lastActive = useRef<string | null>(activeSubgroupId);
+  // Any navigation re-syncs "auto" to the route-owned subgroup.
   useEffect(() => {
-    if (lastActive.current !== activeSubgroupId) {
-      lastActive.current = activeSubgroupId;
-      setOverrides({});
-    }
-  }, [activeSubgroupId]);
+    setOverrides({});
+  }, [pathname]);
+
+  const subgroupIds = subgroups.map((subgroup) => subgroup.id);
 
   const resolved = resolveExpandedSubgroups({
     mode,
-    subgroupIds: subgroups.map((subgroup) => subgroup.id),
+    subgroupIds,
     activeSubgroupId,
     remembered,
     overrides,
@@ -301,7 +325,22 @@ function useSubgroupExpansion(
         setSubgroupExpanded(id, next);
         return;
       }
-      setOverrides((prev) => ({ ...prev, [id]: next }));
+      // auto: accordion — opening one domain closes the others.
+      if (next) {
+        const exclusive: Record<string, boolean> = {};
+        for (const subgroupId of subgroupIds) {
+          exclusive[subgroupId] = subgroupId === id;
+        }
+        setOverrides(exclusive);
+        return;
+      }
+      setOverrides(() => {
+        const closed: Record<string, boolean> = {};
+        for (const subgroupId of subgroupIds) {
+          closed[subgroupId] = false;
+        }
+        return closed;
+      });
     },
   };
 }
@@ -329,10 +368,13 @@ function NavSubgroupSection({
   const headingId = `nav-subgroup-${subgroup.id}`;
   const panelId = `nav-subgroup-panel-${subgroup.id}`;
   const label = t(subgroup.labelKey);
+  const chrome = resolveDomainChrome(subgroup.id);
 
   return (
-    <div className="flex flex-col gap-0.5">
-      {collapsible ? (
+    <div
+      className={cn("flex flex-col gap-0.5 py-1", chrome.panel)}
+      data-domain-active={containsActive ? "true" : "false"}
+    >      {collapsible ? (
         <button
           type="button"
           id={headingId}
@@ -340,31 +382,32 @@ function NavSubgroupSection({
           aria-controls={panelId}
           onClick={onToggle}
           className={cn(
-            "ecmp-touch flex w-full items-center gap-2 rounded-[var(--ecmp-radius-md)] px-3 py-1.5",
-            "text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted",
+            "ecmp-touch group flex w-full items-center gap-1.5 rounded-[var(--ecmp-radius-md)] px-3 py-1.5",
+            SUBGROUP_HEADING_BASE_CLASS,
+            chrome.label,
             "transition-colors duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
-            "hover:bg-ecmp-hover hover:text-ecmp-text-primary",
+            "hover:bg-ecmp-hover/60",
+            chrome.hoverLabel,
             "focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus",
           )}
         >
+          {/* Quiet disclosure: chevron reserved in layout, visible on hover/focus only. */}
           <IconChevronDown
             aria-hidden
             className={cn(
-              "size-4 shrink-0 transition-transform duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)] motion-reduce:transition-none",
+              "size-3 shrink-0 opacity-0",
+              "transition-[opacity,transform] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)] motion-reduce:transition-none",
+              "group-hover:opacity-70 group-focus-visible:opacity-70",
               expanded ? "rotate-0" : "-rotate-90 rtl:rotate-90",
             )}
           />
-          <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-          {!expanded && containsActive ? (
-            // Non-colour cue that the collapsed group owns the current page.
-            <span
-              aria-hidden
-              className="size-1.5 shrink-0 rounded-full bg-ecmp-primary"
-            />
-          ) : null}
+          <span className="min-w-0 truncate text-left !font-[600]">{label}</span>
         </button>
       ) : (
-        <p id={headingId} className={cn(GROUP_HEADING_CLASS, "pt-1")}>
+        <p
+          id={headingId}
+          className={cn(SUBGROUP_HEADING_BASE_CLASS, chrome.label)}
+        >
           {label}
         </p>
       )}
@@ -373,7 +416,7 @@ function NavSubgroupSection({
         role="group"
         aria-labelledby={headingId}
         hidden={!expanded}
-        className="flex flex-col gap-0.5"
+        className="flex flex-col gap-0.5 px-0.5 pb-0.5"
       >
         {items.map((item) => (
           <NavLink
@@ -435,7 +478,7 @@ function NavGroupSection({
 
   const body =
     visibleSubgroups.length > 0 ? (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5">
         {visibleSubgroups.map((entry) => (
           <NavSubgroupSection
             key={entry.subgroup.id}
@@ -487,7 +530,7 @@ function NavSections({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav
       aria-label={tCommon("primaryNav")}
-      className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4"
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-4"
     >
       {groups.map((group) => (
         <NavGroupSection
@@ -513,7 +556,11 @@ export function Sidebar() {
   return (
     <>
       <aside
-        className="hidden w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border/80 bg-ecmp-surface lg:flex lg:flex-col"
+        className={cn(
+          "hidden h-full w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border/80 bg-ecmp-surface",
+          // Height comes from AppLayout's h-dvh shell — only <main> scrolls.
+          "lg:flex lg:flex-col lg:overflow-hidden",
+        )}
         aria-label={tCommon("appSidebar")}
       >
         <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">

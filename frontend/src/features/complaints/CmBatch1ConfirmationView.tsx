@@ -41,12 +41,20 @@ import {
 import { useToast } from "@/shared/providers";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
 import {
+  canCmBatch1HqReview,
+  cmBatch1BlobEventCodes,
+  isCmBatch1HqAcceptScheduleReady,
+  isCmBatch1HqNoteReady,
+  isCmBatch1HqRescheduleReady,
+  isCmBatch1PusatUnitCode,
+  resolveCmBatch1HqActionVisibility,
+} from "./cmBatch1HqActions";
+import {
   PRIORITY_OPTIONS,
   parseCmBatch1Description,
 } from "./createComplaintForm";
 
 const REJECT_NOTE_MIN = 20;
-const HQ_RETURN_NOTE_MIN = 10;
 const LOG_PAGE_SIZE = 10;
 const APPROVE_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 const HQ_RETURN_REASON_CODES: CmBatch1HqReturnReasonCode[] = [
@@ -57,12 +65,6 @@ const HQ_RETURN_REASON_CODES: CmBatch1HqReturnReasonCode[] = [
   "ADDITIONAL_EVIDENCE_REQUIRED",
   "OTHER",
 ];
-const PUSAT_AGENT_ROLES = new Set([
-  "AGENT",
-  "CS_AGENT",
-  "HANDLER",
-  "BRANCH_OFFICER",
-]);
 
 /** Event code → badge tone. Unknown codes stay neutral rather than disappear. */
 const HISTORY_TONES: Record<string, BadgeTone> = {
@@ -149,11 +151,11 @@ export function CmBatch1ConfirmationView({
   const canRequestEscalation =
     hasPermission("complaints:create") ||
     hasPermission("complaints:escalate");
-  const [isPusatUnitMember, setIsPusatUnitMember] = useState(false);
+  const [unitCode, setUnitCode] = useState<string | null>(null);
   useEffect(() => {
     const branchId = user?.branchId?.trim();
     if (!branchId) {
-      setIsPusatUnitMember(false);
+      setUnitCode(null);
       return;
     }
     let cancelled = false;
@@ -162,24 +164,21 @@ export function CmBatch1ConfirmationView({
         const res = await fetchBranches(100);
         if (cancelled) return;
         const mine = res.data.find((b) => b.id === branchId);
-        setIsPusatUnitMember(
-          Boolean(mine && mine.code.toUpperCase() === "PUSAT"),
-        );
+        setUnitCode(mine?.code ?? null);
       } catch {
-        if (!cancelled) setIsPusatUnitMember(false);
+        if (!cancelled) setUnitCode(null);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [user?.branchId]);
-  const isPusatAgent = roles.some((r) =>
-    PUSAT_AGENT_ROLES.has((r || "").toUpperCase()),
-  )
-    ? isPusatUnitMember
-    : false;
-  const canHqReview =
-    hasPermission("escalations:review") || isPusatAgent;
+  const isPusatUnitMember = isCmBatch1PusatUnitCode(unitCode);
+  const canHqReview = canCmBatch1HqReview({
+    roles,
+    hasPermission,
+    unitCode,
+  });
 
   const [data, setData] = useState<CmBatch1ComplaintResponse | null>(null);
   const [history, setHistory] = useState<CmBatch1IntakeHistoryEntry[]>([]);
@@ -398,10 +397,10 @@ export function CmBatch1ConfirmationView({
     if (!data) return;
     const note = arrivalNote.trim();
     if (!arrivalDate.trim() || !arrivalTime.trim()) return;
-    if (note.length < HQ_RETURN_NOTE_MIN) return;
-    setDeciding(true);
-    try {
-      const res = await acceptAndScheduleCmBatch1HqEscalation(data.complaintId, {
+    if (!isCmBatch1HqNoteReady(note)) return;
+      setDeciding(true);
+      try {
+        const res = await acceptAndScheduleCmBatch1HqEscalation(data.complaintId, {
         arrivalDate: arrivalDate.trim(),
         arrivalTime: arrivalTime.trim(),
         note,
@@ -430,7 +429,7 @@ export function CmBatch1ConfirmationView({
   async function submitHqReturn(): Promise<void> {
     if (!data) return;
     const note = hqReturnNote.trim();
-    if (note.length < HQ_RETURN_NOTE_MIN) return;
+    if (!isCmBatch1HqNoteReady(note)) return;
     setDeciding(true);
     try {
       const res = await returnCmBatch1HqEscalation(data.complaintId, {
@@ -515,8 +514,23 @@ export function CmBatch1ConfirmationView({
   const pendingEscalation =
     data?.status === "REGISTERED" &&
     disposition === "ESCALATE_PENDING_APPROVAL";
-  const approvedEscalation =
-    data?.status === "REGISTERED" && disposition === "ESCALATE_APPROVED";
+  const hqActions = resolveCmBatch1HqActionVisibility(
+    {
+      status: data?.status,
+      intakeDisposition: data?.intakeDisposition,
+      hqAcceptedAt: data?.hqAcceptedAt,
+      hqArrivalDate: data?.hqArrivalDate,
+      caseCreated: data?.caseCreated,
+    },
+    canHqReview,
+  );
+  const {
+    approvedEscalation,
+    showHqAcceptAndSchedule,
+    showHqReturn,
+    showHqReschedule,
+    showBranchNotifyBanner,
+  } = hqActions;
   const showSupervisorActions = pendingEscalation && canDecideEscalation;
   const showCancelEscalation =
     approvedEscalation &&
@@ -533,31 +547,23 @@ export function CmBatch1ConfirmationView({
     canRequestEscalation &&
     !data?.hqAcceptedAt &&
     !data?.caseCreated;
-  const showHqAcceptAndSchedule =
-    approvedEscalation && canHqReview && !data?.hqAcceptedAt;
-  const showHqReturn =
-    approvedEscalation && canHqReview && !data?.hqAcceptedAt;
-  const hqScheduled =
-    data?.status === "REGISTERED" && disposition === "HQ_SCHEDULED";
-  const showHqReschedule =
-    canHqReview &&
-    Boolean(data?.hqAcceptedAt) &&
-    (approvedEscalation || hqScheduled);
-  const showBranchNotifyBanner =
-    hqScheduled && Boolean(data?.hqArrivalDate) && !canHqReview;
   const showManageCases =
     !intakeClosed &&
     !pendingEscalation &&
     !intakeEscalate &&
     !canHqReview &&
     !isPusatUnitMember;
-  const hqReturnNoteOk = hqReturnNote.trim().length >= HQ_RETURN_NOTE_MIN;
-  const hqAcceptScheduleReady =
-    Boolean(arrivalDate.trim() && arrivalTime.trim()) &&
-    arrivalNote.trim().length >= HQ_RETURN_NOTE_MIN;
-  const hqScheduleReady =
-    Boolean(arrivalDate.trim() && arrivalTime.trim()) &&
-    (!arrivalNote.trim() || arrivalNote.trim().length >= HQ_RETURN_NOTE_MIN);
+  const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
+  const hqAcceptScheduleReady = isCmBatch1HqAcceptScheduleReady({
+    arrivalDate,
+    arrivalTime,
+    arrivalNote,
+  });
+  const hqScheduleReady = isCmBatch1HqRescheduleReady({
+    arrivalDate,
+    arrivalTime,
+    arrivalNote,
+  });
 
   const priorityRaw = (data?.priority || "").toUpperCase();
   const priorityKnown = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -662,34 +668,19 @@ export function CmBatch1ConfirmationView({
   /** Rows reconstructed from the blob when no event log exists (pre-API-517 rows). */
   function blobOnlyRows(): IntakeLogRow[] {
     if (!data) return [];
-    const disposition = data.intakeDisposition ?? "";
-    const codes: string[] = ["REGISTERED"];
-    if (
-      intakeHistory.escalationReason ||
-      disposition.startsWith("ESCALATE_")
-    ) {
-      codes.push("ESCALATION_REQUESTED");
-    }
-    if (
-      intakeHistory.branchResolution ||
-      intakeClosed ||
-      disposition === "BRANCH_CLOSED"
-    ) {
-      codes.push("BRANCH_CLOSED");
-    }
-    if (intakeHistory.supervisorNote || disposition === "ESCALATE_APPROVED") {
-      codes.push("ESCALATION_APPROVED");
-    }
-    if (intakeHistory.rejectionNote || disposition === "ESCALATE_REJECTED") {
-      codes.push("ESCALATION_REJECTED");
-    }
-    if (intakeHistory.cancellationNote || disposition === "ESCALATE_CANCELLED") {
-      codes.push("ESCALATION_CANCELLED");
-    }
-    if (data.hqAcceptedAt) codes.push("HQ_ACCEPTED");
-    if (data.hqArrivalDate && data.hqArrivalTime) {
-      codes.push("HQ_ARRIVAL_SCHEDULED");
-    }
+    const codes = cmBatch1BlobEventCodes({
+      intakeDisposition: data.intakeDisposition,
+      escalationReason: intakeHistory.escalationReason,
+      branchResolution: intakeHistory.branchResolution,
+      supervisorNote: intakeHistory.supervisorNote,
+      rejectionNote: intakeHistory.rejectionNote,
+      cancellationNote: intakeHistory.cancellationNote,
+      hqReturnNote: data.hqReturnNote,
+      hqAcceptedAt: data.hqAcceptedAt,
+      hqArrivalDate: data.hqArrivalDate,
+      hqArrivalTime: data.hqArrivalTime,
+      intakeClosed,
+    });
     return codes.map((code) => ({
       key: `blob-${code}`,
       code,

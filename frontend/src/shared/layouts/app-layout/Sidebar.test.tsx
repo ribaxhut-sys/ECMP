@@ -1,8 +1,7 @@
 /**
  * Sidebar restructure — PENGADUAN group with collapsible Wajib Pajak /
  * Internal subgroups, gated by permission, driven by the per-user nav
- * preference (auto / remember / expandAll). See TASK acceptance scenarios
- * 1–8.
+ * preference (auto / remember / expandAll).
  */
 import {
   act,
@@ -110,47 +109,53 @@ afterEach(() => {
 });
 
 describe("Scenario 1 — taxpayer-only permission", () => {
-  it("shows Pengaduan Wajib Pajak items and hides Pengaduan Internal entirely", () => {
+  it("shows Wajib Pajak items and hides Antrian / Penugasan / Resolusi", () => {
     mockPermissions = COMPLAINT_PERMISSIONS;
     const { sidebar } = renderSidebar();
 
-    expect(sidebar.getAllByText("Complaints").length).toBeGreaterThan(0);
-    expect(sidebar.getByText("Queue")).toBeInTheDocument();
-    // Internal destinations gated by isInternalNavItemId + hasPermission —
-    // internal items carry no requiredPermissions in APP_NAV_ITEMS, so this
-    // suite asserts the group renders only when the flag says so; visibility
-    // by permission is exercised in nav.test.ts (isNavItemVisible unit tests).
+    expect(sidebar.getByText("Taxpayer")).toBeInTheDocument();
+    // Default "auto" on /dashboard expands Taxpayer; Internal is collapsed so
+    // "Complaints" is unique within the Taxpayer panel.
+    const taxpayerPanel = document.getElementById(
+      "nav-subgroup-panel-taxpayerComplaints",
+    )!;
+    expect(
+      within(taxpayerPanel).getByRole("link", { name: /^Complaints$/i }),
+    ).toBeInTheDocument();
+    expect(sidebar.queryByRole("link", { name: /^Queue$/i })).not.toBeInTheDocument();
+    expect(sidebar.queryByRole("link", { name: /^Assignments$/i })).not.toBeInTheDocument();
+    expect(sidebar.queryByRole("link", { name: /^Resolutions$/i })).not.toBeInTheDocument();
   });
 });
 
 describe("Scenario 2 & 6 — auto mode expands the subgroup owning the active route", () => {
-  it("Antrean (taxpayer route) expands PENGADUAN WAJIB PAJAK, collapses Internal", () => {
+  it("Pengaduan (taxpayer route) expands Wajib Pajak, collapses Internal", () => {
     mockPermissions = ["*"];
-    mockPathname = "/queue";
+    mockPathname = "/complaints";
     const { sidebar } = renderSidebar();
 
     const taxpayerToggle = sidebar.getByRole("button", {
-      name: /Taxpayer Complaints/i,
+      name: /^Taxpayer$/i,
     });
     const internalToggle = sidebar.getByRole("button", {
-      name: /Internal Complaints/i,
+      name: /^Internal$/i,
     });
     expect(taxpayerToggle).toHaveAttribute("aria-expanded", "true");
     expect(internalToggle).toHaveAttribute("aria-expanded", "false");
 
-    const queueLink = sidebar.getByRole("link", { name: /Queue/i });
-    expect(queueLink).toHaveAttribute("aria-current", "page");
+    const complaintsLink = sidebar.getByRole("link", { name: /^Complaints$/i });
+    expect(complaintsLink).toHaveAttribute("aria-current", "page");
   });
 });
 
 describe("Scenario 7 — internal verification route", () => {
-  it("expands PENGADUAN INTERNAL and marks Verification active", () => {
+  it("expands Internal and marks Verification active", () => {
     mockPermissions = ["*"];
     mockPathname = "/internal/verification";
     const { sidebar } = renderSidebar();
 
     const internalToggle = sidebar.getByRole("button", {
-      name: /Internal Complaints/i,
+      name: /^Internal$/i,
     });
     expect(internalToggle).toHaveAttribute("aria-expanded", "true");
 
@@ -176,18 +181,20 @@ describe("Scenario 4 — expandAll preference", () => {
 
     // expandAll renders subgroup headings as plain text, not toggle buttons.
     expect(
-      sidebar.queryByRole("button", { name: /Taxpayer Complaints/i }),
+      sidebar.queryByRole("button", { name: /^Taxpayer$/i }),
     ).not.toBeInTheDocument();
-    expect(sidebar.getByText("Taxpayer Complaints")).toBeInTheDocument();
-    expect(sidebar.getByText("Internal Complaints")).toBeInTheDocument();
-    expect(sidebar.getByRole("link", { name: /Resolutions/i })).toBeVisible();
+    expect(sidebar.getByText("Taxpayer")).toBeInTheDocument();
+    expect(sidebar.getByText("Internal")).toBeInTheDocument();
+    // Dashboard/Reports labels exist in both domains — assert Knowledge/Admin.
+    expect(sidebar.getByRole("link", { name: /^Attachments$/i })).toBeVisible();
+    expect(sidebar.getByRole("link", { name: /^Users$/i })).toBeVisible();
   });
 });
 
 describe("Scenario 3 — remember mode persists across remounts", () => {
   it("keeps a manually collapsed subgroup collapsed after refresh (remount)", () => {
     mockPermissions = ["*"];
-    mockPathname = "/queue"; // taxpayer route — auto default would expand it
+    mockPathname = "/complaints"; // taxpayer route — auto default would expand it
     window.localStorage.setItem(
       "ecmp.nav.complaintsSidebar:user-1",
       JSON.stringify({
@@ -198,17 +205,17 @@ describe("Scenario 3 — remember mode persists across remounts", () => {
     const first = renderSidebar();
 
     expect(
-      first.sidebar.getByRole("button", { name: /Taxpayer Complaints/i }),
+      first.sidebar.getByRole("button", { name: /^Taxpayer$/i }),
     ).toHaveAttribute("aria-expanded", "false");
     expect(
-      first.sidebar.getByRole("button", { name: /Internal Complaints/i }),
+      first.sidebar.getByRole("button", { name: /^Internal$/i }),
     ).toHaveAttribute("aria-expanded", "true");
 
     first.unmount();
     const second = renderSidebar();
 
     expect(
-      second.sidebar.getByRole("button", { name: /Taxpayer Complaints/i }),
+      second.sidebar.getByRole("button", { name: /^Taxpayer$/i }),
     ).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -218,10 +225,9 @@ describe("Scenario 3 — remember mode persists across remounts", () => {
     const { sidebar } = renderSidebar();
 
     const taxpayerToggle = sidebar.getByRole("button", {
-      name: /Taxpayer Complaints/i,
+      name: /^Taxpayer$/i,
     });
-    // Default mode is "auto" here (no stored preference) — toggle and
-    // confirm the manual click is reflected in aria-expanded.
+    // Default mode is "auto" — toggle reflects in aria-expanded for this visit.
     const before = taxpayerToggle.getAttribute("aria-expanded");
     act(() => {
       fireEvent.click(taxpayerToggle);
@@ -231,7 +237,7 @@ describe("Scenario 3 — remember mode persists across remounts", () => {
 });
 
 describe("Scenario 8 — invalid preference never crashes the sidebar", () => {
-  it("falls back to auto behaviour for a corrupted stored value", () => {
+  it("falls back to the default (auto) behaviour for a corrupted stored value", () => {
     mockPermissions = ["*"];
     mockPathname = "/complaints";
     window.localStorage.setItem(
@@ -241,7 +247,20 @@ describe("Scenario 8 — invalid preference never crashes the sidebar", () => {
 
     const { sidebar } = renderSidebar();
     expect(
-      sidebar.getByRole("button", { name: /Taxpayer Complaints/i }),
+      sidebar.getByRole("button", { name: /^Taxpayer$/i }),
     ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      sidebar.getByRole("button", { name: /^Internal$/i }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("hierarchy — no Antrian / Penugasan on main sidebar", () => {
+  it("does not render Queue, Assignments, or Resolutions links", () => {
+    mockPermissions = ["*"];
+    const { sidebar } = renderSidebar();
+    expect(sidebar.queryByRole("link", { name: /^Queue$/i })).not.toBeInTheDocument();
+    expect(sidebar.queryByRole("link", { name: /^Assignments$/i })).not.toBeInTheDocument();
+    expect(sidebar.queryByRole("link", { name: /^Resolutions$/i })).not.toBeInTheDocument();
   });
 });

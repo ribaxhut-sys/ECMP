@@ -13,11 +13,13 @@ from app.core.authorization.principal import Principal
 from app.modules.audit.repository import AuditRepository
 from app.modules.audit.service import AuditService
 from app.modules.cm_case.application.dto import (
+    AcceptanceDTO,
     AddCaseCommand,
     CaseDTO,
     CaseSummaryDTO,
     CloseCaseCommand,
     CreateCaseCommand,
+    RecordAcceptanceCommand,
     ResolutionDTO,
     ResolveCaseCommand,
     UpdateStatusCommand,
@@ -27,10 +29,16 @@ from app.modules.cm_case.application.visibility import (
     resolve_case_visibility,
 )
 from app.modules.cm_case.domain import errors as err
-from app.modules.cm_case.domain.aggregate import CaseAggregate, ResolutionRecord
+from app.modules.cm_case.domain.aggregate import (
+    AcceptanceRecord,
+    CaseAggregate,
+    ResolutionRecord,
+)
 from app.modules.cm_case.domain.repositories import CaseRepository
 from app.modules.cm_case.domain.value_objects import (
     MAX_CASES_PER_COMPLAINT,
+    AcceptanceDecision,
+    AcceptanceParty,
     CaseNumber,
     ResolveAction,
 )
@@ -47,8 +55,10 @@ class SideEffects(Protocol):
         event_name: str,
         title: str,
         actor_id: str,
+        actor_unit_id: str | None = None,
         before: dict | None = None,
         after: dict | None = None,
+        note: str | None = None,
     ) -> None: ...
 
 
@@ -60,10 +70,12 @@ class NoOpSideEffects:
         event_name: str,
         title: str,
         actor_id: str,
+        actor_unit_id: str | None = None,
         before: dict | None = None,
         after: dict | None = None,
+        note: str | None = None,
     ) -> None:
-        _ = (case, event_name, title, actor_id, before, after)
+        _ = (case, event_name, title, actor_id, actor_unit_id, before, after, note)
 
 
 class AuditTimelineSideEffects:
@@ -86,8 +98,10 @@ class AuditTimelineSideEffects:
         event_name: str,
         title: str,
         actor_id: str,
+        actor_unit_id: str | None = None,
         before: dict | None = None,
         after: dict | None = None,
+        note: str | None = None,
     ) -> None:
         actor_uuid: UUID | None = None
         try:
@@ -107,6 +121,9 @@ class AuditTimelineSideEffects:
                 "complaintId": case.complaint_id,
                 "caseNumber": case.case_number.value,
                 "domainEvent": event_name,
+                # F4 history rule — "unit mana yang melakukan" alongside actor_id.
+                "actorUnitId": actor_unit_id,
+                "note": note,
             },
             commit=False,
         )
@@ -128,6 +145,8 @@ class AuditTimelineSideEffects:
                 "caseId": str(case.case_id),
                 "caseNumber": case.case_number.value,
                 "caseStatus": case.status.value,
+                "actorUnitId": actor_unit_id,
+                "note": note,
             },
         )
         self._timeline.add(entry)
@@ -151,6 +170,18 @@ def _resolution_dto(r: ResolutionRecord) -> ResolutionDTO:
     )
 
 
+def _acceptance_dto(a: AcceptanceRecord) -> AcceptanceDTO:
+    return AcceptanceDTO(
+        acceptance_id=a.acceptance_id,
+        party=a.party.value,
+        decision=a.decision.value,
+        actor_id=a.actor_id,
+        actor_unit_id=a.actor_unit_id,
+        decided_at=a.decided_at,
+        note=a.note,
+    )
+
+
 def to_case_dto(case: CaseAggregate) -> CaseDTO:
     return CaseDTO(
         case_id=str(case.case_id),
@@ -166,6 +197,7 @@ def to_case_dto(case: CaseAggregate) -> CaseDTO:
         created_by=case.created_by,
         category=case.category,
         owning_unit_id=case.owning_unit_id,
+        owner_unit_id=case.owner_unit_id,
         assigned_user_id=None,
         sla_policy_version_id=case.sla_policy_version_id,
         sla_countdown_active=False,
@@ -176,6 +208,15 @@ def to_case_dto(case: CaseAggregate) -> CaseDTO:
         resolution=_resolution_dto(case.resolution) if case.resolution else None,
         resolution_history=[_resolution_dto(r) for r in case.resolution_history],
         complaint_status_after_create=case.complaint_status_after_create,
+        handling_unit_acceptance=(
+            _acceptance_dto(case.handling_unit_acceptance)
+            if case.handling_unit_acceptance
+            else None
+        ),
+        owner_acceptance=(
+            _acceptance_dto(case.owner_acceptance) if case.owner_acceptance else None
+        ),
+        acceptance_history=[_acceptance_dto(a) for a in case.acceptance_history],
     )
 
 
@@ -205,6 +246,7 @@ class CaseApplicationService:
                 assigned_user_id=cmd.assigned_user_id,
                 sla_policy_version_id=cmd.sla_policy_version_id,
                 actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
             )
         )
 
@@ -255,6 +297,9 @@ class CaseApplicationService:
             created_by=cmd.actor_id,
             category=cmd.category,
             destination_unit_id=cmd.destination_unit_id,
+            # F4 owner rule — snapshot the parent Complaint's owning unit
+            # once; never reassigned by any later transition on this Case.
+            owner_unit_id=parent.owning_unit_id,
             sla_policy_version_id=cmd.sla_policy_version_id or "MODE-A-BIND-ONLY",
             complaint_became_in_progress=first_case,
         )
@@ -268,6 +313,7 @@ class CaseApplicationService:
             event_name="CaseCreated",
             title="Case Created",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             after=case.to_snapshot(),
         )
         self._repo.commit()
@@ -328,6 +374,7 @@ class CaseApplicationService:
                 created_by=row.created_by,
                 category=row.category,
                 owning_unit_id=row.owning_unit_id,
+                owner_unit_id=row.owner_unit_id,
                 customer_id=row.customer_id,
             )
             for row in rows
@@ -362,8 +409,10 @@ class CaseApplicationService:
             event_name=event,
             title="Case Status Updated",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             before=before,
             after=case.to_snapshot(),
+            note=cmd.reason,
         )
         self._repo.commit()
         return to_case_dto(case)
@@ -389,6 +438,7 @@ class CaseApplicationService:
             attachment_ids=list(cmd.attachment_ids or []),
             rejection_reason=cmd.rejection_reason,
             evidence_required=False,  # category evidence policy catalog: NOT SPECIFIED
+            actor_unit_id=cmd.actor_unit_id,
         )
         self._repo.save(case)
         self._effects.record_case_event(
@@ -396,14 +446,82 @@ class CaseApplicationService:
             event_name="CaseResolved" if case.status.value == "RESOLVED" else "ResolutionUpdated",
             title="Case Resolution",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             before=before,
             after=case.to_snapshot(),
+            note=cmd.comment,
         )
         self._repo.commit()
         return to_case_dto(case)
 
+    def record_acceptance(self, cmd: RecordAcceptanceCommand) -> CaseDTO:
+        """F4 closure rule — Handling Unit / Owner accept or reject a resolution.
+
+        When both parties have ACCEPT, the Case transitions to CLOSED as a
+        consequence of the second acceptance (no separate approval step).
+        ``close()`` remains for compatibility and still cannot bypass the
+        dual-acceptance gate.
+        """
+        case = self._require(cmd.case_id)
+        before = case.to_snapshot()
+        try:
+            party = AcceptanceParty(cmd.party.strip().upper())
+        except ValueError as exc:
+            raise err.validation(
+                "Invalid acceptance party",
+                details={"field": "party", "value": cmd.party},
+            ) from exc
+        try:
+            decision = AcceptanceDecision(cmd.decision.strip().upper())
+        except ValueError as exc:
+            raise err.validation(
+                "Invalid acceptance decision",
+                details={"field": "decision", "value": cmd.decision},
+            ) from exc
+        case.record_acceptance(
+            party=party,
+            decision=decision,
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            note=cmd.note,
+        )
+        self._repo.save(case)
+        event_name = (
+            "CaseHandlingUnitAccepted"
+            if party == AcceptanceParty.HANDLING_UNIT
+            and decision == AcceptanceDecision.ACCEPT
+            else "CaseOwnerAccepted"
+            if party == AcceptanceParty.OWNER and decision == AcceptanceDecision.ACCEPT
+            else "CaseHandlingUnitRejected"
+            if party == AcceptanceParty.HANDLING_UNIT
+            else "CaseOwnerRejected"
+        )
+        after_acceptance = case.to_snapshot()
+        self._effects.record_case_event(
+            case=case,
+            event_name=event_name,
+            title="Case Closure Acceptance",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=after_acceptance,
+            note=cmd.note,
+        )
+        if case.status.value == "CLOSED":
+            self._effects.record_case_event(
+                case=case,
+                event_name="CaseClosed",
+                title="Case Closed",
+                actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
+                before=after_acceptance,
+                after=case.to_snapshot(),
+                note=cmd.note,
+            )
+        self._repo.commit()
+        return to_case_dto(case)
+
     def close(self, cmd: CloseCaseCommand) -> CaseDTO:
-        _ = cmd.note  # optional; NOT SPECIFIED as mandatory
         case = self._require(cmd.case_id)
         before = case.to_snapshot()
         case.close(actor_id=cmd.actor_id)
@@ -413,8 +531,10 @@ class CaseApplicationService:
             event_name="CaseClosed",
             title="Case Closed",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             before=before,
             after=case.to_snapshot(),
+            note=cmd.note,
         )
         self._repo.commit()
         # BQ-007: do NOT close Complaint Aggregate

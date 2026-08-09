@@ -1,0 +1,189 @@
+openapi: 3.0.3
+info:
+  title: ECMP Pengaduan Internal API
+  version: 1.0.0
+  description: >
+    Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
+    (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
+    berubah saat transfer; CLOSED hanya setelah dual acceptance.
+servers:
+  - url: /
+paths:
+  /api/v1/internal/complaints:
+    get:
+      operationId: listInternalComplaints
+      tags: [Internal-Complaints]
+      summary: List Pengaduan Internal (visibility-scoped)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated list
+    post:
+      operationId: createInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Create Pengaduan Internal (Owner = creator unit)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInternalComplaintRequest"
+      responses:
+        "201":
+          description: Created
+  /api/v1/internal/complaints/{complaintId}:
+    get:
+      operationId: getInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Get Pengaduan Internal detail + history
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Detail
+  /api/v1/internal/complaints/{complaintId}/transfer:
+    post:
+      operationId: transferInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Transfer Handling Unit (Owner unchanged)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "200":
+          description: Transferred
+  /api/v1/internal/complaints/{complaintId}/receive:
+    post:
+      operationId: receiveInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Receive / start handling (→ IN_PROGRESS)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Received
+  /api/v1/internal/complaints/{complaintId}/status:
+    patch:
+      operationId: updateInternalComplaintStatus
+      tags: [Internal-Complaints]
+      summary: Status transition (ASSIGNED / IN_PROGRESS)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated
+  /api/v1/internal/complaints/{complaintId}/resolve:
+    post:
+      operationId: resolveInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Propose / accept / reject resolution
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Resolved or proposal recorded
+  /api/v1/internal/complaints/{complaintId}/acceptance:
+    post:
+      operationId: recordInternalAcceptance
+      tags: [Internal-Complaints]
+      summary: Handling Unit / Owner acceptance (dual gate → CLOSED)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Acceptance recorded
+  /api/v1/internal/complaints/{complaintId}/close:
+    post:
+      operationId: closeInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Compatibility close (still requires dual acceptance)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Closed or conflict if dual acceptance incomplete
+components:
+  schemas:
+    CreateInternalComplaintRequest:
+      type: object
+      required: [subject, description, category]
+      properties:
+        subject: { type: string }
+        description: { type: string }
+        category: { type: string }
+        priority: { type: string, default: MEDIUM }
+        subcategory: { type: string, nullable: true, description: Legacy free-text; ignored on create }
+        chronology: { type: string, nullable: true }
+        impact: { type: string, nullable: true }
+        relatedComplaintId:
+          type: string
+          nullable: true
+          description: Optional Batch-1 Aggregate id or number; server validates and snapshots number
+        relatedComplaintNumber:
+          type: string
+          nullable: true
+          description: Ignored on create — server snapshots from Aggregate DB
+        handlingUnitId:
+          type: string
+          nullable: true
+          description: Optional initial Handling Unit (Cabang↔Pusat); applied under complaints:create
+        ownerUnitId:
+          type: string
+          nullable: true
+          description: Ignored — Owner is always the creator unit
+    InternalComplaintSummary:
+      type: object
+      properties:
+        complaintId: { type: string }
+        complaintNumber: { type: string }
+        status: { type: string }
+        subject: { type: string }
+        category: { type: string, nullable: true }
+        priority: { type: string, nullable: true }
+        ownerUnitId: { type: string }
+        handlingUnitId: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        relatedComplaintId: { type: string, nullable: true }
+        relatedComplaintNumber: { type: string, nullable: true }
+    TransferRequest:
+      type: object
+      required: [destinationUnitId]
+      properties:
+        destinationUnitId: { type: string }
+        reason: { type: string, nullable: true }

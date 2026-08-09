@@ -17,6 +17,8 @@ class ParentComplaintRef:
         "status",
         "case_created",
         "case_count",
+        "owning_unit_id",
+        "created_by",
     )
 
     def __init__(
@@ -28,6 +30,8 @@ class ParentComplaintRef:
         status: str,
         case_created: bool,
         case_count: int,
+        owning_unit_id: str | None = None,
+        created_by: str | None = None,
     ) -> None:
         self.complaint_id = complaint_id
         self.complaint_number = complaint_number
@@ -35,6 +39,11 @@ class ParentComplaintRef:
         self.status = status
         self.case_created = case_created
         self.case_count = case_count
+        # F4 owner rule — Complaint's owning unit (Batch-1, immutable since
+        # creation) is snapshotted onto every Case created under it.
+        self.owning_unit_id = owning_unit_id
+        # F4 creator SoD — user who created the Complaint (not the Case).
+        self.created_by = created_by
 
 
 class CaseRepository(Protocol):

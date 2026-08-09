@@ -13,6 +13,8 @@ from app.modules.cm_case.domain.transitions import (
     is_not_exposed_status,
 )
 from app.modules.cm_case.domain.value_objects import (
+    AcceptanceDecision,
+    AcceptanceParty,
     CancelReason,
     CaseNumber,
     CaseStatus,
@@ -42,6 +44,25 @@ class ResolutionRecord:
     rejection_reason: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class AcceptanceRecord:
+    """One party's closure decision — immutable once created (F4 closure rule).
+
+    Appended to ``CaseAggregate.acceptance_history`` and never edited; the
+    aggregate's ``handling_unit_acceptance`` / ``owner_acceptance`` fields
+    are current-state pointers to the latest record per party, not a
+    replacement for the history list.
+    """
+
+    acceptance_id: str
+    party: AcceptanceParty
+    decision: AcceptanceDecision
+    actor_id: str
+    actor_unit_id: str | None
+    decided_at: datetime
+    note: str | None = None
+
+
 @dataclass
 class CaseAggregate:
     """Operational Case under Complaint (BR-004). Hard-delete forbidden."""
@@ -58,7 +79,15 @@ class CaseAggregate:
     created_by: str
     created_at: datetime
     category: str | None = None
+    # Current handling unit — the unit presently responsible for working the
+    # Case. Mutated on transfer (ASSIGNED). Historically named "owning" but
+    # behaves as handling unit; kept as-is to avoid a wide rename (see
+    # `owner_unit_id` below for the immutable creator unit).
     owning_unit_id: str | None = None
+    # Owner — unit that created the parent Complaint. Set once at Case
+    # creation from the parent Complaint's owning unit and never mutated
+    # again (F4 owner rule). Transfers only ever change owning_unit_id.
+    owner_unit_id: str | None = None
     sla_policy_version_id: str | None = None
     sla_countdown_active: bool = False  # Always False Mode A (BQ-005)
     cancel_reason: CancelReason | None = None
@@ -69,6 +98,11 @@ class CaseAggregate:
     resolution_history: list[ResolutionRecord] = field(default_factory=list)
     supervisor_approved_after_resolved: bool = False
     complaint_status_after_create: str | None = None
+    # F4 closure rule — CLOSED requires both current-state pointers ACCEPTED.
+    # acceptance_history is the append-only audit trail; never cleared.
+    handling_unit_acceptance: AcceptanceRecord | None = None
+    owner_acceptance: AcceptanceRecord | None = None
+    acceptance_history: list[AcceptanceRecord] = field(default_factory=list)
 
     @classmethod
     def create(
@@ -84,6 +118,7 @@ class CaseAggregate:
         created_by: str,
         category: str | None = None,
         destination_unit_id: str | None = None,
+        owner_unit_id: str | None = None,
         sla_policy_version_id: str | None = None,
         complaint_became_in_progress: bool = False,
     ) -> CaseAggregate:
@@ -103,7 +138,11 @@ class CaseAggregate:
             created_by=created_by,
             created_at=now,
             category=(category.strip() if category else None),
+            # Current handling unit — starts as the initial destination, if any.
             owning_unit_id=unit,
+            # F4 owner rule: snapshot the parent Complaint's owning unit once,
+            # at creation. Never reassigned afterward by any other method.
+            owner_unit_id=(owner_unit_id or "").strip() or None,
             sla_policy_version_id=sla_policy_version_id,
             sla_countdown_active=False,
             updated_at=now,
@@ -122,6 +161,9 @@ class CaseAggregate:
         reason: str | None = None,
         assigned_user_id: str | None = None,
     ) -> None:
+        """Transfer to ASSIGNED changes ``owning_unit_id`` (handling unit)
+        only — ``owner_unit_id`` (F4 owner) is never touched here or by any
+        other method after ``create()``."""
         _ = reason  # free-text; validated at application layer when required
         if assigned_user_id:
             raise err.conflict(
@@ -197,6 +239,7 @@ class CaseAggregate:
         attachment_ids: list[str] | None = None,
         rejection_reason: str | None = None,
         evidence_required: bool = False,
+        actor_unit_id: str | None = None,
     ) -> None:
         if self.status != CaseStatus.IN_PROGRESS:
             raise err.invalid_state(
@@ -276,6 +319,22 @@ class CaseAggregate:
             self.resolution = record
             self.status = CaseStatus.RESOLVED
             self.supervisor_approved_after_resolved = True
+            # F4 closure rule: reaching RESOLVED via ACCEPT *is* the Handling
+            # Unit declaring the case done — stamp it explicitly rather than
+            # only implying it via `supervisor_approved_after_resolved`.
+            # A fresh RESOLVED cycle always starts a fresh acceptance cycle.
+            acceptance = AcceptanceRecord(
+                acceptance_id=str(uuid4()),
+                party=AcceptanceParty.HANDLING_UNIT,
+                decision=AcceptanceDecision.ACCEPT,
+                actor_id=actor_id,
+                actor_unit_id=actor_unit_id,
+                decided_at=now,
+                note=None,
+            )
+            self.acceptance_history.append(acceptance)
+            self.handling_unit_acceptance = acceptance
+            self.owner_acceptance = None
         elif action == ResolveAction.REJECT:
             rej = (rejection_reason or "").strip()
             if not rej:
@@ -305,7 +364,82 @@ class CaseAggregate:
             raise err.validation("Unsupported resolve action")
         self.updated_at = now
 
+    def record_acceptance(
+        self,
+        *,
+        party: AcceptanceParty,
+        decision: AcceptanceDecision,
+        actor_id: str,
+        actor_unit_id: str | None = None,
+        note: str | None = None,
+    ) -> None:
+        """F4 closure rule — Handling Unit and Owner each decide independently.
+
+        Only meaningful once a resolution has been proposed and accepted by
+        the Handling Unit (status RESOLVED) — closure agreement is about
+        *that* resolution. REJECT (either party) sends the Case back to
+        IN_PROGRESS for further handling per the existing state machine (no
+        new status introduced) and clears both current-acceptance pointers
+        so a stale ACCEPTED from a prior cycle can never satisfy a later
+        Close — the next RESOLVED cycle must earn both acceptances again.
+        Nothing in ``acceptance_history`` is ever removed or edited.
+        """
+        if self.status != CaseStatus.RESOLVED:
+            raise err.invalid_state(
+                "Acceptance requires Case status RESOLVED.",
+                details={"status": self.status.value},
+            )
+        cleaned_note = (note or "").strip() or None
+        if decision == AcceptanceDecision.REJECT and not cleaned_note:
+            raise err.validation(
+                "note is required when rejecting",
+                details={"field": "note", "decision": decision.value},
+            )
+        now = _utcnow()
+        record = AcceptanceRecord(
+            acceptance_id=str(uuid4()),
+            party=party,
+            decision=decision,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            decided_at=now,
+            note=cleaned_note,
+        )
+        self.acceptance_history.append(record)
+        if party == AcceptanceParty.HANDLING_UNIT:
+            self.handling_unit_acceptance = record
+        else:
+            self.owner_acceptance = record
+
+        if decision == AcceptanceDecision.REJECT:
+            # Back to handling — existing IN_PROGRESS status represents this;
+            # no new CaseStatus needed. Both pointers reset for the next cycle.
+            self.status = CaseStatus.IN_PROGRESS
+            self.handling_unit_acceptance = None
+            self.owner_acceptance = None
+            self.updated_at = now
+            return
+
+        # F4 closure: the party that supplies the *second* ACCEPT causes CLOSED
+        # when all existing close guards are already satisfied (resolution
+        # accepted, HU ACCEPT, Owner ACCEPT). No third "approval" step.
+        if (
+            self.handling_unit_acceptance is not None
+            and self.handling_unit_acceptance.decision == AcceptanceDecision.ACCEPT
+            and self.owner_acceptance is not None
+            and self.owner_acceptance.decision == AcceptanceDecision.ACCEPT
+        ):
+            self.close(actor_id=actor_id)
+            return
+
+        self.updated_at = now
+
     def close(self, *, actor_id: str) -> None:
+        # Compatibility: already CLOSED (e.g. via dual-acceptance trigger) —
+        # idempotent success. Never invent acceptances; never bypass when
+        # still open without both parties.
+        if self.status == CaseStatus.CLOSED:
+            return
         # Checklist #1–#4 (FR-006)
         if self.status != CaseStatus.RESOLVED:
             raise err.invalid_state("Close requires Case status RESOLVED.")
@@ -322,6 +456,25 @@ class CaseAggregate:
                 "SUPERVISOR_APPROVAL_REQUIRED",
                 "Supervisor Approval after RESOLVED is required (BQ-008).",
             )
+        # F4 closure rule — CLOSED requires BOTH parties' explicit agreement.
+        # Neither acceptance alone is sufficient (rule §CLOSURE).
+        # POST .../close cannot bypass this gate.
+        if (
+            self.handling_unit_acceptance is None
+            or self.handling_unit_acceptance.decision != AcceptanceDecision.ACCEPT
+        ):
+            raise err.conflict(
+                "HANDLING_UNIT_ACCEPTANCE_REQUIRED",
+                "Handling Unit must accept the resolution before Close.",
+            )
+        if (
+            self.owner_acceptance is None
+            or self.owner_acceptance.decision != AcceptanceDecision.ACCEPT
+        ):
+            raise err.conflict(
+                "OWNER_ACCEPTANCE_REQUIRED",
+                "Owner must accept the resolution before Close.",
+            )
         now = _utcnow()
         self.status = CaseStatus.CLOSED
         self.closed_by = actor_id
@@ -334,5 +487,14 @@ class CaseAggregate:
             "caseNumber": self.case_number.value,
             "complaintId": self.complaint_id,
             "status": self.status.value,
+            "ownerUnitId": self.owner_unit_id,
             "owningUnitId": self.owning_unit_id,
+            "handlingUnitAcceptance": (
+                self.handling_unit_acceptance.decision.value
+                if self.handling_unit_acceptance
+                else None
+            ),
+            "ownerAcceptance": (
+                self.owner_acceptance.decision.value if self.owner_acceptance else None
+            ),
         }

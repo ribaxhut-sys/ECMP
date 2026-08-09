@@ -63,7 +63,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         disabled={disabled}
         loading={loading}
       >
-        <div className="relative">
+        <div className="relative min-w-0 w-full">
           <select
             ref={ref}
             id={inputId}
@@ -74,6 +74,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             aria-busy={loading || undefined}
             className={cn(
               "ecmp-touch appearance-none rounded-[var(--ecmp-radius-select)] py-0 pl-3 pr-10",
+              "w-full min-w-0 max-w-full",
               controlSurfaceClass(error),
               className,
             )}

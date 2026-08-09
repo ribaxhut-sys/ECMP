@@ -18,6 +18,10 @@ from app.modules.queue import orm as _queue_orm  # noqa: E402, F401
 from app.modules.complaint.infrastructure import orm as _complaint_orm  # noqa: E402, F401
 # CM Batch 1 Aggregate persistence (S2 Task 01).
 from app.modules.cm_batch1 import models as _cm_batch1_orm  # noqa: E402, F401
+# Pengaduan Internal (domain terpisah dari F4 / Batch-1).
+from app.modules.internal_complaint.infrastructure import (  # noqa: E402, F401
+    orm as _internal_complaint_orm,
+)
 
 config = context.config
 

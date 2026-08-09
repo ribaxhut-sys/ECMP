@@ -23,6 +23,18 @@ describe("cmBatch1Paths", () => {
     expect(paths.intakeEscalationRequest("c/1")).toBe(
       "/api/v1/cm/complaints/c%2F1/intake-escalation/request",
     );
+    expect(paths.hqAccept("c/1")).toBe(
+      "/api/v1/cm/complaints/c%2F1/hq-accept",
+    );
+    expect(paths.hqAcceptAndSchedule("c/1")).toBe(
+      "/api/v1/cm/complaints/c%2F1/hq-accept-and-schedule",
+    );
+    expect(paths.hqReturn("c/1")).toBe(
+      "/api/v1/cm/complaints/c%2F1/hq-return",
+    );
+    expect(paths.hqScheduleArrival("c/1")).toBe(
+      "/api/v1/cm/complaints/c%2F1/hq-schedule-arrival",
+    );
     expect(paths.customer360("cust 1")).toBe(
       "/api/v1/cm/customers/cust%201/batch1-360",
     );

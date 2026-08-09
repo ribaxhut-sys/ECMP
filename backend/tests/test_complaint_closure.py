@@ -224,6 +224,15 @@ def test_require_complaint_close_permission_admin() -> None:
     assert require_complaint_close(principal) is principal
 
 
+def test_require_complaint_close_permission_manager() -> None:
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        permissions=frozenset({"complaints:close"}),
+    )
+    assert require_complaint_close(principal) is principal
+
+
 def test_require_complaint_close_rejects_engineer() -> None:
     principal = Principal(
         user_id=uuid.uuid4(),

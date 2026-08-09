@@ -18,6 +18,7 @@ describe("cmCasePaths", () => {
     expect(paths.addCase("p/1")).toBe("/api/v1/cm/complaints/p%2F1/cases");
     expect(paths.status("id")).toBe("/api/v1/cm/cases/id/status");
     expect(paths.resolve("id")).toBe("/api/v1/cm/cases/id/resolve");
+    expect(paths.acceptance("id")).toBe("/api/v1/cm/cases/id/acceptance");
     expect(paths.close("id")).toBe("/api/v1/cm/cases/id/close");
   });
 

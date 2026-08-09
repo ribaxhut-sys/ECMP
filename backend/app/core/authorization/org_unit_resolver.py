@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
@@ -20,6 +21,15 @@ from app.core.user_messages import m
 from app.models import Branch, Complaint, ComplaintEscalation, User
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
+
+
+@dataclass(frozen=True, slots=True)
+class CaseOrgUnits:
+    """CAP-008 Case org binding: immutable Owner vs mutable Handling Unit."""
+
+    handling_unit_id: str | None
+    owner_unit_id: str | None
+    complaint_id: str | None = None
 
 
 class OrgUnitResolver:
@@ -134,12 +144,8 @@ class OrgUnitResolver:
             or _as_optional_str(payload.get("org_unit_id"))
         )
 
-    def resolve_case(self, case_id: str) -> str | None:
-        """Map CAP-008 Case (Aggregate) → owning_unit_id.
-
-        Lookup mirrors ``SqlAlchemyCaseRepository.get`` (id, falling back to
-        case_number) so org-scope sees the same row the router will act on.
-        """
+    def _load_case_row(self, case_id: str) -> CmCaseORM:
+        """Load Case ORM by id or case_number (repository get parity)."""
         key = (case_id or "").strip()
         if not key:
             raise NotFoundError("Case does not exist.")
@@ -154,7 +160,25 @@ class OrgUnitResolver:
             )
         if row is None:
             raise NotFoundError("Case does not exist.")
+        return row
+
+    def resolve_case(self, case_id: str) -> str | None:
+        """Map CAP-008 Case (Aggregate) → current handling unit (owning_unit_id).
+
+        Handling mutations (status / resolve / transfer) still bind to this
+        unit. For Owner+Handling read access use ``resolve_case_units``.
+        """
+        row = self._load_case_row(case_id)
         return self.normalize(row.owning_unit_id)
+
+    def resolve_case_units(self, case_id: str) -> CaseOrgUnits:
+        """Map CAP-008 Case → Owner unit + current Handling unit (F4)."""
+        row = self._load_case_row(case_id)
+        return CaseOrgUnits(
+            handling_unit_id=self.normalize(row.owning_unit_id),
+            owner_unit_id=self.normalize(row.owner_unit_id),
+            complaint_id=(row.complaint_id or "").strip() or None,
+        )
 
     def resolve_escalation(self, escalation_id: uuid.UUID) -> str | None:
         """Map Escalation → parent Complaint → Branch.code (org unit key)."""

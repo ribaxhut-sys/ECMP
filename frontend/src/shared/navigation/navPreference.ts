@@ -15,6 +15,11 @@ export const NAV_PREFERENCE_MODES = ["auto", "remember", "expandAll"] as const;
 
 export type NavPreferenceMode = (typeof NAV_PREFERENCE_MODES)[number];
 
+/**
+ * "auto" ships as the default: the active complaint domain expands, the
+ * other collapses. Collapse/expand stays available; "remember" and
+ * "expandAll" remain selectable from Pengaturan → Preferensi → Navigasi.
+ */
 export const DEFAULT_NAV_PREFERENCE_MODE: NavPreferenceMode = "auto";
 
 export function isNavPreferenceMode(value: unknown): value is NavPreferenceMode {
@@ -24,7 +29,7 @@ export function isNavPreferenceMode(value: unknown): value is NavPreferenceMode 
   );
 }
 
-/** Unknown / corrupt / missing values always land on "auto" (§10 fallback). */
+/** Unknown / corrupt / missing values always land on DEFAULT_NAV_PREFERENCE_MODE. */
 export function normalizeNavPreferenceMode(value: unknown): NavPreferenceMode {
   return isNavPreferenceMode(value) ? value : DEFAULT_NAV_PREFERENCE_MODE;
 }
@@ -101,8 +106,8 @@ export interface ResolveExpandedInput {
  * - remember  → last stored choice; falls back to the active-route subgroup
  *               (and, with nothing active, the first subgroup) so a first-time
  *               user never faces an all-collapsed sidebar.
- * - auto      → only the active-route subgroup, with in-visit manual toggles
- *               layered on top.
+ * - auto      → only the active-route subgroup by default; in-visit overrides
+ *               (from accordion toggles) replace the default when present.
  */
 export function resolveExpandedSubgroups(
   input: ResolveExpandedInput,
@@ -117,6 +122,8 @@ export function resolveExpandedSubgroups(
 
   const fallbackId = activeSubgroupId ?? subgroupIds[0] ?? null;
   const result: Record<string, boolean> = {};
+  const hasAutoOverrides =
+    mode === "auto" && subgroupIds.some((id) => overrides[id] !== undefined);
 
   for (const id of subgroupIds) {
     if (mode === "expandAll") {
@@ -128,7 +135,8 @@ export function resolveExpandedSubgroups(
       result[id] = remembered[id] ?? base;
       continue;
     }
-    result[id] = overrides[id] ?? base;
+    // auto — accordion overrides are a full snapshot when present.
+    result[id] = hasAutoOverrides ? (overrides[id] ?? false) : base;
   }
 
   return result;

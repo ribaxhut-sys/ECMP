@@ -218,30 +218,29 @@ export function isInternalNavItemId(id: string): id is InternalNavItemId {
 export const TAXPAYER_COMPLAINTS_SUBGROUP_ID = "taxpayerComplaints";
 export const INTERNAL_COMPLAINTS_SUBGROUP_ID = "internalComplaints";
 
+/** Sidebar-visible items under PENGADUAN → Wajib Pajak. */
 const TAXPAYER_COMPLAINTS_ITEM_IDS = [
+  "dashboard",
   "complaints",
-  "queue",
-  "assignments",
-  "resolutions",
+  "reports",
 ] as const;
 
+/** Sidebar-visible items under PENGADUAN → Internal (no Penugasan). */
 const INTERNAL_COMPLAINTS_ITEM_IDS = [
   "internalDashboard",
   "internalComplaints",
-  "internalAssignments",
   "internalFollowUp",
   "internalVerification",
   "internalReports",
 ] as const;
 
-/** Presentation-only grouping — same items / hrefs as APP_NAV_ITEMS. */
+/**
+ * Presentation-only sidebar hierarchy.
+ * Items that remain in APP_NAV_ITEMS but are omitted here (queue, assignments,
+ * resolutions, internalAssignments) keep their routes/pages; they are simply
+ * not shown in the main ECMP sidebar.
+ */
 export const APP_NAV_GROUPS: readonly NavGroup[] = [
-  {
-    // Unlabelled lead-in: the main dashboard is not a complaint destination
-    // and gets no per-domain duplicate.
-    id: "overview",
-    itemIds: ["dashboard"],
-  },
   {
     id: "complaints",
     labelKey: "groupComplaints",
@@ -262,7 +261,9 @@ export const APP_NAV_GROUPS: readonly NavGroup[] = [
   {
     id: "knowledge",
     labelKey: "groupKnowledge",
-    itemIds: ["attachments", "reports"],
+    // Knowledge = Lampiran only (PDF/SOP/regulasi). Domain reports stay under
+    // their subgroups: Wajib Pajak → /reports, Internal → /internal/reports.
+    itemIds: ["attachments"],
   },
   {
     id: "administration",

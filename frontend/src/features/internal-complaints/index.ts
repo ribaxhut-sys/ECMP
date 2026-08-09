@@ -1,0 +1,10 @@
+export { InternalDashboardView } from "./InternalDashboardView";
+export { InternalComplaintListView } from "./InternalComplaintListView";
+export { CreateInternalComplaintView } from "./CreateInternalComplaintView";
+export { InternalComplaintDetailView } from "./InternalComplaintDetailView";
+export { InternalAssignmentsView } from "./InternalAssignmentsView";
+export { InternalFollowUpListView } from "./InternalFollowUpListView";
+export { InternalFollowUpCaseView } from "./InternalFollowUpCaseView";
+export { InternalVerificationListView } from "./InternalVerificationListView";
+export { InternalVerificationCaseView } from "./InternalVerificationCaseView";
+export { InternalReportsView } from "./InternalReportsView";

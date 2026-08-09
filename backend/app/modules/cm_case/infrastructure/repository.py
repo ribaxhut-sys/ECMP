@@ -13,6 +13,7 @@ from app.modules.cm_case.domain.repositories import ParentComplaintRef
 from app.modules.cm_case.domain.value_objects import CaseNumber
 from app.modules.cm_case.infrastructure import mappers
 from app.modules.cm_case.infrastructure.orm import (
+    CmCaseAcceptanceORM,
     CmCaseNumberCounterORM,
     CmCaseORM,
     CmCaseResolutionORM,
@@ -50,6 +51,8 @@ class SqlAlchemyCaseRepository:
             status=row.status,
             case_created=bool(row.case_created),
             case_count=count,
+            owning_unit_id=row.owning_unit_id,
+            created_by=row.created_by,
         )
 
     def count_cases(self, complaint_id: str) -> int:
@@ -91,6 +94,19 @@ class SqlAlchemyCaseRepository:
             if record.resolution_id in existing_ids:
                 continue
             self._session.add(mappers.resolution_to_orm(case.case_id, record))
+        # Acceptance history (F4 closure rule) — same append-only pattern.
+        existing_acceptances = list(
+            self._session.scalars(
+                select(CmCaseAcceptanceORM).where(
+                    CmCaseAcceptanceORM.case_id == case.case_id
+                )
+            )
+        )
+        existing_acceptance_ids = {str(a.id) for a in existing_acceptances}
+        for record in case.acceptance_history:
+            if record.acceptance_id in existing_acceptance_ids:
+                continue
+            self._session.add(mappers.acceptance_to_orm(case.case_id, record))
         self._session.flush()
         return case
 
@@ -116,7 +132,14 @@ class SqlAlchemyCaseRepository:
                 .order_by(CmCaseResolutionORM.created_at.asc())
             )
         )
-        return mappers.case_from_orm(row, resolutions)
+        acceptances = list(
+            self._session.scalars(
+                select(CmCaseAcceptanceORM)
+                .where(CmCaseAcceptanceORM.case_id == row.id)
+                .order_by(CmCaseAcceptanceORM.decided_at.asc())
+            )
+        )
+        return mappers.case_from_orm(row, resolutions, acceptances)
 
     def list_summaries(
         self,
@@ -149,12 +172,17 @@ class SqlAlchemyCaseRepository:
             unit = (org_unit_id or "").strip()
             if not unit:
                 return [], 0
-            stmt = stmt.where(CmCaseORM.owning_unit_id == unit)
+            # F4 visibility: Owner unit retains access after Handling Unit moves.
+            stmt = stmt.where(
+                (CmCaseORM.owning_unit_id == unit)
+                | (CmCaseORM.owner_unit_id == unit)
+            )
         elif vis == "PUSAT":
             codes = {c.upper() for c in pusat_unit_codes}
-            # SQLite/Postgres: compare upper(owning_unit_id)
+            # SQLite/Postgres: compare upper(owning_unit_id / owner_unit_id)
             stmt = stmt.where(
                 func.upper(CmCaseORM.owning_unit_id).in_(sorted(codes))
+                | func.upper(CmCaseORM.owner_unit_id).in_(sorted(codes))
             )
         else:
             return [], 0

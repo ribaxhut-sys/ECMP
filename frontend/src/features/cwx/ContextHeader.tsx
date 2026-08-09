@@ -32,7 +32,7 @@ export function CwxContextHeader({
   return (
     <header
       data-testid="cwx-context-header"
-      className="sticky top-[var(--ecmp-header-height)] z-20 border-b border-ecmp-border/60 bg-ecmp-background/95 px-1 py-2.5 backdrop-blur-sm"
+      className="sticky top-0 z-20 border-b border-ecmp-border/60 bg-ecmp-background/95 px-1 py-2.5 backdrop-blur-sm"
     >
       {/* Row 1 — identity */}
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
