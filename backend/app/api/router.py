@@ -23,9 +23,6 @@ from app.modules.branches.router import router as branches_router
 from app.modules.cm_batch1.router import router as cm_batch1_router
 from app.modules.cm_case.api.router import router as cm_case_router
 from app.modules.complaint.api import complaint_api_router
-from app.modules.internal_complaint.api.router import (
-    router as internal_complaint_router,
-)
 from app.modules.complaints.router import router as complaints_router
 from app.modules.customers.router import router as customers_router
 from app.modules.dashboard.router import router as dashboard_router
@@ -45,6 +42,9 @@ from app.modules.iam.role_permission.router import (
 from app.modules.iam.user_role.router import (
     roles_users_router,
     users_roles_router,
+)
+from app.modules.internal_complaint.api.router import (
+    router as internal_complaint_router,
 )
 from app.modules.kpi.router import router as kpi_router
 from app.modules.notification.router import queue_router as notification_queue_router
