@@ -95,7 +95,10 @@
     "groupOperations": "Operasi",
     "groupWorkspace": "Ruang kerja",
     "groupAdministration": "Administrasi",
-    "groupKnowledge": "Pengetahuan"
+    "groupKnowledge": "Pengetahuan",
+    "groupComplaints": "Pengaduan",
+    "subgroupTaxpayerComplaints": "Pengaduan Wajib Pajak",
+    "subgroupInternalComplaints": "Pengaduan Internal"
   },
   "shell": {
     "batchOverline": "Batch B0 — Shell aplikasi",
@@ -2300,7 +2303,26 @@
     "groupResolutionDescription": "Langkah yang diperlukan sebelum pengaduan dapat diselesaikan.",
     "groupWorkflowEscalation": "Alur Kerja Eskalasi",
     "groupWorkflowEscalationDescription": "Langkah persetujuan untuk permintaan eskalasi.",
-    "noPoliciesMatchSearch": "Tidak ada kebijakan yang cocok dengan pencarian Anda."
+    "noPoliciesMatchSearch": "Tidak ada kebijakan yang cocok dengan pencarian Anda.",
+    "navPreferences": "Preferensi",
+    "sectionPreferencesTitle": "Preferensi",
+    "sectionPreferencesDescription": "Preferensi tampilan pribadi untuk akun Anda.",
+    "sectionPreferencesKeywords": "preferensi navigasi sidebar menu kelompok pribadi",
+    "statusPersonal": "Pribadi",
+    "groupNavigation": "Navigasi",
+    "groupNavigationDescription": "Perilaku kelompok menu pada sidebar.",
+    "navSidebarComplaintsLabel": "Sidebar Pengaduan",
+    "navSidebarComplaintsHelper": "Preferensi pribadi. Hanya mengatur tampilan menu — tidak mengubah hak akses Anda.",
+    "navModeAuto": "Otomatis",
+    "navModeAutoDescription": "Kelompok menu mengikuti halaman yang sedang aktif.",
+    "navModeRemember": "Ingat pilihan terakhir",
+    "navModeRememberDescription": "Sistem mengingat kelompok menu yang terakhir dibuka.",
+    "navModeExpandAll": "Tampilkan semua",
+    "navModeExpandAllDescription": "Semua kelompok menu selalu terbuka.",
+    "helpPreferencesDescription": "Preferensi tampilan yang berlaku hanya untuk akun Anda.",
+    "helpStatusPersonal": "Tersimpan per pengguna",
+    "helpPreferencesImpact": "Hanya memengaruhi cara menu ditampilkan pada perangkat ini. Menu yang tampil tetap ditentukan oleh izin akses.",
+    "helpPreferencesBestPractice": "Pilih Otomatis bila Anda sering berpindah domain pengaduan; pilih Tampilkan semua bila layar Anda cukup tinggi."
   },
   "kpi": {
     "title": "Ringkasan KPI",

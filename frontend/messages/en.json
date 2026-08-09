@@ -95,7 +95,10 @@
     "groupOperations": "Operations",
     "groupWorkspace": "Workspace",
     "groupAdministration": "Administration",
-    "groupKnowledge": "Knowledge"
+    "groupKnowledge": "Knowledge",
+    "groupComplaints": "Complaints",
+    "subgroupTaxpayerComplaints": "Taxpayer Complaints",
+    "subgroupInternalComplaints": "Internal Complaints"
   },
   "shell": {
     "batchOverline": "Batch B0 — Application shell",
@@ -2300,7 +2303,26 @@
     "groupResolutionDescription": "Required steps before a complaint can be resolved.",
     "groupWorkflowEscalation": "Escalation Workflow",
     "groupWorkflowEscalationDescription": "Approval steps for escalation requests.",
-    "noPoliciesMatchSearch": "No policies match your search."
+    "noPoliciesMatchSearch": "No policies match your search.",
+    "navPreferences": "Preferences",
+    "sectionPreferencesTitle": "Preferences",
+    "sectionPreferencesDescription": "Personal display preferences for your account.",
+    "sectionPreferencesKeywords": "preferences navigation sidebar menu group personal",
+    "statusPersonal": "Personal",
+    "groupNavigation": "Navigation",
+    "groupNavigationDescription": "How sidebar menu groups behave.",
+    "navSidebarComplaintsLabel": "Complaints sidebar",
+    "navSidebarComplaintsHelper": "Personal preference. It only controls how menus are displayed — it does not change your access rights.",
+    "navModeAuto": "Automatic",
+    "navModeAutoDescription": "Menu groups follow the page you are on.",
+    "navModeRemember": "Remember last choice",
+    "navModeRememberDescription": "The system remembers the menu groups you last opened.",
+    "navModeExpandAll": "Show all",
+    "navModeExpandAllDescription": "All menu groups stay open.",
+    "helpPreferencesDescription": "Display preferences that apply to your account only.",
+    "helpStatusPersonal": "Stored per user",
+    "helpPreferencesImpact": "Affects only how menus are displayed on this device. Which menus appear is still decided by your permissions.",
+    "helpPreferencesBestPractice": "Choose Automatic if you switch complaint domains often; choose Show all if your screen is tall enough."
   },
   "kpi": {
     "title": "KPI summary",

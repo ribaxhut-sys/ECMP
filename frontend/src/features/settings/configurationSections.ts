@@ -1,5 +1,6 @@
 export type ConfigurationSection =
   | "general"
+  | "preferences"
   | "sla"
   | "notifications"
   | "security"
@@ -8,6 +9,7 @@ export type ConfigurationSection =
 
 export const CONFIGURATION_SECTIONS: readonly ConfigurationSection[] = [
   "general",
+  "preferences",
   "sla",
   "notifications",
   "security",

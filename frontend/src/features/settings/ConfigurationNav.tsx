@@ -8,6 +8,7 @@ import {
   IconBell,
   IconCheck,
   IconSettings,
+  IconUser,
   IconUsers,
 } from "@/shared/icons";
 import { cn } from "@/shared/utils";
@@ -18,6 +19,7 @@ import {
 
 const sectionIcon: Record<ConfigurationSection, ReactNode> = {
   general: <IconSettings className="size-4" aria-hidden />,
+  preferences: <IconUser className="size-4" aria-hidden />,
   sla: <IconCheck className="size-4" aria-hidden />,
   notifications: <IconBell className="size-4" aria-hidden />,
   security: <IconAlert className="size-4" aria-hidden />,
@@ -39,6 +41,7 @@ export function ConfigurationNav({
 
   const labels: Record<ConfigurationSection, string> = {
     general: t("navGeneral"),
+    preferences: t("navPreferences"),
     sla: t("navSlaPolicies"),
     notifications: t("navNotifications"),
     security: t("navSecurity"),

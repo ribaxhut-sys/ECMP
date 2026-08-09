@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { fetchBranches } from "@/lib/api/branches";
+import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
   IconAssignments,
+  IconChevronDown,
   IconComplaints,
   IconDashboard,
   IconPaperclip,
@@ -19,14 +21,33 @@ import {
   IconUsers,
 } from "@/shared/icons";
 import { useSidebar } from "@/shared/hooks";
+import {
+  resolveExpandedSubgroups,
+  useNavPreference,
+} from "@/shared/navigation";
 import { cn } from "@/shared/utils";
 import {
   APP_NAV_GROUPS,
   APP_NAV_ITEMS,
+  isInternalNavItemId,
+  isNavItemActive,
   isNavItemVisible,
+  resolveActiveSubgroupId,
+  type NavGroup,
   type NavItem,
+  type NavSubgroup,
 } from "./nav";
 import { B0_NAV_GROUPS, B0_NAV_ITEMS } from "./b0Nav";
+
+function isAppNavItemVisible(
+  item: NavItem,
+  hasPermission: (permission: string) => boolean,
+): boolean {
+  if (isInternalNavItemId(item.id) && !isInternalComplaintsUiEnabled()) {
+    return false;
+  }
+  return isNavItemVisible(item, hasPermission);
+}
 
 /**
  * Resolve the logged-in user's branch name for the sidebar subtitle.
@@ -92,15 +113,16 @@ function NavBadge({ value }: { value: number | string }) {
 function NavLink({
   item,
   label,
+  allHrefs,
   onNavigate,
 }: {
   item: NavItem;
   label: string;
+  allHrefs: readonly string[];
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const active =
-    pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const active = isNavItemActive(pathname, item.href, allHrefs);
   const Icon = iconMap[item.icon];
 
   return (
@@ -199,7 +221,7 @@ function useShellNav(): {
       groups: APP_NAV_GROUPS,
       itemsById,
       homeHref: "/dashboard",
-      isItemVisible: (item) => isNavItemVisible(item, hasPermission),
+      isItemVisible: (item) => isAppNavItemVisible(item, hasPermission),
     };
   }
 
@@ -227,47 +249,256 @@ function useShellNav(): {
   };
 }
 
-function NavSections({ onNavigate }: { onNavigate?: () => void }) {
+const GROUP_HEADING_CLASS =
+  "px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted";
+
+/**
+ * Expand/collapse state for the complaint subgroups.
+ *
+ * Presentation only — `subgroups` arrives already permission-filtered, so a
+ * preference can never surface a menu the user may not see.
+ */
+function useSubgroupExpansion(
+  subgroups: readonly { id: string; hrefs: readonly string[] }[],
+  allHrefs: readonly string[],
+) {
+  const pathname = usePathname();
+  const { mode, expanded: remembered, setSubgroupExpanded } = useNavPreference();
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+  const activeSubgroupId = resolveActiveSubgroupId(
+    pathname,
+    subgroups,
+    allHrefs,
+  );
+
+  // "Otomatis" re-derives from the route: entering another domain drops the
+  // manual toggles made while the previous domain was active.
+  const lastActive = useRef<string | null>(activeSubgroupId);
+  useEffect(() => {
+    if (lastActive.current !== activeSubgroupId) {
+      lastActive.current = activeSubgroupId;
+      setOverrides({});
+    }
+  }, [activeSubgroupId]);
+
+  const resolved = resolveExpandedSubgroups({
+    mode,
+    subgroupIds: subgroups.map((subgroup) => subgroup.id),
+    activeSubgroupId,
+    remembered,
+    overrides,
+  });
+
+  return {
+    activeSubgroupId,
+    /** expandAll pins every subgroup open — nothing left to toggle. */
+    collapsible: mode !== "expandAll",
+    isExpanded: (id: string) => resolved[id] ?? false,
+    toggle: (id: string) => {
+      const next = !(resolved[id] ?? false);
+      if (mode === "remember") {
+        setSubgroupExpanded(id, next);
+        return;
+      }
+      setOverrides((prev) => ({ ...prev, [id]: next }));
+    },
+  };
+}
+
+function NavSubgroupSection({
+  subgroup,
+  items,
+  allHrefs,
+  expanded,
+  collapsible,
+  containsActive,
+  onToggle,
+  onNavigate,
+}: {
+  subgroup: NavSubgroup;
+  items: readonly NavItem[];
+  allHrefs: readonly string[];
+  expanded: boolean;
+  collapsible: boolean;
+  containsActive: boolean;
+  onToggle: () => void;
+  onNavigate?: () => void;
+}) {
   const t = useTranslations("nav");
+  const headingId = `nav-subgroup-${subgroup.id}`;
+  const panelId = `nav-subgroup-panel-${subgroup.id}`;
+  const label = t(subgroup.labelKey);
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {collapsible ? (
+        <button
+          type="button"
+          id={headingId}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          onClick={onToggle}
+          className={cn(
+            "ecmp-touch flex w-full items-center gap-2 rounded-[var(--ecmp-radius-md)] px-3 py-1.5",
+            "text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted",
+            "transition-colors duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+            "hover:bg-ecmp-hover hover:text-ecmp-text-primary",
+            "focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus",
+          )}
+        >
+          <IconChevronDown
+            aria-hidden
+            className={cn(
+              "size-4 shrink-0 transition-transform duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)] motion-reduce:transition-none",
+              expanded ? "rotate-0" : "-rotate-90 rtl:rotate-90",
+            )}
+          />
+          <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+          {!expanded && containsActive ? (
+            // Non-colour cue that the collapsed group owns the current page.
+            <span
+              aria-hidden
+              className="size-1.5 shrink-0 rounded-full bg-ecmp-primary"
+            />
+          ) : null}
+        </button>
+      ) : (
+        <p id={headingId} className={cn(GROUP_HEADING_CLASS, "pt-1")}>
+          {label}
+        </p>
+      )}
+      <div
+        id={panelId}
+        role="group"
+        aria-labelledby={headingId}
+        hidden={!expanded}
+        className="flex flex-col gap-0.5"
+      >
+        {items.map((item) => (
+          <NavLink
+            key={item.id}
+            item={item}
+            label={t(item.labelKey)}
+            allHrefs={allHrefs}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NavGroupSection({
+  group,
+  itemsById,
+  isItemVisible,
+  allHrefs,
+  onNavigate,
+}: {
+  group: NavGroup;
+  itemsById: Record<string, NavItem>;
+  isItemVisible: (item: NavItem) => boolean;
+  allHrefs: readonly string[];
+  onNavigate?: () => void;
+}) {
+  const t = useTranslations("nav");
+
+  const resolveItems = (ids: readonly string[]) =>
+    ids
+      .map((id) => itemsById[id])
+      .filter(Boolean)
+      .filter((item) => isItemVisible(item));
+
+  // Permission filter first — subgroups only ever narrow what is already visible.
+  const visibleSubgroups = (group.subgroups ?? [])
+    .map((subgroup) => ({ subgroup, items: resolveItems(subgroup.itemIds) }))
+    .filter((entry) => entry.items.length > 0);
+
+  const expansion = useSubgroupExpansion(
+    visibleSubgroups.map((entry) => ({
+      id: entry.subgroup.id,
+      hrefs: entry.items.map((item) => item.href),
+    })),
+    allHrefs,
+  );
+
+  const items = resolveItems(group.itemIds);
+  if (items.length === 0) return null;
+
+  const headingId = `nav-group-${group.id}`;
+  const heading = group.labelKey ? (
+    <p id={headingId} className={GROUP_HEADING_CLASS}>
+      {t(group.labelKey)}
+    </p>
+  ) : null;
+
+  const body =
+    visibleSubgroups.length > 0 ? (
+      <div className="flex flex-col gap-2">
+        {visibleSubgroups.map((entry) => (
+          <NavSubgroupSection
+            key={entry.subgroup.id}
+            subgroup={entry.subgroup}
+            items={entry.items}
+            allHrefs={allHrefs}
+            expanded={expansion.isExpanded(entry.subgroup.id)}
+            collapsible={expansion.collapsible}
+            containsActive={expansion.activeSubgroupId === entry.subgroup.id}
+            onToggle={() => expansion.toggle(entry.subgroup.id)}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    ) : (
+      items.map((item) => (
+        <NavLink
+          key={item.id}
+          item={item}
+          label={t(item.labelKey)}
+          allHrefs={allHrefs}
+          onNavigate={onNavigate}
+        />
+      ))
+    );
+
+  return (
+    <div
+      role={heading ? "group" : undefined}
+      aria-labelledby={heading ? headingId : undefined}
+      className="flex flex-col gap-0.5"
+    >
+      {heading}
+      {body}
+    </div>
+  );
+}
+
+function NavSections({ onNavigate }: { onNavigate?: () => void }) {
   const tCommon = useTranslations("common");
   const { groups, itemsById, isItemVisible } = useShellNav();
+
+  const visibleItems = groups
+    .flatMap((group) => group.itemIds.map((id) => itemsById[id]))
+    .filter(Boolean)
+    .filter((item) => isItemVisible(item));
+  const allHrefs = visibleItems.map((item) => item.href);
 
   return (
     <nav
       aria-label={tCommon("primaryNav")}
       className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4"
     >
-      {groups.map((group) => {
-        const items = group.itemIds
-          .map((id) => itemsById[id])
-          .filter(Boolean)
-          .filter((item) => isItemVisible(item));
-        if (items.length === 0) return null;
-        const headingId = `nav-group-${group.id}`;
-        return (
-          <div
-            key={group.id}
-            role="group"
-            aria-labelledby={headingId}
-            className="flex flex-col gap-0.5"
-          >
-            <p
-              id={headingId}
-              className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted"
-            >
-              {t(group.labelKey)}
-            </p>
-            {items.map((item) => (
-              <NavLink
-                key={item.id}
-                item={item}
-                label={t(item.labelKey)}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </div>
-        );
-      })}
+      {groups.map((group) => (
+        <NavGroupSection
+          key={group.id}
+          group={group}
+          itemsById={itemsById}
+          isItemVisible={isItemVisible}
+          allHrefs={allHrefs}
+          onNavigate={onNavigate}
+        />
+      ))}
     </nav>
   );
 }

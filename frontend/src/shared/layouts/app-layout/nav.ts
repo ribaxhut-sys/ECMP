@@ -37,14 +37,81 @@ export function isNavItemVisible(
 }
 
 /**
+ * Longest-prefix match so a parent like `/internal` is not active under
+ * `/internal/follow-up` when a more specific nav href also matches.
+ */
+export function resolveActiveNavHref(
+  pathname: string,
+  hrefs: readonly string[],
+): string | null {
+  const path = (pathname.split("?")[0] || "").replace(/\/+$/, "") || "/";
+  let best: string | null = null;
+  for (const raw of hrefs) {
+    const href = raw.replace(/\/+$/, "") || "/";
+    if (path === href || path.startsWith(`${href}/`)) {
+      if (best === null || href.length > best.length) {
+        best = href;
+      }
+    }
+  }
+  return best;
+}
+
+export function isNavItemActive(
+  pathname: string,
+  href: string,
+  allHrefs: readonly string[],
+): boolean {
+  const normalized = href.replace(/\/+$/, "") || "/";
+  return resolveActiveNavHref(pathname, allHrefs) === normalized;
+}
+
+/**
+ * Collapsible subgroup inside a NavGroup — presentation only.
+ * Membership mirrors the parent group; it never widens access.
+ */
+export interface NavSubgroup {
+  id: string;
+  /** Key within the "nav" namespace */
+  labelKey: string;
+  itemIds: readonly string[];
+}
+
+/**
  * Visual nav groups for Sidebar hierarchy only.
  * Does not change routes, menu membership, or item order within each group.
  */
 export interface NavGroup {
   id: string;
-  /** Key within the "nav" namespace */
-  labelKey: string;
+  /** Key within the "nav" namespace. Omit for an unlabelled lead-in group. */
+  labelKey?: string;
   itemIds: readonly string[];
+  /**
+   * Collapsible subgroups. When present, `itemIds` stays the flattened union
+   * so permission filtering and href collection keep working unchanged.
+   */
+  subgroups?: readonly NavSubgroup[];
+}
+
+/**
+ * Which subgroup owns the currently active route.
+ * Pure — the caller supplies only the hrefs it already decided are visible,
+ * so permission filtering stays upstream and is never re-implemented here.
+ */
+export function resolveActiveSubgroupId(
+  pathname: string,
+  subgroups: readonly { id: string; hrefs: readonly string[] }[],
+  allHrefs: readonly string[],
+): string | null {
+  const active = resolveActiveNavHref(pathname, allHrefs);
+  if (!active) return null;
+  for (const subgroup of subgroups) {
+    const owns = subgroup.hrefs.some(
+      (href) => (href.replace(/\/+$/, "") || "/") === active,
+    );
+    if (owns) return subgroup.id;
+  }
+  return null;
 }
 
 /** Primary app navigation — UI routes for modules. */
@@ -87,14 +154,110 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
   { id: "reports", labelKey: "reports", href: "/reports", icon: "reports" },
   { id: "users", labelKey: "users", href: "/users", icon: "users" },
   { id: "settings", labelKey: "settings", href: "/settings", icon: "settings" },
+  /**
+   * Pengaduan Internal — Mode A (Cabang ↔ Pusat).
+   * Sidebar visibility and `/internal` layout gated by
+   * `NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI` (default off).
+   */
+  {
+    id: "internalDashboard",
+    labelKey: "internalDashboard",
+    href: "/internal",
+    icon: "dashboard",
+  },
+  {
+    id: "internalComplaints",
+    labelKey: "internalComplaints",
+    href: "/internal/complaints",
+    icon: "complaints",
+  },
+  {
+    id: "internalAssignments",
+    labelKey: "internalAssignments",
+    href: "/internal/assignments",
+    icon: "assignments",
+  },
+  {
+    id: "internalFollowUp",
+    labelKey: "internalFollowUp",
+    href: "/internal/follow-up",
+    icon: "queue",
+  },
+  {
+    id: "internalVerification",
+    labelKey: "internalVerification",
+    href: "/internal/verification",
+    icon: "resolutions",
+  },
+  {
+    id: "internalReports",
+    labelKey: "internalReports",
+    href: "/internal/reports",
+    icon: "reports",
+  },
+] as const;
+
+/** Nav item ids for the unauthorized Pengaduan Internal prototype. */
+export const INTERNAL_NAV_ITEM_IDS = [
+  "internalDashboard",
+  "internalComplaints",
+  "internalAssignments",
+  "internalFollowUp",
+  "internalVerification",
+  "internalReports",
+] as const;
+
+export type InternalNavItemId = (typeof INTERNAL_NAV_ITEM_IDS)[number];
+
+export function isInternalNavItemId(id: string): id is InternalNavItemId {
+  return (INTERNAL_NAV_ITEM_IDS as readonly string[]).includes(id);
+}
+
+/** Subgroup ids under the "complaints" group — stable keys for the
+ * per-user sidebar preference, so renaming a label never orphans stored state. */
+export const TAXPAYER_COMPLAINTS_SUBGROUP_ID = "taxpayerComplaints";
+export const INTERNAL_COMPLAINTS_SUBGROUP_ID = "internalComplaints";
+
+const TAXPAYER_COMPLAINTS_ITEM_IDS = [
+  "complaints",
+  "queue",
+  "assignments",
+  "resolutions",
+] as const;
+
+const INTERNAL_COMPLAINTS_ITEM_IDS = [
+  "internalDashboard",
+  "internalComplaints",
+  "internalAssignments",
+  "internalFollowUp",
+  "internalVerification",
+  "internalReports",
 ] as const;
 
 /** Presentation-only grouping — same items / hrefs as APP_NAV_ITEMS. */
 export const APP_NAV_GROUPS: readonly NavGroup[] = [
   {
-    id: "operations",
-    labelKey: "groupOperations",
-    itemIds: ["dashboard", "complaints", "queue", "assignments", "resolutions"],
+    // Unlabelled lead-in: the main dashboard is not a complaint destination
+    // and gets no per-domain duplicate.
+    id: "overview",
+    itemIds: ["dashboard"],
+  },
+  {
+    id: "complaints",
+    labelKey: "groupComplaints",
+    itemIds: [...TAXPAYER_COMPLAINTS_ITEM_IDS, ...INTERNAL_COMPLAINTS_ITEM_IDS],
+    subgroups: [
+      {
+        id: TAXPAYER_COMPLAINTS_SUBGROUP_ID,
+        labelKey: "subgroupTaxpayerComplaints",
+        itemIds: TAXPAYER_COMPLAINTS_ITEM_IDS,
+      },
+      {
+        id: INTERNAL_COMPLAINTS_SUBGROUP_ID,
+        labelKey: "subgroupInternalComplaints",
+        itemIds: INTERNAL_COMPLAINTS_ITEM_IDS,
+      },
+    ],
   },
   {
     id: "knowledge",

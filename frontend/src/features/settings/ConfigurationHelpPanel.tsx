@@ -28,6 +28,13 @@ export function ConfigurationHelpPanel({
       impact: t("helpGeneralImpact"),
       bestPractice: t("helpGeneralBestPractice"),
     },
+    preferences: {
+      description: t("helpPreferencesDescription"),
+      status: t("helpStatusPersonal"),
+      statusTone: "info",
+      impact: t("helpPreferencesImpact"),
+      bestPractice: t("helpPreferencesBestPractice"),
+    },
     sla: {
       description: t("helpSlaDescription"),
       status: t("helpStatusActivePolicies"),

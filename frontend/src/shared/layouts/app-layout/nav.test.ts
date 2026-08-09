@@ -1,5 +1,17 @@
-import { describe, expect, it } from "vitest";
-import { APP_NAV_GROUPS, APP_NAV_ITEMS, isNavItemVisible } from "./nav";
+import { afterEach, describe, expect, it } from "vitest";
+import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
+import {
+  APP_NAV_GROUPS,
+  APP_NAV_ITEMS,
+  INTERNAL_COMPLAINTS_SUBGROUP_ID,
+  INTERNAL_NAV_ITEM_IDS,
+  TAXPAYER_COMPLAINTS_SUBGROUP_ID,
+  isInternalNavItemId,
+  isNavItemActive,
+  isNavItemVisible,
+  resolveActiveNavHref,
+  resolveActiveSubgroupId,
+} from "./nav";
 
 describe("APP_NAV_ITEMS", () => {
   it("includes reports and users routes", () => {
@@ -26,6 +38,52 @@ describe("APP_NAV_ITEMS", () => {
     expect(complaints?.href).toBe("/complaints");
     // Dual SoT remains: Aggregate detail stays under /complaints/cm/[id].
     expect(complaints?.id).not.toMatch(/cm[_-]?batch/i);
+  });
+});
+
+describe("Pengaduan Internal nav (prototype catalog, gated by env flag)", () => {
+  const original = process.env.NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI;
+
+  afterEach(() => {
+    if (original === undefined) {
+      delete process.env.NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI;
+    } else {
+      process.env.NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI = original;
+    }
+  });
+
+  it("lives as a collapsible subgroup under the PENGADUAN group, alongside Pengaduan Wajib Pajak", () => {
+    const complaintsGroup = APP_NAV_GROUPS.find((g) => g.id === "complaints")!;
+    const subgroupIds = (complaintsGroup.subgroups ?? []).map((s) => s.id);
+    expect(subgroupIds).toContain(INTERNAL_COMPLAINTS_SUBGROUP_ID);
+    expect(subgroupIds).toContain(TAXPAYER_COMPLAINTS_SUBGROUP_ID);
+    expect(subgroupIds.indexOf(INTERNAL_COMPLAINTS_SUBGROUP_ID)).toBeGreaterThan(
+      subgroupIds.indexOf(TAXPAYER_COMPLAINTS_SUBGROUP_ID),
+    );
+  });
+
+  it("catalog exposes the six internal destinations (routes stay in tree)", () => {
+    const ids = APP_NAV_ITEMS.map((item) => item.id);
+    for (const id of INTERNAL_NAV_ITEM_IDS) {
+      expect(ids).toContain(id);
+      expect(isInternalNavItemId(id)).toBe(true);
+    }
+  });
+
+  it("hrefs live under /internal, distinct from /complaints (Pengaduan Wajib Pajak)", () => {
+    const complaintsGroup = APP_NAV_GROUPS.find((g) => g.id === "complaints")!;
+    const internalSubgroup = complaintsGroup.subgroups!.find(
+      (s) => s.id === INTERNAL_COMPLAINTS_SUBGROUP_ID,
+    )!;
+    const itemsById = Object.fromEntries(APP_NAV_ITEMS.map((i) => [i.id, i]));
+    for (const itemId of internalSubgroup.itemIds) {
+      expect(itemsById[itemId].href.startsWith("/internal")).toBe(true);
+    }
+  });
+
+  it("flag defaults off so Sidebar must hide the group without Board/FRD", () => {
+    delete process.env.NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI;
+    expect(isInternalComplaintsUiEnabled()).toBe(false);
   });
 });
 
@@ -88,5 +146,90 @@ describe("isNavItemVisible", () => {
     const hasPermission = (permission: string) =>
       permissions.includes("*") || permissions.includes(permission);
     expect(isNavItemVisible(item, hasPermission)).toBe(true);
+  });
+});
+
+describe("isNavItemActive (longest prefix)", () => {
+  const internalHrefs = [
+    "/internal",
+    "/internal/complaints",
+    "/internal/assignments",
+    "/internal/follow-up",
+    "/internal/verification",
+    "/internal/reports",
+  ];
+
+  it("activates only Dasbor on /internal", () => {
+    expect(resolveActiveNavHref("/internal", internalHrefs)).toBe("/internal");
+    expect(isNavItemActive("/internal", "/internal", internalHrefs)).toBe(true);
+    expect(
+      isNavItemActive("/internal", "/internal/follow-up", internalHrefs),
+    ).toBe(false);
+  });
+
+  it("does not keep Dasbor active on /internal/follow-up", () => {
+    expect(resolveActiveNavHref("/internal/follow-up", internalHrefs)).toBe(
+      "/internal/follow-up",
+    );
+    expect(
+      isNavItemActive("/internal/follow-up", "/internal", internalHrefs),
+    ).toBe(false);
+    expect(
+      isNavItemActive("/internal/follow-up", "/internal/follow-up", internalHrefs),
+    ).toBe(true);
+  });
+
+  it("keeps child active on nested detail paths", () => {
+    expect(
+      resolveActiveNavHref("/internal/complaints/abc", internalHrefs),
+    ).toBe("/internal/complaints");
+  });
+});
+
+describe("complaints group subgroups (collapsible PENGADUAN WAJIB PAJAK / PENGADUAN INTERNAL)", () => {
+  const complaintsGroup = APP_NAV_GROUPS.find((g) => g.id === "complaints")!;
+
+  it("splits Wajib Pajak and Internal into distinct subgroups covering the group's items exactly once", () => {
+    const subgroupItemIds = complaintsGroup
+      .subgroups!.flatMap((s) => s.itemIds)
+      .sort();
+    expect(subgroupItemIds).toEqual([...complaintsGroup.itemIds].sort());
+    expect(new Set(subgroupItemIds).size).toBe(subgroupItemIds.length);
+  });
+
+  it("Pengaduan Wajib Pajak subgroup carries Pengaduan, Antrean, Penugasan, Resolusi", () => {
+    const taxpayer = complaintsGroup.subgroups!.find(
+      (s) => s.id === TAXPAYER_COMPLAINTS_SUBGROUP_ID,
+    )!;
+    expect(taxpayer.itemIds).toEqual([
+      "complaints",
+      "queue",
+      "assignments",
+      "resolutions",
+    ]);
+  });
+});
+
+describe("resolveActiveSubgroupId", () => {
+  const subgroups = [
+    { id: TAXPAYER_COMPLAINTS_SUBGROUP_ID, hrefs: ["/complaints", "/queue"] },
+    { id: INTERNAL_COMPLAINTS_SUBGROUP_ID, hrefs: ["/internal", "/internal/verification"] },
+  ];
+  const allHrefs = subgroups.flatMap((s) => s.hrefs);
+
+  it("resolves the subgroup owning the active route (Antrean → Pengaduan Wajib Pajak)", () => {
+    expect(resolveActiveSubgroupId("/queue", subgroups, allHrefs)).toBe(
+      TAXPAYER_COMPLAINTS_SUBGROUP_ID,
+    );
+  });
+
+  it("resolves the subgroup owning the active route (Verifikasi → Pengaduan Internal)", () => {
+    expect(
+      resolveActiveSubgroupId("/internal/verification", subgroups, allHrefs),
+    ).toBe(INTERNAL_COMPLAINTS_SUBGROUP_ID);
+  });
+
+  it("returns null when the route matches no subgroup href", () => {
+    expect(resolveActiveSubgroupId("/settings", subgroups, allHrefs)).toBeNull();
   });
 });

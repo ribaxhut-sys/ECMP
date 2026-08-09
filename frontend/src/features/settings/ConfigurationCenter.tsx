@@ -20,6 +20,7 @@ import {
 } from "@/shared/ui";
 import { ConfigurationHelpPanel } from "./ConfigurationHelpPanel";
 import { ConfigurationNav } from "./ConfigurationNav";
+import { NavigationPreferenceCard } from "./NavigationPreferenceCard";
 import { SystemSettingsManagement } from "./SystemSettingsManagement";
 import { UnavailableSettingCard } from "./UnavailableSettingCard";
 import {
@@ -159,6 +160,11 @@ export function ConfigurationCenter() {
       description: t("sectionGeneralDescription"),
       keywords: t("sectionGeneralKeywords"),
     },
+    preferences: {
+      title: t("sectionPreferencesTitle"),
+      description: t("sectionPreferencesDescription"),
+      keywords: t("sectionPreferencesKeywords"),
+    },
     sla: {
       title: t("sectionSlaTitle"),
       description: t("sectionSlaDescription"),
@@ -197,6 +203,11 @@ export function ConfigurationCenter() {
         title: t("sectionGeneralTitle"),
         description: t("sectionGeneralDescription"),
         keywords: t("sectionGeneralKeywords"),
+      },
+      preferences: {
+        title: t("sectionPreferencesTitle"),
+        description: t("sectionPreferencesDescription"),
+        keywords: t("sectionPreferencesKeywords"),
       },
       sla: {
         title: t("sectionSlaTitle"),
@@ -342,6 +353,25 @@ export function ConfigurationCenter() {
                       />
                     ))}
                   </div>
+                </div>
+              ) : null}
+
+              {activeSection === "preferences" ? (
+                <div className="space-y-[var(--ecmp-card-gap)]">
+                  <Card>
+                    <CardHeader
+                      action={<Badge tone="info">{t("statusPersonal")}</Badge>}
+                    >
+                      <PanelHeader
+                        title={t("groupNavigation")}
+                        description={t("groupNavigationDescription")}
+                        className="mb-0 border-0 pb-0"
+                      />
+                    </CardHeader>
+                    <CardBody>
+                      <NavigationPreferenceCard />
+                    </CardBody>
+                  </Card>
                 </div>
               ) : null}
 
