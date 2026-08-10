@@ -14,10 +14,10 @@ from datetime import datetime
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.models import User
 from app.modules.announcement.models import AnnouncementAttachmentORM
 from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
 from app.modules.attachment.models import AttachmentORM
-from app.models import User
 
 
 @dataclass(slots=True)
