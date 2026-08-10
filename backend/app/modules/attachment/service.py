@@ -146,6 +146,8 @@ def _to_response(entity: Attachment) -> AttachmentResponse:
         uploadedBy=entity.uploaded_by,
         uploadedAt=entity.uploaded_at,
         status=entity.status,  # type: ignore[arg-type]
+        accessLevel=entity.access_level,  # type: ignore[arg-type]
+        uploadedOrgUnitId=entity.uploaded_org_unit_id,
     )
 
 

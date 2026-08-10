@@ -236,6 +236,23 @@ describe("Scenario 3 — remember mode persists across remounts", () => {
   });
 });
 
+describe("Brand unit subtitle", () => {
+  it("shows Head Office when the user has no branchId (Pusat)", () => {
+    mockPermissions = ["*"];
+    const { sidebar } = renderSidebar();
+    expect(sidebar.getByText("SERVICES")).toBeVisible();
+    expect(sidebar.getByText("Head Office")).toBeVisible();
+  });
+});
+
+describe("Domain subgroup separator", () => {
+  it("draws a separator between Wajib Pajak and Internal when both are visible", () => {
+    mockPermissions = ["*"];
+    const { sidebar } = renderSidebar();
+    expect(sidebar.getByTestId("nav-domain-separator")).toBeInTheDocument();
+  });
+});
+
 describe("Scenario 8 — invalid preference never crashes the sidebar", () => {
   it("falls back to the default (auto) behaviour for a corrupted stored value", () => {
     mockPermissions = ["*"];

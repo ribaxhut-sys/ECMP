@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-AggregateTypeLiteral = Literal["Complaint", "Queue", "Notification"]
+AggregateTypeLiteral = Literal["Complaint", "Queue", "Notification", "Announcement"]
 AttachmentStatusLiteral = Literal["UPLOADED", "AVAILABLE", "DELETED", "FAILED"]
 
 
@@ -30,3 +30,7 @@ class AttachmentResponse(BaseModel):
     uploaded_by: uuid.UUID | None = Field(default=None, alias="uploadedBy")
     uploaded_at: datetime = Field(alias="uploadedAt")
     status: AttachmentStatusLiteral
+    access_level: Literal["PUBLIC", "PRIVATE"] | None = Field(
+        default=None, alias="accessLevel"
+    )
+    uploaded_org_unit_id: str | None = Field(default=None, alias="uploadedOrgUnitId")

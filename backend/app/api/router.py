@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.health import router as health_router
 from app.api.version import router as version_router
+from app.modules.announcement.router import router as announcement_router
 from app.modules.appointments.router import (
     appointments_router,
     escalation_appointments_router,
@@ -72,6 +73,7 @@ api_router.include_router(auth_router)
 api_router.include_router(cm_batch1_router)
 api_router.include_router(cm_case_router)
 api_router.include_router(internal_complaint_router)
+api_router.include_router(announcement_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(kpi_router)
 api_router.include_router(settings_router)

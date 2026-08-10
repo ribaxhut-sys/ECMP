@@ -6,13 +6,17 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { fetchBranches } from "@/lib/api/branches";
+import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
   IconAssignments,
+  IconBell,
   IconChevronDown,
   IconComplaints,
   IconDashboard,
+  IconFile,
   IconPaperclip,
   IconQueue,
   IconReports,
@@ -51,13 +55,13 @@ function isAppNavItemVisible(
 }
 
 /**
- * Resolve the logged-in user's branch name for the sidebar subtitle.
- * No GET /branches/{id} in the catalog — list once (same pattern as
- * AssignmentListView / ResolutionListView) and match branchId client-side.
- * null branchId is a valid state (head-office roles, EBS-001) — no fetch.
+ * Resolve the unit label under the PELAYANAN brand.
+ * - Cabang: branch name from catalog (matched by user.branchId).
+ * - Pusat / head-office (EBS-001): branchId is null — show "Pusat", not blank.
  */
-function useLoggedInBranchName(): string | null {
+function useBrandUnitLabel(): string | null {
   const { user, hasPermission } = useAuth();
+  const tCommon = useTranslations("common");
   const branchId = user?.branchId ?? null;
   const canReadBranches = hasPermission("complaints:read");
   const [branchName, setBranchName] = useState<string | null>(null);
@@ -82,6 +86,8 @@ function useLoggedInBranchName(): string | null {
     };
   }, [branchId, canReadBranches]);
 
+  if (!user) return null;
+  if (!branchId) return tCommon("headOfficeUnit");
   return branchName;
 }
 
@@ -95,6 +101,8 @@ const iconMap = {
   users: IconUsers,
   settings: IconSettings,
   attachments: IconPaperclip,
+  announcements: IconBell,
+  knowledge: IconFile,
 } as const;
 
 function NavBadge({ value }: { value: number | string }) {
@@ -200,10 +208,12 @@ function useShellNav(): {
 } {
   const {
     hasPermission,
+    roles,
     isMockSession,
     mockPersona,
     officerWorkMode,
   } = useAuth();
+  const orgUnitCode = useOrgUnitCode();
   const batchB0 = isShellUiBatch() || isMockSession;
 
   if (!batchB0) {
@@ -213,8 +223,24 @@ function useShellNav(): {
     return {
       groups: APP_NAV_GROUPS,
       itemsById,
+      // Brand → Dashboard, the app's default home (LOCKED). "/" is the
+      // post-login entry-point gate, not a content route — see
+      // (app)/page.tsx; it must not be reused for in-app navigation to
+      // avoid re-triggering the unread-announcement redirect.
       homeHref: "/dashboard",
-      isItemVisible: (item) => isAppNavItemVisible(item, hasPermission),
+      isItemVisible: (item) => {
+        if (!isAppNavItemVisible(item, hasPermission)) return false;
+        if (item.id === "announcementsManage") {
+          // Hide while org unit resolves — avoids flashing manage to Cabang.
+          if (orgUnitCode === undefined) return false;
+          return mayManageAnnouncements({
+            roles,
+            hasPermission,
+            orgUnitCode,
+          });
+        }
+        return true;
+      },
     };
   }
 
@@ -253,6 +279,7 @@ function resolveDomainChrome(subgroupId: string): {
   panel: string;
   label: string;
   hoverLabel: string;
+  divider: string;
 } {
   if (subgroupId === INTERNAL_COMPLAINTS_SUBGROUP_ID) {
     return {
@@ -260,6 +287,7 @@ function resolveDomainChrome(subgroupId: string): {
         "rounded-[var(--ecmp-radius-md)] border border-ecmp-info/20 bg-ecmp-info-muted/45 pl-0.5 border-l-[3px] border-l-ecmp-info",
       label: "text-ecmp-info",
       hoverLabel: "hover:text-ecmp-info",
+      divider: "border-ecmp-info/20",
     };
   }
   // Default: Wajib Pajak (and any non-internal subgroup)
@@ -268,6 +296,7 @@ function resolveDomainChrome(subgroupId: string): {
       "rounded-[var(--ecmp-radius-md)] border border-ecmp-primary/15 bg-ecmp-primary-muted/40 pl-0.5 border-l-[3px] border-l-ecmp-primary",
     label: "text-ecmp-primary",
     hoverLabel: "hover:text-ecmp-primary",
+    divider: "border-ecmp-primary/15",
   };
 }
 
@@ -374,7 +403,8 @@ function NavSubgroupSection({
     <div
       className={cn("flex flex-col gap-0.5 py-1", chrome.panel)}
       data-domain-active={containsActive ? "true" : "false"}
-    >      {collapsible ? (
+    >
+      {collapsible ? (
         <button
           type="button"
           id={headingId}
@@ -416,7 +446,11 @@ function NavSubgroupSection({
         role="group"
         aria-labelledby={headingId}
         hidden={!expanded}
-        className="flex flex-col gap-0.5 px-0.5 pb-0.5"
+        className={cn(
+          "flex flex-col gap-0.5 px-0.5 pb-0.5 pt-1",
+          "mx-2 border-t",
+          chrome.divider,
+        )}
       >
         {items.map((item) => (
           <NavLink
@@ -479,18 +513,28 @@ function NavGroupSection({
   const body =
     visibleSubgroups.length > 0 ? (
       <div className="flex flex-col gap-2.5">
-        {visibleSubgroups.map((entry) => (
-          <NavSubgroupSection
-            key={entry.subgroup.id}
-            subgroup={entry.subgroup}
-            items={entry.items}
-            allHrefs={allHrefs}
-            expanded={expansion.isExpanded(entry.subgroup.id)}
-            collapsible={expansion.collapsible}
-            containsActive={expansion.activeSubgroupId === entry.subgroup.id}
-            onToggle={() => expansion.toggle(entry.subgroup.id)}
-            onNavigate={onNavigate}
-          />
+        {visibleSubgroups.map((entry, index) => (
+          <div key={entry.subgroup.id} className="flex flex-col gap-2.5">
+            <NavSubgroupSection
+              subgroup={entry.subgroup}
+              items={entry.items}
+              allHrefs={allHrefs}
+              expanded={expansion.isExpanded(entry.subgroup.id)}
+              collapsible={expansion.collapsible}
+              containsActive={expansion.activeSubgroupId === entry.subgroup.id}
+              onToggle={() => expansion.toggle(entry.subgroup.id)}
+              onNavigate={onNavigate}
+            />
+            {/* Domain separator — clarifies Wajib Pajak vs Internal without target/filter logic. */}
+            {index < visibleSubgroups.length - 1 ? (
+              <div
+                role="separator"
+                aria-hidden
+                className="mx-3 border-t border-ecmp-border/80"
+                data-testid="nav-domain-separator"
+              />
+            ) : null}
+          </div>
         ))}
       </div>
     ) : (
@@ -551,7 +595,7 @@ export function Sidebar() {
   const closeDrawer = () => setOpen(false);
   const tCommon = useTranslations("common");
   const { homeHref } = useShellNav();
-  const branchName = useLoggedInBranchName();
+  const brandUnitLabel = useBrandUnitLabel();
 
   return (
     <>
@@ -564,7 +608,7 @@ export function Sidebar() {
         aria-label={tCommon("appSidebar")}
       >
         <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
-          <Brand asLink href={homeHref} branchName={branchName} />
+          <Brand asLink href={homeHref} branchName={brandUnitLabel} />
         </div>
         <NavSections />
       </aside>
@@ -601,7 +645,7 @@ export function Sidebar() {
               asLink
               href={homeHref}
               onNavigate={isDesktop ? undefined : closeDrawer}
-              branchName={branchName}
+              branchName={brandUnitLabel}
             />
           </div>
           <NavSections onNavigate={isDesktop ? undefined : closeDrawer} />

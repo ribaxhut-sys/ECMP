@@ -107,6 +107,27 @@ export {
   fetchSlaPolicies,
 } from "./sla";
 export {
+  createAnnouncement,
+  deleteAnnouncement,
+  fetchActiveAnnouncements,
+  fetchAnnouncement,
+  fetchAnnouncementHistory,
+  fetchAnnouncements,
+  fetchHasUnreadAnnouncements,
+  markAnnouncementRead,
+  publishAnnouncement,
+  removeAnnouncementAttachment,
+  unpublishAnnouncement,
+  updateAnnouncement,
+  updateAnnouncementAttachmentVisibility,
+  uploadAnnouncementAttachment,
+  uploadAnnouncementAttachmentToCatalog,
+  fetchAnnouncementAttachmentLibrary,
+  linkAnnouncementAttachment,
+  updateAnnouncementAttachmentAccess,
+  deleteAnnouncementAttachmentFromCatalog,
+} from "./announcements";
+export {
   fetchPublicSettings,
   fetchSettings,
   updateSetting,

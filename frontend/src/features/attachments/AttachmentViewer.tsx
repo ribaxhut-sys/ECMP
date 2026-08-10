@@ -242,9 +242,9 @@ export function AttachmentViewer({
           {!loading && error ? (
             <div className="mx-auto w-full max-w-lg space-y-[var(--ecmp-panel-gap)] py-8">
               <Alert
-                tone={error.includes("not supported") ? "warning" : "danger"}
+                tone={kind === "unsupported" ? "warning" : "danger"}
                 title={
-                  error.includes("not supported")
+                  kind === "unsupported"
                     ? t("previewNotSupported")
                     : t("previewFailed")
                 }

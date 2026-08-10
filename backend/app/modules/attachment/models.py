@@ -52,6 +52,10 @@ class AttachmentORM(UUIDPrimaryKeyMixin, Base):
         server_default=func.now(),
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Announcement catalog only (NULL for Complaint/Queue/Notification).
+    # Orthogonal to announcement_attachments.visibility (IMMEDIATE/PUBLISHED).
+    access_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    uploaded_org_unit_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 # Backward-compatible alias used by ``app.models`` and existing imports.

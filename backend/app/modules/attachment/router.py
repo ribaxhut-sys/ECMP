@@ -20,6 +20,10 @@ from app.core.errors import NotFoundError, ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.core.user_messages import m
 from app.db.session import get_db_session
+from app.modules.announcement.attachment_authorization import (
+    assert_can_access_announcement_attachment,
+    assert_can_manage_announcement_attachment,
+)
 from app.modules.attachment.domain.enums import AggregateType
 from app.modules.attachment.permissions import (
     ATTACHMENT_CREATE,
@@ -167,16 +171,21 @@ def get_attachment(
         CmBatch1AttachmentService, Depends(get_cm_batch1_attachment_service)
     ],
     principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
 ) -> DataResponse[Any]:
     """API-324 / API-510 — metadata including integrity hash."""
-    _ = principal
     linked = batch1.try_get_by_platform_id(attachment_id)
     if linked is not None:
         return DataResponse(data=linked)
     linked = batch1.try_get(str(attachment_id))
     if linked is not None:
         return DataResponse(data=linked)
-    return DataResponse(data=service.get(attachment_id))
+    entity = service.get(attachment_id)
+    if entity.aggregate_type == AggregateType.ANNOUNCEMENT.value:
+        assert_can_access_announcement_attachment(
+            principal=principal, session=session, attachment_id=attachment_id
+        )
+    return DataResponse(data=entity)
 
 
 @router.get(
@@ -232,6 +241,10 @@ def download_attachment(
             pass
         else:
             enforce_org_scope(principal, resource_org, settings)
+    elif entity.aggregate_type == AggregateType.ANNOUNCEMENT.value:
+        assert_can_access_announcement_attachment(
+            principal=principal, session=session, attachment_id=platform_id
+        )
 
     headers = {
         "Content-Disposition": f'attachment; filename="{entity.original_name}"',
@@ -277,6 +290,10 @@ def delete_attachment(
         return DataResponse(data=voided)
 
     before = service.get(attachment_id)
+    if before.aggregate_type == AggregateType.ANNOUNCEMENT.value:
+        assert_can_manage_announcement_attachment(
+            principal=principal, session=session, attachment_id=attachment_id
+        )
     service.soft_delete(attachment_id)
     write_audit(
         session,

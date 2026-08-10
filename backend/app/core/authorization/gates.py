@@ -212,3 +212,58 @@ def require_escalation_close(
             m("escalation.only_admin_close")
         )
     return principal
+
+
+# Announcement management (Pengumuman) — business decision, LOCKED: only
+# Admin Pusat / Supervisor Pusat / Manager Pusat. ADMIN is a HEAD_OFFICE_
+# SCOPED_ROLE_CODES role (users/service.py) — it can never carry a branch, so
+# an absent org unit already means head office. SUPERVISOR/MANAGER are
+# BRANCH_SCOPED_ROLE_CODES roles shared with Cabang staff (same role code,
+# no separate "Pusat" role — see DEC-024), so role alone cannot tell them
+# apart; only a branch actually coded Pusat (is_pusat_unit) does.
+_ANNOUNCEMENT_ADMIN_ROLES = ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN")
+_ANNOUNCEMENT_UNIT_ROLES = ("SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER")
+
+
+def _is_pusat_or_unscoped(org_unit_id: str | None) -> bool:
+    """No branch at all reads as head office — true for every real Admin."""
+    if OrgUnitResolver.normalize(org_unit_id) is None:
+        return True
+    return is_pusat_unit(org_unit_id)
+
+
+def principal_may_manage_announcements(
+    principal: Principal,
+    *,
+    org_unit_id: str | None,
+) -> bool:
+    """Pure predicate — mirrors ``require_announcement_manage`` without I/O
+    so FE/UI and tests can stay aligned without inventing a second AuthZ rule.
+    """
+    if not principal.has_permission("announcement:manage"):
+        return False
+    if principal.has_any_role(*_ANNOUNCEMENT_ADMIN_ROLES):
+        return _is_pusat_or_unscoped(org_unit_id)
+    if principal.has_any_role(*_ANNOUNCEMENT_UNIT_ROLES):
+        return is_pusat_unit(org_unit_id)
+    return False
+
+
+def require_announcement_manage(
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> Principal:
+    """Announcement create/update/publish/unpublish/delete/manage-list gate.
+
+    Dev mode issues no ``orgUnitId`` claim, so fall back to the ECMP-owned
+    membership record (same pattern as ``require_hq_intake_action``).
+    """
+    resolver = OrgUnitResolver(session)
+    org = resolver.normalize(principal.org_unit_id) or resolver.resolve_principal_membership(
+        principal.user_id
+    )
+    if principal_may_manage_announcements(principal, org_unit_id=org):
+        return principal
+    raise PermissionDeniedError(
+        m("announcement.only_admin_supervisor_manager_pusat")
+    )

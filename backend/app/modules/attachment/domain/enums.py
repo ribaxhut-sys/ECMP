@@ -11,6 +11,7 @@ class AggregateType(StrEnum):
     COMPLAINT = "Complaint"
     QUEUE = "Queue"
     NOTIFICATION = "Notification"
+    ANNOUNCEMENT = "Announcement"
 
 
 class AttachmentStatus(StrEnum):

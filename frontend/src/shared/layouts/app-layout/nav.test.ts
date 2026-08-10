@@ -114,7 +114,12 @@ describe("APP_NAV_GROUPS", () => {
       "internalVerification",
       "internalReports",
     ]);
-    expect(byId.knowledge.itemIds).toEqual(["attachments"]);
+    expect(byId.information.itemIds).toEqual([
+      "announcements",
+      "announcementsManage",
+      "knowledge",
+      "attachments",
+    ]);
     expect(byId.administration.itemIds).toEqual(["users", "settings"]);
     expect(byId.overview).toBeUndefined();
   });
@@ -123,9 +128,14 @@ describe("APP_NAV_GROUPS", () => {
 describe("complaints nav permission gate (Commit 6)", () => {
   const complaintsItem = APP_NAV_ITEMS.find((item) => item.id === "complaints")!;
 
-  it("gates only the complaints item", () => {
+  it("gates only the complaints and announcements items", () => {
+    const gatedItemIds = new Set([
+      "complaints",
+      "announcements",
+      "announcementsManage",
+    ]);
     for (const item of APP_NAV_ITEMS) {
-      if (item.id === "complaints") {
+      if (gatedItemIds.has(item.id)) {
         expect(item.requiredPermissions).toBeDefined();
       } else {
         expect(item.requiredPermissions).toBeUndefined();
@@ -142,6 +152,18 @@ describe("complaints nav permission gate (Commit 6)", () => {
       "complaints:escalate",
       "complaints:close",
     ]);
+  });
+
+  it("gates the announcements archive on announcement:read", () => {
+    const announcementsItem = APP_NAV_ITEMS.find((item) => item.id === "announcements")!;
+    expect(announcementsItem.requiredPermissions).toEqual(["announcement:read"]);
+    expect(announcementsItem.href).toBe("/announcements");
+  });
+
+  it("gates announcements manage on announcement:manage at a separate route", () => {
+    const manageItem = APP_NAV_ITEMS.find((item) => item.id === "announcementsManage")!;
+    expect(manageItem.requiredPermissions).toEqual(["announcement:manage"]);
+    expect(manageItem.href).toBe("/announcements/manage");
   });
 });
 
@@ -248,10 +270,15 @@ describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () =
     const byId = Object.fromEntries(APP_NAV_ITEMS.map((i) => [i.id, i]));
     expect(byId.reports.href).toBe("/reports");
     expect(byId.internalReports.href).toBe("/internal/reports");
-    const knowledge = APP_NAV_GROUPS.find((g) => g.id === "knowledge")!;
-    expect(knowledge.itemIds).toEqual(["attachments"]);
-    expect(knowledge.itemIds).not.toContain("reports");
-    expect(knowledge.itemIds).not.toContain("internalReports");
+    const information = APP_NAV_GROUPS.find((g) => g.id === "information")!;
+    expect(information.itemIds).toEqual([
+      "announcements",
+      "announcementsManage",
+      "knowledge",
+      "attachments",
+    ]);
+    expect(information.itemIds).not.toContain("reports");
+    expect(information.itemIds).not.toContain("internalReports");
   });
 });
 

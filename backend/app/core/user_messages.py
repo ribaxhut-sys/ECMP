@@ -282,6 +282,14 @@ MESSAGES: dict[str, str] = {
     ),
     "assignment.no_active_to_unassign": "Pengaduan tidak memiliki penugasan aktif untuk unassign.",
     "assignment.reason_required_reassignment": "Alasan wajib diisi untuk penugasan ulang.",
+    # --- Announcement ---
+    "announcement.body_required": "Isi pengumuman wajib diisi.",
+    "announcement.not_found": "Pengumuman tidak ditemukan.",
+    "announcement.only_admin_supervisor_manager_pusat": (
+        "Hanya Admin Pusat, Supervisor Pusat, atau Manager Pusat yang dapat "
+        "mengelola pengumuman."
+    ),
+    "announcement.not_published": "Pengumuman belum published.",
     # --- SLA ---
     "sla.active_cannot_have_completed_at": "SLA aktif tidak boleh memiliki completed_at.",
     "sla.active_not_belong_complaint": "SLA aktif tidak termasuk pengaduan ini.",
@@ -336,6 +344,18 @@ MESSAGES: dict[str, str] = {
         "Pengikatan metadata lampiran gagal; lampiran platform dikompensasi."
     ),
     "attachment.not_found": "Lampiran tidak ditemukan.",
+    "attachment.already_linked_announcement": (
+        "Lampiran sudah tertaut ke pengumuman ini."
+    ),
+    "attachment.not_announcement_domain": (
+        "Lampiran bukan milik domain pengumuman."
+    ),
+    "attachment.invalid_access_level": (
+        "Tingkat akses lampiran tidak valid (PUBLIC atau PRIVATE)."
+    ),
+    "attachment.invalid_org_scope": (
+        "Filter organisasi tidak valid (all, pusat, atau cabang)."
+    ),
     "attachment.security_scan_rejected": "Lampiran ditolak oleh pemindaian keamanan.",
     "attachment.superseded_not_found": "Lampiran superseded tidak ditemukan.",
     "attachment.unsupported_checksum_algorithm": "Algoritma checksum tidak didukung.",
@@ -542,6 +562,8 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
         "attachment.metadata_bind_failed"
     ),
     "Attachment not found": "attachment.not_found",
+    "Lampiran sudah tertaut ke pengumuman ini.": "attachment.already_linked_announcement",
+    "Lampiran bukan milik domain pengumuman.": "attachment.not_announcement_domain",
     "Attachment rejected by security scan": "attachment.security_scan_rejected",
     "Audit log not found": "audit.not_found",
     "Authentication required": "auth.authentication_required",

@@ -33,6 +33,9 @@ class Attachment:
     uploaded_by: uuid.UUID | None
     uploaded_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     status: str = AttachmentStatus.AVAILABLE.value
+    # Announcement catalog only — NULL for other aggregates.
+    access_level: str | None = None
+    uploaded_org_unit_id: str | None = None
 
     @classmethod
     def create(
@@ -52,6 +55,8 @@ class Attachment:
         attachment_id: uuid.UUID | None = None,
         uploaded_at: datetime | None = None,
         status: str = AttachmentStatus.AVAILABLE.value,
+        access_level: str | None = None,
+        uploaded_org_unit_id: str | None = None,
     ) -> Attachment:
         try:
             AggregateType(aggregate_type)
@@ -136,6 +141,8 @@ class Attachment:
             uploaded_by=uploaded_by,
             uploaded_at=created,
             status=status,
+            access_level=access_level,
+            uploaded_org_unit_id=uploaded_org_unit_id,
         )
 
     def mark_available(self) -> None:

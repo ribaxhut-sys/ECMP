@@ -12,7 +12,9 @@ export interface NavItem {
     | "reports"
     | "users"
     | "settings"
-    | "attachments";
+    | "attachments"
+    | "announcements"
+    | "knowledge";
   /** Optional notification badge (presentation only). */
   badge?: number | string;
   /**
@@ -146,6 +148,29 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     icon: "resolutions",
   },
   {
+    id: "announcements",
+    labelKey: "announcements",
+    href: "/announcements",
+    icon: "announcements",
+    // Reader archive — every Pengaduan-module user (announcement:read).
+    requiredPermissions: ["announcement:read"],
+  },
+  {
+    id: "announcementsManage",
+    labelKey: "announcementsManage",
+    href: "/announcements/manage",
+    icon: "announcements",
+    // Coarse permission gate; Sidebar also requires Pusat unit via
+    // mayManageAnnouncements (role codes SUPERVISOR/MANAGER are shared with Cabang).
+    requiredPermissions: ["announcement:manage"],
+  },
+  {
+    id: "knowledge",
+    labelKey: "knowledge",
+    href: "/knowledge",
+    icon: "knowledge",
+  },
+  {
     id: "attachments",
     labelKey: "attachments",
     href: "/attachments",
@@ -259,11 +284,13 @@ export const APP_NAV_GROUPS: readonly NavGroup[] = [
     ],
   },
   {
-    id: "knowledge",
-    labelKey: "groupKnowledge",
-    // Knowledge = Lampiran only (PDF/SOP/regulasi). Domain reports stay under
-    // their subgroups: Wajib Pajak → /reports, Internal → /internal/reports.
-    itemIds: ["attachments"],
+    id: "information",
+    labelKey: "groupInformation",
+    // Informasi = Pengumuman + Pengetahuan (placeholder — separate milestone)
+    // + Lampiran. Domain reports stay under their own subgroups: Wajib Pajak
+    // → /reports, Internal → /internal/reports. Flat group (no subgroups) —
+    // same shape as "administration", no chevron.
+    itemIds: ["announcements", "announcementsManage", "knowledge", "attachments"],
   },
   {
     id: "administration",

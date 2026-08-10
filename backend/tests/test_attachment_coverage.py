@@ -290,7 +290,10 @@ def test_router_handlers_call_service() -> None:
     )
     assert created.data.id == entity.id
 
-    assert get_attachment(entity.id, svc, batch1, principal).data.id == entity.id
+    assert (
+        get_attachment(entity.id, svc, batch1, principal, session=MagicMock()).data.id
+        == entity.id
+    )
     listed = list_attachments(svc, principal)
     assert listed.meta.total_items == 1
     dl = download_attachment(

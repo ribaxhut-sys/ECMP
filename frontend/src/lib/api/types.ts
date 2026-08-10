@@ -183,7 +183,11 @@ export interface SettingUpdateRequest {
 }
 
 /** API-324 attachment metadata (TASK-029 / TASK-032 viewer). */
-export type AttachmentAggregateType = "Complaint" | "Queue" | "Notification";
+export type AttachmentAggregateType =
+  | "Complaint"
+  | "Queue"
+  | "Notification"
+  | "Announcement";
 export type AttachmentStatus =
   | "UPLOADED"
   | "AVAILABLE"
@@ -701,4 +705,96 @@ export interface AdminResetPasswordResponse {
   temporaryPassword: string;
   forcePasswordChange: boolean;
   message: string;
+}
+
+// --- Announcements (Pengumuman) ---
+
+export type AnnouncementPriority = "NORMAL" | "IMPORTANT";
+export type AnnouncementStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+/** Derived, read-only — never stored. SCHEDULED = PUBLISHED with future startAt;
+ * EXPIRED = PUBLISHED whose endAt has elapsed. */
+export type AnnouncementEffectiveStatus =
+  | AnnouncementStatus
+  | "EXPIRED"
+  | "SCHEDULED";
+
+/**
+ * IMMEDIATE = visible as soon as uploaded, even while the announcement is
+ * still DRAFT. PUBLISHED (default, safest) = follows the announcement's own
+ * status — only visible once the announcement is PUBLISHED.
+ */
+export type AnnouncementAttachmentVisibility = "IMMEDIATE" | "PUBLISHED";
+
+/** Attachment as seen through an announcement — `id` is the underlying
+ * platform attachment id, so /api/v1/attachments/{id}/... routes work
+ * unchanged (download, preview). */
+export interface AnnouncementAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  visibility: AnnouncementAttachmentVisibility;
+  createdAt: string;
+}
+
+/** Reusable announcement-domain file for the link picker / catalog. */
+export interface AnnouncementAttachmentLibraryItem {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  accessLevel: "PUBLIC" | "PRIVATE";
+  uploadedOrgUnitId: string | null;
+  uploadedBy: string | null;
+  uploadedByName: string | null;
+  usageCount: number;
+}
+
+export interface AnnouncementAttachmentLinkRequest {
+  attachmentId: string;
+  visibility: AnnouncementAttachmentVisibility;
+}
+
+export interface AnnouncementAttachmentAccessUpdateRequest {
+  accessLevel: "PUBLIC" | "PRIVATE";
+}
+
+export interface Announcement {
+  id: string;
+  /** Human reference — PGM-YYMM-NNNN; allocated at create. */
+  referenceNumber: string;
+  title: string;
+  body: string;
+  priority: AnnouncementPriority;
+  status: AnnouncementStatus;
+  effectiveStatus: AnnouncementEffectiveStatus;
+  startAt: string | null;
+  endAt: string | null;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedBy: string | null;
+  updatedAt: string;
+  /** Already filtered per-caller by the backend — never filter again in FE. */
+  attachments: AnnouncementAttachment[];
+  attachmentCount: number;
+}
+
+export interface AnnouncementCreateRequest {
+  title: string;
+  body: string;
+  priority: AnnouncementPriority;
+  endAt?: string | null;
+}
+
+/** Optional publish body — omit / null startAt = publish now. */
+export interface AnnouncementPublishRequest {
+  startAt?: string | null;
+}
+
+/** Update may include startAt to reschedule; omit to leave schedule unchanged. */
+export interface AnnouncementUpdateRequest extends AnnouncementCreateRequest {
+  startAt?: string | null;
 }
