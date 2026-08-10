@@ -123,16 +123,9 @@ def test_no_permission_denied_even_with_admin_role() -> None:
 
 
 def test_manage_routes_depend_on_require_announcement_manage() -> None:
-    """9 mutation/management endpoints (announcement CRUD + attachment
-    upload/visibility/remove) must use the org-aware gate. The 5 read-only
-    endpoints (/active, /history, /unread, /{id} detail, /{id}/read) must
-    not — they use plain announcement:read (detail additionally self-filters
-    attachments/DRAFT for non-manage callers, but the FastAPI dependency
-    itself is read-only). /history and /unread in particular must stay
-    reader routes — they exist precisely so Cabang/Agent users don't need
-    announcement:manage to see the archive or trigger the post-login
-    unread-redirect. /{id}/read (mark-read) is also reader-only: any
-    announcement:read holder may mark something they can see as read."""
+    """Mutation/management endpoints must use the org-aware gate. Reader and
+    catalog endpoints use plain announcement:read (catalog routes are still
+    access-filtered in service layer)."""
     routes_by_key = {
         (r.path, next(iter(r.methods - {"HEAD"}))): r
         for r in announcement_router.routes
@@ -147,6 +140,7 @@ def test_manage_routes_depend_on_require_announcement_manage() -> None:
         ("/api/v1/announcements/{id}/publish", "PUT"),
         ("/api/v1/announcements/{id}/unpublish", "PUT"),
         ("/api/v1/announcements/{id}/attachments", "POST"),
+        ("/api/v1/announcements/{id}/attachments/link", "POST"),
         ("/api/v1/announcements/{id}/attachments/{attachment_id}", "PUT"),
         ("/api/v1/announcements/{id}/attachments/{attachment_id}", "DELETE"),
     }
@@ -156,6 +150,11 @@ def test_manage_routes_depend_on_require_announcement_manage() -> None:
         ("/api/v1/announcements/unread", "GET"),
         ("/api/v1/announcements/{id}", "GET"),
         ("/api/v1/announcements/{id}/read", "PUT"),
+        # Catalog — announcement:read (access-filtered in service layer).
+        ("/api/v1/announcements/attachment-library", "GET"),
+        ("/api/v1/announcements/attachment-library", "POST"),
+        ("/api/v1/announcements/attachment-library/{attachment_id}", "DELETE"),
+        ("/api/v1/announcements/attachment-library/{attachment_id}/access", "PUT"),
     }
 
     assert set(routes_by_key) == manage_keys | read_only_keys, set(routes_by_key)

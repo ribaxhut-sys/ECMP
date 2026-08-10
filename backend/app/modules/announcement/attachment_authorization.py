@@ -4,11 +4,16 @@ Used by the *shared* attachment router (CAPABILITY-011) when an attachment's
 aggregate_type is "Announcement" — see app/modules/attachment/router.py.
 Backend-only enforcement; the frontend is never trusted (§8).
 
-Visibility rule:
+Visibility rule (join / reader context):
   - IMMEDIATE — visible to anyone with announcement:read as soon as the file
     exists, even while the announcement is still DRAFT.
   - PUBLISHED (default) — follows the announcement's own status; only
     visible once the announcement is PUBLISHED.
+
+Catalog PUBLIC/PRIVATE applies to *orphan / catalog-only* downloads and to
+the attachment-library listing. Linked files use the join matrix above so
+readers can open IMMEDIATE attachments on a DRAFT without needing catalog
+PUBLIC.
 
 When one platform attachment is linked to multiple announcements, access is
 granted if *any* join satisfies the rule (do not rely on a single arbitrary join).
@@ -50,12 +55,7 @@ def assert_can_access_announcement_attachment(
     session: Session,
     attachment_id: uuid.UUID,
 ) -> None:
-    """Gate for reading metadata / downloading bytes (GET, GET .../download).
-
-    Combines:
-      1) Catalog PUBLIC/PRIVATE access (who may know the file exists)
-      2) Join IMMEDIATE/PUBLISHED + announcement lifecycle (reader context)
-    """
+    """Gate for reading metadata / downloading bytes (GET, GET .../download)."""
     from app.modules.announcement.catalog_access import can_view_catalog_attachment
     from app.modules.attachment.registration import build_attachment_service
 
@@ -64,55 +64,45 @@ def assert_can_access_announcement_attachment(
     except NotFoundError:
         raise NotFoundError(m("attachment.not_found")) from None
 
-    if not can_view_catalog_attachment(
-        principal=principal, session=session, attachment=platform
-    ):
-        # Do not leak Private existence to other branches.
-        raise NotFoundError(m("attachment.not_found"))
+    org = _resolve_org_unit(principal, session)
+    if principal_may_manage_announcements(principal, org_unit_id=org):
+        return
 
     join_repo = AnnouncementAttachmentRepository(session)
     joins = join_repo.list_by_attachment_id(attachment_id)
 
-    # Catalog-only orphan (unlinked) — manage/owner already passed catalog check.
-    if not joins:
-        if principal_may_manage_announcements(
-            principal, org_unit_id=_resolve_org_unit(principal, session)
-        ):
-            return
-        if platform.uploaded_by is not None and platform.uploaded_by == principal.user_id:
-            return
-        # PUBLIC catalog orphans are downloadable by any announcement:read holder.
-        return
+    if joins:
+        if not principal.has_permission("announcement:read"):
+            raise PermissionDeniedError(m("common.forbidden"))
 
-    if not principal.has_permission("announcement:read"):
-        raise PermissionDeniedError(m("common.forbidden"))
+        announcements = AnnouncementRepository(session)
+        now = datetime.now(UTC)
+        saw_denied_live = False
+        for join in joins:
+            announcement = announcements.get(join.announcement_id)
+            if announcement is None:
+                continue
+            if is_scheduled_announcement(
+                announcement.status,
+                announcement.start_at,
+                now=now,
+            ):
+                continue
+            if join.visibility == "IMMEDIATE":
+                return
+            if announcement.status == "PUBLISHED":
+                return
+            saw_denied_live = True
 
-    if principal_may_manage_announcements(
-        principal, org_unit_id=_resolve_org_unit(principal, session)
+        if saw_denied_live:
+            raise PermissionDeniedError(m("common.forbidden"))
+        raise NotFoundError(m("attachment.not_found"))
+
+    # Catalog-only orphan — PUBLIC/PRIVATE + owner/Pusat rules.
+    if can_view_catalog_attachment(
+        principal=principal, session=session, attachment=platform
     ):
         return
-
-    announcements = AnnouncementRepository(session)
-    now = datetime.now(UTC)
-    saw_denied_live = False
-    for join in joins:
-        announcement = announcements.get(join.announcement_id)
-        if announcement is None:
-            continue
-        if is_scheduled_announcement(
-            announcement.status,
-            announcement.start_at,
-            now=now,
-        ):
-            continue
-        if join.visibility == "IMMEDIATE":
-            return
-        if announcement.status == "PUBLISHED":
-            return
-        saw_denied_live = True
-
-    if saw_denied_live:
-        raise PermissionDeniedError(m("common.forbidden"))
     raise NotFoundError(m("attachment.not_found"))
 
 

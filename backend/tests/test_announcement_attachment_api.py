@@ -256,11 +256,11 @@ def test_remove_attachment(
     detail = client.get(f"/api/v1/announcements/{ann['id']}", headers=admin_header)
     assert detail.json()["data"]["attachmentCount"] == 0
 
-    # Underlying file no longer downloadable either.
+    # Unlink keeps the file in the catalog — download must still work.
     download = client.get(
         f"/api/v1/attachments/{uploaded['id']}/download", headers=admin_header
     )
-    assert download.status_code == 404
+    assert download.status_code == 200, download.text
 
 
 # --- Visibility default + options -------------------------------------------
@@ -764,9 +764,10 @@ def test_remove_keeps_platform_file_when_still_linked(
     assert download.status_code == 200, download.text
 
 
-def test_remove_soft_deletes_when_last_join_gone(
+def test_unlink_keeps_catalog_file_when_last_join_gone(
     client: TestClient, admin_header: dict[str, str], storage_root: Path
 ) -> None:
+    """Removing joins unlinks only — catalog soft-delete is a separate DELETE."""
     a = _create_announcement(client, admin_header, title="A")
     b = _create_announcement(client, admin_header, title="B")
     uploaded = _upload(client, admin_header, a["id"])
@@ -786,7 +787,17 @@ def test_remove_soft_deletes_when_last_join_gone(
     download = client.get(
         f"/api/v1/attachments/{uploaded['id']}/download", headers=admin_header
     )
-    assert download.status_code == 404
+    assert download.status_code == 200, download.text
+
+    deleted = client.delete(
+        f"/api/v1/announcements/attachment-library/{uploaded['id']}",
+        headers=admin_header,
+    )
+    assert deleted.status_code == 204, deleted.text
+    gone = client.get(
+        f"/api/v1/attachments/{uploaded['id']}/download", headers=admin_header
+    )
+    assert gone.status_code == 404
 
 
 def test_access_granted_via_any_visible_join(
