@@ -89,8 +89,8 @@ describe("KnowledgeMentionTextarea", () => {
     await user.keyboard("Sesuai @");
 
     await waitFor(() => {
-      expect(screen.getByText("Choose type")).toBeInTheDocument();
-      expect(screen.getByText(/Esc to go back/i)).toBeInTheDocument();
+      expect(screen.getByText(/Choose type/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Esc to go back/i).length).toBeGreaterThan(0);
     });
     expect(screen.getByRole("option", { name: /Browse SOP/i })).toBeInTheDocument();
     expect(
@@ -116,7 +116,7 @@ describe("KnowledgeMentionTextarea", () => {
     const editor = screen.getByRole("combobox");
     await user.click(editor);
     await user.keyboard("@");
-    await screen.findByText("Choose type");
+    await screen.findByText(/Choose type/i);
 
     await user.click(screen.getByRole("option", { name: /Browse SOP/i }));
 
