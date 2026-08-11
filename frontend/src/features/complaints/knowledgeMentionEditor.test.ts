@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createKnowledgeChip,
+  getVisibleOffsetRect,
   renderMentionEditor,
   serializeMentionEditor,
 } from "./knowledgeMentionEditor";
@@ -33,5 +34,14 @@ describe("knowledgeMentionEditor", () => {
     expect(serializeMentionEditor(root)).toBe(
       "Hi @[SOP A](knowledge:e5555555-5555-5555-5555-555555555555)",
     );
+  });
+
+  it("returns a client rect for a visible offset (menu anchor)", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    root.appendChild(document.createTextNode("Hi @sop"));
+    const rect = getVisibleOffsetRect(root, 3);
+    expect(rect).not.toBeNull();
+    root.remove();
   });
 });

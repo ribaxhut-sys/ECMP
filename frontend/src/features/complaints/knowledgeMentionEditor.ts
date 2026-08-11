@@ -235,6 +235,45 @@ function placeCaretAfter(node: Node) {
   sel.addRange(range);
 }
 
+/**
+ * Client rect for a visible-text offset (e.g. the `@` that opened the menu).
+ * Used to anchor the Knowledge search popover beside the trigger.
+ */
+export function getVisibleOffsetRect(
+  root: HTMLElement,
+  offset: number,
+): DOMRect | null {
+  const point = locateVisibleOffset(root, offset);
+  if (!point) return null;
+  const range = root.ownerDocument.createRange();
+  try {
+    if (point.node.nodeType === Node.TEXT_NODE) {
+      const len = point.node.textContent?.length ?? 0;
+      const start = Math.min(Math.max(point.offset, 0), len);
+      const end = Math.min(start + 1, len);
+      range.setStart(point.node, start);
+      range.setEnd(point.node, end > start ? end : start);
+    } else {
+      range.setStart(point.node, point.offset);
+      range.collapse(true);
+    }
+  } catch {
+    return null;
+  }
+  const rect =
+    typeof range.getBoundingClientRect === "function"
+      ? range.getBoundingClientRect()
+      : null;
+  if (
+    !rect ||
+    (rect.width === 0 && rect.height === 0 && rect.top === 0 && rect.left === 0)
+  ) {
+    // Collapsed/empty range or jsdom — fall back to editor box.
+    return root.getBoundingClientRect();
+  }
+  return rect;
+}
+
 function locateVisibleOffset(
   root: HTMLElement,
   target: number,

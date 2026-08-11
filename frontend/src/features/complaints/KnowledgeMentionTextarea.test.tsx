@@ -86,6 +86,9 @@ describe("KnowledgeMentionTextarea", () => {
     await waitFor(() => {
       expect(screen.getByText("Search Knowledge")).toBeInTheDocument();
     });
+    // Header shows the @ logo beside the search title.
+    const title = screen.getByText("Search Knowledge");
+    expect(title.parentElement?.textContent).toMatch(/@/);
     await waitFor(() => {
       expect(searchKnowledge).toHaveBeenCalledWith(
         expect.objectContaining({

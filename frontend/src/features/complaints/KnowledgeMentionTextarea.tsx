@@ -23,6 +23,7 @@ import { IconFile, IconSpinner } from "@/shared/icons";
 import { cn } from "@/shared/utils";
 import { detectMentionQuery, type MentionQuery } from "./knowledgeReferenceMarker";
 import {
+  getVisibleOffsetRect,
   getVisibleTextAndCaret,
   insertChipAtMention,
   renderMentionEditor,
@@ -32,6 +33,9 @@ import {
 const DEBOUNCE_MS = 250;
 /** Must stay aligned with backend KnowledgeService.REFERENCE_SEARCH_DEFAULT_LIMIT. */
 const REFERENCE_SEARCH_LIMIT = 10;
+const MENU_WIDTH_PX = 360;
+const MENU_GAP_PX = 4;
+const MENU_VIEWPORT_PAD_PX = 8;
 
 function resultSubtitle(item: Knowledge, statusLabel: string): string {
   const typeOrDocNumber = item.documentNumber || item.knowledgeType;
@@ -83,11 +87,47 @@ export function KnowledgeMentionTextarea({
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState(0);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
 
   const open = mention !== null;
   mentionRef.current = mention;
 
   const describedBy = formFieldDescribedBy(inputId, { hint, error });
+
+  const updateMenuPosition = useCallback(() => {
+    const root = editorRef.current;
+    const current = mentionRef.current;
+    if (!root || !current) {
+      setMenuPos(null);
+      return;
+    }
+    const anchor = getVisibleOffsetRect(root, current.start);
+    if (!anchor) {
+      setMenuPos(null);
+      return;
+    }
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    let left = anchor.left;
+    left = Math.min(
+      left,
+      viewportW - MENU_WIDTH_PX - MENU_VIEWPORT_PAD_PX,
+    );
+    left = Math.max(MENU_VIEWPORT_PAD_PX, left);
+
+    const preferredTop = anchor.bottom + MENU_GAP_PX;
+    const estimatedMenuH = 280;
+    const flipAbove =
+      preferredTop + estimatedMenuH > viewportH - MENU_VIEWPORT_PAD_PX &&
+      anchor.top > estimatedMenuH;
+    const top = flipAbove
+      ? Math.max(MENU_VIEWPORT_PAD_PX, anchor.top - estimatedMenuH - MENU_GAP_PX)
+      : preferredTop;
+
+    setMenuPos({ top, left });
+  }, []);
 
   // Keep contenteditable chips in sync with the controlled storage value.
   useLayoutEffect(() => {
@@ -100,6 +140,22 @@ export function KnowledgeMentionTextarea({
     if (serializeMentionEditor(root) === value) return;
     renderMentionEditor(root, value);
   }, [value]);
+
+  // Anchor "Cari Pengetahuan" beside the typed `@`.
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    updateMenuPosition();
+    const onReposition = () => updateMenuPosition();
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [open, mention?.start, mention?.query, results.length, loading, updateMenuPosition]);
 
   const runSearch = useCallback(
     (query: string) => {
@@ -302,9 +358,18 @@ export function KnowledgeMentionTextarea({
           }}
         />
       </FormField>
-      {open ? (
-        <div className="absolute z-10 mt-1 w-full max-w-md rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-raised">
-          <p className="border-b border-ecmp-border px-3 py-2 text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
+      {open && menuPos ? (
+        <div
+          className="fixed z-50 w-[min(100vw-1rem,22.5rem)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-raised"
+          style={{ top: menuPos.top, left: menuPos.left }}
+        >
+          <p className="flex items-center gap-1.5 border-b border-ecmp-border px-3 py-2 text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
+            <span
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded bg-ecmp-primary-muted text-[length:var(--ecmp-font-body-small-size)] font-semibold text-ecmp-primary"
+              aria-hidden
+            >
+              @
+            </span>
             {t("searchTitle")}
           </p>
           <ul
