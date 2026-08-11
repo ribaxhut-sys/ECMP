@@ -245,6 +245,27 @@ function placeCaretAfter(node: Node) {
   sel.addRange(range);
 }
 
+/** Delete a visible-text range (e.g. bare `@` on Escape). */
+export function deleteVisibleRange(
+  root: HTMLElement,
+  start: number,
+  end: number,
+): void {
+  if (end <= start) return;
+  const startPoint = locateVisibleOffset(root, start);
+  const endPoint = locateVisibleOffset(root, end);
+  if (!startPoint || !endPoint) return;
+  const range = root.ownerDocument.createRange();
+  range.setStart(startPoint.node, startPoint.offset);
+  range.setEnd(endPoint.node, endPoint.offset);
+  range.deleteContents();
+  range.collapse(true);
+  const sel = root.ownerDocument.defaultView?.getSelection();
+  if (!sel) return;
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 /**
  * Client rect for a visible-text offset (e.g. the `@` that opened the menu).
  * Used to anchor the Knowledge search popover beside the trigger.

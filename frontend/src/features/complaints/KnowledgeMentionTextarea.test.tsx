@@ -90,7 +90,7 @@ describe("KnowledgeMentionTextarea", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Choose type/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/Esc to go back/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Esc to go back/i)).toHaveLength(1);
     });
     expect(screen.getByRole("option", { name: /Browse SOP/i })).toBeInTheDocument();
     expect(
@@ -106,6 +106,24 @@ describe("KnowledgeMentionTextarea", () => {
       screen.getByRole("option", { name: /Browse Panduan|Browse Guide/i }),
     ).toBeInTheDocument();
     expect(searchKnowledge).not.toHaveBeenCalled();
+  });
+
+  it("removes the bare @ from the text when Escape is pressed on the type picker", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("Sesuai @");
+    await screen.findByText(/Choose type/i);
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Choose type/i)).not.toBeInTheDocument();
+    });
+    expect(editor.textContent).toBe("Sesuai ");
+    expect(editor.textContent).not.toContain("@");
   });
 
   it("searches by type after a type is chosen from the picker", async () => {

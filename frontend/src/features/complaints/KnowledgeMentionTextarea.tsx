@@ -27,6 +27,7 @@ import { detectMentionQuery, type MentionQuery } from "./knowledgeReferenceMarke
 import { isKnowledgeReferenceActive } from "./knowledgeReferenceActivity";
 import {
   KNOWLEDGE_CHIP_ATTR_ID,
+  deleteVisibleRange,
   getVisibleOffsetRect,
   getVisibleTextAndCaret,
   insertChipAtMention,
@@ -316,6 +317,23 @@ export function KnowledgeMentionTextarea({
     root.focus();
   }
 
+  /** Esc on bare `@` — close the menu and remove the trigger from the text. */
+  function dismissEmptyMentionTrigger() {
+    const root = editorRef.current;
+    const current = mentionRef.current;
+    if (!root || !current || current.query !== "") {
+      suppressMentionUntilInputRef.current = true;
+      closeDropdown();
+      return;
+    }
+    deleteVisibleRange(root, current.start, current.start + 1);
+    suppressMentionUntilInputRef.current = true;
+    skipRenderFromValueRef.current = true;
+    closeDropdown();
+    onChange(serializeMentionEditor(root));
+    root.focus();
+  }
+
   function onEditorKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!open) return;
 
@@ -336,8 +354,7 @@ export function KnowledgeMentionTextarea({
         if (type) selectType(type);
       } else if (event.key === "Escape") {
         event.preventDefault();
-        suppressMentionUntilInputRef.current = true;
-        closeDropdown();
+        dismissEmptyMentionTrigger();
       }
       return;
     }
@@ -359,6 +376,8 @@ export function KnowledgeMentionTextarea({
       event.preventDefault();
       if (selectedType && (mention?.query ?? "") === "") {
         enterTypePicker();
+      } else if ((mention?.query ?? "") === "") {
+        dismissEmptyMentionTrigger();
       } else {
         suppressMentionUntilInputRef.current = true;
         closeDropdown();
@@ -504,21 +523,9 @@ export function KnowledgeMentionTextarea({
                 title={t("backWithEsc")}
               >
                 {headerLabel}
-                <span className="font-normal text-ecmp-text-secondary">
-                  {" "}
-                  · {t("backWithEsc")}
-                </span>
               </button>
             ) : (
-              <span className="min-w-0 truncate">
-                {headerLabel}
-                {showTypePicker ? (
-                  <span className="font-normal text-ecmp-text-secondary">
-                    {" "}
-                    · {t("backWithEsc")}
-                  </span>
-                ) : null}
-              </span>
+              <span className="min-w-0 truncate">{headerLabel}</span>
             )}
           </div>
           {showTypePicker ? (
