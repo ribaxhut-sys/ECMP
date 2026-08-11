@@ -874,4 +874,6 @@ export interface KnowledgeSearchParams {
   /** `@` Knowledge Reference (Complaint Resolution) — always ACTIVE + within
    * the effective window, even for a knowledge:manage caller. */
   referenceOnly?: boolean;
+  /** Max rows (referenceOnly is capped at 10 on the server). */
+  limit?: number;
 }

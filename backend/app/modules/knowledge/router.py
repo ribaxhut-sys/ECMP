@@ -73,6 +73,7 @@ def search_knowledge(
         KnowledgeStatusFilter, Query(alias="status")
     ] = "ACTIVE",
     reference_only: Annotated[bool, Query(alias="referenceOnly")] = False,
+    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
 ) -> DataResponse[list[KnowledgeResponse]]:
     """Default ``status=ACTIVE`` narrows to the effective window for
     non-managers; ``status=DRAFT`` requires knowledge:manage.
@@ -80,7 +81,8 @@ def search_knowledge(
     ``referenceOnly=true`` (Complaint Resolution ``@`` mention) always
     forces ACTIVE + effective-window narrowing, even for knowledge:manage
     callers — a Knowledge citable as the basis of a new Penyelesaian must be
-    in effect *right now*, regardless of who is typing.
+    in effect *right now*, regardless of who is typing. Reference search is
+    capped (default 10) so the ``@`` dropdown stays usable.
     """
     caller_may_manage = _caller_may_manage(principal, session)
     data = service.search(
@@ -89,6 +91,7 @@ def search_knowledge(
         status=status_filter,
         caller_may_manage=caller_may_manage,
         reference_only=reference_only,
+        limit=limit,
     )
     return DataResponse(data=data)
 

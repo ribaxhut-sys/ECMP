@@ -10,6 +10,11 @@ import { renderWithProviders } from "@/test/harness";
 import type { Knowledge } from "@/lib/api/types";
 
 const searchKnowledge = vi.fn();
+const push = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -63,6 +68,7 @@ function Harness({ onValue }: { onValue?: (value: string) => void }) {
 describe("KnowledgeMentionTextarea", () => {
   beforeEach(() => {
     searchKnowledge.mockReset();
+    push.mockReset();
   });
 
   afterEach(() => {
@@ -82,7 +88,12 @@ describe("KnowledgeMentionTextarea", () => {
     });
     await waitFor(() => {
       expect(searchKnowledge).toHaveBeenCalledWith(
-        expect.objectContaining({ q: "", status: "ACTIVE", referenceOnly: true }),
+        expect.objectContaining({
+          q: "",
+          status: "ACTIVE",
+          referenceOnly: true,
+          limit: 10,
+        }),
       );
     });
   });
@@ -96,7 +107,12 @@ describe("KnowledgeMentionTextarea", () => {
 
     await waitFor(() => {
       expect(searchKnowledge).toHaveBeenCalledWith(
-        expect.objectContaining({ q: "pengaduan", status: "ACTIVE", referenceOnly: true }),
+        expect.objectContaining({
+          q: "pengaduan",
+          status: "ACTIVE",
+          referenceOnly: true,
+          limit: 10,
+        }),
       );
     });
   });
@@ -143,6 +159,47 @@ describe("KnowledgeMentionTextarea", () => {
       );
     });
     expect(screen.queryByText("Search Knowledge")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Selected references (click to open):"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /SOP Penanganan Pengaduan v2\.1/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("selects the highlighted result with Enter or Tab", async () => {
+    const user = userEvent.setup();
+    searchKnowledge.mockResolvedValue({ data: [knowledge()] });
+    renderWithProviders(<Harness />);
+
+    const textarea = screen.getByLabelText("Catatan Penyelesaian") as HTMLTextAreaElement;
+    await user.type(textarea, "@sop");
+    await screen.findByRole("option", { name: /SOP Penanganan Pengaduan/i });
+
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(textarea.value).toContain("knowledge:e5555555-5555-5555-5555-555555555555");
+    });
+  });
+
+  it("caps client search requests at limit 10", async () => {
+    const user = userEvent.setup();
+    searchKnowledge.mockResolvedValue({
+      data: Array.from({ length: 15 }, (_, i) =>
+        knowledge({
+          id: `e5555555-5555-5555-5555-5555555555${i.toString().padStart(2, "0")}`,
+          title: `SOP ${i}`,
+        }),
+      ),
+    });
+    renderWithProviders(<Harness />);
+
+    await user.type(screen.getByLabelText("Catatan Penyelesaian"), "@sop");
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("option")).toHaveLength(10);
+    });
   });
 
   it("closes the dropdown on Escape without changing the text", async () => {

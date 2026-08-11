@@ -275,6 +275,38 @@ def test_reference_search_excludes_draft(
     assert draft["title"] not in titles
 
 
+def test_reference_search_caps_at_ten_results(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    """``@`` dropdown must stay scannable — hard cap 10 even when more match."""
+    prefix = "LimitCapRef"
+    for i in range(12):
+        _create_active_knowledge(
+            client,
+            admin_header,
+            title=f"{prefix} {i:02d}",
+        )
+
+    resp = client.get(
+        "/api/v1/knowledge",
+        params={"referenceOnly": "true", "q": prefix},
+        headers=admin_header,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()["data"]
+    assert len(data) == 10
+    assert all(prefix in row["title"] for row in data)
+
+    # Explicit limit cannot exceed the reference hard cap.
+    resp = client.get(
+        "/api/v1/knowledge",
+        params={"referenceOnly": "true", "q": prefix, "limit": 50},
+        headers=admin_header,
+    )
+    assert resp.status_code == 200, resp.text
+    assert len(resp.json()["data"]) == 10
+
+
 def test_reference_search_excludes_archived(
     client: TestClient, admin_header: dict[str, str]
 ) -> None:

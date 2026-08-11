@@ -17,11 +17,15 @@ import { IconFile, IconSpinner } from "@/shared/icons";
 import { cn } from "@/shared/utils";
 import {
   detectMentionQuery,
+  extractKnowledgeIds,
   insertKnowledgeMarker,
   type MentionQuery,
 } from "./knowledgeReferenceMarker";
+import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 
 const DEBOUNCE_MS = 250;
+/** Must stay aligned with backend KnowledgeService.REFERENCE_SEARCH_DEFAULT_LIMIT. */
+const REFERENCE_SEARCH_LIMIT = 10;
 
 function resultSubtitle(item: Knowledge, statusLabel: string): string {
   const typeOrDocNumber = item.documentNumber || item.knowledgeType;
@@ -86,10 +90,15 @@ export function KnowledgeMentionTextarea({
       const seq = ++requestSeqRef.current;
       setLoading(true);
       setSearchError(null);
-      searchKnowledge({ q: query, status: "ACTIVE", referenceOnly: true })
+      searchKnowledge({
+        q: query,
+        status: "ACTIVE",
+        referenceOnly: true,
+        limit: REFERENCE_SEARCH_LIMIT,
+      })
         .then((res) => {
           if (seq !== requestSeqRef.current) return;
-          setResults(res.data);
+          setResults(res.data.slice(0, REFERENCE_SEARCH_LIMIT));
           setHighlighted(0);
         })
         .catch(() => {
@@ -161,7 +170,7 @@ export function KnowledgeMentionTextarea({
       setHighlighted((i) =>
         results.length === 0 ? 0 : (i - 1 + results.length) % results.length,
       );
-    } else if (event.key === "Enter") {
+    } else if (event.key === "Enter" || event.key === "Tab") {
       if (results[highlighted]) {
         event.preventDefault();
         selectResult(results[highlighted]);
@@ -175,8 +184,18 @@ export function KnowledgeMentionTextarea({
   const activeOptionId =
     open && results[highlighted] ? `${listboxId}-option-${highlighted}` : undefined;
 
+  const hasSelectedReferences = extractKnowledgeIds(value).length > 0;
+
+  useEffect(() => {
+    if (!open || results.length === 0) return;
+    const el = document.getElementById(`${listboxId}-option-${highlighted}`);
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlighted, listboxId, open, results.length]);
+
   return (
-    <div className="relative">
+    <div className="relative space-y-2">
       <Textarea
         ref={textareaRef}
         id={id}
@@ -262,6 +281,14 @@ export function KnowledgeMentionTextarea({
               ))
             )}
           </ul>
+        </div>
+      ) : null}
+      {hasSelectedReferences ? (
+        <div className="rounded-[var(--ecmp-radius-sm)] border border-ecmp-border bg-ecmp-surface-sunken px-3 py-2">
+          <p className="mb-1 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+            {t("selectedPreview")}
+          </p>
+          <KnowledgeReferenceText text={value} />
         </div>
       ) : null}
     </div>

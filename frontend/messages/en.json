@@ -3275,6 +3275,7 @@
     "empty": "No Knowledge found.",
     "error": "Unable to load Knowledge.",
     "openKnowledge": "Open Knowledge",
-    "untitledReference": "Knowledge unavailable"
+    "untitledReference": "Knowledge unavailable",
+    "selectedPreview": "Selected references (click to open):"
   }
 }

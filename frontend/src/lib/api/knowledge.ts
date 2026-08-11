@@ -18,6 +18,7 @@ export function searchKnowledge(
   if (params.type) query.set("type", params.type);
   if (params.status) query.set("status", params.status);
   if (params.referenceOnly) query.set("referenceOnly", "true");
+  if (params.limit != null) query.set("limit", String(params.limit));
   const qs = query.toString();
   return apiRequest<DataResponse<Knowledge[]>>(
     `/api/v1/knowledge${qs ? `?${qs}` : ""}`,

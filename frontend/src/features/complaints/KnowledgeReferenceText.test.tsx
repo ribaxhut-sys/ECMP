@@ -43,6 +43,14 @@ describe("KnowledgeReferenceText", () => {
     );
   });
 
+  it("renders the reference title in italic", () => {
+    const text = "Sesuai @[SOP Pengaduan](knowledge:e5555555-5555-5555-5555-555555555555).";
+    renderWithProviders(<KnowledgeReferenceText text={text} />);
+    const title = screen.getByText("SOP Pengaduan");
+    expect(title.tagName).toBe("SPAN");
+    expect(title.className).toContain("italic");
+  });
+
   it("renders multiple references with plain text preserved between them", () => {
     const text =
       "Berdasarkan @[SOP A](knowledge:e5555555-5555-5555-5555-555555555555) dan @[Peraturan B](knowledge:f6666666-6666-6666-6666-666666666666), penyelesaian dilakukan.";

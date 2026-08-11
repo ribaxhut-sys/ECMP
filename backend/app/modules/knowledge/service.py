@@ -88,6 +88,10 @@ class KnowledgeService:
 
     # --- Read ---------------------------------------------------------
 
+    # Cap for Complaint Resolution ``@`` mention dropdown (product UX).
+    REFERENCE_SEARCH_DEFAULT_LIMIT = 10
+    REFERENCE_SEARCH_MAX_LIMIT = 10
+
     def search(
         self,
         *,
@@ -96,13 +100,19 @@ class KnowledgeService:
         status: str,
         caller_may_manage: bool,
         reference_only: bool = False,
+        limit: int | None = None,
     ) -> list[KnowledgeResponse]:
         """``reference_only`` — Complaint Resolution ``@`` mention search
         (KM Reference §3, LOCKED): always ACTIVE + within the effective
         window, unconditionally — the ``caller_may_manage`` window bypass
         below exists for the *management* list (so a manager can find a
         lapsed-but-ACTIVE record to archive it) and must never leak into
-        what a new Penyelesaian may cite."""
+        what a new Penyelesaian may cite.
+
+        Reference search returns at most 10 rows (default and hard cap) so
+        the ``@`` popover stays scannable; the management list is uncapped
+        unless the caller passes an explicit ``limit``.
+        """
         effective_status = "ACTIVE" if reference_only else status
         if effective_status == "DRAFT" and not caller_may_manage:
             raise PermissionDeniedError(m("knowledge.only_admin_supervisor_manager_pusat"))
@@ -110,6 +120,13 @@ class KnowledgeService:
         if effective_status == "ACTIVE" and (reference_only or not caller_may_manage):
             now = datetime.now(UTC)
             rows = [r for r in rows if within_effective_window(r, now=now)]
+        if reference_only:
+            cap = self.REFERENCE_SEARCH_DEFAULT_LIMIT
+            if limit is not None:
+                cap = min(limit, self.REFERENCE_SEARCH_MAX_LIMIT)
+            rows = rows[:cap]
+        elif limit is not None:
+            rows = rows[:limit]
         files_by_id = self._files.list_for_knowledge_ids([r.id for r in rows])
         return [self._to_response(r, files_by_id.get(r.id, [])) for r in rows]
 

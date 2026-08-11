@@ -26,12 +26,14 @@ export function KnowledgeReferenceText({ text }: { text: string }) {
           <button
             key={index}
             type="button"
-            className="mx-0.5 inline-flex items-center gap-1 rounded-[var(--ecmp-radius-sm)] bg-ecmp-primary-muted px-1.5 py-0.5 align-baseline text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-primary underline-offset-2 hover:underline"
+            className="mx-0.5 inline-flex items-center gap-1 rounded-[var(--ecmp-radius-sm)] bg-ecmp-primary-muted px-1.5 py-0.5 align-baseline text-[length:var(--ecmp-font-body-size)] font-medium italic text-ecmp-primary underline-offset-2 hover:underline"
             onClick={() => router.push(`/knowledge/${segment.knowledgeId}`)}
             title={t("openKnowledge")}
           >
             <IconFile className="size-3.5 shrink-0" aria-hidden />
-            {segment.title || t("untitledReference")}
+            <span className="italic">
+              {segment.title || t("untitledReference")}
+            </span>
           </button>
         );
       })}
