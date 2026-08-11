@@ -30,6 +30,7 @@ function resultSubtitle(item: Knowledge, statusLabel: string): string {
 }
 
 export function KnowledgeMentionTextarea({
+  id,
   label,
   name,
   required,
@@ -37,7 +38,11 @@ export function KnowledgeMentionTextarea({
   value,
   onChange,
   error,
+  hint,
+  maxLength,
+  disabled,
 }: {
+  id?: string;
   label: string;
   name?: string;
   required?: boolean;
@@ -45,6 +50,9 @@ export function KnowledgeMentionTextarea({
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  hint?: string;
+  maxLength?: number;
+  disabled?: boolean;
 }) {
   const t = useTranslations("knowledgeMention");
   const tKnowledge = useTranslations("knowledge");
@@ -171,12 +179,16 @@ export function KnowledgeMentionTextarea({
     <div className="relative">
       <Textarea
         ref={textareaRef}
+        id={id}
         label={label}
         name={name}
         required={required}
         rows={rows}
         value={value}
         error={error}
+        hint={hint}
+        maxLength={maxLength}
+        disabled={disabled}
         onChange={onTextareaChange}
         onKeyDown={onTextareaKeyDown}
         onBlur={() => {

@@ -37,6 +37,7 @@ import {
 } from "@/shared/ui";
 import { CustomerSearchPanel } from "./CustomerSearchPanel";
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
+import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
 import { StagingAttachmentsPanel } from "./StagingAttachmentsPanel";
 import {
   createEmptyComplaintForm,
@@ -492,19 +493,23 @@ export function CreateComplaintView() {
                   max: 5000,
                 })}
               />
-              <Textarea
+              <KnowledgeMentionTextarea
                 name="resolution"
                 id="resolution"
                 label={t("resolutionOrEscalationReason")}
                 rows={5}
                 maxLength={5000}
                 value={values.resolution}
-                onChange={onTextChange("resolution")}
+                onChange={(next) => {
+                  updateField("resolution", next);
+                  setOverrideJustification(null);
+                }}
                 error={errors.resolution}
                 hint={t("resolutionOrEscalationReasonHint", {
                   count: values.resolution.trim().length,
                   max: 5000,
                 })}
+                disabled={submitting}
               />
             </fieldset>
           </CardBody>

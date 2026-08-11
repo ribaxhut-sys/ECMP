@@ -29,6 +29,7 @@ import {
   Textarea,
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 
 const CATEGORY_VALUES: readonly ResolutionCategory[] = [
   "SOLVED",
@@ -391,7 +392,7 @@ export function ResolutionRowActions({
                 disabled={submitting}
                 onChange={(e) => setRootCause(e.target.value)}
               />
-              <Textarea
+              <KnowledgeMentionTextarea
                 label={tComplaints("resolutionNotes")}
                 name="resolutionNotes"
                 required
@@ -399,7 +400,7 @@ export function ResolutionRowActions({
                 maxLength={5000}
                 value={resolutionNotes}
                 disabled={submitting}
-                onChange={(e) => setResolutionNotes(e.target.value)}
+                onChange={setResolutionNotes}
               />
             </>
           ) : null}
