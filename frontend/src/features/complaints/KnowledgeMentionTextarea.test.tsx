@@ -80,9 +80,8 @@ describe("KnowledgeMentionTextarea", () => {
     cleanup();
   });
 
-  it("opens the dropdown and searches Knowledge (ACTIVE, referenceOnly) when @ is typed", async () => {
+  it("shows the type picker (SOP…Panduan) when @ is typed with an empty query", async () => {
     const user = userEvent.setup();
-    searchKnowledge.mockResolvedValue({ data: [knowledge()] });
     renderWithProviders(<Harness />);
 
     const editor = screen.getByRole("combobox");
@@ -90,24 +89,53 @@ describe("KnowledgeMentionTextarea", () => {
     await user.keyboard("Sesuai @");
 
     await waitFor(() => {
-      expect(screen.getByText("Search Knowledge")).toBeInTheDocument();
+      expect(screen.getByText("Choose type")).toBeInTheDocument();
     });
-    // Header shows the @ logo beside the search title.
-    const title = screen.getByText("Search Knowledge");
-    expect(title.parentElement?.textContent).toMatch(/@/);
+    expect(screen.getByRole("option", { name: /Browse SOP/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /Browse Peraturan|Browse Regulation/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /Browse Surat Edaran|Browse Circular/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /Browse Keputusan|Browse Decision/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /Browse Panduan|Browse Guide/i }),
+    ).toBeInTheDocument();
+    expect(searchKnowledge).not.toHaveBeenCalled();
+  });
+
+  it("searches by type after a type is chosen from the picker", async () => {
+    const user = userEvent.setup();
+    searchKnowledge.mockResolvedValue({ data: [knowledge()] });
+    renderWithProviders(<Harness />);
+
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("@");
+    await screen.findByText("Choose type");
+
+    await user.click(screen.getByRole("option", { name: /Browse SOP/i }));
+
     await waitFor(() => {
       expect(searchKnowledge).toHaveBeenCalledWith(
         expect.objectContaining({
           q: "",
+          type: "SOP",
           status: "ACTIVE",
           referenceOnly: true,
           limit: 10,
         }),
       );
     });
+    expect(
+      await screen.findByRole("option", { name: /SOP Penanganan Pengaduan/i }),
+    ).toBeInTheDocument();
   });
 
-  it("filters the search by the typed query", async () => {
+  it("filters the search by the typed query (skips type picker)", async () => {
     const user = userEvent.setup();
     searchKnowledge.mockResolvedValue({ data: [] });
     renderWithProviders(<Harness />);
@@ -179,7 +207,6 @@ describe("KnowledgeMentionTextarea", () => {
       );
     });
 
-    // Visible UI shows the title chip, not the raw marker / below preview.
     expect(editor.textContent).toContain("SOP Penanganan Pengaduan v2.1");
     expect(editor.textContent).not.toContain("knowledge:");
     expect(

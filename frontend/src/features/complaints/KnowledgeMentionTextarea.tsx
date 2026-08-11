@@ -13,14 +13,14 @@ import {
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { searchKnowledge, fetchKnowledge } from "@/lib/api";
-import type { Knowledge } from "@/lib/api/types";
+import type { Knowledge, KnowledgeType } from "@/lib/api/types";
 import {
   FormField,
   Badge,
   controlSurfaceClass,
   formFieldDescribedBy,
 } from "@/shared/ui";
-import { IconFile, IconSpinner } from "@/shared/icons";
+import { IconChevronRight, IconFile, IconSpinner } from "@/shared/icons";
 import { cn } from "@/shared/utils";
 import { knowledgeTypeKey } from "@/features/knowledge/KnowledgeBadges";
 import { detectMentionQuery, type MentionQuery } from "./knowledgeReferenceMarker";
@@ -41,6 +41,15 @@ const REFERENCE_SEARCH_LIMIT = 10;
 const MENU_WIDTH_PX = 360;
 const MENU_GAP_PX = 4;
 const MENU_VIEWPORT_PAD_PX = 8;
+
+/** Catalog order for the `@` empty-query type picker (Option A). */
+export const KNOWLEDGE_MENTION_TYPES: readonly KnowledgeType[] = [
+  "SOP",
+  "PERATURAN",
+  "SURAT_EDARAN",
+  "KEPUTUSAN",
+  "PANDUAN",
+] as const;
 
 export function KnowledgeMentionTextarea({
   id,
@@ -78,10 +87,12 @@ export function KnowledgeMentionTextarea({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeqRef = useRef(0);
   const mentionRef = useRef<MentionQuery | null>(null);
+  const selectedTypeRef = useRef<KnowledgeType | null>(null);
   /** After Escape, don't reopen from keyup until the user types again. */
   const suppressMentionUntilInputRef = useRef(false);
 
   const [mention, setMention] = useState<MentionQuery | null>(null);
+  const [selectedType, setSelectedType] = useState<KnowledgeType | null>(null);
   const [results, setResults] = useState<Knowledge[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -92,6 +103,11 @@ export function KnowledgeMentionTextarea({
 
   const open = mention !== null;
   mentionRef.current = mention;
+  selectedTypeRef.current = selectedType;
+
+  /** Empty `@` with no type chosen → show SOP / Peraturan / … first. */
+  const showTypePicker =
+    open && (mention?.query ?? "") === "" && selectedType === null;
 
   const describedBy = formFieldDescribedBy(inputId, { hint, error });
 
@@ -182,15 +198,25 @@ export function KnowledgeMentionTextarea({
       window.removeEventListener("resize", onReposition);
       window.removeEventListener("scroll", onReposition, true);
     };
-  }, [open, mention?.start, mention?.query, results.length, loading, updateMenuPosition]);
+  }, [
+    open,
+    mention?.start,
+    mention?.query,
+    results.length,
+    loading,
+    showTypePicker,
+    selectedType,
+    updateMenuPosition,
+  ]);
 
   const runSearch = useCallback(
-    (query: string) => {
+    (query: string, type: KnowledgeType | null) => {
       const seq = ++requestSeqRef.current;
       setLoading(true);
       setSearchError(null);
       searchKnowledge({
         q: query,
+        type: type ?? undefined,
         status: "ACTIVE",
         referenceOnly: true,
         limit: REFERENCE_SEARCH_LIMIT,
@@ -213,16 +239,43 @@ export function KnowledgeMentionTextarea({
     [t],
   );
 
-  function scheduleSearch(query: string) {
+  function scheduleSearch(query: string, type: KnowledgeType | null) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => runSearch(query), DEBOUNCE_MS);
+    debounceRef.current = setTimeout(() => runSearch(query, type), DEBOUNCE_MS);
+  }
+
+  function enterTypePicker() {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    requestSeqRef.current += 1;
+    setSelectedType(null);
+    setResults([]);
+    setSearchError(null);
+    setLoading(false);
+    setHighlighted(0);
   }
 
   function closeDropdown() {
     setMention(null);
+    setSelectedType(null);
     setResults([]);
     setSearchError(null);
+    setLoading(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
+  }
+
+  function syncMentionUi(nextMention: MentionQuery | null) {
+    setMention(nextMention);
+    if (!nextMention) {
+      enterTypePicker();
+      return;
+    }
+    const query = nextMention.query;
+    const type = selectedTypeRef.current;
+    if (query === "" && type === null) {
+      enterTypePicker();
+      return;
+    }
+    scheduleSearch(query, type);
   }
 
   function emitFromEditor() {
@@ -230,7 +283,6 @@ export function KnowledgeMentionTextarea({
     if (!root) return;
     const next = serializeMentionEditor(root);
     if (maxLength != null && next.length > maxLength) {
-      // Soft guard: re-render last accepted value.
       renderMentionEditor(root, value);
       return;
     }
@@ -239,14 +291,13 @@ export function KnowledgeMentionTextarea({
     onChange(next);
 
     const { text, caret } = getVisibleTextAndCaret(root);
-    const nextMention = detectMentionQuery(text, caret);
-    setMention(nextMention);
-    if (nextMention) {
-      scheduleSearch(nextMention.query);
-    } else {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      setResults([]);
-    }
+    syncMentionUi(detectMentionQuery(text, caret));
+  }
+
+  function selectType(type: KnowledgeType) {
+    setSelectedType(type);
+    setHighlighted(0);
+    runSearch(mentionRef.current?.query ?? "", type);
   }
 
   function selectResult(item: Knowledge) {
@@ -267,6 +318,30 @@ export function KnowledgeMentionTextarea({
 
   function onEditorKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!open) return;
+
+    if (showTypePicker) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setHighlighted((i) => (i + 1) % KNOWLEDGE_MENTION_TYPES.length);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setHighlighted(
+          (i) =>
+            (i - 1 + KNOWLEDGE_MENTION_TYPES.length) %
+            KNOWLEDGE_MENTION_TYPES.length,
+        );
+      } else if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        const type = KNOWLEDGE_MENTION_TYPES[highlighted];
+        if (type) selectType(type);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        suppressMentionUntilInputRef.current = true;
+        closeDropdown();
+      }
+      return;
+    }
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setHighlighted((i) => (results.length === 0 ? 0 : (i + 1) % results.length));
@@ -282,8 +357,17 @@ export function KnowledgeMentionTextarea({
       }
     } else if (event.key === "Escape") {
       event.preventDefault();
-      suppressMentionUntilInputRef.current = true;
-      closeDropdown();
+      if (selectedType && (mention?.query ?? "") === "") {
+        enterTypePicker();
+      } else {
+        suppressMentionUntilInputRef.current = true;
+        closeDropdown();
+      }
+    } else if (event.key === "Backspace" && selectedType && (mention?.query ?? "") === "") {
+      // Empty query after a type was chosen — Backspace returns to type list.
+      // (Does not delete the `@`; browser still handles that on a later press.)
+      event.preventDefault();
+      enterTypePicker();
     }
   }
 
@@ -298,16 +382,24 @@ export function KnowledgeMentionTextarea({
     router.push(`/knowledge/${knowledgeId}`);
   }
 
-  const activeOptionId =
-    open && results[highlighted] ? `${listboxId}-option-${highlighted}` : undefined;
+  const activeOptionId = !open
+    ? undefined
+    : showTypePicker
+      ? `${listboxId}-type-${highlighted}`
+      : results[highlighted]
+        ? `${listboxId}-option-${highlighted}`
+        : undefined;
 
   useEffect(() => {
-    if (!open || results.length === 0) return;
-    const el = document.getElementById(`${listboxId}-option-${highlighted}`);
+    if (!open) return;
+    const id = showTypePicker
+      ? `${listboxId}-type-${highlighted}`
+      : `${listboxId}-option-${highlighted}`;
+    const el = document.getElementById(id);
     if (el && typeof el.scrollIntoView === "function") {
       el.scrollIntoView({ block: "nearest" });
     }
-  }, [highlighted, listboxId, open, results.length]);
+  }, [highlighted, listboxId, open, results.length, showTypePicker]);
 
   // Prevent contenteditable from inserting raw HTML on paste.
   useEffect(() => {
@@ -321,6 +413,12 @@ export function KnowledgeMentionTextarea({
     root.addEventListener("paste", onPaste);
     return () => root.removeEventListener("paste", onPaste);
   }, []);
+
+  const headerLabel = selectedType
+    ? tKnowledge(knowledgeTypeKey(selectedType))
+    : showTypePicker
+      ? t("chooseType")
+      : t("searchTitle");
 
   return (
     <div className="relative">
@@ -355,15 +453,13 @@ export function KnowledgeMentionTextarea({
           style={{ minHeight: `${Math.max(rows, 3) * 1.5}rem` }}
           onInput={() => emitFromEditor()}
           onKeyUp={() => {
-            // Caret moves without input (arrows) — refresh @ detection.
             if (!open && !suppressMentionUntilInputRef.current) {
               const root = editorRef.current;
               if (!root) return;
               const { text, caret } = getVisibleTextAndCaret(root);
               const nextMention = detectMentionQuery(text, caret);
               if (nextMention) {
-                setMention(nextMention);
-                scheduleSearch(nextMention.query);
+                syncMentionUi(nextMention);
               }
             }
           }}
@@ -390,22 +486,74 @@ export function KnowledgeMentionTextarea({
           className="fixed z-50 w-[min(100vw-1rem,22.5rem)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-raised"
           style={{ top: menuPos.top, left: menuPos.left }}
         >
-          <p className="flex items-center gap-1.5 border-b border-ecmp-border px-3 py-2 text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
+          <div className="flex items-center gap-1.5 border-b border-ecmp-border px-3 py-2 text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
             <span
               className="inline-flex size-5 shrink-0 items-center justify-center rounded bg-ecmp-primary-muted text-[length:var(--ecmp-font-body-small-size)] font-semibold text-ecmp-primary"
               aria-hidden
             >
               @
             </span>
-            {t("searchTitle")}
-          </p>
+            {selectedType ? (
+              <button
+                type="button"
+                className="min-w-0 truncate text-left hover:text-ecmp-primary hover:underline"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  enterTypePicker();
+                }}
+              >
+                {headerLabel}
+              </button>
+            ) : (
+              <span className="min-w-0 truncate">{headerLabel}</span>
+            )}
+          </div>
+          {showTypePicker ? (
+            <p className="border-b border-ecmp-border px-3 py-1.5 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+              {t("typePickerHint")}
+            </p>
+          ) : null}
           <ul
             id={listboxId}
             role="listbox"
-            aria-label={t("searchTitle")}
+            aria-label={headerLabel}
             className="max-h-64 overflow-y-auto py-1"
           >
-            {loading ? (
+            {showTypePicker ? (
+              KNOWLEDGE_MENTION_TYPES.map((type, index) => (
+                <li key={type} role="none">
+                  <div
+                    id={`${listboxId}-type-${index}`}
+                    role="option"
+                    aria-selected={index === highlighted}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 px-3 py-2 text-[length:var(--ecmp-font-body-small-size)]",
+                      index === highlighted
+                        ? "bg-ecmp-primary-muted"
+                        : "hover:bg-ecmp-hover",
+                    )}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectType(type);
+                    }}
+                    onMouseEnter={() => setHighlighted(index)}
+                  >
+                    <Badge tone="info" className="shrink-0 px-1.5 py-0">
+                      {tKnowledge(knowledgeTypeKey(type))}
+                    </Badge>
+                    <span className="min-w-0 flex-1 truncate text-ecmp-text-secondary">
+                      {t("browseType", {
+                        type: tKnowledge(knowledgeTypeKey(type)),
+                      })}
+                    </span>
+                    <IconChevronRight
+                      className="size-4 shrink-0 text-ecmp-text-secondary"
+                      aria-hidden
+                    />
+                  </div>
+                </li>
+              ))
+            ) : loading ? (
               <li className="flex items-center gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
                 <IconSpinner className="size-4" aria-hidden />
                 {t("loading")}
@@ -442,10 +590,7 @@ export function KnowledgeMentionTextarea({
                       aria-hidden
                     />
                     <div className="flex min-w-0 items-center gap-2">
-                      <Badge
-                        tone="info"
-                        className="shrink-0 px-1.5 py-0"
-                      >
+                      <Badge tone="info" className="shrink-0 px-1.5 py-0">
                         {tKnowledge(knowledgeTypeKey(item.knowledgeType))}
                       </Badge>
                       <p className="truncate font-medium text-ecmp-text-primary">
