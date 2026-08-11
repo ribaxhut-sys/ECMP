@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest";
+import {
+  createKnowledgeChip,
+  renderMentionEditor,
+  serializeMentionEditor,
+} from "./knowledgeMentionEditor";
+
+describe("knowledgeMentionEditor", () => {
+  it("round-trips storage markers to inline chips and back", () => {
+    const root = document.createElement("div");
+    const storage =
+      "Sesuai @[SOP Penanganan Pengaduan v2.1](knowledge:e5555555-5555-5555-5555-555555555555) ya.";
+    renderMentionEditor(root, storage);
+
+    expect(root.textContent).toBe("Sesuai SOP Penanganan Pengaduan v2.1 ya.");
+    expect(root.textContent).not.toContain("knowledge:");
+    expect(root.querySelector("[data-knowledge-id]")?.textContent).toBe(
+      "SOP Penanganan Pengaduan v2.1",
+    );
+    expect(serializeMentionEditor(root)).toBe(storage);
+  });
+
+  it("serializes a freshly created chip", () => {
+    const root = document.createElement("div");
+    root.appendChild(document.createTextNode("Hi "));
+    root.appendChild(
+      createKnowledgeChip(
+        document,
+        "SOP A",
+        "e5555555-5555-5555-5555-555555555555",
+      ),
+    );
+    expect(serializeMentionEditor(root)).toBe(
+      "Hi @[SOP A](knowledge:e5555555-5555-5555-5555-555555555555)",
+    );
+  });
+});

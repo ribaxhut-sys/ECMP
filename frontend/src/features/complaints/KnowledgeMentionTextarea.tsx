@@ -4,24 +4,30 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
-  type ChangeEvent,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { searchKnowledge } from "@/lib/api";
 import type { Knowledge } from "@/lib/api/types";
-import { Textarea } from "@/shared/ui";
+import {
+  FormField,
+  controlSurfaceClass,
+  formFieldDescribedBy,
+} from "@/shared/ui";
 import { IconFile, IconSpinner } from "@/shared/icons";
 import { cn } from "@/shared/utils";
+import { detectMentionQuery, type MentionQuery } from "./knowledgeReferenceMarker";
 import {
-  detectMentionQuery,
-  extractKnowledgeIds,
-  insertKnowledgeMarker,
-  type MentionQuery,
-} from "./knowledgeReferenceMarker";
-import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
+  getVisibleTextAndCaret,
+  insertChipAtMention,
+  renderMentionEditor,
+  serializeMentionEditor,
+} from "./knowledgeMentionEditor";
 
 const DEBOUNCE_MS = 250;
 /** Must stay aligned with backend KnowledgeService.REFERENCE_SEARCH_DEFAULT_LIMIT. */
@@ -58,14 +64,19 @@ export function KnowledgeMentionTextarea({
   maxLength?: number;
   disabled?: boolean;
 }) {
+  const router = useRouter();
   const t = useTranslations("knowledgeMention");
   const tKnowledge = useTranslations("knowledge");
   const listboxId = useId();
+  const inputId = id ?? name ?? "knowledge-mention";
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const pendingCaretRef = useRef<number | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const skipRenderFromValueRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeqRef = useRef(0);
+  const mentionRef = useRef<MentionQuery | null>(null);
+  /** After Escape, don't reopen from keyup until the user types again. */
+  const suppressMentionUntilInputRef = useRef(false);
 
   const [mention, setMention] = useState<MentionQuery | null>(null);
   const [results, setResults] = useState<Knowledge[]>([]);
@@ -74,15 +85,20 @@ export function KnowledgeMentionTextarea({
   const [highlighted, setHighlighted] = useState(0);
 
   const open = mention !== null;
+  mentionRef.current = mention;
 
-  useEffect(() => {
-    if (pendingCaretRef.current === null) return;
-    const caret = pendingCaretRef.current;
-    pendingCaretRef.current = null;
-    const el = textareaRef.current;
-    if (!el) return;
-    el.focus();
-    el.setSelectionRange(caret, caret);
+  const describedBy = formFieldDescribedBy(inputId, { hint, error });
+
+  // Keep contenteditable chips in sync with the controlled storage value.
+  useLayoutEffect(() => {
+    const root = editorRef.current;
+    if (!root) return;
+    if (skipRenderFromValueRef.current) {
+      skipRenderFromValueRef.current = false;
+      return;
+    }
+    if (serializeMentionEditor(root) === value) return;
+    renderMentionEditor(root, value);
   }, [value]);
 
   const runSearch = useCallback(
@@ -126,15 +142,24 @@ export function KnowledgeMentionTextarea({
     if (debounceRef.current) clearTimeout(debounceRef.current);
   }
 
-  function onTextareaChange(event: ChangeEvent<HTMLTextAreaElement>) {
-    const nextValue = event.target.value;
-    const caret = event.target.selectionStart ?? nextValue.length;
-    onChange(nextValue);
+  function emitFromEditor() {
+    const root = editorRef.current;
+    if (!root) return;
+    let next = serializeMentionEditor(root);
+    if (maxLength != null && next.length > maxLength) {
+      // Soft guard: re-render last accepted value.
+      renderMentionEditor(root, value);
+      return;
+    }
+    skipRenderFromValueRef.current = true;
+    suppressMentionUntilInputRef.current = false;
+    onChange(next);
 
-    const next = detectMentionQuery(nextValue, caret);
-    setMention(next);
-    if (next) {
-      scheduleSearch(next.query);
+    const { text, caret } = getVisibleTextAndCaret(root);
+    const nextMention = detectMentionQuery(text, caret);
+    setMention(nextMention);
+    if (nextMention) {
+      scheduleSearch(nextMention.query);
     } else {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       setResults([]);
@@ -142,25 +167,22 @@ export function KnowledgeMentionTextarea({
   }
 
   function selectResult(item: Knowledge) {
-    if (!mention) return;
-    const el = textareaRef.current;
-    const caret = el?.selectionStart ?? value.length;
+    const root = editorRef.current;
+    const current = mentionRef.current;
+    if (!root || !current) return;
+
+    const { caret } = getVisibleTextAndCaret(root);
     const displayTitle = item.versionLabel
       ? `${item.title} v${item.versionLabel}`
       : item.title;
-    const { text: nextText, caret: nextCaret } = insertKnowledgeMarker(
-      value,
-      mention,
-      caret,
-      displayTitle,
-      item.id,
-    );
-    pendingCaretRef.current = nextCaret;
-    onChange(nextText);
+
+    insertChipAtMention(root, current.start, caret, displayTitle, item.id);
     closeDropdown();
+    emitFromEditor();
+    root.focus();
   }
 
-  function onTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+  function onEditorKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!open) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -177,14 +199,24 @@ export function KnowledgeMentionTextarea({
       }
     } else if (event.key === "Escape") {
       event.preventDefault();
+      suppressMentionUntilInputRef.current = true;
       closeDropdown();
     }
   }
 
+  function onEditorClick(event: ReactMouseEvent<HTMLDivElement>) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const chip = target.closest(`[data-knowledge-id]`);
+    if (!chip || !editorRef.current?.contains(chip)) return;
+    const knowledgeId = chip.getAttribute("data-knowledge-id");
+    if (!knowledgeId) return;
+    event.preventDefault();
+    router.push(`/knowledge/${knowledgeId}`);
+  }
+
   const activeOptionId =
     open && results[highlighted] ? `${listboxId}-option-${highlighted}` : undefined;
-
-  const hasSelectedReferences = extractKnowledgeIds(value).length > 0;
 
   useEffect(() => {
     if (!open || results.length === 0) return;
@@ -194,32 +226,83 @@ export function KnowledgeMentionTextarea({
     }
   }, [highlighted, listboxId, open, results.length]);
 
+  // Prevent contenteditable from inserting raw HTML on paste.
+  useEffect(() => {
+    const root = editorRef.current;
+    if (!root) return;
+    const onPaste = (event: ClipboardEvent) => {
+      event.preventDefault();
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      root.ownerDocument.execCommand("insertText", false, text);
+    };
+    root.addEventListener("paste", onPaste);
+    return () => root.removeEventListener("paste", onPaste);
+  }, []);
+
   return (
-    <div className="relative space-y-2">
-      <Textarea
-        ref={textareaRef}
-        id={id}
+    <div className="relative">
+      <FormField
+        id={inputId}
         label={label}
-        name={name}
-        required={required}
-        rows={rows}
-        value={value}
-        error={error}
         hint={hint}
-        maxLength={maxLength}
+        error={error}
+        required={required}
         disabled={disabled}
-        onChange={onTextareaChange}
-        onKeyDown={onTextareaKeyDown}
-        onBlur={() => {
-          // Defer so a click on a dropdown option still registers.
-          window.setTimeout(() => closeDropdown(), 150);
-        }}
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        aria-activedescendant={activeOptionId}
-        aria-autocomplete="list"
-      />
+      >
+        {name ? <input type="hidden" name={name} value={value} /> : null}
+        <div
+          ref={editorRef}
+          id={inputId}
+          role="combobox"
+          aria-multiline="true"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          aria-activedescendant={activeOptionId}
+          aria-autocomplete="list"
+          aria-required={required || undefined}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          aria-disabled={disabled || undefined}
+          contentEditable={disabled ? false : true}
+          suppressContentEditableWarning
+          className={cn(
+            "min-h-[88px] whitespace-pre-wrap break-words rounded-[var(--ecmp-radius-textarea)] px-3 py-3 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary outline-none",
+            controlSurfaceClass(error),
+            disabled && "cursor-not-allowed opacity-70",
+          )}
+          style={{ minHeight: `${Math.max(rows, 3) * 1.5}rem` }}
+          onInput={() => emitFromEditor()}
+          onKeyUp={() => {
+            // Caret moves without input (arrows) — refresh @ detection.
+            if (!open && !suppressMentionUntilInputRef.current) {
+              const root = editorRef.current;
+              if (!root) return;
+              const { text, caret } = getVisibleTextAndCaret(root);
+              const nextMention = detectMentionQuery(text, caret);
+              if (nextMention) {
+                setMention(nextMention);
+                scheduleSearch(nextMention.query);
+              }
+            }
+          }}
+          onKeyDown={onEditorKeyDown}
+          onClick={onEditorClick}
+          onBlur={() => {
+            window.setTimeout(() => {
+              const active = document.activeElement;
+              if (
+                active &&
+                editorRef.current &&
+                (editorRef.current === active ||
+                  editorRef.current.contains(active))
+              ) {
+                return;
+              }
+              closeDropdown();
+            }, 150);
+          }}
+        />
+      </FormField>
       {open ? (
         <div className="absolute z-10 mt-1 w-full max-w-md rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-raised">
           <p className="border-b border-ecmp-border px-3 py-2 text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
@@ -258,7 +341,6 @@ export function KnowledgeMentionTextarea({
                         : "hover:bg-ecmp-hover",
                     )}
                     onMouseDown={(event) => {
-                      // mousedown (not click) fires before the textarea blur.
                       event.preventDefault();
                       selectResult(item);
                     }}
@@ -281,14 +363,6 @@ export function KnowledgeMentionTextarea({
               ))
             )}
           </ul>
-        </div>
-      ) : null}
-      {hasSelectedReferences ? (
-        <div className="rounded-[var(--ecmp-radius-sm)] border border-ecmp-border bg-ecmp-surface-sunken px-3 py-2">
-          <p className="mb-1 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-            {t("selectedPreview")}
-          </p>
-          <KnowledgeReferenceText text={value} />
         </div>
       ) : null}
     </div>

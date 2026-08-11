@@ -3275,7 +3275,6 @@
     "empty": "Tidak ada Pengetahuan yang ditemukan.",
     "error": "Tidak dapat memuat Pengetahuan.",
     "openKnowledge": "Buka Pengetahuan",
-    "untitledReference": "Pengetahuan tidak tersedia",
-    "selectedPreview": "Rujukan terpilih (klik untuk membuka):"
+    "untitledReference": "Pengetahuan tidak tersedia"
   }
 }

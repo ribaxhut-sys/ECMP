@@ -43,12 +43,13 @@ describe("KnowledgeReferenceText", () => {
     );
   });
 
-  it("renders the reference title in italic", () => {
+  it("renders the reference title in italic blue without a background chip", () => {
     const text = "Sesuai @[SOP Pengaduan](knowledge:e5555555-5555-5555-5555-555555555555).";
     renderWithProviders(<KnowledgeReferenceText text={text} />);
-    const title = screen.getByText("SOP Pengaduan");
-    expect(title.tagName).toBe("SPAN");
-    expect(title.className).toContain("italic");
+    const button = screen.getByRole("button", { name: /SOP Pengaduan/i });
+    expect(button.className).toContain("italic");
+    expect(button.className).toContain("text-ecmp-primary");
+    expect(button.className).not.toMatch(/bg-ecmp-primary-muted/);
   });
 
   it("renders multiple references with plain text preserved between them", () => {

@@ -1,6 +1,5 @@
 /**
- * KnowledgeMentionTextarea — `@` autocomplete for Knowledge Reference on
- * Penyelesaian. Reuses the existing Textarea component; no rich-text editor.
+ * KnowledgeMentionTextarea — `@` autocomplete (Option A: inline chips).
  */
 import { useState } from "react";
 import { cleanup, screen, waitFor } from "@testing-library/react";
@@ -80,8 +79,9 @@ describe("KnowledgeMentionTextarea", () => {
     searchKnowledge.mockResolvedValue({ data: [knowledge()] });
     renderWithProviders(<Harness />);
 
-    const textarea = screen.getByLabelText("Catatan Penyelesaian");
-    await user.type(textarea, "Sesuai @");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("Sesuai @");
 
     await waitFor(() => {
       expect(screen.getByText("Search Knowledge")).toBeInTheDocument();
@@ -103,7 +103,9 @@ describe("KnowledgeMentionTextarea", () => {
     searchKnowledge.mockResolvedValue({ data: [] });
     renderWithProviders(<Harness />);
 
-    await user.type(screen.getByLabelText("Catatan Penyelesaian"), "@pengaduan");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("@pengaduan");
 
     await waitFor(() => {
       expect(searchKnowledge).toHaveBeenCalledWith(
@@ -122,7 +124,9 @@ describe("KnowledgeMentionTextarea", () => {
     searchKnowledge.mockResolvedValue({ data: [] });
     renderWithProviders(<Harness />);
 
-    await user.type(screen.getByLabelText("Catatan Penyelesaian"), "@xyz");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("@xyz");
 
     await waitFor(() => {
       expect(screen.getByText("No Knowledge found.")).toBeInTheDocument();
@@ -134,52 +138,63 @@ describe("KnowledgeMentionTextarea", () => {
     searchKnowledge.mockRejectedValue(new Error("network down"));
     renderWithProviders(<Harness />);
 
-    await user.type(screen.getByLabelText("Catatan Penyelesaian"), "@x");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("@x");
 
     await waitFor(() => {
       expect(screen.getByText("Unable to load Knowledge.")).toBeInTheDocument();
     });
   });
 
-  it("selecting a result inserts a @[title](knowledge:id) marker and closes the dropdown", async () => {
+  it("selecting a result inserts an inline chip (no raw marker, no below preview)", async () => {
     const user = userEvent.setup();
     searchKnowledge.mockResolvedValue({ data: [knowledge()] });
     const onValue = vi.fn();
     renderWithProviders(<Harness onValue={onValue} />);
 
-    const textarea = screen.getByLabelText("Catatan Penyelesaian") as HTMLTextAreaElement;
-    await user.type(textarea, "Sesuai @pengaduan");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("Sesuai @pengaduan");
 
-    const option = await screen.findByRole("option", { name: /SOP Penanganan Pengaduan/i });
+    const option = await screen.findByRole("option", {
+      name: /SOP Penanganan Pengaduan/i,
+    });
     await user.click(option);
 
     await waitFor(() => {
-      expect(textarea.value).toBe(
-        "Sesuai @[SOP Penanganan Pengaduan v2.1](knowledge:e5555555-5555-5555-5555-555555555555) ",
+      expect(onValue).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "@[SOP Penanganan Pengaduan v2.1](knowledge:e5555555-5555-5555-5555-555555555555)",
+        ),
       );
     });
+
+    // Visible UI shows the title chip, not the raw marker / below preview.
+    expect(editor.textContent).toContain("SOP Penanganan Pengaduan v2.1");
+    expect(editor.textContent).not.toContain("knowledge:");
+    expect(
+      screen.queryByText(/Selected references|Rujukan terpilih/i),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Search Knowledge")).not.toBeInTheDocument();
-    expect(
-      screen.getByText("Selected references (click to open):"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /SOP Penanganan Pengaduan v2\.1/i }),
-    ).toBeInTheDocument();
   });
 
-  it("selects the highlighted result with Enter or Tab", async () => {
+  it("selects the highlighted result with Enter", async () => {
     const user = userEvent.setup();
     searchKnowledge.mockResolvedValue({ data: [knowledge()] });
-    renderWithProviders(<Harness />);
+    const onValue = vi.fn();
+    renderWithProviders(<Harness onValue={onValue} />);
 
-    const textarea = screen.getByLabelText("Catatan Penyelesaian") as HTMLTextAreaElement;
-    await user.type(textarea, "@sop");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("@sop");
     await screen.findByRole("option", { name: /SOP Penanganan Pengaduan/i });
-
     await user.keyboard("{Enter}");
 
     await waitFor(() => {
-      expect(textarea.value).toContain("knowledge:e5555555-5555-5555-5555-555555555555");
+      expect(onValue).toHaveBeenCalledWith(
+        expect.stringContaining("knowledge:e5555555-5555-5555-5555-555555555555"),
+      );
     });
   });
 
@@ -195,28 +210,33 @@ describe("KnowledgeMentionTextarea", () => {
     });
     renderWithProviders(<Harness />);
 
-    await user.type(screen.getByLabelText("Catatan Penyelesaian"), "@sop");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("@sop");
 
     await waitFor(() => {
       expect(screen.getAllByRole("option")).toHaveLength(10);
     });
   });
 
-  it("closes the dropdown on Escape without changing the text", async () => {
+  it("closes the dropdown on Escape without keeping a selection", async () => {
     const user = userEvent.setup();
     searchKnowledge.mockResolvedValue({ data: [knowledge()] });
     renderWithProviders(<Harness />);
 
-    const textarea = screen.getByLabelText("Catatan Penyelesaian") as HTMLTextAreaElement;
-    await user.type(textarea, "Sesuai @pengaduan");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("Sesuai @pengaduan");
     await waitFor(() => {
       expect(screen.getByText("Search Knowledge")).toBeInTheDocument();
     });
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByText("Search Knowledge")).not.toBeInTheDocument();
-    expect(textarea.value).toBe("Sesuai @pengaduan");
+    await waitFor(() => {
+      expect(screen.queryByText("Search Knowledge")).not.toBeInTheDocument();
+    });
+    expect(editor.textContent).toContain("@pengaduan");
   });
 
   it("shows type/version/status subtitle for each result", async () => {
@@ -226,7 +246,9 @@ describe("KnowledgeMentionTextarea", () => {
     });
     renderWithProviders(<Harness />);
 
-    await user.type(screen.getByLabelText("Catatan Penyelesaian"), "@sop");
+    const editor = screen.getByRole("combobox");
+    await user.click(editor);
+    await user.keyboard("@sop");
 
     await waitFor(() => {
       expect(screen.getByText("SOP · v1.0 · Active")).toBeInTheDocument();
