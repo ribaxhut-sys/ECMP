@@ -145,7 +145,7 @@ export function KnowledgeMentionTextarea({
   function emitFromEditor() {
     const root = editorRef.current;
     if (!root) return;
-    let next = serializeMentionEditor(root);
+    const next = serializeMentionEditor(root);
     if (maxLength != null && next.length > maxLength) {
       // Soft guard: re-render last accepted value.
       renderMentionEditor(root, value);
@@ -254,7 +254,6 @@ export function KnowledgeMentionTextarea({
           ref={editorRef}
           id={inputId}
           role="combobox"
-          aria-multiline="true"
           aria-expanded={open}
           aria-controls={open ? listboxId : undefined}
           aria-activedescendant={activeOptionId}
