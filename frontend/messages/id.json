@@ -3272,8 +3272,9 @@
   "knowledgeMention": {
     "searchTitle": "Cari Pengetahuan",
     "chooseType": "Pilih jenis",
-    "typePickerHint": "Pilih jenis, atau ketik untuk mencari judul",
+    "typePickerHint": "Pilih jenis, atau ketik untuk mencari judul. Esc untuk kembali.",
     "browseType": "Jelajahi {type}",
+    "backWithEsc": "Esc untuk kembali",
     "loading": "Mencari…",
     "empty": "Tidak ada Pengetahuan yang ditemukan.",
     "error": "Tidak dapat memuat Pengetahuan.",

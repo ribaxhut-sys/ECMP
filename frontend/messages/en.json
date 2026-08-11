@@ -3272,8 +3272,9 @@
   "knowledgeMention": {
     "searchTitle": "Search Knowledge",
     "chooseType": "Choose type",
-    "typePickerHint": "Pick a type, or type to search by title",
+    "typePickerHint": "Pick a type, or type to search by title. Esc to go back.",
     "browseType": "Browse {type}",
+    "backWithEsc": "Esc to go back",
     "loading": "Searching…",
     "empty": "No Knowledge found.",
     "error": "Unable to load Knowledge.",

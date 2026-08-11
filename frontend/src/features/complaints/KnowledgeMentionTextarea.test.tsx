@@ -90,6 +90,7 @@ describe("KnowledgeMentionTextarea", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Choose type")).toBeInTheDocument();
+      expect(screen.getByText(/Esc to go back/i)).toBeInTheDocument();
     });
     expect(screen.getByRole("option", { name: /Browse SOP/i })).toBeInTheDocument();
     expect(

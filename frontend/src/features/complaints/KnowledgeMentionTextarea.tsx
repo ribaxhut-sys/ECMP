@@ -501,11 +501,24 @@ export function KnowledgeMentionTextarea({
                   event.preventDefault();
                   enterTypePicker();
                 }}
+                title={t("backWithEsc")}
               >
                 {headerLabel}
+                <span className="font-normal text-ecmp-text-secondary">
+                  {" "}
+                  · {t("backWithEsc")}
+                </span>
               </button>
             ) : (
-              <span className="min-w-0 truncate">{headerLabel}</span>
+              <span className="min-w-0 truncate">
+                {headerLabel}
+                {showTypePicker ? (
+                  <span className="font-normal text-ecmp-text-secondary">
+                    {" "}
+                    · {t("backWithEsc")}
+                  </span>
+                ) : null}
+              </span>
             )}
           </div>
           {showTypePicker ? (
