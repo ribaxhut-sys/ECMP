@@ -3275,6 +3275,7 @@
     "empty": "Tidak ada Pengetahuan yang ditemukan.",
     "error": "Tidak dapat memuat Pengetahuan.",
     "openKnowledge": "Buka Pengetahuan",
-    "untitledReference": "Pengetahuan tidak tersedia"
+    "untitledReference": "Pengetahuan tidak tersedia",
+    "inactiveReference": "Pengetahuan ini sudah tidak aktif"
   }
 }

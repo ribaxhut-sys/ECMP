@@ -12,20 +12,25 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { searchKnowledge } from "@/lib/api";
+import { searchKnowledge, fetchKnowledge } from "@/lib/api";
 import type { Knowledge } from "@/lib/api/types";
 import {
   FormField,
+  Badge,
   controlSurfaceClass,
   formFieldDescribedBy,
 } from "@/shared/ui";
 import { IconFile, IconSpinner } from "@/shared/icons";
 import { cn } from "@/shared/utils";
+import { knowledgeTypeKey } from "@/features/knowledge/KnowledgeBadges";
 import { detectMentionQuery, type MentionQuery } from "./knowledgeReferenceMarker";
+import { isKnowledgeReferenceActive } from "./knowledgeReferenceActivity";
 import {
+  KNOWLEDGE_CHIP_ATTR_ID,
   getVisibleOffsetRect,
   getVisibleTextAndCaret,
   insertChipAtMention,
+  knowledgeReferenceChipClass,
   renderMentionEditor,
   serializeMentionEditor,
 } from "./knowledgeMentionEditor";
@@ -36,12 +41,6 @@ const REFERENCE_SEARCH_LIMIT = 10;
 const MENU_WIDTH_PX = 360;
 const MENU_GAP_PX = 4;
 const MENU_VIEWPORT_PAD_PX = 8;
-
-function resultSubtitle(item: Knowledge, statusLabel: string): string {
-  const typeOrDocNumber = item.documentNumber || item.knowledgeType;
-  const version = item.versionLabel ? `v${item.versionLabel}` : null;
-  return [typeOrDocNumber, version, statusLabel].filter(Boolean).join(" · ");
-}
 
 export function KnowledgeMentionTextarea({
   id,
@@ -139,6 +138,34 @@ export function KnowledgeMentionTextarea({
     }
     if (serializeMentionEditor(root) === value) return;
     renderMentionEditor(root, value);
+  }, [value]);
+
+  // Mark inline chips red when the referenced Knowledge is no longer active.
+  useEffect(() => {
+    const root = editorRef.current;
+    if (!root || !value.includes("knowledge:")) return;
+    let cancelled = false;
+    const chips = Array.from(
+      root.querySelectorAll<HTMLElement>(`[${KNOWLEDGE_CHIP_ATTR_ID}]`),
+    );
+    for (const chip of chips) {
+      const id = chip.getAttribute(KNOWLEDGE_CHIP_ATTR_ID);
+      if (!id) continue;
+      fetchKnowledge(id)
+        .then((res) => {
+          if (cancelled) return;
+          chip.className = knowledgeReferenceChipClass(
+            isKnowledgeReferenceActive(res.data),
+          );
+        })
+        .catch(() => {
+          if (cancelled) return;
+          chip.className = knowledgeReferenceChipClass(false);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
   }, [value]);
 
   // Anchor "Cari Pengetahuan" beside the typed `@`.
@@ -414,12 +441,17 @@ export function KnowledgeMentionTextarea({
                       className="mt-0.5 size-4 shrink-0 text-ecmp-text-secondary"
                       aria-hidden
                     />
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Badge
+                        tone="info"
+                        className="shrink-0 px-1.5 py-0"
+                      >
+                        {tKnowledge(knowledgeTypeKey(item.knowledgeType))}
+                      </Badge>
                       <p className="truncate font-medium text-ecmp-text-primary">
-                        {item.title}
-                      </p>
-                      <p className="truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                        {resultSubtitle(item, tKnowledge("statusActive"))}
+                        {item.versionLabel
+                          ? `${item.title} v${item.versionLabel}`
+                          : item.title}
                       </p>
                     </div>
                   </div>

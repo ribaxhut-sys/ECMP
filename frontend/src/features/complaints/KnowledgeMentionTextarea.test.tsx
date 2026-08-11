@@ -9,6 +9,7 @@ import { renderWithProviders } from "@/test/harness";
 import type { Knowledge } from "@/lib/api/types";
 
 const searchKnowledge = vi.fn();
+const fetchKnowledge = vi.fn();
 const push = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -20,6 +21,7 @@ vi.mock("@/lib/api", async () => {
   return {
     ...actual,
     searchKnowledge: (...args: unknown[]) => searchKnowledge(...args),
+    fetchKnowledge: (...args: unknown[]) => fetchKnowledge(...args),
   };
 });
 
@@ -67,6 +69,10 @@ function Harness({ onValue }: { onValue?: (value: string) => void }) {
 describe("KnowledgeMentionTextarea", () => {
   beforeEach(() => {
     searchKnowledge.mockReset();
+    fetchKnowledge.mockReset();
+    fetchKnowledge.mockResolvedValue({
+      data: knowledge({ status: "ACTIVE" }),
+    });
     push.mockReset();
   });
 
@@ -242,7 +248,7 @@ describe("KnowledgeMentionTextarea", () => {
     expect(editor.textContent).toContain("@pengaduan");
   });
 
-  it("shows type/version/status subtitle for each result", async () => {
+  it("shows a type tag in front of each result title (no status subtitle)", async () => {
     const user = userEvent.setup();
     searchKnowledge.mockResolvedValue({
       data: [knowledge({ documentNumber: null, versionLabel: "1.0" })],
@@ -254,7 +260,10 @@ describe("KnowledgeMentionTextarea", () => {
     await user.keyboard("@sop");
 
     await waitFor(() => {
-      expect(screen.getByText("SOP · v1.0 · Active")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: /SOP.*SOP Penanganan Pengaduan v1\.0/i }),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText(/· Active|· Aktif/i)).not.toBeInTheDocument();
   });
 });
