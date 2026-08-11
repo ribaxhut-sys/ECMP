@@ -18,6 +18,8 @@ const noop = () => undefined;
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/complaints/cm/complaint-1/cases",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/link", () => ({
@@ -122,7 +124,7 @@ describe("CAP-008 case lifecycle flow", () => {
     setFieldValue(/case type/i, "SERVICE");
     setFieldValue(/^subject/i, "Flow subject");
     setFieldValue(/description/i, "Flow description");
-    await user.click(screen.getByRole("button", { name: /^create case$/i }));
+    await user.click(screen.getByRole("button", { name: /^start branch work$/i }));
 
     await waitFor(() => expect(createCmCase).toHaveBeenCalled());
     expect(onCreated).toHaveBeenCalledWith(
@@ -146,7 +148,7 @@ describe("CAP-008 case lifecycle flow", () => {
     );
 
     await user.selectOptions(screen.getByLabelText(/target status/i), "ASSIGNED");
-    setFieldValue(/destination unit/i, "unit-ops");
+    setFieldValue(/branch unit/i, "unit-ops");
     await user.click(screen.getByRole("button", { name: /update status/i }));
 
     await waitFor(() => expect(updateCmCaseStatus).toHaveBeenCalled());
