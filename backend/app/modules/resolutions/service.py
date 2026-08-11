@@ -15,6 +15,8 @@ from app.core.enums import (
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.user_messages import m
 from app.models import ComplaintResolution
+from app.modules.knowledge.repository import KnowledgeRepository
+from app.modules.resolutions.knowledge_markers import extract_knowledge_ids
 from app.modules.resolutions.repository import ResolutionRepository
 from app.modules.resolutions.schemas import (
     FinalResolutionRequest,
@@ -145,6 +147,23 @@ class ResolutionService:
                 m("resolution.resolver_not_found"),
                 details={"resolvedBy": str(resolved_by)},
             )
+
+        # Knowledge Reference (@) — validate every @[title](knowledge:<id>)
+        # marker in resolution_notes points to a real, non-deleted Knowledge
+        # record. Status is intentionally not re-checked here: the picker
+        # only ever offers ACTIVE-and-in-window records (KnowledgeService.
+        # search referenceOnly=true), and a benign race that lands on a
+        # since-archived record must still be allowed to save (historical
+        # integrity — the reference stays valid regardless of later status).
+        knowledge_ids = extract_knowledge_ids(payload.resolution_notes)
+        if knowledge_ids:
+            knowledge_repo = KnowledgeRepository(self._repo.session)
+            for knowledge_id in knowledge_ids:
+                if knowledge_repo.get(knowledge_id) is None:
+                    raise ValidationAppError(
+                        m("resolution.invalid_knowledge_reference"),
+                        details={"knowledgeId": str(knowledge_id)},
+                    )
 
         now = datetime.now(UTC)
         from_status = complaint.status

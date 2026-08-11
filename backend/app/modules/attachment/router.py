@@ -38,6 +38,7 @@ from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentReposi
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import Batch1AttachmentResponse
+from app.modules.knowledge.authorization import assert_can_access_knowledge_attachment
 
 router = APIRouter(prefix="/api/v1/attachments", tags=["Attachments"])
 complaint_attachments_router = APIRouter(
@@ -185,6 +186,10 @@ def get_attachment(
         assert_can_access_announcement_attachment(
             principal=principal, session=session, attachment_id=attachment_id
         )
+    elif entity.aggregate_type == AggregateType.KNOWLEDGE.value:
+        assert_can_access_knowledge_attachment(
+            principal=principal, session=session, attachment_id=attachment_id
+        )
     return DataResponse(data=entity)
 
 
@@ -243,6 +248,10 @@ def download_attachment(
             enforce_org_scope(principal, resource_org, settings)
     elif entity.aggregate_type == AggregateType.ANNOUNCEMENT.value:
         assert_can_access_announcement_attachment(
+            principal=principal, session=session, attachment_id=platform_id
+        )
+    elif entity.aggregate_type == AggregateType.KNOWLEDGE.value:
+        assert_can_access_knowledge_attachment(
             principal=principal, session=session, attachment_id=platform_id
         )
 

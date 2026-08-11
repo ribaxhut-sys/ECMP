@@ -47,6 +47,7 @@ from app.modules.iam.user_role.router import (
 from app.modules.internal_complaint.api.router import (
     router as internal_complaint_router,
 )
+from app.modules.knowledge.router import router as knowledge_router
 from app.modules.kpi.router import router as kpi_router
 from app.modules.notification.router import queue_router as notification_queue_router
 from app.modules.notification.router import (
@@ -74,6 +75,7 @@ api_router.include_router(cm_batch1_router)
 api_router.include_router(cm_case_router)
 api_router.include_router(internal_complaint_router)
 api_router.include_router(announcement_router)
+api_router.include_router(knowledge_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(kpi_router)
 api_router.include_router(settings_router)

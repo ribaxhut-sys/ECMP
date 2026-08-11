@@ -29,7 +29,6 @@ import {
   Button,
   Card,
   CardBody,
-  Empty,
   SectionHeader,
   Select,
 } from "@/shared/ui";
@@ -319,13 +318,13 @@ export function StagingAttachmentsPanel({
   }
 
   return (
-    <section className="space-y-[var(--ecmp-panel-gap)]">
+    <section className="space-y-[var(--ecmp-form-gap)]">
       <SectionHeader
         title={t("stagedAttachments")}
         description={t("stagedAttachmentsDescription")}
       />
       <Card>
-        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+        <CardBody className="space-y-3">
           {error ? (
             <Alert tone="danger" title={t("attachmentError")} description={error} />
           ) : null}
@@ -338,61 +337,61 @@ export function StagingAttachmentsPanel({
             />
           ) : null}
 
-          <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2 md:items-end">
-            <Select
-              name="attachmentClassification"
-              id="attachmentClassification"
-              label={t("classification")}
-              options={CLASSIFICATION_OPTIONS.map((option) => ({
-                ...option,
-                label: t(option.label),
-              }))}
-              value={classification}
-              onChange={(event) =>
-                setClassification(
-                  event.target.value as CmBatch1AttachmentClassification,
-                )
-              }
-              disabled={uploadBlocked || uploading}
-            />
-            <div className="flex flex-col gap-2">
-              <input
-                ref={inputRef}
-                type="file"
-                className="sr-only"
-                accept={ACCEPT_MIME}
-                multiple
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+            <div className="min-w-0 sm:max-w-xs sm:flex-1">
+              <Select
+                name="attachmentClassification"
+                id="attachmentClassification"
+                label={t("classification")}
+                options={CLASSIFICATION_OPTIONS.map((option) => ({
+                  ...option,
+                  label: t(option.label),
+                }))}
+                value={classification}
+                onChange={(event) =>
+                  setClassification(
+                    event.target.value as CmBatch1AttachmentClassification,
+                  )
+                }
                 disabled={uploadBlocked || uploading}
-                onChange={(event) => void onFileChange(event)}
-                aria-label={t("chooseFile")}
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onPick}
-                loading={uploading}
-                disabled={uploadBlocked || uploading}
-                aria-label={t("uploadStagedAttachment")}
-              >
-                {uploading ? t("uploading") : t("uploadFile")}
-              </Button>
-              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                {t("filePolicy")}
-              </p>
             </div>
+            <input
+              ref={inputRef}
+              type="file"
+              className="sr-only"
+              accept={ACCEPT_MIME}
+              multiple
+              disabled={uploadBlocked || uploading}
+              onChange={(event) => void onFileChange(event)}
+              aria-label={t("chooseFile")}
+            />
+            <Button
+              type="button"
+              className="shrink-0 sm:self-end"
+              onClick={onPick}
+              loading={uploading}
+              disabled={uploadBlocked || uploading}
+              aria-label={t("uploadStagedAttachment")}
+            >
+              {uploading ? t("uploading") : t("uploadFile")}
+            </Button>
           </div>
+          <p className="text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary">
+            {t("filePolicy")}
+          </p>
 
           {visible.length === 0 ? (
-            <div data-testid="staging-empty">
-              <Empty
-                title={t("noStagedAttachments")}
-                description={t("stagedAttachmentsDescription")}
-                primaryAction={{
-                  label: t("uploadFile"),
-                  onClick: onPick,
-                  disabled: disabled || uploading || !canUpload,
-                }}
-              />
+            <div
+              data-testid="staging-empty"
+              className="rounded-[var(--ecmp-radius-md)] border border-dashed border-ecmp-border/80 bg-ecmp-surface-sunken/50 px-3 py-4 text-center"
+            >
+              <p className="text-[length:var(--ecmp-font-body-small-size)] font-medium text-ecmp-text-primary">
+                {t("noStagedAttachments")}
+              </p>
+              <p className="mt-1 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {t("noStagedAttachmentsHint")}
+              </p>
             </div>
           ) : (
             <ul
@@ -403,60 +402,60 @@ export function StagingAttachmentsPanel({
               {visible.map((item) => {
                 const rowId = cmBatch1VoidTargetId(item) ?? item.originalName;
                 return (
-                <li
-                  key={rowId}
-                  className="flex flex-col gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
-                  data-testid={`staging-item-${rowId}`}
-                >
-                  <div className="min-w-0 space-y-1">
-                    <span className="block truncate font-medium text-ecmp-text-primary">
-                      {item.originalName}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone="neutral">{item.status}</Badge>
-                      <Badge tone="info">{item.classification}</Badge>
-                      <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                        {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+                  <li
+                    key={rowId}
+                    className="flex flex-col gap-2 px-3 py-2 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
+                    data-testid={`staging-item-${rowId}`}
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <span className="block truncate font-medium text-ecmp-text-primary">
+                        {item.originalName}
                       </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="neutral">{item.status}</Badge>
+                        <Badge tone="info">{item.classification}</Badge>
+                        <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                          {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-shrink-0 flex-wrap gap-2">
-                    {canOpen ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          disabled || busyId !== null || voidingId !== null
-                        }
-                        loading={busyId === rowId}
-                        onClick={() => void onOpen(item)}
-                        aria-label={t("openAttachmentNamed", {
-                          name: item.originalName,
-                        })}
-                      >
-                        {t("openAttachment")}
-                      </Button>
-                    ) : null}
-                    {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          disabled || busyId !== null || voidingId !== null
-                        }
-                        loading={voidingId === rowId}
-                        onClick={() => void onVoid(item)}
-                        aria-label={t("voidNamed", {
-                          name: item.originalName,
-                        })}
-                      >
-                        {t("void")}
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
+                    <div className="flex flex-shrink-0 flex-wrap gap-2">
+                      {canOpen ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            disabled || busyId !== null || voidingId !== null
+                          }
+                          loading={busyId === rowId}
+                          onClick={() => void onOpen(item)}
+                          aria-label={t("openAttachmentNamed", {
+                            name: item.originalName,
+                          })}
+                        >
+                          {t("openAttachment")}
+                        </Button>
+                      ) : null}
+                      {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            disabled || busyId !== null || voidingId !== null
+                          }
+                          loading={voidingId === rowId}
+                          onClick={() => void onVoid(item)}
+                          aria-label={t("voidNamed", {
+                            name: item.originalName,
+                          })}
+                        >
+                          {t("void")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
                 );
               })}
             </ul>

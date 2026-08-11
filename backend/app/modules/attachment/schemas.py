@@ -8,7 +8,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-AggregateTypeLiteral = Literal["Complaint", "Queue", "Notification", "Announcement"]
+AggregateTypeLiteral = Literal[
+    "Complaint", "Queue", "Notification", "Announcement", "Knowledge"
+]
 AttachmentStatusLiteral = Literal["UPLOADED", "AVAILABLE", "DELETED", "FAILED"]
 
 

@@ -169,6 +169,7 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     labelKey: "knowledge",
     href: "/knowledge",
     icon: "knowledge",
+    requiredPermissions: ["knowledge:read"],
   },
   {
     id: "attachments",

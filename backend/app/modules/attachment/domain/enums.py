@@ -12,6 +12,7 @@ class AggregateType(StrEnum):
     QUEUE = "Queue"
     NOTIFICATION = "Notification"
     ANNOUNCEMENT = "Announcement"
+    KNOWLEDGE = "Knowledge"
 
 
 class AttachmentStatus(StrEnum):

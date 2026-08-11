@@ -33,12 +33,15 @@ import {
   CardBody,
   Empty,
   ErrorState,
+  Pagination,
   QuickFilters,
   SectionHeader,
   Skeleton,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { IconChevronDown } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
+import { cn } from "@/shared/utils";
 import {
   AnnouncementAttachmentManagedList,
   AnnouncementAttachmentUploadControls,
@@ -47,6 +50,7 @@ import {
   AnnouncementPriorityBadge,
   AnnouncementStatusBadge,
 } from "./AnnouncementBadges";
+import { AnnouncementExpandPanelAttachments } from "./AnnouncementExpandPanelAttachments";
 import { AnnouncementFormFields } from "./AnnouncementFormFields";
 import { AnnouncementManageActions } from "./AnnouncementManageActions";
 import {
@@ -57,6 +61,9 @@ import {
   type AnnouncementFieldErrors,
   type AnnouncementFormValues,
 } from "./announcementForm";
+
+/** Client-side page size for the management list (same default as history). */
+const MANAGE_PAGE_SIZE = 10;
 
 type StatusFilter = "ALL" | AnnouncementEffectiveStatus;
 
@@ -114,6 +121,7 @@ export function AnnouncementManagement() {
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createValues, setCreateValues] = useState<AnnouncementFormValues>(
@@ -358,6 +366,24 @@ export function AnnouncementManagement() {
     return sorted.filter((row) => row.effectiveStatus === statusFilter);
   }, [rows, statusFilter]);
 
+  const totalItems = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / MANAGE_PAGE_SIZE) || 1);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  const pageRows = useMemo(() => {
+    const start = (page - 1) * MANAGE_PAGE_SIZE;
+    return filteredRows.slice(start, start + MANAGE_PAGE_SIZE);
+  }, [filteredRows, page]);
+
+  function setStatusFilterAndReset(next: StatusFilter) {
+    setStatusFilter(next);
+    setExpandedId(null);
+    setPage(1);
+  }
+
   if (!canManage) {
     return (
       <Empty
@@ -500,10 +526,7 @@ export function AnnouncementManagement() {
               <QuickFilters
                 label={t("filterStatusLabel")}
                 options={statusFilterOptions}
-                onSelect={(id) => {
-                  setStatusFilter(id as StatusFilter);
-                  setExpandedId(null);
-                }}
+                onSelect={(id) => setStatusFilterAndReset(id as StatusFilter)}
               />
               <Empty
                 title={t("listEmptyFiltered")}
@@ -515,27 +538,33 @@ export function AnnouncementManagement() {
               <QuickFilters
                 label={t("filterStatusLabel")}
                 options={statusFilterOptions}
-                onSelect={(id) => {
-                  setStatusFilter(id as StatusFilter);
-                  setExpandedId(null);
-                }}
+                onSelect={(id) => setStatusFilterAndReset(id as StatusFilter)}
               />
+              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {tCommon("showingItems", {
+                  from: (page - 1) * MANAGE_PAGE_SIZE + 1,
+                  to: Math.min(page * MANAGE_PAGE_SIZE, totalItems),
+                  total: totalItems,
+                })}
+              </p>
             <ol
-              className="space-y-[var(--ecmp-form-gap)]"
+              className="space-y-1"
               aria-label={t("tableCaption")}
             >
-              {filteredRows.map((row, index) => {
+              {pageRows.map((row, index) => {
                 const open = expandedId === row.id;
                 const body = row.body.trim();
                 const detailId = `announcement-manage-detail-${row.id}`;
                 return (
                   <li
                     key={row.id}
-                    className={`rounded-[var(--ecmp-radius-md)] border border-ecmp-border ${
+                    className={cn(
+                      "rounded-[var(--ecmp-radius-md)] border border-ecmp-border",
                       index % 2 === 0
                         ? "bg-ecmp-surface"
-                        : "bg-ecmp-surface-sunken"
-                    }`}
+                        : "bg-ecmp-surface-sunken",
+                      open && "border-ecmp-primary/25 shadow-ecmp-raised",
+                    )}
                   >
                     <button
                       type="button"
@@ -546,16 +575,16 @@ export function AnnouncementManagement() {
                       }
                       aria-expanded={open}
                       aria-controls={detailId}
-                      className="flex w-full items-center gap-3 rounded-[var(--ecmp-radius-md)] p-3 text-left hover:bg-ecmp-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-primary"
+                      className="flex w-full items-center gap-2 rounded-[var(--ecmp-radius-md)] px-2.5 py-1.5 text-left hover:bg-ecmp-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-primary"
                     >
                       <AnnouncementStatusBadge status={row.effectiveStatus} />
-                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 overflow-hidden">
                         <span className="shrink-0 font-medium tabular-nums text-ecmp-text-secondary">
                           {row.referenceNumber}
                         </span>
-                        <span className="line-clamp-1 min-w-0 flex-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        <span className="min-w-0 flex-1 truncate text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                           <span className="font-medium">{row.title}</span>
-                          {body ? (
+                          {!open && body ? (
                             <span className="font-normal text-ecmp-text-secondary">
                               {" — "}
                               {body}
@@ -563,56 +592,75 @@ export function AnnouncementManagement() {
                           ) : null}
                         </span>
                         <AnnouncementPriorityBadge priority={row.priority} />
-                        <span className="shrink-0 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                        <span className="hidden shrink-0 truncate text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary lg:inline max-w-[12rem]">
                           {creatorLabel(row.createdBy)}
                         </span>
-                        <span className="shrink-0 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                        <span className="hidden shrink-0 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary xl:inline">
                           {row.publishedAt
                             ? formatDateTime(row.publishedAt, locale)
                             : tCommon("emDash")}
                         </span>
                       </span>
-                      <span className="shrink-0 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                      <span className="flex shrink-0 items-center gap-1 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                         {open ? t("listHideDetail") : t("listShowDetail")}
+                        <IconChevronDown
+                          className={cn(
+                            "size-3.5 shrink-0 transition-transform",
+                            open && "rotate-180",
+                          )}
+                          aria-hidden
+                        />
                       </span>
                     </button>
                     {open ? (
                       <div
                         id={detailId}
-                        className="space-y-3 border-t border-ecmp-border px-3 pb-3 pt-2"
+                        className="space-y-4 border-t border-ecmp-border bg-ecmp-surface-sunken/40 px-3 pb-3 pt-3"
                       >
-                        <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                          {body || tCommon("emDash")}
-                        </p>
-                        <div className="space-y-1 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                          <p>
-                            {t("listAttachmentCount", {
-                              count: row.attachmentCount,
-                            })}
-                          </p>
-                          {(row.attachments ?? []).length > 0 ? (
-                            <ul className="list-disc space-y-0.5 pl-5">
-                              {(row.attachments ?? []).map((att) => (
-                                <li key={att.id}>{att.fileName}</li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                        <AnnouncementManageActions
-                          announcement={row}
-                          showView
-                          onChanged={(opts) => void load(opts)}
-                          onDeleted={async () => {
-                            setExpandedId(null);
-                            await load({ silent: true });
-                          }}
+                        <section className="space-y-1.5">
+                          <h4 className="text-[length:var(--ecmp-font-helper-size)] font-medium text-ecmp-text-primary">
+                            {t("fieldBodyLabel")}
+                          </h4>
+                          <div className="max-h-48 overflow-y-auto rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface p-3 text-[length:var(--ecmp-font-body-size)] leading-relaxed text-ecmp-text-primary whitespace-pre-wrap">
+                            {body || tCommon("emDash")}
+                          </div>
+                        </section>
+                        <AnnouncementExpandPanelAttachments
+                          attachments={row.attachments ?? []}
+                          attachmentCount={row.attachmentCount}
                         />
+                        <div className="border-t border-ecmp-border pt-3">
+                          <AnnouncementManageActions
+                            announcement={row}
+                            showView
+                            onChanged={(opts) => void load(opts)}
+                            onDeleted={async () => {
+                              setExpandedId(null);
+                              await load({ silent: true });
+                            }}
+                          />
+                        </div>
                       </div>
                     ) : null}
                   </li>
                 );
               })}
             </ol>
+              <Pagination
+                summary={tCommon("pageOf", { page, totalPages })}
+                previousLabel={tCommon("previous")}
+                nextLabel={tCommon("next")}
+                onPrevious={() => {
+                  setExpandedId(null);
+                  setPage((p) => Math.max(1, p - 1));
+                }}
+                onNext={() => {
+                  setExpandedId(null);
+                  setPage((p) => Math.min(totalPages, p + 1));
+                }}
+                previousDisabled={page <= 1}
+                nextDisabled={page >= totalPages}
+              />
             </div>
           ) : null}
         </CardBody>

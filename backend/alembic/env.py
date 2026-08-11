@@ -26,6 +26,9 @@ from app.modules.internal_complaint.infrastructure import (  # noqa: E402, F401
     orm as _internal_complaint_orm,
 )
 
+# Modul Pengetahuan (Knowledge Module).
+from app.modules.knowledge import models as _knowledge_orm  # noqa: E402, F401
+
 # Queue ORM lives under the Queue module (TASK-063) — register for Alembic only.
 from app.modules.queue import orm as _queue_orm  # noqa: E402, F401
 

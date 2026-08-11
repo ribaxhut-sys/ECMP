@@ -187,7 +187,8 @@ export type AttachmentAggregateType =
   | "Complaint"
   | "Queue"
   | "Notification"
-  | "Announcement";
+  | "Announcement"
+  | "Knowledge";
 export type AttachmentStatus =
   | "UPLOADED"
   | "AVAILABLE"
@@ -797,4 +798,80 @@ export interface AnnouncementPublishRequest {
 /** Update may include startAt to reschedule; omit to leave schedule unchanged. */
 export interface AnnouncementUpdateRequest extends AnnouncementCreateRequest {
   startAt?: string | null;
+}
+
+// --- Knowledge (Pengetahuan) ---
+
+export type KnowledgeType =
+  | "SOP"
+  | "PERATURAN"
+  | "SURAT_EDARAN"
+  | "KEPUTUSAN"
+  | "PANDUAN";
+export type KnowledgeStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type KnowledgeFileRole = "PRIMARY" | "SUPPORTING";
+
+/** File as seen through a Knowledge record — `id` is the underlying platform
+ * attachment id, so /api/v1/attachments/{id}/... routes work unchanged
+ * (download, preview). */
+export interface KnowledgeFile {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  role: KnowledgeFileRole;
+  createdAt: string;
+}
+
+export interface Knowledge {
+  id: string;
+  title: string;
+  knowledgeType: KnowledgeType;
+  status: KnowledgeStatus;
+  documentNumber: string | null;
+  summary: string | null;
+  versionLabel: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  ownerOrgUnitId: string | null;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  supersedesKnowledgeId: string | null;
+  supersedesTitle: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedBy: string | null;
+  updatedAt: string;
+  /** Already access-filtered per-caller by the backend — never filter again in FE. */
+  files: KnowledgeFile[];
+}
+
+export interface KnowledgeCreateRequest {
+  title: string;
+  knowledgeType: KnowledgeType;
+  documentNumber?: string | null;
+  summary?: string | null;
+  versionLabel?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  supersedesKnowledgeId?: string | null;
+}
+
+export interface KnowledgeUpdateRequest {
+  title: string;
+  knowledgeType: KnowledgeType;
+  documentNumber?: string | null;
+  summary?: string | null;
+  versionLabel?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+}
+
+export interface KnowledgeSearchParams {
+  q?: string;
+  type?: KnowledgeType;
+  status?: KnowledgeStatus;
+  /** `@` Knowledge Reference (Complaint Resolution) — always ACTIVE + within
+   * the effective window, even for a knowledge:manage caller. */
+  referenceOnly?: boolean;
 }

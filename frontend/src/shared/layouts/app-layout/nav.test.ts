@@ -128,11 +128,12 @@ describe("APP_NAV_GROUPS", () => {
 describe("complaints nav permission gate (Commit 6)", () => {
   const complaintsItem = APP_NAV_ITEMS.find((item) => item.id === "complaints")!;
 
-  it("gates only the complaints and announcements items", () => {
+  it("gates only the complaints, announcements, and knowledge items", () => {
     const gatedItemIds = new Set([
       "complaints",
       "announcements",
       "announcementsManage",
+      "knowledge",
     ]);
     for (const item of APP_NAV_ITEMS) {
       if (gatedItemIds.has(item.id)) {
@@ -164,6 +165,12 @@ describe("complaints nav permission gate (Commit 6)", () => {
     const manageItem = APP_NAV_ITEMS.find((item) => item.id === "announcementsManage")!;
     expect(manageItem.requiredPermissions).toEqual(["announcement:manage"]);
     expect(manageItem.href).toBe("/announcements/manage");
+  });
+
+  it("gates knowledge on knowledge:read", () => {
+    const knowledgeItem = APP_NAV_ITEMS.find((item) => item.id === "knowledge")!;
+    expect(knowledgeItem.requiredPermissions).toEqual(["knowledge:read"]);
+    expect(knowledgeItem.href).toBe("/knowledge");
   });
 });
 

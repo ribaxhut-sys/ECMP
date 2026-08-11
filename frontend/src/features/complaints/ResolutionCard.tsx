@@ -23,9 +23,10 @@ import {
   CardTitle,
   Input,
   Select,
-  Textarea,
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
+import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
+import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 
 const CATEGORY_VALUES: readonly ResolutionCategory[] = [
   "SOLVED",
@@ -188,11 +189,13 @@ export function ResolutionCard({
                 label={t("resolvedAt")}
                 value={formatDateTime(resolution.resolvedAt, locale)}
               />
-              <div className="sm:col-span-2">
-                <DetailField
-                  label={t("resolutionNotes")}
-                  value={resolution.resolutionNotes}
-                />
+              <div className="sm:col-span-2 min-w-0 space-y-1">
+                <dt className="text-[length:var(--ecmp-font-caption-size)] font-medium uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                  {t("resolutionNotes")}
+                </dt>
+                <dd className="whitespace-pre-wrap break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                  <KnowledgeReferenceText text={resolution.resolutionNotes} />
+                </dd>
               </div>
             </dl>
           ) : showForm ? null : (
@@ -233,14 +236,14 @@ export function ResolutionCard({
                 error={fieldErrors.rootCause}
                 onChange={(event) => setRootCause(event.target.value)}
               />
-              <Textarea
+              <KnowledgeMentionTextarea
                 label={t("resolutionNotes")}
                 name="resolutionNotes"
                 required
                 rows={4}
                 value={notes}
                 error={fieldErrors.notes}
-                onChange={(event) => setNotes(event.target.value)}
+                onChange={setNotes}
               />
               <div className="flex justify-end">
                 <Button type="submit" variant="primary" disabled={submitting}>

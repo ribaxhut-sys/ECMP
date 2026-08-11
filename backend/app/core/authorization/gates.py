@@ -267,3 +267,50 @@ def require_announcement_manage(
     raise PermissionDeniedError(
         m("announcement.only_admin_supervisor_manager_pusat")
     )
+
+
+# Knowledge management (Pengetahuan) — business decision, LOCKED (ECMP —
+# Business & Domain Design: Modul Pengetahuan, §3): only Admin Pusat /
+# Supervisor Pusat / Manager Pusat may create/edit/upload/publish/archive.
+# Same Pusat-proof requirement as announcements — SUPERVISOR/MANAGER role
+# codes are shared with Cabang staff, so only an actual Pusat-coded org unit
+# (or an unscoped Admin) proves "Pusat". Read access (knowledge:read) is
+# global — every role holding complaints:read.
+_KNOWLEDGE_ADMIN_ROLES = ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN")
+_KNOWLEDGE_UNIT_ROLES = ("SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER")
+
+
+def principal_may_manage_knowledge(
+    principal: Principal,
+    *,
+    org_unit_id: str | None,
+) -> bool:
+    """Pure predicate — mirrors ``require_knowledge_manage`` without I/O so
+    FE/UI and tests can stay aligned without inventing a second AuthZ rule."""
+    if not principal.has_permission("knowledge:manage"):
+        return False
+    if principal.has_any_role(*_KNOWLEDGE_ADMIN_ROLES):
+        return _is_pusat_or_unscoped(org_unit_id)
+    if principal.has_any_role(*_KNOWLEDGE_UNIT_ROLES):
+        return is_pusat_unit(org_unit_id)
+    return False
+
+
+def require_knowledge_manage(
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> Principal:
+    """Knowledge create/update/publish/archive/delete/file-upload gate.
+
+    Dev mode issues no ``orgUnitId`` claim, so fall back to the ECMP-owned
+    membership record (same pattern as ``require_announcement_manage``).
+    """
+    resolver = OrgUnitResolver(session)
+    org = resolver.normalize(principal.org_unit_id) or resolver.resolve_principal_membership(
+        principal.user_id
+    )
+    if principal_may_manage_knowledge(principal, org_unit_id=org):
+        return principal
+    raise PermissionDeniedError(
+        m("knowledge.only_admin_supervisor_manager_pusat")
+    )

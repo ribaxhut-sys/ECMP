@@ -266,6 +266,9 @@ MESSAGES: dict[str, str] = {
     "resolution.resolved_by_must_match_user": (
         "resolvedBy harus sesuai dengan pengguna terautentikasi."
     ),
+    "resolution.invalid_knowledge_reference": (
+        "Pengetahuan yang dirujuk tidak ditemukan."
+    ),
     # --- Assignment ---
     "assignment.active_cannot_have_released_at": (
         "Penugasan aktif tidak boleh memiliki released_at."
@@ -290,6 +293,30 @@ MESSAGES: dict[str, str] = {
         "mengelola pengumuman."
     ),
     "announcement.not_published": "Pengumuman belum published.",
+    # --- Knowledge (Pengetahuan) ---
+    "knowledge.not_found": "Pengetahuan tidak ditemukan.",
+    "knowledge.only_admin_supervisor_manager_pusat": (
+        "Hanya Admin Pusat, Supervisor Pusat, atau Manager Pusat yang dapat "
+        "mengelola Pengetahuan."
+    ),
+    "knowledge.effective_to_before_from": (
+        "Berlaku sampai harus setelah berlaku mulai."
+    ),
+    "knowledge.active_identity_locked": (
+        "Judul, jenis, dan versi tidak dapat diubah setelah Pengetahuan aktif. "
+        "Buat Pengetahuan baru yang menggantikan versi ini."
+    ),
+    "knowledge.not_draft": "Tindakan ini hanya berlaku untuk Pengetahuan berstatus draft.",
+    "knowledge.not_active": "Tindakan ini hanya berlaku untuk Pengetahuan yang aktif.",
+    "knowledge.primary_file_required": (
+        "Pengetahuan memerlukan satu file utama sebelum dapat diaktifkan."
+    ),
+    "knowledge.delete_draft_only": (
+        "Hanya Pengetahuan berstatus draft yang dapat dihapus."
+    ),
+    "knowledge.files_draft_only": (
+        "Berkas Pengetahuan hanya dapat diubah selama berstatus draft."
+    ),
     # --- SLA ---
     "sla.active_cannot_have_completed_at": "SLA aktif tidak boleh memiliki completed_at.",
     "sla.active_not_belong_complaint": "SLA aktif tidak termasuk pengaduan ini.",

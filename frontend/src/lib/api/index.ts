@@ -128,6 +128,18 @@ export {
   deleteAnnouncementAttachmentFromCatalog,
 } from "./announcements";
 export {
+  archiveKnowledge,
+  createKnowledge,
+  deleteKnowledge,
+  fetchKnowledge,
+  publishKnowledge,
+  removeKnowledgeFile,
+  searchKnowledge,
+  setPrimaryKnowledgeFile,
+  updateKnowledge,
+  uploadKnowledgeFile,
+} from "./knowledge";
+export {
   fetchPublicSettings,
   fetchSettings,
   updateSetting,
