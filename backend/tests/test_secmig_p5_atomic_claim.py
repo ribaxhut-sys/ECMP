@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session, sessionmaker
-from tests.cm_batch1_helpers import confirmed_create
+from tests.cm_batch1_helpers import confirmed_create, ensure_lab_intake_note
 
 from app.db.base import Base
 from app.integrations.customer import StubCustomerProvider
@@ -72,6 +72,12 @@ def _body(**overrides: Any) -> CreateComplaintBatch1Request:
         "description": "Desc",
     }
     payload.update(overrides)
+    # Plain register requires Catatan; preserve explicit disposition sections.
+    if "description" in payload and not (
+        str(payload.get("intakeDisposition") or payload.get("intake_disposition") or "")
+        .strip()
+    ):
+        payload["description"] = ensure_lab_intake_note(str(payload["description"]))
     return CreateComplaintBatch1Request(**payload)
 
 

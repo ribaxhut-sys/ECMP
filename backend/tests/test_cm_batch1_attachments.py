@@ -736,7 +736,7 @@ def test_api_507_508_509_512_roundtrip(
                 "category": "BILLING",
                 "channel": "BRANCH",
                 "subject": "api att",
-                "description": "d",
+                "description": "d\n\n---\nCatatan:\nCatatan lab",
             },
         )
         assert created.status_code == 201, created.text

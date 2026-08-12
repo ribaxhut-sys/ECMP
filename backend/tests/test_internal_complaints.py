@@ -450,13 +450,26 @@ def test_client_cannot_forge_owner_on_create(
 # --- AUTHZ helpers (reuse F4 gates) -----------------------------------------
 
 
-def test_agent_cannot_final_acceptance():
+def test_agent_may_final_acceptance_on_own_unit():
+    """Mode A: Agent may OWNER-accept on their own unit (DEC-021 Tutup path)."""
+    agent = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
+    assert_case_acceptance_authorized(
+        agent,
+        party="OWNER",
+        owner_unit_id="UPPPD-GAMBIR",
+        handling_unit_id="PUSAT",
+        actor_unit_id="UPPPD-GAMBIR",
+        complaint_creator_id="someone-else",
+    )
+
+
+def test_agent_cannot_final_acceptance_cross_unit():
     agent = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
     with pytest.raises(PermissionDeniedError):
         assert_case_acceptance_authorized(
             agent,
             party="OWNER",
-            owner_unit_id="UPPPD-GAMBIR",
+            owner_unit_id="PUSAT",
             handling_unit_id="PUSAT",
             actor_unit_id="UPPPD-GAMBIR",
             complaint_creator_id="someone-else",
