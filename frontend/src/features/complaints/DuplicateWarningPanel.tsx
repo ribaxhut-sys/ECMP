@@ -277,7 +277,7 @@ export function DuplicateWarningPanel({
 
         {effectiveSurvivingLabel ? (
           <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-            {t("selectedCandidateLabel", { label: effectiveSurvivingLabel })}
+            {t("selectedSurvivingCandidateLabel", { label: effectiveSurvivingLabel })}
           </p>
         ) : null}
 

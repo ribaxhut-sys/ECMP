@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-
 from tests.pytest_db_guard import enforce_pytest_database
 
 # backend/tests/conftest.py → repo root (compose /.env lives here, not backend/).

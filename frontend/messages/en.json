@@ -1627,7 +1627,7 @@
     "survivingComplaintIdLabel": "Other complaint ID",
     "survivingComplaintIdHint": "Only use this if the candidate ID above isn't the right one",
     "pasteOtherId": "Paste a different complaint ID",
-    "selectedCandidateLabel": "Selected candidate: {label}",
+    "selectedSurvivingCandidateLabel": "Selected candidate: {label}",
     "createNewJustificationLabel": "Reason for a new complaint",
     "createNewJustificationHint": "Explain why this is a new complaint, not a continuation (min. 20 characters)",
     "confirmCreateNew": "Confirm new complaint",

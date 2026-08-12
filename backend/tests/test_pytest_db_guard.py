@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from tests.pytest_db_guard import (
     database_name_from_url,
     enforce_pytest_database,
