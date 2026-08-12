@@ -32,7 +32,7 @@ import { rememberCaseId } from "./caseSessionRegistry";
 
 /**
  * Case List for a Complaint — API-536 with complaintId filter (DEC-024).
- * `?createCase=1` opens Buat Case once (after Aggregate create), with optional prefill.
+ * `?createCase=1` opens handling (create Case) once after Aggregate create, with optional prefill.
  */
 export function CaseListView({ complaintId }: { complaintId: string }) {
   const t = useTranslations("cases");

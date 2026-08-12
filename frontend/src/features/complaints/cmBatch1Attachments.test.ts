@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cmBatch1AttachmentClassificationLabelKey,
   cmBatch1AttachmentListLabel,
   cmBatch1VoidTargetId,
   formatCmBatch1AttachmentBytes,
+  formatCmBatch1AttachmentSummaryLine,
   isCmBatch1AttachmentVoidable,
   isSameCmBatch1Attachment,
   normalizeCmBatch1Attachment,
@@ -42,6 +44,29 @@ describe("formatCmBatch1AttachmentBytes", () => {
     expect(formatCmBatch1AttachmentBytes(2048)).toBe("2.0 KB");
     expect(formatCmBatch1AttachmentBytes(2 * 1024 * 1024)).toBe("2.0 MB");
     expect(formatCmBatch1AttachmentBytes(Number.NaN)).toBe("—");
+  });
+});
+
+describe("cmBatch1AttachmentClassificationLabelKey", () => {
+  it("maps known codes to i18n keys", () => {
+    expect(cmBatch1AttachmentClassificationLabelKey("customer_evidence")).toBe(
+      "classificationCustomerEvidence",
+    );
+    expect(cmBatch1AttachmentClassificationLabelKey("official_letter")).toBe(
+      "classificationOfficialLetter",
+    );
+  });
+
+  it("falls back to the raw code when unknown", () => {
+    expect(cmBatch1AttachmentClassificationLabelKey("other")).toBe("other");
+  });
+});
+
+describe("formatCmBatch1AttachmentSummaryLine", () => {
+  it("joins name, size, and classification label", () => {
+    expect(
+      formatCmBatch1AttachmentSummaryLine("test.pdf", 45, "Bukti pelanggan"),
+    ).toBe("test.pdf - 45 B - Bukti pelanggan");
   });
 });
 

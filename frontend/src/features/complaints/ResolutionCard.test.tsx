@@ -11,6 +11,7 @@ import { renderWithProviders } from "@/test/harness";
 const fetchComplaintResolution = vi.fn();
 const resolveComplaint = vi.fn();
 const searchKnowledge = vi.fn();
+const fetchKnowledge = vi.fn();
 const hasPermission = vi.fn<(permission: string) => boolean>(() => true);
 const push = vi.fn();
 
@@ -29,6 +30,7 @@ vi.mock("@/lib/api", async () => {
     fetchComplaintResolution: (...args: unknown[]) => fetchComplaintResolution(...args),
     resolveComplaint: (...args: unknown[]) => resolveComplaint(...args),
     searchKnowledge: (...args: unknown[]) => searchKnowledge(...args),
+    fetchKnowledge: (...args: unknown[]) => fetchKnowledge(...args),
   };
 });
 
@@ -36,6 +38,31 @@ import { ApiError } from "@/lib/api";
 import { ResolutionCard } from "./ResolutionCard";
 
 const KNOWLEDGE_ID = "e5555555-5555-5555-5555-555555555555";
+
+function knowledgeRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    id: KNOWLEDGE_ID,
+    title: "SOP Penanganan Pengaduan",
+    knowledgeType: "SOP",
+    status: "ACTIVE",
+    documentNumber: "SOP-001",
+    summary: null,
+    versionLabel: "2.1",
+    effectiveFrom: null,
+    effectiveTo: null,
+    ownerOrgUnitId: "PUSAT",
+    publishedAt: "2026-08-01T00:00:00Z",
+    publishedBy: null,
+    supersedesKnowledgeId: null,
+    supersedesTitle: null,
+    createdBy: null,
+    createdAt: "2026-07-30T00:00:00Z",
+    updatedBy: null,
+    updatedAt: "2026-07-30T00:00:00Z",
+    files: [],
+    ...overrides,
+  };
+}
 
 function resolution(overrides: Record<string, unknown> = {}) {
   return {
@@ -57,6 +84,8 @@ describe("ResolutionCard — Knowledge Reference", () => {
     fetchComplaintResolution.mockReset();
     resolveComplaint.mockReset();
     searchKnowledge.mockReset();
+    fetchKnowledge.mockReset();
+    fetchKnowledge.mockResolvedValue({ data: knowledgeRecord() });
     hasPermission.mockReset().mockReturnValue(true);
     push.mockReset();
   });
@@ -82,46 +111,25 @@ describe("ResolutionCard — Knowledge Reference", () => {
   it("lets the user insert a Knowledge reference via @ and submits it unchanged", async () => {
     const user = userEvent.setup();
     fetchComplaintResolution.mockRejectedValue(new ApiError(404, "NOT_FOUND", "not found"));
-    searchKnowledge.mockResolvedValue({
-      data: [
-        {
-          id: KNOWLEDGE_ID,
-          title: "SOP Penanganan Pengaduan",
-          knowledgeType: "SOP",
-          status: "ACTIVE",
-          documentNumber: "SOP-001",
-          summary: null,
-          versionLabel: "2.1",
-          effectiveFrom: null,
-          effectiveTo: null,
-          ownerOrgUnitId: "PUSAT",
-          publishedAt: "2026-08-01T00:00:00Z",
-          publishedBy: null,
-          supersedesKnowledgeId: null,
-          supersedesTitle: null,
-          createdBy: null,
-          createdAt: "2026-07-30T00:00:00Z",
-          updatedBy: null,
-          updatedAt: "2026-07-30T00:00:00Z",
-          files: [],
-        },
-      ],
-    });
+    searchKnowledge.mockResolvedValue({ data: [knowledgeRecord()] });
     resolveComplaint.mockResolvedValue({
       data: { resolution: resolution(), complaintId: "c-1", status: "RESOLVED" },
     });
 
-    renderWithProviders(<ResolutionCard complaintId="c-1" status="IN_PROGRESS" />);
+    const { container } = renderWithProviders(
+      <ResolutionCard complaintId="c-1" status="IN_PROGRESS" />,
+    );
 
     await waitFor(() => {
       expect(screen.getByLabelText(/category/i)).toBeInTheDocument();
     });
     await user.selectOptions(screen.getByLabelText(/category/i), "SOLVED");
     await user.type(screen.getByLabelText(/root cause/i), "Kesalahan input");
-    await user.type(
-      screen.getByLabelText(/resolution notes/i),
-      "Sesuai @pengaduan",
-    );
+
+    const editor = container.querySelector('[contenteditable="true"]') as HTMLElement;
+    expect(editor).toBeTruthy();
+    await user.click(editor);
+    await user.keyboard("Sesuai @pengaduan");
 
     const option = await screen.findByRole("option", {
       name: /SOP Penanganan Pengaduan/i,

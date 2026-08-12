@@ -317,9 +317,9 @@ def resolve_case(
 ) -> DataResponse[CaseResponse]:
     """SECMIG-P4 parity: org scope after permission check, before mutation.
 
-    F4: action=ACCEPT stamps Handling Unit acceptance — Agent may PROPOSE
-    only; ACCEPT requires Supervisor/Manager on the current Handling Unit,
-    with creator SoD.
+    F4: action=ACCEPT stamps Handling Unit acceptance. Mode A: Agent may ACCEPT
+    on their own Handling Unit; cross-unit ACCEPT remains Supervisor/Manager/
+    Admin (creator SoD for approver roles).
     """
     _ = idempotency_key
     units = OrgUnitResolver(session).resolve_case_units(case_id)

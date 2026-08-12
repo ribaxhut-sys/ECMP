@@ -182,9 +182,9 @@ MESSAGES: dict[str, str] = {
     ),
     "case.acceptance_party_invalid": "Pihak persetujuan Case tidak valid.",
     "case.resolve_accept_role_denied": (
-        "Agent tidak boleh memberikan penerimaan Handling Unit final. "
-        "Gunakan pengajuan resolusi (PROPOSE), lalu Supervisor/Manager yang "
-        "berwenang memberikan ACCEPT."
+        "Peran Anda tidak boleh menyelesaikan penerimaan Case di unit ini. "
+        "Agent hanya boleh Tutup/ACCEPT pada unit cabangnya sendiri; "
+        "unit lain memerlukan Supervisor/Manager."
     ),
     # --- Escalation ---
     "escalation.already_closed": "Eskalasi sudah berstatus CLOSED.",
@@ -308,8 +308,11 @@ MESSAGES: dict[str, str] = {
     ),
     "knowledge.not_draft": "Tindakan ini hanya berlaku untuk Pengetahuan berstatus draft.",
     "knowledge.not_active": "Tindakan ini hanya berlaku untuk Pengetahuan yang aktif.",
+    "knowledge.not_archived": (
+        "Tindakan ini hanya berlaku untuk Pengetahuan yang diarsipkan."
+    ),
     "knowledge.primary_file_required": (
-        "Pengetahuan memerlukan satu file utama sebelum dapat diaktifkan."
+        "Pengetahuan memerlukan setidaknya satu file sebelum dapat diaktifkan."
     ),
     "knowledge.delete_draft_only": (
         "Hanya Pengetahuan berstatus draft yang dapat dihapus."

@@ -2,18 +2,19 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
+  ApiError,
   archiveKnowledge,
   deleteKnowledge,
   fetchKnowledge,
   publishKnowledge,
+  unarchiveKnowledge,
   updateKnowledge,
 } from "@/lib/api";
 import type { Knowledge } from "@/lib/api/types";
 import { formatDateTime } from "@/i18n/formatting";
-import { useLocaleContext } from "@/shared/i18n";
 import {
   Alert,
   Button,
@@ -31,6 +32,7 @@ import { useToast } from "@/shared/providers";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { knowledgeTypeKey, KnowledgeStatusBadge, KnowledgeTypeBadge } from "./KnowledgeBadges";
 import { KnowledgeFileManager } from "./KnowledgeFileManager";
+import { KnowledgeHistorySection } from "./KnowledgeHistorySection";
 import { KnowledgeFormFields } from "./KnowledgeFormFields";
 import {
   knowledgeFormFromExisting,
@@ -61,7 +63,7 @@ export function KnowledgeDetailView({ id }: { id: string }) {
   const tErrors = useTranslations("errors");
   const { hasPermission, roles } = useAuth();
   const orgUnitCode = useOrgUnitCode();
-  const { locale } = useLocaleContext();
+  const locale = useLocale();
   const { pushSuccess } = useToast();
 
   const canManage =
@@ -81,6 +83,8 @@ export function KnowledgeDetailView({ id }: { id: string }) {
 
   const [showDelete, setShowDelete] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [showUnarchive, setShowUnarchive] = useState(false);
+  const [unarchiveBusy, setUnarchiveBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,6 +135,10 @@ export function KnowledgeDetailView({ id }: { id: string }) {
 
   async function onPublish() {
     if (!knowledge) return;
+    if (knowledge.files.length === 0) {
+      setActionError(t("publishNeedsFile"));
+      return;
+    }
     setBusy(true);
     setActionError(null);
     try {
@@ -138,7 +146,11 @@ export function KnowledgeDetailView({ id }: { id: string }) {
       setKnowledge(res.data);
       pushSuccess(tCommon("success"), t("publishedSuccess"));
     } catch (err) {
-      setActionError(resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToPublish"));
+      setActionError(
+        err instanceof ApiError && err.message
+          ? err.message
+          : resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToPublish"),
+      );
     } finally {
       setBusy(false);
     }
@@ -156,6 +168,24 @@ export function KnowledgeDetailView({ id }: { id: string }) {
       setActionError(resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToArchive"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function confirmUnarchive() {
+    if (!knowledge) return;
+    setUnarchiveBusy(true);
+    setActionError(null);
+    try {
+      const res = await unarchiveKnowledge(knowledge.id);
+      setKnowledge(res.data);
+      setShowUnarchive(false);
+      pushSuccess(tCommon("success"), t("unarchivedSuccess"));
+    } catch (err) {
+      setActionError(
+        resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToUnarchive"),
+      );
+    } finally {
+      setUnarchiveBusy(false);
     }
   }
 
@@ -234,7 +264,13 @@ export function KnowledgeDetailView({ id }: { id: string }) {
             {tCommon("edit")}
           </Button>
           {knowledge.status === "DRAFT" ? (
-            <Button type="button" size="sm" disabled={busy} onClick={() => void onPublish()}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy || knowledge.files.length === 0}
+              title={knowledge.files.length === 0 ? t("publishNeedsFile") : undefined}
+              onClick={() => void onPublish()}
+            >
               {t("publish")}
             </Button>
           ) : null}
@@ -247,6 +283,19 @@ export function KnowledgeDetailView({ id }: { id: string }) {
               onClick={() => void onArchive()}
             >
               {t("archive")}
+            </Button>
+          ) : null}
+          {knowledge.status === "ARCHIVED" ? (
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy || unarchiveBusy}
+              onClick={() => {
+                setActionError(null);
+                setShowUnarchive(true);
+              }}
+            >
+              {t("unarchive")}
             </Button>
           ) : null}
           {knowledge.status === "DRAFT" ? (
@@ -262,6 +311,15 @@ export function KnowledgeDetailView({ id }: { id: string }) {
           ) : null}
         </div>
       ) : null}
+
+      <section className="space-y-[var(--ecmp-panel-gap)]">
+        <SectionHeader title={t("documentsSectionTitle")} />
+        <KnowledgeFileManager
+          knowledge={knowledge}
+          canManage={canManage}
+          onChanged={(next) => setKnowledge(next)}
+        />
+      </section>
 
       <Card>
         <CardBody className="space-y-[var(--ecmp-panel-gap)]">
@@ -315,12 +373,8 @@ export function KnowledgeDetailView({ id }: { id: string }) {
       </Card>
 
       <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader title={t("documentsSectionTitle")} />
-        <KnowledgeFileManager
-          knowledge={knowledge}
-          canManage={canManage}
-          onChanged={(next) => setKnowledge(next)}
-        />
+        <SectionHeader title={t("historySectionTitle")} />
+        <KnowledgeHistorySection knowledgeId={knowledge.id} />
       </section>
 
       <Modal
@@ -363,6 +417,15 @@ export function KnowledgeDetailView({ id }: { id: string }) {
               }
               identityLocked={knowledge.status !== "DRAFT"}
             />
+            <div className="space-y-[var(--ecmp-panel-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+              <SectionHeader title={t("documentsSectionTitle")} />
+              <KnowledgeFileManager
+                knowledge={knowledge}
+                canManage={canManage}
+                showInlinePreview={false}
+                onChanged={(next) => setKnowledge(next)}
+              />
+            </div>
           </form>
         ) : null}
       </Modal>
@@ -396,6 +459,37 @@ export function KnowledgeDetailView({ id }: { id: string }) {
       >
         <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
           {t("deleteConfirmDescription", { title: knowledge.title })}
+        </p>
+      </Modal>
+
+      <Modal
+        open={showUnarchive}
+        onClose={() => setShowUnarchive(false)}
+        title={t("unarchiveConfirmTitle")}
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowUnarchive(false)}
+              disabled={unarchiveBusy}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={unarchiveBusy}
+              disabled={unarchiveBusy}
+              onClick={() => void confirmUnarchive()}
+            >
+              {unarchiveBusy ? tCommon("saving") : t("confirmUnarchive")}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+          {t("unarchiveConfirmDescription", { title: knowledge.title })}
         </p>
       </Modal>
     </PageContainer>

@@ -132,10 +132,12 @@ export {
   createKnowledge,
   deleteKnowledge,
   fetchKnowledge,
+  fetchKnowledgeHistory,
   publishKnowledge,
   removeKnowledgeFile,
   searchKnowledge,
   setPrimaryKnowledgeFile,
+  unarchiveKnowledge,
   updateKnowledge,
   uploadKnowledgeFile,
 } from "./knowledge";
@@ -231,6 +233,7 @@ export {
   createCmCase,
   fetchCmCase,
   fetchCmCases,
+  recordCmCaseAcceptance,
   resolveCmCase,
   updateCmCaseStatus,
 } from "./cmCase";
@@ -238,6 +241,8 @@ export type {
   AddCmCaseRequest,
   CloseCmCaseRequest,
   CmCase,
+  CmCaseAcceptanceDecision,
+  CmCaseAcceptanceParty,
   CmCaseCancelReason,
   CmCaseMutateOptions,
   CmCaseResolution,
@@ -245,6 +250,7 @@ export type {
   CmCaseStatus,
   CmCaseSummary,
   CreateCmCaseRequest,
+  RecordCmCaseAcceptanceRequest,
   ResolveCmCaseRequest,
   UpdateCmCaseStatusRequest,
 } from "./cmCase";

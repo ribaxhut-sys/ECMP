@@ -49,8 +49,8 @@ from app.modules.cm_batch1.intake_narrative import (
     append_re_escalation_reason,
     append_rejection_note,
     append_supervisor_note,
-    has_branch_resolution,
     has_escalation_reason,
+    has_intake_note,
     parse_intake_description,
 )
 from app.modules.cm_batch1.schemas import (
@@ -883,13 +883,13 @@ class CmBatch1Service:
         desc = body.description.strip()
         if intake_disposition == "BRANCH_CLOSED":
             # Thin BR-009 lab path: branch walk-away close without Case (BQ-011).
-            if not has_branch_resolution(desc):
+            if not has_intake_note(desc):
                 raise ValidationAppError(
-                    "resolution note required for BRANCH_CLOSED",
+                    "intake note required for BRANCH_CLOSED",
                     details={
                         "field": "description",
                         "intakeDisposition": "BRANCH_CLOSED",
-                        "requiredSection": "Penyelesaian",
+                        "requiredSection": "Catatan",
                     },
                 )
             initial_status = "CLOSED"
@@ -909,6 +909,17 @@ class CmBatch1Service:
                 "unsupported intakeDisposition",
                 details={"intakeDisposition": body.intake_disposition},
             )
+        else:
+            # Plain register (Daftarkan) — Catatan wajib agar cabang tahu
+            # apa yang sudah diinfokan ke pelanggan.
+            if not has_intake_note(desc):
+                raise ValidationAppError(
+                    "intake note required for register",
+                    details={
+                        "field": "description",
+                        "requiredSection": "Catatan",
+                    },
+                )
 
         dup_result = self._enforce_duplicate_on_create(body)
 

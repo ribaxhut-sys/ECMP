@@ -20,6 +20,10 @@ export function caseStatusTone(status: CmCaseStatus | string): BadgeTone {
       return "info";
     case "IN_PROGRESS":
       return "primary";
+    case "PENDING":
+      return "warning";
+    case "ESCALATED":
+      return "warning";
     case "RESOLVED":
       return "success";
     case "CLOSED":
@@ -43,6 +47,15 @@ export function allowedStatusTargets(
 
 export function canResolve(status: CmCaseStatus): boolean {
   return status === "IN_PROGRESS";
+}
+
+/** UI: offer Resolve for active branch work; may auto-advance to IN_PROGRESS first. */
+export function canOfferResolve(status: CmCaseStatus): boolean {
+  return (
+    status === "CREATED" ||
+    status === "ASSIGNED" ||
+    status === "IN_PROGRESS"
+  );
 }
 
 export function canClose(status: CmCaseStatus): boolean {

@@ -11,7 +11,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
+from sqlalchemy.orm import Session
+
+from app.core.enums import AuditAction
 from app.core.errors import (
     InvalidStateError,
     NotFoundError,
@@ -22,6 +26,9 @@ from app.core.user_messages import m
 from app.modules.attachment.domain.enums import AggregateType
 from app.modules.attachment.schemas import AttachmentResponse
 from app.modules.attachment.service import AttachmentService
+from app.modules.audit.hooks import resolve_actor_name
+from app.modules.audit.schemas import AuditLogResponse
+from app.modules.audit.service import AuditService
 from app.modules.knowledge.file_repository import KnowledgeFileRepository, KnowledgeFileRow
 from app.modules.knowledge.models import KnowledgeORM
 from app.modules.knowledge.repository import KnowledgeRepository, within_effective_window
@@ -33,6 +40,11 @@ from app.modules.knowledge.schemas import (
 )
 
 KNOWLEDGE_NOT_FOUND_MESSAGE = m("knowledge.not_found")
+KNOWLEDGE_AUDIT_ENTITY_TYPE = "Knowledge"
+
+# ISO-format so datetime fields survive the audit log's JSONB old/new_values.
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
 
 
 def _file_response(row: KnowledgeFileRow) -> KnowledgeFileResponse:
@@ -52,10 +64,47 @@ class KnowledgeService:
         repository: KnowledgeRepository,
         files: KnowledgeFileRepository,
         attachments: AttachmentService,
+        audit: AuditService,
+        session: Session,
     ) -> None:
         self._repo = repository
         self._files = files
         self._attachments = attachments
+        self._audit = audit
+        self._session = session
+
+    def _log(
+        self,
+        *,
+        event_type: str,
+        action: AuditAction,
+        entity_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        old_values: dict[str, Any] | None = None,
+        new_values: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Append one Knowledge history row — same DB transaction as the
+        mutation itself (commit=False; the caller's own commit() persists
+        both together)."""
+        self._audit.log(
+            event_type=event_type,
+            entity_type=KNOWLEDGE_AUDIT_ENTITY_TYPE,
+            action=action,
+            entity_id=entity_id,
+            actor_id=actor_id,
+            actor_name=resolve_actor_name(self._session, actor_id),
+            old_values=old_values,
+            new_values=new_values,
+            metadata=metadata,
+            commit=False,
+        )
+
+    def _file_name(self, attachment_id: uuid.UUID) -> str:
+        try:
+            return self._attachments.get(attachment_id).original_name
+        except NotFoundError:
+            return "?"
 
     def _to_response(
         self, row: KnowledgeORM, file_rows: list[KnowledgeFileRow]
@@ -161,6 +210,21 @@ class KnowledgeService:
         )
         if payload.supersedes_knowledge_id is not None:
             row.supersedes_knowledge_id = payload.supersedes_knowledge_id
+        self._log(
+            event_type="KnowledgeCreated",
+            action=AuditAction.CREATE,
+            entity_id=row.id,
+            actor_id=actor_id,
+            new_values={
+                "title": row.title,
+                "knowledgeType": row.knowledge_type,
+                "documentNumber": row.document_number,
+                "summary": row.summary,
+                "versionLabel": row.version_label,
+                "effectiveFrom": _iso(row.effective_from),
+                "effectiveTo": _iso(row.effective_to),
+            },
+        )
         if commit:
             self._repo.commit()
             self._repo.refresh(row)
@@ -187,6 +251,15 @@ class KnowledgeService:
             or payload.version_label != row.version_label
         ):
             raise ValidationAppError(m("knowledge.active_identity_locked"))
+        before = {
+            "title": row.title,
+            "knowledgeType": row.knowledge_type,
+            "documentNumber": row.document_number,
+            "summary": row.summary,
+            "versionLabel": row.version_label,
+            "effectiveFrom": _iso(row.effective_from),
+            "effectiveTo": _iso(row.effective_to),
+        }
         row = self._repo.update_fields(
             row,
             title=payload.title,
@@ -198,11 +271,43 @@ class KnowledgeService:
             effective_to=payload.effective_to,
             updated_by=actor_id,
         )
+        after = {
+            "title": row.title,
+            "knowledgeType": row.knowledge_type,
+            "documentNumber": row.document_number,
+            "summary": row.summary,
+            "versionLabel": row.version_label,
+            "effectiveFrom": _iso(row.effective_from),
+            "effectiveTo": _iso(row.effective_to),
+        }
+        changed_old = {k: v for k, v in before.items() if after[k] != v}
+        changed_new = {k: after[k] for k in changed_old}
+        if changed_old:
+            self._log(
+                event_type="KnowledgeUpdated",
+                action=AuditAction.UPDATE,
+                entity_id=row.id,
+                actor_id=actor_id,
+                old_values=changed_old,
+                new_values=changed_new,
+            )
         if commit:
             self._repo.commit()
             self._repo.refresh(row)
         files = self._files.list_for_knowledge(knowledge_id)
         return self._to_response(row, files)
+
+    def _ensure_file_for_activation(
+        self, knowledge_id: uuid.UUID, *, actor_id: uuid.UUID
+    ) -> None:
+        """Activation needs at least one source file (PRIMARY is an internal role)."""
+        files = self._files.list_for_knowledge(knowledge_id)
+        if not files:
+            raise ValidationAppError(m("knowledge.primary_file_required"))
+        if self._files.get_primary(knowledge_id) is None:
+            join = self._files.get(knowledge_id, files[0].attachment_id)
+            if join is not None:
+                self._files.set_primary(join, updated_by=actor_id)
 
     def publish(
         self,
@@ -216,9 +321,7 @@ class KnowledgeService:
             raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
         if row.status != "DRAFT":
             raise InvalidStateError(m("knowledge.not_draft"))
-        primary = self._files.get_primary(knowledge_id)
-        if primary is None:
-            raise ValidationAppError(m("knowledge.primary_file_required"))
+        self._ensure_file_for_activation(knowledge_id, actor_id=actor_id)
         if (
             row.effective_from is not None
             and row.effective_to is not None
@@ -226,6 +329,14 @@ class KnowledgeService:
         ):
             raise ValidationAppError(m("knowledge.effective_to_before_from"))
         row = self._repo.publish(row, published_by=actor_id)
+        self._log(
+            event_type="KnowledgePublished",
+            action=AuditAction.UPDATE,
+            entity_id=row.id,
+            actor_id=actor_id,
+            old_values={"status": "DRAFT"},
+            new_values={"status": "ACTIVE", "publishedAt": _iso(row.published_at)},
+        )
         if commit:
             self._repo.commit()
             self._repo.refresh(row)
@@ -245,6 +356,53 @@ class KnowledgeService:
         if row.status != "ACTIVE":
             raise InvalidStateError(m("knowledge.not_active"))
         row = self._repo.archive(row, updated_by=actor_id)
+        self._log(
+            event_type="KnowledgeArchived",
+            action=AuditAction.UPDATE,
+            entity_id=row.id,
+            actor_id=actor_id,
+            old_values={"status": "ACTIVE"},
+            new_values={"status": "ARCHIVED"},
+        )
+        if commit:
+            self._repo.commit()
+            self._repo.refresh(row)
+        files = self._files.list_for_knowledge(knowledge_id)
+        return self._to_response(row, files)
+
+    def unarchive(
+        self,
+        knowledge_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID,
+        commit: bool = True,
+    ) -> KnowledgeResponse:
+        """Correct mistaken archive — ARCHIVED -> ACTIVE (manage only).
+
+        Keeps original ``published_at`` / ``published_by``. Requires at least
+        one source file and a valid effective window when both bounds are set.
+        """
+        row = self._repo.get(knowledge_id)
+        if row is None:
+            raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
+        if row.status != "ARCHIVED":
+            raise InvalidStateError(m("knowledge.not_archived"))
+        self._ensure_file_for_activation(knowledge_id, actor_id=actor_id)
+        if (
+            row.effective_from is not None
+            and row.effective_to is not None
+            and row.effective_from >= row.effective_to
+        ):
+            raise ValidationAppError(m("knowledge.effective_to_before_from"))
+        row = self._repo.unarchive(row, updated_by=actor_id)
+        self._log(
+            event_type="KnowledgeUnarchived",
+            action=AuditAction.UPDATE,
+            entity_id=row.id,
+            actor_id=actor_id,
+            old_values={"status": "ARCHIVED"},
+            new_values={"status": "ACTIVE"},
+        )
         if commit:
             self._repo.commit()
             self._repo.refresh(row)
@@ -265,6 +423,13 @@ class KnowledgeService:
             raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
         if row.status != "DRAFT":
             raise InvalidStateError(m("knowledge.delete_draft_only"))
+        self._log(
+            event_type="KnowledgeDeleted",
+            action=AuditAction.DELETE,
+            entity_id=row.id,
+            actor_id=actor_id,
+            old_values={"status": row.status, "title": row.title},
+        )
         self._repo.soft_delete(row, deleted_by=actor_id)
         if commit:
             self._repo.commit()
@@ -290,6 +455,8 @@ class KnowledgeService:
         actor_id: uuid.UUID,
     ) -> KnowledgeResponse:
         self._require_draft(knowledge_id)
+        existing_primary = self._files.get_primary(knowledge_id)
+        previous_primary = existing_primary if role == "PRIMARY" else None
         uploaded: AttachmentResponse = self._attachments.upload(
             aggregate_type=AggregateType.KNOWLEDGE.value,
             aggregate_id=knowledge_id,
@@ -305,8 +472,31 @@ class KnowledgeService:
             role="SUPPORTING",
             created_by=actor_id,
         )
-        if role == "PRIMARY":
+        # First file (or explicit PRIMARY upload) becomes the display document.
+        make_primary = role == "PRIMARY" or existing_primary is None
+        if make_primary:
             self._files.set_primary(join, updated_by=actor_id)
+        if previous_primary is not None:
+            old_name = self._file_name(previous_primary.attachment_id)
+            self._log(
+                event_type="KnowledgeFileReplaced",
+                action=AuditAction.UPDATE,
+                entity_id=knowledge_id,
+                actor_id=actor_id,
+                old_values={"fileName": old_name, "role": "PRIMARY"},
+                new_values={"fileName": uploaded.original_name, "role": "PRIMARY"},
+            )
+        else:
+            self._log(
+                event_type="KnowledgeFileUploaded",
+                action=AuditAction.UPDATE,
+                entity_id=knowledge_id,
+                actor_id=actor_id,
+                new_values={
+                    "fileName": uploaded.original_name,
+                    "role": "PRIMARY" if make_primary else role,
+                },
+            )
         self._files.commit()
         return self.get(knowledge_id, caller_may_manage=True)
 
@@ -321,7 +511,18 @@ class KnowledgeService:
         join = self._files.get(knowledge_id, attachment_id)
         if join is None:
             raise NotFoundError(m("attachment.not_found"))
+        previous_primary = self._files.get_primary(knowledge_id)
         self._files.set_primary(join, updated_by=actor_id)
+        if previous_primary is not None and previous_primary.attachment_id != attachment_id:
+            old_name = self._file_name(previous_primary.attachment_id)
+            self._log(
+                event_type="KnowledgeFileReplaced",
+                action=AuditAction.UPDATE,
+                entity_id=knowledge_id,
+                actor_id=actor_id,
+                old_values={"fileName": old_name, "role": "PRIMARY"},
+                new_values={"fileName": self._file_name(attachment_id), "role": "PRIMARY"},
+            )
         self._files.commit()
         return self.get(knowledge_id, caller_may_manage=True)
 
@@ -329,12 +530,40 @@ class KnowledgeService:
         self,
         knowledge_id: uuid.UUID,
         attachment_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID,
     ) -> KnowledgeResponse:
         self._require_draft(knowledge_id)
         join = self._files.get(knowledge_id, attachment_id)
         if join is None:
             raise NotFoundError(m("attachment.not_found"))
+        was_primary = join.role == "PRIMARY"
+        self._log(
+            event_type="KnowledgeFileRemoved",
+            action=AuditAction.DELETE,
+            entity_id=knowledge_id,
+            actor_id=actor_id,
+            old_values={"fileName": self._file_name(attachment_id), "role": join.role},
+        )
         self._files.delete(join)
         self._attachments.soft_delete(attachment_id, commit=False)
+        if was_primary:
+            remaining = self._files.list_for_knowledge(knowledge_id)
+            if remaining:
+                next_join = self._files.get(knowledge_id, remaining[0].attachment_id)
+                if next_join is not None:
+                    self._files.set_primary(next_join, updated_by=actor_id)
         self._files.commit()
         return self.get(knowledge_id, caller_may_manage=True)
+
+    # --- History (knowledge:read — visibility mirrors ``get``) ----------
+
+    def list_history(
+        self, knowledge_id: uuid.UUID, *, caller_may_manage: bool
+    ) -> list[AuditLogResponse]:
+        """Raises the same NotFoundError as ``get`` for a DRAFT record a
+        non-manager cannot see — history must not leak its existence."""
+        self.get(knowledge_id, caller_may_manage=caller_may_manage)
+        return self._audit.list(
+            entity_type=KNOWLEDGE_AUDIT_ENTITY_TYPE, entity_id=knowledge_id, limit=200
+        )

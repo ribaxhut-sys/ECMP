@@ -13,6 +13,9 @@ export interface AuthLayoutProps {
 /**
  * Centered auth shell for login / recovery screens.
  * Flat enterprise surface — no gradients, illustrations, or glassmorphism.
+ *
+ * Uses ``h-dvh`` + local overflow because ``html/body`` are viewport-locked
+ * (AppLayout shell); document scroll must not move the authenticated sidebar.
  */
 export function AuthLayout({
   children,
@@ -23,7 +26,7 @@ export function AuthLayout({
   return (
     <div
       className={cn(
-        "relative flex min-h-screen w-full items-center justify-center overflow-x-hidden",
+        "relative flex h-dvh w-full items-center justify-center overflow-x-hidden overflow-y-auto",
         "bg-ecmp-surface-sunken px-[var(--ecmp-page-gutter)] py-[var(--ecmp-section-gap)]",
         className,
       )}

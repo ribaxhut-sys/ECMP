@@ -81,8 +81,12 @@ function formatWhen(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
   try {
     return new Intl.DateTimeFormat(locale, {
-      dateStyle: "medium",
-      timeStyle: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     }).format(new Date(value));
   } catch {
     return value;

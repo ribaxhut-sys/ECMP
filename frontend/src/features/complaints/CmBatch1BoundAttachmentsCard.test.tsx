@@ -71,7 +71,6 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       expect(screen.getByTestId("bound-item-att-bound-1")).toBeInTheDocument();
     });
     expect(fetchCmBatch1ComplaintAttachments).toHaveBeenCalledWith(COMPLAINT_ID);
-    expect(screen.getByText("1 attachment")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Open bound.pdf" }),
     ).toBeInTheDocument();
@@ -141,5 +140,56 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       );
     });
     expect(screen.getByTestId("bound-empty")).toBeInTheDocument();
+  });
+
+  it("when locked keeps Open and hides upload/void chrome", async () => {
+    hasPermission.mockImplementation((code: string) =>
+      ["attachment:read", "attachment:create", "attachment:delete"].includes(
+        code,
+      ),
+    );
+    fetchCmBatch1ComplaintAttachments.mockResolvedValue({
+      data: [
+        {
+          attachmentId: "att-bound-3",
+          platformAttachmentId: "plat-3",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "test.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 45,
+          checksumSha256: "abc",
+          createdAt: "2026-08-11T00:00:00Z",
+        },
+      ],
+      meta: { page: 1, pageSize: 100, totalItems: 1 },
+    });
+
+    renderWithProviders(
+      <CmBatch1BoundAttachmentsCard
+        complaintId={COMPLAINT_ID}
+        allowUpload={false}
+        allowVoid={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bound-item-att-bound-3")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("test.pdf - 45 B - Customer evidence"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open test.pdf" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete attachment: test.pdf" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Classification"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Upload attachment to complaint" }),
+    ).not.toBeInTheDocument();
   });
 });

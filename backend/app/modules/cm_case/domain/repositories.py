@@ -79,5 +79,14 @@ class CaseRepository(Protocol):
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         """First Case effect: Complaint REGISTERED → IN_PROGRESS; case_created=True."""
 
+    def sync_complaint_status_from_cases(self, complaint_id: str) -> str | None:
+        """Align Aggregate status to Case set (Mode A product rule 2026-08-12).
+
+        - Any non-terminal Case → Complaint IN_PROGRESS
+        - All Cases terminal (CLOSED/CANCELLED) and at least one Case → CLOSED
+          (+ intake_disposition BRANCH_CLOSED when unset / branch path)
+        Returns the Aggregate status after sync, or None if parent missing.
+        """
+
     def commit(self) -> None:
         ...

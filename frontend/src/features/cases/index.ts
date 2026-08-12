@@ -10,6 +10,7 @@ export { CloseCaseDialog } from "./CloseCaseDialog";
 export {
   allowedStatusTargets,
   canClose,
+  canOfferResolve,
   canResolve,
   caseStatusTone,
 } from "./caseStatus";

@@ -27,7 +27,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarProvider>
       <NavPreferenceProvider>
-        <div className="flex h-dvh w-full overflow-hidden bg-ecmp-background">
+        <div className="relative flex h-dvh w-full overflow-hidden overscroll-none bg-ecmp-background">
           <a
             href="#main-content"
             className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[var(--ecmp-z-loading)] focus:rounded-[var(--ecmp-radius-md)] focus:bg-ecmp-surface focus:px-3 focus:py-2 focus:text-ecmp-text-primary focus:shadow-ecmp-floating"
@@ -35,11 +35,11 @@ export function AppLayout({ children }: AppLayoutProps) {
             {tCommon("skipToContent")}
           </a>
           <Sidebar />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-ecmp-background">
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-ecmp-background">
             <Header />
             <main
               id="main-content"
-              className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-ecmp-background"
+              className="relative min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain bg-ecmp-background"
               tabIndex={-1}
             >
               <div

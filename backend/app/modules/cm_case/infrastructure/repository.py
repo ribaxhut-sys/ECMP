@@ -213,5 +213,45 @@ class SqlAlchemyCaseRepository:
             row.status = "IN_PROGRESS"
         self._session.flush()
 
+    def sync_complaint_status_from_cases(self, complaint_id: str) -> str | None:
+        """Mode A: induk terbuka selama Case aktif; tutup jika semua Case terminal."""
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+
+        terminal = ("CLOSED", "CANCELLED")
+        statuses = list(
+            self._session.scalars(
+                select(CmCaseORM.status).where(CmCaseORM.complaint_id == str(uid))
+            )
+        )
+        if not statuses:
+            return row.status
+
+        active = [s for s in statuses if (s or "").strip().upper() not in terminal]
+        if active:
+            row.case_created = True
+            if row.status == "CLOSED":
+                row.status = "IN_PROGRESS"
+            elif row.status == "REGISTERED":
+                row.status = "IN_PROGRESS"
+            disp = (row.intake_disposition or "").strip().upper()
+            if disp == "BRANCH_CLOSED":
+                row.intake_disposition = None
+        else:
+            # All Cases CLOSED/CANCELLED → Aggregate closed (branch done).
+            row.case_created = True
+            row.status = "CLOSED"
+            disp = (row.intake_disposition or "").strip().upper()
+            if not disp or disp == "BRANCH_CLOSED":
+                row.intake_disposition = "BRANCH_CLOSED"
+
+        self._session.flush()
+        return row.status
+
     def commit(self) -> None:
         self._session.commit()

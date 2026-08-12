@@ -17,6 +17,7 @@ import {
   fetchBranches,
   recordCmBatch1DuplicateDecision,
   type Branch,
+  type CmBatch1ComplaintBrief,
   type CmBatch1DuplicateCheckResponse,
 } from "@/lib/api";
 import {
@@ -30,12 +31,14 @@ import {
   CardBody,
   Empty,
   Input,
+  Modal,
   PageContainer,
   PageHeader,
   SectionHeader,
   Textarea,
 } from "@/shared/ui";
 import { CustomerSearchPanel } from "./CustomerSearchPanel";
+import { ActiveComplaintsBanner } from "./ActiveComplaintsBanner";
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
 import { StagingAttachmentsPanel } from "./StagingAttachmentsPanel";
@@ -48,13 +51,18 @@ import {
   type CreateComplaintFieldErrors,
   type CreateComplaintFormValues,
 } from "./createComplaintForm";
-import { stashEscalateIntakeDraft } from "./escalateIntakeDraft";
+import {
+  clearEscalateIntakeDraft,
+  consumeIntakeFormResume,
+  peekEscalateIntakeDraft,
+  stashEscalateIntakeDraft,
+} from "./escalateIntakeDraft";
 
-export type IntakeSubmitIntent = "resolve_branch" | "escalate";
+export type IntakeSubmitIntent = "resolve_branch";
 
 /**
  * Create Complaint — Mode A Batch-1 Aggregate intake (API-500).
- * Dual outcomes: selesai di cabang (CLOSED) vs ajukan eskalasi (priority step).
+ * Outcomes: Lanjut → priority → Daftarkan | Ajukan eskalasi; Selesai (BRANCH_CLOSED).
  */
 export function CreateComplaintView() {
   const router = useRouter();
@@ -74,7 +82,6 @@ export function CreateComplaintView() {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [branchesLoading, setBranchesLoading] = useState(true);
   const [branchesError, setBranchesError] = useState<string | null>(null);
 
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -89,18 +96,40 @@ export function CreateComplaintView() {
   );
   const [hasStagedAttachments, setHasStagedAttachments] = useState(false);
   const [stagingBusy, setStagingBusy] = useState(false);
-  const [activeIntent, setActiveIntent] =
-    useState<IntakeSubmitIntent>("resolve_branch");
   const intakeIntentRef = useRef<IntakeSubmitIntent>("resolve_branch");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmIntent, setConfirmIntent] = useState<"resolve_branch" | null>(
+    null,
+  );
+  /** False until session draft restore (if any) has been applied. */
+  const [formReady, setFormReady] = useState(false);
+  const [activeComplaints, setActiveComplaints] = useState<
+    CmBatch1ComplaintBrief[]
+  >([]);
+
+  useEffect(() => {
+    // Always restore stashed intake draft when present (Lanjut → Back /
+    // breadcrumb / browser Back). Do not gate on the legacy resume flag —
+    // that flag was one-shot and broke breadcrumb + React Strict remounts.
+    const draft = peekEscalateIntakeDraft();
+    if (draft) {
+      setValues(draft.values);
+      setStagingToken(
+        draft.stagingToken.trim() || newCmBatch1StagingToken(),
+      );
+      setHasStagedAttachments(Boolean(draft.hasStagedAttachments));
+      setOverrideJustification(draft.overrideJustification);
+    }
+    consumeIntakeFormResume(); // clear legacy flag if still present
+    setFormReady(true);
+  }, []);
 
   useEffect(() => {
     if (!canCreate) {
-      setBranchesLoading(false);
       return;
     }
     let cancelled = false;
     (async () => {
-      setBranchesLoading(true);
       setBranchesError(null);
       try {
         const res = await fetchBranches(100);
@@ -126,8 +155,6 @@ export function CreateComplaintView() {
               t("unableToLoadBranches"),
           );
         }
-      } finally {
-        if (!cancelled) setBranchesLoading(false);
       }
     })();
     return () => {
@@ -141,12 +168,6 @@ export function CreateComplaintView() {
     }
     return branches.find((b) => b.code.toUpperCase() === "PUSAT") ?? null;
   }, [agentBranchId, branches]);
-
-  const lockedBranchLabel = lockedBranch
-    ? `${lockedBranch.code} — ${lockedBranch.name}`
-    : branchesLoading
-      ? t("loadingBranches")
-      : t("noActiveBranches");
 
   const updateField = useCallback(
     <K extends keyof CreateComplaintFormValues>(
@@ -190,6 +211,7 @@ export function CreateComplaintView() {
       customerId: "",
       customerName: "",
     }));
+    setActiveComplaints([]);
     setOverrideJustification(null);
     setDuplicateResult(null);
   }, []);
@@ -205,16 +227,20 @@ export function CreateComplaintView() {
             { label: tCommon("create") },
           ]}
         />
-          <Empty
-            title={tCommon("accessRestricted")}
-            description={t("createAccessRestrictedDescription")}
-            primaryAction={{
-              label: tCommon("goHome"),
-              onClick: () => router.push("/dashboard"),
-            }}
-          />
+        <Empty
+          title={tCommon("accessRestricted")}
+          description={t("createAccessRestrictedDescription")}
+          primaryAction={{
+            label: tCommon("goHome"),
+            onClick: () => router.push("/dashboard"),
+          }}
+        />
       </PageContainer>
     );
+  }
+
+  if (!formReady) {
+    return null;
   }
 
   function onTextChange(
@@ -234,45 +260,26 @@ export function CreateComplaintView() {
   }
 
   function onCancel(): void {
+    clearEscalateIntakeDraft();
     router.push("/complaints");
   }
 
-  async function createAggregate(
-    justification: string | null,
-  ): Promise<void> {
-    const response = await createCmBatch1Complaint(
-      toCmBatch1CreateRequest(values, {
-        duplicateOverrideJustification: justification,
-        // Always send token: BE bind is a no-op if nothing staged; omitting
-        // it after upload (race / stale hasStaged flag) leaves orphans.
-        stagingToken: stagingToken.trim() || null,
-        closeAtBranch: true,
-        recordingUnitCode: lockedBranch?.code ?? null,
-      }),
-      { idempotencyKey: newCmBatch1IdempotencyKey() },
-    );
-    const complaintId = response.data.complaintId;
-    router.push(
-      `/complaints/cm/${encodeURIComponent(complaintId)}?intake=closed`,
-    );
-  }
-
-  async function submitIntake(intent: IntakeSubmitIntent): Promise<void> {
-    intakeIntentRef.current = intent;
-    setActiveIntent(intent);
-    setSubmitError(null);
-    setInfoMessage(null);
-
+  function validateIntakeForm(): CreateComplaintFieldErrors {
     const nextErrors = translateValidationErrors(
       validateCmBatch1CreateForm(values),
       tValidation,
     );
-    if (intent === "resolve_branch" && !values.resolution.trim()) {
-      nextErrors.resolution = tValidation("resolutionRequired");
+    // Catatan wajib untuk Lanjut/Daftarkan dan Selesai di cabang.
+    if (!values.resolution.trim() && !nextErrors.resolution) {
+      nextErrors.resolution = tValidation("intakeNoteRequired");
     }
-    if (intent === "escalate" && !values.resolution.trim()) {
-      nextErrors.resolution = tValidation("escalationReasonRequired");
-    }
+    return nextErrors;
+  }
+
+  function requestConfirmResolveBranch(): void {
+    setSubmitError(null);
+    setInfoMessage(null);
+    const nextErrors = validateIntakeForm();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       const firstKey = Object.keys(nextErrors)[0];
@@ -280,18 +287,64 @@ export function CreateComplaintView() {
       el?.focus();
       return;
     }
+    setConfirmIntent("resolve_branch");
+    setConfirmOpen(true);
+  }
 
-    if (intent === "escalate") {
-      stashEscalateIntakeDraft({
-        values,
-        stagingToken,
-        hasStagedAttachments,
-        overrideJustification,
-        recordingUnitCode: lockedBranch?.code ?? null,
-      });
-      router.push("/complaints/new/escalate");
+  /** Continue to priority step — Daftarkan / Ajukan eskalasi chosen there. */
+  function continueToPriority(): void {
+    setSubmitError(null);
+    setInfoMessage(null);
+    const nextErrors = validateIntakeForm();
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      const firstKey = Object.keys(nextErrors)[0];
+      const el = firstKey ? document.getElementById(firstKey) : null;
+      el?.focus();
       return;
     }
+    stashEscalateIntakeDraft({
+      values,
+      stagingToken,
+      hasStagedAttachments,
+      overrideJustification,
+      recordingUnitCode: lockedBranch?.code ?? null,
+    });
+    router.push("/complaints/new/escalate");
+  }
+
+  function closeConfirm(): void {
+    if (submitting) return;
+    setConfirmOpen(false);
+    setConfirmIntent(null);
+  }
+
+  async function createAggregate(
+    justification: string | null,
+  ): Promise<void> {
+    const intent = intakeIntentRef.current;
+    const closeAtBranch = intent === "resolve_branch";
+    const response = await createCmBatch1Complaint(
+      toCmBatch1CreateRequest(values, {
+        duplicateOverrideJustification: justification,
+        // Always send token: BE bind is a no-op if nothing staged; omitting
+        // it after upload (race / stale hasStaged flag) leaves orphans.
+        stagingToken: stagingToken.trim() || null,
+        closeAtBranch,
+        recordingUnitCode: lockedBranch?.code ?? null,
+      }),
+      { idempotencyKey: newCmBatch1IdempotencyKey() },
+    );
+    clearEscalateIntakeDraft();
+    const complaintId = response.data.complaintId;
+    const suffix = closeAtBranch ? "?intake=closed" : "";
+    router.push(`/complaints/cm/${encodeURIComponent(complaintId)}${suffix}`);
+  }
+
+  async function executeIntake(intent: IntakeSubmitIntent): Promise<void> {
+    intakeIntentRef.current = intent;
+    setSubmitError(null);
+    setInfoMessage(null);
 
     setSubmitting(true);
     try {
@@ -324,6 +377,13 @@ export function CreateComplaintView() {
     }
   }
 
+  async function onConfirmAction(): Promise<void> {
+    if (!confirmIntent) return;
+    setConfirmOpen(false);
+    setConfirmIntent(null);
+    await executeIntake("resolve_branch");
+  }
+
   async function onDuplicateDecide(payload: {
     decision: "link_existing" | "override" | "recommend_only" | "blocked";
     survivingComplaintId?: string;
@@ -353,10 +413,16 @@ export function CreateComplaintView() {
           decision: "link_existing",
           customerId: values.customerId.trim(),
           survivingComplaintId: surviving,
-          stagingToken: stagingToken.trim() || null,
+          // FE always mints STG-*; only send when files were actually staged.
+          stagingToken: hasStagedAttachments
+            ? stagingToken.trim() || null
+            : null,
         });
+        clearEscalateIntakeDraft();
         setDuplicateOpen(false);
-        router.push(`/complaints/cm/${surviving}`);
+        router.replace(
+          `/complaints/cm/${encodeURIComponent(surviving)}`,
+        );
         return;
       }
 
@@ -391,6 +457,12 @@ export function CreateComplaintView() {
     }
   }
 
+  const confirmCopy = {
+    title: t("confirmCloseTitle"),
+    body: t("confirmCloseBody"),
+    action: t("confirmCloseAction"),
+  };
+
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
@@ -407,7 +479,6 @@ export function CreateComplaintView() {
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          void submitIntake("resolve_branch");
         }}
         aria-label={t("createFormAriaLabel")}
         className="space-y-[var(--ecmp-section-gap)]"
@@ -437,8 +508,16 @@ export function CreateComplaintView() {
           confirmedDisplayName={values.customerName}
           onConfirmed={onCustomerConfirmed}
           onCleared={onCustomerCleared}
+          onActiveComplaintsChange={setActiveComplaints}
           disabled={submitting}
         />
+
+        {values.customerId.trim() ? (
+          <ActiveComplaintsBanner
+            complaints={activeComplaints}
+            disabled={submitting || duplicateBusy}
+          />
+        ) : null}
 
         {(errors.customerId || errors.customerName) && !values.customerId ? (
           <Alert
@@ -459,89 +538,60 @@ export function CreateComplaintView() {
             description={t("complaintInformationDescription")}
           />
           <Card>
-          <CardBody>
-            <fieldset
-              aria-labelledby="section-complaint-info"
-              className="grid grid-cols-1 gap-[var(--ecmp-form-gap)]"
-            >
-              <legend className="sr-only">{t("complaintInformation")}</legend>
-              <Input
-                name="subject"
-                id="subject"
-                label={t("subject")}
-                required
-                maxLength={200}
-                value={values.subject}
-                onChange={onTextChange("subject")}
-                error={errors.subject}
-                aria-required="true"
-                autoComplete="off"
-              />
-              <Textarea
-                name="description"
-                id="description"
-                label={t("descriptionComplaint")}
-                required
-                rows={5}
-                maxLength={5000}
-                value={values.description}
-                onChange={onTextChange("description")}
-                error={errors.description}
-                aria-required="true"
-                hint={t("charCounter", {
-                  count: values.description.trim().length,
-                  max: 5000,
-                })}
-              />
-              <KnowledgeMentionTextarea
-                name="resolution"
-                id="resolution"
-                label={t("resolutionOrEscalationReason")}
-                rows={5}
-                maxLength={5000}
-                value={values.resolution}
-                onChange={(next) => {
-                  updateField("resolution", next);
-                  setOverrideJustification(null);
-                }}
-                error={errors.resolution}
-                hint={t("resolutionOrEscalationReasonHint", {
-                  count: values.resolution.trim().length,
-                  max: 5000,
-                })}
-                disabled={submitting}
-              />
-            </fieldset>
-          </CardBody>
-          </Card>
-        </section>
-
-        <section className="space-y-[var(--ecmp-panel-gap)]">
-          <SectionHeader
-            id="section-location"
-            title={t("recordingUnit")}
-            description={t("recordingUnitLockedHint")}
-          />
-          <Card>
-          <CardBody>
-            <fieldset
-              aria-labelledby="section-location"
-              className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2"
-            >
-              <legend className="sr-only">{t("recordingUnit")}</legend>
-              <Input
-                name="branchId"
-                id="branchId"
-                label={t("branch")}
-                value={lockedBranchLabel}
-                readOnly
-                disabled
-                error={errors.branchId}
-                hint={t("recordingUnitLockedHint")}
-                aria-readonly="true"
-              />
-            </fieldset>
-          </CardBody>
+            <CardBody>
+              <fieldset
+                aria-labelledby="section-complaint-info"
+                className="grid grid-cols-1 gap-[var(--ecmp-form-gap)]"
+              >
+                <legend className="sr-only">{t("complaintInformation")}</legend>
+                <Input
+                  name="subject"
+                  id="subject"
+                  label={t("subject")}
+                  required
+                  maxLength={200}
+                  value={values.subject}
+                  onChange={onTextChange("subject")}
+                  error={errors.subject}
+                  aria-required="true"
+                  autoComplete="off"
+                />
+                <Textarea
+                  name="description"
+                  id="description"
+                  label={t("descriptionComplaint")}
+                  required
+                  rows={5}
+                  maxLength={5000}
+                  value={values.description}
+                  onChange={onTextChange("description")}
+                  error={errors.description}
+                  aria-required="true"
+                  hint={t("charCounter", {
+                    count: values.description.trim().length,
+                    max: 5000,
+                  })}
+                />
+                <KnowledgeMentionTextarea
+                  name="resolution"
+                  id="resolution"
+                  label={t("intakeNoteLabel")}
+                  rows={5}
+                  maxLength={5000}
+                  value={values.resolution}
+                  onChange={(next) => {
+                    updateField("resolution", next);
+                    setOverrideJustification(null);
+                  }}
+                  error={errors.resolution}
+                  hint={t("intakeNoteHint", {
+                    count: values.resolution.trim().length,
+                    max: 5000,
+                  })}
+                  disabled={submitting}
+                />
+              </fieldset>
+            </CardBody>
           </Card>
         </section>
 
@@ -575,27 +625,54 @@ export function CreateComplaintView() {
           <Button
             type="button"
             variant="outline"
-            loading={submitting && activeIntent === "escalate"}
             disabled={submitting || duplicateBusy || stagingBusy}
-            onClick={() => void submitIntake("escalate")}
-            aria-label={t("submitEscalateAriaLabel")}
+            onClick={continueToPriority}
+            aria-label={t("submitRegisterContinueAriaLabel")}
           >
-            {submitting && activeIntent === "escalate"
-              ? t("creating")
-              : t("submitEscalate")}
+            {t("submitRegisterContinue")}
           </Button>
           <Button
-            type="submit"
-            loading={submitting && activeIntent === "resolve_branch"}
+            type="button"
+            loading={submitting}
             disabled={submitting || duplicateBusy || stagingBusy}
+            onClick={requestConfirmResolveBranch}
             aria-label={t("submitResolveBranchAriaLabel")}
           >
-            {submitting && activeIntent === "resolve_branch"
-              ? t("creating")
-              : t("submitResolveBranch")}
+            {submitting ? t("creating") : t("submitResolveBranch")}
           </Button>
         </div>
       </form>
+
+      <Modal
+        open={confirmOpen}
+        onClose={closeConfirm}
+        title={confirmCopy.title}
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={closeConfirm}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={submitting}
+              onClick={() => void onConfirmAction()}
+            >
+              {confirmCopy.action}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+          {confirmCopy.body}
+        </p>
+      </Modal>
 
       <DuplicateWarningPanel
         open={duplicateOpen}

@@ -3,6 +3,7 @@ import {
   composeCmBatch1Description,
   createEmptyComplaintForm,
   defaultReportedAtLocal,
+  formatRegisteredIntakeNote,
   newCmBatch1IdempotencyKey,
   newCmBatch1StagingToken,
   parseCmBatch1Description,
@@ -21,9 +22,9 @@ describe("defaultReportedAtLocal", () => {
 });
 
 describe("composeCmBatch1Description", () => {
-  it("appends resolution when present", () => {
+  it("appends Catatan when present", () => {
     expect(composeCmBatch1Description("Laporan", "Sudah diganti")).toBe(
-      "Laporan\n\n---\nPenyelesaian:\nSudah diganti",
+      "Laporan\n\n---\nCatatan:\nSudah diganti",
     );
   });
 
@@ -33,6 +34,7 @@ describe("composeCmBatch1Description", () => {
     });
     expect(composed).toContain("Alasan eskalasi:\nButuh pusat");
     expect(composed).toContain("Ajuan eskalasi:");
+    expect(composed).not.toContain("Catatan:");
     expect(composed).not.toContain("Penyelesaian:");
   });
 });
@@ -49,11 +51,33 @@ describe("parseCmBatch1Description", () => {
     expect(parsed.cancellationNote).toBe("Pelanggan setuju cabang");
   });
 
+  it("parses Catatan and legacy Penyelesaian as intake note", () => {
+    expect(
+      parseCmBatch1Description("Keluhan\n\n---\nCatatan:\nSudah dijelaskan")
+        .branchResolution,
+    ).toBe("Sudah dijelaskan");
+    expect(
+      parseCmBatch1Description("Keluhan\n\n---\nPenyelesaian:\nSudah diganti")
+        .branchResolution,
+    ).toBe("Sudah diganti");
+  });
+
   it("parses legacy Batal Eskalasi section", () => {
     const parsed = parseCmBatch1Description(
       "Keluhan\n\n---\nBatal Eskalasi:\nAlasan lama",
     );
     expect(parsed.cancellationNote).toBe("Alasan lama");
+  });
+});
+
+describe("formatRegisteredIntakeNote", () => {
+  it("formats Deskripsi and Catatan", () => {
+    expect(
+      formatRegisteredIntakeNote("Keluhan A", "Sudah diinfokan", {
+        description: "Deskripsi",
+        note: "Catatan",
+      }),
+    ).toBe("Deskripsi:\nKeluhan A\n\nCatatan:\nSudah diinfokan");
   });
 });
 
@@ -106,11 +130,12 @@ describe("validateCreateComplaintForm", () => {
 });
 
 describe("validateCmBatch1CreateForm", () => {
-  it("requires customer, subject, and description (category defaults to GENERAL)", () => {
+  it("requires customer, subject, description, and Catatan", () => {
     const errors = validateCmBatch1CreateForm(createEmptyComplaintForm());
     expect(errors.customerId).toBeTruthy();
     expect(errors.subject).toBeTruthy();
     expect(errors.description).toBeTruthy();
+    expect(errors.resolution).toBe("intakeNoteRequired");
     expect(errors.category).toBeUndefined();
     expect(errors.channel).toBeUndefined();
   });
@@ -130,13 +155,30 @@ describe("validateCmBatch1CreateForm", () => {
       customerName: "Ada",
       subject: "Printer offline",
       description: "Cannot print invoices",
+      resolution: "Sudah diinfokan pelanggan",
       category: "SERVICE",
       channel: "BRANCH",
     });
     expect(errors).toEqual({});
   });
 
-  it("maps to API-500 body without priority unless escalate", () => {
+  it("includes priority on register when set", () => {
+    const body = toCmBatch1CreateRequest({
+      ...createEmptyComplaintForm({ branchId: VALID_UUID }),
+      customerId: "CUST-LAB-001",
+      customerName: "Ada",
+      subject: "Printer offline",
+      description: "Cannot print invoices",
+      resolution: "",
+      category: "SERVICE",
+      channel: "CALL",
+      priority: "HIGH",
+    });
+    expect(body.priority).toBe("HIGH");
+    expect(body.intakeDisposition).toBeUndefined();
+  });
+
+  it("omits priority when empty", () => {
     const body = toCmBatch1CreateRequest({
       ...createEmptyComplaintForm({ branchId: VALID_UUID }),
       customerId: "CUST-LAB-001",
@@ -146,7 +188,7 @@ describe("validateCmBatch1CreateForm", () => {
       resolution: "Replaced toner",
       category: "SERVICE",
       channel: "CALL",
-      priority: "HIGH",
+      priority: "",
     });
     expect(body).toEqual({
       customerId: "CUST-LAB-001",
@@ -154,7 +196,7 @@ describe("validateCmBatch1CreateForm", () => {
       channel: "CALL",
       subject: "Printer offline",
       description:
-        "Cannot print invoices\n\n---\nPenyelesaian:\nReplaced toner",
+        "Cannot print invoices\n\n---\nCatatan:\nReplaced toner",
       recordingUnitId: VALID_UUID,
     });
     expect(body.priority).toBeUndefined();
@@ -261,7 +303,7 @@ describe("validateCmBatch1CreateForm", () => {
       { closeAtBranch: true },
     );
     expect(body.intakeDisposition).toBe("BRANCH_CLOSED");
-    expect(body.description).toContain("Penyelesaian:");
+    expect(body.description).toContain("Catatan:");
   });
 });
 

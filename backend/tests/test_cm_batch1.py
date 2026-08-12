@@ -317,9 +317,9 @@ def test_create_branch_closed_requires_resolution(service: CmBatch1Service) -> N
         )
         raise AssertionError("expected ValidationAppError")
     except ValidationAppError as exc:
-        assert "resolution" in str(exc).lower() or "BRANCH_CLOSED" in str(
+        assert "note" in str(exc).lower() or "BRANCH_CLOSED" in str(
             getattr(exc, "details", {})
-        )
+        ) or "Catatan" in str(getattr(exc, "details", {}))
 
 
 def test_create_escalate_requires_escalation_reason(
@@ -570,7 +570,7 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
             "category": "BILLING",
             "channel": "BRANCH",
             "subject": "API create",
-            "description": "desc",
+            "description": "desc\n\n---\nCatatan:\nCatatan lab",
         },
     )
     assert created.status_code == 201, created.text
@@ -586,7 +586,7 @@ def test_api_search_and_create_roundtrip(api_client: TestClient) -> None:
             "category": "BILLING",
             "channel": "BRANCH",
             "subject": "API create",
-            "description": "desc",
+            "description": "desc\n\n---\nCatatan:\nCatatan lab",
         },
     )
     assert replay.status_code == 200, replay.text
@@ -1216,7 +1216,7 @@ def test_api_513_http_roundtrip_smoke_e2e(
             "category": "BILLING",
             "channel": "BRANCH",
             "subject": "Supervisor e2e aging",
-            "description": "Detail",
+            "description": "Detail\n\n---\nCatatan:\nCatatan lab",
             "priority": "MEDIUM",
         },
     )
@@ -2425,6 +2425,53 @@ def test_intake_history_is_chronological_with_stable_codes() -> None:
     ]
     assert items[-1].priority == "HIGH"
     assert items[0].occurred_at < items[-1].occurred_at
+
+
+def test_intake_history_branch_closed_after_same_burst_attachments() -> None:
+    """Create+close then bind files: narrative puts Ditutup after ATTACHMENT_BOUND."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+    from app.modules.timeline.domain.entity import TimelineEntry
+
+    base = datetime(2026, 8, 11, 8, 2, tzinfo=UTC)
+    agg = uuid.uuid4()
+
+    def entry(event_type: str, metadata: dict, *, offset_s: float) -> TimelineEntry:
+        return TimelineEntry(
+            id=uuid.uuid4(),
+            aggregate_type="Complaint",
+            aggregate_id=agg,
+            event_type=event_type,
+            title=event_type,
+            description=None,
+            actor_type="USER",
+            actor_id="admin-1",
+            actor_name=None,
+            metadata=metadata,
+            created_at=base + timedelta(seconds=offset_s),
+        )
+
+    raw = [
+        entry("ComplaintRegistered", {"priority": "MEDIUM"}, offset_s=0),
+        entry(
+            "IntakeDispositionRecorded",
+            {"intakeDisposition": "BRANCH_CLOSED", "note": "adsads", "priority": "MEDIUM"},
+            offset_s=0.1,
+        ),
+        entry("AttachmentBound", {}, offset_s=1.5),
+    ]
+    service = CmBatch1HistoryService(
+        _FakeTimelineRepo(raw),
+        user_directory=_StubDirectory({"admin-1": "ECMP Lab Admin"}),
+    )
+    items = service.list_history(str(agg))
+    assert [i.event_code for i in items] == [
+        "REGISTERED",
+        "ATTACHMENT_BOUND",
+        "BRANCH_CLOSED",
+    ]
+    assert items[-1].note == "adsads"
 
 
 def test_intake_history_empty_for_unknown_complaint_id() -> None:

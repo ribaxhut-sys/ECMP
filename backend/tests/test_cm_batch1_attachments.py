@@ -397,6 +397,23 @@ def test_tc_cm_fr004_08_transfer_d06_no_discard(
     assert len(listed) == 1
 
 
+def test_transfer_unknown_staging_token_is_noop(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    """Client-minted STG-* without upload must not 404 on link_existing transfer."""
+    surviving = _create_complaint(cm_service, "att-phantom-stg")
+    transferred = batch1_attachments.transfer(
+        TransferAttachmentsRequest(
+            stagingToken="STG-never-uploaded",
+            survivingComplaintId=surviving,
+        ),
+        actor_id="a1",
+    )
+    assert transferred.discarded is False
+    assert transferred.transferred_count == 0
+    assert transferred.attachments == []
+
+
 def test_tc_cm_fr004_09_case_id_rejected(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:

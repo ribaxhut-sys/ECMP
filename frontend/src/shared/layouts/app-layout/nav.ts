@@ -134,6 +134,13 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
       "complaints:close",
     ],
   },
+  {
+    id: "followUp",
+    labelKey: "followUp",
+    href: "/tindak-lanjut",
+    icon: "assignments",
+    requiredPermissions: ["complaints:read"],
+  },
   { id: "queue", labelKey: "queue", href: "/queue", icon: "queue" },
   {
     id: "assignments",
@@ -248,6 +255,7 @@ export const INTERNAL_COMPLAINTS_SUBGROUP_ID = "internalComplaints";
 const TAXPAYER_COMPLAINTS_ITEM_IDS = [
   "dashboard",
   "complaints",
+  "followUp",
   "reports",
 ] as const;
 

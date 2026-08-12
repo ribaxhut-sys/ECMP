@@ -877,3 +877,20 @@ export interface KnowledgeSearchParams {
   /** Max rows (referenceOnly is capped at 10 on the server). */
   limit?: number;
 }
+
+/** One row of the generic platform audit log, scoped to a Knowledge record
+ * (entityType="Knowledge"). ``oldValues``/``newValues`` carry only the
+ * fields that actually changed — see KnowledgeService._log. */
+export interface KnowledgeHistoryEntry {
+  id: string;
+  /** "KnowledgeCreated" | "KnowledgeUpdated" | "KnowledgePublished" |
+   * "KnowledgeArchived" | "KnowledgeUnarchived" | "KnowledgeDeleted" |
+   * "KnowledgeFileUploaded" | "KnowledgeFileReplaced" | "KnowledgeFileRemoved" */
+  eventType: string;
+  action: "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "EXPORT" | "IMPORT";
+  actorId: string | null;
+  actorName: string | null;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+  createdAt: string;
+}

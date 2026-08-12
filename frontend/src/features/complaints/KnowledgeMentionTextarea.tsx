@@ -10,7 +10,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { searchKnowledge, fetchKnowledge } from "@/lib/api";
 import type { Knowledge, KnowledgeType } from "@/lib/api/types";
@@ -23,6 +22,7 @@ import {
 import { IconChevronRight, IconFile, IconSpinner } from "@/shared/icons";
 import { cn } from "@/shared/utils";
 import { knowledgeTypeKey } from "@/features/knowledge/KnowledgeBadges";
+import { KnowledgePreviewModal } from "@/features/knowledge/KnowledgePreviewModal";
 import { detectMentionQuery, type MentionQuery } from "./knowledgeReferenceMarker";
 import { isKnowledgeReferenceActive } from "./knowledgeReferenceActivity";
 import {
@@ -77,7 +77,6 @@ export function KnowledgeMentionTextarea({
   maxLength?: number;
   disabled?: boolean;
 }) {
-  const router = useRouter();
   const t = useTranslations("knowledgeMention");
   const tKnowledge = useTranslations("knowledge");
   const listboxId = useId();
@@ -101,6 +100,7 @@ export function KnowledgeMentionTextarea({
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
     null,
   );
+  const [previewKnowledgeId, setPreviewKnowledgeId] = useState<string | null>(null);
 
   const open = mention !== null;
   mentionRef.current = mention;
@@ -398,7 +398,7 @@ export function KnowledgeMentionTextarea({
     const knowledgeId = chip.getAttribute("data-knowledge-id");
     if (!knowledgeId) return;
     event.preventDefault();
-    router.push(`/knowledge/${knowledgeId}`);
+    setPreviewKnowledgeId(knowledgeId);
   }
 
   const activeOptionId = !open
@@ -626,6 +626,11 @@ export function KnowledgeMentionTextarea({
           </ul>
         </div>
       ) : null}
+      <KnowledgePreviewModal
+        open={previewKnowledgeId !== null}
+        knowledgeId={previewKnowledgeId}
+        onClose={() => setPreviewKnowledgeId(null)}
+      />
     </div>
   );
 }

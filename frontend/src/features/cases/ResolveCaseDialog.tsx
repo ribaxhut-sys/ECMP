@@ -4,14 +4,14 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ApiError,
+  closeCmCase,
+  recordCmCaseAcceptance,
   resolveCmCase,
   type CmCase,
-  type CmCaseResolveAction,
 } from "@/lib/api";
 import {
   Alert,
   Button,
-  Input,
   Modal,
   ModalSection,
   Select,
@@ -24,22 +24,33 @@ import {
   type ResolveCaseFormValues,
 } from "./caseForms";
 
-const ACTION_OPTIONS: { value: CmCaseResolveAction; label: string }[] = [
-  { value: "ACCEPT", label: "actionAccept" },
-  { value: "PROPOSE", label: "actionPropose" },
+const INTENT_OPTIONS: {
+  value: ResolveCaseFormValues["intent"];
+  label: string;
+}[] = [
+  { value: "CLOSE", label: "actionClose" },
+  { value: "ESCALATE", label: "actionEscalate" },
   { value: "REJECT", label: "actionReject" },
 ];
 
+/**
+ * DEC-021 Mode A resolve dialog:
+ * - Tutup → ACCEPT (comment only) + Owner ACCEPT if needed + close when allowed
+ * - Eskalasi → parent callback (Aggregate), no Case resolve API
+ * - Tolak → REJECT + rejectionReason
+ */
 export function ResolveCaseDialog({
   open,
   onClose,
   caseId,
   onResolved,
+  onEscalate,
 }: {
   open: boolean;
   onClose: () => void;
   caseId: string;
   onResolved?: (caseData: CmCase) => void;
+  onEscalate?: () => void;
 }) {
   const t = useTranslations("cases");
   const tValidation = useTranslations("validation");
@@ -65,15 +76,59 @@ export function ResolveCaseDialog({
     setValues((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function finishCloseWithComment(comment: string): Promise<CmCase> {
+    const resolved = await resolveCmCase(caseId, {
+      action: "ACCEPT",
+      comment,
+    });
+    let current = resolved.data;
+    if (current.status === "CLOSED") {
+      return current;
+    }
+    if (current.status === "RESOLVED" && !current.ownerAcceptance) {
+      try {
+        const owned = await recordCmCaseAcceptance(caseId, {
+          party: "OWNER",
+          decision: "ACCEPT",
+          note: comment,
+        });
+        current = owned.data;
+      } catch {
+        // Owner acceptance may be forbidden (SoD / role); still try close.
+      }
+    }
+    if (current.status === "CLOSED") {
+      return current;
+    }
+    try {
+      const closed = await closeCmCase(caseId, { note: comment });
+      return closed.data;
+    } catch {
+      return current;
+    }
+  }
+
   async function submit() {
     const errors = validateResolveCaseForm(values);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
+
+    if (values.intent === "ESCALATE") {
+      handleClose();
+      onEscalate?.();
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await resolveCmCase(caseId, toResolveCaseRequest(values));
-      onResolved?.(res.data);
+      if (values.intent === "CLOSE") {
+        const next = await finishCloseWithComment(values.comment.trim());
+        onResolved?.(next);
+      } else {
+        const res = await resolveCmCase(caseId, toResolveCaseRequest(values));
+        onResolved?.(res.data);
+      }
       setValues(emptyResolveCaseForm());
       setFieldErrors({});
       setSubmitError(null);
@@ -95,8 +150,14 @@ export function ResolveCaseDialog({
       size="lg"
       footer={
         <>
-          <Button variant="ghost" onClick={handleClose} disabled={submitting}>{t("back")}          </Button>
-          <Button onClick={submit} loading={submitting}>{t("submitResolution")}          </Button>
+          <Button variant="ghost" onClick={handleClose} disabled={submitting}>
+            {t("back")}
+          </Button>
+          <Button onClick={() => void submit()} loading={submitting}>
+            {values.intent === "ESCALATE"
+              ? t("continueEscalate")
+              : t("submitResolution")}
+          </Button>
         </>
       }
     >
@@ -109,57 +170,60 @@ export function ResolveCaseDialog({
           />
         ) : null}
         <Select
-          name="action"
+          name="intent"
           label={t("action")}
-          value={values.action}
+          value={values.intent}
           onChange={(e) =>
-            setField("action", e.target.value as CmCaseResolveAction)
+            setField(
+              "intent",
+              e.target.value as ResolveCaseFormValues["intent"],
+            )
           }
-          options={ACTION_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
+          options={INTENT_OPTIONS.map((option) => ({
+            ...option,
+            label: t(option.label),
+          }))}
         />
-        <Textarea
-          name="comment"
-          label={t("commentRequired")}
-          value={values.comment}
-          onChange={(e) => setField("comment", e.target.value)}
-          error={fieldErrors.comment ? tValidation(fieldErrors.comment) : undefined}
-          required
-        />
-        {values.action !== "REJECT" ? (
-          <>
-            <Input
-              name="resolutionCode"
-              label={t("resolutionCode")}
-              value={values.resolutionCode}
-              onChange={(e) => setField("resolutionCode", e.target.value)}
-              error={fieldErrors.resolutionCode ? tValidation(fieldErrors.resolutionCode) : undefined}
-              required
-            />
-            <Input
-              name="summary"
-              label={t("summary")}
-              value={values.summary}
-              onChange={(e) => setField("summary", e.target.value)}
-              error={fieldErrors.summary ? tValidation(fieldErrors.summary) : undefined}
-              required
-            />
-            <Textarea
-              name="detail"
-              label={t("detailLabel")}
-              value={values.detail}
-              onChange={(e) => setField("detail", e.target.value)}
-            />
-          </>
-        ) : (
+        {values.intent === "ESCALATE" ? (
+          <Alert
+            tone="info"
+            title={t("escalateViaParentTitle")}
+            description={t("escalateViaParentBody")}
+          />
+        ) : null}
+        {values.intent === "CLOSE" ? (
+          <Alert
+            tone="info"
+            title={t("closeCommentOnlyTitle")}
+            description={t("closeCommentOnlyBody")}
+          />
+        ) : null}
+        {values.intent !== "ESCALATE" ? (
+          <Textarea
+            name="comment"
+            label={t("commentRequired")}
+            value={values.comment}
+            onChange={(e) => setField("comment", e.target.value)}
+            error={
+              fieldErrors.comment ? tValidation(fieldErrors.comment) : undefined
+            }
+            required
+          />
+        ) : null}
+        {values.intent === "REJECT" ? (
           <Textarea
             name="rejectionReason"
             label={t("rejectionReason")}
             value={values.rejectionReason}
             onChange={(e) => setField("rejectionReason", e.target.value)}
-            error={fieldErrors.rejectionReason ? tValidation(fieldErrors.rejectionReason) : undefined}
+            error={
+              fieldErrors.rejectionReason
+                ? tValidation(fieldErrors.rejectionReason)
+                : undefined
+            }
             required
           />
-        )}
+        ) : null}
       </ModalSection>
     </Modal>
   );

@@ -260,13 +260,9 @@ class CaseAggregate:
 
         now = _utcnow()
         if action == ResolveAction.PROPOSE:
-            code = (resolution_code or "").strip()
-            summ = (summary or "").strip()
-            if not code or not summ:
-                raise err.validation(
-                    "resolutionCode and summary are required for PROPOSE",
-                    details={"fields": ["resolutionCode", "summary"]},
-                )
+            # DEC-021: code/summary optional — sentinel BRANCH_DONE + comment summary.
+            code = (resolution_code or "").strip() or "BRANCH_DONE"
+            summ = (summary or "").strip() or comment_text
             record = ResolutionRecord(
                 resolution_id=str(uuid4()),
                 resolution_code=code,
@@ -296,11 +292,9 @@ class CaseAggregate:
                     else pending.customer_impact
                 )
                 attachment_ids = attachment_ids or pending.attachment_ids
-            if not code or not summ:
-                raise err.validation(
-                    "resolutionCode and summary are required for ACCEPT",
-                    details={"fields": ["resolutionCode", "summary"]},
-                )
+            # DEC-021 Mode A branch Tutup: comment sufficient; persist sentinel fields.
+            code = code or "BRANCH_DONE"
+            summ = summ or comment_text
             record = ResolutionRecord(
                 resolution_id=str(uuid4()),
                 resolution_code=code,

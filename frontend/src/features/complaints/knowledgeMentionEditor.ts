@@ -11,13 +11,14 @@ import {
 export const KNOWLEDGE_CHIP_ATTR_ID = "data-knowledge-id";
 export const KNOWLEDGE_CHIP_ATTR_TITLE = "data-knowledge-title";
 
-/** Shared chip look: blue italic, underline on hover only, no background. */
+/** Shared chip look: blue italic, underline on hover only, no background.
+ * `!` beats the global ``button { font: inherit; color: inherit }`` reset. */
 export const knowledgeReferenceChipClassName =
-  "inline cursor-pointer border-0 bg-transparent p-0 align-baseline font-medium italic text-ecmp-primary underline-offset-2 hover:underline";
+  "inline cursor-pointer border-0 bg-transparent p-0 align-baseline !font-medium !italic !text-ecmp-primary underline-offset-2 hover:underline";
 
 /** Inactive / expired / archived reference — red so it differs from ACTIVE. */
 export const knowledgeReferenceChipInactiveClassName =
-  "inline cursor-pointer border-0 bg-transparent p-0 align-baseline font-medium italic text-ecmp-danger underline-offset-2 hover:underline";
+  "inline cursor-pointer border-0 bg-transparent p-0 align-baseline !font-medium !italic !text-ecmp-danger underline-offset-2 hover:underline";
 
 export function knowledgeReferenceChipClass(active: boolean): string {
   return active

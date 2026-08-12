@@ -4,6 +4,7 @@ import type {
   Knowledge,
   KnowledgeCreateRequest,
   KnowledgeFileRole,
+  KnowledgeHistoryEntry,
   KnowledgeSearchParams,
   KnowledgeUpdateRequest,
 } from "./types";
@@ -61,6 +62,23 @@ export function archiveKnowledge(id: string): Promise<DataResponse<Knowledge>> {
   return apiRequest<DataResponse<Knowledge>>(
     `/api/v1/knowledge/${encodeURIComponent(id)}/archive`,
     { method: "PUT" },
+  );
+}
+
+export function unarchiveKnowledge(id: string): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}/unarchive`,
+    { method: "PUT" },
+  );
+}
+
+/** Who changed what — same knowledge:read gate as ``fetchKnowledge`` (a
+ * DRAFT record's history is invisible to a non-manager, same as the record). */
+export function fetchKnowledgeHistory(
+  id: string,
+): Promise<DataResponse<KnowledgeHistoryEntry[]>> {
+  return apiRequest<DataResponse<KnowledgeHistoryEntry[]>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}/history`,
   );
 }
 

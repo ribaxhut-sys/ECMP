@@ -14,6 +14,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   fetchCmBatch1Complaints,
+  fetchCmCases,
   type CmBatch1ComplaintResponse,
 } from "@/lib/api";
 import {
@@ -39,13 +40,29 @@ import {
   defaultCmBatch1ListFilters,
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
+import {
+  buildPenangananSummarySegments,
+  joinPenangananSummarySegments,
+  penangananCountsFromCases,
+  resolvePenangananContextKind,
+} from "./penangananGroups";
+
+type PenangananListCounts = {
+  open: number;
+  pusat: number;
+  done: number;
+};
 
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
   try {
     return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     }).format(new Date(value));
   } catch {
     return value;
@@ -102,6 +119,9 @@ export function CmBatch1ComplaintListView() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [penangananByComplaint, setPenangananByComplaint] = useState<
+    Record<string, PenangananListCounts | "loading" | "error">
+  >({});
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -125,6 +145,7 @@ export function CmBatch1ComplaintListView() {
     } catch (err) {
       setRows([]);
       setTotal(0);
+      setPenangananByComplaint({});
       setError(
         err instanceof ApiError
           ? err.message
@@ -138,6 +159,59 @@ export function CmBatch1ComplaintListView() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!canRead || rows.length === 0) {
+      setPenangananByComplaint({});
+      return;
+    }
+    let cancelled = false;
+    const pending: Record<string, PenangananListCounts | "loading" | "error"> =
+      {};
+    for (const row of rows) {
+      pending[row.complaintId] = "loading";
+    }
+    setPenangananByComplaint(pending);
+
+    void (async () => {
+      const entries = await Promise.all(
+        rows.map(async (row) => {
+          try {
+            const res = await fetchCmCases({
+              complaintId: row.complaintId,
+              page: 1,
+              pageSize: 50,
+            });
+            const counts = penangananCountsFromCases(
+              res.data ?? [],
+              row.intakeDisposition,
+            );
+            return [
+              row.complaintId,
+              {
+                open: counts.open,
+                pusat: counts.pusat,
+                done: counts.done,
+              } satisfies PenangananListCounts,
+            ] as const;
+          } catch {
+            return [row.complaintId, "error" as const] as const;
+          }
+        }),
+      );
+      if (cancelled) return;
+      const next: Record<string, PenangananListCounts | "loading" | "error"> =
+        {};
+      for (const [id, value] of entries) {
+        next[id] = value;
+      }
+      setPenangananByComplaint(next);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canRead, rows]);
 
   function applyFilters(next: CmBatch1ListFilters): void {
     const params = cmBatch1FiltersToSearchParams(next);
@@ -304,6 +378,70 @@ export function CmBatch1ComplaintListView() {
       key: "createdAt",
       header: t("createdAt"),
       cell: (row) => formatWhen(row.createdAt),
+    },
+    {
+      key: "penanganan",
+      header: t("penangananColumn"),
+      cell: (row) => {
+        const summary = penangananByComplaint[row.complaintId];
+        if (summary === undefined || summary === "loading") {
+          return (
+            <span className="text-ecmp-text-secondary">
+              {tCommon("emDash")}
+            </span>
+          );
+        }
+        if (summary === "error") {
+          return (
+            <span className="text-ecmp-text-secondary">
+              {t("penangananListUnavailable")}
+            </span>
+          );
+        }
+        const kind = resolvePenangananContextKind({
+          complaintStatus: row.status,
+          intakeDisposition: row.intakeDisposition,
+          counts: summary,
+        });
+        const compact = joinPenangananSummarySegments(
+          buildPenangananSummarySegments(summary, {
+            open: (n) => t("penangananSummaryOpen", { count: n }),
+            pusat: (n) => t("penangananSummaryPusat", { count: n }),
+            done: (n) => t("penangananSummaryDone", { count: n }),
+          }),
+        );
+
+        if (kind === "closed") {
+          return <Badge tone="success">{t("penangananListClosed")}</Badge>;
+        }
+        if (kind === "hq_waiting") {
+          return (
+            <div className="flex flex-col items-start gap-1">
+              <Badge tone="warning">{t("penangananListHqWaiting")}</Badge>
+              {compact ? (
+                <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                  {compact}
+                </span>
+              ) : null}
+            </div>
+          );
+        }
+        if (kind === "none") {
+          return (
+            <Badge tone="warning">{t("penangananListNone")}</Badge>
+          );
+        }
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <Badge tone="info">{t("penangananListHas")}</Badge>
+            {compact ? (
+              <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-primary">
+                {compact}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       key: "open",

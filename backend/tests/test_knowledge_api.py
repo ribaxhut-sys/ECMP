@@ -370,12 +370,33 @@ def test_search_requires_knowledge_read(
 # --- Lifecycle: DRAFT -> ACTIVE -> ARCHIVED ---------------------------------
 
 
-def test_publish_requires_primary_file(
+def test_publish_requires_at_least_one_file(
     client: TestClient, admin_header: dict[str, str]
 ) -> None:
-    created = _create_draft(client, admin_header, title="Tanpa file utama")
+    created = _create_draft(client, admin_header, title="Tanpa file")
     resp = client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
     assert resp.status_code == 400, resp.text
+    assert "file" in resp.json()["message"].lower() or "File" in resp.json()["message"]
+
+
+def test_publish_succeeds_when_first_upload_is_supporting_role(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    """UI no longer distinguishes primary/supporting — first file auto-PRIMARY."""
+    created = _create_draft(client, admin_header, title="File pendukung saja")
+    files = {"file": ("sop.pdf", io.BytesIO(b"%PDF-1.4 test"), "application/pdf")}
+    upload = client.post(
+        f"/api/v1/knowledge/{created['id']}/files",
+        headers=admin_header,
+        files=files,
+        data={"role": "SUPPORTING"},
+    )
+    assert upload.status_code == 201, upload.text
+    roles = [f["role"] for f in upload.json()["data"]["files"]]
+    assert "PRIMARY" in roles
+    resp = client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["status"] == "ACTIVE"
 
 
 def test_publish_succeeds_with_primary_file(
@@ -395,6 +416,62 @@ def test_archive_only_from_active(client: TestClient, admin_header: dict[str, st
     created = _create_draft(client, admin_header, title="Belum aktif")
     resp = client.put(f"/api/v1/knowledge/{created['id']}/archive", headers=admin_header)
     assert resp.status_code == 409, resp.text
+
+
+def test_unarchive_only_from_archived(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Belum diarsip")
+    _upload_primary_file(client, admin_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    resp = client.put(
+        f"/api/v1/knowledge/{created['id']}/unarchive", headers=admin_header
+    )
+    assert resp.status_code == 409, resp.text
+
+
+def test_unarchive_reactivates_archived_knowledge(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Salah arsip")
+    _upload_primary_file(client, admin_header, created["id"])
+    pub = client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    assert pub.status_code == 200, pub.text
+    published_at = pub.json()["data"]["publishedAt"]
+    published_by = pub.json()["data"]["publishedBy"]
+
+    archive = client.put(
+        f"/api/v1/knowledge/{created['id']}/archive", headers=admin_header
+    )
+    assert archive.json()["data"]["status"] == "ARCHIVED"
+
+    unarchive = client.put(
+        f"/api/v1/knowledge/{created['id']}/unarchive", headers=admin_header
+    )
+    assert unarchive.status_code == 200, unarchive.text
+    body = unarchive.json()["data"]
+    assert body["status"] == "ACTIVE"
+    assert body["publishedAt"] == published_at
+    assert body["publishedBy"] == published_by
+
+    active_search = client.get("/api/v1/knowledge", headers=admin_header)
+    assert "Salah arsip" in [k["title"] for k in active_search.json()["data"]]
+
+
+def test_agent_cannot_unarchive(
+    client: TestClient,
+    admin_header: dict[str, str],
+    agent_header: dict[str, str],
+) -> None:
+    created = _create_draft(client, admin_header, title="Arsip agent")
+    _upload_primary_file(client, admin_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    client.put(f"/api/v1/knowledge/{created['id']}/archive", headers=admin_header)
+
+    resp = client.put(
+        f"/api/v1/knowledge/{created['id']}/unarchive", headers=agent_header
+    )
+    assert resp.status_code == 403, resp.text
 
 
 def test_full_lifecycle_draft_active_archived(
@@ -956,3 +1033,186 @@ def test_agent_pusat_can_read_but_cannot_manage(
         f"/api/v1/knowledge/{published['id']}/archive", headers=agent_pusat
     )
     assert manage_resp.status_code == 403, manage_resp.text
+
+
+# --- History (who changed what, incl. file replacement) --------------------
+
+
+def _history(client: TestClient, header: dict[str, str], knowledge_id: str) -> list[dict]:
+    resp = client.get(f"/api/v1/knowledge/{knowledge_id}/history", headers=header)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["data"]
+
+
+def test_history_requires_knowledge_read(
+    client: TestClient, admin_header: dict[str, str], no_permission_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Riwayat butuh izin baca")
+    resp = client.get(
+        f"/api/v1/knowledge/{created['id']}/history", headers=no_permission_header
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_history_hidden_for_draft_non_manager(
+    client: TestClient, admin_header: dict[str, str], agent_header: dict[str, str]
+) -> None:
+    """Same visibility rule as the record itself — a DRAFT's history must not
+    leak that the record exists to a non-manager."""
+    created = _create_draft(client, admin_header, title="Riwayat draft tersembunyi")
+    resp = client.get(
+        f"/api/v1/knowledge/{created['id']}/history", headers=agent_header
+    )
+    assert resp.status_code == 404, resp.text
+
+
+def test_history_records_create_and_update(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(
+        client, admin_header, title="Riwayat dibuat", summary="Ringkasan awal"
+    )
+    update_resp = client.put(
+        f"/api/v1/knowledge/{created['id']}",
+        headers=admin_header,
+        json={
+            "title": created["title"],
+            "knowledgeType": created["knowledgeType"],
+            "summary": "Ringkasan baru",
+        },
+    )
+    assert update_resp.status_code == 200, update_resp.text
+
+    entries = _history(client, admin_header, created["id"])
+    event_types = [e["eventType"] for e in entries]
+    assert "KnowledgeCreated" in event_types
+    assert "KnowledgeUpdated" in event_types
+
+    created_entry = next(e for e in entries if e["eventType"] == "KnowledgeCreated")
+    assert created_entry["newValues"]["summary"] == "Ringkasan awal"
+    assert created_entry["actorId"] is not None
+
+    updated_entry = next(e for e in entries if e["eventType"] == "KnowledgeUpdated")
+    assert updated_entry["oldValues"]["summary"] == "Ringkasan awal"
+    assert updated_entry["newValues"]["summary"] == "Ringkasan baru"
+    # Untouched fields stay out of the diff.
+    assert "title" not in updated_entry["oldValues"]
+
+
+def test_history_ignores_no_op_update(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Riwayat tanpa perubahan")
+    resp = client.put(
+        f"/api/v1/knowledge/{created['id']}",
+        headers=admin_header,
+        json={"title": created["title"], "knowledgeType": created["knowledgeType"]},
+    )
+    assert resp.status_code == 200, resp.text
+
+    entries = _history(client, admin_header, created["id"])
+    assert "KnowledgeUpdated" not in [e["eventType"] for e in entries]
+
+
+def test_history_records_publish_archive_unarchive(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Riwayat siklus hidup")
+    _upload_primary_file(client, admin_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    client.put(f"/api/v1/knowledge/{created['id']}/archive", headers=admin_header)
+    client.put(f"/api/v1/knowledge/{created['id']}/unarchive", headers=admin_header)
+
+    entries = _history(client, admin_header, created["id"])
+    event_types = [e["eventType"] for e in entries]
+    assert "KnowledgePublished" in event_types
+    assert "KnowledgeArchived" in event_types
+    assert "KnowledgeUnarchived" in event_types
+
+    published = next(e for e in entries if e["eventType"] == "KnowledgePublished")
+    assert published["oldValues"] == {"status": "DRAFT"}
+    assert published["newValues"]["status"] == "ACTIVE"
+
+
+def test_history_records_file_upload_and_replace(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Riwayat file diganti")
+    _upload_primary_file(client, admin_header, created["id"])
+
+    files = {"file": ("v2.pdf", io.BytesIO(b"%PDF-1.4 v2"), "application/pdf")}
+    replace_resp = client.post(
+        f"/api/v1/knowledge/{created['id']}/files",
+        headers=admin_header,
+        files=files,
+        data={"role": "PRIMARY"},
+    )
+    assert replace_resp.status_code == 201, replace_resp.text
+
+    entries = _history(client, admin_header, created["id"])
+    event_types = [e["eventType"] for e in entries]
+    assert "KnowledgeFileUploaded" in event_types
+    assert "KnowledgeFileReplaced" in event_types
+
+    replaced = next(e for e in entries if e["eventType"] == "KnowledgeFileReplaced")
+    assert replaced["oldValues"] == {"fileName": "sop.pdf", "role": "PRIMARY"}
+    assert replaced["newValues"] == {"fileName": "v2.pdf", "role": "PRIMARY"}
+
+
+def test_history_records_set_primary_file_replacement(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Riwayat tetapkan utama")
+    _upload_primary_file(client, admin_header, created["id"])
+    files = {"file": ("lampiran.pdf", io.BytesIO(b"%PDF-1.4 lampiran"), "application/pdf")}
+    supporting = client.post(
+        f"/api/v1/knowledge/{created['id']}/files",
+        headers=admin_header,
+        files=files,
+        data={"role": "SUPPORTING"},
+    )
+    supporting_id = next(
+        f["id"] for f in supporting.json()["data"]["files"] if f["fileName"] == "lampiran.pdf"
+    )
+
+    switch = client.put(
+        f"/api/v1/knowledge/{created['id']}/files/{supporting_id}/primary",
+        headers=admin_header,
+    )
+    assert switch.status_code == 200, switch.text
+
+    entries = _history(client, admin_header, created["id"])
+    replaced = next(e for e in entries if e["eventType"] == "KnowledgeFileReplaced")
+    assert replaced["oldValues"] == {"fileName": "sop.pdf", "role": "PRIMARY"}
+    assert replaced["newValues"] == {"fileName": "lampiran.pdf", "role": "PRIMARY"}
+
+
+def test_history_records_file_removal(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    created = _create_draft(client, admin_header, title="Riwayat file dihapus")
+    primary = _upload_primary_file(client, admin_header, created["id"])
+    attachment_id = primary["files"][0]["id"]
+
+    remove_resp = client.delete(
+        f"/api/v1/knowledge/{created['id']}/files/{attachment_id}",
+        headers=admin_header,
+    )
+    assert remove_resp.status_code == 200, remove_resp.text
+
+    entries = _history(client, admin_header, created["id"])
+    removed = next(e for e in entries if e["eventType"] == "KnowledgeFileRemoved")
+    assert removed["oldValues"] == {"fileName": "sop.pdf", "role": "PRIMARY"}
+    assert removed["actorId"] is not None
+
+
+def test_history_newest_first(client: TestClient, admin_header: dict[str, str]) -> None:
+    created = _create_draft(client, admin_header, title="Riwayat urutan terbaru")
+    _upload_primary_file(client, admin_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+
+    entries = _history(client, admin_header, created["id"])
+    event_types = [e["eventType"] for e in entries]
+    # KnowledgePublished happened last — must lead the list.
+    assert event_types[0] == "KnowledgePublished"
+    assert event_types[-1] == "KnowledgeCreated"

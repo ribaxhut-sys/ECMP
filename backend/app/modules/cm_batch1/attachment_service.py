@@ -451,12 +451,24 @@ class CmBatch1AttachmentService:
         *,
         actor_id: str | None,
     ) -> TransferAttachmentsResponse:
-        """D-06 — transfer staged evidence to surviving Complaint; never discard."""
+        """D-06 — transfer staged evidence to surviving Complaint; never discard.
+
+        Missing staging session is a successful no-op (parity with
+        ``bind_staging_to_complaint``): the create/intake FE always mints a
+        client-side ``STG-*`` token even when no file was uploaded, so a hard
+        404 here broke ``link_existing`` for the common no-attachment path.
+        """
         token = body.staging_token.strip()
         surviving = body.surviving_complaint_id.strip()
         session = self._repo.get_staging(token)
         if session is None:
-            raise NotFoundError(m("staging.token_not_found"))
+            return TransferAttachmentsResponse(
+                stagingToken=token,
+                survivingComplaintId=surviving,
+                transferredCount=0,
+                attachments=[],
+                discarded=False,
+            )
         complaint = self._complaints.get(surviving)
         if complaint is None:
             raise NotFoundError(m("duplicate.surviving_complaint_not_found"))

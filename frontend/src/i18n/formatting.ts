@@ -44,6 +44,7 @@ export function formatDateTime(
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
         }
       : {
           month: "2-digit",
@@ -51,8 +52,14 @@ export function formatDateTime(
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
         };
-  return new Intl.DateTimeFormat(bcp47, { ...defaults, ...options }).format(date);
+  return new Intl.DateTimeFormat(bcp47, {
+    ...defaults,
+    ...options,
+    // Operator-facing clocks are always 24h (never AM/PM), even for en-US.
+    hour12: options?.hour12 ?? false,
+  }).format(date);
 }
 
 /** id → 1.000,50 ; en → 1,000.50 */

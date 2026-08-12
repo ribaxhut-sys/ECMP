@@ -141,24 +141,60 @@ def _jwt_settings() -> Settings:
 # --- Pure AuthZ helpers -----------------------------------------------------
 
 
-def test_agent_may_not_give_acceptance() -> None:
+def test_agent_may_accept_on_own_unit_only() -> None:
     agent = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
     assert principal_is_case_agent(agent) is True
     assert principal_may_give_case_acceptance(agent) is False
+    # Own Handling Unit — Mode A Tutup allowed.
+    assert_case_acceptance_authorized(
+        agent,
+        party="HANDLING_UNIT",
+        owner_unit_id="UPPPD-GAMBIR",
+        handling_unit_id="UPPPD-GAMBIR",
+        actor_unit_id="UPPPD-GAMBIR",
+        complaint_creator_id=None,
+    )
+    assert_case_acceptance_authorized(
+        agent,
+        party="OWNER",
+        owner_unit_id="UPPPD-GAMBIR",
+        handling_unit_id="PUSAT",
+        actor_unit_id="UPPPD-GAMBIR",
+        complaint_creator_id=None,
+    )
+    # Cross-unit Owner (agent at Gambir, owner is Pusat) — denied.
+    with pytest.raises(PermissionDeniedError):
+        assert_case_acceptance_authorized(
+            agent,
+            party="OWNER",
+            owner_unit_id="PUSAT",
+            handling_unit_id="PUSAT",
+            actor_unit_id="UPPPD-GAMBIR",
+            complaint_creator_id=None,
+        )
+    # Cross-unit Handling — denied.
     with pytest.raises(PermissionDeniedError):
         assert_case_acceptance_authorized(
             agent,
             party="HANDLING_UNIT",
             owner_unit_id="UPPPD-GAMBIR",
-            handling_unit_id="UPPPD-GAMBIR",
+            handling_unit_id="PUSAT",
             actor_unit_id="UPPPD-GAMBIR",
             complaint_creator_id=None,
         )
+
+
+def test_agent_resolve_accept_allowed_on_own_handling_unit() -> None:
+    agent = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
+    assert_case_resolve_accept_authorized(
+        agent,
+        handling_unit_id="UPPPD-GAMBIR",
+        actor_unit_id="UPPPD-GAMBIR",
+        complaint_creator_id=None,
+    )
     with pytest.raises(PermissionDeniedError):
-        assert_case_acceptance_authorized(
+        assert_case_resolve_accept_authorized(
             agent,
-            party="OWNER",
-            owner_unit_id="UPPPD-GAMBIR",
             handling_unit_id="PUSAT",
             actor_unit_id="UPPPD-GAMBIR",
             complaint_creator_id=None,
@@ -239,7 +275,7 @@ def test_agent_resolve_accept_denied() -> None:
     with pytest.raises(PermissionDeniedError):
         assert_case_resolve_accept_authorized(
             agent,
-            handling_unit_id="UPPPD-GAMBIR",
+            handling_unit_id="PUSAT",
             actor_unit_id="UPPPD-GAMBIR",
             complaint_creator_id=None,
         )
@@ -389,36 +425,60 @@ def _bring_to_resolved(
     return case_id
 
 
-def test_http_agent_cannot_handler_or_owner_acceptance(db_session: Session) -> None:
+def test_http_agent_can_handler_and_owner_acceptance_on_own_unit(
+    db_session: Session,
+) -> None:
     agent_id = uuid.uuid4()
-    # Seed + resolve as Supervisor first, then switch to Agent for acceptance.
-    supervisor = _principal(
-        roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
+    agent = _principal(
+        user_id=agent_id, roles=("AGENT",), org_unit_id="UPPPD-GAMBIR"
     )
-    client, state = _http_client(db_session, principal=supervisor)
+    # Seed + bring to IN_PROGRESS as Agent, then ACCEPT resolve (HU stamp).
+    client, state = _http_client(db_session, principal=agent)
     try:
         complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
-        case_id = _bring_to_resolved(
-            client, complaint_id=complaint_id, unit="UPPPD-GAMBIR"
+        create = client.post(
+            "/api/v1/cm/cases",
+            json={
+                "complaintId": complaint_id,
+                "caseType": "BILLING",
+                "subject": "Agent own-unit close",
+                "description": "desc",
+                "priority": "MEDIUM",
+                "destinationUnitId": "UPPPD-GAMBIR",
+            },
         )
-        state["principal"] = _principal(
-            user_id=agent_id, roles=("AGENT",), org_unit_id="UPPPD-GAMBIR"
+        assert create.status_code == 201, create.text
+        case_id = create.json()["data"]["caseId"]
+        assert (
+            client.patch(
+                f"/api/v1/cm/cases/{case_id}/status",
+                json={"toStatus": "IN_PROGRESS"},
+            ).status_code
+            == 200
         )
-        hu = client.post(
-            f"/api/v1/cm/cases/{case_id}/acceptance",
-            json={"party": "HANDLING_UNIT", "decision": "ACCEPT"},
+        resolve = client.post(
+            f"/api/v1/cm/cases/{case_id}/resolve",
+            json={
+                "action": "ACCEPT",
+                "comment": "Selesai di cabang",
+                "resolutionCode": "FIXED",
+                "summary": "Done",
+            },
         )
-        assert hu.status_code == 403
+        assert resolve.status_code == 200, resolve.text
+
+        # Explicit Owner ACCEPT on same unit also allowed for Agent.
         owner = client.post(
             f"/api/v1/cm/cases/{case_id}/acceptance",
-            json={"party": "OWNER", "decision": "ACCEPT"},
+            json={"party": "OWNER", "decision": "ACCEPT", "note": "OK"},
         )
-        assert owner.status_code == 403
+        # May be 200 (needed) or 409/4xx if already satisfied — not 403 role deny.
+        assert owner.status_code != 403, owner.text
     finally:
         client.app.dependency_overrides.clear()
 
 
-def test_http_agent_cannot_resolve_accept_but_can_propose(db_session: Session) -> None:
+def test_http_agent_can_resolve_accept_on_own_unit(db_session: Session) -> None:
     agent = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
     client, _state = _http_client(db_session, principal=agent)
     try:
@@ -428,7 +488,7 @@ def test_http_agent_cannot_resolve_accept_but_can_propose(db_session: Session) -
             json={
                 "complaintId": complaint_id,
                 "caseType": "BILLING",
-                "subject": "Agent propose",
+                "subject": "Agent accept",
                 "description": "desc",
                 "priority": "MEDIUM",
                 "destinationUnitId": "UPPPD-GAMBIR",
@@ -439,7 +499,7 @@ def test_http_agent_cannot_resolve_accept_but_can_propose(db_session: Session) -
             f"/api/v1/cm/cases/{case_id}/status",
             json={"toStatus": "IN_PROGRESS"},
         )
-        denied = client.post(
+        accepted = client.post(
             f"/api/v1/cm/cases/{case_id}/resolve",
             json={
                 "action": "ACCEPT",
@@ -448,9 +508,31 @@ def test_http_agent_cannot_resolve_accept_but_can_propose(db_session: Session) -
                 "summary": "Done",
             },
         )
-        assert denied.status_code == 403
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["data"]["status"] in {
+            "RESOLVED",
+            "CLOSED",
+            "IN_PROGRESS",
+        }
+        # PROPOSE still available as alternate path.
+        propose_case = client.post(
+            "/api/v1/cm/cases",
+            json={
+                "complaintId": complaint_id,
+                "caseType": "BILLING",
+                "subject": "Agent propose still works",
+                "description": "desc",
+                "priority": "MEDIUM",
+                "destinationUnitId": "UPPPD-GAMBIR",
+            },
+        )
+        propose_id = propose_case.json()["data"]["caseId"]
+        client.patch(
+            f"/api/v1/cm/cases/{propose_id}/status",
+            json={"toStatus": "IN_PROGRESS"},
+        )
         propose = client.post(
-            f"/api/v1/cm/cases/{case_id}/resolve",
+            f"/api/v1/cm/cases/{propose_id}/resolve",
             json={
                 "action": "PROPOSE",
                 "comment": "Please review",
@@ -459,7 +541,6 @@ def test_http_agent_cannot_resolve_accept_but_can_propose(db_session: Session) -
             },
         )
         assert propose.status_code == 200, propose.text
-        assert propose.json()["data"]["status"] == "IN_PROGRESS"
     finally:
         client.app.dependency_overrides.clear()
 

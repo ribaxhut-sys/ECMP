@@ -791,7 +791,7 @@ Forbidden Mode A Delivery: `ASSIGNED`→`RESOLVED`; `CREATED`→`RESOLVED`; expo
 
 #### Acceptance Criteria
 
-1. AC-12: Eligible Case + Comment + complete Accepted resolution → Case = `RESOLVED`. **[BQ-008 / BQ-010]**
+1. AC-12: Eligible Case + Comment (+ optional attachment) → Accepted resolution → Case = `RESOLVED`. Mode A branch path (DEC-021): `resolutionCode`/`summary` optional; server may persist sentinel `BRANCH_DONE` + summary from Comment. **[BQ-008 / BQ-010 / DEC-021]**
 2. AC-13: Missing mandatory evidence → reject; status not Resolved/Closed.
 
 #### Referenced Business Rules

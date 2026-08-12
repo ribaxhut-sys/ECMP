@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-SECTION_BRANCH_RESOLUTION = "Penyelesaian"
+SECTION_INTAKE_NOTE = "Catatan"
+SECTION_BRANCH_RESOLUTION = "Penyelesaian"  # legacy intake-note label
 SECTION_ESCALATION_REASON = "Alasan eskalasi"
 SECTION_ESCALATION_REQUEST = "Ajuan eskalasi"
 SECTION_SUPERVISOR_NOTE = "Catatan Supervisor"
@@ -56,8 +57,12 @@ def parse_intake_description(raw: str) -> ParsedIntakeNarrative:
 
     for part in parts[1:]:
         chunk = part.strip()
-        if chunk.startswith(f"{SECTION_BRANCH_RESOLUTION}:"):
+        if chunk.startswith(f"{SECTION_INTAKE_NOTE}:"):
             branch_resolution = chunk.split(":", 1)[1].strip() or None
+        elif chunk.startswith(f"{SECTION_BRANCH_RESOLUTION}:"):
+            # Legacy "Penyelesaian:" — same slot as Catatan (prefer Catatan if both).
+            if branch_resolution is None:
+                branch_resolution = chunk.split(":", 1)[1].strip() or None
         elif chunk.startswith(f"{SECTION_ESCALATION_REASON}:"):
             escalation_reason = chunk.split(":", 1)[1].strip() or None
         elif chunk.startswith(f"{SECTION_ESCALATION_REQUEST}:"):
@@ -176,8 +181,14 @@ def append_re_escalation_reason(raw: str, note: str) -> str:
 
 
 def has_branch_resolution(raw: str) -> bool:
+    """True when intake note (Catatan or legacy Penyelesaian) is present."""
     parsed = parse_intake_description(raw)
     return bool(parsed.branch_resolution)
+
+
+def has_intake_note(raw: str) -> bool:
+    """Alias — Catatan wajib saat Daftarkan / Selesai di cabang."""
+    return has_branch_resolution(raw)
 
 
 def has_escalation_reason(raw: str) -> bool:

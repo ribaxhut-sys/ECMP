@@ -18,8 +18,12 @@ export function formatIdentityWhen(
   if (!value) return null;
   try {
     return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     }).format(new Date(value));
   } catch {
     return value;

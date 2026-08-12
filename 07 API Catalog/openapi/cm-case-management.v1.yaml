@@ -548,6 +548,8 @@ paths:
         - Case status MUST be `IN_PROGRESS`.
         - Comment MUST be present (BQ-010).
         - Attachment optional; Complaint Attachment MAY be reused (attachmentIds).
+        - `resolutionCode` / `summary` OPTIONAL on ACCEPT/PROPOSE (DEC-021). When omitted,
+          server persists sentinel `resolutionCode=BRANCH_DONE` and `summary=<comment>`.
         - Case → `RESOLVED` only after Resolution Accepted (Supervisor Approval path BQ-008).
         - MUST NOT auto-close Complaint (BQ-007).
 
@@ -558,6 +560,7 @@ paths:
         Request may represent propose and/or accept depending on actor rights:
         - Case Handler proposes (`action=PROPOSE` default)
         - Supervisor accepts (`action=ACCEPT`) or rejects (`action=REJECT`)
+        - HQ escalation is NOT an action on this API (use parent Complaint Aggregate).
       operationId: cmB2ResolveCase
       x-ear-id: API-534
       x-ecmp-logical-id: API-CM-B2-005
@@ -572,6 +575,7 @@ paths:
       x-ecmp-uc: UC-CAP02-05
       x-ecmp-dec:
         - DEC-MODEA-B2-001
+        - DEC-021
       x-ecmp-bq:
         - BQ-008
         - BQ-010
@@ -598,15 +602,21 @@ paths:
                   detail: "Adjustment diterapkan pada periode Juli."
                   comment: "Bukti koreksi dikirim ke pelanggan."
                   attachmentIds: ["ATT-001"]
+              acceptBranchClose:
+                summary: Branch Tutup — comment only (DEC-021)
+                value:
+                  action: ACCEPT
+                  comment: "Selesai ditangani di cabang; pelanggan setuju."
+                  attachmentIds: ["ATT-002"]
               accept:
-                summary: Supervisor accepts → Case RESOLVED
+                summary: Supervisor accepts with explicit resolution fields
                 value:
                   action: ACCEPT
                   resolutionCode: "FIXED"
                   summary: "Tagihan dikoreksi"
                   comment: "Disetujui Supervisor."
               reject:
-                summary: Supervisor rejects
+                summary: Reject
                 value:
                   action: REJECT
                   rejectionReason: "Evidence kurang lengkap"
@@ -1379,10 +1389,14 @@ components:
           $ref: "#/components/schemas/ResolveAction"
         resolutionCode:
           type: string
-          description: Required for PROPOSE and ACCEPT.
+          description: |
+            Optional for PROPOSE/ACCEPT (DEC-021). When omitted, server stores
+            sentinel `BRANCH_DONE`. Explicit catalogue codes remain valid when supplied.
         summary:
           type: string
-          description: Required for PROPOSE and ACCEPT.
+          description: |
+            Optional for PROPOSE/ACCEPT (DEC-021). When omitted, server stores the
+            Comment text as summary.
         detail:
           type: string
         customerImpact:

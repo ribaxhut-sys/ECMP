@@ -107,6 +107,7 @@ describe("APP_NAV_GROUPS", () => {
     expect(byId.complaints.itemIds).toEqual([
       "dashboard",
       "complaints",
+      "followUp",
       "reports",
       "internalDashboard",
       "internalComplaints",
@@ -128,9 +129,10 @@ describe("APP_NAV_GROUPS", () => {
 describe("complaints nav permission gate (Commit 6)", () => {
   const complaintsItem = APP_NAV_ITEMS.find((item) => item.id === "complaints")!;
 
-  it("gates only the complaints, announcements, and knowledge items", () => {
+  it("gates only the complaints, followUp, announcements, and knowledge items", () => {
     const gatedItemIds = new Set([
       "complaints",
+      "followUp",
       "announcements",
       "announcementsManage",
       "knowledge",
@@ -165,6 +167,12 @@ describe("complaints nav permission gate (Commit 6)", () => {
     const manageItem = APP_NAV_ITEMS.find((item) => item.id === "announcementsManage")!;
     expect(manageItem.requiredPermissions).toEqual(["announcement:manage"]);
     expect(manageItem.href).toBe("/announcements/manage");
+  });
+
+  it("gates followUp on complaints:read at /tindak-lanjut", () => {
+    const followUpItem = APP_NAV_ITEMS.find((item) => item.id === "followUp")!;
+    expect(followUpItem.requiredPermissions).toEqual(["complaints:read"]);
+    expect(followUpItem.href).toBe("/tindak-lanjut");
   });
 
   it("gates knowledge on knowledge:read", () => {
@@ -250,11 +258,16 @@ describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () =
     expect(new Set(subgroupItemIds).size).toBe(subgroupItemIds.length);
   });
 
-  it("Wajib Pajak subgroup carries Dasbor, Pengaduan, Laporan", () => {
+  it("Wajib Pajak subgroup carries Dasbor, Pengaduan, Tindak lanjut, Laporan", () => {
     const taxpayer = complaintsGroup.subgroups!.find(
       (s) => s.id === TAXPAYER_COMPLAINTS_SUBGROUP_ID,
     )!;
-    expect(taxpayer.itemIds).toEqual(["dashboard", "complaints", "reports"]);
+    expect(taxpayer.itemIds).toEqual([
+      "dashboard",
+      "complaints",
+      "followUp",
+      "reports",
+    ]);
     expect(taxpayer.labelKey).toBe("subgroupTaxpayerComplaints");
   });
 

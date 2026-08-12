@@ -58,7 +58,7 @@ class KnowledgeRepository:
                 KnowledgeORM.deleted_at.is_(None),
                 KnowledgeORM.status == status,
             )
-            .order_by(KnowledgeORM.created_at.desc())
+            .order_by(KnowledgeORM.created_at.desc(), KnowledgeORM.id.desc())
         )
         if knowledge_type:
             stmt = stmt.where(KnowledgeORM.knowledge_type == knowledge_type)
@@ -171,6 +171,21 @@ class KnowledgeRepository:
     ) -> KnowledgeORM:
         when = now or datetime.now(UTC)
         row.status = "ARCHIVED"
+        row.updated_by = updated_by
+        row.updated_at = when
+        self._session.flush()
+        return row
+
+    def unarchive(
+        self,
+        row: KnowledgeORM,
+        *,
+        updated_by: uuid.UUID,
+        now: datetime | None = None,
+    ) -> KnowledgeORM:
+        """ARCHIVED -> ACTIVE. Preserves original published_at/published_by."""
+        when = now or datetime.now(UTC)
+        row.status = "ACTIVE"
         row.updated_by = updated_by
         row.updated_at = when
         self._session.flush()

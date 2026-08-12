@@ -41,6 +41,13 @@ import {
 import { useToast } from "@/shared/providers";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
 import {
+  CASE_ESCALATE_ACTION_QUERY,
+  ComplaintPenangananSection,
+  PENANGANAN_FOCUS_QUERY,
+  scrollToPenangananSection,
+} from "./ComplaintPenangananSection";
+import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
+import {
   canCmBatch1HqReview,
   cmBatch1BlobEventCodes,
   isCmBatch1HqAcceptScheduleReady,
@@ -50,7 +57,14 @@ import {
   resolveCmBatch1HqActionVisibility,
 } from "./cmBatch1HqActions";
 import {
+  formatCmBatch1CustomerLabel,
+  resolveCmBatch1RegistrationUnitLabel,
+  shouldShowCmBatch1Category,
+} from "./cmBatch1RegistrationLabels";
+import type { Branch } from "@/lib/api/branches";
+import {
   PRIORITY_OPTIONS,
+  formatRegisteredIntakeNote,
   parseCmBatch1Description,
 } from "./createComplaintForm";
 
@@ -105,8 +119,12 @@ function priorityTone(priority: string): BadgeTone {
 function formatWhen(value: string, locale: string): string {
   try {
     return new Intl.DateTimeFormat(locale, {
-      dateStyle: "medium",
-      timeStyle: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     }).format(new Date(value));
   } catch {
     return value;
@@ -134,7 +152,6 @@ export function CmBatch1ConfirmationView({
 }) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
-  const tCases = useTranslations("cases");
   const tPriority = useTranslations("priority");
   const tTable = useTranslations("table");
   const tValidation = useTranslations("validation");
@@ -143,6 +160,10 @@ export function CmBatch1ConfirmationView({
   const searchParams = useSearchParams();
   const intakeEscalate = searchParams.get("intake") === "escalate";
   const intakeClosed = searchParams.get("intake") === "closed";
+  const focusPenanganan =
+    searchParams.get("focus") === PENANGANAN_FOCUS_QUERY;
+  const actionEscalate =
+    searchParams.get("action") === CASE_ESCALATE_ACTION_QUERY;
   const { hasPermission, user, roles } = useAuth();
   const { pushSuccess, pushError } = useToast();
   const canRead =
@@ -152,21 +173,26 @@ export function CmBatch1ConfirmationView({
     hasPermission("complaints:create") ||
     hasPermission("complaints:escalate");
   const [unitCode, setUnitCode] = useState<string | null>(null);
+  const [branches, setBranches] = useState<Branch[]>([]);
   useEffect(() => {
-    const branchId = user?.branchId?.trim();
-    if (!branchId) {
-      setUnitCode(null);
-      return;
-    }
     let cancelled = false;
     void (async () => {
       try {
         const res = await fetchBranches(100);
         if (cancelled) return;
+        setBranches(res.data ?? []);
+        const branchId = user?.branchId?.trim();
+        if (!branchId) {
+          setUnitCode(null);
+          return;
+        }
         const mine = res.data.find((b) => b.id === branchId);
         setUnitCode(mine?.code ?? null);
       } catch {
-        if (!cancelled) setUnitCode(null);
+        if (!cancelled) {
+          setBranches([]);
+          setUnitCode(null);
+        }
       }
     })();
     return () => {
@@ -185,6 +211,12 @@ export function CmBatch1ConfirmationView({
   const [historyError, setHistoryError] = useState(false);
   const [logPage, setLogPage] = useState(1);
   const [openLogKeys, setOpenLogKeys] = useState<Set<string>>(new Set());
+  const [manageRequestToken, setManageRequestToken] = useState(0);
+  const [penangananSnapshot, setPenangananSnapshot] = useState<{
+    loading: boolean;
+    openCount: number;
+    totalCount: number;
+  }>({ loading: true, openCount: 0, totalCount: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approveOpen, setApproveOpen] = useState(false);
@@ -208,6 +240,8 @@ export function CmBatch1ConfirmationView({
   const [arrivalNote, setArrivalNote] = useState("");
   const [deciding, setDeciding] = useState(false);
   const announcedIdRef = useRef<string | null>(null);
+  /** One-shot guard for ?focus=penanganan deep-link (avoid router.replace thrash). */
+  const focusPenangananHandledKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!canRead || !complaintId.trim()) {
@@ -279,6 +313,48 @@ export function CmBatch1ConfirmationView({
       t("registeredDescription", { number: data.complaintNumber }),
     );
   }, [data, intakeClosed, intakeEscalate, pushSuccess, t]);
+
+  useEffect(() => {
+    if (!focusPenanganan || loading || !data) return;
+    if (intakeClosed || data.status === "CLOSED") return;
+    const handledKey = `${data.complaintId}:penanganan`;
+    if (focusPenangananHandledKeyRef.current === handledKey) return;
+    focusPenangananHandledKeyRef.current = handledKey;
+
+    scrollToPenangananSection();
+
+    const disposition = data.intakeDisposition;
+    const canOpenReRequest =
+      actionEscalate &&
+      canRequestEscalation &&
+      data.status === "REGISTERED" &&
+      (disposition === "ESCALATE_CANCELLED" ||
+        disposition === "ESCALATE_REJECTED" ||
+        disposition === "RETURNED_TO_BRANCH") &&
+      !data.hqAcceptedAt &&
+      !data.caseCreated;
+    if (canOpenReRequest) {
+      const current = (data.priority || "MEDIUM").toUpperCase();
+      setReRequestPriority(
+        (APPROVE_PRIORITIES as readonly string[]).includes(current)
+          ? current
+          : "MEDIUM",
+      );
+      setReRequestReason("");
+      setReRequestOpen(true);
+    }
+
+    // Do not call router.replace / history.replaceState to strip ?focus=.
+    // Soft-nav replace on this page left App Router transitions pending and
+    // blocked Sidebar Link navigation (Dasbor / menu lain) until full reload.
+  }, [
+    actionEscalate,
+    canRequestEscalation,
+    data,
+    focusPenanganan,
+    intakeClosed,
+    loading,
+  ]);
 
   async function submitDecision(
     decision: "APPROVE" | "REJECT" | "CANCEL",
@@ -480,6 +556,26 @@ export function CmBatch1ConfirmationView({
     }
   }
 
+  const onPenangananSnapshot = useCallback(
+    (snapshot: {
+      loading: boolean;
+      openCount: number;
+      totalCount: number;
+    }) => {
+      setPenangananSnapshot((prev) => {
+        if (
+          prev.loading === snapshot.loading &&
+          prev.openCount === snapshot.openCount &&
+          prev.totalCount === snapshot.totalCount
+        ) {
+          return prev;
+        }
+        return snapshot;
+      });
+    },
+    [],
+  );
+
   if (!canRead) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -549,10 +645,18 @@ export function CmBatch1ConfirmationView({
     !data?.caseCreated;
   const showManageCases =
     !intakeClosed &&
+    data?.status !== "CLOSED" &&
+    disposition !== "BRANCH_CLOSED" &&
     !pendingEscalation &&
     !intakeEscalate &&
     !canHqReview &&
     !isPusatUnitMember;
+  /** Bottom CTA only when belum ada penanganan sama sekali. */
+  const showTanganiCta =
+    showManageCases &&
+    !penangananSnapshot.loading &&
+    penangananSnapshot.totalCount === 0;
+
   const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
   const hqAcceptScheduleReady = isCmBatch1HqAcceptScheduleReady({
     arrivalDate,
@@ -637,7 +741,14 @@ export function CmBatch1ConfirmationView({
   function blobNoteFor(code: string): string | null {
     switch (code) {
       case "REGISTERED":
-        return intakeHistory.narrative || null;
+        return formatRegisteredIntakeNote(
+          intakeHistory.narrative,
+          intakeHistory.branchResolution,
+          {
+            description: t("intakeHistoryDescriptionLabel"),
+            note: t("intakeHistoryNoteLabel"),
+          },
+        );
       case "ESCALATION_REQUESTED":
       case "ESCALATION_RE_REQUESTED":
         return intakeHistory.escalationReason;
@@ -699,7 +810,11 @@ export function CmBatch1ConfirmationView({
           actor: entry.actorName?.trim() || null,
           when: formatWhen(entry.occurredAt, locale),
           priority: entry.priority?.trim() || null,
-          note: entry.note?.trim() || blobNoteFor(entry.eventCode),
+          // Prefer structured Deskripsi+Catatan for REGISTERED (timeline note is narrative-only).
+          note:
+            entry.eventCode === "REGISTERED"
+              ? blobNoteFor("REGISTERED")
+              : entry.note?.trim() || blobNoteFor(entry.eventCode),
         }))
       : blobOnlyRows();
 
@@ -781,6 +896,14 @@ export function CmBatch1ConfirmationView({
         />
       ) : null}
 
+      {!intakeClosed && data?.intakeDisposition === "RETURNED_TO_BRANCH" ? (
+        <Alert
+          tone="warning"
+          title={t("returnedToBranchBannerTitle")}
+          description={t("returnedToBranchBannerDescription")}
+        />
+      ) : null}
+
       {loading ? <Skeleton rows={5} /> : null}
 
       {!loading && error ? (
@@ -809,11 +932,25 @@ export function CmBatch1ConfirmationView({
           <section className="space-y-[var(--ecmp-panel-gap)]">
             <SectionHeader
               title={t("registrationDetails")}
-              description={t("registrationDetailsDescription")}
+              description={
+                intakeClosed || data.status === "CLOSED"
+                  ? t("registrationDetailsDescriptionClosed")
+                  : pendingEscalation || intakeEscalate
+                    ? t("registrationDetailsDescriptionEscalate")
+                    : t("registrationDetailsDescription")
+              }
             />
             <Card>
               <CardBody>
                 <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
+                  {data.subject ? (
+                    <div className="md:col-span-2">
+                      <dt className="sr-only">{t("subject")}</dt>
+                      <dd className="text-[length:var(--ecmp-font-title-size)] font-[number:var(--ecmp-font-title-weight)] leading-[var(--ecmp-font-title-line)] tracking-tight text-ecmp-text-primary">
+                        {data.subject}
+                      </dd>
+                    </div>
+                  ) : null}
                   <div className="space-y-1">
                     <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                       {t("complaintNumber")}
@@ -855,6 +992,49 @@ export function CmBatch1ConfirmationView({
                       ) : null}
                     </dd>
                   </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("registrationUnitLabel")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {resolveCmBatch1RegistrationUnitLabel(
+                        data.owningUnitId,
+                        branches,
+                      ) || tCommon("emDash")}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("registeredAtLabel")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {data.createdAt
+                        ? formatWhen(data.createdAt, locale)
+                        : tCommon("emDash")}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("registeredByLabel")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {data.createdByName?.trim() ||
+                        data.createdBy?.trim() ||
+                        tCommon("emDash")}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("customer")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {formatCmBatch1CustomerLabel(
+                        data.customerDisplayName,
+                        data.customerNumber,
+                        data.customerId,
+                      ) || tCommon("emDash")}
+                    </dd>
+                  </div>
                   {intakeEscalate ||
                   pendingEscalation ||
                   (data.priority && data.status !== "CLOSED") ? (
@@ -877,14 +1057,6 @@ export function CmBatch1ConfirmationView({
                       </dd>
                     </div>
                   ) : null}
-                  <div className="space-y-1">
-                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                      {tCases("title")}
-                    </dt>
-                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                      {data.caseCreated ? tCommon("yes") : tCommon("no")}
-                    </dd>
-                  </div>
                   {data.replayed ? (
                     <div className="space-y-1">
                       <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
@@ -895,33 +1067,13 @@ export function CmBatch1ConfirmationView({
                       </dd>
                     </div>
                   ) : null}
-                  {data.category ? (
+                  {shouldShowCmBatch1Category(data.category) ? (
                     <div className="space-y-1">
                       <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                         {t("category")}
                       </dt>
                       <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                         {data.category}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {data.channel ? (
-                    <div className="space-y-1">
-                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                        {t("channel")}
-                      </dt>
-                      <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                        {data.channel}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {data.subject ? (
-                    <div className="space-y-1 md:col-span-2">
-                      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                        {t("subject")}
-                      </dt>
-                      <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                        {data.subject}
                       </dd>
                     </div>
                   ) : null}
@@ -1027,12 +1179,49 @@ export function CmBatch1ConfirmationView({
                               </span>
                             </button>
                             {open ? (
-                              <p
+                              <div
                                 id={`intake-log-note-${row.key}`}
-                                className="whitespace-pre-wrap border-t border-ecmp-border px-3 pb-3 pt-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
+                                className="break-words border-t border-ecmp-border px-3 pb-3 pt-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
                               >
-                                {row.note || t("intakeEventNoteEmpty")}
-                              </p>
+                                {row.code === "REGISTERED" ? (
+                                  <div className="space-y-3">
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-ecmp-text-primary">
+                                        {t("intakeHistoryDescriptionLabel")}
+                                      </p>
+                                      <div className="whitespace-pre-wrap">
+                                        <KnowledgeReferenceText
+                                          text={
+                                            intakeHistory.narrative.trim() ||
+                                            "—"
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-ecmp-text-primary">
+                                        {t("intakeHistoryNoteLabel")}
+                                      </p>
+                                      <div className="whitespace-pre-wrap">
+                                        <KnowledgeReferenceText
+                                          text={
+                                            (
+                                              intakeHistory.branchResolution ??
+                                              ""
+                                            ).trim() || "—"
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : row.note ? (
+                                  <div className="whitespace-pre-wrap">
+                                    <KnowledgeReferenceText text={row.note} />
+                                  </div>
+                                ) : (
+                                  t("intakeEventNoteEmpty")
+                                )}
+                              </div>
                             ) : null}
                           </li>
                         );
@@ -1076,7 +1265,38 @@ export function CmBatch1ConfirmationView({
           <CmBatch1BoundAttachmentsCard
             complaintId={data.complaintId}
             customerId={data.customerId}
+            allowUpload={
+              !(intakeClosed || data.status === "CLOSED")
+            }
+            allowVoid={!(intakeClosed || data.status === "CLOSED")}
           />
+
+          {!intakeClosed && data.status !== "CLOSED" ? (
+            <ComplaintPenangananSection
+              complaintId={data.complaintId}
+              complaintStatus={data.status}
+              intakeDisposition={data.intakeDisposition}
+              allowStart={showManageCases}
+              allowEscalate={showReRequestEscalation}
+              manageRequestToken={manageRequestToken}
+              onPenangananSnapshot={onPenangananSnapshot}
+              seed={{
+                category: data.category,
+                subject: data.subject,
+                description:
+                  intakeHistory.narrative ||
+                  data.intakeNarrative ||
+                  data.description,
+                priority: data.priority,
+                destinationUnitId: data.owningUnitId || unitCode,
+              }}
+              onRequestHqEscalation={
+                showReRequestEscalation
+                  ? () => openReRequestModal()
+                  : undefined
+              }
+            />
+          ) : null}
 
           <div className="flex flex-wrap gap-[var(--ecmp-form-gap)]">
             {showSupervisorActions ? (
@@ -1165,15 +1385,11 @@ export function CmBatch1ConfirmationView({
                 {t("openSupervisorQueue")}
               </Button>
             ) : null}
-            {showManageCases ? (
+            {showTanganiCta ? (
               <div className="flex w-full flex-col gap-1 sm:w-auto">
                 <Button
                   type="button"
-                  onClick={() =>
-                    router.push(
-                      `/complaints/cm/${encodeURIComponent(data.complaintId)}/cases?createCase=1`,
-                    )
-                  }
+                  onClick={() => setManageRequestToken((n) => n + 1)}
                 >
                   {t("manageCases")}
                 </Button>

@@ -3,7 +3,6 @@ import type {
   CloseCmCaseRequest,
   CreateCmCaseRequest,
   CmCaseCancelReason,
-  CmCaseResolveAction,
   CmCaseStatus,
   ResolveCmCaseRequest,
   UpdateCmCaseStatusRequest,
@@ -158,11 +157,9 @@ export function toUpdateStatusRequest(
 }
 
 export interface ResolveCaseFormValues {
-  action: CmCaseResolveAction;
+  /** UI intent — maps to API action (CLOSE→ACCEPT, REJECT→REJECT; ESCALATE is navigation). */
+  intent: "CLOSE" | "ESCALATE" | "REJECT";
   comment: string;
-  resolutionCode: string;
-  summary: string;
-  detail: string;
   rejectionReason: string;
 }
 
@@ -172,11 +169,8 @@ export type ResolveCaseFieldErrors = Partial<
 
 export function emptyResolveCaseForm(): ResolveCaseFormValues {
   return {
-    action: "ACCEPT",
+    intent: "CLOSE",
     comment: "",
-    resolutionCode: "",
-    summary: "",
-    detail: "",
     rejectionReason: "",
   };
 }
@@ -185,29 +179,28 @@ export function validateResolveCaseForm(
   values: ResolveCaseFormValues,
 ): ResolveCaseFieldErrors {
   const errors: ResolveCaseFieldErrors = {};
+  if (values.intent === "ESCALATE") return errors;
   if (!values.comment.trim()) errors.comment = "commentRequired";
-  if (values.action === "PROPOSE" || values.action === "ACCEPT") {
-    if (!values.resolutionCode.trim()) {
-      errors.resolutionCode = "resolutionCodeRequired";
-    }
-    if (!values.summary.trim()) errors.summary = "summaryRequired";
-  }
-  if (values.action === "REJECT" && !values.rejectionReason.trim()) {
+  if (values.intent === "REJECT" && !values.rejectionReason.trim()) {
     errors.rejectionReason = "rejectionReasonRequired";
   }
   return errors;
 }
 
+/** DEC-021 — Tutup/ACCEPT: comment only (server sentinel for code/summary). */
 export function toResolveCaseRequest(
   values: ResolveCaseFormValues,
 ): ResolveCmCaseRequest {
+  if (values.intent === "REJECT") {
+    return {
+      action: "REJECT",
+      comment: values.comment.trim(),
+      rejectionReason: values.rejectionReason.trim() || null,
+    };
+  }
   return {
-    action: values.action,
+    action: "ACCEPT",
     comment: values.comment.trim(),
-    resolutionCode: values.resolutionCode.trim() || null,
-    summary: values.summary.trim() || null,
-    detail: values.detail.trim() || null,
-    rejectionReason: values.rejectionReason.trim() || null,
   };
 }
 

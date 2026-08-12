@@ -414,6 +414,8 @@ class CaseApplicationService:
             after=case.to_snapshot(),
             note=cmd.reason,
         )
+        if case.status.value in {"CANCELLED", "CLOSED"}:
+            self._repo.sync_complaint_status_from_cases(case.complaint_id)
         self._repo.commit()
         return to_case_dto(case)
 
@@ -451,6 +453,8 @@ class CaseApplicationService:
             after=case.to_snapshot(),
             note=cmd.comment,
         )
+        if case.status.value in {"CLOSED", "CANCELLED"}:
+            self._repo.sync_complaint_status_from_cases(case.complaint_id)
         self._repo.commit()
         return to_case_dto(case)
 
@@ -518,6 +522,7 @@ class CaseApplicationService:
                 after=case.to_snapshot(),
                 note=cmd.note,
             )
+            self._repo.sync_complaint_status_from_cases(case.complaint_id)
         self._repo.commit()
         return to_case_dto(case)
 
@@ -536,8 +541,10 @@ class CaseApplicationService:
             after=case.to_snapshot(),
             note=cmd.note,
         )
+        # Mode A product rule (2026-08-12): when every Case under the parent is
+        # terminal, close the Aggregate. Supersedes BQ-007 "never close parent".
+        self._repo.sync_complaint_status_from_cases(case.complaint_id)
         self._repo.commit()
-        # BQ-007: do NOT close Complaint Aggregate
         return to_case_dto(case)
 
     def _require(self, case_id: str) -> CaseAggregate:

@@ -226,9 +226,13 @@ export function EscalationHandlingWorkspace({
                 <dd className="text-ecmp-text-primary">
                   {complaint.slaDueAt
                     ? new Intl.DateTimeFormat(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }).format(new Date(complaint.slaDueAt))
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(complaint.slaDueAt))
                     : "—"}
                 </dd>
               </div>

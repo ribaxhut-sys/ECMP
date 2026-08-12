@@ -15,9 +15,11 @@ import {
 import {
   CM_BATCH1_MAX_MULTI_UPLOAD,
   CM_BATCH1_VOID_REASON_UPLOADER_REMOVED,
+  cmBatch1AttachmentClassificationLabelKey,
   cmBatch1AttachmentListLabel,
   cmBatch1VoidTargetId,
   formatCmBatch1AttachmentBytes,
+  formatCmBatch1AttachmentSummaryLine,
   isCmBatch1AttachmentVoidable,
   isSameCmBatch1Attachment,
   normalizeCmBatch1Attachment,
@@ -31,7 +33,6 @@ import {
   Button,
   Card,
   CardBody,
-  Empty,
   SectionHeader,
   Select,
   Skeleton,
@@ -71,6 +72,8 @@ export function CmBatch1BoundAttachmentsCard({
   const canVoid =
     allowVoid &&
     (hasPermission("attachment:delete") || hasPermission("*"));
+  /** Closed / locked complaint: read + open only (no upload/void chrome). */
+  const readOnlyList = !allowUpload && !allowVoid;
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [items, setItems] = useState<CmBatch1AttachmentResponse[]>([]);
@@ -309,15 +312,19 @@ export function CmBatch1BoundAttachmentsCard({
 
   return (
     <section
-      className="space-y-[var(--ecmp-panel-gap)]"
+      className="space-y-[var(--ecmp-form-gap)]"
       data-testid="cm-batch1-bound-attachments"
     >
       <SectionHeader
         title={t("boundAttachments")}
-        description={t("boundAttachmentsOptionalDescription")}
+        description={
+          readOnlyList
+            ? t("boundAttachmentsClosedDescription")
+            : t("boundAttachmentsOptionalDescription")
+        }
       />
       <Card>
-        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+        <CardBody className="space-y-3">
           {loading ? <Skeleton rows={3} /> : null}
 
           {!loading && error ? (
@@ -333,24 +340,26 @@ export function CmBatch1BoundAttachmentsCard({
           ) : null}
 
           {canUpload ? (
-            <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2 md:items-end">
-              <Select
-                name="boundAttachmentClassification"
-                id="boundAttachmentClassification"
-                label={t("classification")}
-                options={CLASSIFICATION_OPTIONS.map((option) => ({
-                  ...option,
-                  label: t(option.label),
-                }))}
-                value={classification}
-                onChange={(event) =>
-                  setClassification(
-                    event.target.value as CmBatch1AttachmentClassification,
-                  )
-                }
-                disabled={uploading || loading}
-              />
-              <div className="flex flex-col gap-2">
+            <>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+                <div className="min-w-0 sm:max-w-xs sm:flex-1">
+                  <Select
+                    name="boundAttachmentClassification"
+                    id="boundAttachmentClassification"
+                    label={t("classification")}
+                    options={CLASSIFICATION_OPTIONS.map((option) => ({
+                      ...option,
+                      label: t(option.label),
+                    }))}
+                    value={classification}
+                    onChange={(event) =>
+                      setClassification(
+                        event.target.value as CmBatch1AttachmentClassification,
+                      )
+                    }
+                    disabled={uploading || loading}
+                  />
+                </div>
                 <input
                   ref={inputRef}
                   type="file"
@@ -363,73 +372,83 @@ export function CmBatch1BoundAttachmentsCard({
                 />
                 <Button
                   type="button"
-                  variant="outline"
+                  className="shrink-0 sm:self-end"
                   onClick={() => inputRef.current?.click()}
                   loading={uploading}
                   disabled={uploading || loading}
                   aria-label={t("uploadBoundAttachment")}
                 >
-                  {uploading ? t("uploading") : t("addAttachment")}
+                  {uploading ? t("uploading") : t("uploadFile")}
                 </Button>
-                <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                  {t("filePolicy")}
-                </p>
               </div>
-            </div>
+              <p className="text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary">
+                {t("filePolicy")}
+              </p>
+            </>
           ) : null}
 
           {!loading && !error && visible.length === 0 ? (
-            <div data-testid="bound-empty">
-              <Empty
-                title={t(cmBatch1AttachmentListLabel(0))}
-                description={t("boundAttachmentsOptionalDescription")}
-                primaryAction={
-                  canUpload
-                    ? {
-                        label: t("addAttachment"),
-                        onClick: () => inputRef.current?.click(),
-                      }
-                    : {
-                        label: t("refreshList"),
-                        onClick: () => void load(),
-                      }
-                }
-              />
+            <div
+              data-testid="bound-empty"
+              className="rounded-[var(--ecmp-radius-md)] border border-dashed border-ecmp-border/80 bg-ecmp-surface-sunken/50 px-3 py-4 text-center"
+            >
+              <p className="text-[length:var(--ecmp-font-body-small-size)] font-medium text-ecmp-text-primary">
+                {t(cmBatch1AttachmentListLabel(0))}
+              </p>
+              <p className="mt-1 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {readOnlyList
+                  ? t("boundAttachmentsClosedDescription")
+                  : canUpload
+                    ? t("noStagedAttachmentsHint")
+                    : t("boundAttachmentsOptionalDescription")}
+              </p>
             </div>
           ) : null}
 
           {!loading && !error && visible.length > 0 ? (
-            <>
-              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                {t(cmBatch1AttachmentListLabel(visible.length), {
-                  count: visible.length,
-                })}
-              </p>
-              <ul
-                className="divide-y divide-ecmp-border rounded-[var(--ecmp-radius-md)] border border-ecmp-border"
-                data-testid="bound-list"
-                aria-label={t("boundAttachmentsAria")}
-              >
-                {visible.map((item) => {
-                  const rowId = cmBatch1VoidTargetId(item) ?? item.originalName;
-                  return (
+            <ul
+              className="divide-y divide-ecmp-border rounded-[var(--ecmp-radius-md)] border border-ecmp-border"
+              data-testid="bound-list"
+              aria-label={t("boundAttachmentsAria")}
+            >
+              {visible.map((item) => {
+                const rowId = cmBatch1VoidTargetId(item) ?? item.originalName;
+                const classificationKey =
+                  cmBatch1AttachmentClassificationLabelKey(
+                    item.classification,
+                  );
+                const classificationLabel =
+                  classificationKey === item.classification
+                    ? item.classification
+                    : t(classificationKey);
+                return (
                   <li
                     key={rowId}
-                    className="flex flex-col gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-2 px-3 py-2 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
                     data-testid={`bound-item-${rowId}`}
                   >
-                    <div className="min-w-0 space-y-1">
-                      <span className="block truncate font-medium text-ecmp-text-primary">
-                        {item.originalName}
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone="neutral">{item.status}</Badge>
-                        <Badge tone="info">{item.classification}</Badge>
-                        <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                          {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+                    {readOnlyList ? (
+                      <p className="min-w-0 truncate text-ecmp-text-primary">
+                        {formatCmBatch1AttachmentSummaryLine(
+                          item.originalName,
+                          item.sizeBytes,
+                          classificationLabel,
+                        )}
+                      </p>
+                    ) : (
+                      <div className="min-w-0 space-y-0.5">
+                        <span className="block truncate font-medium text-ecmp-text-primary">
+                          {item.originalName}
                         </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone="neutral">{item.status}</Badge>
+                          <Badge tone="info">{classificationLabel}</Badge>
+                          <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                            {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div className="flex flex-shrink-0 flex-wrap gap-2">
                       {canRead ? (
                         <Button
@@ -463,10 +482,9 @@ export function CmBatch1BoundAttachmentsCard({
                       ) : null}
                     </div>
                   </li>
-                  );
-                })}
-              </ul>
-            </>
+                );
+              })}
+            </ul>
           ) : null}
         </CardBody>
       </Card>

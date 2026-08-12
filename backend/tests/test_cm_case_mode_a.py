@@ -309,7 +309,51 @@ def test_fr004_to_fr006_happy_path(service: CaseApplicationService, db_session: 
     assert closed.status == "CLOSED"
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
-    assert parent.status != "CLOSED"  # BQ-007
+    # Mode A 2026-08-12: sole Case CLOSED → Aggregate CLOSED.
+    assert parent.status == "CLOSED"
+    assert (parent.intake_disposition or "").upper() == "BRANCH_CLOSED"
+
+
+def test_parent_stays_open_while_sibling_case_active(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="First",
+            description="d",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    second = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Second",
+            description="d",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    _resolve_to_resolved(service, first.case_id)
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=first.case_id,
+            party="OWNER",
+            decision="ACCEPT",
+            actor_id="owner-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.status != "CLOSED"
+    assert second.status in {"CREATED", "ASSIGNED"}
 
 
 def test_fr004_cancel_mode_a(service: CaseApplicationService, db_session: Session) -> None:
@@ -919,6 +963,44 @@ def test_f4_transfer_history_captures_who_unit_and_when(
     assert evt["before"]["owningUnitId"] == "UPPPD-GAMBIR"
     assert evt["after"]["owningUnitId"] == "PUSAT"
     assert evt["after"]["ownerUnitId"] == "UPPPD-GAMBIR"
+
+
+def test_dec021_accept_comment_only_uses_branch_done_sentinel(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """DEC-021: ACCEPT without resolutionCode/summary persists BRANCH_DONE."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Comment-only close",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="handler-1",
+        )
+    )
+    resolved = service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="ACCEPT",
+            comment="Selesai di cabang tanpa kode resolusi",
+            actor_id="supervisor-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert resolved.status == "RESOLVED"
+    assert resolved.resolution is not None
+    assert resolved.resolution.resolution_code == "BRANCH_DONE"
+    assert resolved.resolution.summary == "Selesai di cabang tanpa kode resolusi"
 
 
 def _resolve_to_resolved(service: CaseApplicationService, case_id: str) -> None:

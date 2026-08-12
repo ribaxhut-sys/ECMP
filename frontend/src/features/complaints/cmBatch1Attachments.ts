@@ -60,6 +60,33 @@ export function formatCmBatch1AttachmentBytes(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** i18n key under ``complaints`` for a Batch-1 attachment classification code. */
+const CLASSIFICATION_LABEL_KEYS: Readonly<Record<string, string>> = {
+  customer_evidence: "classificationCustomerEvidence",
+  internal_evidence: "classificationInternalEvidence",
+  official_letter: "classificationOfficialLetter",
+};
+
+export function cmBatch1AttachmentClassificationLabelKey(
+  classification: string,
+): string {
+  return CLASSIFICATION_LABEL_KEYS[classification] ?? classification;
+}
+
+/**
+ * Closed-complaint read line: ``name - size - classification label``.
+ * ``classificationLabel`` must already be localized by the caller.
+ */
+export function formatCmBatch1AttachmentSummaryLine(
+  originalName: string,
+  sizeBytes: number,
+  classificationLabel: string,
+): string {
+  const name = originalName.trim() || "—";
+  const label = classificationLabel.trim() || "—";
+  return `${name} - ${formatCmBatch1AttachmentBytes(sizeBytes)} - ${label}`;
+}
+
 export function cmBatch1AttachmentListLabel(
   count: number,
   options?: { voidedHidden?: boolean },

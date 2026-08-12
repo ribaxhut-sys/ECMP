@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { createKnowledge, searchKnowledge } from "@/lib/api";
+import { createKnowledge, searchKnowledge, uploadKnowledgeFile } from "@/lib/api";
 import type { Knowledge, KnowledgeStatus, KnowledgeType } from "@/lib/api/types";
+import { formatDate } from "@/i18n/formatting";
 import {
   Alert,
   Button,
@@ -15,15 +16,25 @@ import {
   Modal,
   PageContainer,
   PageHeader,
+  Pagination,
   Select,
   Skeleton,
-  Table,
-  type TableColumn,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { knowledgeTypeKey, KnowledgeStatusBadge, KnowledgeTypeBadge } from "./KnowledgeBadges";
+import { useToast } from "@/shared/providers";
+import { knowledgeTypeKey, KnowledgeTypeBadge } from "./KnowledgeBadges";
+import { KnowledgeCreateFileStaging, type StagedKnowledgeFile } from "./KnowledgeCreateFileStaging";
+import { KnowledgeFileTypeIcon } from "./KnowledgeFileTypeIcon";
 import { KnowledgeFormFields } from "./KnowledgeFormFields";
 import { mayManageKnowledge } from "./knowledgeManageGate";
+import {
+  buildKnowledgeListMeta,
+  isKnowledgeListInactive,
+  knowledgeStatusDotClass,
+  knowledgeStatusLabelKey,
+  pickKnowledgeDisplayFile,
+  sortKnowledgeByUploadedAtDesc,
+} from "./knowledgeListMeta";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
   createEmptyKnowledgeForm,
@@ -41,6 +52,11 @@ const KNOWLEDGE_TYPE_VALUES: readonly KnowledgeType[] = [
   "PANDUAN",
 ];
 
+/** Client-side paging over the fetched catalog — same pattern as the
+ * announcement management list and the attachment catalog. */
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
+
 /**
  * Single shared list — search/filter for every knowledge:read holder;
  * "+ Tambah" and DRAFT status filter appear only for knowledge:manage
@@ -48,9 +64,13 @@ const KNOWLEDGE_TYPE_VALUES: readonly KnowledgeType[] = [
  */
 export function KnowledgeListView() {
   const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const tTable = useTranslations("table");
+  const tAttachments = useTranslations("attachments");
+  const { push: pushToast } = useToast();
   const { hasPermission, roles } = useAuth();
   const orgUnitCode = useOrgUnitCode();
   const canManage =
@@ -64,6 +84,8 @@ export function KnowledgeListView() {
   const [rows, setRows] = useState<Knowledge[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createValues, setCreateValues] = useState<KnowledgeFormValues>(
@@ -72,6 +94,7 @@ export function KnowledgeListView() {
   const [createErrors, setCreateErrors] = useState<KnowledgeFieldErrors>({});
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [stagedFiles, setStagedFiles] = useState<StagedKnowledgeFile[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,7 +105,10 @@ export function KnowledgeListView() {
         type: typeFilter || undefined,
         status: statusFilter,
       });
-      setRows(res.data);
+      setRows(sortKnowledgeByUploadedAtDesc(res.data));
+      // A new result set always starts at page 1 — otherwise a narrower
+      // filter can leave the view stranded on a page that no longer exists.
+      setPage(1);
     } catch (err) {
       setRows([]);
       setLoadError(resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoad"));
@@ -94,6 +120,27 @@ export function KnowledgeListView() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const totalItems = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  const pageRows = useMemo(
+    () => rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
+    [rows, page, pageSize],
+  );
+
+  const pageSizeOptions = useMemo(
+    () =>
+      PAGE_SIZE_OPTIONS.map((count) => ({
+        value: String(count),
+        label: tTable("perPage", { count }),
+      })),
+    [tTable],
+  );
 
   const statusOptions = useMemo(() => {
     const base: { value: KnowledgeStatus; label: string }[] = [
@@ -118,6 +165,7 @@ export function KnowledgeListView() {
     setCreateValues(createEmptyKnowledgeForm());
     setCreateErrors({});
     setCreateError(null);
+    setStagedFiles([]);
   }
 
   async function submitCreate(event: FormEvent) {
@@ -130,43 +178,40 @@ export function KnowledgeListView() {
     setCreateError(null);
     try {
       const res = await createKnowledge(toKnowledgeCreateRequest(createValues));
+      const created = res.data;
+
+      // Knowledge has no staging endpoint (unlike complaint attachments) —
+      // files are picked before create exists, then uploaded one by one
+      // right after, DRAFT-only, via the same endpoint the detail page uses.
+      const failedFileNames: string[] = [];
+      for (let i = 0; i < stagedFiles.length; i++) {
+        const staged = stagedFiles[i];
+        try {
+          await uploadKnowledgeFile(
+            created.id,
+            staged.file,
+            i === 0 ? "PRIMARY" : "SUPPORTING",
+          );
+        } catch {
+          failedFileNames.push(staged.file.name);
+        }
+      }
+
       setShowCreate(false);
       resetCreateForm();
-      router.push(`/knowledge/${res.data.id}`);
+      if (failedFileNames.length > 0) {
+        pushToast({
+          title: tAttachments("partialUploadFailed", { detail: failedFileNames.join(", ") }),
+          tone: "warning",
+        });
+      }
+      router.push(`/knowledge/${created.id}`);
     } catch (err) {
       setCreateError(resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToSave"));
     } finally {
       setCreating(false);
     }
   }
-
-  const columns: TableColumn<Knowledge>[] = [
-    {
-      key: "title",
-      header: t("columnTitle"),
-      cell: (row) => (
-        <div className="min-w-0 max-w-[28rem]">
-          <p className="truncate font-medium text-ecmp-text-primary">{row.title}</p>
-          <p className="truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-            {[row.documentNumber, row.versionLabel ? `v${row.versionLabel}` : null]
-              .filter(Boolean)
-              .join(" · ") || tCommon("emDash")}
-          </p>
-        </div>
-      ),
-    },
-    {
-      key: "type",
-      header: t("columnType"),
-      cell: (row) => <KnowledgeTypeBadge type={row.knowledgeType} />,
-    },
-    {
-      key: "status",
-      header: t("columnStatus"),
-      slot: "status",
-      cell: (row) => <KnowledgeStatusBadge status={row.status} />,
-    },
-  ];
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -231,13 +276,90 @@ export function KnowledgeListView() {
       ) : rows.length === 0 ? (
         <Empty title={t("listEmpty")} description={t("listEmptyDescription")} />
       ) : (
-        <Table
-          columns={columns}
-          rows={rows}
-          getRowKey={(row) => row.id}
-          caption={t("tableCaption")}
-          onRowClick={(row) => router.push(`/knowledge/${row.id}`)}
-        />
+        <div className="space-y-[var(--ecmp-panel-gap)]">
+          <ul
+            className="divide-y divide-ecmp-border overflow-hidden rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface"
+            aria-label={t("tableCaption")}
+            data-testid="knowledge-list"
+          >
+            {pageRows.map((row) => {
+              const meta = buildKnowledgeListMeta(
+                row,
+                {
+                  status: t(knowledgeStatusLabelKey(row.status)),
+                  effective: (date) => t("listMetaEffective", { date }),
+                  uploaded: (date) => t("listMetaUploaded", { date }),
+                  inactive: (date) => t("listMetaInactive", { date }),
+                  emDash: tCommon("emDash"),
+                },
+                (value) => formatDate(value, locale),
+              );
+              const muted = isKnowledgeListInactive(row);
+              const displayFile = pickKnowledgeDisplayFile(row.files);
+              return (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    className={[
+                      "flex w-full items-center gap-2 px-3 py-2 text-left",
+                      "hover:bg-ecmp-hover focus-visible:bg-ecmp-hover",
+                      muted ? "opacity-60" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={() => router.push(`/knowledge/${row.id}`)}
+                  >
+                    <span
+                      className={[
+                        "h-2 w-2 shrink-0 rounded-full",
+                        knowledgeStatusDotClass(row.status),
+                      ].join(" ")}
+                      aria-hidden
+                    />
+                    <KnowledgeFileTypeIcon file={displayFile} size="sm" />
+                    <KnowledgeTypeBadge type={row.knowledgeType} />
+                    <span className="min-w-0 flex-1 truncate text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
+                      {row.title}
+                    </span>
+                    <span
+                      className="hidden min-w-0 max-w-[55%] shrink-0 truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary sm:inline"
+                      title={meta}
+                    >
+                      {meta || tCommon("emDash")}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <Pagination
+            summary={tCommon("showingItems", {
+              from: (page - 1) * pageSize + 1,
+              to: Math.min(page * pageSize, totalItems),
+              total: totalItems,
+            })}
+            pageSizeSlot={
+              <div className="w-[9rem]">
+                <Select
+                  name="knowledgePageSize"
+                  aria-label={t("pageSizeLabel")}
+                  options={pageSizeOptions}
+                  value={String(pageSize)}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value) || DEFAULT_PAGE_SIZE);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            }
+            previousLabel={tCommon("previous")}
+            nextLabel={tCommon("next")}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            previousDisabled={page <= 1}
+            nextDisabled={page >= totalPages}
+          />
+        </div>
       )}
 
       <Modal
@@ -289,6 +411,11 @@ export function KnowledgeListView() {
             onChange={(key, value) =>
               setCreateValues((prev) => ({ ...prev, [key]: value }))
             }
+          />
+          <KnowledgeCreateFileStaging
+            files={stagedFiles}
+            onChange={setStagedFiles}
+            disabled={creating}
           />
         </form>
       </Modal>

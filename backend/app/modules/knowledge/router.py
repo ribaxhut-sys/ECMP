@@ -23,6 +23,9 @@ from app.core.authorization.gates import (
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.attachment.registration import build_attachment_service
+from app.modules.audit.repository import AuditRepository
+from app.modules.audit.schemas import AuditLogResponse
+from app.modules.audit.service import AuditService
 from app.modules.knowledge.authorization import resolve_caller_org_unit
 from app.modules.knowledge.file_repository import KnowledgeFileRepository
 from app.modules.knowledge.repository import KnowledgeRepository
@@ -47,6 +50,8 @@ def get_knowledge_service(
         repository=KnowledgeRepository(session),
         files=KnowledgeFileRepository(session),
         attachments=build_attachment_service(session),
+        audit=AuditService(AuditRepository(session)),
+        session=session,
     )
 
 
@@ -114,6 +119,24 @@ def get_knowledge(
     return DataResponse(data=service.get(id, caller_may_manage=caller_may_manage))
 
 
+@router.get(
+    "/{id}/history",
+    response_model=DataResponse[list[AuditLogResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="Knowledge change history — who changed what, and file replacements",
+)
+def get_knowledge_history(
+    id: uuid.UUID,
+    service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+    principal: Annotated[Principal, Depends(require_permissions("knowledge:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[list[AuditLogResponse]]:
+    """Same knowledge:read gate as the detail view — a DRAFT record's
+    history is invisible to a non-manager, same as the record itself."""
+    caller_may_manage = _caller_may_manage(principal, session)
+    return DataResponse(data=service.list_history(id, caller_may_manage=caller_may_manage))
+
+
 @router.post(
     "",
     response_model=DataResponse[KnowledgeResponse],
@@ -175,6 +198,20 @@ def archive_knowledge(
     principal: Annotated[Principal, Depends(require_knowledge_manage)],
 ) -> DataResponse[KnowledgeResponse]:
     return DataResponse(data=service.archive(id, actor_id=principal.user_id))
+
+
+@router.put(
+    "/{id}/unarchive",
+    response_model=DataResponse[KnowledgeResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Unarchive Knowledge — ARCHIVED -> ACTIVE (reactivate)",
+)
+def unarchive_knowledge(
+    id: uuid.UUID,
+    service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+    principal: Annotated[Principal, Depends(require_knowledge_manage)],
+) -> DataResponse[KnowledgeResponse]:
+    return DataResponse(data=service.unarchive(id, actor_id=principal.user_id))
 
 
 @router.delete(
@@ -253,6 +290,5 @@ def remove_knowledge_file(
     service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
     principal: Annotated[Principal, Depends(require_knowledge_manage)],
 ) -> DataResponse[KnowledgeResponse]:
-    _ = principal
-    result = service.remove_file(id, attachment_id)
+    result = service.remove_file(id, attachment_id, actor_id=principal.user_id)
     return DataResponse(data=result)

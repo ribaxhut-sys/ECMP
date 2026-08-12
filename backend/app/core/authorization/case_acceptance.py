@@ -3,6 +3,12 @@
 Does not invent a parallel permission system: callers still require
 ``complaints:update`` (or equivalent). This module adds party / role / unit /
 creator (SoD) checks on top of that gate.
+
+Mode A product policy (2026-08-12): Agent-family may complete Handling Unit /
+Owner acceptance **on their own unit** (actor unit == party unit). Cross-unit
+ACCEPT remains Supervisor/Manager/Admin. Creator SoD still applies to
+approver roles; Agents on own-unit are exempt so intake officers can Tutup
+cases they registered.
 """
 
 from __future__ import annotations
@@ -13,8 +19,8 @@ from app.core.errors import PermissionDeniedError
 from app.core.user_messages import m
 
 # Mirrors visibility.py role families — Supervisor/Manager (+ Admin) may give
-# final Handling Unit / Owner acceptance. Agent-family may handle and propose
-# resolution only (no parallel permission catalog).
+# final Handling Unit / Owner acceptance on any matching unit. Agent-family may
+# ACCEPT only when the party unit equals their acting unit (own-branch Mode A).
 _ADMIN_ROLES: frozenset[str] = frozenset(
     {"ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"}
 )
@@ -30,7 +36,7 @@ _ACCEPTANCE_APPROVER_ROLES: frozenset[str] = frozenset(
 
 
 def principal_may_give_case_acceptance(principal: Principal) -> bool:
-    """True when the principal's role may submit final F4 acceptance."""
+    """True when the principal's role may submit final F4 acceptance (any unit)."""
     return principal.has_any_role(*_ACCEPTANCE_APPROVER_ROLES)
 
 
@@ -59,20 +65,24 @@ def assert_case_acceptance_authorized(
     """Authorize F4 Handling Unit / Owner acceptance for the acting principal.
 
     Checks (all required):
-    - role is Supervisor / Manager / Admin (not Agent);
+    - role is Agent (own-unit only) or Supervisor / Manager / Admin;
     - actor unit matches the party unit (Owner → owner_unit_id,
       HANDLING_UNIT → current handling / owning_unit_id), unless Admin;
-    - creator SoD: complaint creator cannot be the sole approver for either
-      party (single acceptance pointer per party ⇒ creator cannot approve).
+    - creator SoD for approver roles: complaint creator cannot be the sole
+      approver (Agents on own-unit exempt for Mode A Tutup).
     """
     party_key = (party or "").strip().upper()
     if party_key not in {"OWNER", "HANDLING_UNIT"}:
         raise PermissionDeniedError(m("case.acceptance_party_invalid"))
 
-    if not principal_may_give_case_acceptance(principal):
+    is_agent = principal_is_case_agent(principal)
+    is_approver = principal_may_give_case_acceptance(principal)
+    if not is_agent and not is_approver:
         raise PermissionDeniedError(m("case.acceptance_role_denied"))
 
-    if _ids_equal(str(principal.user_id), complaint_creator_id):
+    # Creator SoD — keep for Supervisor/Manager; Agents may Tutup own-unit cases
+    # they registered (Mode A branch path).
+    if is_approver and _ids_equal(str(principal.user_id), complaint_creator_id):
         raise PermissionDeniedError(m("case.acceptance_creator_conflict"))
 
     if principal.has_any_role(*_ADMIN_ROLES):
@@ -99,11 +109,10 @@ def assert_case_resolve_accept_authorized(
 ) -> None:
     """Authorize resolve action=ACCEPT (stamps Handling Unit acceptance).
 
-    Agent may PROPOSE only. ACCEPT is final HU agreement and follows the same
-    role / unit / SoD rules as party=HANDLING_UNIT acceptance.
+    Agent may ACCEPT when acting on their own Handling Unit (Mode A). Cross-unit
+    ACCEPT remains Supervisor/Manager/Admin via the same unit/SoD rules as
+    party=HANDLING_UNIT acceptance.
     """
-    if principal_is_case_agent(principal):
-        raise PermissionDeniedError(m("case.resolve_accept_role_denied"))
     assert_case_acceptance_authorized(
         principal,
         party="HANDLING_UNIT",

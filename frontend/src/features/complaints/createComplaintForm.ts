@@ -192,7 +192,9 @@ export function validateCmBatch1CreateForm(
   }
 
   const resolution = values.resolution.trim();
-  if (resolution.length > 5000) {
+  if (!resolution) {
+    errors.resolution = "intakeNoteRequired";
+  } else if (resolution.length > 5000) {
     errors.resolution = "descriptionMax";
   }
   const composedLen = Math.max(
@@ -226,6 +228,9 @@ export function validateCmBatch1CreateForm(
 }
 
 /** Marker labels persisted in description — history for Supervisor / HQ. */
+/** Intake officer note (register / branch close) — preferred section label. */
+export const INTAKE_SECTION_INTAKE_NOTE = "Catatan";
+/** Legacy label for intake note — still parsed for older rows. */
 export const INTAKE_SECTION_BRANCH_RESOLUTION = "Penyelesaian";
 export const INTAKE_SECTION_ESCALATION_REASON = "Alasan eskalasi";
 export const INTAKE_SECTION_ESCALATION_REQUEST = "Ajuan eskalasi";
@@ -275,11 +280,17 @@ export function parseCmBatch1Description(
 
   for (const part of parts.slice(1)) {
     const chunk = part.trim();
-    if (chunk.startsWith(`${INTAKE_SECTION_BRANCH_RESOLUTION}:`)) {
-      const value = chunk
-        .slice(INTAKE_SECTION_BRANCH_RESOLUTION.length + 1)
-        .trim();
+    if (chunk.startsWith(`${INTAKE_SECTION_INTAKE_NOTE}:`)) {
+      const value = chunk.slice(INTAKE_SECTION_INTAKE_NOTE.length + 1).trim();
       branchResolution = value || null;
+    } else if (chunk.startsWith(`${INTAKE_SECTION_BRANCH_RESOLUTION}:`)) {
+      // Legacy: "Penyelesaian:" → same slot as Catatan (prefer Catatan if both).
+      if (!branchResolution) {
+        const value = chunk
+          .slice(INTAKE_SECTION_BRANCH_RESOLUTION.length + 1)
+          .trim();
+        branchResolution = value || null;
+      }
     } else if (chunk.startsWith(`${INTAKE_SECTION_ESCALATION_REASON}:`)) {
       const value = chunk
         .slice(INTAKE_SECTION_ESCALATION_REASON.length + 1)
@@ -322,7 +333,7 @@ export function parseCmBatch1Description(
 
 /**
  * Compose Aggregate description as durable intake history.
- * - Branch close → section Penyelesaian
+ * - Register / branch close → section Catatan (what was told / done for the customer)
  * - Escalate → section Alasan eskalasi (+ pending-approval marker)
  */
 export function composeCmBatch1Description(
@@ -337,7 +348,7 @@ export function composeCmBatch1Description(
     if (options?.escalate) {
       parts.push(`---\n${INTAKE_SECTION_ESCALATION_REASON}:\n${note}`);
     } else {
-      parts.push(`---\n${INTAKE_SECTION_BRANCH_RESOLUTION}:\n${note}`);
+      parts.push(`---\n${INTAKE_SECTION_INTAKE_NOTE}:\n${note}`);
     }
   }
   if (options?.escalate) {
@@ -346,6 +357,17 @@ export function composeCmBatch1Description(
     );
   }
   return parts.filter(Boolean).join("\n\n");
+}
+
+/** Format REGISTERED intake-history note: Deskripsi + Catatan. */
+export function formatRegisteredIntakeNote(
+  narrative: string,
+  intakeNote: string | null | undefined,
+  labels: { description: string; note: string },
+): string {
+  const desc = narrative.trim() || "—";
+  const note = (intakeNote ?? "").trim() || "—";
+  return `${labels.description}:\n${desc}\n\n${labels.note}:\n${note}`;
 }
 
 /** Map form values → API-500 CreateComplaintBatch1Request. */
@@ -372,7 +394,7 @@ export function toCmBatch1CreateRequest(
     ),
   };
 
-  if (values.priority && options?.escalate) {
+  if (values.priority) {
     body.priority = values.priority;
   }
   const recordingUnitId =

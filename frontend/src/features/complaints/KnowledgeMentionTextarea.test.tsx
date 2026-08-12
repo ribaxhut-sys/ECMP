@@ -52,8 +52,14 @@ function knowledge(overrides: Partial<Knowledge> = {}): Knowledge {
   };
 }
 
-function Harness({ onValue }: { onValue?: (value: string) => void }) {
-  const [value, setValue] = useState("");
+function Harness({
+  onValue,
+  initialValue = "",
+}: {
+  onValue?: (value: string) => void;
+  initialValue?: string;
+}) {
+  const [value, setValue] = useState(initialValue);
   return (
     <KnowledgeMentionTextarea
       label="Catatan Penyelesaian"
@@ -311,5 +317,46 @@ describe("KnowledgeMentionTextarea", () => {
       ).toBeInTheDocument();
     });
     expect(screen.queryByText(/· Active|· Aktif/i)).not.toBeInTheDocument();
+  });
+
+  it("clicking an inline chip opens a read-only preview modal instead of navigating", async () => {
+    const user = userEvent.setup();
+    fetchKnowledge.mockResolvedValue({
+      data: knowledge({ status: "ACTIVE", summary: "Ringkasan uji" }),
+    });
+    renderWithProviders(
+      <Harness initialValue="Sesuai @[SOP Penanganan Pengaduan v2.1](knowledge:e5555555-5555-5555-5555-555555555555)" />,
+    );
+
+    const chip = await screen.findByText("SOP Penanganan Pengaduan v2.1");
+    await user.click(chip);
+
+    expect(push).not.toHaveBeenCalled();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "SOP Penanganan Pengaduan" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Ringkasan uji")).toBeInTheDocument();
+  });
+
+  it("closing the preview modal calls onClose and does not navigate", async () => {
+    const user = userEvent.setup();
+    fetchKnowledge.mockResolvedValue({ data: knowledge({ status: "ACTIVE" }) });
+    renderWithProviders(
+      <Harness initialValue="Sesuai @[SOP Penanganan Pengaduan v2.1](knowledge:e5555555-5555-5555-5555-555555555555)" />,
+    );
+
+    const chip = await screen.findByText("SOP Penanganan Pengaduan v2.1");
+    await user.click(chip);
+    await screen.findByRole("dialog");
+
+    await user.click(screen.getByRole("button", { name: /^close dialog$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(push).not.toHaveBeenCalled();
   });
 });
