@@ -80,11 +80,11 @@ class CaseRepository(Protocol):
         """First Case effect: Complaint REGISTERED → IN_PROGRESS; case_created=True."""
 
     def sync_complaint_status_from_cases(self, complaint_id: str) -> str | None:
-        """Align Aggregate status to Case set (Mode A product rule 2026-08-12).
+        """DEC-025 §3.4 — align Aggregate status to Case set.
 
-        - Any non-terminal Case → Complaint IN_PROGRESS
-        - All Cases terminal (CLOSED/CANCELLED) and at least one Case → CLOSED
-          (+ intake_disposition BRANCH_CLOSED when unset / branch path)
+        - Any working Case (not CLOSED/CANCELLED, including RESOLVED) → IN_PROGRESS
+        - No working Case and at least one CLOSED → CLOSED (BR-009 auto-close)
+        - Only CANCELLED remain → IN_PROGRESS (induk tetap buka)
         Returns the Aggregate status after sync, or None if parent missing.
         """
 

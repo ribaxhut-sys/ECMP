@@ -96,7 +96,7 @@ class ComplaintBatch1Response(BaseModel):
 
     complaint_id: str = Field(alias="complaintId")
     complaint_number: str = Field(alias="complaintNumber")
-    status: Literal["REGISTERED", "CLOSED"] = "REGISTERED"
+    status: Literal["REGISTERED", "IN_PROGRESS", "CLOSED"] = "REGISTERED"
     customer_id: str = Field(alias="customerId")
     customer_display_name: str | None = Field(
         default=None, alias="customerDisplayName"
@@ -113,7 +113,7 @@ class ComplaintBatch1Response(BaseModel):
         description="Operator-facing name of the intake officer, resolved via directory",
     )
     intake_disposition: str | None = Field(default=None, alias="intakeDisposition")
-    case_created: Literal[False] = Field(default=False, alias="caseCreated")
+    case_created: bool = Field(default=False, alias="caseCreated")
     replayed: bool = False
     category: str | None = None
     channel: str | None = None
@@ -428,7 +428,7 @@ class AgingComplaintItemResponse(BaseModel):
     priority: str | None = None
     created_at: datetime = Field(alias="createdAt")
     age_hours: float = Field(alias="ageHours")
-    case_created: Literal[False] = Field(default=False, alias="caseCreated")
+    case_created: bool = Field(default=False, alias="caseCreated")
 
 
 class IntakeHistoryEntry(BaseModel):

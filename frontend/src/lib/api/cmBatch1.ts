@@ -106,7 +106,7 @@ export interface CmBatch1CreateComplaintRequest {
 export interface CmBatch1ComplaintResponse {
   complaintId: string;
   complaintNumber: string;
-  status: "REGISTERED" | "CLOSED";
+  status: "REGISTERED" | "IN_PROGRESS" | "CLOSED";
   customerId: string;
   /** Operator-facing name from customer provider (not SoR). */
   customerDisplayName?: string | null;
@@ -116,7 +116,7 @@ export interface CmBatch1ComplaintResponse {
   createdBy?: string | null;
   /** Operator-facing name of the intake officer, resolved via directory. */
   createdByName?: string | null;
-  /** Intake path label; Aggregate status stays REGISTERED|CLOSED. */
+  /** Intake path label; Aggregate status is REGISTERED | IN_PROGRESS | CLOSED. */
   intakeDisposition?:
     | "BRANCH_CLOSED"
     | "ESCALATE_PENDING_APPROVAL"
@@ -125,7 +125,7 @@ export interface CmBatch1ComplaintResponse {
     | "ESCALATE_CANCELLED"
     | string
     | null;
-  caseCreated: false;
+  caseCreated: boolean;
   replayed: boolean;
   category?: string | null;
   channel?: string | null;
@@ -302,7 +302,7 @@ export interface CmBatch1AgingComplaintItem {
   priority?: string | null;
   createdAt: string;
   ageHours: number;
-  caseCreated: false;
+  caseCreated: boolean;
 }
 
 export interface CmBatch1SupervisorQueueResponse {

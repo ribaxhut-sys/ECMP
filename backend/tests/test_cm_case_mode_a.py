@@ -379,6 +379,132 @@ def test_fr004_cancel_mode_a(service: CaseApplicationService, db_session: Sessio
     )
     assert cancelled.status == "CANCELLED"
     assert cancelled.cancel_reason == "DUPLICATE"
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    # DEC-025: sole CANCELLED does not close the parent.
+    assert parent.status == "IN_PROGRESS"
+    assert parent.status != "CLOSED"
+
+
+def test_dec025_all_cancelled_parent_stays_open(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="One",
+            description="d",
+            priority="LOW",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    second = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Two",
+            description="d",
+            priority="LOW",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    for case_id in (first.case_id, second.case_id):
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=case_id,
+                to_status="CANCELLED",
+                cancel_reason="CUSTOMER_CANCELLATION",
+                reason="Pelanggan batal",
+                actor_id="supervisor-1",
+            )
+        )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.status == "IN_PROGRESS"
+
+
+def test_dec025_closed_plus_cancelled_parent_closes(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    keeper = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Keep",
+            description="d",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    extra = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Cancel",
+            description="d",
+            priority="LOW",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=extra.case_id,
+            to_status="CANCELLED",
+            cancel_reason="DUPLICATE",
+            reason="Duplikat",
+            actor_id="supervisor-1",
+        )
+    )
+    _resolve_to_resolved(service, keeper.case_id)
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=keeper.case_id,
+            party="OWNER",
+            decision="ACCEPT",
+            actor_id="owner-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.status == "CLOSED"
+
+
+def test_dec025_aggregate_response_exposes_in_progress(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    from app.integrations.customer import StubCustomerProvider
+    from app.modules.cm_batch1.enumeration import EnumerationGuard
+    from app.modules.cm_batch1.repository import CmBatch1Repository
+    from app.modules.cm_batch1.service import CmBatch1Service
+
+    complaint_id = _seed_complaint(db_session)
+    service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Expose status",
+            description="d",
+            priority="LOW",
+            actor_id="actor-1",
+        )
+    )
+    batch1 = CmBatch1Service(
+        customer_provider=StubCustomerProvider(),
+        guard=EnumerationGuard(max_failures=3, window_seconds=60, block_seconds=30),
+        store=CmBatch1Repository(db_session),
+        strict_master=False,
+    )
+    got = batch1.get_complaint(complaint_id)
+    assert got.status == "IN_PROGRESS"
+    assert got.case_created is True
 
 
 @pytest.fixture()

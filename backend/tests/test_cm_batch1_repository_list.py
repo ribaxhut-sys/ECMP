@@ -203,6 +203,63 @@ def test_repository_list_visibility_and_filters(service: CmBatch1Service) -> Non
     )
     assert disp_total >= 2
 
+    by_unescalated, unescalated_total = service.list_complaints(
+        principal=Principal(
+            user_id=uuid.uuid4(),
+            roles=("ADMIN",),
+            permissions=frozenset({"*"}),
+        ),
+        intake_disposition="UNESCALATED",
+        status="REGISTERED",
+    )
+    assert unescalated_total >= 1
+    escalate_family = {
+        "ESCALATE_PENDING_APPROVAL",
+        "ESCALATE_APPROVED",
+        "ESCALATE_REJECTED",
+        "ESCALATE_CANCELLED",
+        "RETURNED_TO_BRANCH",
+        "HQ_SCHEDULED",
+    }
+    assert all(i.status == "REGISTERED" for i in by_unescalated)
+    assert all(
+        (i.intake_disposition or "").upper() not in escalate_family
+        for i in by_unescalated
+    )
+
+    store = service._store
+    assert isinstance(store, CmBatch1Repository)
+    progressed = store._session.get(
+        CmBatch1ComplaintORM, uuid.UUID(own_a.complaint_id)
+    )
+    assert progressed is not None
+    progressed.status = "IN_PROGRESS"
+    progressed.case_created = True
+    store._session.commit()
+
+    by_open, open_total = service.list_complaints(
+        principal=Principal(
+            user_id=uuid.uuid4(),
+            roles=("ADMIN",),
+            permissions=frozenset({"*"}),
+        ),
+        status="OPEN",
+    )
+    assert open_total >= 3
+    assert all(i.status in {"REGISTERED", "IN_PROGRESS"} for i in by_open)
+
+    by_progress, progress_total = service.list_complaints(
+        principal=Principal(
+            user_id=uuid.uuid4(),
+            roles=("ADMIN",),
+            permissions=frozenset({"*"}),
+        ),
+        status="IN_PROGRESS",
+    )
+    assert progress_total >= 1
+    assert all(i.status == "IN_PROGRESS" for i in by_progress)
+    assert any(i.case_created for i in by_progress)
+
     by_pri, pri_total = service.list_complaints(
         principal=Principal(
             user_id=uuid.uuid4(),

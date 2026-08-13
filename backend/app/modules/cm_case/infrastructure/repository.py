@@ -214,7 +214,12 @@ class SqlAlchemyCaseRepository:
         self._session.flush()
 
     def sync_complaint_status_from_cases(self, complaint_id: str) -> str | None:
-        """Mode A: induk terbuka selama Case aktif; tutup jika semua Case terminal."""
+        """DEC-025 §3.4 — BR-009 Mode A auto-close (bukan Close Case = Close Complaint).
+
+        Case ``CANCELLED`` diabaikan. Induk auto-close hanya jika tidak ada Case
+        yang masih dikerjakan dan ada minimal satu Case ``CLOSED``. Semua Case
+        ``CANCELLED`` (tanpa ``CLOSED``) → induk tetap terbuka (``IN_PROGRESS``).
+        """
         try:
             uid = UUID(complaint_id)
         except ValueError:
@@ -223,32 +228,32 @@ class SqlAlchemyCaseRepository:
         if row is None:
             return None
 
-        terminal = ("CLOSED", "CANCELLED")
-        statuses = list(
-            self._session.scalars(
+        statuses = [
+            (s or "").strip().upper()
+            for s in self._session.scalars(
                 select(CmCaseORM.status).where(CmCaseORM.complaint_id == str(uid))
             )
-        )
+        ]
         if not statuses:
             return row.status
 
-        active = [s for s in statuses if (s or "").strip().upper() not in terminal]
-        if active:
-            row.case_created = True
-            if row.status == "CLOSED":
-                row.status = "IN_PROGRESS"
-            elif row.status == "REGISTERED":
+        working = [s for s in statuses if s not in {"CLOSED", "CANCELLED"}]
+        has_closed = any(s == "CLOSED" for s in statuses)
+        row.case_created = True
+        if working:
+            if row.status in {"CLOSED", "REGISTERED"}:
                 row.status = "IN_PROGRESS"
             disp = (row.intake_disposition or "").strip().upper()
             if disp == "BRANCH_CLOSED":
                 row.intake_disposition = None
-        else:
-            # All Cases CLOSED/CANCELLED → Aggregate closed (branch done).
-            row.case_created = True
+        elif has_closed:
             row.status = "CLOSED"
             disp = (row.intake_disposition or "").strip().upper()
             if not disp or disp == "BRANCH_CLOSED":
                 row.intake_disposition = "BRANCH_CLOSED"
+        else:
+            # All CANCELLED — induk tetap buka (DEC-025 §3.4).
+            row.status = "IN_PROGRESS"
 
         self._session.flush()
         return row.status

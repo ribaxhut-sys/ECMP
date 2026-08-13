@@ -69,14 +69,14 @@ function complaintDispositionStatusKey(
 }
 
 /**
- * Complaint row eligible for Tindak lanjut iff: REGISTERED, not BRANCH_CLOSED,
+ * Complaint row eligible for Tindak lanjut iff: not CLOSED, not BRANCH_CLOSED,
  * and (no visible Case for it OR an active intake disposition).
  */
 export function isFollowUpComplaint(
   complaint: Pick<CmBatch1ComplaintResponse, "status" | "intakeDisposition">,
   hasVisibleCase: boolean,
 ): boolean {
-  if (complaint.status !== "REGISTERED") return false;
+  if (complaint.status === "CLOSED") return false;
   if ((complaint.intakeDisposition || "").trim().toUpperCase() === "BRANCH_CLOSED") {
     return false;
   }

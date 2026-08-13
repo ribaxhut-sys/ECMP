@@ -16,7 +16,9 @@ info:
   x-ecmp-frd: FRD-CM-001
   x-ecmp-rtm: RTM-CM-B1-001
   x-ecmp-dec: DEC-020
-  x-ecmp-status: Implemented (lab) — coexistence per DEC-020
+  x-ecmp-related-dec:
+    - DEC-025
+  x-ecmp-status: Implemented (lab) — coexistence per DEC-020; Aggregate status DEC-025
   x-ecmp-ownership: CM Batch 1 Aggregate (`backend/app/modules/cm_batch1/`)
 servers:
   - url: http://localhost:8000
@@ -73,16 +75,20 @@ paths:
         - name: status
           in: query
           required: false
-          description: Filter by Aggregate status (omit = all)
+          description: |
+            Filter by Aggregate status (omit = all). `OPEN` = REGISTERED or
+            IN_PROGRESS (DEC-025 dashboard drill-down).
           schema:
             type: string
-            enum: [REGISTERED, CLOSED]
+            enum: [REGISTERED, IN_PROGRESS, CLOSED, OPEN]
         - name: intakeDisposition
           in: query
           required: false
           description: |
             Filter by intake path label (omit = all). Useful for supervisor
             triage of escalate-pending Approvals (Mode A).
+            `ESCALATED` = any escalate-family state; `UNESCALATED` = not in
+            that family (dashboard waiting-assignment).
           schema:
             type: string
             enum:
@@ -93,6 +99,8 @@ paths:
               - ESCALATE_CANCELLED
               - RETURNED_TO_BRANCH
               - HQ_SCHEDULED
+              - ESCALATED
+              - UNESCALATED
         - name: priority
           in: query
           required: false
@@ -916,7 +924,7 @@ components:
           type: string
         status:
           type: string
-          enum: [REGISTERED, CLOSED]
+          enum: [REGISTERED, IN_PROGRESS, CLOSED]
         customerId:
           type: string
         customerDisplayName:
@@ -1037,8 +1045,7 @@ components:
           nullable: true
         caseCreated:
           type: boolean
-          enum: [false]
-          description: Batch 1 MUST always be false
+          description: True after the first Case exists under this Aggregate (DEC-025)
         replayed:
           type: boolean
         duplicateCheckResult:
@@ -1320,4 +1327,3 @@ components:
           type: number
         caseCreated:
           type: boolean
-          enum: [false]

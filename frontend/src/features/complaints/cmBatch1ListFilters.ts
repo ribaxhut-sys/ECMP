@@ -1,6 +1,6 @@
 /** URL/query helpers for Aggregate list filters (API-514). */
 
-export type CmBatch1ListStatus = "REGISTERED" | "CLOSED";
+export type CmBatch1ListStatus = "REGISTERED" | "IN_PROGRESS" | "CLOSED" | "OPEN";
 
 export type CmBatch1ListIntakeDisposition =
   | "ESCALATE_PENDING_APPROVAL"
@@ -11,9 +11,22 @@ export type CmBatch1ListIntakeDisposition =
   | "HQ_SCHEDULED"
   | "BRANCH_CLOSED"
   /** Pseudo-value: any escalate-family state (Users directory drill-down). */
-  | "ESCALATED";
+  | "ESCALATED"
+  /** Pseudo-value: not in the escalate family (dashboard waiting-assignment). */
+  | "UNESCALATED";
 
-const STATUSES = new Set<string>(["REGISTERED", "CLOSED"]);
+/** Aggregate list filtered to open complaints (REGISTERED + IN_PROGRESS). */
+export const CM_BATCH1_OPEN_HREF = "/complaints?status=OPEN";
+
+/** Aggregate list filtered to open intake that is not on an escalate path. */
+export const CM_BATCH1_WAITING_ASSIGNMENT_HREF =
+  "/complaints?status=REGISTERED&intakeDisposition=UNESCALATED";
+
+/** Aggregate list filtered to intake waiting for escalation approval. */
+export const CM_BATCH1_ESCALATION_PENDING_HREF =
+  "/complaints?intakeDisposition=ESCALATE_PENDING_APPROVAL";
+
+const STATUSES = new Set<string>(["REGISTERED", "IN_PROGRESS", "CLOSED", "OPEN"]);
 const INTAKE_DISPOSITIONS = new Set<string>([
   "ESCALATE_PENDING_APPROVAL",
   "ESCALATE_APPROVED",
@@ -23,6 +36,7 @@ const INTAKE_DISPOSITIONS = new Set<string>([
   "HQ_SCHEDULED",
   "BRANCH_CLOSED",
   "ESCALATED",
+  "UNESCALATED",
 ]);
 
 export interface CmBatch1ListFilters {

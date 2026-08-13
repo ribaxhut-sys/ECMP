@@ -158,7 +158,8 @@ class CmBatch1ActivityDashboardProvider:
 
         total = self._count_complaints(owning_unit)
         open_count = self._count_complaints(
-            owning_unit, CmBatch1ComplaintORM.status == "REGISTERED"
+            owning_unit,
+            CmBatch1ComplaintORM.status.in_(("REGISTERED", "IN_PROGRESS")),
         )
         closed = self._count_complaints(
             owning_unit, CmBatch1ComplaintORM.status == "CLOSED"

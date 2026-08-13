@@ -267,6 +267,14 @@ def _is_hhmm(value: str) -> bool:
     return 0 <= hour <= 23 and 0 <= minute <= 59
 
 
+def _aggregate_status(raw: str | None) -> str:
+    """DEC-025 §3.3 — expose REGISTERED | IN_PROGRESS | CLOSED as stored."""
+    status = (raw or "REGISTERED").strip().upper()
+    if status in {"REGISTERED", "IN_PROGRESS", "CLOSED"}:
+        return status
+    return "REGISTERED"
+
+
 class CmBatch1Service:
     def __init__(
         self,
@@ -1686,14 +1694,14 @@ class CmBatch1Service:
         return ComplaintBatch1Response(
             complaintId=row.complaint_id,
             complaintNumber=row.complaint_number,
-            status="CLOSED" if row.status == "CLOSED" else "REGISTERED",
+            status=_aggregate_status(row.status),
             customerId=row.customer_id,
             customerDisplayName=display_name,
             customerNumber=customer_number,
             createdBy=row.created_by,
             createdByName=created_by_name,
             intakeDisposition=row.intake_disposition,
-            caseCreated=False,
+            caseCreated=bool(row.case_created),
             replayed=replayed,
             category=row.category,
             channel=row.channel,

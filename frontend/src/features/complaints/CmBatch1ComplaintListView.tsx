@@ -234,6 +234,7 @@ export function CmBatch1ComplaintListView() {
     () => [
       { value: "", label: t("statusFilterAll") },
       { value: "REGISTERED", label: t("statusOpen") },
+      { value: "IN_PROGRESS", label: t("statusInProgress") },
       { value: "CLOSED", label: t("statusClosed") },
     ],
     [t],
@@ -242,6 +243,7 @@ export function CmBatch1ComplaintListView() {
   const intakeDispositionFilterOptions = useMemo(
     () => [
       { value: "", label: t("intakeDispositionFilterAll") },
+      { value: "UNESCALATED", label: t("intakeUnescalated") },
       { value: "ESCALATE_PENDING_APPROVAL", label: t("awaitingApproval") },
       { value: "ESCALATE_APPROVED", label: t("escalationApproved") },
       { value: "ESCALATE_REJECTED", label: t("escalationRejected") },
@@ -302,10 +304,20 @@ export function CmBatch1ComplaintListView() {
       header: t("status"),
       cell: (row) => (
         <div className="flex flex-col items-start gap-1">
-          <Badge tone={row.status === "CLOSED" ? "success" : "info"}>
+          <Badge
+            tone={
+              row.status === "CLOSED"
+                ? "success"
+                : row.status === "IN_PROGRESS"
+                  ? "warning"
+                  : "info"
+            }
+          >
             {row.status === "CLOSED"
               ? t("statusClosed")
-              : t("statusOpen")}
+              : row.status === "IN_PROGRESS"
+                ? t("statusInProgress")
+                : t("statusOpen")}
           </Badge>
           {row.status !== "CLOSED" &&
           row.intakeDisposition === "ESCALATE_PENDING_APPROVAL" ? (
@@ -486,13 +498,6 @@ export function CmBatch1ComplaintListView() {
               onClick={() => router.push("/complaints/cm/cases")}
             >
               {tCases("inboxTitle")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints/cm/supervisor")}
-            >
-              {t("supervisorQueue")}
             </Button>
             {canCreate ? (
               <Button

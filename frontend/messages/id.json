@@ -1107,6 +1107,7 @@
     "priorityEscalateHint": "Wajib untuk eskalasi — dipakai Pusat untuk meninjau urutan penanganan.",
     "statusFilterAll": "Semua status",
     "statusOpen": "Terbuka",
+    "statusInProgress": "Dalam proses",
     "statusClosed": "Ditutup",
     "awaitingApproval": "Menunggu persetujuan",
     "intakeDispositionFilterAll": "Semua situasi intake",

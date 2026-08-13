@@ -25,7 +25,7 @@ describe("cmBatch1ListFilters", () => {
 
   it("rejects unknown status", () => {
     const parsed = cmBatch1FiltersFromSearchParams(
-      new URLSearchParams("status=OPEN"),
+      new URLSearchParams("status=FOO"),
     );
     expect(parsed.status).toBe("");
   });
@@ -35,5 +35,29 @@ describe("cmBatch1ListFilters", () => {
       new URLSearchParams("intakeDisposition=UNKNOWN"),
     );
     expect(parsed.intakeDisposition).toBe("");
+  });
+
+  it("parses IN_PROGRESS and OPEN (DEC-025)", () => {
+    expect(
+      cmBatch1FiltersFromSearchParams(new URLSearchParams("status=IN_PROGRESS"))
+        .status,
+    ).toBe("IN_PROGRESS");
+    expect(
+      cmBatch1FiltersFromSearchParams(new URLSearchParams("status=OPEN")).status,
+    ).toBe("OPEN");
+  });
+
+  it("parses dashboard open and waiting-assignment drill-down queries", () => {
+    const open = cmBatch1FiltersFromSearchParams(
+      new URLSearchParams("status=OPEN"),
+    );
+    expect(open.status).toBe("OPEN");
+    expect(open.intakeDisposition).toBe("");
+
+    const waiting = cmBatch1FiltersFromSearchParams(
+      new URLSearchParams("status=REGISTERED&intakeDisposition=UNESCALATED"),
+    );
+    expect(waiting.status).toBe("REGISTERED");
+    expect(waiting.intakeDisposition).toBe("UNESCALATED");
   });
 });

@@ -569,7 +569,13 @@ class Batch1Store:
                     or kw in (c.customer_id or "").lower()
                 ]
             st = (status or "").strip().upper()
-            if st in {"REGISTERED", "CLOSED"}:
+            if st == "OPEN":
+                rows = [
+                    c
+                    for c in rows
+                    if (c.status or "").upper() in {"REGISTERED", "IN_PROGRESS"}
+                ]
+            elif st in {"REGISTERED", "IN_PROGRESS", "CLOSED"}:
                 rows = [c for c in rows if (c.status or "").upper() == st]
             disp = (intake_disposition or "").strip().upper()
             _escalate_family = {
@@ -586,6 +592,12 @@ class Batch1Store:
                     c
                     for c in rows
                     if (c.intake_disposition or "").upper() in _escalate_family
+                ]
+            elif disp == "UNESCALATED":
+                rows = [
+                    c
+                    for c in rows
+                    if (c.intake_disposition or "").upper() not in _escalate_family
                 ]
             elif disp in _allowed_disp:
                 rows = [

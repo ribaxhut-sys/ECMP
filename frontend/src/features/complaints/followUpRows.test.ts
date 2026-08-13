@@ -74,6 +74,12 @@ describe("isFollowUpComplaint", () => {
     expect(isFollowUpComplaint(complaint(), false)).toBe(true);
   });
 
+  it("includes IN_PROGRESS with no visible case (DEC-025)", () => {
+    expect(
+      isFollowUpComplaint(complaint({ status: "IN_PROGRESS" }), false),
+    ).toBe(true);
+  });
+
   it("excludes REGISTERED when a case is already visible and no active disposition", () => {
     expect(isFollowUpComplaint(complaint(), true)).toBe(false);
   });

@@ -46,6 +46,7 @@ import {
   PENANGANAN_FOCUS_QUERY,
   scrollToPenangananSection,
 } from "./ComplaintPenangananSection";
+import { CM_BATCH1_ESCALATION_PENDING_HREF } from "./cmBatch1ListFilters";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   canCmBatch1HqReview,
@@ -602,9 +603,11 @@ export function CmBatch1ConfirmationView({
   const statusLabel =
     data?.status === "CLOSED"
       ? t("statusClosed")
-      : data?.status === "REGISTERED"
-        ? t("registered")
-        : (data?.status ?? "");
+      : data?.status === "IN_PROGRESS"
+        ? t("statusInProgress")
+        : data?.status === "REGISTERED"
+          ? t("registered")
+          : (data?.status ?? "");
 
   const disposition = (data?.intakeDisposition || "").toUpperCase();
   const pendingEscalation =
@@ -1380,9 +1383,9 @@ export function CmBatch1ConfirmationView({
             {intakeEscalate && !showSupervisorActions ? (
               <Button
                 type="button"
-                onClick={() => router.push("/complaints/cm/supervisor")}
+                onClick={() => router.push(CM_BATCH1_ESCALATION_PENDING_HREF)}
               >
-                {t("openSupervisorQueue")}
+                {t("awaitingApproval")}
               </Button>
             ) : null}
             {showTanganiCta ? (

@@ -62,7 +62,7 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         created_by=row.created_by,
         decided_by=row.decided_by,
         decided_at=row.decided_at,
-        case_created=False,
+        case_created=bool(row.case_created),
     )
 
 
@@ -877,7 +877,13 @@ class CmBatch1Repository:
             count_stmt = count_stmt.where(keyword_clause)
 
         st = (status or "").strip().upper()
-        if st in {"REGISTERED", "CLOSED"}:
+        if st == "OPEN":
+            open_clause = CmBatch1ComplaintORM.status.in_(
+                ("REGISTERED", "IN_PROGRESS")
+            )
+            stmt = stmt.where(open_clause)
+            count_stmt = count_stmt.where(open_clause)
+        elif st in {"REGISTERED", "IN_PROGRESS", "CLOSED"}:
             stmt = stmt.where(CmBatch1ComplaintORM.status == st)
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.status == st)
 
@@ -899,6 +905,13 @@ class CmBatch1Repository:
             count_stmt = count_stmt.where(
                 CmBatch1ComplaintORM.intake_disposition.in_(_escalate_family)
             )
+        elif disp == "UNESCALATED":
+            unescalated = or_(
+                CmBatch1ComplaintORM.intake_disposition.is_(None),
+                ~CmBatch1ComplaintORM.intake_disposition.in_(_escalate_family),
+            )
+            stmt = stmt.where(unescalated)
+            count_stmt = count_stmt.where(unescalated)
         elif disp in _allowed_disp:
             stmt = stmt.where(CmBatch1ComplaintORM.intake_disposition == disp)
             count_stmt = count_stmt.where(

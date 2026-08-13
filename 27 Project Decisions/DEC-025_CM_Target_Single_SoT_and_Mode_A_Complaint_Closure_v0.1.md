@@ -299,6 +299,8 @@ Accept mengunci **kebijakan** §3. Tidak menjalankan M-025-1, tidak mengubah Ope
 
 Milestone UI “satu pintu / Foundation legacy di nav” = slice terpisah (consumer alignment), hanya setelah Accept + tidak menghapus rute Foundation.
 
+**M-025-1 execution (2026-08-13):** kontrak Aggregate `REGISTERED|IN_PROGRESS|CLOSED`, `caseCreated` boolean nyata, sync parent §3.4, filter list `OPEN`, KPI open = bukan `CLOSED`. Foundation tidak di-retire.
+
 ---
 
 ## 12. Impact (setelah Accepted)

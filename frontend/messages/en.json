@@ -1123,6 +1123,7 @@
     "priorityEscalateHint": "Required for escalation — used by HQ to triage handling order.",
     "statusFilterAll": "All statuses",
     "statusOpen": "Open",
+    "statusInProgress": "In progress",
     "statusClosed": "Closed",
     "awaitingApproval": "Awaiting approval",
     "intakeDispositionFilterAll": "All intake situations",

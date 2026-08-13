@@ -199,6 +199,8 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
         "HQ_SCHEDULED",
         # Pseudo-value: any escalate-family state (Users directory drill-down).
         "ESCALATED",
+        # Pseudo-value: not in the escalate family (dashboard waiting-assignment).
+        "UNESCALATED",
     }
 )
 
@@ -261,7 +263,12 @@ def list_complaints(
     if pri is not None and pri not in _ALLOWED_PRIORITIES:
         pri = None
     st = (status_filter or "").strip().upper() or None
-    if st is not None and st not in {"REGISTERED", "CLOSED"}:
+    if st is not None and st not in {
+        "REGISTERED",
+        "IN_PROGRESS",
+        "CLOSED",
+        "OPEN",
+    }:
         st = None
     disp = (intake_disposition or "").strip().upper() or None
     if disp is not None and disp not in _ALLOWED_INTAKE_DISPOSITIONS:
