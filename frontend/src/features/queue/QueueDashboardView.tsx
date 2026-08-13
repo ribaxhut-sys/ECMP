@@ -25,6 +25,7 @@ import type {
   Priority,
   SlaStatus,
 } from "@/lib/api/types";
+import { FoundationLegacyBanner } from "@/features/complaints/FoundationLegacyBanner";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   IconAlert,
@@ -609,6 +610,7 @@ export function QueueDashboardView() {
           </Button>
         }
       />
+      <FoundationLegacyBanner />
 
       {canReadDashboard ? (
         <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("summary")}>

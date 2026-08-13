@@ -64,6 +64,12 @@ describe("CmBatch1SupervisorQueueView", () => {
     render(<CmBatch1SupervisorQueueView />);
     expect(await screen.findByText("noOpenLaterReview")).toBeInTheDocument();
     expect(screen.getByText("noAgingComplaints")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "goToComplaints" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "goToQueue" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders API-513 fields including unknown reason without rewrite", async () => {

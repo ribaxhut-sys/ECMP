@@ -122,6 +122,9 @@ describe("Scenario 1 — taxpayer-only permission", () => {
     expect(
       within(taxpayerPanel).getByRole("link", { name: /^Complaints$/i }),
     ).toBeInTheDocument();
+    expect(
+      within(taxpayerPanel).getByRole("link", { name: /^Cases$/i }),
+    ).toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Queue$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Assignments$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Resolutions$/i })).not.toBeInTheDocument();

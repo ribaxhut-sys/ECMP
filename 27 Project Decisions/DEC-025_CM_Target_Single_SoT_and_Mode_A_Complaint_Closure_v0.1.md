@@ -301,6 +301,12 @@ Milestone UI “satu pintu / Foundation legacy di nav” = slice terpisah (consu
 
 **M-025-1 execution (2026-08-13):** kontrak Aggregate `REGISTERED|IN_PROGRESS|CLOSED`, `caseCreated` boolean nyata, sync parent §3.4, filter list `OPEN`, KPI open = bukan `CLOSED`. Foundation tidak di-retire.
 
+**M-025-2 execution (2026-08-13):** consumer alignment §3.6 — Case inbox di sidebar utama (`/complaints/cm/cases`); `/queue` `/assignments` `/resolutions` `/complaints/[id]` tetap rute + banner legacy; DualSotNotice ke `/complaints`. Bukan retire API/rute.
+
+**M-025-3 execution (2026-08-13):** CTA Aggregate/CM tidak lagi mengantar petugas ke Foundation `/queue` (dashboard kosong → daftar CM; antrean supervisor Batch-1 → `/complaints`; detail Foundation tidak lagi “kembali ke antrean”). Rute `/queue` tetap. Bukan retire API.
+
+**M-025-4 execution (2026-08-13):** overlay FRD Mode A (§13) tanpa unlock FRD LOCKED; inventaris konsumen Foundation (§14); salinan DualSotNotice = target CM / Foundation legacy. Bukan retire API, bukan reopen CAP-008.
+
 ---
 
 ## 12. Impact (setelah Accepted)
@@ -308,13 +314,51 @@ Milestone UI “satu pintu / Foundation legacy di nav” = slice terpisah (consu
 | Artefak | Dampak |
 |---|---|
 | DEC-020 | Tetap Accepted; dibaca bersama DEC-025 (target vs keadaan namespace) |
-| FRD-CM-001 | Status Aggregate perlu `IN_PROGRESS` — doc pada M-025-1 |
-| FRD-CM-B2-001 AC-16 | Narrow Mode A **Accepted** — tes/kontrak pada M-025-1 |
+| FRD-CM-001 | **LOCKED tetap.** Overlay §13: create tetap `REGISTERED`; `IN_PROGRESS` setelah Case pertama |
+| FRD-CM-B2-001 AC-16 | **LOCKED tetap.** Overlay §13: BQ-007 tetap; BR-009 Mode A per §3.4 |
 | OpenAPI `complaint-management-batch1.v1.yaml` | Enum status — M-025-1 |
 | OWNERSHIP_MATRIX | Tetap dual-namespace sampai Retirement follow-up |
 | CAP-008 | Tetap CLOSED |
 
 Accept **tidak** mengubah OpenAPI/kode/test. Itu M-025-1, hanya jika diminta terpisah.
+
+---
+
+## 13. Overlay FRD Mode A (M-025-4) — **bukan** unlock dokumen LOCKED
+
+FRD-CM-001, FRD-CM-B2-001, BR-CM-CAT-001, dan CAP-008 BCS **tetap LOCKED**. Overlay ini **mencatat** niat Board DEC-025 agar §8.3 terpenuhi tanpa merevisi tubuh FRD (itu butuh revision plan terpisah).
+
+| Klaim LOCKED (tetap benar) | Overlay Mode A (DEC-025) |
+|---|---|
+| FR-001 create → status awal `REGISTERED` | Tidak berubah |
+| First Case → parent `IN_PROGRESS` (FRD-B2 AC-02 / BR-004) | Kontrak Aggregate **mengakui** `REGISTERED \| IN_PROGRESS \| CLOSED` + `caseCreated` nyata (sudah M-025-1) |
+| AC-16 / BQ-007: Close Case ≠ Close Complaint | **Tetap.** Tombol Close Case tidak *berarti* tutup induk |
+| AC-16 huruf: last open Case close → induk tetap terbuka | **Narrow:** last working Case close *memicu evaluasi* BR-009; induk `CLOSED` hanya jika §3.4 terpenuhi (`CANCELLED` diabaikan; semua-CANCELLED → induk tetap buka) |
+| CAP-008 FR-006 Complaint Closure default OUT OF SCOPE | Aktivasi **sempit** BR-009 Mode A (auto-close). Program CAP-008 **tetap CLOSED** — bukan reopen fitur |
+
+Jika teks AC-16 di FRD-B2 dibaca tanpa overlay ini, itu **konflik Observed (K5)** — yang mengikat untuk runtime Mode A adalah §3.4 + tes M-025-1, bukan huruf AC-16 pra-DEC-025.
+
+---
+
+## 14. Inventaris konsumen Foundation (M-025-4 / §8.4)
+
+Dual-read **eksplisit**. Bukan zero-consumer. Bukan izin hapus.
+
+| Konsumen | Pintu / API | Peran setelah M-025-2…4 |
+|---|---|---|
+| Header search | `/complaints?keyword=` → `/api/v1/cm` | **Resmi** — CM |
+| Daftar `/complaints` | `/api/v1/cm` | **Resmi** — CM |
+| Case inbox | `/complaints/cm/cases` → `/api/v1/cm/cases` | **Resmi** — Case |
+| KPI dasbor (lab/ops) | `/dashboard/aggregate-kpis` | **Resmi** — Aggregate |
+| `/queue` list | API-388 `GET /api/v1/complaints/search` | **Legacy** dual-read + banner |
+| `/assignments` | API-388 | **Legacy** dual-read + banner |
+| `/resolutions` | API-388 | **Legacy** dual-read + banner |
+| `/complaints/[id]` Foundation | API-201 GET + lifecycle | **Legacy** + banner |
+| API-201 `POST /api/v1/complaints` | Foundation create | **Tetap hidup** — jangan dihapus DEC-025 |
+| Shell B0 `/queue/*` | mock WF-001 | Di luar Mode A CM — jangan di-retarget |
+| `/internal/*` | prototype flag | Bukan Dual-SoT WP — jangan dicampur |
+
+Search petugas resmi = Header → daftar CM. API-388 tetap untuk permukaan Foundation.
 
 ---
 

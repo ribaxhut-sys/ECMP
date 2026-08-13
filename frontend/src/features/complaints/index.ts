@@ -15,6 +15,7 @@ export { CustomerSearchPanel } from "./CustomerSearchPanel";
 export { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 export { StagingAttachmentsPanel } from "./StagingAttachmentsPanel";
 export { ComplaintDetailView } from "./ComplaintDetailView";
+export { FoundationLegacyBanner } from "./FoundationLegacyBanner";
 export { ComplaintListView } from "./ComplaintListView";
 export { EditComplaintView } from "./EditComplaintView";
 export { ComplaintAttachmentsCard } from "./ComplaintAttachmentsCard";

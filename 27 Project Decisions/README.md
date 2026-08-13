@@ -52,7 +52,7 @@ Draft
 > **DEC-MODEA-B2-001** locks Batch-2 Mode A Case Management BQs and registers capability **CAP-008** (former working ID CAP-02 retired). Pack: `../18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`.
 > DEC-021 (O-06) / DEC-022 are **Proposed** only — interim fail-closed rules apply until Accepted.
 > **DEC-023** clarifies Mode A login vs future Enterprise handoff; it does **not** unlock Mode B.
-> **DEC-025** is **Accepted** (2026-08-13) — target CM Single SoT + BR-009 Mode A closure/status. Does **not** retire DEC-020, delete `/api/v1/complaints`, reopen CAP-008, or execute cutover. Implementation slice = **M-025-1** (not part of Accept).
+> **DEC-025** is **Accepted** (2026-08-13) — target CM Single SoT + BR-009 Mode A closure/status. Does **not** retire DEC-020, delete `/api/v1/complaints`, reopen CAP-008, or execute cutover. Slices M-025-1…4 executed; Retirement DEC tetap tertutup.
 > **ID collision (P0 governance):** two files share `DEC-020` and two share `DEC-021`. Do **not** renumber without Board/PMO decision. Register: `../deploy/evidence/DEC_ID_Collision_Register_20260801.md`.
 
 ## Structure (konvensi aktual — flat)

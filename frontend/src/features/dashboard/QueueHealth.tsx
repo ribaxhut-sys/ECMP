@@ -9,6 +9,7 @@ import { Empty, Skeleton } from "@/shared/ui";
 import { AnimatedCount } from "./AnimatedCount";
 import {
   countByStatus,
+  dashboardEmptyWorkCta,
   DASHBOARD_CAPTION,
   DASHBOARD_COMMAND_LABEL,
   DASHBOARD_HOVER_ROW,
@@ -176,6 +177,7 @@ export function QueueHealth({
 
   const max = Math.max(...rows.map((row) => row.count), 1);
   const emptyPortfolio = !header || header.totalComplaints === 0;
+  const emptyWorkCta = dashboardEmptyWorkCta(complaintKpiSource ?? null);
 
   return (
     <section
@@ -201,8 +203,8 @@ export function QueueHealth({
               complaintKpiSource === "aggregate" && !canOpenComplaintList
                 ? undefined
                 : {
-                    label: tCommon("goToQueue"),
-                    onClick: () => router.push("/queue"),
+                    label: tCommon(emptyWorkCta.labelKey),
+                    onClick: () => router.push(emptyWorkCta.href),
                   }
             }
           />

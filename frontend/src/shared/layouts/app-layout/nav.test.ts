@@ -39,6 +39,13 @@ describe("APP_NAV_ITEMS", () => {
     // Dual SoT remains: Aggregate detail stays under /complaints/cm/[id].
     expect(complaints?.id).not.toMatch(/cm[_-]?batch/i);
   });
+
+  it("keeps Foundation queue/assignments/resolutions routable (DEC-025, no retire)", () => {
+    const byId = Object.fromEntries(APP_NAV_ITEMS.map((item) => [item.id, item]));
+    expect(byId.queue.href).toBe("/queue");
+    expect(byId.assignments.href).toBe("/assignments");
+    expect(byId.resolutions.href).toBe("/resolutions");
+  });
 });
 
 describe("Pengaduan Internal nav (prototype catalog, gated by env flag)", () => {
@@ -107,6 +114,7 @@ describe("APP_NAV_GROUPS", () => {
     expect(byId.complaints.itemIds).toEqual([
       "dashboard",
       "complaints",
+      "cases",
       "followUp",
       "reports",
       "internalDashboard",
@@ -129,9 +137,10 @@ describe("APP_NAV_GROUPS", () => {
 describe("complaints nav permission gate (Commit 6)", () => {
   const complaintsItem = APP_NAV_ITEMS.find((item) => item.id === "complaints")!;
 
-  it("gates only the complaints, followUp, announcements, and knowledge items", () => {
+  it("gates only the complaints, cases, followUp, announcements, and knowledge items", () => {
     const gatedItemIds = new Set([
       "complaints",
+      "cases",
       "followUp",
       "announcements",
       "announcementsManage",
@@ -173,6 +182,12 @@ describe("complaints nav permission gate (Commit 6)", () => {
     const followUpItem = APP_NAV_ITEMS.find((item) => item.id === "followUp")!;
     expect(followUpItem.requiredPermissions).toEqual(["complaints:read"]);
     expect(followUpItem.href).toBe("/tindak-lanjut");
+  });
+
+  it("gates Case inbox on complaints:read at /complaints/cm/cases (DEC-025)", () => {
+    const casesItem = APP_NAV_ITEMS.find((item) => item.id === "cases")!;
+    expect(casesItem.requiredPermissions).toEqual(["complaints:read"]);
+    expect(casesItem.href).toBe("/complaints/cm/cases");
   });
 
   it("gates knowledge on knowledge:read", () => {
@@ -245,6 +260,17 @@ describe("isNavItemActive (longest prefix)", () => {
       resolveActiveNavHref("/internal/complaints/abc", internalHrefs),
     ).toBe("/internal/complaints");
   });
+
+  it("activates Case inbox without stealing Pengaduan on /complaints/cm/[id]", () => {
+    const hrefs = ["/complaints", "/complaints/cm/cases"];
+    expect(resolveActiveNavHref("/complaints/cm/cases", hrefs)).toBe(
+      "/complaints/cm/cases",
+    );
+    expect(resolveActiveNavHref("/complaints/cm/abc", hrefs)).toBe("/complaints");
+    expect(isNavItemActive("/complaints/cm/cases", "/complaints", hrefs)).toBe(
+      false,
+    );
+  });
 });
 
 describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () => {
@@ -258,13 +284,14 @@ describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () =
     expect(new Set(subgroupItemIds).size).toBe(subgroupItemIds.length);
   });
 
-  it("Wajib Pajak subgroup carries Dasbor, Pengaduan, Tindak lanjut, Laporan", () => {
+  it("Wajib Pajak subgroup carries Dasbor, Pengaduan, Case, Tindak lanjut, Laporan", () => {
     const taxpayer = complaintsGroup.subgroups!.find(
       (s) => s.id === TAXPAYER_COMPLAINTS_SUBGROUP_ID,
     )!;
     expect(taxpayer.itemIds).toEqual([
       "dashboard",
       "complaints",
+      "cases",
       "followUp",
       "reports",
     ]);

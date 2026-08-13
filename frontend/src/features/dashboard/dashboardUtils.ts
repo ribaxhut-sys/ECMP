@@ -1,3 +1,4 @@
+import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import type {
   ComplaintStatus,
   DashboardHeader,
@@ -17,6 +18,24 @@ export type BranchBadgeKind = "top" | "attention" | "balanced";
 export type SystemHealthKind = "healthy" | "attention" | "syncing" | "degraded";
 
 export type OpsTone = "healthy" | "attention" | "critical" | "neutral";
+
+export type DashboardEmptyWorkCta = {
+  href: string;
+  labelKey: "goToComplaints" | "goToQueue";
+};
+
+/**
+ * DEC-025 §3.6 — empty dashboard work door.
+ * Aggregate KPI must not dump officers onto Foundation `/queue`.
+ */
+export function dashboardEmptyWorkCta(
+  complaintKpiSource: "aggregate" | "foundation" | null,
+): DashboardEmptyWorkCta {
+  if (complaintKpiSource === "aggregate") {
+    return { href: CM_BATCH1_OPEN_HREF, labelKey: "goToComplaints" };
+  }
+  return { href: "/queue", labelKey: "goToQueue" };
+}
 
 export function countByStatus(
   rows: StatusCount[] | null | undefined,

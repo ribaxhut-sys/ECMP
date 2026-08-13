@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { branchOptionLabel, sortBranchesHeadOfficeFirst } from "./dashboardUtils";
+import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import {
+  branchOptionLabel,
+  dashboardEmptyWorkCta,
+  sortBranchesHeadOfficeFirst,
+} from "./dashboardUtils";
 
 describe("branchOptionLabel", () => {
   it("drops the code when it is just the name reformatted", () => {
@@ -40,5 +45,25 @@ describe("sortBranchesHeadOfficeFirst", () => {
     const sorted = sortBranchesHeadOfficeFirst(branches);
     expect(sorted).not.toBe(branches);
     expect(branches.map((b) => b.code)).toEqual(["B", "A"]);
+  });
+});
+
+describe("dashboardEmptyWorkCta (DEC-025 §3.6)", () => {
+  it("sends Aggregate KPI officers to the CM open list, not Foundation /queue", () => {
+    expect(dashboardEmptyWorkCta("aggregate")).toEqual({
+      href: CM_BATCH1_OPEN_HREF,
+      labelKey: "goToComplaints",
+    });
+  });
+
+  it("keeps Foundation fallback on the legacy queue", () => {
+    expect(dashboardEmptyWorkCta("foundation")).toEqual({
+      href: "/queue",
+      labelKey: "goToQueue",
+    });
+    expect(dashboardEmptyWorkCta(null)).toEqual({
+      href: "/queue",
+      labelKey: "goToQueue",
+    });
   });
 });

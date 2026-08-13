@@ -141,6 +141,14 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     icon: "assignments",
     requiredPermissions: ["complaints:read"],
   },
+  {
+    id: "cases",
+    labelKey: "cases",
+    // DEC-025 §3.6 — primary Case work door (Foundation /queue stays routable).
+    href: "/complaints/cm/cases",
+    icon: "queue",
+    requiredPermissions: ["complaints:read"],
+  },
   { id: "queue", labelKey: "queue", href: "/queue", icon: "queue" },
   {
     id: "assignments",
@@ -255,6 +263,7 @@ export const INTERNAL_COMPLAINTS_SUBGROUP_ID = "internalComplaints";
 const TAXPAYER_COMPLAINTS_ITEM_IDS = [
   "dashboard",
   "complaints",
+  "cases",
   "followUp",
   "reports",
 ] as const;
@@ -272,7 +281,7 @@ const INTERNAL_COMPLAINTS_ITEM_IDS = [
  * Presentation-only sidebar hierarchy.
  * Items that remain in APP_NAV_ITEMS but are omitted here (queue, assignments,
  * resolutions, internalAssignments) keep their routes/pages; they are simply
- * not shown in the main ECMP sidebar.
+ * not shown in the main ECMP sidebar (DEC-025 §3.6 — Foundation = legacy).
  */
 export const APP_NAV_GROUPS: readonly NavGroup[] = [
   {

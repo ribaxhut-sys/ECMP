@@ -21,6 +21,7 @@ import {
   type UserRef,
 } from "@/lib/api";
 import type { Assignment, Complaint, Priority } from "@/lib/api/types";
+import { FoundationLegacyBanner } from "@/features/complaints/FoundationLegacyBanner";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Badge,
@@ -490,6 +491,7 @@ export function AssignmentListView() {
           </Button>
         }
       />
+      <FoundationLegacyBanner />
 
       <QuickFilters
         label={tComplaints("quickFiltersLabel")}

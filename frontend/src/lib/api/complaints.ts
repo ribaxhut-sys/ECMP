@@ -54,7 +54,8 @@ function appendSearchParams(
   }
 }
 
-/** API-388 — GET /api/v1/complaints/search */
+/** API-388 — GET /api/v1/complaints/search (Foundation legacy).
+ * Official officer search is CM list (`/complaints?keyword=`). Do not delete. */
 export function searchComplaints(
   filters: ComplaintSearchParams = {},
 ): Promise<ComplaintSearchResponse> {

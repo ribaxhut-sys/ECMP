@@ -6,8 +6,8 @@ import { useAuth } from "@/auth/AuthProvider";
 import { DASHBOARD_CAPTION, DASHBOARD_SURFACE_QUIET } from "./dashboardUtils";
 
 /**
- * DEC-020: complaint KPI numbers prefer Aggregate; SLA/branch charts may
- * still read foundation until Retirement DEC.
+ * DEC-025: complaint KPI numbers prefer Aggregate; Foundation charts remain
+ * until a Retirement DEC. The list link is the CM door (`/complaints`).
  */
 export function DualSotNotice({
   complaintKpiSource,
@@ -39,7 +39,7 @@ export function DualSotNotice({
           <>
             {" "}
             <Link
-              href={fromAggregate ? "/complaints/cm" : "/complaints"}
+              href="/complaints"
               className="font-medium text-ecmp-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
             >
               {t("dualSotNoticeLink")}

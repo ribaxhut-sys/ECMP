@@ -355,8 +355,8 @@ export function CmBatch1SupervisorQueueView() {
                   onClick: () => void load(),
                 }}
                 secondaryAction={{
-                  label: tCommon("goToQueue"),
-                  onClick: () => router.push("/queue"),
+                  label: tCommon("goToComplaints"),
+                  onClick: () => router.push("/complaints"),
                 }}
               />
             ) : (

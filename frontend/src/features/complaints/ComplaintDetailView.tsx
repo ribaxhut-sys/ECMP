@@ -40,6 +40,7 @@ import {
   Skeleton,
   type BadgeTone,
 } from "@/shared/ui";
+import { FoundationLegacyBanner } from "./FoundationLegacyBanner";
 import {
   CwxContextAwareLayout,
   CwxContextHeader,
@@ -322,6 +323,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader title={t("detailTitle")} breadcrumbs={breadcrumbs} />
+        <FoundationLegacyBanner />
         <Skeleton rows={8} />
       </PageContainer>
     );
@@ -331,6 +333,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader title={t("detailTitle")} breadcrumbs={breadcrumbs} />
+        <FoundationLegacyBanner />
         <Empty
           title={t("notFoundTitle")}
           description={t("complaintNotFound")}
@@ -343,15 +346,6 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
               {t("backToList")}
             </Button>
           }
-          secondaryAction={
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => router.push("/queue")}
-            >
-              {tCwx("backToQueue")}
-            </Button>
-          }
         />
       </PageContainer>
     );
@@ -361,6 +355,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
         <PageHeader title={t("detailTitle")} breadcrumbs={breadcrumbs} />
+        <FoundationLegacyBanner />
         <ErrorState
           title={t("unableToLoadDetail")}
           message={error ?? tCommon("unexpectedErrorDescription")}
@@ -451,12 +446,6 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
       onClick: () => router.push(`/complaints/${complaint.id}/edit`),
     });
   }
-
-  decisionActions.push({
-    id: "queue",
-    label: tCwx("backToQueue"),
-    onClick: () => router.push("/queue"),
-  });
 
   decisionActions.push({
     id: "list",
@@ -712,6 +701,7 @@ export function ComplaintDetailView({ complaintId }: { complaintId: string }) {
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader title={t("detailTitle")} breadcrumbs={breadcrumbs} />
+      <FoundationLegacyBanner />
 
       <CwxContextAwareLayout
         level={level}
