@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime, time
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.modules.appointments import repository as appt_mod
@@ -14,10 +15,18 @@ from app.modules.resolutions.repository import ResolutionRepository
 
 
 def test_report_repository_aggregations() -> None:
+    """``_base_filters`` resolves ``branch_id`` (UUID) → ``Branch.code`` via
+    ``owning_unit_for_branch`` (DEC-024 pattern, wired into reports as part of
+    DEC-026 M-026-3). A bare MagicMock session makes ``session.get(...)``
+    return a truthy mock whose ``deleted_at`` is itself a truthy mock, so the
+    branch reads as soft-deleted and every aggregate silently comes back
+    empty — session.get must return a real not-deleted branch shape.
+    """
     session = MagicMock()
     repo = ReportRepository(session)
     bid = uuid.uuid4()
     now = datetime.now(UTC)
+    session.get.return_value = SimpleNamespace(deleted_at=None, code="PUSAT")
 
     session.scalar.return_value = 3
     assert (
@@ -35,6 +44,13 @@ def test_report_repository_aggregations() -> None:
     assert rows[0][0] == bid
     assert rows[0][3] == 5
     assert rows[1][0] is None
+
+    # Unresolvable branch (soft-deleted / unknown) is a known-empty scope —
+    # every aggregate returns its empty shape, not an error.
+    session.get.return_value = SimpleNamespace(deleted_at=now, code="PUSAT")
+    assert repo.count_total(branch_id=bid) == 0
+    assert repo.count_by_status(branch_id=bid) == []
+    assert repo.count_by_branch(branch_id=bid) == []
 
 
 def test_appointment_repository_query_paths() -> None:

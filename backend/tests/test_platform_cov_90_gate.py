@@ -15,7 +15,7 @@ import pytest
 
 from app.core.auth import Principal
 from app.core.config import Settings
-from app.core.enums import ComplaintStatus, FinalResolutionStatus
+from app.core.enums import ComplaintStatus
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.modules.appointments import router as appointments_router_mod
 from app.modules.cm_batch1.antivirus import AntivirusResult
@@ -39,7 +39,6 @@ from app.modules.escalations.schemas import (
     CloseEscalationRequest,
     EscalateComplaintRequest,
     EscalationRequestCreate,
-    EscalationResponse,
     EscalationReviewRequest,
 )
 from app.modules.reports import router as reports_router_mod
@@ -47,11 +46,7 @@ from app.modules.reports.schemas import BranchCount, ReportSummaryData, StatusCo
 from app.modules.resolutions import router as resolutions_router_mod
 from app.modules.resolutions.schemas import (
     FinalResolutionRequest,
-    FinalResolutionResponse,
-    FinalResolutionResult,
-    ResolutionResponse,
     ResolveComplaintRequest,
-    ResolveComplaintResult,
 )
 from app.modules.workflow.models import (
     WorkflowDefinition,
@@ -73,13 +68,14 @@ def _principal() -> Principal:
 
 
 def _org_scope_bypass() -> tuple[MagicMock, MagicMock]:
-    """Dev-mode-shaped (session, settings) pair for direct router-call tests.
+    """(session, settings) pair for direct router-call tests.
 
-    ``session.get`` returns a row with no branch/deleted markers so the
-    SECMIG-P4 resolver returns cleanly (no org unit), and a plain settings
-    mock keeps ``org_scope_enforcement_enabled`` False (not jwt mode) — the
-    added org-scope check becomes a documented no-op, matching how these
-    handlers already ran before the check existed.
+    ``session`` / ``settings`` content no longer matters for the Foundation
+    complaint/escalation org lookups exercised below: DEC-026 M-026-3 made
+    ``OrgUnitResolver.resolve_complaint`` / ``.resolve_escalation`` always
+    raise ``NotFoundError`` before either mock is consulted (Foundation
+    tables are DROP). Kept only as an unused-but-cheap (session, settings)
+    pair so call sites don't need their own MagicMock() boilerplate.
     """
     session = MagicMock()
     session.get.return_value = SimpleNamespace(
@@ -88,45 +84,15 @@ def _org_scope_bypass() -> tuple[MagicMock, MagicMock]:
     return session, MagicMock()
 
 
-def test_resolutions_router_happy_and_not_found() -> None:
+def test_resolutions_router_all_endpoints_404_on_retired_foundation_lookup() -> None:
+    """DEC-026 M-026-3: every handler here calls ``resolve_complaint`` first,
+    which is now hardcoded to raise (Foundation ``complaints`` table is
+    DROP). None of them can ever reach the service, whatever it mocks —
+    this replaces the pre-M-026-3 happy-path coverage, which is no longer
+    reachable in this router.
+    """
     cid = uuid.uuid4()
-    rid = uuid.uuid4()
-    now_ts = datetime.now(UTC)
-    resolution = ResolutionResponse(
-        id=rid,
-        complaintId=cid,
-        resolutionCategory="SOLVED",
-        rootCause="root",
-        resolutionNotes="notes",
-        resolvedBy=uuid.uuid4(),
-        resolvedAt=now_ts,
-        isCurrent=True,
-    )
-    resolve_result = ResolveComplaintResult(
-        resolution=resolution,
-        complaintId=cid,
-        status=ComplaintStatus.RESOLVED,
-    )
-    final_result = FinalResolutionResult(
-        complaintId=cid,
-        status=FinalResolutionStatus.FINAL_RESOLUTION_SUBMITTED,
-        submittedAt=now_ts,
-        submittedBy=uuid.uuid4(),
-    )
-    final_resp = FinalResolutionResponse(
-        complaintId=cid,
-        status=FinalResolutionStatus.FINAL_RESOLUTION_SUBMITTED,
-        summary="summary",
-        notes="notes",
-        followUpRequired=False,
-        submittedAt=now_ts,
-        submittedBy=uuid.uuid4(),
-    )
     service = MagicMock()
-    service.resolve.return_value = resolve_result
-    service.get_current.side_effect = [None, resolution]
-    service.submit_final_resolution.return_value = final_result
-    service.get_final_resolution.side_effect = [None, final_resp]
     principal = _principal()
     payload = ResolveComplaintRequest(
         resolutionCategory="SOLVED",
@@ -138,40 +104,28 @@ def test_resolutions_router_happy_and_not_found() -> None:
         notes="notes",
         followUpRequired=False,
     )
-
     session, settings = _org_scope_bypass()
 
-    out = resolutions_router_mod.resolve_complaint(
-        cid, payload, service, principal, session, settings
-    )
-    assert out.data.complaint_id == cid
-
+    with pytest.raises(NotFoundError):
+        resolutions_router_mod.resolve_complaint(
+            cid, payload, service, principal, session, settings
+        )
     with pytest.raises(NotFoundError):
         resolutions_router_mod.get_complaint_resolution(
             cid, service, principal, session, settings
         )
-    assert (
-        resolutions_router_mod.get_complaint_resolution(
-            cid, service, principal, session, settings
-        ).data.id
-        == rid
-    )
-
-    out_final = resolutions_router_mod.submit_final_resolution(
-        cid, final_payload, service, principal, session, settings
-    )
-    assert out_final.data.complaint_id == cid
-
+    with pytest.raises(NotFoundError):
+        resolutions_router_mod.submit_final_resolution(
+            cid, final_payload, service, principal, session, settings
+        )
     with pytest.raises(NotFoundError):
         resolutions_router_mod.get_final_resolution(
             cid, service, principal, session, settings
         )
-    assert (
-        resolutions_router_mod.get_final_resolution(
-            cid, service, principal, session, settings
-        ).data.summary
-        == "summary"
-    )
+    service.resolve.assert_not_called()
+    service.get_current.assert_not_called()
+    service.submit_final_resolution.assert_not_called()
+    service.get_final_resolution.assert_not_called()
 
     assert isinstance(
         resolutions_router_mod.get_resolution_service(MagicMock()),
@@ -179,27 +133,19 @@ def test_resolutions_router_happy_and_not_found() -> None:
     )
 
 
-def test_escalations_and_appointments_and_reports_routers() -> None:
+def test_escalations_router_all_endpoints_404_on_retired_foundation_lookup() -> None:
+    """DEC-026 M-026-3: every handler here calls ``resolve_complaint`` or
+    ``resolve_escalation`` first, both hardcoded to raise (Foundation
+    ``complaints`` / ``complaint_escalations`` tables are DROP). Whatever the
+    service mocks return is unreachable now — this replaces the pre-M-026-3
+    happy-path coverage for this router. Top-level ``/api/v1/escalations``
+    is unmounted from HTTP entirely (DEC-026 §M-026-2); these are direct
+    Python calls into the still-importable module, not HTTP requests.
+    """
     cid = uuid.uuid4()
     eid = uuid.uuid4()
-    aid = uuid.uuid4()
     principal = _principal()
     esc_service = MagicMock()
-    esc_resp = EscalationResponse(
-        id=eid,
-        complaintId=cid,
-        reason="need help",
-        level=1,
-        status="REQUESTED",
-        escalatedAt=datetime.now(UTC),
-    )
-    esc_service.escalate.return_value = MagicMock()
-    esc_service.request_escalation.return_value = MagicMock()
-    esc_service.list_escalations.return_value = [esc_resp]
-    esc_service.get_escalation.return_value = esc_resp
-    esc_service.approve.return_value = MagicMock()
-    esc_service.reject.return_value = MagicMock()
-    esc_service.close.return_value = MagicMock()
 
     escalate_payload = EscalateComplaintRequest(
         reason="need help",
@@ -215,38 +161,56 @@ def test_escalations_and_appointments_and_reports_routers() -> None:
 
     session, settings = _org_scope_bypass()
 
-    escalations_router_mod.escalate_complaint(
-        cid, escalate_payload, esc_service, principal, session, settings
-    )
-    escalations_router_mod.request_escalation(
-        cid, request_payload, esc_service, principal, session, settings
-    )
-    assert (
+    with pytest.raises(NotFoundError):
+        escalations_router_mod.escalate_complaint(
+            cid, escalate_payload, esc_service, principal, session, settings
+        )
+    with pytest.raises(NotFoundError):
+        escalations_router_mod.request_escalation(
+            cid, request_payload, esc_service, principal, session, settings
+        )
+    with pytest.raises(NotFoundError):
         escalations_router_mod.list_escalations(
             cid, esc_service, principal, session, settings
-        ).data[0].id
-        == eid
-    )
-    assert (
+        )
+    with pytest.raises(NotFoundError):
         escalations_router_mod.get_escalation(
             eid, esc_service, principal, session, settings
-        ).data.id
-        == eid
-    )
-    escalations_router_mod.approve_escalation(
-        eid, review_payload, esc_service, principal, session, settings
-    )
-    escalations_router_mod.reject_escalation(
-        eid, review_payload, esc_service, principal, session, settings
-    )
-    escalations_router_mod.close_escalation(
-        eid, close_payload, esc_service, principal, session, settings
-    )
+        )
+    with pytest.raises(NotFoundError):
+        escalations_router_mod.approve_escalation(
+            eid, review_payload, esc_service, principal, session, settings
+        )
+    with pytest.raises(NotFoundError):
+        escalations_router_mod.reject_escalation(
+            eid, review_payload, esc_service, principal, session, settings
+        )
+    with pytest.raises(NotFoundError):
+        escalations_router_mod.close_escalation(
+            eid, close_payload, esc_service, principal, session, settings
+        )
+    esc_service.escalate.assert_not_called()
+    esc_service.request_escalation.assert_not_called()
+    esc_service.list_escalations.assert_not_called()
+    esc_service.get_escalation.assert_not_called()
+    esc_service.approve.assert_not_called()
+    esc_service.reject.assert_not_called()
+    esc_service.close.assert_not_called()
     assert isinstance(
         escalations_router_mod.get_escalation_service(MagicMock()),
         type(escalations_router_mod.EscalationService(MagicMock())),
     )
 
+
+def test_appointments_and_reports_routers() -> None:
+    """Unlike escalations/resolutions, neither router touches the retired
+    ``OrgUnitResolver`` Foundation lookups, so their happy paths are still
+    reachable and still exercised as before (DEC-026 §3.2: appointments has
+    no complaint-org resolver dependency; reports reads CM Aggregate only).
+    """
+    eid = uuid.uuid4()
+    aid = uuid.uuid4()
+    principal = _principal()
     appt_service = MagicMock()
     appt_service.book.return_value = MagicMock()
     appt_service.get_appointment.return_value = MagicMock()
