@@ -1,12 +1,19 @@
 """Canonical read predicates over ``cm_batch1_complaints`` (DEC-025 §3.3).
 
-One definition per predicate so list filter, dashboard, KPI, and report cannot
-drift apart. Before this module the same words meant three different things:
-``escalated`` was 2 dispositions on the dashboard, 6 on the list filter, and 1
-in the report donut.
+One definition per predicate so list filter, dashboard summary, KPI, Users
+directory counter, recent-activity provider, and report cannot drift apart.
+Before this module ``escalated`` was 2 dispositions on the dashboard, 6 on the
+list filter, 4 on the Users directory counter, and 1 (mismapped) in the
+report donut.
 
 ``status`` is the Aggregate lifecycle SoT; ``intake_disposition`` is the intake
 path label and never overrides it.
+
+Not covered here: ``cm_batch1_activity_provider.py``'s aggregate-KPI donut
+(``escalate_pending`` / ``waiting_assignment`` / ``escalate_approved``) is a
+different, mutually-exclusive REGISTERED-only partition by design (the four
+slices + IN_PROGRESS + CLOSED sum to total). Folding HQ_SCHEDULED into it
+would add or redefine a slice — a UI/contract decision, not a predicate fix.
 """
 
 from __future__ import annotations
@@ -15,11 +22,6 @@ from __future__ import annotations
 AGGREGATE_STATUSES: tuple[str, ...] = ("REGISTERED", "IN_PROGRESS", "CLOSED")
 
 CLOSED_STATUS = "CLOSED"
-
-#: OPEN = anything not CLOSED (DEC-025 M-025-1). Matches ``_aggregate_status``,
-#: which exposes an out-of-set stored value as REGISTERED rather than hiding it,
-#: so ``open + closed == total`` holds for every row.
-OPEN_STATUSES: tuple[str, ...] = ("REGISTERED", "IN_PROGRESS")
 
 #: Still travelling the escalation path — the KPI/dashboard "escalated" count.
 ESCALATION_ACTIVE: tuple[str, ...] = (
@@ -44,7 +46,12 @@ def is_closed(status: str | None) -> bool:
 
 
 def is_open(status: str | None) -> bool:
-    """Open = not closed, so no row falls out of both buckets."""
+    """Open = not CLOSED (DEC-025 M-025-1).
+
+    An out-of-set stored value counts as open too — ``_aggregate_status``
+    (cm_batch1/service.py) exposes it as REGISTERED rather than hiding it, so
+    ``open + closed == total`` holds for every row.
+    """
     return not is_closed(status)
 
 

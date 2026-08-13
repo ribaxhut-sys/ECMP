@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.integrations.directory import LocalUserDirectory
 from app.models import Branch
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.predicates import CLOSED_STATUS
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.dashboard.schemas import (
     DashboardAggregateKpiResponse,
@@ -163,12 +164,15 @@ class CmBatch1ActivityDashboardProvider:
                 )
 
         total = self._count_complaints(owning_unit)
+        # Open = not CLOSED (DEC-025 M-025-1 / predicates.is_open), matching
+        # KPI/dashboard summary — an out-of-set stored status stays open here
+        # too, so open+closed=total.
         open_count = self._count_complaints(
             owning_unit,
-            CmBatch1ComplaintORM.status.in_(("REGISTERED", "IN_PROGRESS")),
+            CmBatch1ComplaintORM.status != CLOSED_STATUS,
         )
         closed = self._count_complaints(
-            owning_unit, CmBatch1ComplaintORM.status == "CLOSED"
+            owning_unit, CmBatch1ComplaintORM.status == CLOSED_STATUS
         )
         # Donut slices are mutually exclusive and sum to total: REGISTERED
         # unescalated / pending / approved + IN_PROGRESS + CLOSED.

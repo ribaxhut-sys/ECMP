@@ -1,8 +1,9 @@
 """One vocabulary for OPEN / ESCALATED across list, KPI, dashboard, report.
 
-Pins DEC-025 §3.3 read semantics so the four call sites cannot drift apart
-again: before this, ``escalated`` meant 2 dispositions on the dashboard, 6 on
-the list filter, 4 in the Users-directory counter, and 1 in the report donut.
+Pins DEC-025 §3.3 read semantics so the call sites cannot drift apart again:
+before this, ``escalated`` meant 2 dispositions on the dashboard, 6 on the
+SQL list filter, 4 on the in-memory Users-directory counter, and 1 (mismapped)
+in the report donut.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
+from app.modules.cm_batch1.entities import ComplaintAggregate
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_batch1.predicates import (
     ESCALATION_ACTIVE,
@@ -25,6 +27,7 @@ from app.modules.cm_batch1.predicates import (
     is_open,
 )
 from app.modules.cm_batch1.repository import CmBatch1Repository
+from app.modules.cm_batch1.store import Batch1Store
 from app.modules.dashboard.domain.dto import DashboardFilters
 from app.modules.dashboard.providers.complaint_provider import (
     ComplaintDashboardProvider,
@@ -53,6 +56,44 @@ def test_active_escalation_is_a_subset_of_the_family() -> None:
     assert in_escalation_family("ESCALATE_REJECTED")
     assert in_escalation_family("ESCALATE_CANCELLED")
     assert not in_escalation_family("BRANCH_CLOSED")
+
+
+def test_store_work_stats_matches_sql_family_not_the_old_4value_set() -> None:
+    """Batch1Store (Mode A in-memory path) must count the same family as the
+    SQL repository (repository.py:work_stats_for_user) and the list
+    drill-down — HQ_SCHEDULED and RETURNED_TO_BRANCH used to be silently
+    dropped here even though they count on the SQL path.
+    """
+    store = Batch1Store()
+    actor = "store-parity-actor"
+    dispositions = [
+        "ESCALATE_PENDING_APPROVAL",
+        "ESCALATE_APPROVED",
+        "ESCALATE_REJECTED",
+        "ESCALATE_CANCELLED",
+        "RETURNED_TO_BRANCH",
+        "HQ_SCHEDULED",
+        "BRANCH_CLOSED",  # not in the family — must not be counted
+        None,
+    ]
+    for i, disp in enumerate(dispositions):
+        row = ComplaintAggregate(
+            complaint_id=str(uuid.uuid4()),
+            complaint_number=f"STORE-PARITY-{i}",
+            customer_id="CUST-STORE",
+            category="BILLING",
+            channel="WEB",
+            subject=f"store parity {disp}",
+            description="store parity seed",
+            priority="HIGH",
+            status="REGISTERED",
+            intake_disposition=disp,
+            created_by=actor,
+        )
+        store._complaints[row.complaint_id] = row  # noqa: SLF001 — unit test seed
+
+    stats = store.work_stats_for_user(actor)
+    assert stats["escalation_requested_count"] == len(ESCALATION_FAMILY)
 
 
 def _postgres_available() -> bool:

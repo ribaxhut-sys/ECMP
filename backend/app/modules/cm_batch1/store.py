@@ -612,12 +612,6 @@ class Batch1Store:
 
     def work_stats_for_user(self, user_key: str) -> dict[str, int]:
         key = (user_key or "").strip()
-        escalate_family = {
-            "ESCALATE_PENDING_APPROVAL",
-            "ESCALATE_APPROVED",
-            "ESCALATE_REJECTED",
-            "ESCALATE_CANCELLED",
-        }
         with self._lock:
             rows = list(self._complaints.values())
         if not key:
@@ -632,7 +626,11 @@ class Batch1Store:
         return {
             "created_count": len(created),
             "escalation_requested_count": len(
-                [c for c in created if (c.intake_disposition or "") in escalate_family]
+                [
+                    c
+                    for c in created
+                    if in_escalation_family(c.intake_disposition)
+                ]
             ),
             "escalation_approved_count": len(
                 [c for c in decided if (c.intake_disposition or "") == "ESCALATE_APPROVED"]
