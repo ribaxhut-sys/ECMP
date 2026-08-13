@@ -48,6 +48,7 @@ Non-ADR decisions that bind implementation sequencing. Canonical files live unde
 
 - **DEC-019** Engineering Foundation Canonical Trees — Accepted (`backend/` + `frontend/` production)
 - **DEC-020** Complaint Implementation SoT & Namespace Remapping — **Accepted** (closes OQ-CM-B1-001; dual SoT `/api/v1/cm` vs `/api/v1/complaints`; controlled coexistence; cutover only via future Retirement DEC). Orthogonal to PROGRAM-BOARD-004; Mode B / Batch-2 remain **CLOSED**.
+- **DEC-025** CM Target Single SoT + Mode A Complaint Closure — **Accepted** (2026-08-13). Target = CM Aggregate + Case; Foundation = legacy until a separate Retirement follow-up. DEC-020 remains binding for namespaces. Does **not** unlock Mode B, reopen CAP-008, or authorize Foundation deletion. Implementation alignment = M-025-1.
 
 ## Index table
 
