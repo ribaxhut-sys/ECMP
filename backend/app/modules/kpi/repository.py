@@ -9,6 +9,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.predicates import CLOSED_STATUS
 from app.modules.cm_batch1.scope import owning_unit_for_branch
 
 
@@ -50,7 +51,7 @@ class KpiRepository:
         category: str | None = None,
         priority: str | None = None,
     ) -> tuple[int, int, int]:
-        """Return (total, open, closed). Open = REGISTERED|IN_PROGRESS."""
+        """Return (total, open, closed). Open = not CLOSED (DEC-025 M-025-1)."""
         filters = self._complaint_filters(
             branch_id=branch_id,
             date_from=date_from,
@@ -68,14 +69,14 @@ class KpiRepository:
         total = int(self._session.scalar(total_stmt) or 0)
 
         closed_stmt = select(func.count()).select_from(CmBatch1ComplaintORM).where(
-            CmBatch1ComplaintORM.status == "CLOSED"
+            CmBatch1ComplaintORM.status == CLOSED_STATUS
         )
         if filters:
             closed_stmt = closed_stmt.where(*filters)
         closed = int(self._session.scalar(closed_stmt) or 0)
 
         open_stmt = select(func.count()).select_from(CmBatch1ComplaintORM).where(
-            CmBatch1ComplaintORM.status.in_(("REGISTERED", "IN_PROGRESS"))
+            CmBatch1ComplaintORM.status != CLOSED_STATUS
         )
         if filters:
             open_stmt = open_stmt.where(*filters)

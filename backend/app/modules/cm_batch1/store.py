@@ -29,6 +29,12 @@ from app.modules.cm_batch1.entities import (
     LaterReviewWorkItem,
 )
 from app.modules.cm_batch1.exceptions import ReplayConflict
+from app.modules.cm_batch1.predicates import (
+    AGGREGATE_STATUSES,
+    ESCALATION_FAMILY,
+    in_escalation_family,
+    is_open,
+)
 
 
 class Batch1Store:
@@ -570,34 +576,16 @@ class Batch1Store:
                 ]
             st = (status or "").strip().upper()
             if st == "OPEN":
-                rows = [
-                    c
-                    for c in rows
-                    if (c.status or "").upper() in {"REGISTERED", "IN_PROGRESS"}
-                ]
-            elif st in {"REGISTERED", "IN_PROGRESS", "CLOSED"}:
+                rows = [c for c in rows if is_open(c.status)]
+            elif st in AGGREGATE_STATUSES:
                 rows = [c for c in rows if (c.status or "").upper() == st]
             disp = (intake_disposition or "").strip().upper()
-            _escalate_family = {
-                "ESCALATE_PENDING_APPROVAL",
-                "ESCALATE_APPROVED",
-                "ESCALATE_REJECTED",
-                "ESCALATE_CANCELLED",
-                "RETURNED_TO_BRANCH",
-                "HQ_SCHEDULED",
-            }
-            _allowed_disp = {"BRANCH_CLOSED", *_escalate_family}
+            _allowed_disp = {"BRANCH_CLOSED", *ESCALATION_FAMILY}
             if disp == "ESCALATED":
-                rows = [
-                    c
-                    for c in rows
-                    if (c.intake_disposition or "").upper() in _escalate_family
-                ]
+                rows = [c for c in rows if in_escalation_family(c.intake_disposition)]
             elif disp == "UNESCALATED":
                 rows = [
-                    c
-                    for c in rows
-                    if (c.intake_disposition or "").upper() not in _escalate_family
+                    c for c in rows if not in_escalation_family(c.intake_disposition)
                 ]
             elif disp in _allowed_disp:
                 rows = [

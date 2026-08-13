@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Branch
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.predicates import CLOSED_STATUS, ESCALATION_ACTIVE
 from app.modules.cm_batch1.scope import owning_unit_for_branch
 
 
@@ -62,7 +63,15 @@ class ReportRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> list[tuple[str, int]]:
-        """Map CM statuses onto the existing report enum labels (donut-compatible)."""
+        """Map CM statuses onto the existing report enum labels (donut-compatible).
+
+        The wire contract still speaks the Foundation ``ComplaintStatus`` labels;
+        migrating it to the CM vocabulary is a separate decision. What changes
+        here is the mapping itself: ``status`` is the Aggregate SoT and decides
+        first, ``intake_disposition`` only refines a still-REGISTERED row, and
+        ESCALATED uses the one canonical active-escalation predicate. CM has no
+        ASSIGNED state, so that label is no longer emitted.
+        """
         filters = self._base_filters(
             branch_id=branch_id, date_from=date_from, date_to=date_to
         )
@@ -70,7 +79,7 @@ class ReportRepository:
             return []
         mapped = case(
             (
-                CmBatch1ComplaintORM.status == "CLOSED",
+                CmBatch1ComplaintORM.status == CLOSED_STATUS,
                 "CLOSED",
             ),
             (
@@ -78,13 +87,8 @@ class ReportRepository:
                 "IN_PROGRESS",
             ),
             (
-                CmBatch1ComplaintORM.intake_disposition
-                == "ESCALATE_PENDING_APPROVAL",
+                CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_ACTIVE),
                 "ESCALATED",
-            ),
-            (
-                CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
-                "ASSIGNED",
             ),
             else_="NEW",
         )

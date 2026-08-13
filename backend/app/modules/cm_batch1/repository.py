@@ -40,6 +40,11 @@ from app.modules.cm_batch1.models import (
     CmBatch1LaterReviewItemORM,
     CmBatch1NumberCounterORM,
 )
+from app.modules.cm_batch1.predicates import (
+    AGGREGATE_STATUSES,
+    CLOSED_STATUS,
+    ESCALATION_FAMILY,
+)
 
 
 def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
@@ -878,37 +883,27 @@ class CmBatch1Repository:
 
         st = (status or "").strip().upper()
         if st == "OPEN":
-            open_clause = CmBatch1ComplaintORM.status.in_(
-                ("REGISTERED", "IN_PROGRESS")
-            )
+            open_clause = CmBatch1ComplaintORM.status != CLOSED_STATUS
             stmt = stmt.where(open_clause)
             count_stmt = count_stmt.where(open_clause)
-        elif st in {"REGISTERED", "IN_PROGRESS", "CLOSED"}:
+        elif st in AGGREGATE_STATUSES:
             stmt = stmt.where(CmBatch1ComplaintORM.status == st)
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.status == st)
 
         disp = (intake_disposition or "").strip().upper()
-        _escalate_family = {
-            "ESCALATE_PENDING_APPROVAL",
-            "ESCALATE_APPROVED",
-            "ESCALATE_REJECTED",
-            "ESCALATE_CANCELLED",
-            "RETURNED_TO_BRANCH",
-            "HQ_SCHEDULED",
-        }
-        _allowed_disp = {"BRANCH_CLOSED", *_escalate_family}
+        _allowed_disp = {"BRANCH_CLOSED", *ESCALATION_FAMILY}
         if disp == "ESCALATED":
             # Pseudo-value: any escalate-family state (Users directory drill-down).
             stmt = stmt.where(
-                CmBatch1ComplaintORM.intake_disposition.in_(_escalate_family)
+                CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
             )
             count_stmt = count_stmt.where(
-                CmBatch1ComplaintORM.intake_disposition.in_(_escalate_family)
+                CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
             )
         elif disp == "UNESCALATED":
             unescalated = or_(
                 CmBatch1ComplaintORM.intake_disposition.is_(None),
-                ~CmBatch1ComplaintORM.intake_disposition.in_(_escalate_family),
+                ~CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY),
             )
             stmt = stmt.where(unescalated)
             count_stmt = count_stmt.where(unescalated)
@@ -958,12 +953,6 @@ class CmBatch1Repository:
                 "escalation_approved_count": 0,
                 "escalation_rejected_count": 0,
             }
-        escalate_family = (
-            "ESCALATE_PENDING_APPROVAL",
-            "ESCALATE_APPROVED",
-            "ESCALATE_REJECTED",
-            "ESCALATE_CANCELLED",
-        )
         created_count = int(
             self._session.scalar(
                 select(func.count())
@@ -978,7 +967,9 @@ class CmBatch1Repository:
                 .select_from(CmBatch1ComplaintORM)
                 .where(
                     CmBatch1ComplaintORM.created_by == key,
-                    CmBatch1ComplaintORM.intake_disposition.in_(escalate_family),
+                    # Same predicate as the ESCALATED list drill-down, so the
+                    # counter and the list it opens cannot disagree.
+                    CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY),
                 )
             )
             or 0

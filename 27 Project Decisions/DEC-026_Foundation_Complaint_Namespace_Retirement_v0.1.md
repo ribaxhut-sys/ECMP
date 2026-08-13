@@ -176,6 +176,8 @@ Urutan mengikat: **1 → 2 → 3**. Accept tidak menjadwalkan tanggal dan **tida
 
 **M-026-3 execution (2026-08-13):** **DROP** tabel Foundation `appointments` → `sla_records` → `complaint_timelines` / `complaint_resolutions` / `complaint_assignments` / `complaint_escalations` → `complaints` (Alembic 0072). H1: tidak di-merge ke CM. CA BC `complaint_cases*` **tidak** disentuh. Prasyarat: reader dashboard/KPI/reports sudah Aggregate-only.
 
+**Predikat baca kanonik (2026-08-13, lanjutan M-026-3):** setelah reader jadi Aggregate-only, kosakata `OPEN`/`ESCALATED` masih terpecah empat (dashboard 2 disposisi, filter list 6, counter Users directory 4, donut report 1). Disatukan di `backend/app/modules/cm_batch1/predicates.py`: `OPEN` = bukan `CLOSED` (sesuai DEC-025 M-025-1, sehingga open+closed=total); `ESCALATION_ACTIVE` = `ESCALATE_PENDING_APPROVAL|ESCALATE_APPROVED|HQ_SCHEDULED` untuk KPI/dashboard/donut; `ESCALATION_FAMILY` (6 nilai) untuk drill-down "pernah eskalasi". Kontrak wire `/reports` **tetap** memakai label enum Foundation — mapping-nya saja yang dibetulkan (`status` memutus lebih dulu; `ASSIGNED` tidak lagi diterbitkan karena CM tidak punya state itu). Perpindahan kosakata kontrak report ke `REGISTERED|IN_PROGRESS|CLOSED` **belum** diputuskan.
+
 ---
 
 ## 8. Risks

@@ -1,0 +1,208 @@
+"""One vocabulary for OPEN / ESCALATED across list, KPI, dashboard, report.
+
+Pins DEC-025 §3.3 read semantics so the four call sites cannot drift apart
+again: before this, ``escalated`` meant 2 dispositions on the dashboard, 6 on
+the list filter, 4 in the Users-directory counter, and 1 in the report donut.
+"""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Generator
+from datetime import UTC, datetime
+
+import pytest
+from sqlalchemy import create_engine, delete
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.core.config import get_settings
+from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.predicates import (
+    ESCALATION_ACTIVE,
+    ESCALATION_FAMILY,
+    in_escalation_family,
+    is_escalation_active,
+    is_open,
+)
+from app.modules.cm_batch1.repository import CmBatch1Repository
+from app.modules.dashboard.domain.dto import DashboardFilters
+from app.modules.dashboard.providers.complaint_provider import (
+    ComplaintDashboardProvider,
+)
+from app.modules.kpi.repository import KpiRepository
+from app.modules.reports.repository import ReportRepository
+
+
+def test_open_is_everything_not_closed() -> None:
+    assert is_open("REGISTERED")
+    assert is_open("IN_PROGRESS")
+    assert not is_open("CLOSED")
+    # An out-of-set stored value stays visible as open — ``_aggregate_status``
+    # exposes it as REGISTERED, so it must not vanish from both buckets.
+    assert is_open("LEGACY_UNKNOWN")
+    assert is_open(None)
+
+
+def test_active_escalation_is_a_subset_of_the_family() -> None:
+    assert set(ESCALATION_ACTIVE) < set(ESCALATION_FAMILY)
+    assert is_escalation_active("HQ_SCHEDULED")
+    assert not is_escalation_active("ESCALATE_REJECTED")
+    assert not is_escalation_active(None)
+    # Rejected/cancelled left the escalation path but still belong to the
+    # "ever escalated" drill-down.
+    assert in_escalation_family("ESCALATE_REJECTED")
+    assert in_escalation_family("ESCALATE_CANCELLED")
+    assert not in_escalation_family("BRANCH_CLOSED")
+
+
+def _postgres_available() -> bool:
+    from sqlalchemy import text
+
+    settings = get_settings()
+    try:
+        eng = create_engine(
+            settings.database_url,
+            pool_pre_ping=True,
+            future=True,
+            connect_args={"connect_timeout": 2},
+        )
+        with eng.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        eng.dispose()
+        return True
+    except Exception:
+        return False
+
+
+_PG = pytest.mark.skipif(
+    not _postgres_available(),
+    reason="PostgreSQL not available for predicate integration tests",
+)
+
+_ACTOR = f"predicate-actor-{uuid.uuid4().hex[:8]}"
+
+# (status, intake_disposition) — one row per bucket the predicates must sort.
+_SEED: tuple[tuple[str, str | None], ...] = (
+    ("CLOSED", "BRANCH_CLOSED"),
+    ("IN_PROGRESS", None),
+    ("REGISTERED", "ESCALATE_PENDING_APPROVAL"),
+    ("REGISTERED", "HQ_SCHEDULED"),
+    ("REGISTERED", "ESCALATE_REJECTED"),
+    ("REGISTERED", None),
+    ("LEGACY_UNKNOWN", None),
+)
+
+
+@pytest.fixture()
+def seeded() -> Generator[Session, None, None]:
+    settings = get_settings()
+    eng = create_engine(settings.database_url, pool_pre_ping=True, future=True)
+    SessionLocal = sessionmaker(
+        bind=eng, autoflush=False, autocommit=False, future=True
+    )
+    session = SessionLocal()
+    now = datetime.now(UTC)
+    for status, disposition in _SEED:
+        session.add(
+            CmBatch1ComplaintORM(
+                id=uuid.uuid4(),
+                complaint_number=f"PRED-2608-{uuid.uuid4().hex[:6].upper()}",
+                customer_id="CUST-PRED",
+                category="BILLING",
+                channel="WEB",
+                subject=f"predicate {status} {disposition}",
+                description="predicate seed",
+                priority="HIGH",
+                status=status,
+                intake_disposition=disposition,
+                case_created=False,
+                created_by=_ACTOR,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    session.commit()
+    try:
+        yield session
+    finally:
+        session.execute(
+            delete(CmBatch1ComplaintORM).where(
+                CmBatch1ComplaintORM.created_by == _ACTOR
+            )
+        )
+        session.commit()
+        session.close()
+        eng.dispose()
+
+
+def _delta(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
+    keys = set(before) | set(after)
+    return {k: after.get(k, 0) - before.get(k, 0) for k in keys}
+
+
+@_PG
+def test_kpi_open_plus_closed_equals_total(seeded: Session) -> None:
+    """No row may fall out of both buckets, whatever the stored status."""
+    total, open_count, closed = KpiRepository(seeded).count_complaints()
+    assert open_count + closed == total
+    assert closed >= 1
+
+
+@_PG
+def test_dashboard_escalated_counts_the_active_path_only(seeded: Session) -> None:
+    provider = ComplaintDashboardProvider(seeded)
+    repo = CmBatch1Repository(seeded)
+    _, family_total = repo.list_complaints(
+        created_by=_ACTOR, intake_disposition="ESCALATED"
+    )
+    assert family_total == 3  # PENDING_APPROVAL + HQ_SCHEDULED + REJECTED
+
+    with_seed = provider.escalation_count(DashboardFilters())
+    seeded.execute(
+        delete(CmBatch1ComplaintORM).where(CmBatch1ComplaintORM.created_by == _ACTOR)
+    )
+    seeded.commit()
+    baseline = provider.escalation_count(DashboardFilters())
+    # HQ_SCHEDULED counts (still at HQ); the rejected row does not.
+    assert with_seed - baseline == 2
+
+
+@_PG
+def test_users_directory_counter_matches_its_drill_down(seeded: Session) -> None:
+    repo = CmBatch1Repository(seeded)
+    stats = repo.work_stats_for_user(_ACTOR)
+    _, listed = repo.list_complaints(
+        created_by=_ACTOR, intake_disposition="ESCALATED"
+    )
+    assert stats["escalation_requested_count"] == listed
+
+
+@_PG
+def test_list_open_filter_keeps_out_of_set_status(seeded: Session) -> None:
+    repo = CmBatch1Repository(seeded)
+    _, open_total = repo.list_complaints(created_by=_ACTOR, status="OPEN")
+    _, closed_total = repo.list_complaints(created_by=_ACTOR, status="CLOSED")
+    assert open_total == len(_SEED) - 1
+    assert closed_total == 1
+
+
+@_PG
+def test_report_donut_maps_status_first_and_never_emits_assigned(
+    seeded: Session,
+) -> None:
+    repo = ReportRepository(seeded)
+    counts = dict(repo.count_by_status())
+    # Seeded contribution, measured by removing the seed and re-reading.
+    seeded.execute(
+        delete(CmBatch1ComplaintORM).where(CmBatch1ComplaintORM.created_by == _ACTOR)
+    )
+    seeded.commit()
+    baseline = dict(repo.count_by_status())
+    delta = _delta(baseline, counts)
+    assert delta["CLOSED"] == 1
+    assert delta["IN_PROGRESS"] == 1
+    # PENDING_APPROVAL + HQ_SCHEDULED — the rejected row is no longer escalated.
+    assert delta["ESCALATED"] == 2
+    # REGISTERED+REJECTED, REGISTERED+None, and the out-of-set status row.
+    assert delta["NEW"] == 3
+    assert delta.get("ASSIGNED", 0) == 0

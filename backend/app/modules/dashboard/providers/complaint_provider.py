@@ -8,6 +8,10 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.predicates import (
+    CLOSED_STATUS,
+    ESCALATION_ACTIVE,
+)
 from app.modules.cm_batch1.scope import owning_unit_for_branch
 from app.modules.dashboard.domain.dto import (
     ComplaintSummaryMetrics,
@@ -15,9 +19,6 @@ from app.modules.dashboard.domain.dto import (
     TrendBucket,
     TrendPeriod,
 )
-
-_OPEN = ("REGISTERED", "IN_PROGRESS")
-_ESCALATED = ("ESCALATE_PENDING_APPROVAL", "ESCALATE_APPROVED")
 
 
 class ComplaintDashboardProvider:
@@ -47,13 +48,19 @@ class ComplaintDashboardProvider:
                 func.count().label("total"),
                 func.coalesce(
                     func.sum(
-                        case((CmBatch1ComplaintORM.status.in_(_OPEN), 1), else_=0)
+                        case(
+                            (CmBatch1ComplaintORM.status != CLOSED_STATUS, 1),
+                            else_=0,
+                        )
                     ),
                     0,
                 ).label("open_count"),
                 func.coalesce(
                     func.sum(
-                        case((CmBatch1ComplaintORM.status == "CLOSED", 1), else_=0)
+                        case(
+                            (CmBatch1ComplaintORM.status == CLOSED_STATUS, 1),
+                            else_=0,
+                        )
                     ),
                     0,
                 ).label("closed_count"),
@@ -62,7 +69,7 @@ class ComplaintDashboardProvider:
                         case(
                             (
                                 CmBatch1ComplaintORM.intake_disposition.in_(
-                                    _ESCALATED
+                                    ESCALATION_ACTIVE
                                 ),
                                 1,
                             ),
@@ -163,7 +170,7 @@ class ComplaintDashboardProvider:
             self._session.scalar(
                 select(func.count())
                 .select_from(CmBatch1ComplaintORM)
-                .where(*scoped, CmBatch1ComplaintORM.status == "CLOSED")
+                .where(*scoped, CmBatch1ComplaintORM.status == CLOSED_STATUS)
             )
             or 0
         )
@@ -178,7 +185,7 @@ class ComplaintDashboardProvider:
                 )
             )
             .select_from(CmBatch1ComplaintORM)
-            .where(*scoped, CmBatch1ComplaintORM.status == "CLOSED")
+            .where(*scoped, CmBatch1ComplaintORM.status == CLOSED_STATUS)
         )
         return total, closed, float(avg_seconds or 0.0)
 
@@ -192,7 +199,7 @@ class ComplaintDashboardProvider:
                 .select_from(CmBatch1ComplaintORM)
                 .where(
                     *scoped,
-                    CmBatch1ComplaintORM.intake_disposition.in_(_ESCALATED),
+                    CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_ACTIVE),
                 )
             )
             or 0
