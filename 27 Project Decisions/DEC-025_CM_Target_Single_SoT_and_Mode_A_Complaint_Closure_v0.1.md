@@ -103,6 +103,14 @@ Binding:
 - `RESOLVED` pada Case **tidak** mengubah induk menjadi `CLOSED`.
 - Kontrak Batch-1 yang hanya `REGISTERED | CLOSED` adalah **gap** (§7) — harus diselaraskan di milestone implementasi **setelah** Accept, bukan diam-diam sekarang.
 
+**Addendum (2026-08-13) — transisi ketiga yang diagram di atas belum gambarkan:**
+
+Diagram §3.3 hanya menggambar dua jalur ke `CLOSED`: lewat `IN_PROGRESS` → auto-close BR-009 §3.4 (Case-driven). Implementasi Mode A punya jalur ketiga: `(create) → CLOSED` langsung, nol Case, via `intakeDisposition=BRANCH_CLOSED` — petugas cabang menutup di titik intake tanpa membuka Case sama sekali (`cm_batch1/service.py:891–903`). Prasyarat: catatan intake wajib diisi (`has_intake_note`); `case_created` tetap `false`; event terpisah `Branch Closed At Intake` (`event_factory.py`).
+
+Ini **bukan** aktivasi BR-009 §3.4 yang sama — §3.4 mensyaratkan minimal satu Case (`ada Case CLOSED yang relevan`), sedang jalur ini nol Case. Kode menyebutnya "Thin BR-009 lab path... (BQ-011)" — mengacu ke `BR-009 — Complaint Closure` (`02 Business Rules/…v1.0.md` baris 1445, Preconditions #3: "pengecualian beralasan — Complaint dibatalkan sebelum Case, jarang") dan `BQ-011` ("D-02 retained: no Case-at-intake", baris 32) sebagai basis yang mengizinkan Complaint tanpa Case sejak awal — bukan `FR-004` (itu Attachment Upload di FRD Batch 1, tidak relevan di sini).
+
+Status: **sah** — dikutip eksplisit di kode, punya event domain sendiri, bukan defect. Yang hilang murni dokumentasi: diagram §3.3 dan §3.4 belum menggambarkan jalur ini sebagai transisi resmi ketiga. Addendum ini melengkapi, tidak mengubah, kebijakan Accepted.
+
 ### 3.4 Closure induk (BR-009 Mode A) — tidak meniadakan BQ-007
 
 **BQ-007 tetap:** aksi Close **satu** Case hanya menutup Case itu. Tidak diartikan “tutup pengaduan”.
