@@ -37,7 +37,7 @@ def test_complaint_summary_reads_single_aggregate_row() -> None:
     metrics = ComplaintDashboardProvider(session).summary(DashboardFilters())
     assert metrics.total_complaints == 10
     assert metrics.open_complaints == 6
-    assert metrics.overdue_complaints == 2
+    assert metrics.overdue_complaints == 0
     session.execute.assert_called_once()
 
 
@@ -79,22 +79,15 @@ def test_queue_summary_with_branch_join() -> None:
 
 
 def test_sla_compliance_percentage() -> None:
-    session = MagicMock()
-    session.execute.return_value.one.return_value = _row(
-        active=3, breached=2, within=8, outside=2
-    )
-    metrics = SlaDashboardProvider(session).summary(DashboardFilters())
-    assert metrics.resolved_within_sla == 8
-    assert metrics.compliance_percentage == 80.0
+    metrics = SlaDashboardProvider(MagicMock()).summary(DashboardFilters())
+    assert metrics.resolved_within_sla == 0
+    assert metrics.compliance_percentage == 0.0
 
 
 def test_sla_compliance_zero_when_no_resolved() -> None:
-    session = MagicMock()
-    session.execute.return_value.one.return_value = _row(
-        active=1, breached=0, within=0, outside=0
-    )
-    metrics = SlaDashboardProvider(session).summary(DashboardFilters())
+    metrics = SlaDashboardProvider(MagicMock()).summary(DashboardFilters())
     assert metrics.compliance_percentage == 0.0
+    assert metrics.breached == 0
 
 
 def test_notification_summary() -> None:

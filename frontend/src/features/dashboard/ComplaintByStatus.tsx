@@ -42,11 +42,9 @@ function buildConicGradient(
 
 export function ComplaintByStatus({
   rows,
-  complaintKpiSource,
   loading,
 }: {
   rows: StatusCount[] | null;
-  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
 }) {
   const router = useRouter();
@@ -82,9 +80,7 @@ export function ComplaintByStatus({
       <div>
         <h2 className={DASHBOARD_COMMAND_LABEL}>{t("byStatus")}</h2>
         <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>
-          {complaintKpiSource === "aggregate"
-            ? t("statusDistributionAggregateHint")
-            : t("statusDistributionDescription")}
+          {t("statusDistributionAggregateHint")}
         </p>
       </div>
 

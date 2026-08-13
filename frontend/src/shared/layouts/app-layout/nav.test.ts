@@ -40,7 +40,7 @@ describe("APP_NAV_ITEMS", () => {
     expect(complaints?.id).not.toMatch(/cm[_-]?batch/i);
   });
 
-  it("keeps Foundation queue/assignments/resolutions routable (DEC-025, no retire)", () => {
+  it("keeps leftover Foundation hrefs in the catalog (DEC-026 pages redirect)", () => {
     const byId = Object.fromEntries(APP_NAV_ITEMS.map((item) => [item.id, item]));
     expect(byId.queue.href).toBe("/queue");
     expect(byId.assignments.href).toBe("/assignments");

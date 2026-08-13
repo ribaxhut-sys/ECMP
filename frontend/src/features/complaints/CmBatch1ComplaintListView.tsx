@@ -89,7 +89,7 @@ function customerCellLabel(
 }
 
 /**
- * DEC-020 coexistence — Aggregate complaint list (API-514) at `/complaints`.
+ * CM Aggregate complaint list (API-514) at `/complaints` (DEC-026 Single SoT).
  * Filters: keyword + status (server-side).
  */
 export function CmBatch1ComplaintListView() {

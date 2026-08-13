@@ -15,7 +15,8 @@ from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db.session import get_db_session
 from app.main import create_app
-from app.models import Customer, SlaPolicy, User
+from app.models import User
+from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 
 
 def _postgres_available() -> bool:
@@ -94,43 +95,6 @@ def auth_header(actor: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture()
-def customer_id(db_session: Session) -> uuid.UUID:
-    customer = Customer(
-        external_customer_id=f"CUST-{uuid.uuid4().hex[:8].upper()}",
-        full_name="Dashboard Customer",
-    )
-    db_session.add(customer)
-    db_session.commit()
-    db_session.refresh(customer)
-    return customer.id
-
-
-def _activate_policy(db_session: Session) -> None:
-    now = datetime.now(UTC)
-    db_session.execute(
-        text(
-            "UPDATE sla_policies SET is_active = false, updated_at = :now "
-            "WHERE is_active = true"
-        ),
-        {"now": now},
-    )
-    policy = SlaPolicy(
-        name=f"DASH-Policy-{uuid.uuid4().hex[:8]}",
-        description="Dashboard test",
-        assignment_target_minutes=60,
-        appointment_target_minutes=120,
-        resolution_target_minutes=240,
-        escalation_target_minutes=90,
-        overall_target_minutes=480,
-        is_active=True,
-        created_at=now,
-        updated_at=now,
-    )
-    db_session.add(policy)
-    db_session.commit()
-
-
 def test_dashboard_summary_requires_permission(
     client: TestClient,
     actor: User,
@@ -152,11 +116,8 @@ def test_dashboard_summary_end_to_end(
     client: TestClient,
     db_session: Session,
     auth_header: dict[str, str],
-    customer_id: uuid.UUID,
+    actor: User,
 ) -> None:
-    _activate_policy(db_session)
-    marker = f"DASH-{uuid.uuid4().hex[:8]}"
-
     before = client.get("/api/v1/dashboard/overview", headers=auth_header)
     assert before.status_code == 200
     before_body = before.json()["data"]
@@ -165,22 +126,29 @@ def test_dashboard_summary_end_to_end(
     assert "recentActivity" in before_body
     total_before = before_body["header"]["totalComplaints"]
 
+    now = datetime.now(UTC)
     created_numbers: list[str] = []
-    for i in range(2):
-        resp = client.post(
-            "/api/v1/complaints",
-            headers=auth_header,
-            json={
-                "customerId": str(customer_id),
-                "subject": f"{marker} subject {i}",
-                "description": "Dashboard composition sample",
-                "priority": "HIGH",
-                "channel": "WEB",
-                "category": "BILLING",
-            },
+    for _ in range(2):
+        number = f"UNIT-2608-{uuid.uuid4().hex[:4].upper()}"
+        created_numbers.append(number)
+        db_session.add(
+            CmBatch1ComplaintORM(
+                id=uuid.uuid4(),
+                complaint_number=number,
+                customer_id="CUST-DASH",
+                category="BILLING",
+                channel="WEB",
+                subject=f"Dashboard {number}",
+                description="Dashboard composition sample",
+                priority="HIGH",
+                status="REGISTERED",
+                case_created=False,
+                created_by=str(actor.id),
+                created_at=now,
+                updated_at=now,
+            )
         )
-        assert resp.status_code in (200, 201)
-        created_numbers.append(resp.json()["data"]["complaintNumber"])
+    db_session.commit()
 
     after = client.get("/api/v1/dashboard/overview", headers=auth_header)
     assert after.status_code == 200
@@ -189,11 +157,11 @@ def test_dashboard_summary_end_to_end(
     assert body["header"]["totalComplaints"] >= total_before + 2
     assert body["header"]["openComplaints"] >= 2
     assert "assignment" in body["sla"]
-    assert "completed" in body["sla"]["assignment"]
-    assert "breached" in body["sla"]["assignment"]
+    assert body["sla"]["assignment"]["completed"] == 0
+    assert body["sla"]["assignment"]["breached"] == 0
     for key in ("appointment", "resolution", "escalation", "overall"):
-        assert "completed" in body["sla"][key]
-        assert "breached" in body["sla"][key]
+        assert body["sla"][key]["completed"] == 0
+        assert body["sla"][key]["breached"] == 0
 
     assert isinstance(body["recentActivity"], list)
     assert len(body["recentActivity"]) <= 10
@@ -203,5 +171,3 @@ def test_dashboard_summary_end_to_end(
         assert "complaintNumber" in item
         assert "timestamp" in item
         assert "actor" in item
-        numbers = {row["complaintNumber"] for row in body["recentActivity"]}
-        assert any(n in numbers for n in created_numbers)

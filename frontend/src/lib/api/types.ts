@@ -138,7 +138,7 @@ export interface DashboardSummary {
   recentActivity: DashboardRecentActivityItem[];
 }
 
-/** GET /api/v1/dashboard/aggregate-kpis — DEC-020 Aggregate complaint KPIs. */
+/** GET /api/v1/dashboard/aggregate-kpis — CM Aggregate complaint KPIs (DEC-026). */
 export interface DashboardAggregateKpis {
   total: number;
   open: number;
@@ -149,7 +149,7 @@ export interface DashboardAggregateKpis {
   inProgress: number;
 }
 
-/** API-393 daily complaint trend (foundation-scoped — see DEC-020). */
+/** API-393 daily complaint trend from CM Aggregate (DEC-026). */
 export interface DashboardTrendItem {
   date: string;
   count: number;

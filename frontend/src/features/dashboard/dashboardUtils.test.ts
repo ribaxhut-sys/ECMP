@@ -63,10 +63,9 @@ describe("buildQueueHealthRows", () => {
     { status: "IN_PROGRESS" as const, count: 0 },
   ];
 
-  it("shows assignment + escalation on Aggregate and omits always-zero foundation bars", () => {
+  it("shows assignment + escalation bars from CM Aggregate", () => {
     const rows = buildQueueHealthRows({
       byStatus,
-      complaintKpiSource: "aggregate",
       waitingAssignmentHref:
         "/complaints?status=REGISTERED&intakeDisposition=UNESCALATED",
       escalationHref:
@@ -81,44 +80,13 @@ describe("buildQueueHealthRows", () => {
     expect(rows[1]?.count).toBe(4);
     expect(rows[1]?.labelKey).toBe("waitingEscalationApproval");
   });
-
-  it("keeps PENDING and IN_PROGRESS bars on foundation", () => {
-    const rows = buildQueueHealthRows({
-      byStatus: [
-        { status: "NEW", count: 2 },
-        { status: "PENDING", count: 3 },
-        { status: "IN_PROGRESS", count: 1 },
-      ],
-      complaintKpiSource: "foundation",
-      waitingAssignmentHref: "/assignments",
-      escalationHref: "/resolutions",
-    });
-
-    expect(rows.map((row) => row.labelKey)).toEqual([
-      "waitingAssignment",
-      "waitingReview",
-      "queueInProgress",
-    ]);
-    expect(rows.map((row) => row.count)).toEqual([2, 3, 1]);
-  });
 });
 
-describe("dashboardEmptyWorkCta (DEC-025 §3.6)", () => {
-  it("sends Aggregate KPI officers to the CM open list, not Foundation /queue", () => {
-    expect(dashboardEmptyWorkCta("aggregate")).toEqual({
+describe("dashboardEmptyWorkCta (DEC-026)", () => {
+  it("sends officers to the CM open list", () => {
+    expect(dashboardEmptyWorkCta()).toEqual({
       href: CM_BATCH1_OPEN_HREF,
       labelKey: "goToComplaints",
-    });
-  });
-
-  it("keeps Foundation fallback on the legacy queue", () => {
-    expect(dashboardEmptyWorkCta("foundation")).toEqual({
-      href: "/queue",
-      labelKey: "goToQueue",
-    });
-    expect(dashboardEmptyWorkCta(null)).toEqual({
-      href: "/queue",
-      labelKey: "goToQueue",
     });
   });
 });

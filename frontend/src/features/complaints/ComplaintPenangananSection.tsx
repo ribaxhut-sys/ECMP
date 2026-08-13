@@ -179,7 +179,7 @@ function PenangananGroupBlock({
 
 /**
  * Complaint-scoped Penanganan list (multi-Case): open / HQ / done.
- * Presentation only — Case API remains SoT (DEC-020 coexistence).
+ * Presentation only — Case API remains SoT for penanganan (DEC-026).
  */
 export function ComplaintPenangananSection({
   complaintId,

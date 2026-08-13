@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
 from app.core.user_messages import m
-from app.models import Branch, Complaint, ComplaintEscalation, User
+from app.models import Branch, User
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
@@ -63,16 +63,14 @@ class OrgUnitResolver:
         return self.normalize(branch.code)
 
     def resolve_complaint(self, complaint_id: uuid.UUID) -> str | None:
-        """Map legacy Complaint → Branch.code (org unit key)."""
-        row = self._session.get(Complaint, complaint_id)
-        if row is None or row.deleted_at is not None:
-            raise NotFoundError(m("complaint.not_found"))
-        if row.branch_id is None:
-            return None
-        branch = self._session.get(Branch, row.branch_id)
-        if branch is None or branch.deleted_at is not None:
-            return None
-        return self.normalize(branch.code)
+        """Legacy Foundation Complaint org lookup (DEC-026 / Alembic 0072).
+
+        Tables ``complaints`` / ``complaint_escalations`` are DROP. Callers
+        (attachment download, unmounted routers) must treat this as not-found
+        — do not query the retired models (UndefinedTable).
+        """
+        _ = complaint_id
+        raise NotFoundError(m("complaint.not_found"))
 
     def resolve_user(self, user_id: uuid.UUID) -> str | None:
         """Map ECMP User membership → Branch.code (org unit key, UM-SEC-001)."""
@@ -181,11 +179,9 @@ class OrgUnitResolver:
         )
 
     def resolve_escalation(self, escalation_id: uuid.UUID) -> str | None:
-        """Map Escalation → parent Complaint → Branch.code (org unit key)."""
-        row = self._session.get(ComplaintEscalation, escalation_id)
-        if row is None or row.deleted_at is not None:
-            raise NotFoundError(m("escalation.not_found"))
-        return self.resolve_complaint(row.complaint_id)
+        """Legacy Foundation escalation org lookup (DEC-026 / Alembic 0072)."""
+        _ = escalation_id
+        raise NotFoundError(m("escalation.not_found"))
 
 
 def _as_optional_str(value: Any) -> str | None:

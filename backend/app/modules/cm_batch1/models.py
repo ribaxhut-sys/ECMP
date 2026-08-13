@@ -73,7 +73,8 @@ class CmBatch1ComplaintORM(Base):
     # Customer visit schedule at HQ (Batch-1 lab; not foundation Appointment).
     hq_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     hq_arrival_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
-    # Hard invariant Batch 1 (CTO D-02) — always false; Case deferred.
+    # True after the first Case exists (mark_complaint_in_progress /
+    # sync_complaint_status_from_cases). Default false at intake.
     case_created: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )

@@ -380,7 +380,7 @@ def test_s3_migration_0043_chain() -> None:
     cfg = Config(str(backend_root / "alembic.ini"))
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0071_knowledge_files"]
+    assert script.get_heads() == ["0072_drop_foundation_tables"]
     revs = {r.revision: r.down_revision for r in script.walk_revisions()}
     assert revs["0040_cm_batch1_persistence"] == "0039_admin_rbac_repair"
     assert revs["0041_cm_batch1_duplicate"] == "0040_cm_batch1_persistence"

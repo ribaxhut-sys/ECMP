@@ -20,7 +20,6 @@ import {
   DASHBOARD_TILE_GRID,
   DASHBOARD_ZONE_LABEL,
 } from "./dashboardUtils";
-import { DualSotNotice } from "./DualSotNotice";
 import { LiveStatusBar } from "./LiveStatusBar";
 import { QueueHealth } from "./QueueHealth";
 import { RecentActivity } from "./RecentActivity";
@@ -111,18 +110,14 @@ export function DashboardView() {
             <div className="xl:col-span-8">
               <SummaryCards
                 header={data?.header ?? null}
-                sla={data?.sla ?? null}
                 byStatus={data?.byStatus ?? null}
                 trend={data?.trend ?? null}
-                complaintKpiSource={data?.complaintKpiSource ?? null}
                 loading={firstLoad}
               />
             </div>
             <div className="xl:col-span-4">
               <CriticalAlerts
-                sla={data?.sla ?? null}
                 byStatus={data?.byStatus ?? null}
-                complaintKpiSource={data?.complaintKpiSource ?? null}
                 loading={firstLoad}
               />
             </div>
@@ -136,14 +131,12 @@ export function DashboardView() {
               <QueueHealth
                 header={data?.header ?? null}
                 byStatus={data?.byStatus ?? null}
-                complaintKpiSource={data?.complaintKpiSource ?? null}
                 loading={firstLoad}
               />
             </div>
             <div className="xl:col-span-4">
               <ComplaintByStatus
                 rows={data?.byStatus ?? null}
-                complaintKpiSource={data?.complaintKpiSource ?? null}
                 loading={firstLoad}
               />
             </div>
@@ -159,17 +152,9 @@ export function DashboardView() {
               />
             </div>
             <div className="xl:col-span-6">
-              <SlaCards
-                sla={data?.sla ?? null}
-                complaintKpiSource={data?.complaintKpiSource ?? null}
-                loading={firstLoad}
-              />
+              <SlaCards sla={data?.sla ?? null} loading={firstLoad} />
             </div>
           </div>
-
-          <DualSotNotice
-            complaintKpiSource={data?.complaintKpiSource ?? null}
-          />
         </>
       )}
 

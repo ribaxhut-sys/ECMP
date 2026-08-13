@@ -17,8 +17,8 @@
 | Related Delta Review | GOV-DELTA-FRD-CM-001 |
 | Related Release Notes | GOV-RN-FRD-CM-001 |
 | Related S0 Pack | `18 Architecture Governance/reviews/ECMP_CM_Batch1_S0_Contract_Pack_v1.0.md` |
-| Related DEC | DEC-020 (Accepted — dual SoT / namespace ownership; closes OQ-CM-B1-001) |
-| Namespace | FRD-CM-001 / BR-CM-CAT-001 Aggregate (`/api/v1/cm`) — coexistence with Sprint/foundation (`/api/v1/complaints`) per DEC-020 |
+| Related DEC | DEC-020 (Accepted — dual SoT / namespace ownership; closes OQ-CM-B1-001); DEC-026 (Foundation namespace retired) |
+| Namespace | FRD-CM-001 / BR-CM-CAT-001 Aggregate (`/api/v1/cm`) — Mode A Single SoT after DEC-026 (Foundation `/api/v1/complaints` retired; CA BC out of retire set) |
 
 > This RTM does **not** modify the FRD, Business Rules, Architecture Decisions, or Batch 1 scope. It consolidates locked FRD mappings into the single Batch 1 traceability source for implementation planning and test design.
 

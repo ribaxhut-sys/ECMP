@@ -206,34 +206,12 @@ def test_resolver_declared() -> None:
     assert resolver.resolve_declared("  ") is None
 
 
-def test_resolver_complaint_uses_branch_code() -> None:
-    complaint_id = uuid.uuid4()
-    branch_id = uuid.uuid4()
-    complaint = MagicMock()
-    complaint.deleted_at = None
-    complaint.branch_id = branch_id
-    branch = MagicMock()
-    branch.deleted_at = None
-    branch.code = "OU-JKT-01"
-
-    session = MagicMock()
-
-    def _get(model: object, key: object) -> object | None:
-        if key == complaint_id:
-            return complaint
-        if key == branch_id:
-            return branch
-        return None
-
-    session.get.side_effect = _get
-    assert OrgUnitResolver(session).resolve_complaint(complaint_id) == "OU-JKT-01"
-
-
 def test_resolver_complaint_not_found() -> None:
+    """DEC-026 / Alembic 0072 — Foundation table DROP; do not query models."""
     session = MagicMock()
-    session.get.return_value = None
     with pytest.raises(NotFoundError):
         OrgUnitResolver(session).resolve_complaint(uuid.uuid4())
+    session.get.assert_not_called()
 
 
 def test_resolver_cm_complaint_from_outbox_payload() -> None:
@@ -302,43 +280,12 @@ def test_resolver_case_not_found() -> None:
         OrgUnitResolver(session).resolve_case(str(uuid.uuid4()))
 
 
-def test_resolver_escalation_uses_parent_complaint() -> None:
-    """P0 gap closure: escalation → parent Complaint → Branch.code."""
-    escalation_id = uuid.uuid4()
-    complaint_id = uuid.uuid4()
-    branch_id = uuid.uuid4()
-
-    escalation_row = MagicMock()
-    escalation_row.deleted_at = None
-    escalation_row.complaint_id = complaint_id
-
-    complaint = MagicMock()
-    complaint.deleted_at = None
-    complaint.branch_id = branch_id
-    branch = MagicMock()
-    branch.deleted_at = None
-    branch.code = "OU-ESC-01"
-
-    session = MagicMock()
-
-    def _get(model: object, key: object) -> object | None:
-        if key == escalation_id:
-            return escalation_row
-        if key == complaint_id:
-            return complaint
-        if key == branch_id:
-            return branch
-        return None
-
-    session.get.side_effect = _get
-    assert OrgUnitResolver(session).resolve_escalation(escalation_id) == "OU-ESC-01"
-
-
 def test_resolver_escalation_not_found() -> None:
+    """DEC-026 / Alembic 0072 — Foundation escalation table DROP; do not query."""
     session = MagicMock()
-    session.get.return_value = None
     with pytest.raises(NotFoundError):
         OrgUnitResolver(session).resolve_escalation(uuid.uuid4())
+    session.get.assert_not_called()
 
 
 # --- HTTP integration (M-4) -------------------------------------------------
@@ -599,6 +546,7 @@ def org_http_client(monkeypatch: pytest.MonkeyPatch) -> Any:
         client.close()
 
 
+@pytest.mark.skip(reason="DEC-026 M-026-2: Foundation /api/v1/complaints HTTP unmounted")
 def test_http_same_unit_get_allows(org_http_client: dict[str, Any]) -> None:
     client: TestClient = org_http_client["client"]
     cid = org_http_client["complaint_id"]
@@ -607,6 +555,7 @@ def test_http_same_unit_get_allows(org_http_client: dict[str, Any]) -> None:
     assert resp.status_code == 200
 
 
+@pytest.mark.skip(reason="DEC-026 M-026-2: Foundation /api/v1/complaints HTTP unmounted")
 def test_http_cross_unit_get_denied(org_http_client: dict[str, Any]) -> None:
     client: TestClient = org_http_client["client"]
     cid = org_http_client["complaint_id"]
@@ -620,6 +569,7 @@ def test_http_cross_unit_get_denied(org_http_client: dict[str, Any]) -> None:
     assert "resourceOrgUnitId" not in details
 
 
+@pytest.mark.skip(reason="DEC-026 M-026-2: Foundation /api/v1/complaints HTTP unmounted")
 def test_http_missing_claim_denied(org_http_client: dict[str, Any]) -> None:
     client: TestClient = org_http_client["client"]
     cid = org_http_client["complaint_id"]
@@ -630,6 +580,7 @@ def test_http_missing_claim_denied(org_http_client: dict[str, Any]) -> None:
     assert resp.json()["details"]["reason"] == "missing_org_unit_claim"
 
 
+@pytest.mark.skip(reason="DEC-026 M-026-2: Foundation /api/v1/complaints HTTP unmounted")
 def test_http_close_endpoint_org_guard(org_http_client: dict[str, Any]) -> None:
     client: TestClient = org_http_client["client"]
     cid = org_http_client["complaint_id"]
@@ -651,6 +602,7 @@ def test_http_close_endpoint_org_guard(org_http_client: dict[str, Any]) -> None:
     assert allowed.status_code == 200
 
 
+@pytest.mark.skip(reason="DEC-026 M-026-2: Foundation /api/v1/complaints HTTP unmounted")
 def test_http_update_endpoint_org_guard(org_http_client: dict[str, Any]) -> None:
     client: TestClient = org_http_client["client"]
     cid = org_http_client["complaint_id"]
@@ -670,6 +622,7 @@ def test_http_update_endpoint_org_guard(org_http_client: dict[str, Any]) -> None
     assert allowed.status_code == 200
 
 
+@pytest.mark.skip(reason="DEC-026 M-026-2: Foundation /api/v1/complaints HTTP unmounted")
 def test_http_assignments_read_org_guard(org_http_client: dict[str, Any]) -> None:
     client: TestClient = org_http_client["client"]
     cid = org_http_client["complaint_id"]

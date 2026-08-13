@@ -5,8 +5,8 @@ import { CmBatch1ComplaintListView } from "@/features/complaints";
 import { PageFallback } from "@/shared/ui";
 
 /**
- * Mode A primary Pengaduan list = Aggregate (API-514 / DEC-020 coexistence).
- * Detail remains under `/complaints/cm/[id]` to avoid clashing with foundation `[id]`.
+ * Mode A primary Pengaduan list = Aggregate (API-514 / DEC-026 canonical).
+ * Detail stays under `/complaints/cm/[id]`. Foundation `/complaints/[id]` redirects.
  */
 export default function ComplaintsPage() {
   return (

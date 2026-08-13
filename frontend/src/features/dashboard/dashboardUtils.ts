@@ -38,70 +38,35 @@ export type DashboardEmptyWorkCta = {
   labelKey: "goToComplaints" | "goToQueue";
 };
 
-/**
- * DEC-025 §3.6 — empty dashboard work door.
- * Aggregate KPI must not dump officers onto Foundation `/queue`.
- */
-export function dashboardEmptyWorkCta(
-  complaintKpiSource: "aggregate" | "foundation" | null,
-): DashboardEmptyWorkCta {
-  if (complaintKpiSource === "aggregate") {
-    return { href: CM_BATCH1_OPEN_HREF, labelKey: "goToComplaints" };
-  }
-  return { href: "/queue", labelKey: "goToQueue" };
+/** Empty dashboard work door is always CM list (DEC-026). */
+export function dashboardEmptyWorkCta(): DashboardEmptyWorkCta {
+  return { href: CM_BATCH1_OPEN_HREF, labelKey: "goToComplaints" };
 }
 
 /**
- * Queue-health bars. Aggregate KPI (DEC-020) only has NEW / ESCALATED /
- * CLOSED — PENDING and IN_PROGRESS are foundation states and stay 0 there,
- * so those rows are omitted. Foundation keeps the original three bars.
+ * Queue-health bars for CM Aggregate: waiting-assignment + escalate-pending.
  */
 export function buildQueueHealthRows(input: {
   byStatus: StatusCount[] | null;
-  complaintKpiSource?: "aggregate" | "foundation" | null;
   waitingAssignmentHref: string | null;
   escalationHref: string | null;
 }): QueueHealthRowSpec[] {
   const waitingAssignment = countByStatus(input.byStatus, "NEW") ?? 0;
-  const assignmentRow: QueueHealthRowSpec = {
-    id: "waiting-assignment",
-    labelKey: "waitingAssignment",
-    count: waitingAssignment,
-    tone: waitingAssignment > 0 ? "attention" : "healthy",
-    href: input.waitingAssignmentHref,
-  };
-
-  if (input.complaintKpiSource === "aggregate") {
-    const escalated = countByStatus(input.byStatus, "ESCALATED") ?? 0;
-    return [
-      assignmentRow,
-      {
-        id: "waiting-escalation",
-        labelKey: "waitingEscalationApproval",
-        count: escalated,
-        tone: escalated > 0 ? "attention" : "healthy",
-        href: input.escalationHref,
-      },
-    ];
-  }
-
-  const waitingReview = countByStatus(input.byStatus, "PENDING") ?? 0;
-  const inProgress = countByStatus(input.byStatus, "IN_PROGRESS") ?? 0;
+  const escalated = countByStatus(input.byStatus, "ESCALATED") ?? 0;
   return [
-    assignmentRow,
     {
-      id: "waiting-review",
-      labelKey: "waitingReview",
-      count: waitingReview,
-      tone: waitingReview > 0 ? "attention" : "healthy",
-      href: null,
+      id: "waiting-assignment",
+      labelKey: "waitingAssignment",
+      count: waitingAssignment,
+      tone: waitingAssignment > 0 ? "attention" : "healthy",
+      href: input.waitingAssignmentHref,
     },
     {
-      id: "in-progress",
-      labelKey: "queueInProgress",
-      count: inProgress,
-      tone: "neutral",
-      href: null,
+      id: "waiting-escalation",
+      labelKey: "waitingEscalationApproval",
+      count: escalated,
+      tone: escalated > 0 ? "attention" : "healthy",
+      href: input.escalationHref,
     },
   ];
 }
@@ -134,7 +99,7 @@ export function buildCriticalAlerts(input: {
       tone: "critical",
       titleKey: "alertSlaTitle",
       count: input.breached,
-      href: "/queue",
+      href: CM_BATCH1_OPEN_HREF,
     });
   }
   if (input.assignmentBreached > 0) {
@@ -143,7 +108,7 @@ export function buildCriticalAlerts(input: {
       tone: "critical",
       titleKey: "alertAssignmentSlaTitle",
       count: input.assignmentBreached,
-      href: "/assignments",
+      href: "/complaints/cm/cases",
     });
   }
   if (input.resolutionBreached > 0 && input.resolutionBreached !== input.breached) {

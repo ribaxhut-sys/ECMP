@@ -17,7 +17,7 @@ export function fetchDashboardSummary(): Promise<
 }
 
 /**
- * DEC-020 — GET /api/v1/dashboard/aggregate-kpis.
+ * GET /api/v1/dashboard/aggregate-kpis — CM Aggregate KPI (DEC-026).
  * Gated by dashboard:read (not complaints:read). Branch-scoped principals
  * are locked server-side to their own branch.
  */
@@ -51,7 +51,7 @@ export function fetchDashboardRecentActivity(
 
 /**
  * API-393 — GET /api/v1/dashboard/trends (14d default).
- * Foundation-scoped only (DEC-020) — same coexistence boundary as SLA/branch charts.
+ * Counts CM Aggregate intake (DEC-026).
  */
 export function fetchDashboardTrends(
   period: "today" | "7d" | "30d" = "7d",

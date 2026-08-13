@@ -9,8 +9,7 @@ export type ReportsData = {
 };
 
 /**
- * Operational reports use the same Aggregate KPI as the dashboard (DEC-020).
- * Foundation API-210…212 stay in the catalog but are not mixed into this page.
+ * Operational reports use the same Aggregate KPI as the dashboard (DEC-026).
  */
 export async function loadReportsData(): Promise<ReportsData> {
   const res = await fetchDashboardAggregateKpis();

@@ -7,7 +7,6 @@ import { useAuth } from "@/auth/AuthProvider";
 import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import type {
   DashboardHeader,
-  DashboardSlaSummary,
   DashboardTrendItem,
   StatusCount,
 } from "@/lib/api/types";
@@ -91,17 +90,13 @@ function KpiBlock({
 
 export function SummaryCards({
   header,
-  sla,
   byStatus,
   trend,
-  complaintKpiSource,
   loading,
 }: {
   header: DashboardHeader | null;
-  sla: DashboardSlaSummary | null;
   byStatus: StatusCount[] | null;
   trend?: DashboardTrendItem[] | null;
-  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
 }) {
   const router = useRouter();
@@ -153,18 +148,8 @@ export function SummaryCards({
 
   const waitingAssignment = countByStatus(byStatus, "NEW") ?? 0;
   const escalated = countByStatus(byStatus, "ESCALATED") ?? 0;
-  const slaDeferred = complaintKpiSource === "aggregate";
-  const breached = slaDeferred ? null : (sla?.overall.breached ?? 0);
-  const slaSignal = slaDeferred
-    ? t("slaDeferredBatch1")
-    : (breached ?? 0) > 0
-      ? t("kpiCritical")
-      : t("kpiHealthy");
-  const slaTone: OpsTone = slaDeferred
-    ? "neutral"
-    : (breached ?? 0) > 0
-      ? "critical"
-      : "healthy";
+  const slaSignal = t("slaDeferredBatch1");
+  const slaTone: OpsTone = "neutral";
   const rate = resolutionRatePct(header);
   const openAccent = openBacklogAccent(
     header.openComplaints,
@@ -196,19 +181,11 @@ export function SummaryCards({
             signal={t("kpiWaitingDetail", { count: waitingAssignment })}
             tone={openTone}
             hero
-            // /queue reads /api/v1/complaints/search — foundation-only. When
-            // the hero number is Aggregate-sourced (DEC-020), send people to
-            // where those complaints actually live instead of an empty
-            // foundation list — only if they hold complaints:read.
+            // DEC-026 — product door is CM list (Foundation /queue retired).
             onActivate={
-              complaintKpiSource === "aggregate" && !canOpenComplaintList
-                ? undefined
-                : () =>
-                    router.push(
-                      complaintKpiSource === "aggregate"
-                        ? CM_BATCH1_OPEN_HREF
-                        : "/queue",
-                    )
+              canOpenComplaintList
+                ? () => router.push(CM_BATCH1_OPEN_HREF)
+                : undefined
             }
             trailing={
               trend && trend.length > 1 ? (
@@ -225,13 +202,7 @@ export function SummaryCards({
         <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ecmp-border/30 pt-4 sm:grid-cols-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
           <KpiBlock
             title={t("slaBreached")}
-            value={
-              breached === null ? (
-                tCommon("emDash")
-              ) : (
-                <AnimatedCount value={breached} />
-              )
-            }
+            value={tCommon("emDash")}
             signal={slaSignal}
             tone={slaTone}
           />

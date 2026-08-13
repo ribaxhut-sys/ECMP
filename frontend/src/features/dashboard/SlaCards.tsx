@@ -18,17 +18,15 @@ import {
 
 export function SlaCards({
   sla,
-  complaintKpiSource,
   loading,
 }: {
   sla: DashboardSlaSummary | null;
-  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
-  const slaDeferred = complaintKpiSource === "aggregate";
+  const slaDeferred = true;
 
   const stages = sla
     ? [
@@ -82,8 +80,8 @@ export function SlaCards({
               slaDeferred
                 ? undefined
                 : {
-                    label: tCommon("goToQueue"),
-                    onClick: () => router.push("/queue"),
+                    label: tCommon("goToComplaints"),
+                    onClick: () => router.push("/complaints/cm/cases"),
                   }
             }
           />

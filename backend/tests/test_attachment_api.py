@@ -179,12 +179,12 @@ def test_upload_get_list_download_delete_flow(
     assert listed.status_code == 200
     assert any(item["id"] == attachment_id for item in listed.json()["data"])
 
+    # DEC-026: nested Foundation listing is unmounted; shared catalog remains.
     complaint_list = client.get(
         f"/api/v1/complaints/{aggregate_id}/attachments",
         headers=_auth(actor, ATTACHMENT_READ),
     )
-    assert complaint_list.status_code == 200
-    assert any(item["id"] == attachment_id for item in complaint_list.json()["data"])
+    assert complaint_list.status_code == 404
 
     download = client.get(
         f"/api/v1/attachments/{attachment_id}/download",

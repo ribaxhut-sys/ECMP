@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAggregateKpis, selectDashboardSla } from "./loadDashboardData";
-
-const foundationSla = {
-  assignment: { completed: 13, breached: 17 },
-  appointment: { completed: 0, breached: 17 },
-  resolution: { completed: 0, breached: 16 },
-  escalation: { completed: 0, breached: 19 },
-  overall: { completed: 2, breached: 18 },
-};
+import { buildAggregateKpis } from "./loadDashboardData";
 
 describe("buildAggregateKpis", () => {
   it("maps Aggregate totals into dashboard header and status chips", () => {
@@ -71,25 +63,5 @@ describe("buildAggregateKpis", () => {
       { status: "CLOSED", count: 6, labelKey: "closedComplaints" },
     ]);
     expect(kpis.byStatus.reduce((sum, row) => sum + row.count, 0)).toBe(16);
-  });
-});
-
-describe("selectDashboardSla", () => {
-  it("drops foundation clocks when KPI numbers come from Aggregate", () => {
-    expect(
-      selectDashboardSla({
-        complaintKpiSource: "aggregate",
-        foundationSla,
-      }),
-    ).toBeNull();
-  });
-
-  it("keeps foundation clocks when the whole dashboard is on foundation", () => {
-    expect(
-      selectDashboardSla({
-        complaintKpiSource: "foundation",
-        foundationSla,
-      }),
-    ).toEqual(foundationSla);
   });
 });

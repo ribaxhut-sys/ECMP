@@ -37,7 +37,7 @@
 - **OQ-006:** SoT delivery = `BR-0xx`; katalog enterprise jadi referensi dengan tabel pemetaan. Lihat `DEC-003`.
 - **OQ-007:** Write-audit wajib (BR-008/FR-001c); read-audit ditunda; idempotency key di luar AC Sprint-01. Lihat FRD-001 §9 + `DEC-002`.
 - **OQ-008:** Ditutup dengan nilai baseline konservatif (SLA per prioritas, warning 80%, NFR availability/latency/throughput/kapasitas/RTO-RPO) — reversible BO via DEC. Lihat `DEC-005`.
-- **OQ-CM-B1-001:** **Closed — remapped by dual SoT (DEC-020)**. Tidak ada tanggal retirement tunggal; dual SoT + controlled coexistence + cutover hanya via Retirement DEC berikutnya. Lihat `DEC-020`.
+- **OQ-CM-B1-001:** **Closed — remapped by dual SoT (DEC-020), retired by DEC-026**. M-026-1…3 executed (FE redirect + HTTP unmount + DROP migration 0072). Mode A complaint SoT = `/api/v1/cm` + Case. CA BC out of retire set. Lihat `DEC-020`, `DEC-025`, `DEC-026`.
 - **OQ-CM-B1-004 / BQ-002:** **CLOSED** — Complaint MAY register without Case; MUST have ≥1 Case within **1 business day** after REGISTERED; Supervisor Queue MUST display exceedances. Lihat `DEC-MODEA-B2-001`.
 - **BQ-001:** **CLOSED — Option O3 APPROVED** (DEC-BQ001). Sprint / case-centric Case SoT = DOM-ECMF-003; Aggregate Case SoT = BR-CM-CAT Definition B. Lihat `ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md`.
 - **BQ-002 … BQ-014 (Mode A Delivery Baseline):** **ALL LOCKED** — Product Owner Decision Session 2026-08-01. Capability ID final **CAP-008**. Residual BQ for Batch-2 Mode A Case Management = **ZERO**. Lihat `18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`.

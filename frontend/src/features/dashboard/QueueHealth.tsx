@@ -96,12 +96,10 @@ function QueueBar({
 export function QueueHealth({
   header,
   byStatus,
-  complaintKpiSource,
   loading,
 }: {
   header: DashboardHeader | null;
   byStatus: StatusCount[] | null;
-  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
 }) {
   const router = useRouter();
@@ -126,33 +124,22 @@ export function QueueHealth({
     );
   }
 
-  // /assignments reads the foundation Complaint aggregate only — an
-  // Aggregate-sourced (cm_batch1) count has nowhere to land there
-  // (assignment workflow for Batch-1 intake is DEFERRED,
-  // GOV-MODEA-NEXT-001 M4). Route to the Aggregate list only when the
-  // principal can open it (complaints:read); MANAGER KPI is dashboard:read.
-  const isAggregate = complaintKpiSource === "aggregate";
-  const waitingAssignmentHref = isAggregate
-    ? canOpenComplaintList
-      ? CM_BATCH1_WAITING_ASSIGNMENT_HREF
-      : null
-    : "/assignments";
-  const escalationHref = isAggregate
-    ? canOpenComplaintList
-      ? CM_BATCH1_ESCALATION_PENDING_HREF
-      : null
-    : "/resolutions";
+  const waitingAssignmentHref = canOpenComplaintList
+    ? CM_BATCH1_WAITING_ASSIGNMENT_HREF
+    : null;
+  const escalationHref = canOpenComplaintList
+    ? CM_BATCH1_ESCALATION_PENDING_HREF
+    : null;
 
   const rows = buildQueueHealthRows({
     byStatus,
-    complaintKpiSource,
     waitingAssignmentHref,
     escalationHref,
   });
 
   const max = Math.max(...rows.map((row) => row.count), 1);
   const emptyPortfolio = !header || header.totalComplaints === 0;
-  const emptyWorkCta = dashboardEmptyWorkCta(complaintKpiSource ?? null);
+  const emptyWorkCta = dashboardEmptyWorkCta();
 
   return (
     <section
@@ -175,12 +162,12 @@ export function QueueHealth({
             title={t("noSummaryYet")}
             description={t("noSummaryDescription")}
             primaryAction={
-              complaintKpiSource === "aggregate" && !canOpenComplaintList
-                ? undefined
-                : {
+              canOpenComplaintList
+                ? {
                     label: tCommon(emptyWorkCta.labelKey),
                     onClick: () => router.push(emptyWorkCta.href),
                   }
+                : undefined
             }
           />
         </div>

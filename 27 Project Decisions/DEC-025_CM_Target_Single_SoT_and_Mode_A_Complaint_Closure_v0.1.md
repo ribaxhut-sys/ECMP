@@ -186,7 +186,7 @@ DEC-025 **tidak** mengotorisasi:
 |---|---|
 | DEC-020 | Tetap **Accepted** dan binding untuk namespace sampai Retirement follow-up Accepted |
 | DEC-025 Accept | Mengunci **target** Single SoT + aturan Closure/Status; **bukan** tanggal retirement Foundation |
-| Retirement follow-up | DEC baru (belum dibuka) — prasyarat §8 wajib terpenuhi |
+| Retirement follow-up | **DEC-026 Accepted with Conditions** (2026-08-13) — eksekusi M-026 belum; prasyarat §8.4 konsumen masih hidup |
 | CA BC `complaint_cases*` | Tetap ticket-nested only (DEC-020) — bukan CM Case |
 
 DEC-025 **tidak** mengulang Alternatif A DEC-020 (wholesale remapping pada tanggal tetap). Ini menetapkan *arah* + aturan produk Mode A, dengan cutover tetap Board-gated.
@@ -309,6 +309,8 @@ Milestone UI “satu pintu / Foundation legacy di nav” = slice terpisah (consu
 
 **M-025-5 execution (2026-08-13):** Tindak lanjut membuka CM Case / Aggregate detail; pintu API-513 supervisor queue di daftar Aggregate (bukan daftar Foundation). Rute `/complaints/cm/supervisor` tetap — M3b tidak di-retire. Bukan retire Foundation.
 
+**M-025-6 execution (2026-08-13):** Evidence prasyarat §8.4–8.7 — inventaris konsumen Foundation yang **masih hidup** (§14), opsi strategi data historis **tanpa pilih** (§15), posture CA BC observed (§16). Bukan retire API/rute, bukan buka Retirement DEC, bukan merge tabel.
+
 ---
 
 ## 12. Impact (setelah Accepted)
@@ -342,25 +344,130 @@ Jika teks AC-16 di FRD-B2 dibaca tanpa overlay ini, itu **konflik Observed (K5)*
 
 ---
 
-## 14. Inventaris konsumen Foundation (M-025-4 / §8.4)
+## 14. Inventaris konsumen Foundation (M-025-4 / M-025-6 / §8.4)
 
 Dual-read **eksplisit**. Bukan zero-consumer. Bukan izin hapus.
 
-| Konsumen | Pintu / API | Peran setelah M-025-2…4 |
+| Konsumen | Pintu / API | Peran setelah M-025-2…5 |
 |---|---|---|
 | Header search | `/complaints?keyword=` → `/api/v1/cm` | **Resmi** — CM |
-| Daftar `/complaints` | `/api/v1/cm` | **Resmi** — CM |
+| Daftar `/complaints` | API-514 `/api/v1/cm` (`CmBatch1ComplaintListView`) | **Resmi** — CM |
 | Case inbox | `/complaints/cm/cases` → `/api/v1/cm/cases` | **Resmi** — Case |
 | KPI dasbor (lab/ops) | `/dashboard/aggregate-kpis` | **Resmi** — Aggregate |
-| `/queue` list | API-388 `GET /api/v1/complaints/search` | **Legacy** dual-read + banner |
-| `/assignments` | API-388 | **Legacy** dual-read + banner |
+| `/queue` (non-shell) | `QueueDashboardView` → `fetchQueueList` → API-388 | **Legacy** dual-read + banner |
+| `/assignments` | `AssignmentListView` → API-388 | **Legacy** dual-read + banner |
 | `/resolutions` | API-388 | **Legacy** dual-read + banner |
-| `/complaints/[id]` Foundation | API-201 GET + lifecycle | **Legacy** + banner |
-| API-201 `POST /api/v1/complaints` | Foundation create | **Tetap hidup** — jangan dihapus DEC-025 |
-| Shell B0 `/queue/*` | mock WF-001 | Di luar Mode A CM — jangan di-retarget |
+| `/complaints/[id]` Foundation | API-203 GET + lifecycle (assign/status/resolve/close/SLA) | **Legacy** + banner |
+| `/complaints/[id]/edit` | API-203/204 | **Legacy** |
+| API-201 `POST /api/v1/complaints` | Client `createComplaint` **tetap diekspor**; **tidak** dipanggil Create UI Mode A (create resmi = API-500) | **API hidup** — jangan dihapus DEC-025 |
+| Shell B0 `/queue/*` | mock WF-001 (handle/assign/escalate/submit/review) | Di luar Mode A CM — **jangan di-retarget** |
+| Header `officerWorkMode=handling` | `router.push("/queue")` | **B0/shell** — jangan di-retarget ke Case inbox |
 | `/internal/*` | prototype flag | Bukan Dual-SoT WP — jangan dicampur |
+| `ComplaintListView` | API-388 | **Orphan FE** — tidak di-mount halaman; client masih ada |
 
 Search petugas resmi = Header → daftar CM. API-388 tetap untuk permukaan Foundation.
+
+### 14.1 Yang masih hidup (Observed 2026-08-13) — mengunci *zero-consumer*
+
+Bukan opini. Konsumen runtime yang masih merujuk Foundation:
+
+**A. Permukaan FE yang masih di-route (boleh bookmark / URL langsung)**
+
+| Rute | Client | API Foundation |
+|---|---|---|
+| `/queue` (Mode A non-shell) | `frontend/src/features/queue/QueueDashboardView.tsx` | API-388 + queue helpers |
+| `/queue/handle/[id]` dll. | `officer-handle`, `escalation-*`, `submit-review`, `supervisor-assign` | Shell/B0 mock — **bukan** CM Case |
+| `/assignments` | `frontend/src/features/assignments/` | API-388 |
+| `/resolutions` | `frontend/src/features/resolutions/` | API-388 |
+| `/complaints/[id]` | `ComplaintDetailView` | API-203 + 205/206/208/209/224/225/226/310–314 |
+| `/complaints/[id]/edit` | `EditComplaintView` | API-203/204 |
+| Dasbor fallback KPI `foundation` | `dashboardEmptyWorkCta` / `SlaCards` | CTA `/queue` **sengaja** (hanya jika sumber KPI = foundation) |
+
+**B. Client API yang masih diekspor (FE)**
+
+`frontend/src/lib/api/complaints.ts` — `searchComplaints` (388), `fetchComplaint` (203), `createComplaint` (201), update/assign/status/resolution/close/SLA.  
+`queue.ts` / `assignments.ts` / `resolutions.ts` / `escalations.ts` / `attachments.ts` (API-387 listing Foundation).
+
+**C. Backend mount (produksi lab)**
+
+| Router | Path | Mount |
+|---|---|---|
+| Legacy ECMF `complaints_router` + search/assign/escalate/resolve/SLA/timeline | `/api/v1/complaints` | **Mounted** (`backend/app/api/router.py`) |
+| CA BC `complaint_api_router` | ticket-nested | **Mounted** (path unik) |
+| CA BC `complaint_foundation_router` | full CRUD CA | **Unmounted** (DEC-020) |
+
+**D. Bukan konsumen Dual-SoT WP (jangan dicampur cutover)**
+
+- `/internal/*` — prototype internal complaints  
+- Shell B0 `/workspace` + `/queue/*` mock WF-001  
+- Sprint `/v1/cases` di `implementation/` (bukan CAP-008)
+
+**Kesimpulan §8.4:** *zero-consumer* **belum**. Dual-read eksplisit **sudah**. Menghapus `/api/v1/complaints` sekarang memotong A–C.
+
+---
+
+## 15. Strategi data historis (M-025-6 / §8.6)
+
+Observed (bukan keputusan):
+
+| Stack | Nomor | Persistence |
+|---|---|---|
+| Foundation | `CMP-` + 10 hex (`complaints/service.py`) | tabel `complaints` (+ assignment/escalation/resolution/timeline/SLA) |
+| CM Aggregate | `UNIT-YYMM-NNNN` (`cm_batch1/complaint_number.py`) | `cm_batch1_*` |
+| CM Case | `CASE-YYYY-NNNNNN` | `cm_cases` (FK ke Aggregate, **bukan** ke `complaints`) |
+| CA BC | terpisah | `complaint_cases*` — bukan evolusi CM |
+
+Tidak ada FK / sync `cm_cases` → `complaints` (K6). Mapping ID **tidak ada**.
+
+Opsi yang dipertimbangkan:
+
+| Opsi | Isi | Disposisi |
+|---|---|---|
+| **H1** | Yang **sesuai** = versi CM. Data Foundation `CMP-…` **tidak** wajib dilestarikan / tidak di-merge ke CM. Saat Retirement: ignore/drop, bukan migrasi | **Niat BO 2026-08-13** |
+| H2 | Archive read-only `complaints` / `CMP-…` tanpa mapping | Tidak dipilih — BO: yang benar sudah di CM |
+| H3 | Tabel mapping `CMP-` ↔ `UNIT-YYMM-NNNN` | Ditolak — dual-ID tersembunyi |
+| H4 | One-time migrate `complaints` → `cm_batch1_*` | Ditolak sekarang — model tidak 1:1; bukan “versi CM” dari baris `CMP-` |
+
+**Arti H1 (binding niat, bukan cutover):**
+
+1. SoT kerja dan SoT data yang dihitung = **CM** (`UNIT-YYMM-NNNN` + Case).
+2. Baris Foundation **bukan** versi lama yang harus disatukan. Itu stack lain, bukan “draft CM”.
+3. Tidak ada merge, tidak ada mapping table.
+4. Tabel `complaints` **tetap hidup** sampai Retirement DEC — H1 hanya menjawab “apa yang terjadi pada data itu *saat* retire”, bukan izin hapus hari ini.
+
+| Role | Disposition | Date |
+|---|---|---|
+| Business Owner (session) | **H1** — yang sesuai ada versi CM; jangan merge gudang lama | 2026-08-13 |
+
+---
+
+## 16. CA BC mount-or-retire (M-025-6 / §8.7) — observed, DEC terpisah **belum dibuka**
+
+| Fakta | Status |
+|---|---|
+| Full `complaint_foundation_router` | Unmounted (DEC-020) |
+| Ticket-nested `complaint_api_router` | Mounted |
+| Apakah CA BC di-retire atau di-mount penuh | **Belum diputus** — butuh DEC tersendiri, bukan DEC-025 |
+
+M-025-6 **tidak** membuka DEC CA BC dan **tidak** me-mount router penuh.
+
+---
+
+## 17. Gerbang ke Retirement DEC (bukan izin cutover)
+
+| §8 | Status setelah M-025-6 |
+|---|---|
+| 1 Kontrak Aggregate + `caseCreated` | **Ada** (M-025-1) |
+| 2 Sync parent §3.4 | **Ada** (M-025-1) |
+| 3 Overlay AC-16 / BR-009 | **Ada** (M-025-4 + tes) — FRD LOCKED tidak ditulis ulang |
+| 4 Konsumen Foundation | Inventaris **hidup** — *zero-consumer* **belum** |
+| 5 KPI/search resmi petugas | KPI Aggregate + Header search CM **ada**; API-388 **masih** untuk legacy |
+| 6 Data historis `CMP-…` | **H1 niat BO** — yang sesuai = CM; Foundation tidak di-merge. Hapus tabel tetap tunggu Retirement DEC |
+| 7 CA BC mount-or-retire | Observed saja; DEC **belum** |
+| 8 OpenAPI/RTM/tes coexistence setelah Retirement | **Jangan sekarang** |
+| 9 CAP-006 / DEC-F4 bukan syarat palsu | Tetap |
+
+Retirement DEC follow-up = **DEC-026 Accepted with Conditions**. CA BC = DEC-026 §3.3 (bukan objek retire). §8.4 belum zero-consumer — syarat M-026-1 sebelum unmount. §15 = **H1 niat** — bukan izin drop tabel hari ini. M-026 belum dijalankan.
 
 ---
 

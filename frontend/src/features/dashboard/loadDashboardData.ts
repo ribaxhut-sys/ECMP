@@ -1,9 +1,7 @@
 import {
   fetchDashboardAggregateKpis,
-  fetchDashboardSummary,
   fetchDashboardTrends,
   fetchReportByBranch,
-  fetchReportByStatus,
 } from "@/lib/api";
 import type {
   BranchCount,
@@ -14,8 +12,7 @@ import type {
 } from "@/lib/api/types";
 
 /**
- * Mode A operational KPI from Aggregate (dashboard/aggregate-kpis).
- * Fills dashboard numbers for Batch-1 intake without Retirement DEC / foundation merge.
+ * Mode A operational KPI from CM Aggregate (DEC-026 Single SoT).
  * Gated by dashboard:read so MANAGER (BC-8.4) can see own-branch KPIs without
  * complaints:read / unscoped list access.
  */
@@ -34,18 +31,12 @@ export type AggregateDashboardKpis = {
 
 export type DashboardData = {
   header: DashboardHeader | null;
-  /** Null on Aggregate KPI (BQ-005 / DEC-020) — do not mix foundation clocks. */
+  /** Always null (BQ-005 / CAP-006 deferred). */
   sla: DashboardSlaSummary | null;
   byStatus: StatusCount[] | null;
   byBranch: BranchCount[] | null;
-  /**
-   * 30-day daily complaint-count trend. Foundation-scoped only (DEC-020) —
-   * does not reflect Aggregate-only intake even when complaintKpiSource is
-   * "aggregate".
-   */
+  /** 30-day daily complaint-count trend from CM Aggregate. */
   trend: DashboardTrendItem[] | null;
-  /** True when complaint KPI numbers come from Aggregate (DEC-020 coexistence). */
-  complaintKpiSource: "aggregate" | "foundation";
 };
 
 export function buildAggregateKpis(input: {
@@ -123,66 +114,25 @@ async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
 }
 
 /**
- * DEC-020 + BQ-005: do not mix foundation SLA clocks into Aggregate KPI.
- * Mode A Batch-1 binds policy without countdown; foundation breach counts
- * (e.g. 18) belong to a different portfolio than the donut (e.g. 9).
- */
-export function selectDashboardSla(input: {
-  complaintKpiSource: "aggregate" | "foundation";
-  foundationSla: DashboardSlaSummary | null;
-}): DashboardSlaSummary | null {
-  if (input.complaintKpiSource === "aggregate") return null;
-  return input.foundationSla;
-}
-
-/**
- * Dashboard payload:
- * - Complaint KPI numbers prefer Aggregate (dashboard/aggregate-kpis) — where Batch-1 intake writes
- * - SLA clocks stay on the same SoT as those KPIs (null while Aggregate / BQ-005)
- * - Branch charts remain foundation until Retirement DEC
+ * Dashboard payload (DEC-026): CM Aggregate is the only complaint SoT.
+ * SLA clocks stay null (BQ-005 / CAP-006 deferred).
  */
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [overview, byStatus, byBranch, trends, aggregate] =
-    await Promise.allSettled([
-      fetchDashboardSummary(),
-      fetchReportByStatus(),
-      fetchReportByBranch(),
-      fetchDashboardTrends("30d"),
-      loadAggregateKpis(),
-    ]);
+  const [aggregate, byBranch, trends] = await Promise.allSettled([
+    loadAggregateKpis(),
+    fetchReportByBranch(),
+    fetchDashboardTrends("30d"),
+  ]);
 
-  if (overview.status === "rejected") {
-    throw overview.reason;
-  }
-
-  const foundationHeader = overview.value.data.header;
-  const foundationByStatus =
-    byStatus.status === "fulfilled" ? byStatus.value.data : null;
-  const trend = trends.status === "fulfilled" ? trends.value.data.items : null;
-
-  if (aggregate.status === "fulfilled") {
-    return {
-      header: aggregate.value.header,
-      sla: selectDashboardSla({
-        complaintKpiSource: "aggregate",
-        foundationSla: overview.value.data.sla,
-      }),
-      byStatus: aggregate.value.byStatus,
-      byBranch: byBranch.status === "fulfilled" ? byBranch.value.data : null,
-      trend,
-      complaintKpiSource: "aggregate",
-    };
+  if (aggregate.status === "rejected") {
+    throw aggregate.reason;
   }
 
   return {
-    header: foundationHeader,
-    sla: selectDashboardSla({
-      complaintKpiSource: "foundation",
-      foundationSla: overview.value.data.sla,
-    }),
-    byStatus: foundationByStatus,
+    header: aggregate.value.header,
+    sla: null,
+    byStatus: aggregate.value.byStatus,
     byBranch: byBranch.status === "fulfilled" ? byBranch.value.data : null,
-    trend,
-    complaintKpiSource: "foundation",
+    trend: trends.status === "fulfilled" ? trends.value.data.items : null,
   };
 }

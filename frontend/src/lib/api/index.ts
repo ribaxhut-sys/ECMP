@@ -15,38 +15,6 @@ export {
   logout,
   refreshAccessToken,
 } from "./auth";
-export {
-  assignComplaint,
-  changeComplaintStatus,
-  closeComplaint,
-  createComplaint,
-  fetchComplaint,
-  fetchComplaintAssignments,
-  fetchComplaintResolution,
-  fetchComplaintTimeline,
-  fetchComplaintSla,
-  fetchFinalResolution,
-  fetchLatestComplaints,
-  resolveComplaint,
-  searchComplaints,
-  submitFinalResolution,
-  updateComplaint,
-} from "./complaints";
-export {
-  approveEscalation,
-  closeEscalation,
-  fetchComplaintEscalations,
-  fetchEscalation,
-  rejectEscalation,
-  requestEscalation,
-} from "./escalations";
-export {
-  bookAppointment,
-  checkInAppointment,
-  completeAppointment,
-  fetchAppointment,
-  markAppointmentNoShow,
-} from "./appointments";
 export { fetchBranches } from "./branches";
 export type { Branch } from "./branches";
 export { fetchCustomers, updateCustomerPhone } from "./customers";
@@ -54,6 +22,7 @@ export type { Customer } from "./customers";
 export {
   createUser,
   fetchUsers,
+  fetchAllUsers,
   updateUserRole,
   updateUserStatus,
 } from "./users";
@@ -73,34 +42,6 @@ export {
   fetchDashboardSummary,
   fetchDashboardTrends,
 } from "./dashboard";
-export {
-  fetchQueueAssignments,
-  fetchQueueList,
-  fetchQueueSla,
-  fetchQueueSummary,
-  releaseQueue,
-  takeQueue,
-  updateQueueStatus,
-} from "./queue";
-export {
-  assignComplaintHandler,
-  cancelAssignment,
-  fetchAssignmentHistory,
-  fetchAssignmentsList,
-  reassignComplaintHandler,
-} from "./assignments";
-export {
-  closeComplaintFromResolution,
-  closeEscalationForComplaint,
-  fetchFinalResolutionDetail,
-  fetchResolution,
-  fetchResolutionAssignee,
-  fetchResolutionEscalations,
-  fetchResolutionsList,
-  requestEscalationForComplaint,
-  submitFinalResolutionForComplaint,
-  submitResolution,
-} from "./resolutions";
 export {
   activateSlaPolicy,
   createSlaPolicy,
@@ -149,7 +90,6 @@ export {
 export {
   downloadAttachment,
   fetchAttachment,
-  fetchComplaintAttachments,
   uploadAttachment,
 } from "./attachments";
 export type { AttachmentDownloadResult } from "./attachments";

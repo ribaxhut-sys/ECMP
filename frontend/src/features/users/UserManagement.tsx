@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
+  fetchAllUsers,
   fetchBranches,
   fetchRoles,
-  fetchUsers,
   updateUserRole,
   updateUserStatus,
   type Branch,
@@ -22,6 +22,7 @@ import {
   Modal,
   PageContainer,
   PageHeader,
+  Pagination,
   QuickFilters,
   SectionHeader,
   Select,
@@ -44,10 +45,14 @@ import {
 import { HEAD_OFFICE_UNIT_CODE } from "./moduleUserCandidates";
 import { useToast } from "@/shared/providers";
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
+
 export function UserManagement() {
   const router = useRouter();
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
   const tErrors = useTranslations("errors");
   const { hasPermission, roles, userId, user } = useAuth();
   const { pushError, pushSuccess } = useToast();
@@ -75,6 +80,8 @@ export function UserManagement() {
   const [roleCandidate, setRoleCandidate] = useState<UserRef | null>(null);
   const [newRoleId, setNewRoleId] = useState("");
   const [updatingRole, setUpdatingRole] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -86,8 +93,7 @@ export function UserManagement() {
     setLoading(true);
     setLoadError(null);
     try {
-      const userRes = await fetchUsers({ pageSize: 100 });
-      setRows(userRes.data);
+      setRows(await fetchAllUsers());
     } catch (err) {
       setRows([]);
       setBranches([]);
@@ -149,6 +155,31 @@ export function UserManagement() {
         matchesDirectorySearch(row, searchQuery),
     );
   }, [rows, searchQuery, directoryFilter]);
+
+  const totalItems = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, directoryFilter, pageSize]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  const pageRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page, pageSize]);
+
+  const pageSizeOptions = useMemo(
+    () =>
+      PAGE_SIZE_OPTIONS.map((count) => ({
+        value: String(count),
+        label: tTable("perPage", { count }),
+      })),
+    [tTable],
+  );
 
   const selectedUser = useMemo(
     () => filteredRows.find((row) => row.id === selectedId) ?? null,
@@ -490,17 +521,38 @@ export function UserManagement() {
         </div>
 
         <WorkspaceToolbar
-          summary={t("directorySummary", { count: filteredRows.length })}
+          summary={
+            totalItems === 0
+              ? t("directorySummary", { count: 0 })
+              : tCommon("showingItems", {
+                  from: (page - 1) * pageSize + 1,
+                  to: Math.min(page * pageSize, totalItems),
+                  total: totalItems,
+                })
+          }
           actions={
-            <Button
-              variant="outline"
-              size="sm"
-              className="min-h-[var(--ecmp-touch-min)]"
-              onClick={() => void load()}
-              disabled={loading}
-            >
-              {loading ? tCommon("refreshing") : tCommon("refresh")}
-            </Button>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-[9.5rem]">
+                <Select
+                  name="directoryPageSize"
+                  label={t("pageSizeLabel")}
+                  options={pageSizeOptions}
+                  value={String(pageSize)}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value) || DEFAULT_PAGE_SIZE);
+                  }}
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[var(--ecmp-touch-min)]"
+                onClick={() => void load()}
+                disabled={loading}
+              >
+                {loading ? tCommon("refreshing") : tCommon("refresh")}
+              </Button>
+            </div>
           }
         />
       </section>
@@ -553,7 +605,7 @@ export function UserManagement() {
           <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] xl:grid-cols-12">
             <div className="xl:col-span-8">
               <DirectoryPeopleList
-                rows={filteredRows}
+                rows={pageRows}
                 selectedId={selectedId}
                 unitLabelByBranchId={unitLabelByBranchId}
                 onSelect={(user) =>
@@ -562,6 +614,18 @@ export function UserManagement() {
                   )
                 }
               />
+              {totalItems > 0 ? (
+                <Pagination
+                  className="mt-[var(--ecmp-panel-gap)]"
+                  summary={tCommon("pageOf", { page, totalPages })}
+                  previousLabel={tCommon("previous")}
+                  nextLabel={tCommon("next")}
+                  onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  previousDisabled={page <= 1}
+                  nextDisabled={page >= totalPages}
+                />
+              ) : null}
             </div>
             <div className="xl:col-span-4">
               <DirectoryPreviewPanel

@@ -50,7 +50,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
 
-> **DEC-020:** Canonical foundation / Sprint delivery lifecycle namespace (`/api/v1/complaints`). Controlled coexistence with Aggregate `/api/v1/cm` — not interchangeable. Retirement requires a separate Cutover DEC.
+> **DEC-026 M-026-2:** Foundation `/api/v1/complaints` lifecycle **unmounted**. Catalog rows below are **historical**. Canonical complaint HTTP = `/api/v1/cm`. CA BC ticket-nested not retired.
 | API ID | Method & Endpoint | Description | Auth | Status |
 |---|---|---|---|---|
 | API-201 | POST /api/v1/complaints | Create complaint (status NEW; multi-source/target via DEC-018; legacy customerId→CUSTOMER/BRANCH; audit `complaint.create`) | bearerAuth, permission `complaints:create` | 🟢 Implemented |
@@ -192,7 +192,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ### complaint-management-batch1 v1 — [`openapi/complaint-management-batch1.v1.yaml`](./openapi/complaint-management-batch1.v1.yaml) **1.0.0-planned** — FRD-CM-001 Batch 1 (FR-001…FR-004)
 
-> **DEC-020 (Accepted):** Aggregate SoT namespace (`/api/v1/cm/...`). **No Case create.** Distinct from Sprint case-service and foundation complaint-domain IDs. Dual SoT coexistence with `/api/v1/complaints`.
+> **DEC-026:** Aggregate SoT namespace (`/api/v1/cm/...`) is canonical after Foundation HTTP retirement. **No Case create** in Batch-1 catalog (Case = CAP-008 / `cm-case-management`). Distinct from Sprint case-service.
 > Collision `API-390`/`API-392` (dashboard vs domain) is **not** reused here — Batch 1 uses **API-500…513**. Prefer **path+method** anchors until ID collisions are remediated.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |

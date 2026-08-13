@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { CM_BATCH1_ESCALATION_PENDING_HREF } from "@/features/complaints/cmBatch1ListFilters";
-import type { DashboardSlaSummary, StatusCount } from "@/lib/api/types";
+import type { StatusCount } from "@/lib/api/types";
 import { IconChevronRight, IconCheck } from "@/shared/icons";
 import { Skeleton } from "@/shared/ui";
 import {
@@ -22,14 +22,10 @@ import {
 } from "./dashboardUtils";
 
 export function CriticalAlerts({
-  sla,
   byStatus,
-  complaintKpiSource,
   loading,
 }: {
-  sla: DashboardSlaSummary | null;
   byStatus?: StatusCount[] | null;
-  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
 }) {
   const router = useRouter();
@@ -38,17 +34,9 @@ export function CriticalAlerts({
   const { hasPermission } = useAuth();
   const canOpenComplaintList =
     hasPermission("complaints:read") || hasPermission("*");
-  // /resolutions reads the foundation Complaint aggregate only —
-  // Aggregate-sourced (cm_batch1) counts have nowhere to land there (Batch-1
-  // assignment workflow is DEFERRED, GOV-MODEA-NEXT-001 M4). Foundation SLA
-  // clocks are not mixed into Aggregate alerts (DEC-020 / BQ-005). MANAGER
-  // sees Aggregate KPI via dashboard:read only — no deep-link into a 403 list.
-  const isAggregate = complaintKpiSource === "aggregate";
-  const escalationHref = isAggregate
-    ? canOpenComplaintList
-      ? CM_BATCH1_ESCALATION_PENDING_HREF
-      : null
-    : "/resolutions";
+  const escalationHref = canOpenComplaintList
+    ? CM_BATCH1_ESCALATION_PENDING_HREF
+    : null;
 
   if (loading) {
     return (
@@ -66,9 +54,9 @@ export function CriticalAlerts({
   }
 
   const alerts = buildCriticalAlerts({
-    breached: isAggregate ? 0 : (sla?.overall.breached ?? 0),
-    assignmentBreached: isAggregate ? 0 : (sla?.assignment.breached ?? 0),
-    resolutionBreached: isAggregate ? 0 : (sla?.resolution.breached ?? 0),
+    breached: 0,
+    assignmentBreached: 0,
+    resolutionBreached: 0,
     escalated: countByStatus(byStatus, "ESCALATED") ?? 0,
     escalationHref,
   });

@@ -1,11 +1,9 @@
 /**
- * CM Batch 1 Aggregate API client — DEC-020 `/api/v1/cm` namespace.
+ * CM Batch 1 Aggregate API client — DEC-026 Single SoT `/api/v1/cm`.
  *
- * Dual SoT: this module is **not** interchangeable with `complaints.ts`
- * (foundation `/api/v1/complaints`). Create UI Mode A posts here
- * (`CreateComplaintView`); confirmation reads via `fetchCmBatch1Complaint`.
- * Do not merge SoTs or retire foundation without a Retirement DEC.
- * Mode B / Batch-2 remain CLOSED.
+ * Foundation `/api/v1/complaints` lifecycle is retired (M-026-2).
+ * Create UI Mode A posts here (`CreateComplaintView`).
+ * Mode B / CAP-006 remain CLOSED. CA BC is a separate surface.
  */
 import { apiRequest } from "./client";
 import {

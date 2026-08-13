@@ -43,3 +43,15 @@ print(
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# DEC-026 M-026-2 — Foundation lifecycle HTTP is unmounted on create_app().
+# Isolated CA BC router tests (test_complaint_api / processing / sla / escalation)
+# stay collected. Foundation table HTTP suites stay ignored (M-026-3 DROP).
+collect_ignore = [
+    "test_complaints_api.py",
+    "test_search_api.py",
+    "test_sla_deadlines_api.py",
+    "test_sla_timeline_api.py",
+    "test_sla_breach_api.py",
+    "test_knowledge_reference_api.py",
+]

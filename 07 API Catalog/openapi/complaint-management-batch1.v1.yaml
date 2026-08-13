@@ -10,15 +10,16 @@ info:
     `cm_batch1_*` persistence (Alembic 0040…0043). Residual lab exceptions remain under
     EPIC-CM-B1-OPS / EX pack — not a Batch-2 or Mode B unlock.
     Logical IDs API-CM-B1-xxx map to catalog IDs API-500…API-515.
-    Controlled coexistence with foundation `/api/v1/complaints` (complaint-service) —
-    namespaces MUST NOT be treated as interchangeable (DEC-020). Cutover/retirement
-    requires a separate Board Decision.
+    Canonical Mode A complaint namespace after DEC-026 M-026-2 (Foundation
+    `/api/v1/complaints` lifecycle unmounted). Not interchangeable with retired
+    foundation paths. CA BC ticket-nested remains separate.
   x-ecmp-frd: FRD-CM-001
   x-ecmp-rtm: RTM-CM-B1-001
   x-ecmp-dec: DEC-020
   x-ecmp-related-dec:
     - DEC-025
-  x-ecmp-status: Implemented (lab) — coexistence per DEC-020; Aggregate status DEC-025
+    - DEC-026
+  x-ecmp-status: Implemented (lab) — canonical after DEC-026 M-026-2; DEC-025 status model
   x-ecmp-ownership: CM Batch 1 Aggregate (`backend/app/modules/cm_batch1/`)
 servers:
   - url: http://localhost:8000

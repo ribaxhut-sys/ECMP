@@ -46,13 +46,15 @@ Draft
 | **DEC-023** | Pintu auth: sekarang vs nanti (Mode A → B handoff) | **Accepted (ops)** | Fleksibel di adapter; larangan mall palsu; Mode B tetap CLOSED |
 | **DEC-024** | Case List Visibility Matrix Mode A | **Accepted (lab)** | Visibility list Case; bukan Retirement DEC |
 | **DEC-025** | CM Target Single SoT + Mode A Complaint Closure | 🟢 **Accepted** (2026-08-13) | Target CM Single SoT; Dual-SoT DEC-020 tetap sampai Retirement follow-up; BR-009 auto-close + status `IN_PROGRESS` — **bukan** cutover; M-025-1 terpisah |
+| **DEC-026** | Foundation `/api/v1/complaints` namespace retirement | 🟢 **Accepted with Conditions** (2026-08-13) | M-026-1…2 executed; M-026-3 unused-leave tables (H1); CA BC bukan objek retire |
 | **DEC-MODEA-B2-001** | Mode A Delivery Baseline BQ Lock (CAP-008) | **Accepted** | BQ-002…014 LOCKED; Residual BQ ZERO; FRD Batch-2 prerequisite READY |
 
 > DEC-020 (SoT remapping) closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, or real-customer production.
 > **DEC-MODEA-B2-001** locks Batch-2 Mode A Case Management BQs and registers capability **CAP-008** (former working ID CAP-02 retired). Pack: `../18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`.
 > DEC-021 (O-06) / DEC-022 are **Proposed** only — interim fail-closed rules apply until Accepted.
 > **DEC-023** clarifies Mode A login vs future Enterprise handoff; it does **not** unlock Mode B.
-> **DEC-025** is **Accepted** (2026-08-13) — target CM Single SoT + BR-009 Mode A closure/status. Does **not** retire DEC-020, delete `/api/v1/complaints`, reopen CAP-008, or execute cutover. Slices M-025-1…4 executed; Retirement DEC tetap tertutup.
+> **DEC-025** is **Accepted** (2026-08-13) — target CM Single SoT + BR-009 Mode A closure/status. Does **not** retire DEC-020, delete `/api/v1/complaints`, reopen CAP-008, or execute cutover. Slices M-025-1…6 executed.
+> **DEC-026** is **Accepted with Conditions** (2026-08-13) — Foundation namespace retirement scheduled. Does **not** unmount `/api/v1/complaints`, drop tables, or rewrite DEC-020 on Accept day. Execution = M-026-1…3 (separate). Mode B remains CLOSED.
 > **ID collision (P0 governance):** two files share `DEC-020` and two share `DEC-021`. Do **not** renumber without Board/PMO decision. Register: `../deploy/evidence/DEC_ID_Collision_Register_20260801.md`.
 
 ## Structure (konvensi aktual — flat)

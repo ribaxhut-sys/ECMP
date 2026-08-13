@@ -22,7 +22,7 @@ def test_alembic_head_is_admin_rbac_repair() -> None:
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(cfg)
     # Head advances with Identity/RBAC migrations; attachment revision stays on chain.
-    assert script.get_heads() == ["0071_knowledge_files"]
+    assert script.get_heads() == ["0072_drop_foundation_tables"]
     revisions = {r.revision for r in script.walk_revisions()}
     assert "0035_attachment_domain" in revisions
     assert "0036_search_indexes" in revisions

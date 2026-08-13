@@ -28,8 +28,7 @@ function buildPath(values: number[]): { line: string; area: string } {
 }
 
 /**
- * Inline 30-day open-complaint trend. Foundation-scoped (DEC-020) — see
- * loadDashboardData.ts DashboardData.trend for the coexistence caveat.
+ * Inline 30-day complaint-count trend from CM Aggregate (DEC-026).
  */
 export function TrendSparkline({
   items,
@@ -43,11 +42,8 @@ export function TrendSparkline({
 }) {
   const { line, area, latest, direction } = useMemo(() => {
     const values = items.map((item) => item.count);
-    // All-zero (e.g. foundation table empty under Aggregate-only intake,
-    // DEC-020) draws a flat line pinned to the bottom edge — visually a
-    // near-invisible sliver, and worse, it *asserts* "zero every day" when
-    // the honest state is "no foundation data to measure at all". Hide
-    // instead of drawing a claim we can't back up.
+    // All-zero draws a flat line pinned to the bottom edge — hide it
+    // rather than asserting "zero every day" when there is no signal.
     const hasSignal = values.length > 1 && values.some((v) => v > 0);
     if (!hasSignal) {
       return { line: "", area: "", latest: values[0] ?? 0, direction: "flat" as const };
