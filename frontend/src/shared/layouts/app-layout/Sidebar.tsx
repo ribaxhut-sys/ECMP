@@ -8,6 +8,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { fetchBranches } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
+import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
@@ -105,13 +106,22 @@ const iconMap = {
   knowledge: IconFile,
 } as const;
 
-function NavBadge({ value }: { value: number | string }) {
+function NavBadge({
+  value,
+  tone = "default",
+}: {
+  value: number | string;
+  tone?: "default" | "unread";
+}) {
   const label = typeof value === "number" && value > 99 ? "99+" : String(value);
   return (
     <span
       className={cn(
         "ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full px-1.5",
-        "bg-ecmp-primary-muted text-[length:var(--ecmp-font-overline-size)] font-semibold leading-5 text-ecmp-primary",
+        "text-[length:var(--ecmp-font-overline-size)] font-semibold leading-5",
+        tone === "unread"
+          ? "bg-ecmp-danger text-ecmp-danger-foreground"
+          : "bg-ecmp-primary-muted text-ecmp-primary",
       )}
     >
       {label}
@@ -131,14 +141,24 @@ function NavLink({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const t = useTranslations("announcements");
   const active = isNavItemActive(pathname, item.href, allHrefs);
   const Icon = iconMap[item.icon];
+  const unreadCount =
+    item.id === "announcements" && typeof item.badge === "number"
+      ? item.badge
+      : 0;
+  const accessibleName =
+    unreadCount > 0
+      ? `${label}, ${t("sidebarUnreadCount", { count: unreadCount })}`
+      : label;
 
   return (
     <Link
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
+      aria-label={accessibleName}
       className={cn(
         "ecmp-touch group relative flex items-center gap-3 rounded-[var(--ecmp-radius-md)] px-3",
         "text-[length:var(--ecmp-font-body-small-size)] font-normal tracking-[-0.01em]",
@@ -158,7 +178,10 @@ function NavLink({
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {item.badge !== undefined && item.badge !== null && item.badge !== "" ? (
-        <NavBadge value={item.badge} />
+        <NavBadge
+          value={item.badge}
+          tone={item.id === "announcements" ? "unread" : "default"}
+        />
       ) : null}
     </Link>
   );
@@ -564,6 +587,14 @@ function NavGroupSection({
 function NavSections({ onNavigate }: { onNavigate?: () => void }) {
   const tCommon = useTranslations("common");
   const { groups, itemsById, isItemVisible } = useShellNav();
+  const unreadCount = useUnreadAnnouncementCount();
+  const itemsWithBadges =
+    unreadCount > 0 && itemsById.announcements
+      ? {
+          ...itemsById,
+          announcements: { ...itemsById.announcements, badge: unreadCount },
+        }
+      : itemsById;
 
   const visibleItems = groups
     .flatMap((group) => group.itemIds.map((id) => itemsById[id]))
@@ -580,7 +611,7 @@ function NavSections({ onNavigate }: { onNavigate?: () => void }) {
         <NavGroupSection
           key={group.id}
           group={group}
-          itemsById={itemsById}
+          itemsById={itemsWithBadges}
           isItemVisible={isItemVisible}
           allHrefs={allHrefs}
           onNavigate={onNavigate}

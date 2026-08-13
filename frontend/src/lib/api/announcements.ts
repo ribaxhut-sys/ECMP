@@ -46,12 +46,13 @@ export function fetchAnnouncementHistory(): Promise<DataResponse<Announcement[]>
 }
 
 /**
- * Post-login entry-point gate (§17, LOCKED) — a single EXISTS-shaped boolean,
- * never the full /active list. Same announcement:read gate as
- * fetchActiveAnnouncements.
+ * Count of unread *active* announcements.
+ * Same announcement:read gate and active window as fetchActiveAnnouncements.
+ * Entry-point (`/`) redirects to /announcements when count > 0; sidebar
+ * badge shows the number. Still one COUNT query — not the full /active list.
  */
-export function fetchHasUnreadAnnouncements(): Promise<DataResponse<boolean>> {
-  return apiRequest<DataResponse<boolean>>("/api/v1/announcements/unread");
+export function fetchUnreadAnnouncementCount(): Promise<DataResponse<number>> {
+  return apiRequest<DataResponse<number>>("/api/v1/announcements/unread");
 }
 
 /**

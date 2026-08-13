@@ -171,3 +171,6 @@ class AnnouncementResponse(BaseModel):
     # sees only what the visibility rule allows) — never filter again in FE.
     attachments: list[AnnouncementAttachmentResponse] = Field(default_factory=list)
     attachment_count: int = Field(default=0, alias="attachmentCount")
+    # Reader lists (/history, /active) set this from announcement_reads.
+    # Management list leaves it null — read-state is a reader concern.
+    is_read: bool | None = Field(default=None, alias="isRead")

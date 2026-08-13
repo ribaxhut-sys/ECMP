@@ -51,6 +51,7 @@ def _to_response(
     *,
     now: datetime | None = None,
     attachments: list[AnnouncementAttachmentResponse] = (),  # type: ignore[assignment]
+    is_read: bool | None = None,
 ) -> AnnouncementResponse:
     when = now or datetime.now(UTC)
     attachment_list = list(attachments)
@@ -77,6 +78,7 @@ def _to_response(
         updated_at=row.updated_at,  # type: ignore[attr-defined]
         attachments=attachment_list,
         attachment_count=len(attachment_list),
+        is_read=is_read,
     )
 
 
@@ -278,10 +280,10 @@ class AnnouncementService:
             for row in rows
         ]
 
-    def has_unread_active(self, *, user_id: uuid.UUID) -> bool:
-        """Post-login entry-point gate — same "active" definition as
-        list_active, plus "no read record for this user yet"."""
-        return self._repo.has_unread_active(user_id=user_id)
+    def count_unread_active(self, *, user_id: uuid.UUID) -> int:
+        """Sidebar badge — same "active" definition as list_active, plus
+        "no read record for this user yet"."""
+        return self._repo.count_unread_active(user_id=user_id)
 
     def mark_read(
         self, announcement_id: uuid.UUID, *, user_id: uuid.UUID, commit: bool = True
@@ -303,20 +305,30 @@ class AnnouncementService:
         if commit:
             self._repo.commit()
 
-    def list_history(self) -> list[AnnouncementResponse]:
+    def list_history(self, *, user_id: uuid.UUID) -> list[AnnouncementResponse]:
         """Reader archive — PUBLISHED (incl. EXPIRED) + ARCHIVED.
 
         DRAFT and SCHEDULED are excluded. Unlike /active, expired (past end_at)
         remains visible — this is "what has already been visible", not "active now".
+        ``isRead`` is per caller (opened the detail, never the list).
         """
         now = datetime.now(UTC)
         rows = self._repo.list_history(now=now)
+        read_ids = self._repo.list_read_ids(
+            user_id=user_id,
+            announcement_ids=[row.id for row in rows],
+        )
         attachments_by_id = (
             self._attachments.bulk_visible([(r.id, r.status) for r in rows])
             if self._attachments is not None
             else {}
         )
         return [
-            _to_response(row, now=now, attachments=attachments_by_id.get(row.id, []))
+            _to_response(
+                row,
+                now=now,
+                attachments=attachments_by_id.get(row.id, []),
+                is_read=row.id in read_ids,
+            )
             for row in rows
         ]

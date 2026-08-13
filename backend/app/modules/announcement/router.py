@@ -128,26 +128,26 @@ def list_announcement_history(
     """Reader archive (§4, LOCKED) — same auth pattern as /active
     (announcement:read, no manage requirement). DRAFT and SCHEDULED never
     appear; expired (past end_at) stays visible. See list_history.
+    ``isRead`` is per authenticated caller.
     """
-    _ = principal
-    return DataResponse(data=service.list_history())
+    return DataResponse(data=service.list_history(user_id=principal.user_id))
 
 
 @router.get(
     "/unread",
-    response_model=DataResponse[bool],
+    response_model=DataResponse[int],
     status_code=status.HTTP_200_OK,
-    summary="Whether the caller has any unread active announcement",
+    summary="Count of unread active announcements for the caller",
 )
-def get_has_unread_active(
+def get_unread_active_count(
     service: Annotated[AnnouncementService, Depends(get_announcement_service)],
     principal: Annotated[Principal, Depends(require_permissions("announcement:read"))],
-) -> DataResponse[bool]:
-    """Post-login entry-point gate (§17, LOCKED) — a single EXISTS-shaped
-    query (AnnouncementRepository.has_unread_active), never the full /active
-    list. Same active-window predicate as /active, plus "no read record for
-    this user yet"."""
-    return DataResponse(data=service.has_unread_active(user_id=principal.user_id))
+) -> DataResponse[int]:
+    """Post-login gate + sidebar badge — COUNT, never the full /active list.
+    Same active-window predicate as /active, plus "no read record for this
+    user yet". ``0`` → Dashboard; ``> 0`` → /announcements then the bell
+    number. Expired and archived items are excluded."""
+    return DataResponse(data=service.count_unread_active(user_id=principal.user_id))
 
 
 @router.get(

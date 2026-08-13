@@ -10,6 +10,7 @@ export {
   AnnouncementPriorityBadge,
   AnnouncementStatusBadge,
 } from "./AnnouncementBadges";
+export { useUnreadAnnouncementCount } from "./useUnreadAnnouncementCount";
 export { toAttachmentCardModel } from "./attachmentAdapter";
 export {
   announcementFormFromExisting,

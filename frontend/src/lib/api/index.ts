@@ -113,7 +113,7 @@ export {
   fetchAnnouncement,
   fetchAnnouncementHistory,
   fetchAnnouncements,
-  fetchHasUnreadAnnouncements,
+  fetchUnreadAnnouncementCount,
   markAnnouncementRead,
   publishAnnouncement,
   removeAnnouncementAttachment,

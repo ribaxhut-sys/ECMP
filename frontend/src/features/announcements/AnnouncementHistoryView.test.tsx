@@ -45,6 +45,7 @@ function announcement(overrides: Record<string, unknown> = {}) {
     createdBy: null,
     attachmentCount: 0,
     attachments: [],
+    isRead: false,
     ...overrides,
   };
 }
@@ -152,6 +153,140 @@ describe("AnnouncementHistoryView", () => {
     const table = historyTable();
     expect(within(table).queryByRole("columnheader", { name: /^status$/i })).toBeNull();
     expect(within(table).queryByText(/^published$/i)).toBeNull();
+  });
+
+  it("opens detail from the reference number and does not render a View action", async () => {
+    fetchAnnouncementHistory.mockResolvedValue({ data: [announcement()] });
+
+    renderWithProviders(<AnnouncementHistoryView />);
+
+    await waitFor(() =>
+      expect(
+        within(historyTable()).getByRole("link", { name: "PGM-2608-0001" }),
+      ).toHaveAttribute("href", "/announcements/b2222222-2222-2222-2222-222222222222"),
+    );
+    expect(within(historyTable()).queryByRole("link", { name: /^view$/i })).toBeNull();
+    expect(
+      within(historyTable()).queryByRole("columnheader", { name: /attachment count/i }),
+    ).toBeNull();
+  });
+
+  it("shows a truncated body preview and a full published datetime", async () => {
+    const longBody =
+      "Berdasarkan pengumuman nomor 12 tentang pemeliharaan sistem layanan pengaduan yang akan dilaksanakan pada akhir pekan dan berdampak pada seluruh cabang.";
+    fetchAnnouncementHistory.mockResolvedValue({
+      data: [announcement({ body: longBody })],
+    });
+
+    renderWithProviders(<AnnouncementHistoryView />);
+
+    await waitFor(() =>
+      expect(within(historyTable()).getByText(/Berdasarkan pengumuman nomor 12/)).toBeInTheDocument(),
+    );
+    const preview = within(historyTable()).getByText(/Berdasarkan pengumuman nomor 12/);
+    expect(preview.textContent).toMatch(/…$/);
+    expect(preview.textContent?.length ?? 0).toBeLessThan(longBody.length);
+    expect(within(historyTable()).getByText(/August 1, 2026/)).toBeInTheDocument();
+  });
+
+  it("uses bold for unread and regular for read, without read-status badges", async () => {
+    fetchAnnouncementHistory.mockResolvedValue({
+      data: [
+        announcement({
+          id: "11111111-1111-4111-8111-111111111111",
+          title: "Belum dibaca",
+          isRead: false,
+        }),
+        announcement({
+          id: "22222222-2222-4222-8222-222222222222",
+          title: "Sudah dibaca",
+          isRead: true,
+        }),
+      ],
+    });
+
+    renderWithProviders(<AnnouncementHistoryView />);
+
+    await waitFor(() =>
+      expect(within(historyTable()).getByText("Belum dibaca")).toBeInTheDocument(),
+    );
+    const table = historyTable();
+    expect(within(table).getByText("Belum dibaca")).toHaveClass("font-semibold");
+    expect(within(table).getByText("Sudah dibaca")).toHaveClass("font-normal");
+    expect(within(table).queryByText(/^unread$/i)).toBeNull();
+    expect(within(table).queryByText(/^read$/i)).toBeNull();
+    expect(markAnnouncementRead).not.toHaveBeenCalled();
+  });
+
+  it("filters to unread only when the checkbox is checked, and restores all when unchecked", async () => {
+    const user = userEvent.setup();
+    fetchAnnouncementHistory.mockResolvedValue({
+      data: [
+        announcement({
+          id: "11111111-1111-4111-8111-111111111111",
+          title: "Belum dibaca",
+          isRead: false,
+        }),
+        announcement({
+          id: "22222222-2222-4222-8222-222222222222",
+          title: "Sudah dibaca",
+          isRead: true,
+        }),
+      ],
+    });
+
+    renderWithProviders(<AnnouncementHistoryView />);
+
+    await waitFor(() =>
+      expect(within(historyTable()).getByText("Sudah dibaca")).toBeInTheDocument(),
+    );
+
+    const filter = screen.getByRole("checkbox", { name: /show unread only/i });
+    expect(filter).not.toBeChecked();
+
+    await user.click(filter);
+
+    await waitFor(() =>
+      expect(within(historyTable()).queryByText("Sudah dibaca")).not.toBeInTheDocument(),
+    );
+    expect(within(historyTable()).getByText("Belum dibaca")).toBeInTheDocument();
+    expect(filter).toBeChecked();
+    expect(markAnnouncementRead).not.toHaveBeenCalled();
+
+    await user.click(filter);
+
+    await waitFor(() =>
+      expect(within(historyTable()).getByText("Sudah dibaca")).toBeInTheDocument(),
+    );
+    expect(filter).not.toBeChecked();
+  });
+
+  it("keeps the unread filter available when every announcement is already read", async () => {
+    const user = userEvent.setup();
+    fetchAnnouncementHistory.mockResolvedValue({
+      data: [
+        announcement({
+          title: "Semua sudah dibaca",
+          isRead: true,
+        }),
+      ],
+    });
+
+    renderWithProviders(<AnnouncementHistoryView />);
+
+    await waitFor(() =>
+      expect(within(historyTable()).getByText("Semua sudah dibaca")).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /show unread only/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("No unread announcements.")).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("table", { name: /announcement history list/i })).toBeNull();
+    expect(
+      screen.getByRole("checkbox", { name: /show unread only/i }),
+    ).toBeChecked();
   });
 
   it("shows the empty state when the archive is empty", async () => {

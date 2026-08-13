@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, not_, or_, select
+from sqlalchemy import and_, func, not_, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -57,8 +57,8 @@ class AnnouncementRepository:
     @staticmethod
     def _active_conditions(*, now: datetime) -> tuple[Any, ...]:
         """Single definition of "active" (PUBLISHED, in-window) — shared by
-        list_active and has_unread_active so the post-login unread check
-        never drifts from what /active actually returns. Announcements are
+        list_active and count_unread_active so the sidebar badge never
+        drifts from what /active actually returns. Announcements are
         global (no audience/target) — every announcement:read holder sees
         the same set."""
         return (
@@ -89,15 +89,15 @@ class AnnouncementRepository:
         )
         return list(self._session.scalars(stmt).all())
 
-    def has_unread_active(
+    def count_unread_active(
         self,
         *,
         user_id: uuid.UUID,
         now: datetime | None = None,
-    ) -> bool:
-        """EXISTS-shaped check (§17, LOCKED) — post-login entry-point gate.
-        Never fetches full rows; a single row id is enough. Same "active"
-        definition as list_active, plus "no read record for this user yet".
+    ) -> int:
+        """COUNT of active announcements with no read record for this user.
+        Same "active" window as list_active — sidebar badge only nags on
+        currently visible items, not the expired archive.
         """
         when = now or datetime.now(UTC)
         read_exists = (
@@ -110,11 +110,26 @@ class AnnouncementRepository:
             .exists()
         )
         stmt = (
-            select(AnnouncementORM.id)
+            select(func.count())
+            .select_from(AnnouncementORM)
             .where(*self._active_conditions(now=when), ~read_exists)
-            .limit(1)
         )
-        return self._session.scalar(stmt) is not None
+        return int(self._session.scalar(stmt) or 0)
+
+    def list_read_ids(
+        self,
+        *,
+        user_id: uuid.UUID,
+        announcement_ids: list[uuid.UUID],
+    ) -> set[uuid.UUID]:
+        """Which of the given announcements this user has already opened."""
+        if not announcement_ids:
+            return set()
+        stmt = select(AnnouncementReadORM.announcement_id).where(
+            AnnouncementReadORM.user_id == user_id,
+            AnnouncementReadORM.announcement_id.in_(announcement_ids),
+        )
+        return set(self._session.scalars(stmt).all())
 
     def mark_read(
         self,

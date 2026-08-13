@@ -6,12 +6,15 @@ import { useTranslations } from "next-intl";
 import { fetchAnnouncementHistory } from "@/lib/api";
 import type { Announcement } from "@/lib/api/types";
 import { sortAnnouncements } from "@/features/landing/announcements";
-import { formatDate } from "@/i18n/formatting";
+import { summarize } from "@/features/landing/announcementSummary";
+import { formatDateTime } from "@/i18n/formatting";
 import { useLocaleContext } from "@/shared/i18n";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { cn } from "@/shared/utils";
 import {
   Card,
   CardBody,
+  Checkbox,
   Empty,
   ErrorState,
   Pagination,
@@ -22,8 +25,13 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 
+function isUnread(row: Announcement): boolean {
+  return row.isRead !== true;
+}
+
 const HISTORY_PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 const DEFAULT_HISTORY_PAGE_SIZE = 10;
+const HISTORY_BODY_PREVIEW_MAX = 120;
 
 /**
  * Riwayat Pengumuman — read-only archive list for announcement:read holders
@@ -43,6 +51,7 @@ export function AnnouncementHistoryView() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_HISTORY_PAGE_SIZE);
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,7 +74,11 @@ export function AnnouncementHistoryView() {
     void load();
   }, [load]);
 
-  const totalItems = rows.length;
+  const visibleRows = useMemo(
+    () => (unreadOnly ? rows.filter(isUnread) : rows),
+    [rows, unreadOnly],
+  );
+  const totalItems = visibleRows.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
 
   useEffect(() => {
@@ -74,8 +87,8 @@ export function AnnouncementHistoryView() {
 
   const pageRows = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [page, pageSize, rows]);
+    return visibleRows.slice(start, start + pageSize);
+  }, [page, pageSize, visibleRows]);
 
   const pageSizeOptions = useMemo(
     () =>
@@ -92,47 +105,61 @@ export function AnnouncementHistoryView() {
         key: "referenceNumber",
         header: t("columnReferenceNumber"),
         cell: (row) => (
-          <span className="font-medium tabular-nums text-ecmp-text-primary">
+          <Link
+            href={`/announcements/${encodeURIComponent(row.id)}`}
+            className={cn(
+              "tabular-nums underline-offset-2 hover:underline",
+              isUnread(row)
+                ? "font-semibold text-ecmp-primary"
+                : "font-normal text-ecmp-primary",
+            )}
+          >
             {row.referenceNumber}
-          </span>
+          </Link>
         ),
       },
       {
         key: "title",
         header: t("columnTitle"),
         cell: (row) => (
-          <span className="font-medium text-ecmp-text-primary">{row.title}</span>
+          <span
+            className={cn(
+              isUnread(row)
+                ? "font-semibold text-ecmp-text-primary"
+                : "font-normal text-ecmp-text-secondary",
+            )}
+          >
+            {row.title}
+          </span>
         ),
+      },
+      {
+        key: "body",
+        header: t("columnBody"),
+        cell: (row) => {
+          const preview = summarize(row.body, HISTORY_BODY_PREVIEW_MAX);
+          if (!preview) return tCommon("emDash");
+          return (
+            <span
+              className="line-clamp-2 text-[length:var(--ecmp-font-body-small-size)] font-normal text-ecmp-text-secondary"
+              title={row.body.trim()}
+            >
+              {preview}
+            </span>
+          );
+        },
       },
       {
         key: "publishedAt",
         header: t("columnPublishedAt"),
         cell: (row) =>
           row.publishedAt
-            ? formatDate(row.publishedAt, locale, {
+            ? formatDateTime(row.publishedAt, locale, {
                 day: "numeric",
-                month: "short",
+                month: "long",
                 year: "numeric",
               })
             : tCommon("emDash"),
-      },
-      {
-        key: "attachmentCount",
-        header: t("columnAttachmentCount"),
-        cell: (row) =>
-          row.attachmentCount > 0 ? String(row.attachmentCount) : tCommon("emDash"),
-      },
-      {
-        key: "actions",
-        header: tCommon("actions"),
-        cell: (row) => (
-          <Link
-            href={`/announcements/${encodeURIComponent(row.id)}`}
-            className="text-[length:var(--ecmp-font-body-small-size)] font-medium text-ecmp-primary underline-offset-2 hover:underline"
-          >
-            {t("viewDetail")}
-          </Link>
-        ),
       },
     ],
     [locale, t, tCommon],
@@ -179,9 +206,15 @@ export function AnnouncementHistoryView() {
         <Card>
           <CardBody className="space-y-[var(--ecmp-panel-gap)]">
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                {rangeLabel}
-              </p>
+              <Checkbox
+                name="historyUnreadOnly"
+                label={t("historyUnreadOnly")}
+                checked={unreadOnly}
+                onChange={(e) => {
+                  setUnreadOnly(e.target.checked);
+                  setPage(1);
+                }}
+              />
               <div className="w-full max-w-[14rem] sm:w-auto">
                 <Select
                   name="historyPageSize"
@@ -197,23 +230,40 @@ export function AnnouncementHistoryView() {
                 />
               </div>
             </div>
-            <Table
-              columns={columns}
-              rows={pageRows}
-              getRowKey={(row) => row.id}
-              caption={t("historyTableCaption")}
-              emptyMessage={t("historyEmpty")}
-              density="compact"
-            />
-            <Pagination
-              summary={tCommon("pageOf", { page, totalPages })}
-              previousLabel={tCommon("previous")}
-              nextLabel={tCommon("next")}
-              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-              previousDisabled={page <= 1}
-              nextDisabled={page >= totalPages}
-            />
+            {unreadOnly && totalItems === 0 ? (
+              <Empty
+                title={t("historyUnreadEmpty")}
+                description={t("historyUnreadEmptyDescription")}
+              />
+            ) : (
+              <>
+                <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                  {rangeLabel}
+                </p>
+                <Table
+                  columns={columns}
+                  rows={pageRows}
+                  getRowKey={(row) => row.id}
+                  getRowClassName={(row) =>
+                    isUnread(row) ? "bg-ecmp-primary-muted/40" : undefined
+                  }
+                  caption={t("historyTableCaption")}
+                  emptyMessage={t("historyEmpty")}
+                  density="compact"
+                />
+              </>
+            )}
+            {totalItems > 0 ? (
+              <Pagination
+                summary={tCommon("pageOf", { page, totalPages })}
+                previousLabel={tCommon("previous")}
+                nextLabel={tCommon("next")}
+                onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                previousDisabled={page <= 1}
+                nextDisabled={page >= totalPages}
+              />
+            ) : null}
           </CardBody>
         </Card>
       )}

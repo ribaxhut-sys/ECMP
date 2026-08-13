@@ -786,6 +786,8 @@ export interface Announcement {
   /** Already filtered per-caller by the backend — never filter again in FE. */
   attachments: AnnouncementAttachment[];
   attachmentCount: number;
+  /** Reader lists only — null on the management list. */
+  isRead?: boolean | null;
 }
 
 export interface AnnouncementCreateRequest {

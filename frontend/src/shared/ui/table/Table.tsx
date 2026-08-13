@@ -48,6 +48,8 @@ export interface TableProps<T> extends HTMLAttributes<HTMLDivElement> {
    */
   selectedKeys?: ReadonlySet<string>;
   onRowClick?: (row: T, index: number) => void;
+  /** Optional row chrome (e.g. unread highlight). Desktop `<tr>` + mobile card. */
+  getRowClassName?: (row: T, index: number) => string | undefined;
   skeletonRows?: number;
   /** Optional sticky toolbar above the table (search / density / refresh / selection). */
   toolbar?: ReactNode;
@@ -68,6 +70,7 @@ export function Table<T>({
   stickyHeader = true,
   selectedKeys,
   onRowClick,
+  getRowClassName,
   skeletonRows = 5,
   toolbar,
   className,
@@ -147,6 +150,7 @@ export function Table<T>({
                     "hover:bg-ecmp-hover/90",
                     selected && "bg-ecmp-selected/80",
                     onRowClick && "cursor-pointer",
+                    getRowClassName?.(row, index),
                   )}
                 >
                   {columns.map((column) => (
@@ -184,6 +188,7 @@ export function Table<T>({
                 selected && "border-ecmp-primary/40 bg-ecmp-selected",
                 onRowClick &&
                   "cursor-pointer hover:-translate-y-[2px] hover:shadow-ecmp-hover motion-reduce:hover:translate-y-0",
+                getRowClassName?.(row, index),
               )}
             >
               <dl className="space-y-3">

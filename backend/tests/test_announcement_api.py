@@ -642,6 +642,22 @@ def test_history_sorted_newest_published_first(
     assert titles.index("History kedua") < titles.index("History pertama")
 
 
+def test_reader_history_is_read_per_caller(
+    client: TestClient, admin_header: dict[str, str], agent_header: dict[str, str]
+) -> None:
+    unread = _create_draft(client, admin_header, title="History belum dibaca")
+    client.put(f"/api/v1/announcements/{unread['id']}/publish", headers=admin_header)
+    read = _create_draft(client, admin_header, title="History sudah dibaca")
+    client.put(f"/api/v1/announcements/{read['id']}/publish", headers=admin_header)
+    client.put(f"/api/v1/announcements/{read['id']}/read", headers=agent_header)
+
+    resp = client.get("/api/v1/announcements/history", headers=agent_header)
+    assert resp.status_code == 200, resp.text
+    by_id = {a["id"]: a for a in resp.json()["data"]}
+    assert by_id[unread["id"]]["isRead"] is False
+    assert by_id[read["id"]]["isRead"] is True
+
+
 # --- Publish / unpublish visibility (business decision §5–6, LOCKED) -------
 
 
@@ -1021,7 +1037,8 @@ def test_delete_removes_from_management_list(
 
 # --- Post-login unread-redirect: read-state (§19, LOCKED) -------------------
 #
-# GET /unread (EXISTS-shaped boolean) + PUT /{id}/read (idempotent mark-read).
+# GET /unread (COUNT; 0 = none → stay on Dashboard) + PUT /{id}/read
+# (idempotent mark-read). Entry-point still redirects when count > 0.
 # Both reuse the same active-window predicate as /active/list_active
 # (AnnouncementRepository._active_conditions) — never a second "active" query.
 
@@ -1030,7 +1047,7 @@ def _drain_unread(client: TestClient, header: dict[str, str]) -> None:
     """Mark every currently-active announcement as read by this caller. This
     test DB is not truncated between tests in this file, so earlier tests'
     published fixtures (no end_at) would otherwise make every fresh reader
-    see unread=True regardless of what a given test itself sets up. Draining
+    see unread>0 regardless of what a given test itself sets up. Draining
     first establishes a known zero baseline before asserting unread state."""
     resp = client.get("/api/v1/announcements/active", headers=header)
     assert resp.status_code == 200, resp.text
@@ -1052,7 +1069,7 @@ def _agent_header_with_subject() -> tuple[dict[str, str], uuid.UUID]:
     return {"Authorization": f"Bearer {token}"}, subject
 
 
-def test_unread_true_for_active_no_read_record(
+def test_unread_count_for_active_no_read_record(
     client: TestClient, admin_header: dict[str, str], agent_header: dict[str, str]
 ) -> None:
     _drain_unread(client, agent_header)
@@ -1064,10 +1081,10 @@ def test_unread_true_for_active_no_read_record(
         headers=agent_header,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"] is True
+    assert resp.json()["data"] == 1
 
 
-def test_unread_false_once_read_record_exists(
+def test_unread_count_zero_once_read_record_exists(
     client: TestClient, admin_header: dict[str, str], agent_header: dict[str, str]
 ) -> None:
     _drain_unread(client, agent_header)
@@ -1080,10 +1097,27 @@ def test_unread_false_once_read_record_exists(
         headers=agent_header,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"] is False
+    assert resp.json()["data"] == 0
 
 
-def test_unread_false_for_expired(
+def test_unread_count_sums_multiple_active(
+    client: TestClient, admin_header: dict[str, str], agent_header: dict[str, str]
+) -> None:
+    _drain_unread(client, agent_header)
+    first = _create_draft(client, admin_header, title="Unread satu")
+    second = _create_draft(client, admin_header, title="Unread dua")
+    client.put(f"/api/v1/announcements/{first['id']}/publish", headers=admin_header)
+    client.put(f"/api/v1/announcements/{second['id']}/publish", headers=admin_header)
+
+    resp = client.get(
+        "/api/v1/announcements/unread",
+        headers=agent_header,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"] == 2
+
+
+def test_unread_count_zero_for_expired(
     client: TestClient,
     admin_header: dict[str, str],
     agent_header: dict[str, str],
@@ -1104,10 +1138,10 @@ def test_unread_false_for_expired(
         headers=agent_header,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"] is False
+    assert resp.json()["data"] == 0
 
 
-def test_unread_false_for_archived(
+def test_unread_count_zero_for_archived(
     client: TestClient, admin_header: dict[str, str], agent_header: dict[str, str]
 ) -> None:
     _drain_unread(client, agent_header)
@@ -1120,10 +1154,10 @@ def test_unread_false_for_archived(
         headers=agent_header,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"] is False
+    assert resp.json()["data"] == 0
 
 
-def test_unread_false_for_draft(
+def test_unread_count_zero_for_draft(
     client: TestClient, admin_header: dict[str, str], agent_header: dict[str, str]
 ) -> None:
     _drain_unread(client, agent_header)
@@ -1134,7 +1168,7 @@ def test_unread_false_for_draft(
         headers=agent_header,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"] is False
+    assert resp.json()["data"] == 0
 
 
 def test_unread_check_requires_announcement_read_permission(

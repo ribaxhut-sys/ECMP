@@ -9,6 +9,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,6 +21,7 @@ import { Sidebar } from "./Sidebar";
 let mockPathname = "/dashboard";
 let mockPermissions: string[] = [];
 let mockUserId: string | null = "user-1";
+const unreadCountApi = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -57,6 +59,14 @@ vi.mock("@/auth/AuthProvider", () => ({
 vi.mock("@/lib/api/branches", () => ({
   fetchBranches: () => Promise.resolve({ data: [] }),
 }));
+
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    ...actual,
+    fetchUnreadAnnouncementCount: (...args: unknown[]) => unreadCountApi(...args),
+  };
+});
 
 vi.mock("@/shared/config/internalComplaintsUi", () => ({
   isInternalComplaintsUiEnabled: () => true,
@@ -101,6 +111,8 @@ beforeEach(() => {
   mockPermissions = [];
   mockUserId = "user-1";
   window.localStorage.clear();
+  unreadCountApi.mockReset();
+  unreadCountApi.mockResolvedValue({ data: 0 });
 });
 
 afterEach(() => {
@@ -282,5 +294,31 @@ describe("hierarchy — no Antrian / Penugasan on main sidebar", () => {
     expect(sidebar.queryByRole("link", { name: /^Queue$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Assignments$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Resolutions$/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("unread announcement badge on the bell", () => {
+  it("shows the unread count on Announcements and hides it when zero", async () => {
+    mockPermissions = ["*", "announcement:read"];
+    unreadCountApi.mockResolvedValue({ data: 3 });
+    const { sidebar } = renderSidebar();
+
+    const withCount = await waitFor(() =>
+      sidebar.getByRole("link", { name: /Announcements, 3 unread/i }),
+    );
+    expect(withCount).toHaveAttribute("href", "/announcements");
+    expect(within(withCount).getByText("3")).toBeInTheDocument();
+  });
+
+  it("does not show a badge when there are no unread announcements", async () => {
+    mockPermissions = ["*", "announcement:read"];
+    unreadCountApi.mockResolvedValue({ data: 0 });
+    const { sidebar } = renderSidebar();
+
+    const link = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^Announcements$/i }),
+    );
+    expect(link).toHaveAttribute("href", "/announcements");
+    expect(within(link).queryByText("0")).not.toBeInTheDocument();
   });
 });

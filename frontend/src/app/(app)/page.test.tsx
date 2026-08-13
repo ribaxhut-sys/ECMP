@@ -1,16 +1,15 @@
 /**
- * Root "/" entry-point gate (post-login unread-announcement redirect
- * milestone, §9/§10/§18/§20, LOCKED). Dashboard stays the app's default
- * home — this route only decides, once, whether to detour through
- * /announcements first when the caller has at least one unread active
- * announcement.
+ * Root "/" entry-point gate (post-login unread-announcement redirect,
+ * LOCKED). Dashboard stays the app's default home — this route only
+ * decides, once, whether to detour through /announcements first when the
+ * caller has at least one unread active announcement (count > 0).
  */
 import { cleanup, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 
 const replace = vi.fn();
-const fetchHasUnreadAnnouncements = vi.fn();
+const fetchUnreadAnnouncementCount = vi.fn();
 const hasPermission = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -25,8 +24,8 @@ vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
     ...actual,
-    fetchHasUnreadAnnouncements: (...args: unknown[]) =>
-      fetchHasUnreadAnnouncements(...args),
+    fetchUnreadAnnouncementCount: (...args: unknown[]) =>
+      fetchUnreadAnnouncementCount(...args),
   };
 });
 
@@ -37,7 +36,7 @@ const READER_PERMS = ["announcement:read", "complaints:read"];
 describe("EntryPointPage ('/', post-login unread gate)", () => {
   beforeEach(() => {
     replace.mockReset();
-    fetchHasUnreadAnnouncements.mockReset();
+    fetchUnreadAnnouncementCount.mockReset();
     hasPermission.mockReset();
   });
 
@@ -47,18 +46,18 @@ describe("EntryPointPage ('/', post-login unread gate)", () => {
 
   it("redirects to /dashboard when there is no unread active announcement", async () => {
     hasPermission.mockImplementation((code: string) => READER_PERMS.includes(code));
-    fetchHasUnreadAnnouncements.mockResolvedValue({ data: false });
+    fetchUnreadAnnouncementCount.mockResolvedValue({ data: 0 });
 
     renderWithProviders(<EntryPointPage />);
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
-    expect(fetchHasUnreadAnnouncements).toHaveBeenCalledWith();
+    expect(fetchUnreadAnnouncementCount).toHaveBeenCalledWith();
     expect(replace).toHaveBeenCalledTimes(1);
   });
 
   it("redirects to /announcements when there is an unread active announcement", async () => {
     hasPermission.mockImplementation((code: string) => READER_PERMS.includes(code));
-    fetchHasUnreadAnnouncements.mockResolvedValue({ data: true });
+    fetchUnreadAnnouncementCount.mockResolvedValue({ data: 1 });
 
     renderWithProviders(<EntryPointPage />);
 
@@ -68,14 +67,12 @@ describe("EntryPointPage ('/', post-login unread gate)", () => {
 
   it("issues exactly one redirect for multiple unread announcements — no per-item bouncing", async () => {
     hasPermission.mockImplementation((code: string) => READER_PERMS.includes(code));
-    // The endpoint is a single boolean regardless of how many are unread —
-    // this test guards the frontend side: one fetch, one decision, one replace.
-    fetchHasUnreadAnnouncements.mockResolvedValue({ data: true });
+    fetchUnreadAnnouncementCount.mockResolvedValue({ data: 4 });
 
     renderWithProviders(<EntryPointPage />);
 
     await waitFor(() => expect(replace).toHaveBeenCalled());
-    expect(fetchHasUnreadAnnouncements).toHaveBeenCalledTimes(1);
+    expect(fetchUnreadAnnouncementCount).toHaveBeenCalledTimes(1);
     expect(replace).toHaveBeenCalledTimes(1);
     expect(replace).toHaveBeenCalledWith("/announcements");
   });
@@ -86,12 +83,12 @@ describe("EntryPointPage ('/', post-login unread gate)", () => {
     renderWithProviders(<EntryPointPage />);
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
-    expect(fetchHasUnreadAnnouncements).not.toHaveBeenCalled();
+    expect(fetchUnreadAnnouncementCount).not.toHaveBeenCalled();
   });
 
   it("fails open to /dashboard when the unread check errors", async () => {
     hasPermission.mockImplementation((code: string) => READER_PERMS.includes(code));
-    fetchHasUnreadAnnouncements.mockRejectedValue(new Error("network"));
+    fetchUnreadAnnouncementCount.mockRejectedValue(new Error("network"));
 
     renderWithProviders(<EntryPointPage />);
 

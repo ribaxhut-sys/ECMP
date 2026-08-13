@@ -377,18 +377,18 @@ def test_effective_status_draft_unaffected_by_end_at() -> None:
     assert result[0].effective_status == "DRAFT"
 
 
-# --- Post-login unread-redirect: read-state (mocked repo) -------------------
+# --- Unread count + per-caller read-state (mocked repo) -------------------
 
 
-def test_has_unread_active_delegates_to_repository() -> None:
+def test_count_unread_active_delegates_to_repository() -> None:
     repo = MagicMock()
-    repo.has_unread_active.return_value = True
+    repo.count_unread_active.return_value = 2
     user_id = uuid.uuid4()
 
-    result = AnnouncementService(repo).has_unread_active(user_id=user_id)
+    result = AnnouncementService(repo).count_unread_active(user_id=user_id)
 
-    assert result is True
-    args, kwargs = repo.has_unread_active.call_args
+    assert result == 2
+    args, kwargs = repo.count_unread_active.call_args
     assert kwargs["user_id"] == user_id
 
 
@@ -446,11 +446,14 @@ def test_get_for_reader_rejects_scheduled() -> None:
 def test_list_history_passes_now_to_repository() -> None:
     repo = MagicMock()
     repo.list_history.return_value = []
+    repo.list_read_ids.return_value = set()
+    user_id = uuid.uuid4()
 
-    AnnouncementService(repo).list_history()
+    AnnouncementService(repo).list_history(user_id=user_id)
 
     repo.list_history.assert_called_once()
     assert "now" in repo.list_history.call_args.kwargs
+    repo.list_read_ids.assert_called_once_with(user_id=user_id, announcement_ids=[])
 
 
 def test_mark_read_delegates_for_published_announcement() -> None:
