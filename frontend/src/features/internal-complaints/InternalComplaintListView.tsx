@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
 import {
   Alert,
   Button,
@@ -56,6 +57,8 @@ export function InternalComplaintListView() {
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("complaints:create");
   const { rows: allRows, loading, error } = useInternalComplaints();
 
   const [filters, setFilters] = useState<InternalListFilters>(
@@ -160,12 +163,14 @@ export function InternalComplaintListView() {
           { label: t("listTitle") },
         ]}
         actions={
-          <Button
-            type="button"
-            onClick={() => router.push("/internal/complaints/new")}
-          >
-            {t("create")}
-          </Button>
+          canCreate ? (
+            <Button
+              type="button"
+              onClick={() => router.push("/internal/complaints/new")}
+            >
+              {t("create")}
+            </Button>
+          ) : undefined
         }
       />
 

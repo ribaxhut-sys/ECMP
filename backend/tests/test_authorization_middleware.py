@@ -90,6 +90,16 @@ def test_check_permissions_wildcard() -> None:
     check_permissions(principal, "anything:goes")
 
 
+def test_check_permissions_wildcard_does_not_grant_complaints_create() -> None:
+    """Owner: Admin wildcard must not register WP or internal complaints."""
+    principal = Principal(user_id=uuid.uuid4(), permissions=frozenset({"*"}))
+    check_permissions(principal, "complaints:read")
+    check_permissions(principal, "complaints:escalate")
+    with pytest.raises(PermissionDeniedError) as exc:
+        check_permissions(principal, "complaints:create")
+    assert exc.value.details["missingPermissions"] == ["complaints:create"]
+
+
 def test_check_permissions_denied() -> None:
     principal = Principal(user_id=uuid.uuid4(), permissions=frozenset())
     with pytest.raises(PermissionDeniedError) as exc:

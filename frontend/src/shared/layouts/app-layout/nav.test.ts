@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { principalHasPermission } from "@/auth/permissionCheck";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import {
   APP_NAV_GROUPS,
@@ -214,13 +215,12 @@ describe("isNavItemVisible", () => {
 
   it("respects wildcard permission without reimplementing AuthProvider's matching", () => {
     const item = { requiredPermissions: ["complaints:read", "complaints:create"] };
-    // Mirrors AuthProvider.hasPermission verbatim (permissions.includes("*")
-    // || permissions.includes(permission)) — isNavItemVisible never inspects
-    // "*" itself, it only calls hasPermission with its own permission
-    // strings and trusts the caller's wildcard resolution.
+    // isNavItemVisible never inspects "*" itself — it trusts the caller's
+    // hasPermission (same helper as AuthProvider). Wildcard does not grant
+    // complaints:create, but complaints:read still opens the nav item.
     const permissions = ["*"];
     const hasPermission = (permission: string) =>
-      permissions.includes("*") || permissions.includes(permission);
+      principalHasPermission(permissions, permission);
     expect(isNavItemVisible(item, hasPermission)).toBe(true);
   });
 });

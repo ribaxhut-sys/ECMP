@@ -2934,6 +2934,7 @@
     "overline": "Pengaduan Internal",
     "title": "Pengaduan Internal",
     "moduleAccessDescription": "Anda tidak memiliki akses ke modul Pengaduan Internal.",
+    "createAccessRestrictedDescription": "Admin tidak boleh membuat pengaduan. Gunakan akun Agent, Supervisor, atau Manager.",
     "number": "Nomor",
     "subject": "Judul",
     "direction": "Arah Pengaduan",

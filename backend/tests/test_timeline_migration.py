@@ -22,7 +22,7 @@ def test_alembic_head_includes_timeline_entries() -> None:
     script = ScriptDirectory.from_config(cfg)
     # Head moves forward; timeline revision must remain on the linear chain.
     assert "0034_timeline_entries" in {r.revision for r in script.walk_revisions()}
-    assert script.get_heads() == ["0073_queue_customers_perms"]
+    assert script.get_heads() == ["0074_admin_no_complaint_create"]
 
 
 def test_migration_file_structure() -> None:

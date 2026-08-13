@@ -76,7 +76,7 @@ _HO_ENGINEER_PERMISSIONS: frozenset[str] = frozenset(
 
 _ADMIN_PERMISSIONS: frozenset[str] = frozenset(
     {
-        *_SUPERVISOR_PERMISSIONS,
+        *(p for p in _SUPERVISOR_PERMISSIONS if p != "complaints:create"),
         "escalations:review",
         "escalations:close",
         "appointments:complete",

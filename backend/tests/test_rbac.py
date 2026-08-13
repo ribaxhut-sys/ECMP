@@ -16,6 +16,16 @@ def test_supervisor_permissions() -> None:
     assert "users:create" in perms
 
 
+def test_admin_cannot_create_complaints() -> None:
+    """Owner: Admin may do everything except register a complaint."""
+    for role in ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"):
+        perms = permissions_for_role(role)
+        assert "complaints:create" not in perms
+        assert "complaints:read" in perms
+        assert "complaints:escalate" in perms
+        assert "*" in perms
+
+
 def test_manager_f4_complaint_permissions() -> None:
     """F4: Manager has create/read/update/assign/escalate/close (no wildcard)."""
     perms = permissions_for_role("MANAGER")

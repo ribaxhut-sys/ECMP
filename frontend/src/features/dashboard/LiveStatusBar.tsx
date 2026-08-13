@@ -50,7 +50,7 @@ export function LiveStatusBar({
   const locale = useLocale();
   const router = useRouter();
   const { hasPermission } = useAuth();
-  const canCreate = hasPermission("complaints:create") || hasPermission("*");
+  const canCreate = hasPermission("complaints:create");
   // Wall clock in WIB — not last-fetch time. Mount-only to avoid UTC SSR drift.
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {

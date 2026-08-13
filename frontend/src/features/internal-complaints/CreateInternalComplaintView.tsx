@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   CardBody,
+  Empty,
   Input,
   PageContainer,
   PageHeader,
@@ -47,7 +48,8 @@ export function CreateInternalComplaintView() {
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
-  const { user, userId, roles } = useAuth();
+  const { user, userId, roles, hasPermission } = useAuth();
+  const canCreate = hasPermission("complaints:create");
 
   const [values, setValues] = useState<InternalComplaintFormValues>(() =>
     defaultInternalComplaintForm(),
@@ -166,6 +168,29 @@ export function CreateInternalComplaintView() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!canCreate) {
+    return (
+      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
+        <PageHeader
+          title={t("createTitle")}
+          breadcrumbs={[
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: t("title"), href: "/internal" },
+            { label: t("create") },
+          ]}
+        />
+        <Empty
+          title={tCommon("accessRestricted")}
+          description={t("createAccessRestrictedDescription")}
+          primaryAction={{
+            label: tCommon("goHome"),
+            onClick: () => router.push("/dashboard"),
+          }}
+        />
+      </PageContainer>
+    );
   }
 
   return (
