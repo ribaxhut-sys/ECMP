@@ -27,7 +27,7 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { IconClose, IconDownload, IconEye } from "@/shared/icons";
+import { IconClose, IconDownload } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 
 /** Keep accept simple — complex MIME lists break the picker on some OS/browsers. */
@@ -271,7 +271,16 @@ export function AttachmentsWorkspace() {
       header: t("fileName"),
       cell: (row) => (
         <div className="min-w-0 max-w-[22rem]">
-          <p className="truncate font-medium text-ecmp-text-primary">{row.fileName}</p>
+          <button
+            type="button"
+            className="max-w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left font-medium !text-ecmp-primary underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+            onClick={() => setPreview(row)}
+            disabled={busyId === row.id || uploading}
+            aria-label={`${t("preview")}: ${row.fileName}`}
+            title={t("preview")}
+          >
+            {row.fileName}
+          </button>
           <p className="truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
             {t("catalogUnitUser", {
               unit: row.uploadedOrgUnitId || tCommon("emDash"),
@@ -332,18 +341,6 @@ export function AttachmentsWorkspace() {
         const busy = busyId === row.id;
         return (
           <div className="flex flex-nowrap items-center justify-end gap-0.5">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={busy || uploading}
-              aria-label={t("preview")}
-              title={t("preview")}
-              className="!min-h-8 !min-w-8 !px-0"
-              onClick={() => setPreview(row)}
-            >
-              <IconEye className="size-4" />
-            </Button>
             <Button
               type="button"
               size="sm"
