@@ -7,7 +7,6 @@ import {
 } from "@/lib/api";
 import type {
   BranchCount,
-  ComplaintStatus,
   DashboardHeader,
   DashboardSlaSummary,
   DashboardTrendItem,
@@ -25,13 +24,17 @@ export type AggregateDashboardKpis = {
   open: number;
   closed: number;
   escalatePending: number;
-  /** Synthesized for existing SummaryCards / QueueHealth status chips. */
+  waitingAssignment: number;
+  escalateApproved: number;
+  inProgress: number;
+  /** Mutually exclusive operational slices — sum equals total. */
   byStatus: StatusCount[];
   header: DashboardHeader;
 };
 
 export type DashboardData = {
   header: DashboardHeader | null;
+  /** Null on Aggregate KPI (BQ-005 / DEC-020) — do not mix foundation clocks. */
   sla: DashboardSlaSummary | null;
   byStatus: StatusCount[] | null;
   byBranch: BranchCount[] | null;
@@ -50,27 +53,52 @@ export function buildAggregateKpis(input: {
   open: number;
   closed: number;
   escalatePending: number;
+  waitingAssignment?: number;
+  escalateApproved?: number;
+  inProgress?: number;
 }): AggregateDashboardKpis {
-  // `open` (status=REGISTERED) and `escalatePending`
-  // (intakeDisposition=ESCALATE_PENDING_APPROVAL) are independent filters,
-  // not mutually exclusive buckets — a REGISTERED row pending escalation
-  // approval matches both. Summed naively as pie slices that double-counts
-  // it. "Escalating" is a sub-state of "open", so subtract it out of the
-  // NEW bucket; header.openComplaints keeps the full (unadjusted) open
-  // count since those items are still genuinely open.
+  const escalateApproved = input.escalateApproved ?? 0;
+  const inProgress = input.inProgress ?? 0;
+  const waitingAssignment =
+    input.waitingAssignment ??
+    Math.max(0, input.open - input.escalatePending - escalateApproved);
+  // Mutually exclusive slices. Open-and-not-escalated is "Terbuka", not "Baru".
+  // ESCALATE_PENDING / ESCALATE_APPROVED stay in their own slices.
   const byStatus: StatusCount[] = [
     {
-      status: "NEW" as ComplaintStatus,
-      count: Math.max(0, input.open - input.escalatePending),
+      status: "NEW",
+      count: waitingAssignment,
+      labelKey: "openUnescalated",
     },
     {
-      status: "ESCALATED" as ComplaintStatus,
+      status: "ESCALATED",
       count: input.escalatePending,
+      labelKey: "waitingEscalationApproval",
     },
-    { status: "CLOSED" as ComplaintStatus, count: input.closed },
+    {
+      status: "ASSIGNED",
+      count: escalateApproved,
+      labelKey: "escalationApproved",
+    },
+    {
+      status: "IN_PROGRESS",
+      count: inProgress,
+      labelKey: "queueInProgress",
+    },
+    {
+      status: "CLOSED",
+      count: input.closed,
+      labelKey: "closedComplaints",
+    },
   ];
   return {
-    ...input,
+    total: input.total,
+    open: input.open,
+    closed: input.closed,
+    escalatePending: input.escalatePending,
+    waitingAssignment,
+    escalateApproved,
+    inProgress,
     byStatus,
     header: {
       totalComplaints: input.total,
@@ -88,13 +116,30 @@ async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
     open: data.open,
     closed: data.closed,
     escalatePending: data.escalatePending,
+    waitingAssignment: data.waitingAssignment,
+    escalateApproved: data.escalateApproved,
+    inProgress: data.inProgress,
   });
+}
+
+/**
+ * DEC-020 + BQ-005: do not mix foundation SLA clocks into Aggregate KPI.
+ * Mode A Batch-1 binds policy without countdown; foundation breach counts
+ * (e.g. 18) belong to a different portfolio than the donut (e.g. 9).
+ */
+export function selectDashboardSla(input: {
+  complaintKpiSource: "aggregate" | "foundation";
+  foundationSla: DashboardSlaSummary | null;
+}): DashboardSlaSummary | null {
+  if (input.complaintKpiSource === "aggregate") return null;
+  return input.foundationSla;
 }
 
 /**
  * Dashboard payload:
  * - Complaint KPI numbers prefer Aggregate (dashboard/aggregate-kpis) — where Batch-1 intake writes
- * - SLA / branch / foundation activity remain foundation until Retirement DEC
+ * - SLA clocks stay on the same SoT as those KPIs (null while Aggregate / BQ-005)
+ * - Branch charts remain foundation until Retirement DEC
  */
 export async function loadDashboardData(): Promise<DashboardData> {
   const [overview, byStatus, byBranch, trends, aggregate] =
@@ -118,7 +163,10 @@ export async function loadDashboardData(): Promise<DashboardData> {
   if (aggregate.status === "fulfilled") {
     return {
       header: aggregate.value.header,
-      sla: overview.value.data.sla,
+      sla: selectDashboardSla({
+        complaintKpiSource: "aggregate",
+        foundationSla: overview.value.data.sla,
+      }),
       byStatus: aggregate.value.byStatus,
       byBranch: byBranch.status === "fulfilled" ? byBranch.value.data : null,
       trend,
@@ -128,7 +176,10 @@ export async function loadDashboardData(): Promise<DashboardData> {
 
   return {
     header: foundationHeader,
-    sla: overview.value.data.sla,
+    sla: selectDashboardSla({
+      complaintKpiSource: "foundation",
+      foundationSla: overview.value.data.sla,
+    }),
     byStatus: foundationByStatus,
     byBranch: byBranch.status === "fulfilled" ? byBranch.value.data : null,
     trend,

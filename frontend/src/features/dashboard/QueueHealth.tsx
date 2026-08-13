@@ -3,12 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import {
+  CM_BATCH1_ESCALATION_PENDING_HREF,
+  CM_BATCH1_WAITING_ASSIGNMENT_HREF,
+} from "@/features/complaints/cmBatch1ListFilters";
 import type { DashboardHeader, StatusCount } from "@/lib/api/types";
 import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import { AnimatedCount } from "./AnimatedCount";
 import {
-  countByStatus,
+  buildQueueHealthRows,
   dashboardEmptyWorkCta,
   DASHBOARD_CAPTION,
   DASHBOARD_COMMAND_LABEL,
@@ -20,15 +24,6 @@ import {
   proportionalPct,
   type OpsTone,
 } from "./dashboardUtils";
-
-type QueueRow = {
-  id: string;
-  label: string;
-  count: number;
-  tone: OpsTone;
-  /** null = informational only. No filtered destination exists for it yet. */
-  href: string | null;
-};
 
 function QueueBar({
   label,
@@ -131,49 +126,29 @@ export function QueueHealth({
     );
   }
 
-  const waitingAssignment = countByStatus(byStatus, "NEW") ?? 0;
-  const waitingReview = countByStatus(byStatus, "PENDING") ?? 0;
-  const inProgress = countByStatus(byStatus, "IN_PROGRESS") ?? 0;
-
   // /assignments reads the foundation Complaint aggregate only — an
   // Aggregate-sourced (cm_batch1) count has nowhere to land there
   // (assignment workflow for Batch-1 intake is DEFERRED,
   // GOV-MODEA-NEXT-001 M4). Route to the Aggregate list only when the
   // principal can open it (complaints:read); MANAGER KPI is dashboard:read.
-  const waitingAssignmentHref =
-    complaintKpiSource === "aggregate"
-      ? canOpenComplaintList
-        ? "/complaints/cm"
-        : null
-      : "/assignments";
+  const isAggregate = complaintKpiSource === "aggregate";
+  const waitingAssignmentHref = isAggregate
+    ? canOpenComplaintList
+      ? CM_BATCH1_WAITING_ASSIGNMENT_HREF
+      : null
+    : "/assignments";
+  const escalationHref = isAggregate
+    ? canOpenComplaintList
+      ? CM_BATCH1_ESCALATION_PENDING_HREF
+      : null
+    : "/resolutions";
 
-  // "SLA terlampaui" and "Eskalasi tertunda" are NOT repeated here — they're
-  // already the top-line KPI strip above (SummaryCards) and, when nonzero,
-  // in Peringatan Kritis too. A third copy of the same number added no
-  // information, just noise (see dashboard duplicate-metric audit).
-  const rows: QueueRow[] = [
-    {
-      id: "waiting-assignment",
-      label: t("waitingAssignment"),
-      count: waitingAssignment,
-      tone: waitingAssignment > 0 ? "attention" : "healthy",
-      href: waitingAssignmentHref,
-    },
-    {
-      id: "waiting-review",
-      label: t("waitingReview"),
-      count: waitingReview,
-      tone: waitingReview > 0 ? "attention" : "healthy",
-      href: null,
-    },
-    {
-      id: "in-progress",
-      label: t("queueInProgress"),
-      count: inProgress,
-      tone: "neutral",
-      href: null,
-    },
-  ];
+  const rows = buildQueueHealthRows({
+    byStatus,
+    complaintKpiSource,
+    waitingAssignmentHref,
+    escalationHref,
+  });
 
   const max = Math.max(...rows.map((row) => row.count), 1);
   const emptyPortfolio = !header || header.totalComplaints === 0;
@@ -214,7 +189,7 @@ export function QueueHealth({
           {rows.map((row) => (
             <QueueBar
               key={row.id}
-              label={row.label}
+              label={t(row.labelKey)}
               count={row.count}
               max={max}
               tone={row.tone}

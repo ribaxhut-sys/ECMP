@@ -50,6 +50,8 @@ export interface ListResponse<T> {
 export interface StatusCount {
   status: ComplaintStatus;
   count: number;
+  /** Dashboard i18n key — Aggregate donut must not use status.NEW = "Baru". */
+  labelKey?: string;
 }
 
 export interface BranchCount {
@@ -142,6 +144,9 @@ export interface DashboardAggregateKpis {
   open: number;
   closed: number;
   escalatePending: number;
+  waitingAssignment: number;
+  escalateApproved: number;
+  inProgress: number;
 }
 
 /** API-393 daily complaint trend (foundation-scoped — see DEC-020). */

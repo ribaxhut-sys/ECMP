@@ -19,6 +19,20 @@ export type SystemHealthKind = "healthy" | "attention" | "syncing" | "degraded";
 
 export type OpsTone = "healthy" | "attention" | "critical" | "neutral";
 
+export type QueueHealthLabelKey =
+  | "waitingAssignment"
+  | "waitingReview"
+  | "queueInProgress"
+  | "waitingEscalationApproval";
+
+export type QueueHealthRowSpec = {
+  id: string;
+  labelKey: QueueHealthLabelKey;
+  count: number;
+  tone: OpsTone;
+  href: string | null;
+};
+
 export type DashboardEmptyWorkCta = {
   href: string;
   labelKey: "goToComplaints" | "goToQueue";
@@ -35,6 +49,134 @@ export function dashboardEmptyWorkCta(
     return { href: CM_BATCH1_OPEN_HREF, labelKey: "goToComplaints" };
   }
   return { href: "/queue", labelKey: "goToQueue" };
+}
+
+/**
+ * Queue-health bars. Aggregate KPI (DEC-020) only has NEW / ESCALATED /
+ * CLOSED — PENDING and IN_PROGRESS are foundation states and stay 0 there,
+ * so those rows are omitted. Foundation keeps the original three bars.
+ */
+export function buildQueueHealthRows(input: {
+  byStatus: StatusCount[] | null;
+  complaintKpiSource?: "aggregate" | "foundation" | null;
+  waitingAssignmentHref: string | null;
+  escalationHref: string | null;
+}): QueueHealthRowSpec[] {
+  const waitingAssignment = countByStatus(input.byStatus, "NEW") ?? 0;
+  const assignmentRow: QueueHealthRowSpec = {
+    id: "waiting-assignment",
+    labelKey: "waitingAssignment",
+    count: waitingAssignment,
+    tone: waitingAssignment > 0 ? "attention" : "healthy",
+    href: input.waitingAssignmentHref,
+  };
+
+  if (input.complaintKpiSource === "aggregate") {
+    const escalated = countByStatus(input.byStatus, "ESCALATED") ?? 0;
+    return [
+      assignmentRow,
+      {
+        id: "waiting-escalation",
+        labelKey: "waitingEscalationApproval",
+        count: escalated,
+        tone: escalated > 0 ? "attention" : "healthy",
+        href: input.escalationHref,
+      },
+    ];
+  }
+
+  const waitingReview = countByStatus(input.byStatus, "PENDING") ?? 0;
+  const inProgress = countByStatus(input.byStatus, "IN_PROGRESS") ?? 0;
+  return [
+    assignmentRow,
+    {
+      id: "waiting-review",
+      labelKey: "waitingReview",
+      count: waitingReview,
+      tone: waitingReview > 0 ? "attention" : "healthy",
+      href: null,
+    },
+    {
+      id: "in-progress",
+      labelKey: "queueInProgress",
+      count: inProgress,
+      tone: "neutral",
+      href: null,
+    },
+  ];
+}
+
+export const CRITICAL_ALERT_VISIBLE_LIMIT = 4;
+
+export type CriticalAlertSpec = {
+  id: string;
+  tone: Extract<OpsTone, "critical" | "attention">;
+  titleKey:
+    | "alertSlaTitle"
+    | "alertAssignmentSlaTitle"
+    | "alertResolutionSlaTitle"
+    | "alertEscalationTitle";
+  count: number;
+  href: string | null;
+};
+
+export function buildCriticalAlerts(input: {
+  breached: number;
+  assignmentBreached: number;
+  resolutionBreached: number;
+  escalated: number;
+  escalationHref: string | null;
+}): CriticalAlertSpec[] {
+  const alerts: CriticalAlertSpec[] = [];
+  if (input.breached > 0) {
+    alerts.push({
+      id: "sla-overall",
+      tone: "critical",
+      titleKey: "alertSlaTitle",
+      count: input.breached,
+      href: "/queue",
+    });
+  }
+  if (input.assignmentBreached > 0) {
+    alerts.push({
+      id: "sla-assignment",
+      tone: "critical",
+      titleKey: "alertAssignmentSlaTitle",
+      count: input.assignmentBreached,
+      href: "/assignments",
+    });
+  }
+  if (input.resolutionBreached > 0 && input.resolutionBreached !== input.breached) {
+    alerts.push({
+      id: "sla-resolution",
+      tone: "attention",
+      titleKey: "alertResolutionSlaTitle",
+      count: input.resolutionBreached,
+      href: "#sla-overview",
+    });
+  }
+  if (input.escalated > 0) {
+    alerts.push({
+      id: "escalation",
+      tone: "attention",
+      titleKey: "alertEscalationTitle",
+      count: input.escalated,
+      href: input.escalationHref,
+    });
+  }
+  return alerts.sort((a, b) => {
+    if (a.tone === b.tone) return 0;
+    return a.tone === "critical" ? -1 : 1;
+  });
+}
+
+export function visibleAlertSlice<T>(
+  alerts: readonly T[],
+  expanded: boolean,
+  limit: number = CRITICAL_ALERT_VISIBLE_LIMIT,
+): T[] {
+  if (expanded || alerts.length <= limit) return [...alerts];
+  return alerts.slice(0, limit);
 }
 
 export function countByStatus(
@@ -68,12 +210,23 @@ export function slaLevelToOpsTone(level: SlaHealthLevel): OpsTone {
   return "healthy";
 }
 
+/** Three-letter avatar code for activity actors (DH → DHA, Elena → ELE). */
 export function actorInitials(actor: string | null | undefined): string {
   const value = (actor ?? "").trim();
   if (!value) return "?";
   const parts = value.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  if (parts.length >= 3) {
+    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}${parts[2][0] ?? ""}`.toUpperCase();
+  }
+  if (parts.length === 2) {
+    const first = parts[0] ?? "";
+    const last = parts[1] ?? "";
+    if (last.length >= 2) {
+      return `${first[0] ?? ""}${last.slice(0, 2)}`.toUpperCase();
+    }
+    return `${first.slice(0, 2)}${last[0] ?? ""}`.toUpperCase().slice(0, 3);
+  }
+  return (parts[0] ?? "").slice(0, 3).toUpperCase();
 }
 
 /** Relative time for activity rows — presentation only. */
@@ -113,20 +266,19 @@ export function branchBadgeKind(
   return "balanced";
 }
 
-export function secondsSince(from: Date | null, nowMs: number = Date.now()): number | null {
-  if (!from) return null;
-  return Math.max(0, Math.floor((nowMs - from.getTime()) / 1000));
-}
-
 export function resolveSystemHealth(input: {
   loading: boolean;
   error: boolean;
   sla: DashboardSlaSummary | null;
+  waitingAssignment?: number;
+  escalatePending?: number;
 }): SystemHealthKind {
   if (input.loading) return "syncing";
   if (input.error) return "degraded";
   const breached = input.sla?.overall.breached ?? 0;
-  if (breached > 0) return "attention";
+  const waiting = input.waitingAssignment ?? 0;
+  const escalate = input.escalatePending ?? 0;
+  if (breached > 0 || waiting > 0 || escalate > 0) return "attention";
   return "healthy";
 }
 

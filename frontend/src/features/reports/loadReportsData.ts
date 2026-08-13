@@ -1,9 +1,6 @@
-import {
-  fetchReportByBranch,
-  fetchReportByStatus,
-  fetchReportSummary,
-} from "@/lib/api";
+import { fetchDashboardAggregateKpis } from "@/lib/api";
 import type { BranchCount, ReportSummary, StatusCount } from "@/lib/api/types";
+import { buildAggregateKpis } from "@/features/dashboard/loadDashboardData";
 
 export type ReportsData = {
   summary: ReportSummary | null;
@@ -12,29 +9,27 @@ export type ReportsData = {
 };
 
 /**
- * Reports page payload from frozen catalog APIs only:
- * - API-210 summary
- * - API-211 by-status
- * - API-212 by-branch
+ * Operational reports use the same Aggregate KPI as the dashboard (DEC-020).
+ * Foundation API-210…212 stay in the catalog but are not mixed into this page.
  */
 export async function loadReportsData(): Promise<ReportsData> {
-  const [summary, byStatus, byBranch] = await Promise.allSettled([
-    fetchReportSummary(),
-    fetchReportByStatus(),
-    fetchReportByBranch(),
-  ]);
-
-  if (
-    summary.status === "rejected" &&
-    byStatus.status === "rejected" &&
-    byBranch.status === "rejected"
-  ) {
-    throw summary.reason;
-  }
-
+  const res = await fetchDashboardAggregateKpis();
+  const kpis = buildAggregateKpis({
+    total: res.data.total,
+    open: res.data.open,
+    closed: res.data.closed,
+    escalatePending: res.data.escalatePending,
+    waitingAssignment: res.data.waitingAssignment,
+    escalateApproved: res.data.escalateApproved,
+    inProgress: res.data.inProgress,
+  });
+  const summary: ReportSummary = {
+    total: kpis.total,
+    byStatus: kpis.byStatus,
+  };
   return {
-    summary: summary.status === "fulfilled" ? summary.value.data : null,
-    byStatus: byStatus.status === "fulfilled" ? byStatus.value.data : null,
-    byBranch: byBranch.status === "fulfilled" ? byBranch.value.data : null,
+    summary,
+    byStatus: kpis.byStatus,
+    byBranch: null,
   };
 }

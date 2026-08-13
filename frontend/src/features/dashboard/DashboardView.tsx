@@ -14,6 +14,7 @@ import { ComplaintByBranch } from "./ComplaintByBranch";
 import { ComplaintByStatus } from "./ComplaintByStatus";
 import { CriticalAlerts } from "./CriticalAlerts";
 import {
+  countByStatus,
   DASHBOARD_CARD_GAP,
   DASHBOARD_SHELL,
   DASHBOARD_TILE_GRID,
@@ -84,6 +85,8 @@ export function DashboardView() {
       */}
       <LiveStatusBar
         sla={data?.sla ?? null}
+        waitingAssignment={countByStatus(data?.byStatus, "NEW") ?? 0}
+        escalatePending={countByStatus(data?.byStatus, "ESCALATED") ?? 0}
         loading={firstLoad || isFetching}
         error={state.status === "error"}
         updatedAt={updatedAt}
@@ -140,6 +143,7 @@ export function DashboardView() {
             <div className="xl:col-span-4">
               <ComplaintByStatus
                 rows={data?.byStatus ?? null}
+                complaintKpiSource={data?.complaintKpiSource ?? null}
                 loading={firstLoad}
               />
             </div>
@@ -157,6 +161,7 @@ export function DashboardView() {
             <div className="xl:col-span-6">
               <SlaCards
                 sla={data?.sla ?? null}
+                complaintKpiSource={data?.complaintKpiSource ?? null}
                 loading={firstLoad}
               />
             </div>

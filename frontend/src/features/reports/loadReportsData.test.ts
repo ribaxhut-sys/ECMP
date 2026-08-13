@@ -2,54 +2,48 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadReportsData } from "./loadReportsData";
 
 vi.mock("@/lib/api", () => ({
-  fetchReportSummary: vi.fn(),
-  fetchReportByStatus: vi.fn(),
-  fetchReportByBranch: vi.fn(),
+  fetchDashboardAggregateKpis: vi.fn(),
 }));
 
-import {
-  fetchReportByBranch,
-  fetchReportByStatus,
-  fetchReportSummary,
-} from "@/lib/api";
+import { fetchDashboardAggregateKpis } from "@/lib/api";
 
-const summaryMock = vi.mocked(fetchReportSummary);
-const byStatusMock = vi.mocked(fetchReportByStatus);
-const byBranchMock = vi.mocked(fetchReportByBranch);
+const aggregateMock = vi.mocked(fetchDashboardAggregateKpis);
 
 describe("loadReportsData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns fulfilled slices and nulls for rejected ones", async () => {
-    summaryMock.mockResolvedValue({
-      data: { total: 1, byStatus: [{ status: "NEW", count: 1 }] },
-    } as never);
-    byStatusMock.mockRejectedValue(new Error("status down"));
-    byBranchMock.mockResolvedValue({
-      data: [
-        {
-          branchId: "b1",
-          branchCode: "JKT",
-          branchName: "Jakarta",
-          total: 1,
-        },
-      ],
+  it("maps Batch-1 Aggregate KPI into report summary (same SoT as dashboard)", async () => {
+    aggregateMock.mockResolvedValue({
+      data: {
+        total: 16,
+        open: 8,
+        closed: 6,
+        escalatePending: 4,
+        waitingAssignment: 3,
+        escalateApproved: 1,
+        inProgress: 2,
+      },
     } as never);
 
     const data = await loadReportsData();
-    expect(data.summary?.total).toBe(1);
-    expect(data.byStatus).toBeNull();
-    expect(data.byBranch?.[0]?.branchCode).toBe("JKT");
+    expect(data.summary?.total).toBe(16);
+    expect(data.summary?.byStatus).toEqual(data.byStatus);
+    expect(
+      data.byStatus?.find((row) => row.labelKey === "waitingEscalationApproval")
+        ?.count,
+    ).toBe(4);
+    expect(
+      data.byStatus?.find((row) => row.labelKey === "queueInProgress")?.count,
+    ).toBe(2);
+    expect(data.byStatus?.reduce((sum, row) => sum + row.count, 0)).toBe(16);
+    expect(data.byBranch).toBeNull();
   });
 
-  it("throws when every report API fails", async () => {
-    const boom = new Error("all down");
-    summaryMock.mockRejectedValue(boom);
-    byStatusMock.mockRejectedValue(new Error("status down"));
-    byBranchMock.mockRejectedValue(new Error("branch down"));
-
-    await expect(loadReportsData()).rejects.toThrow("all down");
+  it("throws when Aggregate KPI fails (no foundation fallback)", async () => {
+    const boom = new Error("aggregate down");
+    aggregateMock.mockRejectedValue(boom);
+    await expect(loadReportsData()).rejects.toThrow("aggregate down");
   });
 });

@@ -393,7 +393,15 @@ def test_capability013_endpoints_shape(
     aggregate = client.get(
         "/api/v1/dashboard/aggregate-kpis", headers=auth_header
     ).json()["data"]
-    for key in ("total", "open", "closed", "escalatePending"):
+    for key in (
+        "total",
+        "open",
+        "closed",
+        "escalatePending",
+        "waitingAssignment",
+        "escalateApproved",
+        "inProgress",
+    ):
         assert key in aggregate
         assert isinstance(aggregate[key], int)
 

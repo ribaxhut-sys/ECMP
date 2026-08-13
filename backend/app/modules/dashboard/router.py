@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions
+from app.core.auth import Principal, require_any_permission, require_permissions
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.models import User
@@ -99,12 +99,17 @@ def get_dashboard_summary(
 )
 def get_dashboard_aggregate_kpis(
     service: Annotated[DashboardService, Depends(get_dashboard_service)],
-    principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission(DASHBOARD_READ, "reports:read")),
+    ],
     session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
 ) -> DataResponse[DashboardAggregateKpiResponse]:
-    """Branch-scoped Aggregate KPI for dashboard cards without ``complaints:read``.
+    """Branch-scoped Aggregate KPI for dashboard cards and reports (one SoT).
 
+    ``reports:read`` may also call this so ``/reports`` shows the same
+    Batch-1 numbers as the dashboard without reading foundation API-210.
     Head Office (no own branch) may pick any branch or leave unset for all
     branches. A branch-scoped principal (e.g. Manager, BC-8.4) is always locked
     to their own branch — same ``_effective_branch_id`` convention as

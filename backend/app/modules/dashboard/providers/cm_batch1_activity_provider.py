@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.integrations.directory import LocalUserDirectory
@@ -153,7 +153,13 @@ class CmBatch1ActivityDashboardProvider:
             owning_unit = self._owning_unit_for_branch(branch_id)
             if not owning_unit:
                 return DashboardAggregateKpiResponse(
-                    total=0, open=0, closed=0, escalatePending=0
+                    total=0,
+                    open=0,
+                    closed=0,
+                    escalatePending=0,
+                    waitingAssignment=0,
+                    escalateApproved=0,
+                    inProgress=0,
                 )
 
         total = self._count_complaints(owning_unit)
@@ -164,15 +170,44 @@ class CmBatch1ActivityDashboardProvider:
         closed = self._count_complaints(
             owning_unit, CmBatch1ComplaintORM.status == "CLOSED"
         )
+        # Donut slices are mutually exclusive and sum to total: REGISTERED
+        # unescalated / pending / approved + IN_PROGRESS + CLOSED.
         escalate_pending = self._count_complaints(
             owning_unit,
+            CmBatch1ComplaintORM.status == "REGISTERED",
             CmBatch1ComplaintORM.intake_disposition == "ESCALATE_PENDING_APPROVAL",
+        )
+        # REGISTERED but not held in an escalation path — not "Baru" if
+        # already ESCALATE_APPROVED (that is a different operational state).
+        waiting_assignment = self._count_complaints(
+            owning_unit,
+            CmBatch1ComplaintORM.status == "REGISTERED",
+            or_(
+                CmBatch1ComplaintORM.intake_disposition.is_(None),
+                CmBatch1ComplaintORM.intake_disposition.notin_(
+                    (
+                        "ESCALATE_PENDING_APPROVAL",
+                        "ESCALATE_APPROVED",
+                    )
+                ),
+            ),
+        )
+        escalate_approved = self._count_complaints(
+            owning_unit,
+            CmBatch1ComplaintORM.status == "REGISTERED",
+            CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+        )
+        in_progress = self._count_complaints(
+            owning_unit, CmBatch1ComplaintORM.status == "IN_PROGRESS"
         )
         return DashboardAggregateKpiResponse(
             total=total,
             open=open_count,
             closed=closed,
             escalatePending=escalate_pending,
+            waitingAssignment=waiting_assignment,
+            escalateApproved=escalate_approved,
+            inProgress=in_progress,
         )
 
     def _count_complaints(

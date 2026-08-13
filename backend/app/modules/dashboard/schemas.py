@@ -127,6 +127,9 @@ class DashboardAggregateKpiResponse(BaseModel):
     open: int = 0
     closed: int = 0
     escalate_pending: int = Field(default=0, alias="escalatePending")
+    waiting_assignment: int = Field(default=0, alias="waitingAssignment")
+    escalate_approved: int = Field(default=0, alias="escalateApproved")
+    in_progress: int = Field(default=0, alias="inProgress")
 
 
 class DashboardOverviewResponse(BaseModel):

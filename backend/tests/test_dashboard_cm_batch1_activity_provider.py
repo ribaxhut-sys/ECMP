@@ -241,15 +241,18 @@ def test_list_recent_forwards_aggregate_type_and_limit() -> None:
 
 def test_complaint_kpis_unrestricted_counts() -> None:
     provider, *_ = _provider()
-    provider._count_complaints = MagicMock(side_effect=[5, 3, 2, 1])
+    provider._count_complaints = MagicMock(side_effect=[16, 8, 6, 4, 3, 1, 2])
 
     kpis = provider.complaint_kpis(branch_id=None)
 
-    assert kpis.total == 5
-    assert kpis.open == 3
-    assert kpis.closed == 2
-    assert kpis.escalate_pending == 1
-    assert provider._count_complaints.call_count == 4
+    assert kpis.total == 16
+    assert kpis.open == 8
+    assert kpis.closed == 6
+    assert kpis.escalate_pending == 4
+    assert kpis.waiting_assignment == 3
+    assert kpis.escalate_approved == 1
+    assert kpis.in_progress == 2
+    assert provider._count_complaints.call_count == 7
     # First call is unrestricted (owning_unit_id=None)
     assert provider._count_complaints.call_args_list[0].args[0] is None
 

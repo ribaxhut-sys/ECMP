@@ -11,7 +11,6 @@ import { Skeleton } from "@/shared/ui";
 import {
   dashboardEnvironmentLabel,
   resolveSystemHealth,
-  secondsSince,
   type SystemHealthKind,
 } from "./dashboardUtils";
 
@@ -31,12 +30,16 @@ const HEALTH_TEXT: Record<SystemHealthKind, string> = {
 
 export function LiveStatusBar({
   sla,
+  waitingAssignment = 0,
+  escalatePending = 0,
   loading,
   error,
   updatedAt,
   onRefresh,
 }: {
   sla: DashboardSlaSummary | null;
+  waitingAssignment?: number;
+  escalatePending?: number;
   loading: boolean;
   error: boolean;
   updatedAt: Date | null;
@@ -48,16 +51,21 @@ export function LiveStatusBar({
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canCreate = hasPermission("complaints:create") || hasPermission("*");
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
+  // Wall clock in WIB — not last-fetch time. Mount-only to avoid UTC SSR drift.
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    setNow(new Date());
+    const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
-  const health = resolveSystemHealth({ loading, error, sla });
-  const syncSource = updatedAt ?? (loading ? null : new Date(nowMs));
-  const ageSec = secondsSince(syncSource, nowMs);
+  const health = resolveSystemHealth({
+    loading,
+    error,
+    sla,
+    waitingAssignment,
+    escalatePending,
+  });
   const env = dashboardEnvironmentLabel();
 
   const healthLabel =
@@ -95,23 +103,18 @@ export function LiveStatusBar({
               <span className="truncate">{healthLabel}</span>
             </p>
 
-            <p className="hidden tabular-nums text-ecmp-text-secondary sm:inline">
-              {syncSource
-                ? formatDateTime(syncSource, locale, {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : t("syncPending")}
-            </p>
-
-            <p
-              className="tabular-nums text-ecmp-text-secondary"
-              aria-live="polite"
-            >
-              {ageSec === null
-                ? t("syncPending")
-                : t("updatedSecondsAgo", { count: ageSec })}
-            </p>
+            {now ? (
+              <p className="hidden text-ecmp-text-secondary sm:inline">
+                {formatDateTime(now, locale, {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: "Asia/Jakarta",
+                })}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-3">

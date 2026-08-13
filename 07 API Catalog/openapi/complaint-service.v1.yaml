@@ -1960,10 +1960,13 @@ paths:
                 $ref: "#/components/schemas/DashboardAggregateKpiDataResponse"
               example:
                 data:
-                  total: 3
-                  open: 1
-                  closed: 2
-                  escalatePending: 1
+                  total: 16
+                  open: 8
+                  closed: 6
+                  escalatePending: 4
+                  waitingAssignment: 3
+                  escalateApproved: 1
+                  inProgress: 2
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -5164,7 +5167,14 @@ components:
       description: Latest timeline event (max 10 on dashboard summary).
     DashboardAggregateKpis:
       type: object
-      required: [total, open, closed, escalatePending]
+      required:
+        - total
+        - open
+        - closed
+        - escalatePending
+        - waitingAssignment
+        - escalateApproved
+        - inProgress
       properties:
         total: { type: integer, minimum: 0 }
         open: { type: integer, minimum: 0, description: status=REGISTERED }
@@ -5172,11 +5182,31 @@ components:
         escalatePending:
           type: integer
           minimum: 0
-          description: intakeDisposition=ESCALATE_PENDING_APPROVAL
+          description: >
+            REGISTERED and intakeDisposition=ESCALATE_PENDING_APPROVAL
+            (exclusive of IN_PROGRESS / CLOSED)
+        waitingAssignment:
+          type: integer
+          minimum: 0
+          description: >
+            REGISTERED and not held in ESCALATE_PENDING_APPROVAL or
+            ESCALATE_APPROVED (operational "menunggu penugasan", not "baru")
+        escalateApproved:
+          type: integer
+          minimum: 0
+          description: >
+            REGISTERED and intakeDisposition=ESCALATE_APPROVED
+            (exclusive of IN_PROGRESS / CLOSED)
+        inProgress:
+          type: integer
+          minimum: 0
+          description: status=IN_PROGRESS (DEC-025 parent status)
       description: |
         DEC-020 Aggregate complaint KPI counts for dashboard cards.
         Branch scope = Aggregate owningUnitId matched to Branch.code
         (aligned with CM Batch-1 list visibility; not creator membership).
+        Donut slices must use waitingAssignment / escalatePending /
+        escalateApproved / inProgress / closed — not a single "NEW" bucket.
     DashboardAggregateKpiDataResponse:
       type: object
       required: [data]

@@ -86,20 +86,21 @@ export function RecentActivity() {
       aria-label={t("recentActivity")}
       className={`${DASHBOARD_SURFACE_QUIET} flex h-full flex-col p-3.5`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h2 className={DASHBOARD_SECTION_TITLE}>{t("recentActivity")}</h2>
           <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>{t("latestComplaints")}</p>
         </div>
         {isHeadOffice ? (
-          <Select
-            name="recentActivityBranch"
-            aria-label={t("recentActivityBranchFilter")}
-            options={branchOptions}
-            value={branchId}
-            onChange={(e) => setBranchId(e.target.value)}
-            className="w-full max-w-[14rem] truncate"
-          />
+          <div className="w-[11rem] shrink-0">
+            <Select
+              name="recentActivityBranch"
+              aria-label={t("recentActivityBranchFilter")}
+              options={branchOptions}
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+            />
+          </div>
         ) : null}
       </div>
 
@@ -136,7 +137,7 @@ export function RecentActivity() {
                 statusTone: meta.statusTone,
                 icon: (
                   <span
-                    className="text-[10px] font-medium text-ecmp-primary"
+                    className="text-[9px] font-medium tracking-tight text-ecmp-primary"
                     aria-hidden
                   >
                     {initials}

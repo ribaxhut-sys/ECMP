@@ -78,7 +78,7 @@ export function ReportsWorkspace() {
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
         ]}
-        description={t("description")}
+        description={t("singleSourceDescription")}
         actions={refreshAction}
       />
 

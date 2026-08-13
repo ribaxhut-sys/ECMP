@@ -18,14 +18,17 @@ import {
 
 export function SlaCards({
   sla,
+  complaintKpiSource,
   loading,
 }: {
   sla: DashboardSlaSummary | null;
+  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
+  const slaDeferred = complaintKpiSource === "aggregate";
 
   const stages = sla
     ? [
@@ -64,17 +67,25 @@ export function SlaCards({
         <div className="mt-3" aria-busy="true">
           <Skeleton rows={5} />
         </div>
-      ) : !sla ? (
+      ) : !sla || slaDeferred ? (
         <div className="mt-3 flex-1">
           <Empty
             className="py-8"
             icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
-            title={t("noSlaData")}
-            description={t("noSlaDataDescription")}
-            primaryAction={{
-              label: tCommon("goToQueue"),
-              onClick: () => router.push("/queue"),
-            }}
+            title={slaDeferred ? t("slaDeferredTitle") : t("noSlaData")}
+            description={
+              slaDeferred
+                ? t("slaDeferredDescription")
+                : t("noSlaDataDescription")
+            }
+            primaryAction={
+              slaDeferred
+                ? undefined
+                : {
+                    label: tCommon("goToQueue"),
+                    onClick: () => router.push("/queue"),
+                  }
+            }
           />
         </div>
       ) : allHealthy ? (

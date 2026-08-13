@@ -42,9 +42,11 @@ function buildConicGradient(
 
 export function ComplaintByStatus({
   rows,
+  complaintKpiSource,
   loading,
 }: {
   rows: StatusCount[] | null;
+  complaintKpiSource?: "aggregate" | "foundation" | null;
   loading: boolean;
 }) {
   const router = useRouter();
@@ -64,6 +66,7 @@ export function ComplaintByStatus({
       status: row.status,
       count: row.count,
       pct: (row.count / total) * 100,
+      labelKey: row.labelKey,
     }));
   }, [rows]);
 
@@ -79,7 +82,9 @@ export function ComplaintByStatus({
       <div>
         <h2 className={DASHBOARD_COMMAND_LABEL}>{t("byStatus")}</h2>
         <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>
-          {t("statusDistributionDescription")}
+          {complaintKpiSource === "aggregate"
+            ? t("statusDistributionAggregateHint")
+            : t("statusDistributionDescription")}
         </p>
       </div>
 
@@ -122,6 +127,9 @@ export function ComplaintByStatus({
           <ul className="w-full min-w-0 flex-1 space-y-0.5" aria-label={t("byStatus")}>
             {slices.map((slice) => {
               const active = highlight === slice.status;
+              const label = slice.labelKey
+                ? t(slice.labelKey)
+                : tStatus(slice.status);
               return (
                 <li key={slice.status}>
                   <button
@@ -133,7 +141,7 @@ export function ComplaintByStatus({
                     className={`${DASHBOARD_HOVER_ROW} flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-left ${
                       active ? "bg-ecmp-hover/50" : ""
                     }`}
-                    aria-label={`${tStatus(slice.status)}: ${slice.count} (${Math.round(slice.pct)}%)`}
+                    aria-label={`${label}: ${slice.count} (${Math.round(slice.pct)}%)`}
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span
@@ -146,7 +154,7 @@ export function ComplaintByStatus({
                         aria-hidden
                       />
                       <span className="truncate text-[12px] text-ecmp-text-primary">
-                        {tStatus(slice.status)}
+                        {label}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-baseline gap-1.5 font-mono tabular-nums">

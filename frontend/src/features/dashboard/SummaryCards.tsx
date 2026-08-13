@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import type {
   DashboardHeader,
   DashboardSlaSummary,
@@ -61,13 +62,13 @@ function KpiBlock({
         </p>
       ) : (
         <p
-          className={`mt-0.5 inline-flex items-center gap-1.5 ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[tone]}`}
+          className={`mt-0.5 flex items-start gap-1.5 ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[tone]}`}
         >
           <span
-            className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
+            className={`mt-[0.35rem] size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
             aria-hidden
           />
-          <span className="line-clamp-1">{signal}</span>
+          <span className="min-w-0 leading-snug">{signal}</span>
         </p>
       )}
     </>
@@ -152,7 +153,18 @@ export function SummaryCards({
 
   const waitingAssignment = countByStatus(byStatus, "NEW") ?? 0;
   const escalated = countByStatus(byStatus, "ESCALATED") ?? 0;
-  const breached = sla?.overall.breached ?? 0;
+  const slaDeferred = complaintKpiSource === "aggregate";
+  const breached = slaDeferred ? null : (sla?.overall.breached ?? 0);
+  const slaSignal = slaDeferred
+    ? t("slaDeferredBatch1")
+    : (breached ?? 0) > 0
+      ? t("kpiCritical")
+      : t("kpiHealthy");
+  const slaTone: OpsTone = slaDeferred
+    ? "neutral"
+    : (breached ?? 0) > 0
+      ? "critical"
+      : "healthy";
   const rate = resolutionRatePct(header);
   const openAccent = openBacklogAccent(
     header.openComplaints,
@@ -194,7 +206,7 @@ export function SummaryCards({
                 : () =>
                     router.push(
                       complaintKpiSource === "aggregate"
-                        ? "/complaints/cm"
+                        ? CM_BATCH1_OPEN_HREF
                         : "/queue",
                     )
             }
@@ -213,9 +225,15 @@ export function SummaryCards({
         <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ecmp-border/30 pt-4 sm:grid-cols-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
           <KpiBlock
             title={t("slaBreached")}
-            value={<AnimatedCount value={breached} />}
-            signal={breached > 0 ? t("kpiCritical") : t("kpiHealthy")}
-            tone={breached > 0 ? "critical" : "healthy"}
+            value={
+              breached === null ? (
+                tCommon("emDash")
+              ) : (
+                <AnimatedCount value={breached} />
+              )
+            }
+            signal={slaSignal}
+            tone={slaTone}
           />
           <KpiBlock
             title={t("escalationsPending")}
