@@ -307,6 +307,8 @@ Milestone UI “satu pintu / Foundation legacy di nav” = slice terpisah (consu
 
 **M-025-4 execution (2026-08-13):** overlay FRD Mode A (§13) tanpa unlock FRD LOCKED; inventaris konsumen Foundation (§14); salinan DualSotNotice = target CM / Foundation legacy. Bukan retire API, bukan reopen CAP-008.
 
+**M-025-5 execution (2026-08-13):** Tindak lanjut membuka CM Case / Aggregate detail; pintu API-513 supervisor queue di daftar Aggregate (bukan daftar Foundation). Rute `/complaints/cm/supervisor` tetap — M3b tidak di-retire. Bukan retire Foundation.
+
 ---
 
 ## 12. Impact (setelah Accepted)

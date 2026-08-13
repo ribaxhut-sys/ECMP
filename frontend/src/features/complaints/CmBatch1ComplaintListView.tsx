@@ -499,6 +499,15 @@ export function CmBatch1ComplaintListView() {
             >
               {tCases("inboxTitle")}
             </Button>
+            {canRead ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/complaints/cm/supervisor")}
+              >
+                {t("supervisorQueue")}
+              </Button>
+            ) : null}
             {canCreate ? (
               <Button
                 type="button"

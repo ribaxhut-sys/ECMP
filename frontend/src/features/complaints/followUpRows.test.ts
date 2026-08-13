@@ -3,6 +3,7 @@ import type { CmBatch1ComplaintResponse } from "@/lib/api";
 import type { CmCaseSummary } from "@/lib/api/cmCase";
 import {
   buildFollowUpRows,
+  followUpRowHref,
   isActiveCaseStatus,
   isFollowUpComplaint,
 } from "./followUpRows";
@@ -201,5 +202,38 @@ describe("buildFollowUpRows", () => {
       ],
     });
     expect(rows.map((r) => r.caseId)).toEqual(["newer", "older"]);
+  });
+});
+
+describe("followUpRowHref (DEC-025 CM door)", () => {
+  it("opens Case work on the Case detail route", () => {
+    expect(
+      followUpRowHref({
+        kind: "case",
+        caseId: "case-1",
+        complaintId: "cx-1",
+        statusKey: "caseWorking",
+      }),
+    ).toBe("/complaints/cm/cases/case-1");
+  });
+
+  it("opens complaint rows on Aggregate detail with penanganan focus", () => {
+    expect(
+      followUpRowHref({
+        kind: "complaint",
+        complaintId: "cx-1",
+        statusKey: "awaitingApproval",
+      }),
+    ).toBe("/complaints/cm/cx-1?focus=penanganan");
+  });
+
+  it("adds escalate action when the complaint was returned to branch", () => {
+    expect(
+      followUpRowHref({
+        kind: "complaint",
+        complaintId: "cx-2",
+        statusKey: "returnedToBranch",
+      }),
+    ).toBe("/complaints/cm/cx-2?focus=penanganan&action=escalate");
   });
 });

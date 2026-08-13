@@ -456,13 +456,6 @@ export function ComplaintListView() {
                   >
                     {t("aggregateListTitle")}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.push("/complaints/cm/supervisor")}
-                  >
-                    {t("supervisorQueue")}
-                  </Button>
                 </>
               ) : null}
               {canCreate ? (

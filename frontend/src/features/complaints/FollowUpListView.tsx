@@ -21,11 +21,12 @@ import {
   type BadgeTone,
   type TableColumn,
 } from "@/shared/ui";
-import { buildFollowUpRows, type FollowUpRow, type FollowUpStatusKey } from "./followUpRows";
 import {
-  CASE_ESCALATE_ACTION_QUERY,
-  PENANGANAN_FOCUS_QUERY,
-} from "./ComplaintPenangananSection";
+  buildFollowUpRows,
+  followUpRowHref,
+  type FollowUpRow,
+  type FollowUpStatusKey,
+} from "./followUpRows";
 
 /** Fetch page size for the coexistence read. Larger lists are not paginated
  * here — see the visibility limitation note in the DoD deliverable. */
@@ -119,18 +120,7 @@ export function FollowUpListView() {
   }
 
   function openRow(row: FollowUpRow): void {
-    if (row.kind === "case" && row.caseId) {
-      router.push(`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`);
-      return;
-    }
-    const params = new URLSearchParams();
-    params.set("focus", PENANGANAN_FOCUS_QUERY);
-    if (row.statusKey === "returnedToBranch") {
-      params.set("action", CASE_ESCALATE_ACTION_QUERY);
-    }
-    router.push(
-      `/complaints/cm/${encodeURIComponent(row.complaintId)}?${params.toString()}`,
-    );
+    router.push(followUpRowHref(row));
   }
 
   if (!canRead) {
@@ -160,13 +150,12 @@ export function FollowUpListView() {
       key: "number",
       header: t("columnNumber"),
       cell: (row) => (
-        <button
-          type="button"
-          onClick={() => openRow(row)}
-          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+        <Link
+          href={followUpRowHref(row)}
+          className="cursor-pointer font-medium text-ecmp-primary underline-offset-2 hover:underline"
         >
           {row.number}
-        </button>
+        </Link>
       ),
     },
     {
@@ -176,7 +165,7 @@ export function FollowUpListView() {
         row.parentComplaintId ? (
           <Link
             href={`/complaints/cm/${encodeURIComponent(row.parentComplaintId)}`}
-            className="text-ecmp-primary underline-offset-2 hover:underline"
+            className="cursor-pointer font-medium text-ecmp-primary underline-offset-2 hover:underline"
           >
             {row.parentComplaintNumber ?? row.parentComplaintId}
           </Link>

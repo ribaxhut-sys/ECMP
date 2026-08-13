@@ -141,6 +141,21 @@ export function buildFollowUpRows(input: {
   return sortFollowUpRows(rows);
 }
 
+/** DEC-025 — Tindak lanjut opens CM Case / Aggregate detail, not Foundation. */
+export function followUpRowHref(
+  row: Pick<FollowUpRow, "kind" | "caseId" | "complaintId" | "statusKey">,
+): string {
+  if (row.kind === "case" && row.caseId) {
+    return `/complaints/cm/cases/${encodeURIComponent(row.caseId)}`;
+  }
+  const params = new URLSearchParams();
+  params.set("focus", "penanganan");
+  if (row.statusKey === "returnedToBranch") {
+    params.set("action", "escalate");
+  }
+  return `/complaints/cm/${encodeURIComponent(row.complaintId)}?${params.toString()}`;
+}
+
 export function sortFollowUpRows(rows: readonly FollowUpRow[]): FollowUpRow[] {
   return [...rows].sort((a, b) => {
     const rankDiff = STATUS_RANK[a.statusKey] - STATUS_RANK[b.statusKey];
