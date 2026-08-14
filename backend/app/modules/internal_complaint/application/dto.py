@@ -71,6 +71,14 @@ class InternalComplaintDTO:
     owner_acceptance: AcceptanceDTO | None = None
     acceptance_history: list[AcceptanceDTO] = field(default_factory=list)
     history: list[HistoryEventDTO] = field(default_factory=list)
+    transfer_request_status: str | None = None
+    transfer_request_destination_unit_id: str | None = None
+    transfer_request_reason: str | None = None
+    transfer_requested_by: str | None = None
+    transfer_requested_at: datetime | None = None
+    transfer_decided_by: str | None = None
+    transfer_decided_at: datetime | None = None
+    transfer_decision_reason: str | None = None
 
 
 @dataclass
@@ -87,6 +95,7 @@ class InternalComplaintSummaryDTO:
     created_by: str
     related_complaint_id: str | None = None
     related_complaint_number: str | None = None
+    transfer_request_status: str | None = None
 
 
 @dataclass
@@ -109,6 +118,26 @@ class CreateInternalComplaintCommand:
 class TransferCommand:
     complaint_id: str
     destination_unit_id: str
+    actor_id: str
+    reason: str | None = None
+    actor_unit_id: str | None = None
+
+
+@dataclass
+class RequestTransferCommand:
+    """Agent-family gate — request instead of direct transfer on create."""
+
+    complaint_id: str
+    destination_unit_id: str
+    reason: str
+    actor_id: str
+    actor_unit_id: str | None = None
+
+
+@dataclass
+class DecideTransferRequestCommand:
+    complaint_id: str
+    decision: str  # "APPROVE" | "REJECT"
     actor_id: str
     reason: str | None = None
     actor_unit_id: str | None = None

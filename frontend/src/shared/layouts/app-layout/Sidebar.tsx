@@ -9,6 +9,7 @@ import { fetchBranches } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
+import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
@@ -588,13 +589,23 @@ function NavSections({ onNavigate }: { onNavigate?: () => void }) {
   const tCommon = useTranslations("common");
   const { groups, itemsById, isItemVisible } = useShellNav();
   const unreadCount = useUnreadAnnouncementCount();
-  const itemsWithBadges =
-    unreadCount > 0 && itemsById.announcements
-      ? {
-          ...itemsById,
-          announcements: { ...itemsById.announcements, badge: unreadCount },
-        }
-      : itemsById;
+  const pendingTransferRequestCount = usePendingTransferRequestCount();
+  let itemsWithBadges = itemsById;
+  if (unreadCount > 0 && itemsWithBadges.announcements) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      announcements: { ...itemsWithBadges.announcements, badge: unreadCount },
+    };
+  }
+  if (pendingTransferRequestCount > 0 && itemsWithBadges.internalAssignments) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      internalAssignments: {
+        ...itemsWithBadges.internalAssignments,
+        badge: pendingTransferRequestCount,
+      },
+    };
+  }
 
   const visibleItems = groups
     .flatMap((group) => group.itemIds.map((id) => itemsById[id]))

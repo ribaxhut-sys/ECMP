@@ -18,6 +18,7 @@ from app.modules.internal_complaint.domain.value_objects import (
     InternalStatus,
     ResolutionProposalStatus,
     ResolveAction,
+    TransferRequestStatus,
 )
 
 
@@ -101,6 +102,16 @@ class InternalComplaintAggregate:
     acceptance_history: list[AcceptanceRecord] = field(default_factory=list)
     history: list[HistoryEvent] = field(default_factory=list)
     supervisor_approved_after_resolved: bool = False
+    # Agent-family transfer request gate (Cabang XOR Pusat) — Agent create
+    # never transfers directly; Supervisor/Manager/Admin must decide first.
+    transfer_request_status: TransferRequestStatus | None = None
+    transfer_request_destination_unit_id: str | None = None
+    transfer_request_reason: str | None = None
+    transfer_requested_by: str | None = None
+    transfer_requested_at: datetime | None = None
+    transfer_decided_by: str | None = None
+    transfer_decided_at: datetime | None = None
+    transfer_decision_reason: str | None = None
 
     def _append_history(
         self,
@@ -239,6 +250,136 @@ class InternalComplaintAggregate:
             source_unit_id=source,
             target_unit_id=target,
         )
+
+    def request_transfer(
+        self,
+        *,
+        destination_unit_id: str,
+        reason: str,
+        actor_id: str,
+        actor_unit_id: str | None = None,
+    ) -> None:
+        """Agent-family gate: ask to send Handling to the opposite unit.
+
+        Only valid while the complaint is still local (CREATED, never
+        transferred) and no request is already pending. Does not move
+        Handling Unit — that only happens on APPROVE via ``transfer()``.
+        """
+        if self.status != InternalStatus.CREATED:
+            raise err.invalid_state(
+                "Transfer request requires status CREATED.",
+                details={"status": self.status.value},
+            )
+        if self.handling_unit_id != self.owner_unit_id:
+            raise err.invalid_state(
+                "Complaint already transferred; request no longer applies."
+            )
+        if self.transfer_request_status == TransferRequestStatus.PENDING:
+            raise err.conflict(
+                "TRANSFER_REQUEST_PENDING",
+                "A transfer request is already pending decision.",
+            )
+        target = (destination_unit_id or "").strip()
+        if not target:
+            raise err.validation(
+                "destinationUnitId is required",
+                details={"field": "destinationUnitId"},
+            )
+        reason_text = (reason or "").strip()
+        if not reason_text:
+            raise err.validation(
+                "reason is required for a transfer request",
+                details={"field": "reason"},
+            )
+        if not is_branch_pusat_transfer(self.owner_unit_id, target):
+            raise err.conflict(
+                "TRANSFER_DIRECTION_NOT_ALLOWED",
+                "Transfer hanya Cabang ↔ Pusat (tidak Cabang ↔ Cabang).",
+                details={
+                    "sourceUnitId": self.owner_unit_id,
+                    "destinationUnitId": target,
+                },
+            )
+        now = _utcnow()
+        self.transfer_request_status = TransferRequestStatus.PENDING
+        self.transfer_request_destination_unit_id = target
+        self.transfer_request_reason = reason_text
+        self.transfer_requested_by = actor_id
+        self.transfer_requested_at = now
+        self.transfer_decided_by = None
+        self.transfer_decided_at = None
+        self.transfer_decision_reason = None
+        self.updated_at = now
+        self._append_history(
+            event_type=HistoryEventType.TRANSFER_REQUESTED,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            note=reason_text,
+            source_unit_id=self.owner_unit_id,
+            target_unit_id=target,
+        )
+
+    def decide_transfer_request(
+        self,
+        *,
+        decision: TransferRequestStatus,
+        actor_id: str,
+        actor_unit_id: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        """Supervisor/Manager/Admin decides a pending Agent transfer request.
+
+        APPROVE performs the transfer immediately (reuses ``transfer()`` so
+        the XOR direction check and ASSIGNED status change stay identical to
+        the Supervisor/Manager direct-transfer path). REJECT leaves the
+        complaint local at CREATED — the Agent may request again.
+        """
+        if self.transfer_request_status != TransferRequestStatus.PENDING:
+            raise err.conflict(
+                "NO_PENDING_TRANSFER_REQUEST",
+                "No pending transfer request to decide.",
+            )
+        now = _utcnow()
+        if decision == TransferRequestStatus.APPROVED:
+            target = self.transfer_request_destination_unit_id or ""
+            original_reason = self.transfer_request_reason
+            self.transfer_request_status = TransferRequestStatus.APPROVED
+            self.transfer_decided_by = actor_id
+            self.transfer_decided_at = now
+            self.transfer_decision_reason = (reason or "").strip() or None
+            self._append_history(
+                event_type=HistoryEventType.TRANSFER_REQUEST_APPROVED,
+                actor_id=actor_id,
+                actor_unit_id=actor_unit_id,
+                note=self.transfer_decision_reason,
+            )
+            self.transfer(
+                destination_unit_id=target,
+                actor_id=actor_id,
+                actor_unit_id=actor_unit_id,
+                reason=original_reason,
+            )
+            return
+        if decision == TransferRequestStatus.REJECTED:
+            reason_text = (reason or "").strip()
+            if not reason_text:
+                raise err.validation(
+                    "reason is required when rejecting a transfer request",
+                    details={"field": "reason"},
+                )
+            self.transfer_request_status = TransferRequestStatus.REJECTED
+            self.transfer_decided_by = actor_id
+            self.transfer_decided_at = now
+            self.transfer_decision_reason = reason_text
+            self.updated_at = now
+            self._append_history(
+                event_type=HistoryEventType.TRANSFER_REQUEST_REJECTED,
+                actor_id=actor_id,
+                actor_unit_id=actor_unit_id,
+                note=reason_text,
+            )
+            return
+        raise err.validation("Unsupported transfer request decision")
 
     def start_handling(
         self,

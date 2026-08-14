@@ -24,7 +24,9 @@ from app.modules.internal_complaint.api.router import get_internal_complaint_ser
 from app.modules.internal_complaint.application.dto import (
     CloseCommand,
     CreateInternalComplaintCommand,
+    DecideTransferRequestCommand,
     RecordAcceptanceCommand,
+    RequestTransferCommand,
     ResolveCommand,
     StartHandlingCommand,
     TransferCommand,
@@ -41,6 +43,7 @@ from app.modules.internal_complaint.infrastructure.orm import (
     InternalComplaintNumberCounterORM,
     InternalComplaintORM,
     InternalComplaintResolutionORM,
+    InternalComplaintUnitCounterORM,
 )
 from app.modules.internal_complaint.infrastructure.repository import (
     SqlAlchemyInternalComplaintRepository,
@@ -52,6 +55,7 @@ _TABLES = [
     InternalComplaintAcceptanceORM.__table__,
     InternalComplaintEventORM.__table__,
     InternalComplaintNumberCounterORM.__table__,
+    InternalComplaintUnitCounterORM.__table__,
     CmBatch1ComplaintORM.__table__,
 ]
 
@@ -529,6 +533,98 @@ def test_manager_may_accept_when_authorized():
     )
 
 
+# --- Transfer request gate (domain, via service) ----------------------------
+
+
+def test_request_transfer_branch_to_branch_rejected(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    with pytest.raises(Exception):
+        service.request_transfer(
+            RequestTransferCommand(
+                complaint_id=cid,
+                destination_unit_id="UPPPD-TANAH-ABANG",
+                reason="cross-branch not allowed",
+                actor_id="agent-1",
+                actor_unit_id="UPPPD-GAMBIR",
+            )
+        )
+
+
+def test_request_transfer_requires_reason(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    with pytest.raises(Exception):
+        service.request_transfer(
+            RequestTransferCommand(
+                complaint_id=cid,
+                destination_unit_id="PUSAT",
+                reason="   ",
+                actor_id="agent-1",
+                actor_unit_id="UPPPD-GAMBIR",
+            )
+        )
+
+
+def test_request_transfer_then_reject_then_reapply(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    dto = service.request_transfer(
+        RequestTransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            reason="need HQ decision",
+            actor_id="agent-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert dto.transfer_request_status == "PENDING"
+
+    dto = service.decide_transfer_request(
+        DecideTransferRequestCommand(
+            complaint_id=cid,
+            decision="REJECT",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            reason="not enough detail",
+        )
+    )
+    assert dto.status == "CREATED"
+    assert dto.handling_unit_id == "UPPPD-GAMBIR"
+    assert dto.transfer_request_status == "REJECTED"
+
+    # Boleh ajukan ulang.
+    dto = service.request_transfer(
+        RequestTransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            reason="added detail",
+            actor_id="agent-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert dto.transfer_request_status == "PENDING"
+
+    dto = service.decide_transfer_request(
+        DecideTransferRequestCommand(
+            complaint_id=cid,
+            decision="APPROVE",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert dto.status == "ASSIGNED"
+    assert dto.handling_unit_id == "PUSAT"
+    event_types = [e.event_type for e in dto.history]
+    assert "TRANSFER_REQUESTED" in event_types
+    assert "TRANSFER_REQUEST_REJECTED" in event_types
+    assert "TRANSFER_REQUEST_APPROVED" in event_types
+    assert "TRANSFER" in event_types
+
+
 # --- HTTP integration -------------------------------------------------------
 
 
@@ -588,31 +684,35 @@ def test_http_create_ignores_forged_owner_unit(
     assert data["handlingUnitId"] == "PUSAT"
 
 
-def test_http_agent_create_with_initial_handling_without_assign(
-    db_session: Session, service: InternalComplaintApplicationService
-):
-    """Agent may escalate on create via handlingUnitId (no complaints:assign)."""
-    app = create_app()
-    agent = _principal(
-        roles=("AGENT",),
-        org_unit_id="UPPPD-GAMBIR",
-    )
-    # Drop assign so this fails if FE still called /transfer.
-    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
-    agent = Principal(
-        user_id=agent.user_id,
-        roles=agent.roles,
-        org_unit_id=agent.org_unit_id,
-        permissions=agent_perms,
-    )
+_DECIDE_PERMS = frozenset({*_PERMS, "internal:escalate-decide"})
 
-    app.dependency_overrides[get_current_principal] = lambda: agent
+
+def _app_client(
+    db_session: Session,
+    service: InternalComplaintApplicationService,
+    principal: Principal,
+) -> TestClient:
+    app = create_app()
+    app.dependency_overrides[get_current_principal] = lambda: principal
     app.dependency_overrides[get_db_session] = lambda: db_session
     app.dependency_overrides[get_internal_complaint_service] = lambda: service
     app.dependency_overrides[get_settings] = _jwt_settings
+    return TestClient(app)
 
-    with TestClient(app) as client:
-        denied = client.post(
+
+def test_http_agent_create_without_dest_stays_local_no_gate(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Agent create with no handlingUnitId never needs an atasan — stays local."""
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    with _app_client(db_session, service, agent) as client:
+        created = client.post(
             "/api/v1/internal/complaints",
             json={
                 "subject": "No dest",
@@ -620,15 +720,33 @@ def test_http_agent_create_with_initial_handling_without_assign(
                 "category": "OPERATIONAL",
             },
         )
-        assert denied.status_code == 201, denied.text
-        cid = denied.json()["data"]["complaintId"]
+        assert created.status_code == 201, created.text
+        data = created.json()["data"]
+        assert data["status"] == "CREATED"
+        assert data["handlingUnitId"] == "UPPPD-GAMBIR"
+        assert data["transferRequestStatus"] is None
+        cid = data["complaintId"]
+
+        # Agent still cannot call /transfer directly.
         tr = client.post(
             f"/api/v1/internal/complaints/{cid}/transfer",
             json={"destinationUnitId": "PUSAT"},
         )
         assert tr.status_code == 403
 
-        ok = client.post(
+
+def test_http_agent_create_with_dest_requires_reason(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    with _app_client(db_session, service, agent) as client:
+        resp = client.post(
             "/api/v1/internal/complaints",
             json={
                 "subject": "Escalate on create",
@@ -637,12 +755,269 @@ def test_http_agent_create_with_initial_handling_without_assign(
                 "handlingUnitId": "PUSAT",
             },
         )
-        assert ok.status_code == 201, ok.text
-        data = ok.json()["data"]
-        assert data["ownerUnitId"] == "UPPPD-GAMBIR"
-        assert data["handlingUnitId"] == "PUSAT"
+        assert resp.status_code == 400, resp.text
 
-    app.dependency_overrides.clear()
+
+def test_http_agent_create_with_dest_and_reason_is_pending_not_transferred(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Checklist: Agent create — tidak transfer; menunggu; nomor PI-TAB-…-001."""
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-TANAH-ABANG",
+        permissions=agent_perms,
+    )
+    with _app_client(db_session, service, agent) as client:
+        resp = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Escalate on create",
+                "description": "to pusat",
+                "category": "OPERATIONAL",
+                "handlingUnitId": "PUSAT",
+                "requestReason": "Butuh keputusan Pusat, di luar wewenang cabang",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()["data"]
+        # Not transferred — Handling stays at the owner (Agent) unit.
+        assert data["status"] == "CREATED"
+        assert data["ownerUnitId"] == "UPPPD-TANAH-ABANG"
+        assert data["handlingUnitId"] == "UPPPD-TANAH-ABANG"
+        assert data["transferRequestStatus"] == "PENDING"
+        assert data["transferRequestDestinationUnitId"] == "PUSAT"
+        assert data["complaintNumber"].startswith("PI-TAB-")
+        assert data["complaintNumber"].endswith("-001")
+
+
+def test_http_manager_create_with_dest_transfers_directly(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Checklist: SPV/Manager create + tujuan -> langsung ASSIGNED/transfer."""
+    manager = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, manager) as client:
+        resp = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Manager escalates",
+                "description": "direct",
+                "category": "OPERATIONAL",
+                "handlingUnitId": "PUSAT",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()["data"]
+        assert data["status"] == "ASSIGNED"
+        assert data["handlingUnitId"] == "PUSAT"
+        assert data["transferRequestStatus"] is None
+
+
+def test_http_admin_create_forbidden(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Admin never creates internal complaints (matches 0074 WP behavior)."""
+    admin = Principal(
+        user_id=uuid.uuid4(),
+        roles=("ADMIN",),
+        org_unit_id="PUSAT",
+        permissions=frozenset({"complaints:read", "complaints:update", "*"}),
+    )
+    with _app_client(db_session, service, admin) as client:
+        resp = client.post(
+            "/api/v1/internal/complaints",
+            json={"subject": "x", "description": "y", "category": "OPERATIONAL"},
+        )
+        assert resp.status_code == 403
+
+
+def test_http_decide_transfer_request_without_permission_denied(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    with _app_client(db_session, service, agent) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Escalate",
+                "description": "d",
+                "category": "OPERATIONAL",
+                "handlingUnitId": "PUSAT",
+                "requestReason": "Perlu keputusan Pusat",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+        # Same Agent, lacking internal:escalate-decide, may not decide.
+        decide = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer-request/decision",
+            json={"decision": "APPROVE"},
+        )
+        assert decide.status_code == 403
+
+
+def test_http_supervisor_approves_transfer_request_moves_handling(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    supervisor = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_DECIDE_PERMS,
+    )
+    with _app_client(db_session, service, agent) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Escalate",
+                "description": "d",
+                "category": "OPERATIONAL",
+                "handlingUnitId": "PUSAT",
+                "requestReason": "Perlu keputusan Pusat",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, supervisor) as client:
+        decide = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer-request/decision",
+            json={"decision": "APPROVE", "reason": "Disetujui"},
+        )
+        assert decide.status_code == 200, decide.text
+        data = decide.json()["data"]
+        assert data["status"] == "ASSIGNED"
+        assert data["handlingUnitId"] == "PUSAT"
+        assert data["transferRequestStatus"] == "APPROVED"
+        event_types = [e["eventType"] for e in data["history"]]
+        assert "TRANSFER_REQUESTED" in event_types
+        assert "TRANSFER_REQUEST_APPROVED" in event_types
+        assert "TRANSFER" in event_types
+
+
+def test_http_manager_rejects_transfer_request_requires_reason_and_stays_local(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    manager = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_DECIDE_PERMS,
+    )
+    with _app_client(db_session, service, agent) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Escalate",
+                "description": "d",
+                "category": "OPERATIONAL",
+                "handlingUnitId": "PUSAT",
+                "requestReason": "Perlu keputusan Pusat",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, manager) as client:
+        missing_reason = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer-request/decision",
+            json={"decision": "REJECT"},
+        )
+        assert missing_reason.status_code == 400
+
+        rejected = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer-request/decision",
+            json={"decision": "REJECT", "reason": "Belum lengkap datanya"},
+        )
+        assert rejected.status_code == 200, rejected.text
+        data = rejected.json()["data"]
+        assert data["status"] == "CREATED"
+        assert data["handlingUnitId"] == "UPPPD-GAMBIR"
+        assert data["transferRequestStatus"] == "REJECTED"
+        event_types = [e["eventType"] for e in data["history"]]
+        assert "TRANSFER_REQUEST_REJECTED" in event_types
+
+    # Agent may re-apply after reject.
+    with _app_client(db_session, service, agent) as client:
+        reapplied = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer-request",
+            json={"destinationUnitId": "PUSAT", "reason": "Data sudah dilengkapi"},
+        )
+        assert reapplied.status_code == 200, reapplied.text
+        data = reapplied.json()["data"]
+        assert data["transferRequestStatus"] == "PENDING"
+
+
+def test_http_admin_decides_transfer_request_any_unit(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Admin decides regardless of org-unit membership (org-scope bypass)."""
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    admin = Principal(
+        user_id=uuid.uuid4(),
+        roles=("ADMIN",),
+        org_unit_id="PUSAT",
+        permissions=frozenset({*_DECIDE_PERMS, "*"} - {"complaints:create"}),
+    )
+    with _app_client(db_session, service, agent) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Escalate",
+                "description": "d",
+                "category": "OPERATIONAL",
+                "handlingUnitId": "PUSAT",
+                "requestReason": "Perlu keputusan Pusat",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, admin) as client:
+        decide = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer-request/decision",
+            json={"decision": "APPROVE"},
+        )
+        assert decide.status_code == 200, decide.text
+        assert decide.json()["data"]["status"] == "ASSIGNED"
+
+
+def test_number_sequence_widens_past_999(db_session: Session):
+    """Checklist: Agent create seq 1000 — empat digit."""
+    repo = SqlAlchemyInternalComplaintRepository(db_session)
+    last = ""
+    for _ in range(1000):
+        last = repo.next_number(owner_unit_id="UPPPD-TANAH-ABANG")
+    assert last.startswith("PI-TAB-")
+    assert last.endswith("-1000")
 
 
 def test_http_full_flow_to_closed(
@@ -707,6 +1082,8 @@ def test_http_full_flow_to_closed(
     assert detail.status_code == 200
     body = detail.json()["data"]
     assert body["status"] == "CLOSED"
+    assert body["closedBy"] == "other-owner-sv"
+    assert "closedByName" in body
     types = {e["eventType"] for e in body["history"]}
     assert "CREATED" in types
     assert "TRANSFER" in types

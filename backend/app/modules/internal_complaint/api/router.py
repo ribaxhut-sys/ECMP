@@ -13,9 +13,13 @@ from app.core.authorization.case_acceptance import (
     assert_case_resolve_accept_authorized,
     principal_is_case_agent,
 )
-from app.core.authorization.org_unit_guard import enforce_org_scope, enforce_org_scope_any
+from app.core.authorization.org_unit_guard import (
+    enforce_org_scope,
+    enforce_org_scope_any,
+    org_scope_enforcement_enabled,
+)
 from app.core.config import Settings, get_settings
-from app.core.errors import PermissionDeniedError
+from app.core.errors import PermissionDeniedError, ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.core.user_messages import m
 from app.db.session import get_db_session
@@ -24,10 +28,12 @@ from app.modules.internal_complaint.api.schemas import (
     AcceptanceResponse,
     CloseRequest,
     CreateInternalComplaintRequest,
+    DecideTransferRequestRequest,
     HistoryEventResponse,
     InternalComplaintResponse,
     InternalComplaintSummaryResponse,
     RecordAcceptanceRequest,
+    RequestTransferRequest,
     ResolutionResponse,
     ResolveRequest,
     StartHandlingRequest,
@@ -37,8 +43,10 @@ from app.modules.internal_complaint.api.schemas import (
 from app.modules.internal_complaint.application.dto import (
     CloseCommand,
     CreateInternalComplaintCommand,
+    DecideTransferRequestCommand,
     InternalComplaintDTO,
     RecordAcceptanceCommand,
+    RequestTransferCommand,
     ResolveCommand,
     StartHandlingCommand,
     TransferCommand,
@@ -83,12 +91,33 @@ def _require_actor_unit(principal: Principal, session: Session) -> str:
     return unit
 
 
+_ADMIN_FAMILY_ROLES = ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN")
+
+
+def _enforce_internal_org_scope(
+    principal: Principal, resource_org_unit_id: str | None, settings: Settings
+) -> None:
+    """Org-scope for deciding a transfer request — Admin family decides any unit.
+
+    Mirrors cm_batch1's Pusat-HQ-exception pattern: Supervisor/Manager must
+    still match the requester's own unit; Admin (holder of
+    ``internal:escalate-decide`` regardless of unit membership) bypasses.
+    """
+    if not org_scope_enforcement_enabled(settings):
+        return
+    if principal.has_any_role(*_ADMIN_FAMILY_ROLES):
+        return
+    enforce_org_scope(principal, resource_org_unit_id, settings)
+
+
 def _display_names_for_dto(
     session: Session, dto: InternalComplaintDTO
 ) -> dict[str, str]:
     ids = {
         dto.created_by,
         dto.closed_by,
+        dto.transfer_requested_by,
+        dto.transfer_decided_by,
         *(e.actor_id for e in dto.history),
         *(a.actor_id for a in dto.acceptance_history),
     }
@@ -175,11 +204,26 @@ def _to_response(
         acceptanceHistory=[acc(a) for a in dto.acceptance_history],
         history=[hist(e) for e in dto.history],
         closedBy=dto.closed_by,
+        closedByName=names.get(dto.closed_by) if dto.closed_by else None,
         closedAt=dto.closed_at,
         createdAt=dto.created_at,
         createdBy=dto.created_by,
         createdByName=names.get(dto.created_by),
         updatedAt=dto.updated_at,
+        transferRequestStatus=dto.transfer_request_status,
+        transferRequestDestinationUnitId=dto.transfer_request_destination_unit_id,
+        transferRequestReason=dto.transfer_request_reason,
+        transferRequestedBy=dto.transfer_requested_by,
+        transferRequestedByName=(
+            names.get(dto.transfer_requested_by) if dto.transfer_requested_by else None
+        ),
+        transferRequestedAt=dto.transfer_requested_at,
+        transferDecidedBy=dto.transfer_decided_by,
+        transferDecidedByName=(
+            names.get(dto.transfer_decided_by) if dto.transfer_decided_by else None
+        ),
+        transferDecidedAt=dto.transfer_decided_at,
+        transferDecisionReason=dto.transfer_decision_reason,
     )
 
 
@@ -193,6 +237,9 @@ def list_internal_complaints(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     status: Annotated[str | None, Query()] = None,
+    pending_transfer_request: Annotated[
+        bool | None, Query(alias="pendingTransferRequest")
+    ] = None,
 ) -> ListResponse[InternalComplaintSummaryResponse]:
     items, total = service.list_complaints(
         principal,
@@ -200,6 +247,7 @@ def list_internal_complaints(
         page_size=page_size,
         status=status,
         org_unit_id=_actor_unit(principal, session),
+        pending_transfer_request=pending_transfer_request,
     )
     creator_ids = {i.created_by for i in items if i.created_by}
     names = (
@@ -223,11 +271,27 @@ def list_internal_complaints(
                 createdByName=names.get(i.created_by),
                 relatedComplaintId=i.related_complaint_id,
                 relatedComplaintNumber=i.related_complaint_number,
+                transferRequestStatus=i.transfer_request_status,
             )
             for i in items
         ],
         meta=PageMeta(page=page, pageSize=page_size, totalItems=total),
     )
+
+
+@router.get("/api/v1/internal/complaints/transfer-requests/pending-count")
+def get_pending_transfer_request_count(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[int]:
+    """Sidebar badge — same UNIT/PUSAT/ALL visibility as the list (DEC-024)."""
+    count = service.count_pending_transfer_requests(
+        principal, org_unit_id=_actor_unit(principal, session)
+    )
+    return DataResponse(data=count)
 
 
 @router.post("/api/v1/internal/complaints", status_code=201)
@@ -241,8 +305,11 @@ def create_internal_complaint(
 ) -> DataResponse[InternalComplaintResponse]:
     # Owner = creator unit (server-side). Client ownerUnitId ignored.
     # relatedComplaintNumber from client is ignored — snapshot from Aggregate DB.
-    # Optional handlingUnitId = initial Handling transfer (Cabang ↔ Pusat),
-    # allowed under create so Agent can escalate without complaints:assign.
+    # Optional handlingUnitId (Cabang ↔ Pusat) meaning depends on complaints:assign:
+    # - held (Supervisor/Manager/Admin family) -> direct initial transfer, as before.
+    # - not held (Agent-family) -> becomes a pending transfer request; the
+    #   complaint stays local (CREATED, Handling = Owner) until a Supervisor,
+    #   Manager or Admin decides via /transfer-request/decision.
     owner_unit = _require_actor_unit(principal, session)
     related = resolve_related_aggregate(
         session,
@@ -270,15 +337,90 @@ def create_internal_complaint(
     )
     dest = OrgUnitResolver.normalize(body.handling_unit_id)
     if dest and dest != OrgUnitResolver.normalize(dto.handling_unit_id):
-        dto = service.transfer(
-            TransferCommand(
-                complaint_id=dto.complaint_id,
-                destination_unit_id=dest,
-                actor_id=str(principal.user_id),
-                reason="Initial transfer on create",
-                actor_unit_id=owner_unit,
+        if principal.has_permission("complaints:assign"):
+            dto = service.transfer(
+                TransferCommand(
+                    complaint_id=dto.complaint_id,
+                    destination_unit_id=dest,
+                    actor_id=str(principal.user_id),
+                    reason="Initial transfer on create",
+                    actor_unit_id=owner_unit,
+                )
             )
+        else:
+            reason = (body.request_reason or "").strip()
+            if not reason:
+                raise ValidationAppError(
+                    m("internal.transfer_request_reason_required"),
+                    details={"field": "requestReason"},
+                )
+            dto = service.request_transfer(
+                RequestTransferCommand(
+                    complaint_id=dto.complaint_id,
+                    destination_unit_id=dest,
+                    reason=reason,
+                    actor_id=str(principal.user_id),
+                    actor_unit_id=owner_unit,
+                )
+            )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/internal/complaints/{complaint_id}/transfer-request")
+def request_internal_transfer(
+    complaint_id: str,
+    body: RequestTransferRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[InternalComplaintResponse]:
+    """(Re-)submit an Agent transfer request after REJECTED — 'boleh ajukan ulang'.
+
+    Same permission as create (Agent-family) — Supervisor/Manager/Admin use
+    /transfer directly and never need this endpoint.
+    """
+    current = service.get(complaint_id)
+    enforce_org_scope(principal, current.owner_unit_id, settings)
+    dto = service.request_transfer(
+        RequestTransferCommand(
+            complaint_id=complaint_id,
+            destination_unit_id=body.destination_unit_id,
+            reason=body.reason,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
         )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/internal/complaints/{complaint_id}/transfer-request/decision")
+def decide_internal_transfer_request(
+    complaint_id: str,
+    body: DecideTransferRequestRequest,
+    principal: Annotated[
+        Principal, Depends(require_permissions("internal:escalate-decide"))
+    ],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[InternalComplaintResponse]:
+    """Supervisor / Manager / Admin decides a pending Agent transfer request."""
+    current = service.get(complaint_id)
+    _enforce_internal_org_scope(principal, current.owner_unit_id, settings)
+    dto = service.decide_transfer_request(
+        DecideTransferRequestCommand(
+            complaint_id=complaint_id,
+            decision=body.decision,
+            reason=body.reason,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
+        )
+    )
     return DataResponse(data=_to_response(dto, session=session))
 
 

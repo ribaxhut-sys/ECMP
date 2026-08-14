@@ -32,6 +32,8 @@ export type InternalPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export type InternalAcceptanceParty = "OWNER" | "HANDLING_UNIT";
 
+export type InternalTransferRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+
 /** UI list/detail row derived from API. */
 export interface InternalComplaint {
   id: string;
@@ -52,11 +54,23 @@ export interface InternalComplaint {
   createdByName: string | null;
   createdAt: string;
   updatedAt: string | null;
+  closedBy: string | null;
+  closedByName: string | null;
   closedAt: string | null;
   resolutionSummary: string | null;
   handlingUnitAcceptance: string | null;
   ownerAcceptance: string | null;
   history: InternalHistoryEvent[];
+  transferRequestStatus: InternalTransferRequestStatus | string | null;
+  transferRequestDestinationUnitId: string | null;
+  transferRequestReason: string | null;
+  transferRequestedBy: string | null;
+  transferRequestedByName: string | null;
+  transferRequestedAt: string | null;
+  transferDecidedBy: string | null;
+  transferDecidedByName: string | null;
+  transferDecidedAt: string | null;
+  transferDecisionReason: string | null;
 }
 
 /** Matches backend case_acceptance._AGENT_ROLES for related Aggregate filter. */
@@ -117,6 +131,9 @@ export const CATEGORY_LABEL_KEY: Record<InternalCategory, string> = {
 export const HISTORY_LABEL_KEY: Record<string, string> = {
   CREATED: "activityCREATED",
   TRANSFER: "activityASSIGNED",
+  TRANSFER_REQUESTED: "activityTRANSFER_REQUESTED",
+  TRANSFER_REQUEST_APPROVED: "activityTRANSFER_REQUEST_APPROVED",
+  TRANSFER_REQUEST_REJECTED: "activityTRANSFER_REQUEST_REJECTED",
   RECEIVED: "activityRECEIVED",
   REVIEW: "activityREVIEW_STARTED",
   RESOLUTION: "activityFOLLOW_UP_RECORDED",
@@ -164,11 +181,23 @@ export function mapSummaryToRow(
     createdByName: row.createdByName ?? null,
     createdAt: row.createdAt,
     updatedAt: null,
+    closedBy: null,
+    closedByName: null,
     closedAt: null,
     resolutionSummary: null,
     handlingUnitAcceptance: null,
     ownerAcceptance: null,
     history: [],
+    transferRequestStatus: row.transferRequestStatus ?? null,
+    transferRequestDestinationUnitId: null,
+    transferRequestReason: null,
+    transferRequestedBy: null,
+    transferRequestedByName: null,
+    transferRequestedAt: null,
+    transferDecidedBy: null,
+    transferDecidedByName: null,
+    transferDecidedAt: null,
+    transferDecisionReason: null,
   };
 }
 
@@ -192,11 +221,23 @@ export function mapDetailToRow(dto: ApiInternalComplaint): InternalComplaint {
     createdByName: dto.createdByName ?? null,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt ?? null,
+    closedBy: dto.closedBy ?? null,
+    closedByName: dto.closedByName ?? null,
     closedAt: dto.closedAt ?? null,
     resolutionSummary: dto.resolution?.summary ?? null,
     handlingUnitAcceptance: dto.handlingUnitAcceptance?.decision ?? null,
     ownerAcceptance: dto.ownerAcceptance?.decision ?? null,
     history: dto.history ?? [],
+    transferRequestStatus: dto.transferRequestStatus ?? null,
+    transferRequestDestinationUnitId: dto.transferRequestDestinationUnitId ?? null,
+    transferRequestReason: dto.transferRequestReason ?? null,
+    transferRequestedBy: dto.transferRequestedBy ?? null,
+    transferRequestedByName: dto.transferRequestedByName ?? null,
+    transferRequestedAt: dto.transferRequestedAt ?? null,
+    transferDecidedBy: dto.transferDecidedBy ?? null,
+    transferDecidedByName: dto.transferDecidedByName ?? null,
+    transferDecidedAt: dto.transferDecidedAt ?? null,
+    transferDecisionReason: dto.transferDecisionReason ?? null,
   };
 }
 
@@ -214,4 +255,17 @@ export function canResolve(status: string): boolean {
 
 export function canAccept(status: string): boolean {
   return status === "RESOLVED";
+}
+
+/** Agent-family gate: complaint still local (never transferred) and no request pending. */
+export function canRequestTransfer(complaint: InternalComplaint): boolean {
+  return (
+    complaint.status === "CREATED" &&
+    complaint.handlingUnitId === complaint.ownerUnitId &&
+    complaint.transferRequestStatus !== "PENDING"
+  );
+}
+
+export function hasPendingTransferRequest(complaint: InternalComplaint): boolean {
+  return complaint.transferRequestStatus === "PENDING";
 }

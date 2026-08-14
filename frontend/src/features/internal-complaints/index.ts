@@ -8,3 +8,4 @@ export { InternalFollowUpCaseView } from "./InternalFollowUpCaseView";
 export { InternalVerificationListView } from "./InternalVerificationListView";
 export { InternalVerificationCaseView } from "./InternalVerificationCaseView";
 export { InternalReportsView } from "./InternalReportsView";
+export { usePendingTransferRequestCount } from "./usePendingTransferRequestCount";

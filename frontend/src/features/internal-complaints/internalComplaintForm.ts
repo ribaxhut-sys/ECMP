@@ -3,8 +3,14 @@ import type { InternalCategory, InternalPriority } from "./types";
 
 export interface InternalComplaintFormValues {
   title: string;
-  /** Optional initial transfer destination (Branch.code). Empty = stay at owner unit. */
+  /** Optional Handling Unit (Cabang ↔ Pusat). Empty = stay at owner unit. */
   destinationUnitId: string;
+  /**
+   * Required when destinationUnitId is set AND the actor lacks
+   * complaints:assign (Agent-family) — becomes a transfer request instead
+   * of a direct transfer. Ignored for Supervisor/Manager.
+   */
+  requestReason: string;
   category: InternalCategory | "";
   /** Optional Batch-1 Aggregate complaint id (UUID). */
   relatedComplaintId: string;
@@ -18,6 +24,7 @@ export function defaultInternalComplaintForm(): InternalComplaintFormValues {
   return {
     title: "",
     destinationUnitId: "",
+    requestReason: "",
     category: "",
     relatedComplaintId: "",
     priority: "MEDIUM",
@@ -33,11 +40,16 @@ export type InternalComplaintFormErrors = Partial<
 
 export function validateInternalComplaintForm(
   values: InternalComplaintFormValues,
+  options?: { canAssign?: boolean },
 ): InternalComplaintFormErrors {
   const errors: InternalComplaintFormErrors = {};
   if (!values.title.trim()) errors.title = "titleRequiredError";
   if (!values.category) errors.category = "categoryRequiredError";
   if (!values.description.trim()) errors.description = "descriptionRequiredError";
+  const canAssign = options?.canAssign ?? true;
+  if (!canAssign && values.destinationUnitId.trim() && !values.requestReason.trim()) {
+    errors.requestReason = "requestReasonRequiredError";
+  }
   return errors;
 }
 

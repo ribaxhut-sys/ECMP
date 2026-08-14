@@ -32,6 +32,10 @@ class InternalComplaintORM(Base):
         Index("ix_internal_complaints_owner_unit", "owner_unit_id"),
         Index("ix_internal_complaints_handling_unit", "handling_unit_id"),
         Index("ix_internal_complaints_created_at", "created_at"),
+        Index(
+            "ix_internal_complaints_transfer_request_status",
+            "transfer_request_status",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -60,6 +64,30 @@ class InternalComplaintORM(Base):
     handling_unit_id: Mapped[str] = mapped_column(String(128), nullable=False)
     supervisor_approved_after_resolved: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
+    )
+    # Agent-family transfer request gate — PENDING/APPROVED/REJECTED, null
+    # when no request has ever been made (Supervisor/Manager direct create).
+    transfer_request_status: Mapped[str | None] = mapped_column(
+        String(16), nullable=True
+    )
+    transfer_request_destination_unit_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    transfer_request_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    transfer_requested_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    transfer_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    transfer_decided_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    transfer_decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    transfer_decision_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True
     )
     closed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(
@@ -189,7 +217,25 @@ class InternalComplaintEventORM(Base):
 
 
 class InternalComplaintNumberCounterORM(Base):
+    """Legacy per-year global counter — kept read-only for rows already on disk.
+
+    Superseded by ``InternalComplaintUnitCounterORM`` (per-unit-per-month);
+    not written by ``create()`` anymore. Not dropped: old ``PI-YYYY-NNNNNN``
+    lab rows must stay resolvable and are never remapped.
+    """
+
     __tablename__ = "internal_complaint_number_counters"
 
     year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class InternalComplaintUnitCounterORM(Base):
+    """Per-unit-per-month sequence for ``PI-{UNIT}-{YYMM}-{NNN}`` (current format)."""
+
+    __tablename__ = "internal_complaint_unit_counters"
+
+    unit_code: Mapped[str] = mapped_column(String(8), primary_key=True)
+    # YYYYMM, e.g. 202608 — integer sort order matches chronological order.
+    period: Mapped[int] = mapped_column(Integer, primary_key=True)
     last_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

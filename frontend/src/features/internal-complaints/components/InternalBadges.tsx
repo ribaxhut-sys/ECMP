@@ -33,3 +33,22 @@ export function InternalCategoryBadge({ category }: { category: string }) {
   const key = CATEGORY_LABEL_KEY[category as InternalCategory];
   return <Badge tone="neutral">{key ? t(key) : category}</Badge>;
 }
+
+const TRANSFER_REQUEST_TONE = {
+  PENDING: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+} as const;
+
+/** Shown only when a transfer request exists — null status renders nothing. */
+export function InternalTransferRequestBadge({
+  status,
+}: {
+  status: string | null | undefined;
+}) {
+  const t = useTranslations("internalComplaints");
+  if (!status) return null;
+  const tone =
+    TRANSFER_REQUEST_TONE[status as keyof typeof TRANSFER_REQUEST_TONE] ?? "neutral";
+  return <Badge tone={tone}>{t(`transferRequestStatus${status}`)}</Badge>;
+}

@@ -20,6 +20,8 @@ export type InternalComplaintStatus =
 export type InternalResolveAction = "PROPOSE" | "ACCEPT" | "REJECT";
 export type InternalAcceptanceParty = "OWNER" | "HANDLING_UNIT";
 export type InternalAcceptanceDecision = "ACCEPT" | "REJECT";
+export type InternalTransferRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type InternalTransferRequestDecision = "APPROVE" | "REJECT";
 
 export interface InternalResolution {
   resolutionId: string;
@@ -71,6 +73,7 @@ export interface InternalComplaintSummary {
   createdByName?: string | null;
   relatedComplaintId?: string | null;
   relatedComplaintNumber?: string | null;
+  transferRequestStatus?: InternalTransferRequestStatus | string | null;
 }
 
 export interface InternalComplaint {
@@ -95,11 +98,22 @@ export interface InternalComplaint {
   acceptanceHistory?: InternalAcceptance[];
   history: InternalHistoryEvent[];
   closedBy?: string | null;
+  closedByName?: string | null;
   closedAt?: string | null;
   createdAt: string;
   createdBy: string;
   createdByName?: string | null;
   updatedAt?: string | null;
+  transferRequestStatus?: InternalTransferRequestStatus | string | null;
+  transferRequestDestinationUnitId?: string | null;
+  transferRequestReason?: string | null;
+  transferRequestedBy?: string | null;
+  transferRequestedByName?: string | null;
+  transferRequestedAt?: string | null;
+  transferDecidedBy?: string | null;
+  transferDecidedByName?: string | null;
+  transferDecidedAt?: string | null;
+  transferDecisionReason?: string | null;
 }
 
 export interface CreateInternalComplaintRequest {
@@ -111,12 +125,29 @@ export interface CreateInternalComplaintRequest {
   chronology?: string | null;
   impact?: string | null;
   relatedComplaintId?: string | null;
-  /** Optional initial Handling Unit (Cabang ↔ Pusat); applied server-side on create. */
+  /**
+   * Optional Handling Unit (Cabang ↔ Pusat). Meaning depends on the actor:
+   * Supervisor/Manager (complaints:assign) → direct initial transfer.
+   * Agent-family (no complaints:assign) → becomes a pending transfer
+   * request; requestReason is then required.
+   */
   handlingUnitId?: string | null;
+  /** Required when the actor is Agent-family and handlingUnitId is set. */
+  requestReason?: string | null;
 }
 
 export interface TransferInternalComplaintRequest {
   destinationUnitId: string;
+  reason?: string | null;
+}
+
+export interface RequestInternalTransferRequest {
+  destinationUnitId: string;
+  reason: string;
+}
+
+export interface DecideInternalTransferRequest {
+  decision: InternalTransferRequestDecision | string;
   reason?: string | null;
 }
 
@@ -148,14 +179,25 @@ export function fetchInternalComplaints(options?: {
   page?: number;
   pageSize?: number;
   status?: string;
+  pendingTransferRequest?: boolean;
 }): Promise<ListResponse<InternalComplaintSummary>> {
   const params = new URLSearchParams({
     page: String(options?.page ?? 1),
     pageSize: String(options?.pageSize ?? 50),
   });
   if (options?.status?.trim()) params.set("status", options.status.trim());
+  if (options?.pendingTransferRequest !== undefined) {
+    params.set("pendingTransferRequest", String(options.pendingTransferRequest));
+  }
   return apiRequest<ListResponse<InternalComplaintSummary>>(
     `${internalComplaintPaths().list}?${params.toString()}`,
+  );
+}
+
+/** Sidebar badge — count of pending Agent transfer requests visible to the caller. */
+export function fetchPendingTransferRequestCount(): Promise<DataResponse<number>> {
+  return apiRequest<DataResponse<number>>(
+    internalComplaintPaths().pendingTransferRequestCount,
   );
 }
 
@@ -214,5 +256,27 @@ export function closeInternalComplaint(
   return apiRequest<DataResponse<InternalComplaint>>(
     internalComplaintPaths().close(id),
     { method: "POST", body: JSON.stringify(body ?? {}) },
+  );
+}
+
+/** Agent (re-)submits a transfer request — first submit or after REJECTED. */
+export function requestInternalTransfer(
+  id: string,
+  body: RequestInternalTransferRequest,
+): Promise<DataResponse<InternalComplaint>> {
+  return apiRequest<DataResponse<InternalComplaint>>(
+    internalComplaintPaths().transferRequest(id),
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+/** Supervisor/Manager/Admin decides a pending Agent transfer request. */
+export function decideInternalTransferRequest(
+  id: string,
+  body: DecideInternalTransferRequest,
+): Promise<DataResponse<InternalComplaint>> {
+  return apiRequest<DataResponse<InternalComplaint>>(
+    internalComplaintPaths().transferRequestDecision(id),
+    { method: "POST", body: JSON.stringify(body) },
   );
 }

@@ -17,6 +17,7 @@ from app.modules.internal_complaint.domain.value_objects import (
     InternalComplaintNumber,
     InternalStatus,
     ResolutionProposalStatus,
+    TransferRequestStatus,
 )
 from app.modules.internal_complaint.infrastructure.orm import (
     InternalComplaintAcceptanceORM,
@@ -188,6 +189,18 @@ def complaint_from_orm(
         supervisor_approved_after_resolved=bool(
             row.supervisor_approved_after_resolved
         ),
+        transfer_request_status=(
+            TransferRequestStatus(row.transfer_request_status)
+            if row.transfer_request_status
+            else None
+        ),
+        transfer_request_destination_unit_id=row.transfer_request_destination_unit_id,
+        transfer_request_reason=row.transfer_request_reason,
+        transfer_requested_by=row.transfer_requested_by,
+        transfer_requested_at=row.transfer_requested_at,
+        transfer_decided_by=row.transfer_decided_by,
+        transfer_decided_at=row.transfer_decided_at,
+        transfer_decision_reason=row.transfer_decision_reason,
     )
 
 
@@ -217,3 +230,17 @@ def apply_complaint_to_orm(
     row.created_by = complaint.created_by
     row.created_at = complaint.created_at
     row.updated_at = complaint.updated_at or complaint.created_at
+    row.transfer_request_status = (
+        complaint.transfer_request_status.value
+        if complaint.transfer_request_status
+        else None
+    )
+    row.transfer_request_destination_unit_id = (
+        complaint.transfer_request_destination_unit_id
+    )
+    row.transfer_request_reason = complaint.transfer_request_reason
+    row.transfer_requested_by = complaint.transfer_requested_by
+    row.transfer_requested_at = complaint.transfer_requested_at
+    row.transfer_decided_by = complaint.transfer_decided_by
+    row.transfer_decided_at = complaint.transfer_decided_at
+    row.transfer_decision_reason = complaint.transfer_decision_reason

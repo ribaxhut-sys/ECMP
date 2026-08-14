@@ -13,7 +13,10 @@ import {
 } from "@/shared/ui";
 import { useInternalComplaints } from "./mock/useInternalComplaints";
 import type { InternalComplaint } from "./types";
-import { InternalStatusBadge } from "./components/InternalBadges";
+import {
+  InternalStatusBadge,
+  InternalTransferRequestBadge,
+} from "./components/InternalBadges";
 
 function FilteredList({
   title,
@@ -54,7 +57,12 @@ function FilteredList({
     {
       key: "status",
       header: t("status"),
-      cell: (row) => <InternalStatusBadge status={row.status} />,
+      cell: (row) => (
+        <div className="flex flex-wrap gap-1">
+          <InternalStatusBadge status={row.status} />
+          <InternalTransferRequestBadge status={row.transferRequestStatus} />
+        </div>
+      ),
     },
   ];
 

@@ -8,7 +8,7 @@ from app.modules.internal_complaint.domain.aggregate import InternalComplaintAgg
 
 
 class InternalComplaintRepository(Protocol):
-    def next_number(self, year: int) -> str: ...
+    def next_number(self, *, owner_unit_id: str) -> str: ...
 
     def save(self, complaint: InternalComplaintAggregate) -> InternalComplaintAggregate: ...
 
@@ -24,6 +24,7 @@ class InternalComplaintRepository(Protocol):
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        pending_transfer_request: bool | None = None,
     ) -> tuple[list, int]: ...
 
     def commit(self) -> None: ...

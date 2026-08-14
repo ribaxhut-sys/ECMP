@@ -5,7 +5,12 @@ info:
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
-    berubah saat transfer; CLOSED hanya setelah dual acceptance.
+    berubah saat transfer; CLOSED hanya setelah dual acceptance. Nomor:
+    `PI-{UNIT}-{YYMM}-{NNN}` (mis. `PI-TAB-2608-001`), counter per unit per
+    bulan; lebar seq melebar otomatis di atas 999. Agent-family tidak dapat
+    men-transfer Handling langsung — create dengan `handlingUnitId` menjadi
+    permintaan (`requestReason` wajib), diputus oleh Supervisor/Manager/Admin
+    yang memegang `internal:escalate-decide` via `/transfer-request/decision`.
 servers:
   - url: /
 paths:
@@ -24,6 +29,10 @@ paths:
         - name: status
           in: query
           schema: { type: string }
+        - name: pendingTransferRequest
+          in: query
+          schema: { type: boolean }
+          description: Filter to complaints with a PENDING Agent transfer request.
       responses:
         "200":
           description: Paginated list
@@ -31,6 +40,12 @@ paths:
       operationId: createInternalComplaint
       tags: [Internal-Complaints]
       summary: Create Pengaduan Internal (Owner = creator unit)
+      description: >
+        `handlingUnitId` meaning depends on the actor's `complaints:assign`
+        grant: Supervisor/Manager → direct initial transfer (unchanged).
+        Agent-family (no `complaints:assign`) → becomes a PENDING transfer
+        request; `requestReason` is then required and Handling stays at the
+        owner unit until decided.
       requestBody:
         required: true
         content:
@@ -40,6 +55,22 @@ paths:
       responses:
         "201":
           description: Created
+        "400":
+          description: requestReason missing when Agent-family sets handlingUnitId
+  /api/v1/internal/complaints/transfer-requests/pending-count:
+    get:
+      operationId: getPendingTransferRequestCount
+      tags: [Internal-Complaints]
+      summary: Sidebar badge — count of PENDING Agent transfer requests (visibility-scoped)
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: integer }
   /api/v1/internal/complaints/{complaintId}:
     get:
       operationId: getInternalComplaint
@@ -53,6 +84,13 @@ paths:
       responses:
         "200":
           description: Detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InternalComplaint"
   /api/v1/internal/complaints/{complaintId}/transfer:
     post:
       operationId: transferInternalComplaint
@@ -72,6 +110,58 @@ paths:
       responses:
         "200":
           description: Transferred
+  /api/v1/internal/complaints/{complaintId}/transfer-request:
+    post:
+      operationId: requestInternalTransfer
+      tags: [Internal-Complaints]
+      summary: Agent-family — (re-)submit a transfer request (first submit, or after REJECTED)
+      description: >
+        Same permission as create (`complaints:create`, Agent-family). Reuses
+        the append-only history for REQUEST/APPROVE/REJECT events; a rejected
+        request may be re-submitted ("boleh ajukan ulang") after the reason
+        is addressed.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestTransferRequest"
+      responses:
+        "200":
+          description: Request submitted (status PENDING)
+  /api/v1/internal/complaints/{complaintId}/transfer-request/decision:
+    post:
+      operationId: decideInternalTransferRequest
+      tags: [Internal-Complaints]
+      summary: Supervisor / Manager / Admin decides a PENDING transfer request
+      description: >
+        Requires `internal:escalate-decide` (not held by Agent or by
+        `complaints:escalate`/`complaints:assign` alone). APPROVE performs the
+        transfer immediately (same XOR direction rule as `/transfer`). REJECT
+        requires `reason` and leaves the complaint local at CREATED.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecideTransferRequestRequest"
+      responses:
+        "200":
+          description: Decided
+        "403":
+          description: Missing internal:escalate-decide
+        "409":
+          description: No PENDING transfer request to decide
   /api/v1/internal/complaints/{complaintId}/receive:
     post:
       operationId: receiveInternalComplaint
@@ -161,7 +251,13 @@ components:
         handlingUnitId:
           type: string
           nullable: true
-          description: Optional initial Handling Unit (Cabang↔Pusat); applied under complaints:create
+          description: >
+            Optional Handling Unit (Cabang↔Pusat). Direct transfer under
+            complaints:assign; becomes a pending request otherwise.
+        requestReason:
+          type: string
+          nullable: true
+          description: Required when the actor lacks complaints:assign and handlingUnitId is set
         ownerUnitId:
           type: string
           nullable: true
@@ -179,11 +275,45 @@ components:
         handlingUnitId: { type: string }
         createdAt: { type: string, format: date-time }
         createdBy: { type: string }
+        createdByName: { type: string, nullable: true }
         relatedComplaintId: { type: string, nullable: true }
         relatedComplaintNumber: { type: string, nullable: true }
+        transferRequestStatus:
+          type: string
+          nullable: true
+          enum: [PENDING, APPROVED, REJECTED]
+    InternalComplaint:
+      type: object
+      properties:
+        complaintId: { type: string }
+        complaintNumber: { type: string }
+        status: { type: string }
+        closedBy: { type: string, nullable: true }
+        closedByName:
+          type: string
+          nullable: true
+          description: Directory display name for closedBy; null if unresolved
+        closedAt: { type: string, format: date-time, nullable: true }
+        createdBy: { type: string }
+        createdByName: { type: string, nullable: true }
     TransferRequest:
       type: object
       required: [destinationUnitId]
       properties:
         destinationUnitId: { type: string }
         reason: { type: string, nullable: true }
+    RequestTransferRequest:
+      type: object
+      required: [destinationUnitId, reason]
+      properties:
+        destinationUnitId: { type: string }
+        reason: { type: string, minLength: 1 }
+    DecideTransferRequestRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        reason:
+          type: string
+          nullable: true
+          description: Required when decision=REJECT

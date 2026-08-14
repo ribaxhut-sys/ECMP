@@ -39,6 +39,7 @@ import {
 import {
   InternalPriorityBadge,
   InternalStatusBadge,
+  InternalTransferRequestBadge,
 } from "./components/InternalBadges";
 
 function formatDate(value: string | null): string {
@@ -138,7 +139,12 @@ export function InternalComplaintListView() {
     {
       key: "status",
       header: t("status"),
-      cell: (row) => <InternalStatusBadge status={row.status} />,
+      cell: (row) => (
+        <div className="flex flex-wrap gap-1">
+          <InternalStatusBadge status={row.status} />
+          <InternalTransferRequestBadge status={row.transferRequestStatus} />
+        </div>
+      ),
     },
     {
       key: "priority",

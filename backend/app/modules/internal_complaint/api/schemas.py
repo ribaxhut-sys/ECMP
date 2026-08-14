@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,6 +27,9 @@ class InternalComplaintSummaryResponse(BaseModel):
     )
     related_complaint_number: str | None = Field(
         default=None, alias="relatedComplaintNumber"
+    )
+    transfer_request_status: str | None = Field(
+        default=None, alias="transferRequestStatus"
     )
 
 
@@ -107,11 +111,40 @@ class InternalComplaintResponse(BaseModel):
     )
     history: list[HistoryEventResponse] = Field(default_factory=list)
     closed_by: str | None = Field(default=None, alias="closedBy")
+    closed_by_name: str | None = Field(default=None, alias="closedByName")
     closed_at: datetime | None = Field(default=None, alias="closedAt")
     created_at: datetime = Field(alias="createdAt")
     created_by: str = Field(alias="createdBy")
     created_by_name: str | None = Field(default=None, alias="createdByName")
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
+    transfer_request_status: str | None = Field(
+        default=None, alias="transferRequestStatus"
+    )
+    transfer_request_destination_unit_id: str | None = Field(
+        default=None, alias="transferRequestDestinationUnitId"
+    )
+    transfer_request_reason: str | None = Field(
+        default=None, alias="transferRequestReason"
+    )
+    transfer_requested_by: str | None = Field(
+        default=None, alias="transferRequestedBy"
+    )
+    transfer_requested_by_name: str | None = Field(
+        default=None, alias="transferRequestedByName"
+    )
+    transfer_requested_at: datetime | None = Field(
+        default=None, alias="transferRequestedAt"
+    )
+    transfer_decided_by: str | None = Field(default=None, alias="transferDecidedBy")
+    transfer_decided_by_name: str | None = Field(
+        default=None, alias="transferDecidedByName"
+    )
+    transfer_decided_at: datetime | None = Field(
+        default=None, alias="transferDecidedAt"
+    )
+    transfer_decision_reason: str | None = Field(
+        default=None, alias="transferDecisionReason"
+    )
 
 
 class CreateInternalComplaintRequest(BaseModel):
@@ -132,17 +165,37 @@ class CreateInternalComplaintRequest(BaseModel):
     related_complaint_number: str | None = Field(
         default=None, alias="relatedComplaintNumber"
     )
-    # Owner always derived from principal. handlingUnitId may optionally set
-    # initial Handling Unit (Cabang ↔ Pusat only) under complaints:create —
-    # Agents can escalate on create without complaints:assign.
+    # Owner always derived from principal. handlingUnitId meaning depends on
+    # the actor's permission: with complaints:assign (Supervisor/Manager) it
+    # is a direct initial transfer, same as before. Without it (Agent-family)
+    # it becomes a pending transfer request — requestReason is then required
+    # and Handling Unit stays at the owner unit until Supervisor/Manager/Admin
+    # decides via /transfer-request/decision.
     owner_unit_id: str | None = Field(default=None, alias="ownerUnitId")
     handling_unit_id: str | None = Field(default=None, alias="handlingUnitId")
+    request_reason: str | None = Field(default=None, alias="requestReason")
 
 
 class TransferRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     destination_unit_id: str = Field(alias="destinationUnitId")
+    reason: str | None = None
+
+
+class RequestTransferRequest(BaseModel):
+    """Submit (or re-submit after REJECTED) an Agent transfer request."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    destination_unit_id: str = Field(alias="destinationUnitId")
+    reason: str = Field(min_length=1)
+
+
+class DecideTransferRequestRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    decision: Literal["APPROVE", "REJECT"]
     reason: str | None = None
 
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
@@ -14,10 +12,12 @@ from app.modules.internal_complaint.application.dto import (
     AcceptanceDTO,
     CloseCommand,
     CreateInternalComplaintCommand,
+    DecideTransferRequestCommand,
     HistoryEventDTO,
     InternalComplaintDTO,
     InternalComplaintSummaryDTO,
     RecordAcceptanceCommand,
+    RequestTransferCommand,
     ResolutionDTO,
     ResolveCommand,
     StartHandlingCommand,
@@ -37,7 +37,16 @@ from app.modules.internal_complaint.domain.value_objects import (
     AcceptanceParty,
     InternalComplaintNumber,
     ResolveAction,
+    TransferRequestStatus,
 )
+
+# API decision string ("APPROVE"/"REJECT", matching the WP intake-escalation
+# vocabulary) -> domain TransferRequestStatus. Kept out of the value object
+# so the aggregate never has to know about the wire format.
+_TRANSFER_DECISION_MAP: dict[str, TransferRequestStatus] = {
+    "APPROVE": TransferRequestStatus.APPROVED,
+    "REJECT": TransferRequestStatus.REJECTED,
+}
 
 
 def _resolution_dto(r: ResolutionRecord) -> ResolutionDTO:
@@ -114,6 +123,16 @@ def to_dto(c: InternalComplaintAggregate) -> InternalComplaintDTO:
         ),
         acceptance_history=[_acceptance_dto(a) for a in c.acceptance_history],
         history=[_history_dto(e) for e in c.history],
+        transfer_request_status=(
+            c.transfer_request_status.value if c.transfer_request_status else None
+        ),
+        transfer_request_destination_unit_id=c.transfer_request_destination_unit_id,
+        transfer_request_reason=c.transfer_request_reason,
+        transfer_requested_by=c.transfer_requested_by,
+        transfer_requested_at=c.transfer_requested_at,
+        transfer_decided_by=c.transfer_decided_by,
+        transfer_decided_at=c.transfer_decided_at,
+        transfer_decision_reason=c.transfer_decision_reason,
     )
 
 
@@ -151,8 +170,7 @@ class InternalComplaintApplicationService:
         self._repo = repo
 
     def create(self, cmd: CreateInternalComplaintCommand) -> InternalComplaintDTO:
-        year = datetime.now(UTC).year
-        number = InternalComplaintNumber(self._repo.next_number(year))
+        number = InternalComplaintNumber(self._repo.next_number(owner_unit_id=cmd.owner_unit_id))
         complaint = InternalComplaintAggregate.create(
             complaint_number=number,
             subject=cmd.subject,
@@ -183,6 +201,7 @@ class InternalComplaintApplicationService:
         page_size: int = 20,
         status: str | None = None,
         org_unit_id: str | None = None,
+        pending_transfer_request: bool | None = None,
     ) -> tuple[list[InternalComplaintSummaryDTO], int]:
         visibility = resolve_internal_visibility(principal)
         rows, total = self._repo.list_summaries(
@@ -193,6 +212,7 @@ class InternalComplaintApplicationService:
             status=status,
             page=page,
             page_size=page_size,
+            pending_transfer_request=pending_transfer_request,
         )
         items = [
             InternalComplaintSummaryDTO(
@@ -208,15 +228,62 @@ class InternalComplaintApplicationService:
                 created_by=r.created_by,
                 related_complaint_id=r.related_complaint_id,
                 related_complaint_number=r.related_complaint_number,
+                transfer_request_status=r.transfer_request_status,
             )
             for r in rows
         ]
         return items, total
 
+    def count_pending_transfer_requests(
+        self, principal: Principal, *, org_unit_id: str | None = None
+    ) -> int:
+        """Badge/queue count — same visibility rules as the list (DEC-024 pattern)."""
+        _, total = self.list_complaints(
+            principal,
+            page=1,
+            page_size=1,
+            org_unit_id=org_unit_id,
+            pending_transfer_request=True,
+        )
+        return total
+
     def transfer(self, cmd: TransferCommand) -> InternalComplaintDTO:
         complaint = self._require(cmd.complaint_id)
         complaint.transfer(
             destination_unit_id=cmd.destination_unit_id,
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            reason=cmd.reason,
+        )
+        self._repo.save(complaint)
+        self._repo.commit()
+        return to_dto(complaint)
+
+    def request_transfer(self, cmd: RequestTransferCommand) -> InternalComplaintDTO:
+        complaint = self._require(cmd.complaint_id)
+        complaint.request_transfer(
+            destination_unit_id=cmd.destination_unit_id,
+            reason=cmd.reason,
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+        )
+        self._repo.save(complaint)
+        self._repo.commit()
+        return to_dto(complaint)
+
+    def decide_transfer_request(
+        self, cmd: DecideTransferRequestCommand
+    ) -> InternalComplaintDTO:
+        complaint = self._require(cmd.complaint_id)
+        key = (cmd.decision or "").strip().upper()
+        decision = _TRANSFER_DECISION_MAP.get(key)
+        if decision is None:
+            raise err.validation(
+                "Invalid transfer request decision",
+                details={"field": "decision", "value": cmd.decision},
+            )
+        complaint.decide_transfer_request(
+            decision=decision,
             actor_id=cmd.actor_id,
             actor_unit_id=cmd.actor_unit_id,
             reason=cmd.reason,

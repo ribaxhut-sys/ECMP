@@ -24,7 +24,7 @@ def test_alembic_chain_includes_notification_domain() -> None:
     assert "0033_notification_domain" in revisions
     assert "0036_search_indexes" in revisions
     # Head advances after search indexes (0037–0039); notification stays on chain.
-    assert script.get_heads() == ["0074_admin_no_complaint_create"]
+    assert script.get_heads() == ["0077_internal_unit_counters"]
 
 
 def test_migration_file_defines_required_indexes_and_columns() -> None:

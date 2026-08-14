@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.modules.cm_batch1.complaint_number import resolve_unit_code
 from app.modules.internal_complaint.domain.aggregate import InternalComplaintAggregate
 from app.modules.internal_complaint.domain.value_objects import InternalComplaintNumber
 from app.modules.internal_complaint.infrastructure import mappers
 from app.modules.internal_complaint.infrastructure.orm import (
     InternalComplaintAcceptanceORM,
     InternalComplaintEventORM,
-    InternalComplaintNumberCounterORM,
     InternalComplaintORM,
     InternalComplaintResolutionORM,
+    InternalComplaintUnitCounterORM,
 )
 
 
@@ -23,15 +25,27 @@ class SqlAlchemyInternalComplaintRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def next_number(self, year: int) -> str:
-        counter = self._session.get(InternalComplaintNumberCounterORM, year)
+    def next_number(self, *, owner_unit_id: str) -> str:
+        """``PI-{UNIT}-{YYMM}-{NNN}`` — per-unit-per-month counter.
+
+        Reuses cm_batch1's Branch.code -> 3-letter unit code mapping so
+        internal numbers use the same vocabulary as WP numbers.
+        """
+        now = datetime.now(UTC)
+        unit_code = resolve_unit_code(owner_unit_id)
+        period = now.year * 100 + now.month
+        counter = self._session.get(InternalComplaintUnitCounterORM, (unit_code, period))
         if counter is None:
-            counter = InternalComplaintNumberCounterORM(year=year, last_seq=0)
+            counter = InternalComplaintUnitCounterORM(
+                unit_code=unit_code, period=period, last_seq=0
+            )
             self._session.add(counter)
             self._session.flush()
         counter.last_seq += 1
         self._session.flush()
-        return InternalComplaintNumber.format(year, counter.last_seq).value
+        return InternalComplaintNumber.format_unit(
+            unit_code, year=now.year, month=now.month, sequence=counter.last_seq
+        ).value
 
     def save(self, complaint: InternalComplaintAggregate) -> InternalComplaintAggregate:
         row = self._session.get(InternalComplaintORM, complaint.complaint_id)
@@ -139,6 +153,7 @@ class SqlAlchemyInternalComplaintRepository:
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        pending_transfer_request: bool | None = None,
     ) -> tuple[list[InternalComplaintORM], int]:
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
@@ -147,6 +162,8 @@ class SqlAlchemyInternalComplaintRepository:
             stmt = stmt.where(
                 InternalComplaintORM.status == status.strip().upper()
             )
+        if pending_transfer_request:
+            stmt = stmt.where(InternalComplaintORM.transfer_request_status == "PENDING")
 
         vis = (visibility or "").upper()
         if vis == "ALL":

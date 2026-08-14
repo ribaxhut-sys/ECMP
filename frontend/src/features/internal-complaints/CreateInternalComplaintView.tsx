@@ -50,6 +50,7 @@ export function CreateInternalComplaintView() {
   const tPriority = useTranslations("priority");
   const { user, userId, roles, hasPermission } = useAuth();
   const canCreate = hasPermission("complaints:create");
+  const canAssign = hasPermission("complaints:assign");
 
   const [values, setValues] = useState<InternalComplaintFormValues>(() =>
     defaultInternalComplaintForm(),
@@ -141,7 +142,7 @@ export function CreateInternalComplaintView() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const fieldErrors = validateInternalComplaintForm(values);
+    const fieldErrors = validateInternalComplaintForm(values, { canAssign });
     setErrors(fieldErrors);
     if (!isInternalComplaintFormValid(fieldErrors)) return;
 
@@ -158,6 +159,7 @@ export function CreateInternalComplaintView() {
         impact: values.impact.trim() || null,
         relatedComplaintId: resolveRelatedPayload(),
         handlingUnitId: dest || null,
+        requestReason: !canAssign && dest ? values.requestReason.trim() || null : null,
       });
       const id = created.data.complaintId;
       setToastMessage(t("submitted"));
@@ -266,8 +268,20 @@ export function CreateInternalComplaintView() {
                 options={unitOptions}
                 value={values.destinationUnitId}
                 onChange={(e) => setField("destinationUnitId", e.target.value)}
-                hint={t("initialTransferHint")}
+                hint={canAssign ? t("initialTransferHint") : t("transferRequestHint")}
               />
+              {!canAssign && values.destinationUnitId ? (
+                <Textarea
+                  label={t("requestReason")}
+                  value={values.requestReason}
+                  onChange={(e) => setField("requestReason", e.target.value)}
+                  error={
+                    errors.requestReason ? t(errors.requestReason) : undefined
+                  }
+                  hint={t("requestReasonHint")}
+                  required
+                />
+              ) : null}
 
               <SectionHeader title={t("sectionNarrative")} />
               <Textarea

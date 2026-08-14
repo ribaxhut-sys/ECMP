@@ -186,6 +186,10 @@ MESSAGES: dict[str, str] = {
         "Agent hanya boleh Tutup/ACCEPT pada unit cabangnya sendiri; "
         "unit lain memerlukan Supervisor/Manager."
     ),
+    # --- Pengaduan Internal — gerbang permintaan transfer Agent ---
+    "internal.transfer_request_reason_required": (
+        "Alasan wajib diisi saat Agent meminta transfer Handling ke unit lawan."
+    ),
     # --- Escalation ---
     "escalation.already_closed": "Eskalasi sudah berstatus CLOSED.",
     "escalation.already_reviewed": "Eskalasi sudah ditinjau.",

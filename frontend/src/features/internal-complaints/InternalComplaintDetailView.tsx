@@ -25,8 +25,10 @@ import {
 } from "@/shared/ui";
 import { fetchBranches, type Branch } from "@/lib/api/branches";
 import {
+  decideInternalTransferRequest,
   receiveInternalComplaint,
   recordInternalAcceptance,
+  requestInternalTransfer,
   resolveInternalComplaint,
   transferInternalComplaint,
 } from "@/lib/api/internalComplaints";
@@ -35,8 +37,10 @@ import {
   HISTORY_LABEL_KEY,
   canAccept,
   canReceive,
+  canRequestTransfer,
   canResolve,
   canTransfer,
+  hasPendingTransferRequest,
 } from "./types";
 import {
   InternalPriorityBadge,
@@ -74,7 +78,15 @@ function displayPersonName(
   return id ? unknownLabel : "—";
 }
 
-type ModalKind = "transfer" | "resolve" | "accept" | "reject" | null;
+type ModalKind =
+  | "transfer"
+  | "resolve"
+  | "accept"
+  | "reject"
+  | "requestTransfer"
+  | "decideApprove"
+  | "decideReject"
+  | null;
 
 export function InternalComplaintDetailView({ id }: { id: string }) {
   const t = useTranslations("internalComplaints");
@@ -93,6 +105,9 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     "OWNER",
   );
   const [acceptNote, setAcceptNote] = useState("");
+  const [requestDestinationUnitId, setRequestDestinationUnitId] = useState("");
+  const [requestReasonText, setRequestReasonText] = useState("");
+  const [decisionReason, setDecisionReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -184,10 +199,25 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     }
   }
 
+  const canAssign = hasPermission("complaints:assign");
+  const canDecideTransferRequest = hasPermission("internal:escalate-decide");
   const showReceive = canReceive(complaint.status) && hasPermission("complaints:update");
-  const showTransfer = canTransfer(complaint.status) && hasPermission("complaints:assign");
+  const showTransfer = canTransfer(complaint.status) && canAssign;
   const showResolve = canResolve(complaint.status) && hasPermission("complaints:update");
   const showAccept = canAccept(complaint.status) && hasPermission("complaints:update");
+  // Agent-family: request instead of direct transfer, and may re-apply after reject.
+  const showRequestTransfer =
+    !canAssign &&
+    hasPermission("complaints:create") &&
+    canRequestTransfer(complaint);
+  const showReapplyTransfer =
+    !canAssign &&
+    hasPermission("complaints:create") &&
+    complaint.transferRequestStatus === "REJECTED" &&
+    complaint.status === "CREATED" &&
+    complaint.handlingUnitId === complaint.ownerUnitId;
+  const showDecideTransferRequest =
+    canDecideTransferRequest && hasPendingTransferRequest(complaint);
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -202,6 +232,61 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
+            {showRequestTransfer ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => {
+                  setRequestDestinationUnitId("");
+                  setRequestReasonText("");
+                  setModal("requestTransfer");
+                }}
+              >
+                {t("requestTransfer")}
+              </Button>
+            ) : null}
+            {showReapplyTransfer ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => {
+                  setRequestDestinationUnitId(
+                    complaint.transferRequestDestinationUnitId ?? "",
+                  );
+                  setRequestReasonText("");
+                  setModal("requestTransfer");
+                }}
+              >
+                {t("reapplyTransfer")}
+              </Button>
+            ) : null}
+            {showDecideTransferRequest ? (
+              <>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setDecisionReason("");
+                    setModal("decideApprove");
+                  }}
+                >
+                  {t("approveTransferRequest")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={busy}
+                  onClick={() => {
+                    setDecisionReason("");
+                    setModal("decideReject");
+                  }}
+                >
+                  {t("rejectTransferRequest")}
+                </Button>
+              </>
+            ) : null}
             {showReceive ? (
               <Button
                 type="button"
@@ -325,6 +410,26 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               <span className="text-ecmp-text-secondary">{t("createdAt")}: </span>
               {formatDateTime(complaint.createdAt)}
             </p>
+            {complaint.closedAt ? (
+              <>
+                <p>
+                  <span className="text-ecmp-text-secondary">
+                    {t("closedBy")}:{" "}
+                  </span>
+                  {displayPersonName(
+                    complaint.closedByName,
+                    complaint.closedBy,
+                    t("unknownUser"),
+                  )}
+                </p>
+                <p>
+                  <span className="text-ecmp-text-secondary">
+                    {t("closedAt")}:{" "}
+                  </span>
+                  {formatDateTime(complaint.closedAt)}
+                </p>
+              </>
+            ) : null}
             {complaint.resolutionSummary ? (
               <p>
                 <span className="text-ecmp-text-secondary">
@@ -332,6 +437,56 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                 </span>
                 {complaint.resolutionSummary}
               </p>
+            ) : null}
+            {complaint.transferRequestStatus ? (
+              <div className="mt-2 space-y-1 rounded-md border border-ecmp-border p-3">
+                <p className="font-medium">
+                  {t("transferRequestSectionTitle")}:{" "}
+                  {t(`transferRequestStatus${complaint.transferRequestStatus}`)}
+                </p>
+                <p>
+                  <span className="text-ecmp-text-secondary">
+                    {t("destinationUnit")}:{" "}
+                  </span>
+                  {complaint.transferRequestDestinationUnitId ?? "—"}
+                </p>
+                <p>
+                  <span className="text-ecmp-text-secondary">{t("reason")}: </span>
+                  {complaint.transferRequestReason ?? "—"}
+                </p>
+                <p>
+                  <span className="text-ecmp-text-secondary">
+                    {t("requestedBy")}:{" "}
+                  </span>
+                  {displayPersonName(
+                    complaint.transferRequestedByName,
+                    complaint.transferRequestedBy,
+                    t("unknownUser"),
+                  )}
+                </p>
+                {complaint.transferRequestStatus !== "PENDING" ? (
+                  <>
+                    <p>
+                      <span className="text-ecmp-text-secondary">
+                        {t("decidedBy")}:{" "}
+                      </span>
+                      {displayPersonName(
+                        complaint.transferDecidedByName,
+                        complaint.transferDecidedBy,
+                        t("unknownUser"),
+                      )}
+                    </p>
+                    {complaint.transferDecisionReason ? (
+                      <p>
+                        <span className="text-ecmp-text-secondary">
+                          {t("decisionReason")}:{" "}
+                        </span>
+                        {complaint.transferDecisionReason}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
             ) : null}
           </CardBody>
         </Card>
@@ -407,6 +562,99 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             }
           >
             {t("transfer")}
+          </Button>
+        </ModalSection>
+      </Modal>
+
+      <Modal
+        open={modal === "requestTransfer"}
+        onClose={() => setModal(null)}
+        title={t("requestTransfer")}
+      >
+        <ModalSection className="space-y-3">
+          <Select
+            label={t("destinationUnit")}
+            options={unitOptions}
+            value={requestDestinationUnitId}
+            onChange={(e) => setRequestDestinationUnitId(e.target.value)}
+            hint={t("transferRequestHint")}
+          />
+          <Textarea
+            label={t("requestReason")}
+            value={requestReasonText}
+            onChange={(e) => setRequestReasonText(e.target.value)}
+            hint={t("requestReasonHint")}
+            required
+          />
+          <Button
+            type="button"
+            disabled={
+              busy || !requestDestinationUnitId || !requestReasonText.trim()
+            }
+            onClick={() =>
+              run(
+                () =>
+                  requestInternalTransfer(complaint.id, {
+                    destinationUnitId: requestDestinationUnitId,
+                    reason: requestReasonText.trim(),
+                  }),
+                t("requestTransferOk"),
+              )
+            }
+          >
+            {t("submit")}
+          </Button>
+        </ModalSection>
+      </Modal>
+
+      <Modal
+        open={modal === "decideApprove" || modal === "decideReject"}
+        onClose={() => setModal(null)}
+        title={
+          modal === "decideReject"
+            ? t("rejectTransferRequest")
+            : t("approveTransferRequest")
+        }
+      >
+        <ModalSection className="space-y-3">
+          <p className="text-sm text-ecmp-text-secondary">
+            {t("transferRequestDecidePrompt", {
+              destination: complaint.transferRequestDestinationUnitId ?? "—",
+              reason: complaint.transferRequestReason ?? "—",
+            })}
+          </p>
+          <Textarea
+            label={t("decisionReason")}
+            value={decisionReason}
+            onChange={(e) => setDecisionReason(e.target.value)}
+            hint={
+              modal === "decideReject"
+                ? t("decisionReasonRequiredHint")
+                : t("decisionReasonOptionalHint")
+            }
+          />
+          <Button
+            type="button"
+            variant={modal === "decideReject" ? "danger" : "primary"}
+            disabled={
+              busy || (modal === "decideReject" && !decisionReason.trim())
+            }
+            onClick={() =>
+              run(
+                () =>
+                  decideInternalTransferRequest(complaint.id, {
+                    decision: modal === "decideReject" ? "REJECT" : "APPROVE",
+                    reason: decisionReason.trim() || null,
+                  }),
+                modal === "decideReject"
+                  ? t("rejectTransferRequestOk")
+                  : t("approveTransferRequestOk"),
+              )
+            }
+          >
+            {modal === "decideReject"
+              ? t("rejectTransferRequest")
+              : t("approveTransferRequest")}
           </Button>
         </ModalSection>
       </Modal>

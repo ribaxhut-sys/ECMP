@@ -21,5 +21,10 @@ export function internalComplaintPaths() {
       `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/acceptance`,
     close: (id: string) =>
       `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/close`,
+    transferRequest: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/transfer-request`,
+    transferRequestDecision: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/transfer-request/decision`,
+    pendingTransferRequestCount: `${INTERNAL_COMPLAINTS_BASE}/transfer-requests/pending-count`,
   } as const;
 }
