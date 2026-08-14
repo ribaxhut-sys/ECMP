@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
@@ -16,9 +17,11 @@ import {
   PageContainer,
   PageHeader,
   Skeleton,
+  Table,
   WorkspaceToolbar,
+  type TableColumn,
 } from "@/shared/ui";
-import { CaseSummaryCard } from "./CaseSummaryCard";
+import { CaseStatusBadge } from "./CaseStatusBadge";
 
 /**
  * DEC-024 / API-536 — visibility-scoped Case inbox for the signed-in principal.
@@ -82,6 +85,67 @@ export function CaseInboxListView() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const columns: TableColumn<CmCaseSummary>[] = [
+    {
+      key: "caseNumber",
+      header: t("caseNumber"),
+      cell: (row) => (
+        <Link
+          href={`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`}
+          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+        >
+          {row.caseNumber}
+        </Link>
+      ),
+    },
+    {
+      key: "subject",
+      header: t("subject"),
+      cell: (row) => row.subject?.trim() || "—",
+    },
+    {
+      key: "status",
+      header: t("status"),
+      slot: "status",
+      cell: (row) => <CaseStatusBadge status={row.status} />,
+    },
+    {
+      key: "type",
+      header: t("type"),
+      cell: (row) => row.caseType?.trim() || "—",
+    },
+    {
+      key: "priority",
+      header: t("priority"),
+      cell: (row) => row.priority?.trim() || "—",
+    },
+    {
+      key: "unit",
+      header: t("unit"),
+      hideOnMobile: true,
+      cell: (row) => row.owningUnitId ?? "—",
+    },
+    {
+      key: "customer",
+      header: t("customer"),
+      hideOnMobile: true,
+      cell: (row) => row.customerId ?? "—",
+    },
+    {
+      key: "view",
+      header: t("view"),
+      slot: "action",
+      cell: (row) => (
+        <Link
+          href={`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`}
+          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+        >
+          {t("view")}
+        </Link>
+      ),
+    },
+  ];
+
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
@@ -138,11 +202,11 @@ export function CaseInboxListView() {
               </Button>
             }
           />
-          <div className="grid gap-[var(--ecmp-card-gap)] md:grid-cols-2">
-            {rows.map((c) => (
-              <CaseSummaryCard key={c.caseId} caseData={c} />
-            ))}
-          </div>
+          <Table
+            columns={columns}
+            rows={rows}
+            getRowKey={(row) => row.caseId}
+          />
           {totalPages > 1 ? (
             <div className="flex items-center justify-between gap-2">
               <Button
