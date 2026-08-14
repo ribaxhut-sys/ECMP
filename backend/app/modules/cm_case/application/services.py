@@ -43,6 +43,9 @@ from app.modules.cm_case.domain.value_objects import (
     CaseStatus,
     ResolveAction,
 )
+from app.modules.timeline.domain.entity import TimelineEntry
+from app.modules.timeline.domain.enums import ActorType, AggregateType
+from app.modules.timeline.repository import TimelineRepository
 
 HANDLE_CLAIM_REASON = "HANDLE_CLAIM"
 HANDLE_REASSIGN_REASON = "HANDLE_REASSIGN"
@@ -83,9 +86,6 @@ def _assert_current_handler(case: CaseAggregate, actor_id: str) -> None:
             "Only the current handling officer can do this.",
             details={"handlingClaimedBy": claimed},
         )
-from app.modules.timeline.domain.entity import TimelineEntry
-from app.modules.timeline.domain.enums import ActorType, AggregateType
-from app.modules.timeline.repository import TimelineRepository
 
 
 class SideEffects(Protocol):

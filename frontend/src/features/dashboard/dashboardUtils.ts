@@ -28,7 +28,7 @@ export type QueueHealthLabelKey =
 
 export type QueueHealthRowSpec = {
   id: string;
-  labelKey: QueueHealthLabelKey;
+  queueKey: QueueHealthLabelKey;
   count: number;
   tone: OpsTone;
   href: string | null;
@@ -36,12 +36,12 @@ export type QueueHealthRowSpec = {
 
 export type DashboardEmptyWorkCta = {
   href: string;
-  labelKey: "goToComplaints" | "goToQueue";
+  ctaKey: "goToComplaints" | "goToQueue";
 };
 
 /** Empty dashboard work door is always CM list (DEC-026). */
 export function dashboardEmptyWorkCta(): DashboardEmptyWorkCta {
-  return { href: CM_BATCH1_OPEN_HREF, labelKey: "goToComplaints" };
+  return { href: CM_BATCH1_OPEN_HREF, ctaKey: "goToComplaints" };
 }
 
 /**
@@ -57,14 +57,14 @@ export function buildQueueHealthRows(input: {
   return [
     {
       id: "waiting-assignment",
-      labelKey: "waitingAssignment",
+      queueKey: "waitingAssignment",
       count: waitingAssignment,
       tone: waitingAssignment > 0 ? "attention" : "healthy",
       href: input.waitingAssignmentHref,
     },
     {
       id: "waiting-escalation",
-      labelKey: "waitingEscalationApproval",
+      queueKey: "waitingEscalationApproval",
       count: escalated,
       tone: escalated > 0 ? "attention" : "healthy",
       href: input.escalationHref,

@@ -79,7 +79,7 @@ describe("buildQueueHealthRows", () => {
     ]);
     expect(rows[0]?.count).toBe(4);
     expect(rows[1]?.count).toBe(4);
-    expect(rows[1]?.labelKey).toBe("waitingEscalationApproval");
+    expect(rows[1]?.queueKey).toBe("waitingEscalationApproval");
   });
 });
 
@@ -87,7 +87,7 @@ describe("dashboardEmptyWorkCta (DEC-026)", () => {
   it("sends officers to the CM open list", () => {
     expect(dashboardEmptyWorkCta()).toEqual({
       href: CM_BATCH1_OPEN_HREF,
-      labelKey: "goToComplaints",
+      ctaKey: "goToComplaints",
     });
   });
 });

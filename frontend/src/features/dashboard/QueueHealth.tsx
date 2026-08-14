@@ -164,7 +164,7 @@ export function QueueHealth({
             primaryAction={
               canOpenComplaintList
                 ? {
-                    label: tCommon(emptyWorkCta.labelKey),
+                    label: tCommon(emptyWorkCta.ctaKey),
                     onClick: () => router.push(emptyWorkCta.href),
                   }
                 : undefined
@@ -176,7 +176,7 @@ export function QueueHealth({
           {rows.map((row) => (
             <QueueBar
               key={row.id}
-              label={t(row.labelKey)}
+              label={t(row.queueKey)}
               count={row.count}
               max={max}
               tone={row.tone}

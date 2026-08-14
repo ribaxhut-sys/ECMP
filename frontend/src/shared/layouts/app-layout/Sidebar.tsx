@@ -142,7 +142,7 @@ function NavLink({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const t = useTranslations("announcements");
+  const tAnnouncements = useTranslations("announcements");
   const active = isNavItemActive(pathname, item.href, allHrefs);
   const Icon = iconMap[item.icon];
   const unreadCount =
@@ -151,7 +151,7 @@ function NavLink({
       : 0;
   const accessibleName =
     unreadCount > 0
-      ? `${label}, ${t("sidebarUnreadCount", { count: unreadCount })}`
+      ? `${label}, ${tAnnouncements("sidebarUnreadCount", { count: unreadCount })}`
       : label;
 
   return (
