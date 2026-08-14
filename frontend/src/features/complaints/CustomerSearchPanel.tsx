@@ -26,6 +26,7 @@ import {
   SectionHeader,
   Skeleton,
 } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import { validateCustomerSearchKey } from "./customerSearchKey";
 
 export interface CustomerSearchPanelProps {
@@ -78,22 +79,6 @@ function formatCustomerIdDisplay(raw: string): string {
 function candidatePhone(candidate: CmBatch1CustomerCandidate): string | null {
   const phone = candidate.phone?.trim();
   return phone || null;
-}
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
 }
 
 function briefId(row: CmBatch1ComplaintBrief, index: number): string {
@@ -924,7 +909,7 @@ function CustomerComplaintHistoryList({
           const id = briefId(row, index);
           const number = row.complaintNumber?.trim() || id;
           const isClosed = (row.status || "").toUpperCase() === "CLOSED";
-          const created = formatWhen(row.createdAt);
+          const created = formatDateTime24(row.createdAt);
           const href = `/complaints/cm/${encodeURIComponent(id)}`;
           return (
             <li

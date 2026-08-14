@@ -232,6 +232,41 @@ paths:
                       $ref: "#/components/schemas/IntakeHistoryEntry"
         "404":
           $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/attachments:
+    get:
+      summary: List attachments for Aggregate complaint
+      operationId: cmB1ListComplaintAttachments
+      x-ear-id: API-509
+      x-ecmp-logical-id: API-CM-B1-010
+      x-ecmp-fr: FR-004
+      x-ecmp-aligns-with: API-387
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        "200":
+          description: Attachment list (empty array when none bound)
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /api/v1/cm/complaints/{complaintId}/intake-escalation/decision:
     post:
       summary: Approve or reject intake escalation (supervisor)
@@ -720,26 +755,6 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
-  /api/v1/complaints/{id}/attachments:
-    get:
-      summary: List attachments for Complaint
-      operationId: cmB1ListComplaintAttachments
-      x-ear-id: API-509
-      x-ecmp-logical-id: API-CM-B1-010
-      x-ecmp-fr: FR-004
-      x-ecmp-aligns-with: API-387
-      tags: [Batch1-Attachment]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Attachment list
   /api/v1/attachments/{id}:
     get:
       summary: Get attachment metadata

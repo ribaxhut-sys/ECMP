@@ -40,22 +40,7 @@ import {
   cmBatch1SupervisorStatusLabel,
   isCmBatch1AgingPastThreshold,
 } from "./cmBatch1SupervisorQueue";
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
+import { formatDateTime24 } from "@/shared/utils/datetime";
 
 /**
  * Mode A Batch-1 supervisor visibility (API-513).
@@ -171,7 +156,7 @@ export function CmBatch1SupervisorQueueView() {
     {
       key: "createdAt",
       header: t("createdAt"),
-      cell: (row) => formatWhen(row.createdAt),
+      cell: (row) => formatDateTime24(row.createdAt, "—"),
     },
   ];
 
@@ -226,7 +211,7 @@ export function CmBatch1SupervisorQueueView() {
     {
       key: "createdAt",
       header: t("registered"),
-      cell: (row) => formatWhen(row.createdAt),
+      cell: (row) => formatDateTime24(row.createdAt, "—"),
     },
   ];
 
@@ -446,7 +431,7 @@ export function CmBatch1SupervisorQueueView() {
       {data ? (
         <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
           {t("snapshotAsOf", {
-            date: formatWhen(data.asOf),
+            date: formatDateTime24(data.asOf),
             hours: data.agingThresholdHours,
             later: data.laterReviewItems.length,
             aging: data.agingComplaints.length,

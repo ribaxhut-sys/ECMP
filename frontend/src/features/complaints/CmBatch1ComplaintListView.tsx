@@ -34,6 +34,7 @@ import {
   WorkspaceToolbar,
   type TableColumn,
 } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
@@ -52,22 +53,6 @@ type PenangananListCounts = {
   pusat: number;
   done: number;
 };
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function customerCellLabel(
   row: CmBatch1ComplaintResponse,
@@ -389,7 +374,7 @@ export function CmBatch1ComplaintListView() {
     {
       key: "createdAt",
       header: t("createdAt"),
-      cell: (row) => formatWhen(row.createdAt),
+      cell: (row) => formatDateTime24(row.createdAt, tCommon("emDash")),
     },
     {
       key: "penanganan",

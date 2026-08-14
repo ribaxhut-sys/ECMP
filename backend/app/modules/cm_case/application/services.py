@@ -34,14 +34,55 @@ from app.modules.cm_case.domain.aggregate import (
     CaseAggregate,
     ResolutionRecord,
 )
-from app.modules.cm_case.domain.repositories import CaseRepository
+from app.modules.cm_case.domain.repositories import CaseRepository, ParentComplaintRef
 from app.modules.cm_case.domain.value_objects import (
     MAX_CASES_PER_COMPLAINT,
     AcceptanceDecision,
     AcceptanceParty,
     CaseNumber,
+    CaseStatus,
     ResolveAction,
 )
+
+HANDLE_CLAIM_REASON = "HANDLE_CLAIM"
+HANDLE_REASSIGN_REASON = "HANDLE_REASSIGN"
+
+
+def _normalize_actor_id(value: str | None) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    try:
+        return str(UUID(raw))
+    except ValueError:
+        return raw.casefold()
+
+
+def _actor_is_complaint_creator(parent: ParentComplaintRef, actor_id: str) -> bool:
+    left = _normalize_actor_id(parent.created_by)
+    right = _normalize_actor_id(actor_id)
+    return bool(left) and left == right
+
+
+def _ids_equal(left: str | None, right: str | None) -> bool:
+    a = _normalize_actor_id(left)
+    b = _normalize_actor_id(right)
+    return bool(a) and a == b
+
+
+def _assert_current_handler(case: CaseAggregate, actor_id: str) -> None:
+    claimed = (case.handling_claimed_by or "").strip()
+    if not claimed:
+        raise err.conflict(
+            "HANDLING_CLAIM_REQUIRED",
+            "Claim handling before working this Case.",
+        )
+    if not _ids_equal(claimed, actor_id):
+        raise err.conflict(
+            "HANDLING_CLAIMER_ONLY",
+            "Only the current handling officer can do this.",
+            details={"handlingClaimedBy": claimed},
+        )
 from app.modules.timeline.domain.entity import TimelineEntry
 from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
@@ -195,6 +236,7 @@ def to_case_dto(case: CaseAggregate) -> CaseDTO:
         priority=case.priority,
         created_at=case.created_at,
         created_by=case.created_by,
+        handling_claimed_by=case.handling_claimed_by,
         category=case.category,
         owning_unit_id=case.owning_unit_id,
         owner_unit_id=case.owner_unit_id,
@@ -316,8 +358,36 @@ class CaseApplicationService:
             actor_unit_id=cmd.actor_unit_id,
             after=case.to_snapshot(),
         )
+        self._record_handling_claim(
+            case=case,
+            parent=parent,
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+        )
         self._repo.commit()
         return to_case_dto(case)
+
+    def _record_handling_claim(
+        self,
+        *,
+        case: CaseAggregate,
+        parent: ParentComplaintRef,
+        actor_id: str,
+        actor_unit_id: str | None,
+    ) -> None:
+        continued = _actor_is_complaint_creator(parent, actor_id)
+        event_name = "HandlingContinued" if continued else "HandlingTakenOver"
+        title = "Handling continued" if continued else "Handling taken over"
+        case.claim_handling(actor_id)
+        self._repo.save(case)
+        self._effects.record_case_event(
+            case=case,
+            event_name=event_name,
+            title=title,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            after=case.to_snapshot(),
+        )
 
     def get_case(
         self, case_id: str, *, complaint_id_context: str | None = None
@@ -372,6 +442,7 @@ class CaseApplicationService:
                 priority=row.priority,
                 created_at=row.created_at,
                 created_by=row.created_by,
+                handling_claimed_by=row.handling_claimed_by,
                 category=row.category,
                 owning_unit_id=row.owning_unit_id,
                 owner_unit_id=row.owner_unit_id,
@@ -383,6 +454,56 @@ class CaseApplicationService:
 
     def update_status(self, cmd: UpdateStatusCommand) -> CaseDTO:
         case = self._require(cmd.case_id)
+        reason = (cmd.reason or "").strip().upper()
+        if reason == HANDLE_REASSIGN_REASON:
+            if not cmd.actor_can_reassign:
+                raise err.conflict(
+                    "HANDLING_REASSIGN_FORBIDDEN",
+                    "Only Supervisor or Manager can reassign handling.",
+                )
+            if case.status in (CaseStatus.CLOSED, CaseStatus.CANCELLED):
+                raise err.invalid_state("Case is terminal; handling cannot be reassigned.")
+            target = (cmd.handling_claimed_by or "").strip()
+            parent = self._repo.get_parent_complaint(case.complaint_id)
+            if parent is None:
+                raise err.not_found("Parent Complaint does not exist.")
+            case.claim_handling(target)
+            self._repo.save(case)
+            self._effects.record_case_event(
+                case=case,
+                event_name="HandlingTakenOver",
+                title="Handling reassigned",
+                actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
+                after=case.to_snapshot(),
+                note=target,
+            )
+            self._repo.commit()
+            return to_case_dto(case)
+        if reason == HANDLE_CLAIM_REASON:
+            if case.status in (CaseStatus.CLOSED, CaseStatus.CANCELLED):
+                raise err.invalid_state("Case is terminal; handling cannot be claimed.")
+            claimed = (case.handling_claimed_by or "").strip()
+            if claimed and not _ids_equal(claimed, cmd.actor_id):
+                raise err.conflict(
+                    "HANDLING_ALREADY_CLAIMED",
+                    "Another officer is already handling this Case.",
+                    details={"handlingClaimedBy": claimed},
+                )
+            parent = self._repo.get_parent_complaint(case.complaint_id)
+            if parent is None:
+                raise err.not_found("Parent Complaint does not exist.")
+            self._record_handling_claim(
+                case=case,
+                parent=parent,
+                actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
+            )
+            self._repo.commit()
+            return to_case_dto(case)
+        target = (cmd.to_status or "").strip().upper()
+        if target == "IN_PROGRESS":
+            _assert_current_handler(case, cmd.actor_id)
         before = case.to_snapshot()
         if cmd.to_status and cmd.to_status.strip().upper() == "CANCELLED":
             if not (cmd.reason or "").strip() and not cmd.cancel_reason:
@@ -421,7 +542,6 @@ class CaseApplicationService:
 
     def resolve(self, cmd: ResolveCaseCommand) -> CaseDTO:
         case = self._require(cmd.case_id)
-        before = case.to_snapshot()
         try:
             action = ResolveAction(cmd.action.strip().upper())
         except ValueError as exc:
@@ -429,6 +549,9 @@ class CaseApplicationService:
                 "Invalid resolve action",
                 details={"field": "action", "value": cmd.action},
             ) from exc
+        if action == ResolveAction.PROPOSE:
+            _assert_current_handler(case, cmd.actor_id)
+        before = case.to_snapshot()
         case.resolve(
             action=action,
             actor_id=cmd.actor_id,

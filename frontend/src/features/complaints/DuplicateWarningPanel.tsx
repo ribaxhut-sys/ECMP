@@ -8,6 +8,7 @@ import type {
   CmBatch1DuplicateDecision,
 } from "@/lib/api";
 import { Alert, Badge, Button, Empty, Input, Modal, Textarea } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 
 export interface DuplicateWarningPanelProps {
   open: boolean;
@@ -19,22 +20,6 @@ export interface DuplicateWarningPanelProps {
     survivingComplaintId?: string;
     justification?: string;
   }) => void | Promise<void>;
-}
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
 }
 
 /**
@@ -213,7 +198,7 @@ export function DuplicateWarningPanel({
               const statusRaw =
                 typeof c.status === "string" ? c.status.toUpperCase() : "";
               const isClosed = statusRaw === "CLOSED" || c.open === false;
-              const createdLabel = formatWhen(
+              const createdLabel = formatDateTime24(
                 typeof c.createdAt === "string" ? c.createdAt : undefined,
               );
               const selected = effectiveSurviving === id;

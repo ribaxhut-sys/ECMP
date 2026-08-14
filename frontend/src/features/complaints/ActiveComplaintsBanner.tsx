@@ -5,27 +5,12 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { CmBatch1ComplaintBrief } from "@/lib/api";
 import { Alert, Badge, Button, Empty, Modal } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 
 const PREVIEW_LIMIT = 3;
 
 function briefId(row: CmBatch1ComplaintBrief, index: number): string {
   return row.complaintId?.trim() || `complaint-${index}`;
-}
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
 }
 
 function rowLabel(row: CmBatch1ComplaintBrief, index: number): string {
@@ -136,7 +121,7 @@ export function ActiveComplaintsBanner({
               {preview.map((row, index) => {
                 const id = briefId(row, index);
                 const number = rowLabel(row, index);
-                const created = formatWhen(row.createdAt);
+                const created = formatDateTime24(row.createdAt);
                 return (
                   <li
                     key={id}
@@ -214,7 +199,7 @@ export function ActiveComplaintsBanner({
               {complaints.map((row, index) => {
                 const id = briefId(row, index);
                 const number = rowLabel(row, index);
-                const created = formatWhen(row.createdAt);
+                const created = formatDateTime24(row.createdAt);
                 return (
                   <li
                     key={id}

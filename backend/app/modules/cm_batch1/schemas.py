@@ -80,7 +80,7 @@ class CreateComplaintBatch1Request(BaseModel):
     channel: str
     subject: str
     description: str
-    priority: str | None = "MEDIUM"
+    priority: str | None = None
     recording_unit_id: str | None = Field(default=None, alias="recordingUnitId")
     duplicate_override_justification: str | None = Field(
         default=None, alias="duplicateOverrideJustification"

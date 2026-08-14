@@ -126,6 +126,7 @@ def case_from_orm(
         priority=row.priority,
         created_by=row.created_by,
         created_at=row.created_at,
+        handling_claimed_by=row.handling_claimed_by,
         category=row.category,
         owning_unit_id=row.owning_unit_id,
         owner_unit_id=row.owner_unit_id,
@@ -166,6 +167,7 @@ def apply_case_to_orm(case: CaseAggregate, row: CmCaseORM) -> None:
     row.closed_at = case.closed_at
     row.supervisor_approved_after_resolved = case.supervisor_approved_after_resolved
     row.created_by = case.created_by
+    row.handling_claimed_by = case.handling_claimed_by
     row.created_at = case.created_at
     if case.updated_at is not None:
         row.updated_at = case.updated_at

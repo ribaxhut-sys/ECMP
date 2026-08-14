@@ -228,6 +228,53 @@ def test_tc_cm_fr004_04_void_with_reason(
     assert voided.void_reason == "customer_retract"
 
 
+def _mark_complaint_closed(db_session: Session, complaint_id: str) -> None:
+    row = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert row is not None
+    row.status = "CLOSED"
+    db_session.commit()
+
+
+def test_upload_rejected_when_complaint_closed(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-closed-up")
+    _mark_complaint_closed(db_session, complaint_id)
+    with pytest.raises(ConflictError) as exc:
+        batch1_attachments.upload(
+            data=b"too-late",
+            filename="late.txt",
+            content_type="text/plain",
+            classification="customer_evidence",
+            actor_id="a1",
+            complaint_id=complaint_id,
+        )
+    assert "CLOSED" in str(exc.value).upper()
+
+
+def test_void_rejected_when_complaint_closed(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-closed-void")
+    uploaded = batch1_attachments.upload(
+        data=b"before-close",
+        filename="note.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="a1",
+        complaint_id=complaint_id,
+    )
+    _mark_complaint_closed(db_session, complaint_id)
+    with pytest.raises(ConflictError):
+        batch1_attachments.void(
+            uploaded.attachment_id, reason="too_late", actor_id="a1"
+        )
+
+
 def test_void_forbidden_for_non_uploader_non_creator(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:
@@ -742,6 +789,18 @@ def test_api_507_508_509_512_roundtrip(
         assert created.status_code == 201, created.text
         _complaint_id = created.json()["data"]["complaintId"]
         assert _complaint_id
+
+        listed = client.get(
+            f"/api/v1/cm/complaints/{_complaint_id}/attachments",
+        )
+        assert listed.status_code == 200, listed.text
+        assert listed.json()["data"] == []
+        assert listed.json()["meta"]["totalItems"] == 0
+
+        missing = client.get(
+            f"/api/v1/cm/complaints/{uuid.uuid4()}/attachments",
+        )
+        assert missing.status_code == 404
 
         staged = client.post(
             "/api/v1/attachments",

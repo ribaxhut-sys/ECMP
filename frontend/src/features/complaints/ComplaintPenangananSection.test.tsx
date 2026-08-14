@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import type { ComponentProps } from "react";
@@ -25,12 +25,14 @@ vi.mock("@/shared/providers", () => ({
 
 const fetchCmCases = vi.fn();
 const createCmCase = vi.fn();
+const updateCmCaseStatus = vi.fn();
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
     ...actual,
     fetchCmCases: (...args: unknown[]) => fetchCmCases(...args),
     createCmCase: (...args: unknown[]) => createCmCase(...args),
+    updateCmCaseStatus: (...args: unknown[]) => updateCmCaseStatus(...args),
   };
 });
 
@@ -56,6 +58,13 @@ const messages = {
     penangananNoSubject: "Tanpa subjek",
     penangananContinue: "Lanjutkan",
     penangananView: "Lihat",
+    penangananHandler: "Petugas",
+    penangananHandledBy: "Ditangani oleh {name}",
+    penangananReassign: "Alihkan penanganan",
+    penangananReassignTitle: "Alihkan ke petugas lain?",
+    penangananReassignBody: "Pilih petugas.",
+    penangananReassignPick: "Petugas baru",
+    penangananReassignDone: "Dialihkan",
     penangananEscalate: "Ajukan eskalasi ke Pusat",
     penangananStart: "Mulai penanganan",
     penangananStartAnother: "Mulai penanganan baru",
@@ -81,8 +90,23 @@ const messages = {
     penangananStatusUnknown: "{status}",
     penangananListClosed: "Ditutup",
     penangananListHqWaiting: "Menunggu eskalasi",
+    handleConfirmTitle: "Tangani pengaduan",
+    handleConfirmContinueBody: "Lanjutkan penanganan?",
+    handleConfirmTakeoverBody: "Didaftarkan {name}. Ambil alih?",
+    number: "Nomor",
+    subject: "Subjek",
+    status: "Status",
   },
-  common: { success: "Sukses", emDash: "—", loadingContent: "Memuat" },
+  common: {
+    success: "Sukses",
+    emDash: "—",
+    loadingContent: "Memuat",
+    yes: "Ya",
+    no: "Tidak",
+    closeDialog: "Tutup",
+    closeDialogOverlay: "Tutup dialog",
+    actions: "Tindakan",
+  },
   cases: {
     type: "Tipe",
     priority: "Prioritas",
@@ -112,6 +136,7 @@ describe("ComplaintPenangananSection", () => {
     push.mockReset();
     fetchCmCases.mockReset();
     createCmCase.mockReset();
+    updateCmCaseStatus.mockReset();
     fetchCmCases.mockResolvedValue({ data: [], meta: { totalItems: 0 } });
     createCmCase.mockResolvedValue({
       data: {
@@ -121,6 +146,13 @@ describe("ComplaintPenangananSection", () => {
         status: "CREATED",
       },
     });
+    updateCmCaseStatus.mockResolvedValue({
+      data: { caseId: "c-open", status: "IN_PROGRESS" },
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("groups open and done penanganan", async () => {
@@ -149,9 +181,17 @@ describe("ComplaintPenangananSection", () => {
     await waitFor(() => {
       expect(screen.getByText("1 terbuka · 1 selesai")).toBeInTheDocument();
     });
-    expect(screen.getByText("Belum selesai (cabang)")).toBeInTheDocument();
-    expect(screen.getByText("Selesai")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Belum selesai (cabang)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Selesai" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lanjutkan" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CASE-1" })).toHaveAttribute(
+      "href",
+      "/complaints/cm/cases/c1",
+    );
+    expect(screen.getByRole("link", { name: "CASE-2" })).toHaveAttribute(
+      "href",
+      "/complaints/cm/cases/c2",
+    );
   });
 
   it("continues to case detail route", async () => {
@@ -172,7 +212,15 @@ describe("ComplaintPenangananSection", () => {
     const { unmount } = renderSection();
     const continueBtn = await screen.findByRole("button", { name: "Lanjutkan" });
     await user.click(continueBtn);
-    expect(push).toHaveBeenCalledWith("/complaints/cm/cases/c1");
+    expect(push).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Ya" }));
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith("/complaints/cm/cases/c1");
+    });
+    expect(updateCmCaseStatus).toHaveBeenCalledWith("c1", {
+      toStatus: "ASSIGNED",
+      reason: "HANDLE_CLAIM",
+    });
     unmount();
   });
 
@@ -249,5 +297,9 @@ describe("ComplaintPenangananSection", () => {
       expect(push).toHaveBeenCalledWith("/complaints/cm/cases/c-open");
     });
     expect(createCmCase).not.toHaveBeenCalled();
+    expect(updateCmCaseStatus).toHaveBeenCalledWith("c-open", {
+      toStatus: "IN_PROGRESS",
+      reason: "HANDLE_CLAIM",
+    });
   });
 });

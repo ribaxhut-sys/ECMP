@@ -23,7 +23,7 @@ import {
   filterRolesForHomeUnit,
   filterRolesForUserForm,
   HEAD_OFFICE_SCOPED_ROLE_CODES,
-  roleDisplayName,
+  userFormRoleLabel,
 } from "./directoryHelpers";
 import {
   highlightMatchSegments,
@@ -420,7 +420,16 @@ export function CreateUserModal({
             { value: "", label: t("selectRole") },
             ...availableRoles.map((row) => ({
               value: row.id,
-              label: `${roleDisplayName(row, t("roleBranchManager"))} (${row.code})`,
+              label: userFormRoleLabel(
+                row.code,
+                {
+                  AGENT: t("roleAgent"),
+                  SUPERVISOR: t("roleSupervisor"),
+                  MANAGER: t("roleManager"),
+                  ADMIN: t("roleAdmin"),
+                },
+                row.name,
+              ),
             })),
           ]}
         />

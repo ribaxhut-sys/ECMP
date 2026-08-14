@@ -1,5 +1,6 @@
 import type { RoleRef, UserRef } from "@/lib/api";
 import type { BadgeTone } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 
 export type DirectoryFilter =
   | "all"
@@ -24,19 +25,17 @@ export type DirectoryRoleFamily =
  * in the catalog for compatibility but are hidden from operator UX.
  */
 export const CANONICAL_USER_FORM_ROLE_CODES = [
-  "ADMIN",
-  "MANAGER",
-  "SUPERVISOR",
-  "BRANCH_SUPERVISOR",
   "AGENT",
-  "VIEWER",
+  "SUPERVISOR",
+  "MANAGER",
+  "ADMIN",
 ] as const;
 
 const CANONICAL_USER_FORM_ROLE_ORDER = new Map<string, number>(
   CANONICAL_USER_FORM_ROLE_CODES.map((code, index) => [code, index]),
 );
 
-/** Keep only canonical roles, sorted Admin → Supervisor → Agent → Viewer. */
+/** Keep only canonical roles, sorted Petugas → Supervisor → Manager → Admin. */
 export function filterRolesForUserForm(roles: RoleRef[]): RoleRef[] {
   return roles
     .filter((row) => CANONICAL_USER_FORM_ROLE_ORDER.has(row.code))
@@ -45,6 +44,20 @@ export function filterRolesForUserForm(roles: RoleRef[]): RoleRef[] {
         (CANONICAL_USER_FORM_ROLE_ORDER.get(a.code) ?? 99) -
         (CANONICAL_USER_FORM_ROLE_ORDER.get(b.code) ?? 99),
     );
+}
+
+export type CanonicalUserFormRoleCode =
+  (typeof CANONICAL_USER_FORM_ROLE_CODES)[number];
+
+export function userFormRoleLabel(
+  code: string,
+  labels: Record<CanonicalUserFormRoleCode, string>,
+  fallback: string,
+): string {
+  if (code in labels) {
+    return labels[code as CanonicalUserFormRoleCode];
+  }
+  return fallback;
 }
 
 /** Mirrors backend BRANCH_SCOPED_ROLE_CODES. */
@@ -92,18 +105,8 @@ export function userInitials(user: Pick<UserRef, "fullName" | "username">): stri
 
 export function formatWhen(value: string | null | undefined): string | null {
   if (!value) return null;
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
+  const formatted = formatDateTime24(value);
+  return formatted || null;
 }
 
 /** BRANCH_SUPERVISOR presentation override (Commit 5) — role.code and

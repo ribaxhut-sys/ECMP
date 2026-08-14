@@ -2,6 +2,7 @@ import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import type {
   ComplaintStatus,
   DashboardHeader,
+  DashboardRecentActivityItem,
   DashboardSlaStage,
   DashboardSlaSummary,
   StatusCount,
@@ -373,4 +374,39 @@ export function sortBranchesHeadOfficeFirst<T extends { code: string; name: stri
     if (aIsHeadOffice !== bIsHeadOffice) return aIsHeadOffice ? -1 : 1;
     return a.name.localeCompare(b.name, "id");
   });
+}
+
+/** One row per complaint number, from the latest event in the activity window. */
+export type ComplaintActivitySummary = {
+  complaintNumber: string;
+  actor: string | null;
+  lastEventType: string;
+  lastTimestamp: string;
+};
+
+export function aggregateComplaintActivitySummaries(
+  rows: readonly DashboardRecentActivityItem[],
+): ComplaintActivitySummary[] {
+  const byNumber = new Map<string, DashboardRecentActivityItem[]>();
+  for (const row of rows) {
+    const list = byNumber.get(row.complaintNumber) ?? [];
+    list.push(row);
+    byNumber.set(row.complaintNumber, list);
+  }
+
+  const summaries: ComplaintActivitySummary[] = [];
+  for (const [complaintNumber, events] of byNumber) {
+    const latest = [...events].sort((a, b) =>
+      a.timestamp.localeCompare(b.timestamp),
+    ).at(-1);
+    if (!latest) continue;
+    summaries.push({
+      complaintNumber,
+      actor: latest.actor || null,
+      lastEventType: latest.eventType,
+      lastTimestamp: latest.timestamp,
+    });
+  }
+
+  return summaries.sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp));
 }

@@ -47,6 +47,8 @@ class UpdateStatusCommand:
     reason: str | None = None
     assigned_user_id: str | None = None
     actor_unit_id: str | None = None
+    handling_claimed_by: str | None = None
+    actor_can_reassign: bool = False
 
 
 @dataclass(frozen=True)
@@ -123,6 +125,7 @@ class CaseSummaryDTO:
     priority: str
     created_at: datetime
     created_by: str
+    handling_claimed_by: str | None = None
     category: str | None = None
     owning_unit_id: str | None = None
     owner_unit_id: str | None = None
@@ -142,6 +145,7 @@ class CaseDTO:
     priority: str
     created_at: datetime
     created_by: str
+    handling_claimed_by: str | None = None
     category: str | None = None
     owning_unit_id: str | None = None
     owner_unit_id: str | None = None

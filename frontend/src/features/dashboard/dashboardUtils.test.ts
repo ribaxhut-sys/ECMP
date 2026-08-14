@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import {
   actorInitials,
+  aggregateComplaintActivitySummaries,
   branchOptionLabel,
   buildCriticalAlerts,
   buildQueueHealthRows,
@@ -175,5 +176,45 @@ describe("visibleAlertSlice", () => {
 
   it("returns the full list when expanded", () => {
     expect(visibleAlertSlice(items, true)).toEqual(items);
+  });
+});
+
+describe("aggregateComplaintActivitySummaries", () => {
+  it("collapses events for the same complaint into one row", () => {
+    const summaries = aggregateComplaintActivitySummaries([
+      {
+        eventType: "complaint.closed",
+        complaintNumber: "TAD-2608-0002",
+        timestamp: "2026-08-14T04:22:00.000Z",
+        actor: "Ahmad Santoso",
+      },
+      {
+        eventType: "complaint.created",
+        complaintNumber: "TAD-2608-0002",
+        timestamp: "2026-08-14T04:05:00.000Z",
+        actor: "Ahmad Santoso",
+      },
+      {
+        eventType: "complaint.created",
+        complaintNumber: "TAB-2608-0001",
+        timestamp: "2026-08-14T03:50:00.000Z",
+        actor: "Budi",
+      },
+    ]);
+
+    expect(summaries.map((row) => row.complaintNumber)).toEqual([
+      "TAD-2608-0002",
+      "TAB-2608-0001",
+    ]);
+    expect(summaries[0]).toMatchObject({
+      lastTimestamp: "2026-08-14T04:22:00.000Z",
+      lastEventType: "complaint.closed",
+      actor: "Ahmad Santoso",
+    });
+    expect(summaries[1]).toMatchObject({
+      lastTimestamp: "2026-08-14T03:50:00.000Z",
+      lastEventType: "complaint.created",
+      actor: "Budi",
+    });
   });
 });

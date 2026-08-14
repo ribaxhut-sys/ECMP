@@ -119,6 +119,136 @@ def test_list_recent_maps_intake_disposition_escalation_requested() -> None:
     assert items[0].event_type == "complaint.escalation_requested"
 
 
+def test_list_recent_omits_attachment_bind_from_dashboard_feed() -> None:
+    provider, timeline, complaints, directory = _provider()
+    bound = _entry(event_type="AttachmentBound")
+    created = _entry(event_type="ComplaintRegistered")
+    timeline.list_recent.return_value = [bound, created]
+    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-2608-0002")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == ["complaint.created"]
+    timeline.list_recent.assert_called_once()
+    assert timeline.list_recent.call_args.kwargs["limit"] >= 10
+
+
+def test_list_recent_maps_handling_and_hides_case_created() -> None:
+    provider, timeline, complaints, directory = _provider()
+    created = _entry(event_type="CaseCreated")
+    handling = _entry(event_type="HandlingTakenOver")
+    timeline.list_recent.return_value = [created, handling]
+    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000011")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == ["complaint.handling_taken_over"]
+
+
+def test_list_recent_maps_handling_continued() -> None:
+    provider, timeline, complaints, directory = _provider()
+    timeline.list_recent.return_value = [_entry(event_type="HandlingContinued")]
+    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000012")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == ["complaint.handling_continued"]
+
+
+def test_list_recent_maps_hq_and_case_ops_not_generic_update() -> None:
+    provider, timeline, complaints, directory = _provider()
+    timeline.list_recent.return_value = [
+        _entry(event_type="HqAccepted"),
+        _entry(event_type="HqReturned"),
+        _entry(event_type="HqArrivalScheduled"),
+        _entry(event_type="CaseAssigned"),
+        _entry(event_type="CaseStatusChanged"),
+        _entry(event_type="CaseResolved"),
+        _entry(event_type="CaseClosed"),
+        _entry(event_type="CaseCancelled"),
+        _entry(
+            event_type="IntakeEscalationDecided", metadata={"decision": "CANCEL"}
+        ),
+        _entry(event_type="DuplicateFound"),
+    ]
+    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000013")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=20)
+
+    assert [item.event_type for item in items] == [
+        "complaint.hq_accepted",
+        "complaint.hq_returned",
+        "complaint.hq_arrival_scheduled",
+        "complaint.assigned",
+        "complaint.case_status_changed",
+        "complaint.resolved",
+        "complaint.closed",
+        "complaint.case_cancelled",
+        "complaint.escalation_cancelled",
+        "complaint.other",
+    ]
+    assert "complaint.updated" not in {item.event_type for item in items}
+
+
+def test_list_recent_collapses_resolve_accept_into_closed() -> None:
+    """Dashboard shows one close outcome; intake history still has the full path."""
+    provider, timeline, complaints, directory = _provider()
+    aggregate_id = uuid.uuid4()
+    when = datetime(2026, 8, 14, 6, 0, tzinfo=UTC)
+    timeline.list_recent.return_value = [
+        _entry(
+            aggregate_id=aggregate_id,
+            event_type="CaseClosed",
+            created_at=when,
+        ),
+        _entry(
+            aggregate_id=aggregate_id,
+            event_type="CaseOwnerAccepted",
+            created_at=when,
+        ),
+        _entry(
+            aggregate_id=aggregate_id,
+            event_type="CaseResolved",
+            created_at=when,
+        ),
+        _entry(
+            aggregate_id=aggregate_id,
+            event_type="HandlingContinued",
+            created_at=when,
+        ),
+        _entry(
+            aggregate_id=aggregate_id,
+            event_type="ComplaintRegistered",
+            created_at=when,
+        ),
+    ]
+    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-2608-0008")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == [
+        "complaint.closed",
+        "complaint.handling_continued",
+        "complaint.created",
+    ]
+
+
+def test_list_recent_keeps_resolved_when_not_yet_closed() -> None:
+    provider, timeline, complaints, directory = _provider()
+    timeline.list_recent.return_value = [_entry(event_type="CaseResolved")]
+    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-OPEN")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == ["complaint.resolved"]
+
+
 def test_list_recent_ranks_escalation_above_created_when_same_timestamp() -> None:
     provider, timeline, complaints, directory = _provider()
     when = datetime(2026, 8, 8, 7, 30, tzinfo=UTC)
@@ -213,7 +343,7 @@ def test_list_recent_with_branch_id_filters_via_complaint_ids() -> None:
 
     provider._complaint_ids_for_branch.assert_called_once_with(branch_id)
     timeline.list_recent.assert_called_once_with(
-        aggregate_type="Complaint", limit=10, aggregate_ids=complaint_ids
+        aggregate_type="Complaint", limit=40, aggregate_ids=complaint_ids
     )
 
 
@@ -235,7 +365,7 @@ def test_list_recent_forwards_aggregate_type_and_limit() -> None:
     provider.list_recent(limit=7)
 
     timeline.list_recent.assert_called_once_with(
-        aggregate_type="Complaint", limit=7, aggregate_ids=None
+        aggregate_type="Complaint", limit=28, aggregate_ids=None
     )
 
 

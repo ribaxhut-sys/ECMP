@@ -119,11 +119,16 @@ export function CmBatch1BoundAttachmentsCard({
       );
     } catch (err) {
       setItems([]);
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : t("unableToLoadAggregateAttachments"),
-      );
+      // 404 = no bound rows / retired Foundation path — not an operator error.
+      if (err instanceof ApiError && err.status === 404) {
+        setError(null);
+      } else {
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : t("unableToLoadAggregateAttachments"),
+        );
+      }
     } finally {
       setLoading(false);
     }

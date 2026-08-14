@@ -111,6 +111,30 @@ describe("CreateUserModal — Enterprise User membership", () => {
         isSystem: false,
         isActive: true,
       },
+      {
+        id: "r4444444-4444-4444-4444-444444444444",
+        code: "MANAGER",
+        name: "Manager",
+        description: null,
+        isSystem: false,
+        isActive: true,
+      },
+      {
+        id: "r5555555-5555-5555-5555-555555555555",
+        code: "VIEWER",
+        name: "Viewer",
+        description: null,
+        isSystem: false,
+        isActive: true,
+      },
+      {
+        id: "r6666666-6666-6666-6666-666666666666",
+        code: "BRANCH_SUPERVISOR",
+        name: "Branch Supervisor",
+        description: null,
+        isSystem: false,
+        isActive: true,
+      },
     ]);
     fetchBranches.mockResolvedValue({
       data: [
@@ -172,8 +196,12 @@ describe("CreateUserModal — Enterprise User membership", () => {
     await selectCandidate(user);
 
     const roleField = screen.getByLabelText(/Role/i);
-    expect(within(roleField).getByRole("option", { name: /AGENT/ })).toBeInTheDocument();
-    expect(within(roleField).queryByRole("option", { name: /ADMIN/ })).toBeNull();
+    expect(within(roleField).getByRole("option", { name: /^Officer$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
+    expect(within(roleField).queryByRole("option", { name: /^Admin$/ })).toBeNull();
+    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
+    expect(within(roleField).queryByRole("option", { name: /Branch Supervisor/i })).toBeNull();
   });
 
   it("offers Admin plus operational roles for a Pusat candidate", async () => {
@@ -189,9 +217,11 @@ describe("CreateUserModal — Enterprise User membership", () => {
     );
 
     const roleField = screen.getByLabelText(/Role/i);
-    expect(within(roleField).getByRole("option", { name: /ADMIN/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /AGENT/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /SUPERVISOR/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Admin$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Officer$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
+    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
     expect(screen.getByLabelText(/^Unit/i)).toHaveValue("PUSAT — Pusat");
   });
 

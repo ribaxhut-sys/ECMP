@@ -150,6 +150,7 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
         closedAt=dto.closed_at,
         createdAt=dto.created_at,
         createdBy=dto.created_by,
+        handlingClaimedBy=dto.handling_claimed_by,
         updatedAt=dto.updated_at,
         complaintStatusAfterCreate=dto.complaint_status_after_create,
         handlingUnitAcceptance=acc(dto.handling_unit_acceptance),
@@ -191,6 +192,7 @@ def list_cases(
                 customerId=i.customer_id,
                 createdAt=i.created_at,
                 createdBy=i.created_by,
+                handlingClaimedBy=i.handling_claimed_by,
             )
             for i in items
         ],
@@ -300,6 +302,10 @@ def update_case_status(
             reason=body.reason,
             assigned_user_id=body.assigned_user_id,
             actor_unit_id=_actor_unit(principal, session),
+            handling_claimed_by=body.handling_claimed_by,
+            actor_can_reassign=principal.has_any_role(
+                "SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER"
+            ),
         )
     )
     return DataResponse(data=_to_response(dto))

@@ -31,6 +31,7 @@ class CmCaseORM(Base):
         Index("ix_cm_cases_complaint_id", "complaint_id"),
         Index("ix_cm_cases_status", "status"),
         Index("ix_cm_cases_created_at", "created_at"),
+        Index("ix_cm_cases_handling_claimed_by", "handling_claimed_by"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -66,6 +67,9 @@ class CmCaseORM(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
     created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    handling_claimed_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -162,16 +162,16 @@ describe("filterRolesForUserForm", () => {
       role({ code: "ADMIN" }),
       role({ code: "HO_ENGINEER" }),
       role({ code: "AGENT" }),
+      role({ code: "MANAGER" }),
       role({ code: "SUPERVISOR" }),
       role({ code: "BRANCH_SUPERVISOR" }),
       role({ code: "ADMINISTRATOR" }),
     ]);
     expect(filtered.map((row) => row.code)).toEqual([
-      "ADMIN",
-      "SUPERVISOR",
-      "BRANCH_SUPERVISOR",
       "AGENT",
-      "VIEWER",
+      "SUPERVISOR",
+      "MANAGER",
+      "ADMIN",
     ]);
   });
 });

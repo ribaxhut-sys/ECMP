@@ -78,6 +78,8 @@ class CaseAggregate:
     priority: str
     created_by: str
     created_at: datetime
+    # Operational claim (who is working the Case). Not BQ-006 Assigned User.
+    handling_claimed_by: str | None = None
     category: str | None = None
     # Current handling unit — the unit presently responsible for working the
     # Case. Mutated on transfer (ASSIGNED). Historically named "owning" but
@@ -137,6 +139,7 @@ class CaseAggregate:
             priority=priority.strip(),
             created_by=created_by,
             created_at=now,
+            handling_claimed_by=created_by,
             category=(category.strip() if category else None),
             # Current handling unit — starts as the initial destination, if any.
             owning_unit_id=unit,
@@ -475,12 +478,23 @@ class CaseAggregate:
         self.closed_at = now
         self.updated_at = now
 
+    def claim_handling(self, user_id: str) -> None:
+        uid = (user_id or "").strip()
+        if not uid:
+            raise err.validation(
+                "handlingClaimedBy is required",
+                details={"field": "handlingClaimedBy"},
+            )
+        self.handling_claimed_by = uid
+        self.updated_at = _utcnow()
+
     def to_snapshot(self) -> dict[str, Any]:
         return {
             "caseId": str(self.case_id),
             "caseNumber": self.case_number.value,
             "complaintId": self.complaint_id,
             "status": self.status.value,
+            "handlingClaimedBy": self.handling_claimed_by,
             "ownerUnitId": self.owner_unit_id,
             "owningUnitId": self.owning_unit_id,
             "handlingUnitAcceptance": (

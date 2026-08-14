@@ -23,12 +23,14 @@ from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.integrations.customer import build_customer_provider
 from app.integrations.directory import LocalUserDirectory
+from app.modules.attachment.permissions import ATTACHMENT_READ
 from app.modules.attachment.registration import build_attachment_service
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.history import CmBatch1HistoryService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import (
+    Batch1AttachmentResponse,
     ComplaintBatch1Response,
     ConfirmCustomerRequest,
     ConfirmCustomerResponse,
@@ -411,6 +413,40 @@ def get_complaint(
         settings=settings,
     )
     return DataResponse(data=service.get_complaint(complaint_id))
+
+
+@router.get(
+    "/complaints/{complaint_id}/attachments",
+    response_model=ListResponse[Batch1AttachmentResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List attachments for Aggregate complaint (API-509 / FR-004)",
+)
+def list_cm_complaint_attachments(
+    complaint_id: str,
+    principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_READ))],
+    attachments: Annotated[
+        CmBatch1AttachmentService, Depends(get_cm_batch1_attachment_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 100,
+) -> ListResponse[Batch1AttachmentResponse]:
+    """Empty list is 200 — attachments are optional (FR-004)."""
+    if org_scope_enforcement_enabled(settings):
+        resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+        _enforce_cm_org_or_pusat_hq(
+            principal=principal,
+            resource_org=resource_org,
+            session=session,
+            settings=settings,
+        )
+    rows = attachments.list_for_complaint(complaint_id)
+    start = (page - 1) * page_size
+    return ListResponse(
+        data=rows[start : start + page_size],
+        meta=PageMeta(page=page, pageSize=page_size, totalItems=len(rows)),
+    )
 
 
 @router.get(

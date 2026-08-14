@@ -932,13 +932,14 @@ class CmBatch1Service:
         dup_result = self._enforce_duplicate_on_create(body)
 
         unit = (owning_unit_id or body.recording_unit_id or "").strip() or None
+        chosen_priority = (body.priority or "").strip() or None
         row, created = self._store.create(
             customer_id=customer_id,
             category=body.category.strip(),
             channel=body.channel.strip(),
             subject=body.subject.strip(),
             description=body.description.strip(),
-            priority=(body.priority or "MEDIUM").strip(),
+            priority=chosen_priority or "MEDIUM",
             created_by=actor_id,
             request_id=cleaned_request_id,
             channel_message_id=cleaned_channel,
@@ -970,7 +971,7 @@ class CmBatch1Service:
                 created_at=row.created_at,
                 recording_unit_id=unit or body.recording_unit_id,
                 note=parsed_intake.narrative or None,
-                priority=row.priority,
+                priority=chosen_priority,
             )
         )
         if intake_disposition:
@@ -990,11 +991,11 @@ class CmBatch1Service:
                     actor_id=actor_id,
                     occurred_at=disposition_at,
                     note=(
-                        parsed_intake.branch_resolution
+                        None
                         if intake_disposition == "BRANCH_CLOSED"
                         else parsed_intake.escalation_reason
                     ),
-                    priority=row.priority,
+                    priority=chosen_priority,
                 )
             )
         if dup_result == "overridden":

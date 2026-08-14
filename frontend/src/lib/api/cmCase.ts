@@ -78,6 +78,7 @@ export interface CmCaseSummary {
   customerId?: string | null;
   createdAt?: string | null;
   createdBy?: string | null;
+  handlingClaimedBy?: string | null;
 }
 
 export interface CmCase {
@@ -103,6 +104,7 @@ export interface CmCase {
   closedAt?: string | null;
   createdAt: string;
   createdBy: string;
+  handlingClaimedBy?: string | null;
   updatedAt?: string | null;
   complaintStatusAfterCreate?: string | null;
   handlingUnitAcceptance?: CmCaseAcceptance | null;
@@ -139,6 +141,7 @@ export interface UpdateCmCaseStatusRequest {
   cancelReason?: CmCaseCancelReason | null;
   reason?: string | null;
   assignedUserId?: string | null;
+  handlingClaimedBy?: string | null;
 }
 
 export interface ResolveCmCaseRequest {

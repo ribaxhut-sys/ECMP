@@ -22,6 +22,8 @@ export function cmBatch1Paths() {
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}`,
     complaintHistory: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/history`,
+    complaintAttachments: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/attachments`,
     intakeEscalationDecision: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/intake-escalation/decision`,
     intakeEscalationRequest: (complaintId: string) =>

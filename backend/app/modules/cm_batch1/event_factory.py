@@ -62,7 +62,7 @@ def complaint_created(
             "complaintNumber": complaint_number,
             "customerId": customer_id,
             "note": clip_note(note),
-            "priority": priority,
+            **({"priority": priority} if (priority or "").strip() else {}),
         },
         outbox_event_id="EVT-CM-001",
         occurred_at=now,
@@ -118,7 +118,7 @@ def intake_disposition_recorded(
         timeline_metadata={
             "intakeDisposition": intake_disposition,
             "note": clip_note(note),
-            "priority": priority,
+            **({"priority": priority} if (priority or "").strip() else {}),
         },
         outbox_event_id=None,
         occurred_at=now,

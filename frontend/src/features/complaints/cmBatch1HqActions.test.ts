@@ -3,6 +3,9 @@ import {
   CM_BATCH1_HQ_NOTE_MIN,
   canCmBatch1HqReview,
   cmBatch1BlobEventCodes,
+  intakeHistoryIsCloseEvent,
+  intakeHistoryShowsNote,
+  intakeHistoryShowsPriority,
   isCmBatch1HqAcceptScheduleReady,
   isCmBatch1HqNoteReady,
   isCmBatch1HqRescheduleReady,
@@ -249,5 +252,38 @@ describe("cmBatch1BlobEventCodes", () => {
     expect(
       cmBatch1BlobEventCodes({ ...base, intakeClosed: true }),
     ).toEqual(["REGISTERED", "BRANCH_CLOSED"]);
+  });
+});
+
+describe("intakeHistoryShowsPriority", () => {
+  it("hides the tag on branch-close-at-intake history", () => {
+    expect(intakeHistoryShowsPriority("BRANCH_CLOSED", "BRANCH_CLOSED")).toBe(
+      false,
+    );
+    expect(intakeHistoryShowsPriority("REGISTERED", "BRANCH_CLOSED")).toBe(
+      false,
+    );
+  });
+
+  it("keeps the tag when the operator chose priority on register", () => {
+    expect(intakeHistoryShowsPriority("REGISTERED", null)).toBe(true);
+    expect(intakeHistoryShowsPriority("ESCALATION_APPROVED", "ESCALATE_APPROVED")).toBe(
+      true,
+    );
+  });
+});
+
+describe("intakeHistoryShowsNote", () => {
+  it("hides catatan on Ditutup di cabang", () => {
+    expect(intakeHistoryShowsNote("BRANCH_CLOSED")).toBe(false);
+    expect(intakeHistoryShowsNote("REGISTERED")).toBe(true);
+  });
+});
+
+describe("intakeHistoryIsCloseEvent", () => {
+  it("marks branch close and case close as closer rows", () => {
+    expect(intakeHistoryIsCloseEvent("BRANCH_CLOSED")).toBe(true);
+    expect(intakeHistoryIsCloseEvent("CASE_CLOSED")).toBe(true);
+    expect(intakeHistoryIsCloseEvent("REGISTERED")).toBe(false);
   });
 });

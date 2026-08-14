@@ -117,6 +117,63 @@ def test_fr001_create_case_created_status(service: CaseApplicationService, db_se
     assert dto.case_number.startswith("CASE-")
     assert dto.sla_countdown_active is False
     assert dto.owning_unit_id is None
+
+
+def test_create_and_handle_claim_timeline_events(db_session: Session) -> None:
+    from unittest.mock import MagicMock
+
+    effects = MagicMock()
+    service = CaseApplicationService(
+        SqlAlchemyCaseRepository(db_session),
+        side_effects=effects,
+    )
+    complaint_id = _seed_complaint(db_session)
+    dto = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Tagihan",
+            description="Koreksi tagihan",
+            priority="HIGH",
+            actor_id="seed",
+        )
+    )
+    names = [
+        call.kwargs["event_name"]
+        for call in effects.record_case_event.call_args_list
+    ]
+    assert names == ["CaseCreated", "HandlingContinued"]
+    assert dto.handling_claimed_by == "seed"
+
+    effects.record_case_event.reset_mock()
+    with pytest.raises(ApiError) as claimed_exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=dto.case_id,
+                to_status=dto.status,
+                actor_id="other-agent",
+                reason="HANDLE_CLAIM",
+            )
+        )
+    assert claimed_exc.value.code == "HANDLING_ALREADY_CLAIMED"
+
+    reassigned = service.update_status(
+        UpdateStatusCommand(
+            case_id=dto.case_id,
+            to_status=dto.status,
+            actor_id="supervisor-1",
+            reason="HANDLE_REASSIGN",
+            handling_claimed_by="other-agent",
+            actor_can_reassign=True,
+        )
+    )
+    assert reassigned.handling_claimed_by == "other-agent"
+    names = [
+        call.kwargs["event_name"]
+        for call in effects.record_case_event.call_args_list
+    ]
+    assert names == ["HandlingTakenOver"]
+
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
     assert parent.status == "IN_PROGRESS"
@@ -260,7 +317,7 @@ def test_fr004_to_fr006_happy_path(service: CaseApplicationService, db_session: 
             comment="Catatan kerja",
             resolution_code="FIXED",
             summary="Selesai",
-            actor_id="handler-1",
+            actor_id="actor-1",
         )
     )
     assert proposed.status == "IN_PROGRESS"
@@ -1133,9 +1190,12 @@ def _resolve_to_resolved(service: CaseApplicationService, case_id: str) -> None:
     """Drive to RESOLVED, tolerating a Case already sitting at IN_PROGRESS
     (e.g. after a prior owner REJECT put it back there)."""
     current = service.get_case(case_id)
+    handler = current.handling_claimed_by or "handler-1"
     if current.status != "IN_PROGRESS":
         service.update_status(
-            UpdateStatusCommand(case_id=case_id, to_status="IN_PROGRESS", actor_id="handler-1")
+            UpdateStatusCommand(
+                case_id=case_id, to_status="IN_PROGRESS", actor_id=handler
+            )
         )
     service.resolve(
         ResolveCaseCommand(

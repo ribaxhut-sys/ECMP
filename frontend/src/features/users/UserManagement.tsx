@@ -39,7 +39,7 @@ import {
   HEAD_OFFICE_SCOPED_ROLE_CODES,
   matchesDirectoryFilter,
   matchesDirectorySearch,
-  roleDisplayName,
+  userFormRoleLabel,
   type DirectoryFilter,
 } from "./directoryHelpers";
 import { HEAD_OFFICE_UNIT_CODE } from "./moduleUserCandidates";
@@ -486,7 +486,16 @@ export function UserManagement() {
               { value: "", label: t("selectRole") },
               ...selectableRoles.map((role) => ({
                 value: role.id,
-                label: `${roleDisplayName(role, t("roleBranchManager"))} (${role.code})`,
+                label: userFormRoleLabel(
+                  role.code,
+                  {
+                    AGENT: t("roleAgent"),
+                    SUPERVISOR: t("roleSupervisor"),
+                    MANAGER: t("roleManager"),
+                    ADMIN: t("roleAdmin"),
+                  },
+                  role.name,
+                ),
               })),
             ]}
           />

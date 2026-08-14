@@ -200,7 +200,7 @@ Business Rule
 | API-CM-B1-007 | Record duplicate decision / linkage | `API-506` `POST /api/v1/cm/duplicates/decisions` | FR-003 | UC-CM-003, UC-CM-006, UC-CM-007 | **Implemented (lab)** |
 | API-CM-B1-008 | Upload attachment | `API-323` / `API-507` `POST /api/v1/attachments` | FR-004 | UC-CM-004, UC-CM-005, UC-CM-007 | **Implemented (lab; shared CAP)** |
 | API-CM-B1-009 | Transfer staged attachments | `API-508` `POST /api/v1/cm/attachments/transfer` | FR-004 | UC-CM-007 | **Implemented (lab)** |
-| API-CM-B1-010 | List attachments for Complaint | `API-387` / `API-509` `GET /api/v1/complaints/{id}/attachments` | FR-004 | UC-CM-004 | **Implemented (lab; shared listing)** |
+| API-CM-B1-010 | List attachments for Complaint | `API-509` `GET /api/v1/cm/complaints/{complaintId}/attachments` (align API-387) | FR-004 | UC-CM-004 | **Implemented (lab; empty list is 200)** |
 | API-CM-B1-011 | Get attachment metadata | `API-324` / `API-510` `GET /api/v1/attachments/{id}` | FR-004 | UC-CM-004 | **Implemented (lab; shared)** |
 | API-CM-B1-012 | Download attachment | `API-325` / `API-511` `GET /api/v1/attachments/{id}/download` | FR-004 | UC-CM-004 | **Implemented (lab; shared)** |
 | API-CM-B1-013 | Logical void | `API-326` / `API-512` (semantics MUST match BR-012 void) | FR-004 | UC-CM-004 | **Implemented (lab; shared void)** |

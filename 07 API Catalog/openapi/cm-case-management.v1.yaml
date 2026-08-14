@@ -1055,6 +1055,10 @@ components:
           format: date-time
         createdBy:
           type: string
+        handlingClaimedBy:
+          type: string
+          nullable: true
+          description: Operational handling officer (Mode A claim; not BQ-006 Assigned User).
 
     CaseAcceptance:
       type: object
@@ -1240,6 +1244,10 @@ components:
           format: date-time
         createdBy:
           type: string
+        handlingClaimedBy:
+          type: string
+          nullable: true
+          description: Operational handling officer (Mode A claim; not BQ-006 Assigned User).
         updatedAt:
           oneOf:
             - type: string
@@ -1373,7 +1381,13 @@ components:
           description: Required when toStatus=CANCELLED (BQ-014).
         reason:
           type: string
-          description: Free-text reason when guard requires (cancel / reassign policy).
+          description: >
+            Free-text, or HANDLE_CLAIM / HANDLE_REASSIGN for operational claim
+            (not BQ-006 Assigned User).
+        handlingClaimedBy:
+          type: string
+          description: >
+            Target officer user id when reason=HANDLE_REASSIGN (Supervisor/Manager).
         assignedUserId:
           type: string
           deprecated: true

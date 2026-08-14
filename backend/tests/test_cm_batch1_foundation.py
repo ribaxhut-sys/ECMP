@@ -127,6 +127,7 @@ def test_factory_create_maps_evt_cm_001() -> None:
     assert evt.outbox_event_id == "EVT-CM-001"
     assert evt.timeline_event_type == "ComplaintRegistered"
     assert "justification" not in evt.timeline_metadata
+    assert "priority" not in evt.timeline_metadata
 
 
 def test_factory_link_existing_emits_022_and_023() -> None:

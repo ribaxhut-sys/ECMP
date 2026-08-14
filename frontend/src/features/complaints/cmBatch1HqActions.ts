@@ -158,6 +158,36 @@ export function cmBatch1BlobEventCodes(
   return codes;
 }
 
+/**
+ * Priority on the intake log is only for actions where the operator chose it
+ * (Daftarkan / eskalasi). Branch close-at-intake never collects priority.
+ */
+export function intakeHistoryShowsPriority(
+  eventCode: string,
+  intakeDisposition: string | null | undefined,
+): boolean {
+  const code = eventCode.trim().toUpperCase();
+  const disposition = (intakeDisposition || "").trim().toUpperCase();
+  if (code === "BRANCH_CLOSED") return false;
+  if (code === "REGISTERED" && disposition === "BRANCH_CLOSED") return false;
+  return true;
+}
+
+/** Catatan belongs on REGISTERED; branch-close is status-only. */
+export function intakeHistoryShowsNote(eventCode: string): boolean {
+  return eventCode.trim().toUpperCase() !== "BRANCH_CLOSED";
+}
+
+const CLOSE_EVENT_CODES = new Set([
+  "BRANCH_CLOSED",
+  "CASE_CLOSED",
+  "CASE_RESOLVED",
+]);
+
+export function intakeHistoryIsCloseEvent(eventCode: string): boolean {
+  return CLOSE_EVENT_CODES.has(eventCode.trim().toUpperCase());
+}
+
 /** Note length floor shared with HQ return / accept-and-schedule (DEC-F4 lab OQ). */
 export const CM_BATCH1_HQ_NOTE_MIN = 10;
 

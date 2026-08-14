@@ -64,7 +64,19 @@ _EVENT_TYPE_CODES = {
     "DuplicateRedirected": "DUPLICATE_REDIRECTED",
     "DuplicateRecommended": "DUPLICATE_RECOMMENDED",
     "DuplicateBlocked": "DUPLICATE_BLOCKED",
+    "CaseCreated": "CASE_CREATED",
+    "CaseWorkStarted": "CASE_WORK_STARTED",
+    "CaseAssigned": "CASE_ASSIGNED",
+    "CaseCancelled": "CASE_CANCELLED",
+    "CaseStatusChanged": "CASE_STATUS_CHANGED",
+    "CaseClosed": "CASE_CLOSED",
+    "CaseResolved": "CASE_RESOLVED",
+    "HandlingContinued": "HANDLING_CONTINUED",
+    "HandlingTakenOver": "HANDLING_TAKEN_OVER",
 }
+
+# Internal Case lifecycle noise — riwayat menampilkan Handling* saja.
+_HISTORY_HIDDEN_EVENT_TYPES = frozenset({"CaseCreated", "CaseWorkStarted"})
 
 
 def event_code(entry: TimelineEntry) -> str:
@@ -149,6 +161,11 @@ class CmBatch1HistoryService:
             page_size=page_size,
         )
         entries = apply_narrative_intake_order(entries)
+        entries = [
+            entry
+            for entry in entries
+            if entry.event_type not in _HISTORY_HIDDEN_EVENT_TYPES
+        ]
         names = self._actor_names(entries)
         return [
             IntakeHistoryEntry(

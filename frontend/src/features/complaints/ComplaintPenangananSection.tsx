@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
@@ -8,17 +9,20 @@ import {
   ApiError,
   createCmCase,
   fetchCmCases,
+  fetchUsers,
+  updateCmCaseStatus,
   type CmCaseSummary,
 } from "@/lib/api";
 import {
   Alert,
   Badge,
   Button,
-  Card,
-  CardBody,
   Empty,
   ErrorState,
+  Modal,
   Skeleton,
+  Td,
+  Th,
 } from "@/shared/ui";
 import { CaseStatusBadge } from "@/features/cases/CaseStatusBadge";
 import { CreateCaseDialog } from "@/features/cases/CreateCaseDialog";
@@ -26,7 +30,11 @@ import {
   mergeCreateCaseForm,
   toCreateCaseRequest,
 } from "@/features/cases/caseForms";
-import { rememberCaseId } from "@/features/cases/caseSessionRegistry";
+import { rememberCaseId, markCaseHandleClaimed } from "@/features/cases/caseSessionRegistry";
+import {
+  canClaimHandling,
+  isHandlingReassignRole,
+} from "@/features/cases/handlingClaim";
 import { useToast } from "@/shared/providers";
 import {
   buildPenangananSummarySegments,
@@ -69,86 +77,35 @@ function statusLabelKey(status: string): string {
   }
 }
 
-function PenangananItemCard({
-  item,
-  indexLabel,
-  showContinue,
-  showEscalate,
-  onContinue,
-  onEscalate,
-}: {
-  item: CmCaseSummary;
-  indexLabel: string;
-  showContinue: boolean;
-  showEscalate: boolean;
-  onContinue: () => void;
-  onEscalate: () => void;
-}) {
-  const t = useTranslations("complaints");
-  const subject = item.subject?.trim() || t("penangananNoSubject");
-
-  return (
-    <Card>
-      <CardBody className="space-y-[var(--ecmp-panel-gap)]">
-        <div className="flex flex-wrap items-start justify-between gap-[var(--ecmp-form-gap)]">
-          <div className="min-w-0 space-y-1">
-            <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-              {indexLabel}
-            </p>
-            <p className="truncate font-medium text-ecmp-text-primary">
-              {item.caseNumber}
-            </p>
-            <p className="truncate text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-              {subject}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <CaseStatusBadge status={item.status} />
-            <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-              {t(statusLabelKey(item.status), { status: item.status })}
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {showContinue ? (
-            <Button type="button" onClick={onContinue}>
-              {t("penangananContinue")}
-            </Button>
-          ) : (
-            <Button type="button" variant="outline" onClick={onContinue}>
-              {t("penangananView")}
-            </Button>
-          )}
-          {showEscalate ? (
-            <Button type="button" variant="outline" onClick={onEscalate}>
-              {t("penangananEscalate")}
-            </Button>
-          ) : null}
-        </div>
-      </CardBody>
-    </Card>
-  );
-}
-
 function PenangananGroupBlock({
   title,
   items,
-  baseIndex,
   continueOnOpen,
   escalateEnabled,
+  currentUserId,
+  canReassign,
+  handlerNames,
   onContinue,
+  onView,
   onEscalate,
+  onReassign,
 }: {
   title: string;
   items: CmCaseSummary[];
-  baseIndex: number;
   continueOnOpen: boolean;
   escalateEnabled: boolean;
+  currentUserId: string | null;
+  canReassign: boolean;
+  handlerNames: Record<string, string>;
   onContinue: (item: CmCaseSummary) => void;
+  onView: (item: CmCaseSummary) => void;
   onEscalate: (item: CmCaseSummary) => void;
+  onReassign: (item: CmCaseSummary) => void;
 }) {
   const t = useTranslations("complaints");
+  const tCommon = useTranslations("common");
   if (items.length === 0) return null;
+
   return (
     <div className="space-y-[var(--ecmp-panel-gap)]">
       <div className="flex flex-wrap items-center gap-2">
@@ -157,22 +114,101 @@ function PenangananGroupBlock({
         </h3>
         <Badge tone="neutral">{items.length}</Badge>
       </div>
-      <ul className="grid gap-[var(--ecmp-panel-gap)]">
-        {items.map((item, i) => (
-          <li key={item.caseId}>
-            <PenangananItemCard
-              item={item}
-              indexLabel={t("penangananItemLabel", {
-                n: baseIndex + i + 1,
-              })}
-              showContinue={continueOnOpen}
-              showEscalate={escalateEnabled && continueOnOpen}
-              onContinue={() => onContinue(item)}
-              onEscalate={() => onEscalate(item)}
-            />
-          </li>
-        ))}
-      </ul>
+      <div className="overflow-x-auto rounded-[var(--ecmp-radius-table)] border border-ecmp-border/80 bg-ecmp-surface">
+        <table className="min-w-full text-left text-[length:var(--ecmp-font-body-size)]">
+          <caption className="sr-only">{title}</caption>
+          <thead className="border-b border-ecmp-border/80 bg-ecmp-surface-sunken/90 text-ecmp-text-secondary">
+            <tr>
+              <Th>{t("number")}</Th>
+              <Th>{t("subject")}</Th>
+              <Th>{t("status")}</Th>
+              <Th>{t("penangananHandler")}</Th>
+              <Th className="text-right">{tCommon("actions")}</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr
+                key={item.caseId}
+                className="border-b border-ecmp-border/50 align-middle last:border-0"
+              >
+                <Td>
+                  <Link
+                    href={`/complaints/cm/cases/${encodeURIComponent(item.caseId)}`}
+                    className="font-mono text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+                  >
+                    {item.caseNumber}
+                  </Link>
+                </Td>
+                <Td className="max-w-[18rem] truncate">
+                  {item.subject?.trim() || t("penangananNoSubject")}
+                </Td>
+                <Td>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CaseStatusBadge status={item.status} />
+                    <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                      {t(statusLabelKey(item.status), { status: item.status })}
+                    </span>
+                  </div>
+                </Td>
+                <Td>
+                  {(() => {
+                    const claimed = item.handlingClaimedBy?.trim();
+                    if (!claimed) return tCommon("emDash");
+                    return handlerNames[claimed] || claimed;
+                  })()}
+                </Td>
+                <Td className="text-right">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {continueOnOpen &&
+                    canClaimHandling({
+                      handlingClaimedBy: item.handlingClaimedBy,
+                      userId: currentUserId,
+                    }) ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => onContinue(item)}
+                      >
+                        {t("penangananContinue")}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onView(item)}
+                      >
+                        {t("penangananView")}
+                      </Button>
+                    )}
+                    {canReassign && item.handlingClaimedBy ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onReassign(item)}
+                      >
+                        {t("penangananReassign")}
+                      </Button>
+                    ) : null}
+                    {escalateEnabled && continueOnOpen ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onEscalate(item)}
+                      >
+                        {t("penangananEscalate")}
+                      </Button>
+                    ) : null}
+                  </div>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -190,6 +226,8 @@ export function ComplaintPenangananSection({
   onRequestHqEscalation,
   manageRequestToken = 0,
   seed,
+  complaintCreatedBy = null,
+  complaintCreatedByName = null,
   onPenangananSnapshot,
 }: {
   complaintId: string;
@@ -213,17 +251,22 @@ export function ComplaintPenangananSection({
     priority?: string | null;
     destinationUnitId?: string | null;
   } | null;
-  /** Notify parent so "Tangani pengaduan" can hide when open cases exist. */
+  /** Registrant — same continue vs takeover copy as bottom "Tangani pengaduan". */
+  complaintCreatedBy?: string | null;
+  complaintCreatedByName?: string | null;
+  /** Notify parent so the Tangani hint can distinguish first vs existing. */
   onPenangananSnapshot?: (snapshot: {
     loading: boolean;
     openCount: number;
     totalCount: number;
+    handlingClaimedBy: string | null;
+    handlingClaimedByName: string | null;
   }) => void;
 }) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const router = useRouter();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user, roles } = useAuth();
   const { pushSuccess, pushError } = useToast();
   const canRead =
     hasPermission("complaints:read") || hasPermission("complaints:create");
@@ -235,6 +278,26 @@ export function ComplaintPenangananSection({
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [continueTarget, setContinueTarget] = useState<CmCaseSummary | null>(
+    null,
+  );
+  const [reassignTarget, setReassignTarget] = useState<CmCaseSummary | null>(
+    null,
+  );
+  const [reassignUserId, setReassignUserId] = useState("");
+  const [handlerNames, setHandlerNames] = useState<Record<string, string>>(
+    {},
+  );
+  const [directoryUsers, setDirectoryUsers] = useState<
+    { id: string; label: string }[]
+  >([]);
+  const canReassign = isHandlingReassignRole(roles);
+
+  const handleConfirmIsCreator = Boolean(
+    user?.id?.trim() &&
+      complaintCreatedBy?.trim() &&
+      user.id.trim().toLowerCase() === complaintCreatedBy.trim().toLowerCase(),
+  );
 
   const complaintOnHqPath = isHqIntakeDisposition(intakeDisposition);
 
@@ -266,6 +329,29 @@ export function ComplaintPenangananSection({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchUsers({ page: 1, pageSize: 100, isActive: true })
+      .then((res) => {
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        const list: { id: string; label: string }[] = [];
+        for (const u of res.data ?? []) {
+          const label = u.fullName?.trim() || u.username;
+          map[u.id] = label;
+          list.push({ id: u.id, label });
+        }
+        setHandlerNames(map);
+        setDirectoryUsers(list);
+      })
+      .catch(() => {
+        if (!cancelled) setHandlerNames({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const parts = useMemo(
     () => partitionPenanganan(rows, { complaintOnHqPath }),
     [rows, complaintOnHqPath],
@@ -295,29 +381,62 @@ export function ComplaintPenangananSection({
     ),
   );
 
+  const claimedBy =
+    parts.open
+      .map((row) => row.handlingClaimedBy?.trim())
+      .find((id) => Boolean(id)) || null;
+
   useEffect(() => {
     onPenangananSnapshot?.({
       loading,
       openCount: counts.open,
       totalCount:
         counts.open + counts.pusat + counts.done + counts.cancelled,
+      handlingClaimedBy: claimedBy,
+      handlingClaimedByName: claimedBy
+        ? handlerNames[claimedBy] || claimedBy
+        : null,
     });
-    // Depend on primitive count fields — `counts` is a new object each render
-    // and would re-fire this effect forever, blocking App Router soft-nav.
   }, [
     loading,
     counts.open,
     counts.pusat,
     counts.done,
     counts.cancelled,
+    claimedBy,
+    handlerNames,
     onPenangananSnapshot,
   ]);
 
-  function openItem(item: CmCaseSummary) {
+  async function claimHandle(item: CmCaseSummary) {
+    try {
+      await updateCmCaseStatus(item.caseId, {
+        toStatus: item.status,
+        reason: "HANDLE_CLAIM",
+      });
+      markCaseHandleClaimed(item.caseId);
+    } catch {
+      // Jejak gagal tidak boleh menahan ruang kerja.
+    }
+  }
+
+  async function openItem(item: CmCaseSummary) {
+    rememberCaseId(complaintId, item.caseId);
+    await claimHandle(item);
+    router.push(
+      `/complaints/cm/cases/${encodeURIComponent(item.caseId)}`,
+    );
+  }
+
+  function viewItem(item: CmCaseSummary) {
     rememberCaseId(complaintId, item.caseId);
     router.push(
       `/complaints/cm/cases/${encodeURIComponent(item.caseId)}`,
     );
+  }
+
+  function requestContinue(item: CmCaseSummary) {
+    setContinueTarget(item);
   }
 
   function handleEscalate(item: CmCaseSummary) {
@@ -355,6 +474,7 @@ export function ComplaintPenangananSection({
         },
       );
       rememberCaseId(complaintId, res.data.caseId);
+      markCaseHandleClaimed(res.data.caseId);
       pushSuccess(
         tCommon("success"),
         t("penangananCreated", { number: res.data.caseNumber }),
@@ -376,7 +496,17 @@ export function ComplaintPenangananSection({
     if (!manageRequestToken || loading || starting) return;
     if (error) return;
     if (parts.open.length > 0) {
-      openItem(parts.open[0]!);
+      const item = parts.open[0]!;
+      if (
+        canClaimHandling({
+          handlingClaimedBy: item.handlingClaimedBy,
+          userId: user?.id,
+        })
+      ) {
+        void openItem(item);
+      } else {
+        viewItem(item);
+      }
       return;
     }
     if (allowStart && canCreate && contextKind === "none") {
@@ -488,44 +618,61 @@ export function ComplaintPenangananSection({
           <PenangananGroupBlock
             title={t("penangananGroupOpen")}
             items={parts.open}
-            baseIndex={0}
             continueOnOpen={contextKind !== "hq_waiting"}
             escalateEnabled={Boolean(
               allowEscalate &&
                 onRequestHqEscalation &&
                 contextKind !== "hq_waiting",
             )}
-            onContinue={openItem}
+            currentUserId={user?.id ?? null}
+            canReassign={canReassign}
+            handlerNames={handlerNames}
+            onContinue={requestContinue}
+            onView={viewItem}
             onEscalate={handleEscalate}
+            onReassign={(item) => {
+              setReassignUserId("");
+              setReassignTarget(item);
+            }}
           />
           <PenangananGroupBlock
             title={t("penangananGroupPusat")}
             items={parts.pusat}
-            baseIndex={parts.open.length}
             continueOnOpen={false}
             escalateEnabled={false}
-            onContinue={openItem}
+            currentUserId={user?.id ?? null}
+            canReassign={false}
+            handlerNames={handlerNames}
+            onContinue={requestContinue}
+            onView={viewItem}
             onEscalate={handleEscalate}
+            onReassign={() => undefined}
           />
           <PenangananGroupBlock
             title={t("penangananGroupDone")}
             items={parts.done}
-            baseIndex={parts.open.length + parts.pusat.length}
             continueOnOpen={false}
             escalateEnabled={false}
-            onContinue={openItem}
+            currentUserId={user?.id ?? null}
+            canReassign={false}
+            handlerNames={handlerNames}
+            onContinue={requestContinue}
+            onView={viewItem}
             onEscalate={handleEscalate}
+            onReassign={() => undefined}
           />
           <PenangananGroupBlock
             title={t("penangananGroupCancelled")}
             items={parts.cancelled}
-            baseIndex={
-              parts.open.length + parts.pusat.length + parts.done.length
-            }
             continueOnOpen={false}
             escalateEnabled={false}
-            onContinue={openItem}
+            currentUserId={user?.id ?? null}
+            canReassign={false}
+            handlerNames={handlerNames}
+            onContinue={requestContinue}
+            onView={viewItem}
             onEscalate={handleEscalate}
+            onReassign={() => undefined}
           />
 
           {allowStart && canCreate && contextKind === "has_counts" ? (
@@ -536,6 +683,105 @@ export function ComplaintPenangananSection({
         </div>
       ) : null}
 
+      <Modal
+        open={continueTarget !== null}
+        onClose={() => setContinueTarget(null)}
+        title={t("handleConfirmTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setContinueTarget(null)}
+            >
+              {tCommon("no")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                const item = continueTarget;
+                setContinueTarget(null);
+                if (item) void openItem(item);
+              }}
+            >
+              {tCommon("yes")}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-ecmp-text-primary">
+          {handleConfirmIsCreator
+            ? t("handleConfirmContinueBody")
+            : t("handleConfirmTakeoverBody", {
+                name: complaintCreatedByName?.trim() || tCommon("emDash"),
+              })}
+        </p>
+      </Modal>
+
+      <Modal
+        open={reassignTarget !== null}
+        onClose={() => setReassignTarget(null)}
+        title={t("penangananReassignTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setReassignTarget(null)}
+            >
+              {tCommon("no")}
+            </Button>
+            <Button
+              type="button"
+              disabled={!reassignUserId.trim()}
+              onClick={() => {
+                const item = reassignTarget;
+                const nextUser = reassignUserId.trim();
+                setReassignTarget(null);
+                if (!item || !nextUser) return;
+                void (async () => {
+                  try {
+                    await updateCmCaseStatus(item.caseId, {
+                      toStatus: item.status,
+                      reason: "HANDLE_REASSIGN",
+                      handlingClaimedBy: nextUser,
+                    });
+                    markCaseHandleClaimed(item.caseId);
+                    pushSuccess(tCommon("success"), t("penangananReassignDone"));
+                    await load();
+                  } catch (err) {
+                    pushError(err, t("penangananLoadError"));
+                  }
+                })();
+              }}
+            >
+              {tCommon("yes")}
+            </Button>
+          </div>
+        }
+      >
+        <p className="mb-3 text-ecmp-text-primary">
+          {t("penangananReassignBody")}
+        </p>
+        <label className="block text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+          {t("penangananReassignPick")}
+          <select
+            className="mt-1 w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-ecmp-text-primary"
+            value={reassignUserId}
+            onChange={(event) => setReassignUserId(event.target.value)}
+          >
+            <option value="">{tCommon("emDash")}</option>
+            {directoryUsers.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </Modal>
+
       <CreateCaseDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -543,6 +789,7 @@ export function ComplaintPenangananSection({
         mode={rows.length > 0 ? "add" : "create"}
         onCreated={(caseData) => {
           rememberCaseId(complaintId, caseData.caseId);
+          markCaseHandleClaimed(caseData.caseId);
           pushSuccess(
             tCommon("success"),
             t("penangananCreated", { number: caseData.caseNumber }),

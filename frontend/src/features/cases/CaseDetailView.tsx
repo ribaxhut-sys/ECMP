@@ -156,6 +156,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [reassignUserId, setReassignUserId] = useState("");
   const [reassigning, setReassigning] = useState(false);
   const [complaintNumber, setComplaintNumber] = useState<string | null>(null);
+  const [complaintStatus, setComplaintStatus] = useState<string | null>(null);
   const [complaintCreatedBy, setComplaintCreatedBy] = useState<string | null>(
     null,
   );
@@ -195,6 +196,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
 
       const complaint = complaintRes?.data ?? null;
       setComplaintNumber(complaint?.complaintNumber?.trim() || null);
+      setComplaintStatus(complaint?.status ?? null);
       setComplaintCreatedBy(complaint?.createdBy?.trim() || null);
       setComplaintCreatedByName(complaint?.createdByName?.trim() || null);
 
@@ -262,6 +264,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setAssignedLabel(null);
       setHandlerLabel(null);
       setComplaintNumber(null);
+      setComplaintStatus(null);
       setComplaintCreatedBy(null);
       setComplaintCreatedByName(null);
       setError(err instanceof ApiError ? err.message : t("unableToLoad"));
@@ -379,6 +382,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   );
   const caseFinished =
     data?.status === "CLOSED" || data?.status === "CANCELLED";
+  const parentComplaintClosed = (complaintStatus || "").toUpperCase() === "CLOSED";
+  const attachmentsLocked = caseFinished || parentComplaintClosed;
   const showParentContinueLabel = Boolean(
     data && (caseFinished || data.status === "RESOLVED" || showClose),
   );
@@ -596,35 +601,33 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             </div>
           </div>
 
-          {/* 2. Scrolling guidance note — kept out of the sticky bar */}
-          <p className="max-w-[72ch] text-[length:var(--ecmp-font-helper-size)] leading-relaxed text-ecmp-text-secondary">
-            <span className="font-medium text-ecmp-text-primary">
+          {/* 2. Compact guidance — one callout, not a competing paragraph */}
+          <div className="rounded-[var(--ecmp-radius-md)] border border-ecmp-info-border bg-ecmp-info-bg px-4 py-3 text-[length:var(--ecmp-font-helper-size)] leading-relaxed text-ecmp-info-text">
+            <span className="font-medium">
               {t("caseVsComplaintTitle")}
-            </span>{" "}
+            </span>
+            {" — "}
             {t("caseVsComplaintBody")}
             {showParentContinueLabel ? ` ${t("continueToParentHint")}` : ""}
-          </p>
+          </div>
 
-          {/* 3. Work area + context */}
-          <div className="grid gap-[var(--ecmp-section-gap)] lg:grid-cols-[minmax(0,1fr)_18rem]">
+          {/* 3. Work area + human context */}
+          <div className="grid gap-[var(--ecmp-section-gap)] lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
             <div className="min-w-0 space-y-[var(--ecmp-section-gap)]">
-              {/* Description */}
-              <section className="space-y-[var(--ecmp-panel-gap)]">
-                <SectionHeader
-                  title={t("workContentTitle")}
-                  description={t("workContentDescription")}
-                />
-                <p className="max-w-[72ch] whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] leading-[var(--ecmp-font-body-line)] text-ecmp-text-primary">
-                  {data.description || tCommon("emDash")}
-                </p>
-              </section>
+              <Card>
+                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                  <SectionHeader title={t("workContentTitle")} />
+                  <p className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] leading-[var(--ecmp-font-body-line)] text-ecmp-text-primary">
+                    {data.description || tCommon("emDash")}
+                  </p>
+                </CardBody>
+              </Card>
 
-              {/* Resolution */}
-              <section className="space-y-[var(--ecmp-panel-gap)]">
-                <SectionHeader title={t("resolution")} />
-                {data.resolution ? (
-                  <Card>
-                    <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+              <Card>
+                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                  <SectionHeader title={t("resolution")} />
+                  {data.resolution ? (
+                    <>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge tone={caseStatusTone(data.resolution.status)}>
                           {data.resolution.status}
@@ -650,81 +653,74 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                           value={data.resolution.comment}
                         />
                       </dl>
-                    </CardBody>
-                  </Card>
-                ) : (
-                  <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                    {t("noResolutionDescription")}
-                  </p>
-                )}
-              </section>
+                    </>
+                  ) : (
+                    <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+                      {t("noResolutionDescription")}
+                    </p>
+                  )}
+                </CardBody>
+              </Card>
 
-              {/* Attachments — the card renders its own SectionHeader */}
-              <CmBatch1BoundAttachmentsCard complaintId={data.complaintId} />
+              <CmBatch1BoundAttachmentsCard
+                complaintId={data.complaintId}
+                customerId={data.customerId}
+                allowUpload={!attachmentsLocked}
+                allowVoid={!attachmentsLocked}
+              />
             </div>
 
-            {/* Context metadata */}
-            <aside className="min-w-0 space-y-[var(--ecmp-panel-gap)] lg:border-l lg:border-ecmp-border/70 lg:pl-[var(--ecmp-section-gap)]">
-              <h2 className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                {t("contextTitle")}
-              </h2>
-              <dl className="grid gap-[var(--ecmp-form-gap)] sm:grid-cols-2 lg:grid-cols-1">
-                <MetaItem label={t("customer")} value={customerDisplay} />
-                {handlerDisplay ? (
-                  <MetaItem
-                    label={tComplaints("penangananHandler")}
-                    value={handlerDisplay}
-                  />
-                ) : null}
-                {assignedDisplay ? (
-                  <MetaItem label={t("assignedTo")} value={assignedDisplay} />
-                ) : null}
-                <MetaItem
-                  label={t("parentComplaint")}
-                  value={complaintNumber ?? tCommon("emDash")}
-                />
-                <MetaItem label={t("type")} value={data.caseType} />
-                <MetaItem
-                  label={t("category")}
-                  value={data.category ?? tCommon("emDash")}
-                />
-                <MetaItem
-                  label={t("owningUnit")}
-                  value={data.owningUnitId ?? tCommon("emDash")}
-                />
-                <MetaItem label={t("createdBy")} value={creatorDisplay} />
-                <MetaItem label={t("createdAt")} value={whenCreated} />
-                {whenUpdated ? (
-                  <MetaItem label={t("updatedAt")} value={whenUpdated} />
-                ) : null}
-                {whenClosed ? (
-                  <MetaItem label={t("closedAt")} value={whenClosed} />
-                ) : null}
-                {data.cancelReason ? (
-                  <MetaItem
-                    label={t("cancelReason")}
-                    value={data.cancelReason}
-                  />
-                ) : null}
-              </dl>
+            <aside className="min-w-0 lg:sticky lg:top-[calc(var(--ecmp-header-height)+5.5rem)]">
+              <Card>
+                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                  <h2 className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                    {t("contextTitle")}
+                  </h2>
+                  <dl className="grid gap-[var(--ecmp-form-gap)]">
+                    <MetaItem label={t("customer")} value={customerDisplay} />
+                    {handlerDisplay ? (
+                      <MetaItem
+                        label={tComplaints("penangananHandler")}
+                        value={handlerDisplay}
+                      />
+                    ) : null}
+                    {assignedDisplay ? (
+                      <MetaItem
+                        label={t("assignedTo")}
+                        value={assignedDisplay}
+                      />
+                    ) : null}
+                    <MetaItem
+                      label={t("parentComplaint")}
+                      value={complaintNumber ?? tCommon("emDash")}
+                    />
+                    <MetaItem
+                      label={t("owningUnit")}
+                      value={
+                        data.owningUnitId?.trim() ||
+                        data.ownerUnitId?.trim() ||
+                        tCommon("emDash")
+                      }
+                    />
+                    <MetaItem label={t("createdBy")} value={creatorDisplay} />
+                    <MetaItem label={t("createdAt")} value={whenCreated} />
+                    {whenUpdated ? (
+                      <MetaItem label={t("updatedAt")} value={whenUpdated} />
+                    ) : null}
+                    {whenClosed ? (
+                      <MetaItem label={t("closedAt")} value={whenClosed} />
+                    ) : null}
+                    {data.cancelReason ? (
+                      <MetaItem
+                        label={t("cancelReason")}
+                        value={data.cancelReason}
+                      />
+                    ) : null}
+                  </dl>
+                </CardBody>
+              </Card>
             </aside>
           </div>
-
-          {/* 4. Technical details */}
-          <details className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 bg-ecmp-surface">
-            <summary className="cursor-pointer select-none px-4 py-3 text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-              {t("technicalDetails")}
-            </summary>
-            <div className="border-t border-ecmp-border/60 px-4 py-4">
-              <dl className="grid gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
-                <MetaItem label={t("caseIdLabel")} value={data.caseId} />
-                <MetaItem
-                  label={t("complaintIdLabel")}
-                  value={data.complaintId}
-                />
-              </dl>
-            </div>
-          </details>
 
           <ResolveCaseDialog
             open={resolveOpen}

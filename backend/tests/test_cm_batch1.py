@@ -295,6 +295,7 @@ def test_create_branch_closed_without_case(service: CmBatch1Service) -> None:
     )
     assert created.status == "CLOSED"
     assert created.case_created is False
+    assert created.priority == "MEDIUM"
 
 
 def test_create_branch_closed_requires_resolution(service: CmBatch1Service) -> None:
@@ -2479,6 +2480,37 @@ def test_intake_history_empty_for_unknown_complaint_id() -> None:
 
     service = CmBatch1HistoryService(_FakeTimelineRepo([]))
     assert service.list_history("not-a-uuid") == []
+
+
+def test_history_maps_case_events_instead_of_other() -> None:
+    from app.modules.cm_batch1.history import event_code
+
+    created = _timeline_entry("CaseCreated", {"caseNumber": "CASE-1"}, minute=1, actor="a")
+    started = _timeline_entry("CaseWorkStarted", {"caseStatus": "IN_PROGRESS"}, minute=2, actor="a")
+    closed = _timeline_entry("CaseClosed", {"caseStatus": "CLOSED"}, minute=4, actor="a")
+    unknown = _timeline_entry("SomethingUnmapped", {}, minute=3, actor="a")
+    assert event_code(created) == "CASE_CREATED"
+    assert event_code(started) == "CASE_WORK_STARTED"
+    assert event_code(closed) == "CASE_CLOSED"
+    assert event_code(unknown) == "OTHER"
+    continued = _timeline_entry("HandlingContinued", {}, minute=5, actor="a")
+    taken = _timeline_entry("HandlingTakenOver", {}, minute=6, actor="b")
+    assert event_code(continued) == "HANDLING_CONTINUED"
+    assert event_code(taken) == "HANDLING_TAKEN_OVER"
+
+
+def test_history_hides_case_created_and_work_started_from_list() -> None:
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    entries = [
+        _timeline_entry("ComplaintRegistered", {}, minute=1, actor="a"),
+        _timeline_entry("CaseCreated", {}, minute=2, actor="a"),
+        _timeline_entry("HandlingContinued", {}, minute=3, actor="a"),
+        _timeline_entry("CaseWorkStarted", {}, minute=4, actor="a"),
+    ]
+    service = CmBatch1HistoryService(_FakeTimelineRepo(entries))
+    items = service.list_history(str(uuid.uuid4()))
+    assert [i.event_code for i in items] == ["REGISTERED", "HANDLING_CONTINUED"]
 
 
 def test_history_carries_note_and_priority_per_event() -> None:

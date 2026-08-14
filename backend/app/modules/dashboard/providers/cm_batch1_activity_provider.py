@@ -39,17 +39,32 @@ _SYSTEM_ACTOR = "SYSTEM"
 # legacy-style dotted eventType the frontend's activityLabels.ts already
 # resolves to a label/badge. Keeps the UI vocabulary stable across the
 # SoT switch — only the read source changed.
+# Unknown timeline rows must not look like a business "update".
+_UNKNOWN_DASHBOARD_EVENT = "complaint.other"
+
 _EVENT_TYPE_MAP: dict[str, str] = {
     "ComplaintRegistered": "complaint.created",
-    "HqAccepted": "complaint.updated",
-    "HqReturned": "complaint.updated",
-    "HqArrivalScheduled": "complaint.updated",
+    "HqAccepted": "complaint.hq_accepted",
+    "HqReturned": "complaint.hq_returned",
+    "HqArrivalScheduled": "complaint.hq_arrival_scheduled",
+    "HandlingContinued": "complaint.handling_continued",
+    "HandlingTakenOver": "complaint.handling_taken_over",
+    "CaseAssigned": "complaint.assigned",
+    "CaseCancelled": "complaint.case_cancelled",
+    "CaseStatusChanged": "complaint.case_status_changed",
+    "CaseClosed": "complaint.closed",
+    "CaseResolved": "complaint.resolved",
+    "ResolutionUpdated": "complaint.resolution_updated",
+    "CaseHandlingUnitAccepted": "complaint.handling_unit_accepted",
+    "CaseOwnerAccepted": "complaint.owner_accepted",
+    "CaseHandlingUnitRejected": "complaint.handling_unit_rejected",
+    "CaseOwnerRejected": "complaint.owner_rejected",
 }
 _DECISION_EVENT_TYPE_MAP: dict[str, str] = {
     "APPROVE": "complaint.escalation_approved",
     "REJECT": "complaint.escalation_rejected",
     "RE_ESCALATE": "complaint.escalation_requested",
-    "CANCEL": "complaint.updated",
+    "CANCEL": "complaint.escalation_cancelled",
 }
 _DISPOSITION_EVENT_TYPE_MAP: dict[str, str] = {
     "ESCALATE_PENDING_APPROVAL": "complaint.escalation_requested",
@@ -60,11 +75,59 @@ _DISPOSITION_EVENT_TYPE_MAP: dict[str, str] = {
 def _map_event_type(event_type: str, metadata: dict) -> str:
     if event_type == "IntakeEscalationDecided":
         decision = str(metadata.get("decision") or "").upper()
-        return _DECISION_EVENT_TYPE_MAP.get(decision, "complaint.updated")
+        return _DECISION_EVENT_TYPE_MAP.get(decision, _UNKNOWN_DASHBOARD_EVENT)
     if event_type == "IntakeDispositionRecorded":
         disposition = str(metadata.get("intakeDisposition") or "").upper()
-        return _DISPOSITION_EVENT_TYPE_MAP.get(disposition, "complaint.updated")
-    return _EVENT_TYPE_MAP.get(event_type, "complaint.updated")
+        return _DISPOSITION_EVENT_TYPE_MAP.get(disposition, _UNKNOWN_DASHBOARD_EVENT)
+    return _EVENT_TYPE_MAP.get(event_type, _UNKNOWN_DASHBOARD_EVENT)
+
+
+# Attachment bind/upload/void is complaint history, not dashboard "Pembaruan".
+_DASHBOARD_HIDDEN_EVENT_TYPES = frozenset(
+    {
+        "AttachmentUploaded",
+        "AttachmentBound",
+        "AttachmentSuperseded",
+        "AttachmentVoided",
+        "AttachmentTransferred",
+        "CaseCreated",
+        "CaseWorkStarted",
+    }
+)
+
+# F4 close path is one business outcome on the dashboard. Keep CaseClosed;
+# drop resolve + dual-accept rows for the same complaint when close is present.
+_CLOSE_PATH_PRECURSOR_EVENT_TYPES = frozenset(
+    {
+        "CaseResolved",
+        "ResolutionUpdated",
+        "CaseHandlingUnitAccepted",
+        "CaseOwnerAccepted",
+    }
+)
+
+
+def _is_case_closed_event(entry: Any) -> bool:
+    if entry.event_type == "CaseClosed":
+        return True
+    if entry.event_type != "IntakeDispositionRecorded":
+        return False
+    disposition = str((entry.metadata or {}).get("intakeDisposition") or "").upper()
+    return disposition == "BRANCH_CLOSED"
+
+
+def _omit_close_path_precursors(entries: list[Any]) -> list[Any]:
+    closed_ids = {entry.aggregate_id for entry in entries if _is_case_closed_event(entry)}
+    if not closed_ids:
+        return entries
+    return [
+        entry
+        for entry in entries
+        if not (
+            entry.event_type in _CLOSE_PATH_PRECURSOR_EVENT_TYPES
+            and entry.aggregate_id in closed_ids
+        )
+    ]
 
 
 class CmBatch1ActivityDashboardProvider:
@@ -86,16 +149,27 @@ class CmBatch1ActivityDashboardProvider:
                 return []
 
         entries = self._timeline.list_recent(
-            aggregate_type=_AGGREGATE_TYPE, limit=limit, aggregate_ids=aggregate_ids
+            aggregate_type=_AGGREGATE_TYPE,
+            limit=min(100, max(limit * 4, limit)),
+            aggregate_ids=aggregate_ids,
         )
         if not entries:
             return []
 
-        actor_ids = {e.actor_id for e in entries if e.actor_id}
+        visible = [
+            entry
+            for entry in entries
+            if entry.event_type not in _DASHBOARD_HIDDEN_EVENT_TYPES
+        ]
+        visible = _omit_close_path_precursors(visible)[:limit]
+        if not visible:
+            return []
+
+        actor_ids = {e.actor_id for e in visible if e.actor_id}
         actor_names = self._directory.display_names(actor_ids) if actor_ids else {}
 
         items: list[DashboardRecentActivityItem] = []
-        for entry in entries:
+        for entry in visible:
             complaint = self._complaints.get(str(entry.aggregate_id))
             complaint_number = (
                 complaint.complaint_number

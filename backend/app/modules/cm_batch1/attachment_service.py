@@ -105,6 +105,18 @@ class CmBatch1AttachmentService:
             )
         return token
 
+    def _require_open_complaint(self, complaint_id: str):
+        complaint = self._complaints.get(complaint_id.strip())
+        if complaint is None:
+            raise NotFoundError(m("complaint.not_found"))
+        status = (complaint.status or "").strip().upper()
+        if status in {"CLOSED", "CANCELLED"}:
+            raise ConflictError(
+                m("complaint.already_closed"),
+                details={"complaintId": complaint.complaint_id, "status": status},
+            )
+        return complaint
+
     def upload(
         self,
         *,
@@ -181,9 +193,7 @@ class CmBatch1AttachmentService:
         token: str | None = None
 
         if complaint_id and complaint_id.strip():
-            complaint = self._complaints.get(complaint_id.strip())
-            if complaint is None:
-                raise NotFoundError(m("complaint.not_found"))
+            complaint = self._require_open_complaint(complaint_id.strip())
             complaint_uuid = uuid.UUID(complaint.complaint_id)
             complaint_customer_id = complaint.customer_id
             status = ATTACHMENT_STATUS_ACTIVE
@@ -392,9 +402,7 @@ class CmBatch1AttachmentService:
                 m("staging.token_not_open"),
                 details={"status": session.status},
             )
-        complaint = self._complaints.get(complaint_id)
-        if complaint is None:
-            raise NotFoundError(m("complaint.not_found"))
+        complaint = self._require_open_complaint(complaint_id)
 
         rows = self._repo.list_by_staging_token(staging_token)
         staged = [row for row in rows if row.status == ATTACHMENT_STATUS_STAGED]
@@ -578,6 +586,8 @@ class CmBatch1AttachmentService:
                 m("attachment.already_void"),
                 details={"attachmentId": attachment_id},
             )
+        if row.complaint_id:
+            self._require_open_complaint(str(row.complaint_id))
         self._assert_can_void(row, actor_id=actor_id, is_admin=is_admin)
         self._attachments.soft_delete(
             uuid.UUID(row.platform_attachment_id), commit=not self._share_tx

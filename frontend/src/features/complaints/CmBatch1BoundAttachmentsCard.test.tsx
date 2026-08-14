@@ -31,6 +31,7 @@ vi.mock("@/lib/api", async () => {
 });
 
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
+import { ApiError } from "@/lib/api";
 
 const COMPLAINT_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -88,6 +89,28 @@ describe("CmBatch1BoundAttachmentsCard", () => {
     await waitFor(() => {
       expect(screen.getByTestId("bound-empty")).toBeInTheDocument();
     });
+  });
+
+  it("treats 404 list as empty, not an attachment error", async () => {
+    fetchCmBatch1ComplaintAttachments.mockRejectedValue(
+      new ApiError(404, "NOT_FOUND", "Sumber daya tidak ditemukan."),
+    );
+    renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("bound-empty")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/attachment error/i)).toBeNull();
+  });
+
+  it("still surfaces server errors when listing attachments", async () => {
+    fetchCmBatch1ComplaintAttachments.mockRejectedValue(
+      new ApiError(500, "INTERNAL", "store unavailable"),
+    );
+    renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
+    await waitFor(() => {
+      expect(screen.getByText("store unavailable")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("bound-empty")).toBeNull();
   });
 
   it("voids a bound attachment in one click", async () => {

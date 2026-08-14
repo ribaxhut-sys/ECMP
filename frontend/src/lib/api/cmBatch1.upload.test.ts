@@ -82,7 +82,7 @@ describe("uploadCmBatch1Attachment", () => {
     const { fetchCmBatch1ComplaintAttachments } = await import("./cmBatch1");
     await fetchCmBatch1ComplaintAttachments("11111111-1111-1111-1111-111111111111");
     expect(apiRequest).toHaveBeenCalledWith(
-      "/api/v1/complaints/11111111-1111-1111-1111-111111111111/attachments?page=1&pageSize=100",
+      "/api/v1/cm/complaints/11111111-1111-1111-1111-111111111111/attachments?page=1&pageSize=100",
     );
   });
 });

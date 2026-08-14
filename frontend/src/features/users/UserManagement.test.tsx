@@ -94,6 +94,8 @@ describe("UserManagement — credential surface removed", () => {
       role("r-1", "AGENT", "Agent"),
       role("r-2", "SUPERVISOR", "Supervisor"),
       role("r-3", "ADMIN", "Administrator"),
+      role("r-4", "MANAGER", "Manager"),
+      role("r-5", "VIEWER", "Viewer"),
     ]);
     fetchBranches.mockResolvedValue({
       data: [
@@ -244,8 +246,10 @@ describe("UserManagement — credential surface removed", () => {
 
     const dialog = screen.getByRole("dialog");
     const roleField = within(dialog).getByLabelText("New role");
-    expect(within(roleField).getByRole("option", { name: /SUPERVISOR/ })).toBeInTheDocument();
-    expect(within(roleField).queryByRole("option", { name: /ADMIN/ })).toBeNull();
+    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
+    expect(within(roleField).queryByRole("option", { name: /^Admin$/ })).toBeNull();
+    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
   });
 
   it("offers operational roles when changing role for a Pusat member", async () => {
@@ -269,8 +273,10 @@ describe("UserManagement — credential surface removed", () => {
     const dialog = screen.getByRole("dialog");
     const roleField = within(dialog).getByLabelText("New role");
     // Pusat keeps operational personas; current ADMIN is excluded from the list.
-    expect(within(roleField).getByRole("option", { name: /AGENT/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /SUPERVISOR/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Officer$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
+    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
   });
 
   it("does not render density or hide-email controls", async () => {

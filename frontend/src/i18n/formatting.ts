@@ -24,7 +24,11 @@ export function formatDate(
     dateFormat === "dd/MM/yyyy"
       ? { day: "2-digit", month: "2-digit", year: "numeric" }
       : { month: "2-digit", day: "2-digit", year: "numeric" };
-  return new Intl.DateTimeFormat(bcp47, { ...defaults, ...options }).format(date);
+  return new Intl.DateTimeFormat(bcp47, {
+    timeZone: "Asia/Jakarta",
+    ...defaults,
+    ...options,
+  }).format(date);
 }
 
 export function formatDateTime(
@@ -55,6 +59,7 @@ export function formatDateTime(
           hour12: false,
         };
   return new Intl.DateTimeFormat(bcp47, {
+    timeZone: "Asia/Jakarta",
     ...defaults,
     ...options,
     // Operator-facing clocks are always 24h (never AM/PM), even for en-US.

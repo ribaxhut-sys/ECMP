@@ -607,7 +607,7 @@ export function uploadCmBatch1Attachment(
   });
 }
 
-/** API-509 — GET /api/v1/complaints/{id}/attachments (Aggregate when id is Batch-1). */
+/** API-509 — GET /api/v1/cm/complaints/{id}/attachments. */
 export function fetchCmBatch1ComplaintAttachments(
   complaintId: string,
   pageSize = 100,
@@ -617,7 +617,7 @@ export function fetchCmBatch1ComplaintAttachments(
     pageSize: String(pageSize),
   });
   return apiRequest(
-    `/api/v1/complaints/${encodeURIComponent(complaintId)}/attachments?${params.toString()}`,
+    `${cmBatch1Paths().complaintAttachments(complaintId)}?${params.toString()}`,
   );
 }
 

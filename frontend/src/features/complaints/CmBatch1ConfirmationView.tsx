@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -39,6 +39,7 @@ import {
   WorkspaceToolbar,
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
 import {
   CASE_ESCALATE_ACTION_QUERY,
@@ -51,6 +52,9 @@ import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   canCmBatch1HqReview,
   cmBatch1BlobEventCodes,
+  intakeHistoryIsCloseEvent,
+  intakeHistoryShowsNote,
+  intakeHistoryShowsPriority,
   isCmBatch1HqAcceptScheduleReady,
   isCmBatch1HqNoteReady,
   isCmBatch1HqRescheduleReady,
@@ -93,6 +97,16 @@ const HISTORY_TONES: Record<string, BadgeTone> = {
   HQ_ACCEPTED: "info",
   HQ_RETURNED: "warning",
   HQ_ARRIVAL_SCHEDULED: "info",
+  CASE_CREATED: "primary",
+  CASE_WORK_STARTED: "info",
+  CASE_ASSIGNED: "primary",
+  CASE_CANCELLED: "neutral",
+  CASE_STATUS_CHANGED: "neutral",
+  CASE_CLOSED: "success",
+  CASE_RESOLVED: "success",
+  HANDLING_CONTINUED: "primary",
+  HANDLING_TAKEN_OVER: "primary",
+  OTHER: "neutral",
 };
 
 const HISTORY_LABEL_KEYS: Record<string, string> = {
@@ -106,6 +120,16 @@ const HISTORY_LABEL_KEYS: Record<string, string> = {
   HQ_ACCEPTED: "tagHqAccepted",
   HQ_RETURNED: "tagHqReturned",
   HQ_ARRIVAL_SCHEDULED: "tagHqScheduled",
+  CASE_CREATED: "tagCaseCreated",
+  CASE_WORK_STARTED: "tagCaseWorkStarted",
+  CASE_ASSIGNED: "tagCaseAssigned",
+  CASE_CANCELLED: "tagCaseCancelled",
+  CASE_STATUS_CHANGED: "tagCaseStatusChanged",
+  CASE_CLOSED: "tagCaseClosed",
+  CASE_RESOLVED: "tagCaseResolved",
+  HANDLING_CONTINUED: "tagHandlingContinued",
+  HANDLING_TAKEN_OVER: "tagHandlingTakenOver",
+  OTHER: "tagHistoryOther",
 };
 
 /** Priority reads at a glance: urgent levels carry the danger tone. */
@@ -115,21 +139,6 @@ function priorityTone(priority: string): BadgeTone {
   if (value === "HIGH") return "warning";
   if (value === "LOW") return "neutral";
   return "info";
-}
-
-function formatWhen(value: string, locale: string): string {
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
 }
 
 /** One row of the intake log: who did what, when, at which priority, with the note. */
@@ -156,7 +165,6 @@ export function CmBatch1ConfirmationView({
   const tPriority = useTranslations("priority");
   const tTable = useTranslations("table");
   const tValidation = useTranslations("validation");
-  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const intakeEscalate = searchParams.get("intake") === "escalate";
@@ -213,11 +221,20 @@ export function CmBatch1ConfirmationView({
   const [logPage, setLogPage] = useState(1);
   const [openLogKeys, setOpenLogKeys] = useState<Set<string>>(new Set());
   const [manageRequestToken, setManageRequestToken] = useState(0);
+  const [handleConfirmOpen, setHandleConfirmOpen] = useState(false);
   const [penangananSnapshot, setPenangananSnapshot] = useState<{
     loading: boolean;
     openCount: number;
     totalCount: number;
-  }>({ loading: true, openCount: 0, totalCount: 0 });
+    handlingClaimedBy: string | null;
+    handlingClaimedByName: string | null;
+  }>({
+    loading: true,
+    openCount: 0,
+    totalCount: 0,
+    handlingClaimedBy: null,
+    handlingClaimedByName: null,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approveOpen, setApproveOpen] = useState(false);
@@ -562,12 +579,16 @@ export function CmBatch1ConfirmationView({
       loading: boolean;
       openCount: number;
       totalCount: number;
+      handlingClaimedBy: string | null;
+      handlingClaimedByName: string | null;
     }) => {
       setPenangananSnapshot((prev) => {
         if (
           prev.loading === snapshot.loading &&
           prev.openCount === snapshot.openCount &&
-          prev.totalCount === snapshot.totalCount
+          prev.totalCount === snapshot.totalCount &&
+          prev.handlingClaimedBy === snapshot.handlingClaimedBy &&
+          prev.handlingClaimedByName === snapshot.handlingClaimedByName
         ) {
           return prev;
         }
@@ -654,11 +675,16 @@ export function CmBatch1ConfirmationView({
     !intakeEscalate &&
     !canHqReview &&
     !isPusatUnitMember;
-  /** Bottom CTA only when belum ada penanganan sama sekali. */
+  /** Bottom CTA: buat penanganan pertama atau ambil alih yang sudah ada. */
   const showTanganiCta =
     showManageCases &&
     !penangananSnapshot.loading &&
-    penangananSnapshot.totalCount === 0;
+    !penangananSnapshot.handlingClaimedBy;
+  const handleConfirmIsCreator = Boolean(
+    user?.id?.trim() &&
+      data?.createdBy?.trim() &&
+      user.id.trim().toLowerCase() === data.createdBy.trim().toLowerCase(),
+  );
 
   const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
   const hqAcceptScheduleReady = isCmBatch1HqAcceptScheduleReady({
@@ -756,7 +782,7 @@ export function CmBatch1ConfirmationView({
       case "ESCALATION_RE_REQUESTED":
         return intakeHistory.escalationReason;
       case "BRANCH_CLOSED":
-        return intakeHistory.branchResolution;
+        return null;
       case "ESCALATION_APPROVED":
         return intakeHistory.supervisorNote;
       case "ESCALATION_REJECTED":
@@ -799,7 +825,7 @@ export function CmBatch1ConfirmationView({
       key: `blob-${code}`,
       code,
       actor: code === "REGISTERED" ? (data.createdByName ?? null) : null,
-      when: code === "REGISTERED" ? formatWhen(data.createdAt ?? "", locale) : null,
+      when: code === "REGISTERED" ? formatDateTime24(data.createdAt ?? "") || null : null,
       priority: null,
       note: blobNoteFor(code),
     }));
@@ -811,13 +837,15 @@ export function CmBatch1ConfirmationView({
           key: entry.entryId,
           code: entry.eventCode,
           actor: entry.actorName?.trim() || null,
-          when: formatWhen(entry.occurredAt, locale),
+          when: formatDateTime24(entry.occurredAt),
           priority: entry.priority?.trim() || null,
           // Prefer structured Deskripsi+Catatan for REGISTERED (timeline note is narrative-only).
           note:
             entry.eventCode === "REGISTERED"
               ? blobNoteFor("REGISTERED")
-              : entry.note?.trim() || blobNoteFor(entry.eventCode),
+              : intakeHistoryShowsNote(entry.eventCode)
+                ? entry.note?.trim() || blobNoteFor(entry.eventCode)
+                : null,
         }))
       : blobOnlyRows();
 
@@ -1012,7 +1040,7 @@ export function CmBatch1ConfirmationView({
                     </dt>
                     <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                       {data.createdAt
-                        ? formatWhen(data.createdAt, locale)
+                        ? formatDateTime24(data.createdAt)
                         : tCommon("emDash")}
                     </dd>
                   </div>
@@ -1126,22 +1154,11 @@ export function CmBatch1ConfirmationView({
                       {pagedLogRows.map((row, index) => {
                         const number = (safeLogPage - 1) * LOG_PAGE_SIZE + index + 1;
                         const open = openLogKeys.has(row.key);
-                        return (
-                          <li
-                            key={row.key}
-                            className={`rounded-[var(--ecmp-radius-md)] border border-ecmp-border ${
-                              number % 2 === 1
-                                ? "bg-ecmp-surface"
-                                : "bg-ecmp-surface-sunken"
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => toggleLogRow(row.key)}
-                              aria-expanded={open}
-                              aria-controls={`intake-log-note-${row.key}`}
-                              className="flex w-full items-start gap-3 rounded-[var(--ecmp-radius-md)] p-3 text-left hover:bg-ecmp-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-primary"
-                            >
+                        const expandable =
+                          row.code === "REGISTERED" ||
+                          (intakeHistoryShowsNote(row.code) && Boolean(row.note));
+                        const header = (
+                          <>
                               <span
                                 aria-hidden
                                 className="min-w-6 shrink-0 text-[length:var(--ecmp-font-body-size)] font-[number:var(--ecmp-font-overline-weight)] tabular-nums text-ecmp-text-secondary"
@@ -1155,12 +1172,23 @@ export function CmBatch1ConfirmationView({
                                     : row.code}
                                 </Badge>
                                 <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                                  {row.actor || tCommon("emDash")}
+                                  {intakeHistoryIsCloseEvent(row.code)
+                                    ? t("closedByActor", {
+                                        name:
+                                          row.actor ||
+                                          data.createdByName?.trim() ||
+                                          tCommon("emDash"),
+                                      })
+                                    : row.actor || tCommon("emDash")}
                                 </span>
                                 <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                                   {row.when || tCommon("emDash")}
                                 </span>
-                                {row.priority ? (
+                                {row.priority &&
+                                intakeHistoryShowsPriority(
+                                  row.code,
+                                  data.intakeDisposition,
+                                ) ? (
                                   <Badge
                                     tone={priorityTone(row.priority)}
                                     variant="solid"
@@ -1175,13 +1203,38 @@ export function CmBatch1ConfirmationView({
                                   </Badge>
                                 ) : null}
                               </span>
+                          </>
+                        );
+                        return (
+                          <li
+                            key={row.key}
+                            className={`rounded-[var(--ecmp-radius-md)] border border-ecmp-border ${
+                              number % 2 === 1
+                                ? "bg-ecmp-surface"
+                                : "bg-ecmp-surface-sunken"
+                            }`}
+                          >
+                            {expandable ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleLogRow(row.key)}
+                              aria-expanded={open}
+                              aria-controls={`intake-log-note-${row.key}`}
+                              className="flex w-full items-start gap-3 rounded-[var(--ecmp-radius-md)] p-3 text-left hover:bg-ecmp-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-primary"
+                            >
+                              {header}
                               <span className="shrink-0 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                                 {open
                                   ? t("intakeEventLogHideNote")
                                   : t("intakeEventLogShowNote")}
                               </span>
                             </button>
-                            {open ? (
+                            ) : (
+                            <div className="flex w-full items-start gap-3 rounded-[var(--ecmp-radius-md)] p-3">
+                              {header}
+                            </div>
+                            )}
+                            {expandable && open ? (
                               <div
                                 id={`intake-log-note-${row.key}`}
                                 className="break-words border-t border-ecmp-border px-3 pb-3 pt-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
@@ -1269,9 +1322,19 @@ export function CmBatch1ConfirmationView({
             complaintId={data.complaintId}
             customerId={data.customerId}
             allowUpload={
-              !(intakeClosed || data.status === "CLOSED")
+              !(
+                intakeClosed ||
+                data.status === "CLOSED" ||
+                data.intakeDisposition === "BRANCH_CLOSED"
+              )
             }
-            allowVoid={!(intakeClosed || data.status === "CLOSED")}
+            allowVoid={
+              !(
+                intakeClosed ||
+                data.status === "CLOSED" ||
+                data.intakeDisposition === "BRANCH_CLOSED"
+              )
+            }
           />
 
           {!intakeClosed && data.status !== "CLOSED" ? (
@@ -1282,6 +1345,8 @@ export function CmBatch1ConfirmationView({
               allowStart={showManageCases}
               allowEscalate={showReRequestEscalation}
               manageRequestToken={manageRequestToken}
+              complaintCreatedBy={data.createdBy}
+              complaintCreatedByName={data.createdByName}
               onPenangananSnapshot={onPenangananSnapshot}
               seed={{
                 category: data.category,
@@ -1392,14 +1457,27 @@ export function CmBatch1ConfirmationView({
               <div className="flex w-full flex-col gap-1 sm:w-auto">
                 <Button
                   type="button"
-                  onClick={() => setManageRequestToken((n) => n + 1)}
+                  onClick={() => setHandleConfirmOpen(true)}
                 >
                   {t("manageCases")}
                 </Button>
                 <p className="max-w-sm text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                  {t("manageCasesHint")}
+                  {penangananSnapshot.totalCount === 0
+                    ? t("manageCasesHint")
+                    : t("manageCasesHintExisting")}
                 </p>
               </div>
+            ) : null}
+            {!showTanganiCta &&
+            showManageCases &&
+            penangananSnapshot.handlingClaimedBy ? (
+              <p className="max-w-sm text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {t("penangananHandledBy", {
+                  name:
+                    penangananSnapshot.handlingClaimedByName ||
+                    tCommon("emDash"),
+                })}
+              </p>
             ) : null}
             <Button
               type="button"
@@ -1419,6 +1497,42 @@ export function CmBatch1ConfirmationView({
         </>
       ) : null}
 
+      <Modal
+        open={handleConfirmOpen}
+        onClose={() => setHandleConfirmOpen(false)}
+        title={t("handleConfirmTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHandleConfirmOpen(false)}
+            >
+              {tCommon("no")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setHandleConfirmOpen(false);
+                setManageRequestToken((n) => n + 1);
+              }}
+            >
+              {tCommon("yes")}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-ecmp-text-primary">
+          {handleConfirmIsCreator
+            ? t("handleConfirmContinueBody")
+            : t("handleConfirmTakeoverBody", {
+                name:
+                  data?.createdByName?.trim() ||
+                  tCommon("emDash"),
+              })}
+        </p>
+      </Modal>
       <Modal
         open={approveOpen}
         onClose={() => (!deciding ? setApproveOpen(false) : undefined)}

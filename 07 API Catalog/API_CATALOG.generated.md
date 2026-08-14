@@ -86,7 +86,7 @@
 | API-506 | `POST /api/v1/cm/duplicates/decisions` | Record duplicate decision / linkage |
 | API-507 | `POST /api/v1/attachments` | Upload attachment (Batch 1 semantics) |
 | API-508 | `POST /api/v1/cm/attachments/transfer` | Transfer staged attachments to surviving Complaint |
-| API-509 | `GET /api/v1/complaints/{id}/attachments` | List attachments for Complaint |
+| API-509 | `GET /api/v1/cm/complaints/{complaintId}/attachments` | List attachments for Complaint |
 | API-510 | `GET /api/v1/attachments/{id}` | Get attachment metadata |
 | API-512 | `DELETE /api/v1/attachments/{id}` | Logical void (not physical delete) |
 | API-511 | `GET /api/v1/attachments/{id}/download` | Download attachment bytes |
