@@ -180,6 +180,245 @@ def test_create_and_handle_claim_timeline_events(db_session: Session) -> None:
     assert parent.case_created is True
 
 
+def test_handling_claim_guards_and_same_officer_reclaim(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Claim guards",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="officer-1",
+        )
+    )
+    with pytest.raises(ApiError) as forbidden:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status=created.status,
+                actor_id="officer-1",
+                reason="HANDLE_REASSIGN",
+                handling_claimed_by="officer-2",
+                actor_can_reassign=False,
+            )
+        )
+    assert forbidden.value.code == "HANDLING_REASSIGN_FORBIDDEN"
+
+    with pytest.raises(ApiError) as empty_target:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status=created.status,
+                actor_id="supervisor-1",
+                reason="HANDLE_REASSIGN",
+                handling_claimed_by="  ",
+                actor_can_reassign=True,
+            )
+        )
+    assert empty_target.value.status_code == 400
+
+    with pytest.raises(ApiError) as other_worker:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="IN_PROGRESS",
+                actor_id="officer-2",
+            )
+        )
+    assert other_worker.value.code == "HANDLING_CLAIMER_ONLY"
+
+    row = db_session.get(CmCaseORM, uuid.UUID(created.case_id))
+    assert row is not None
+    row.handling_claimed_by = None
+    db_session.commit()
+
+    with pytest.raises(ApiError) as need_claim:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="IN_PROGRESS",
+                actor_id="officer-2",
+            )
+        )
+    assert need_claim.value.code == "HANDLING_CLAIM_REQUIRED"
+
+    claimed = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status=created.status,
+            actor_id="officer-2",
+            reason="HANDLE_CLAIM",
+        )
+    )
+    assert claimed.handling_claimed_by == "officer-2"
+
+    again = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status=claimed.status,
+            actor_id="officer-2",
+            reason="HANDLE_CLAIM",
+        )
+    )
+    assert again.handling_claimed_by == "officer-2"
+
+
+def test_handling_claim_rejected_when_case_terminal(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Terminal claim",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="officer-1",
+        )
+    )
+    cancelled = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="CANCELLED",
+            actor_id="officer-1",
+            cancel_reason="DUPLICATE",
+            reason="DUPLICATE",
+        )
+    )
+    assert cancelled.status == "CANCELLED"
+    with pytest.raises(ApiError) as claim_exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="CANCELLED",
+                actor_id="officer-1",
+                reason="HANDLE_CLAIM",
+            )
+        )
+    assert "terminal" in str(claim_exc.value).lower()
+    with pytest.raises(ApiError) as reassign_exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="CANCELLED",
+                actor_id="supervisor-1",
+                reason="HANDLE_REASSIGN",
+                handling_claimed_by="officer-2",
+                actor_can_reassign=True,
+            )
+        )
+    assert "terminal" in str(reassign_exc.value).lower()
+
+
+def test_cancelled_requires_reason(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Cancel reason",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="officer-1",
+        )
+    )
+    with pytest.raises(ApiError) as exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="CANCELLED",
+                actor_id="officer-1",
+                reason="",
+            )
+        )
+    assert exc.value.status_code == 400
+
+
+def test_resolve_reject_and_invalid_commands(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Reject proposal",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="UNIT-1",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="PROPOSE",
+            comment="Usulan",
+            resolution_code="FIXED",
+            summary="Selesai",
+            actor_id="officer-1",
+        )
+    )
+    with pytest.raises(ApiError):
+        service.resolve(
+            ResolveCaseCommand(
+                case_id=created.case_id,
+                action="NOPE",
+                comment="x",
+                actor_id="officer-1",
+            )
+        )
+    rejected = service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="REJECT",
+            comment="Belum cukup",
+            rejection_reason="INCOMPLETE_EVIDENCE",
+            actor_id="supervisor-1",
+        )
+    )
+    assert rejected.status == "IN_PROGRESS"
+    assert rejected.resolution is not None
+    assert rejected.resolution.status == "REJECTED"
+    with pytest.raises(ApiError):
+        service.record_acceptance(
+            RecordAcceptanceCommand(
+                case_id=created.case_id,
+                party="NOT_A_PARTY",
+                decision="ACCEPT",
+                actor_id="hq-1",
+            )
+        )
+    with pytest.raises(ApiError):
+        service.record_acceptance(
+            RecordAcceptanceCommand(
+                case_id=created.case_id,
+                party="OWNER",
+                decision="MAYBE",
+                actor_id="hq-1",
+            )
+        )
+    with pytest.raises(ApiError) as missing:
+        service.get_case(str(uuid.uuid4()))
+    assert missing.value.status_code == 404
+    with pytest.raises(ApiError) as ctx_exc:
+        service.get_case(created.case_id, complaint_id_context=str(uuid.uuid4()))
+    assert ctx_exc.value.code == "CASE_COMPLAINT_MEMBERSHIP_MISMATCH"
+
+
 def test_fr001_create_with_unit_assigned(service: CaseApplicationService, db_session: Session) -> None:
     complaint_id = _seed_complaint(db_session)
     dto = service.create_case(
