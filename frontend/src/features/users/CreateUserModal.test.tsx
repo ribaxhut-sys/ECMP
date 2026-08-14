@@ -195,7 +195,7 @@ describe("CreateUserModal — Enterprise User membership", () => {
     expect(screen.getByLabelText(/^Unit/i)).toHaveValue("PUSAT — Pusat");
   });
 
-  it("registers a Pusat agent against the PUSAT unit", async () => {
+  it("registers a Pusat officer against the PUSAT unit", async () => {
     const user = userEvent.setup();
     renderModal();
     const search = await screen.findByLabelText(/Search candidate/i);

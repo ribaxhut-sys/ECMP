@@ -333,7 +333,7 @@ export function parseCmBatch1Description(
 
 /**
  * Compose Aggregate description as durable intake history.
- * - Register / branch close → section Catatan (what was told / done for the customer)
+ * - Register / branch close → section Catatan (what was told / done for the taxpayer)
  * - Escalate → section Alasan eskalasi (+ pending-approval marker)
  */
 export function composeCmBatch1Description(

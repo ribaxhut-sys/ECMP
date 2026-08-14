@@ -10,7 +10,7 @@ Two permission tiers (business decision, LOCKED):
     codes shared with Cabang staff, so the announcement:manage permission
     grant alone is not sufficient to prove "Pusat" — require_announcement_manage
     additionally checks the caller's own org unit resolves to a Pusat-coded
-    branch (is_pusat_unit), the same mechanism already used for "Agent Pusat"
+    branch (is_pusat_unit), the same mechanism already used for "Officer Pusat"
     (require_hq_intake_action). Enforced server-side — never trusts a
     client-supplied role.
 """

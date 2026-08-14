@@ -135,7 +135,7 @@ describe("UserManagement — credential surface removed", () => {
       within(preview).queryByRole("button", { name: /reset password/i }),
     ).toBeNull();
     // Role and Status remain visible — membership data, not credentials.
-    expect(within(preview).getByText(/Agent/i)).toBeInTheDocument();
+    expect(within(preview).getByText(/Officer/i)).toBeInTheDocument();
     expect(within(preview).queryByText("member@example.com")).toBeNull();
   });
 

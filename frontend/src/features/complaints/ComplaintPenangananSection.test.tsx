@@ -87,7 +87,7 @@ const messages = {
     type: "Tipe",
     priority: "Prioritas",
     unit: "Unit",
-    customer: "Pelanggan",
+    customer: "Wajib Pajak",
     view: "Lihat",
   },
 };

@@ -38,7 +38,7 @@ from app.modules.users.schemas import (
     UserUpdateRequest,
 )
 
-# Operational roles that belong to a branch (agent / officer / supervisor /
+# Operational roles that belong to a branch (officer / supervisor /
 # branch manager). Head-office / SUPER_ADMIN may omit branchId.
 BRANCH_SCOPED_ROLE_CODES: frozenset[str] = frozenset(
     {

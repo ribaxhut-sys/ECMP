@@ -140,7 +140,7 @@ describe("HQ note / schedule readiness", () => {
       isCmBatch1HqAcceptScheduleReady({
         arrivalDate: "2026-08-10",
         arrivalTime: "09:00",
-        arrivalNote: "Jadwal kedatangan pelanggan ke Pusat.",
+        arrivalNote: "Jadwal kedatangan wajib pajak ke Pusat.",
       }),
     ).toBe(true);
   });

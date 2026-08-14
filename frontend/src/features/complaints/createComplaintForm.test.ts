@@ -42,13 +42,13 @@ describe("composeCmBatch1Description", () => {
 describe("parseCmBatch1Description", () => {
   it("parses narrative and escalation reason", () => {
     const parsed = parseCmBatch1Description(
-      "Keluhan mesin\n\n---\nAlasan eskalasi:\nPerlu parameter Pusat\n\n---\nAjuan eskalasi:\nMenunggu\n\n---\nCatatan Supervisor:\nLanjut ke Pusat\n\n---\nBatalkan Eskalasi:\nPelanggan setuju cabang",
+      "Keluhan mesin\n\n---\nAlasan eskalasi:\nPerlu parameter Pusat\n\n---\nAjuan eskalasi:\nMenunggu\n\n---\nCatatan Supervisor:\nLanjut ke Pusat\n\n---\nBatalkan Eskalasi:\nWajib Pajak setuju cabang",
     );
     expect(parsed.narrative).toBe("Keluhan mesin");
     expect(parsed.escalationReason).toBe("Perlu parameter Pusat");
     expect(parsed.branchResolution).toBeNull();
     expect(parsed.supervisorNote).toBe("Lanjut ke Pusat");
-    expect(parsed.cancellationNote).toBe("Pelanggan setuju cabang");
+    expect(parsed.cancellationNote).toBe("Wajib Pajak setuju cabang");
   });
 
   it("parses Catatan and legacy Penyelesaian as intake note", () => {
@@ -155,7 +155,7 @@ describe("validateCmBatch1CreateForm", () => {
       customerName: "Ada",
       subject: "Printer offline",
       description: "Cannot print invoices",
-      resolution: "Sudah diinfokan pelanggan",
+      resolution: "Sudah diinfokan wajib pajak",
       category: "SERVICE",
       channel: "BRANCH",
     });

@@ -1,6 +1,6 @@
 """Structured intake narrative markers (Batch-1 history for branch + HQ).
 
-Agent intake and supervisor decisions write one `description` blob with
+Officer intake and supervisor decisions write one `description` blob with
 sections so Supervisor and later Head Office share the same history.
 """
 

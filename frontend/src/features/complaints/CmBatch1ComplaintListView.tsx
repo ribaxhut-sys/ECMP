@@ -75,7 +75,7 @@ function customerCellLabel(
 ): { name: string; id: string | null } {
   const displayName = row.customerDisplayName?.trim() || "";
   const businessId = row.customerNumber?.trim() || "";
-  // Never show internal UUID as the primary customer label.
+  // Never show internal UUID as the primary taxpayer label.
   if (displayName) {
     return {
       name: displayName,

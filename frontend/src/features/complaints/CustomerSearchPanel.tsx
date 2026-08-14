@@ -137,7 +137,7 @@ export function CustomerSearchPanel({
   const [status, setStatus] = useState<CmBatch1VerificationStatus | null>(null);
   const [candidates, setCandidates] = useState<CmBatch1CustomerCandidate[]>([]);
   const [candidatePage, setCandidatePage] = useState(1);
-  /** After confirm, hide other matches until agent chooses "change selection". */
+  /** After confirm, hide other matches until officer chooses "change selection". */
   const [showCandidatePicker, setShowCandidatePicker] = useState(true);
   const [selectedCandidateId, setSelectedCandidateId] = useState("");
   const [asOf, setAsOf] = useState<string | null>(null);
@@ -427,10 +427,10 @@ export function CustomerSearchPanel({
     [candidates, selectedCandidateId, confirmedCustomerId],
   );
 
-  /** Full picker while choosing; after lock, only selected unless agent reopens. */
+  /** Full picker while choosing; after lock, only selected unless officer reopens. */
   const showFullCandidateList =
     candidates.length > 0 && (!locked || showCandidatePicker);
-  /** Hide when Profil Pelanggan is showing — avoid duplicating name/ID/phone. */
+  /** Hide when Profil Wajib Pajak is showing — avoid duplicating name/ID/phone. */
   const showCollapsedSelection =
     locked &&
     !showCandidatePicker &&

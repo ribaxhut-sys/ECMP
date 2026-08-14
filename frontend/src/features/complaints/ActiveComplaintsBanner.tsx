@@ -38,7 +38,7 @@ export interface ActiveComplaintsBannerProps {
   linking?: boolean;
   /**
    * User-driven link to an existing active complaint (FR-003 link_existing).
-   * Independent of duplicate score — agent decides the issue is the same.
+   * Independent of duplicate score — officer decides the issue is the same.
    */
   onLinkExisting?: (payload: {
     survivingComplaintId: string;
@@ -47,8 +47,8 @@ export interface ActiveComplaintsBannerProps {
 }
 
 /**
- * Inline warning when a locked customer has open complaints (BR-010 / Customer 360).
- * Shown above intake form fields so agents notice before submit.
+ * Inline warning when a locked taxpayer has open complaints (BR-010 / Taxpayer 360).
+ * Shown above intake form fields so officers notice before submit.
  * Optional link action — tautkan tanpa menunggu skor duplikat ≥ 70.
  */
 export function ActiveComplaintsBanner({

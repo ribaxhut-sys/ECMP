@@ -47,7 +47,7 @@ describe("directoryRoleFamily", () => {
     expect(directoryRoleFamily(user({ roleName: "Supervisor Desk" }))).toBe(
       "supervisor",
     );
-    expect(directoryRoleFamily(user({ roleCode: "AGENT" }))).toBe("agent");
+    expect(directoryRoleFamily(user({ roleCode: "AGENT" }))).toBe("officer");
     expect(directoryRoleFamily(user({ roleCode: "VIEWER" }))).toBe("viewer");
     expect(directoryRoleFamily(user({ roleCode: "MANAGER" }))).toBe(
       "manager",
@@ -67,7 +67,7 @@ describe("directoryRoleLabel", () => {
           administrator: "Administrator",
           manager: "Manager",
           supervisor: "Supervisor",
-          agent: "Agent",
+          officer: "Officer",
           viewer: "Viewer",
           other: "—",
         },
@@ -82,7 +82,7 @@ describe("directoryRoleLabel", () => {
           administrator: "Administrator",
           manager: "Manager",
           supervisor: "Supervisor",
-          agent: "Agent",
+          officer: "Officer",
           viewer: "Viewer",
           other: "—",
         },
@@ -99,7 +99,7 @@ describe("matchesDirectoryFilter", () => {
     expect(matchesDirectoryFilter(admin, "administrator")).toBe(true);
     expect(matchesDirectoryFilter(inactive, "active")).toBe(false);
     expect(matchesDirectoryFilter(inactive, "inactive")).toBe(true);
-    expect(matchesDirectoryFilter(inactive, "agent")).toBe(true);
+    expect(matchesDirectoryFilter(inactive, "officer")).toBe(true);
   });
 });
 

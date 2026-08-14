@@ -177,7 +177,7 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       expect(screen.getByTestId("bound-item-att-bound-3")).toBeInTheDocument();
     });
     expect(
-      screen.getByText("test.pdf - 45 B - Customer evidence"),
+      screen.getByText("test.pdf - 45 B - Taxpayer evidence"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Open test.pdf" }),

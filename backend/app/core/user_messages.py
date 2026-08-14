@@ -100,7 +100,7 @@ MESSAGES: dict[str, str] = {
     "iam.system_role_cannot_delete": "Peran sistem tidak dapat dihapus.",
     "iam.user_role_not_found": "Tautan pengguna-peran tidak ditemukan.",
     # --- Customer ---
-    "customer.exactly_one_key_type": "Tepat satu tipe kunci pelanggan harus disediakan.",
+    "customer.exactly_one_key_type": "Tepat satu tipe kunci wajib pajak harus disediakan.",
     "customer.search_key_empty": "Masukkan kunci pencarian.",
     "customer.search_name_too_short": "Nama terlalu pendek — minimal 3 karakter.",
     "customer.search_id_too_short": "ID terlalu pendek — minimal 8 digit.",
@@ -115,10 +115,10 @@ MESSAGES: dict[str, str] = {
     "customer.master_writeback_forbidden": (
         "Write-back ke Customer Master dilarang (ADR-002 / BR-002)."
     ),
-    "customer.not_found": "Pelanggan tidak ditemukan.",
-    "customer.not_in_master": "Pelanggan tidak ditemukan di Master Customer.",
+    "customer.not_found": "Wajib Pajak tidak ditemukan.",
+    "customer.not_in_master": "Wajib Pajak tidak ditemukan di Master Customer.",
     "customer.search_blocked_enumeration": (
-        "Pencarian pelanggan sementara diblokir oleh perlindungan enumerasi."
+        "Pencarian wajib pajak sementara diblokir oleh perlindungan enumerasi."
     ),
     # --- Complaint ---
     "complaint.already_closed": "Pengaduan sudah berstatus CLOSED.",
@@ -183,12 +183,12 @@ MESSAGES: dict[str, str] = {
     "case.acceptance_party_invalid": "Pihak persetujuan Case tidak valid.",
     "case.resolve_accept_role_denied": (
         "Peran Anda tidak boleh menyelesaikan penerimaan Case di unit ini. "
-        "Agent hanya boleh Tutup/ACCEPT pada unit cabangnya sendiri; "
+        "Petugas hanya boleh Tutup/ACCEPT pada unit cabangnya sendiri; "
         "unit lain memerlukan Supervisor/Manager."
     ),
-    # --- Pengaduan Internal — gerbang permintaan transfer Agent ---
+    # --- Pengaduan Internal — gerbang permintaan transfer Petugas ---
     "internal.transfer_request_reason_required": (
-        "Alasan wajib diisi saat Agent meminta transfer Handling ke unit lawan."
+        "Alasan wajib diisi saat Petugas meminta transfer Handling ke unit lawan."
     ),
     # --- Escalation ---
     "escalation.already_closed": "Eskalasi sudah berstatus CLOSED.",
@@ -482,7 +482,7 @@ MESSAGES: dict[str, str] = {
     "complaint.target_id_required": "targetId diperlukan untuk rute ini.",
     "complaint.classification_not_allowed": "Klasifikasi tidak diizinkan.",
     "complaint.principal_key_required_confirm_lock": (
-        "Kunci principal diperlukan untuk menerapkan kunci konfirmasi pelanggan."
+        "Kunci principal diperlukan untuk menerapkan kunci konfirmasi wajib pajak."
     ),
     # --- Config / settings validation ---
     "config.at_least_one_field": "Setidaknya satu field diperlukan.",

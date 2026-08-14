@@ -65,8 +65,8 @@ describe("cmBatch1AttachmentClassificationLabelKey", () => {
 describe("formatCmBatch1AttachmentSummaryLine", () => {
   it("joins name, size, and classification label", () => {
     expect(
-      formatCmBatch1AttachmentSummaryLine("test.pdf", 45, "Bukti pelanggan"),
-    ).toBe("test.pdf - 45 B - Bukti pelanggan");
+      formatCmBatch1AttachmentSummaryLine("test.pdf", 45, "Bukti wajib pajak"),
+    ).toBe("test.pdf - 45 B - Bukti wajib pajak");
   });
 });
 

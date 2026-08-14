@@ -130,7 +130,7 @@ export interface CmBatch1ComplaintResponse {
   subject?: string | null;
   /** Full intake narrative blob (Supervisor / HQ history). */
   description?: string | null;
-  /** Customer complaint body parsed from description. */
+  /** Taxpayer complaint body parsed from description. */
   intakeNarrative?: string | null;
   /** Branch close note (Penyelesaian). */
   branchResolution?: string | null;
@@ -452,7 +452,7 @@ export interface CmBatch1HqAcceptRequest {
 export interface CmBatch1HqAcceptAndScheduleRequest {
   arrivalDate: string;
   arrivalTime: string;
-  /** Mandatory info for branch to relay to the customer (min 10). */
+  /** Mandatory info for branch to relay to the taxpayer (min 10). */
   note: string;
 }
 
@@ -486,7 +486,7 @@ export function acceptCmBatch1HqEscalation(
   });
 }
 
-/** Lab — Terima + jadwalkan sekaligus → HQ_SCHEDULED (cabang kabari customer). */
+/** Lab — Terima + jadwalkan sekaligus → HQ_SCHEDULED (cabang kabari wajib pajak). */
 export function acceptAndScheduleCmBatch1HqEscalation(
   complaintId: string,
   body: CmBatch1HqAcceptAndScheduleRequest,
@@ -508,7 +508,7 @@ export function returnCmBatch1HqEscalation(
   });
 }
 
-/** API-517 lab — Jadwalkan kedatangan pelanggan di Pusat. */
+/** API-517 lab — Jadwalkan kedatangan wajib pajak di Pusat. */
 export function scheduleCmBatch1HqArrival(
   complaintId: string,
   body: CmBatch1HqScheduleArrivalRequest,

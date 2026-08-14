@@ -22,7 +22,7 @@ export function DirectoryRoleBadge({
     administrator: t("roleAdministrator"),
     manager: t("roleManager"),
     supervisor: t("roleSupervisor"),
-    agent: t("roleAgent"),
+    officer: t("roleAgent"),
     viewer: t("roleViewer"),
     other: tCommon("emDash"),
   };

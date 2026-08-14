@@ -919,7 +919,7 @@ class CmBatch1Service:
             )
         else:
             # Plain register (Daftarkan) — Catatan wajib agar cabang tahu
-            # apa yang sudah diinfokan ke pelanggan.
+            # apa yang sudah diinfokan ke wajib pajak.
             if not has_intake_note(desc):
                 raise ValidationAppError(
                     "intake note required for register",
@@ -1462,7 +1462,7 @@ class CmBatch1Service:
         accepted_at = datetime.now(UTC)
         accept_text = (
             "Pengaduan diterima Pusat; jadwal kedatangan diset untuk "
-            "diinformasikan ke pelanggan oleh cabang."
+            "diinformasikan ke wajib pajak oleh cabang."
         )
         schedule_body = (
             f"{body.arrival_date.isoformat()} {arrival_time}\n{note}"
@@ -1616,7 +1616,7 @@ class CmBatch1Service:
         labels = self._customer_labels_for(
             {row.customer_id for row in rows if row.customer_id}
         )
-        agents = self._agent_labels_for(
+        officers = self._officer_labels_for(
             {row.created_by for row in rows if row.created_by}
         )
         return (
@@ -1625,7 +1625,7 @@ class CmBatch1Service:
                     row,
                     replayed=False,
                     customer_labels=labels,
-                    agent_labels=agents,
+                    officer_labels=officers,
                 )
                 for row in rows
             ],
@@ -1660,7 +1660,7 @@ class CmBatch1Service:
             out[customer_id] = (display_name, customer_number)
         return out
 
-    def _agent_labels_for(self, actor_ids: set[str]) -> dict[str, str]:
+    def _officer_labels_for(self, actor_ids: set[str]) -> dict[str, str]:
         """Resolve intake officer (PIC) names — directory is not ECMP SoR."""
         wanted = {a for a in actor_ids if a}
         if not wanted:
@@ -1676,7 +1676,7 @@ class CmBatch1Service:
         *,
         replayed: bool,
         customer_labels: dict[str, tuple[str | None, str | None]] | None = None,
-        agent_labels: dict[str, str] | None = None,
+        officer_labels: dict[str, str] | None = None,
     ) -> ComplaintBatch1Response:
         labels = customer_labels
         if labels is None and row.customer_id:
@@ -1684,11 +1684,11 @@ class CmBatch1Service:
         display_name, customer_number = (None, None)
         if labels and row.customer_id in labels:
             display_name, customer_number = labels[row.customer_id]
-        agents = agent_labels
-        if agents is None and row.created_by:
-            agents = self._agent_labels_for({row.created_by})
+        officers = officer_labels
+        if officers is None and row.created_by:
+            officers = self._officer_labels_for({row.created_by})
         created_by_name = (
-            agents.get(row.created_by) if agents and row.created_by else None
+            officers.get(row.created_by) if officers and row.created_by else None
         )
         parsed = parse_intake_description(row.description or "")
         return ComplaintBatch1Response(

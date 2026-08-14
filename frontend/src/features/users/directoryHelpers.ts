@@ -8,13 +8,13 @@ export type DirectoryFilter =
   | "administrator"
   | "manager"
   | "supervisor"
-  | "agent";
+  | "officer";
 
 export type DirectoryRoleFamily =
   | "administrator"
   | "manager"
   | "supervisor"
-  | "agent"
+  | "officer"
   | "viewer"
   | "other";
 
@@ -127,7 +127,7 @@ export function directoryRoleFamily(
   if (/(admin|administrator|sysadmin)/.test(hay)) return "administrator";
   if (/\bmanager\b/.test(hay)) return "manager";
   if (/(supervisor|supervisory)/.test(hay)) return "supervisor";
-  if (/(agent|officer|handler)/.test(hay)) return "agent";
+  if (/(agent|officer|handler)/.test(hay)) return "officer";
   if (/(viewer|read[_-]?only|readonly)/.test(hay)) return "viewer";
   return "other";
 }
@@ -140,7 +140,7 @@ export function directoryRoleTone(family: DirectoryRoleFamily): BadgeTone {
       return "primary";
     case "supervisor":
       return "warning";
-    case "agent":
+    case "officer":
       return "info";
     case "viewer":
       return "neutral";
@@ -176,8 +176,8 @@ export function matchesDirectoryFilter(
       return directoryRoleFamily(user) === "manager";
     case "supervisor":
       return directoryRoleFamily(user) === "supervisor";
-    case "agent":
-      return directoryRoleFamily(user) === "agent";
+    case "officer":
+      return directoryRoleFamily(user) === "officer";
     default:
       return true;
   }

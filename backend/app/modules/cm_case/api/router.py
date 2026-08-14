@@ -317,7 +317,7 @@ def resolve_case(
 ) -> DataResponse[CaseResponse]:
     """SECMIG-P4 parity: org scope after permission check, before mutation.
 
-    F4: action=ACCEPT stamps Handling Unit acceptance. Mode A: Agent may ACCEPT
+    F4: action=ACCEPT stamps Handling Unit acceptance. Mode A: Officer may ACCEPT
     on their own Handling Unit; cross-unit ACCEPT remains Supervisor/Manager/
     Admin (creator SoD for approver roles).
     """

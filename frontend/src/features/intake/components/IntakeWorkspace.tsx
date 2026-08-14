@@ -47,7 +47,7 @@ const EMPTY_FORM: FormState = {
 /**
  * SCR-WS-01 — Workspace — New Intake (Batch B3).
  * Forward / Register when complete · Hold to complete · stay on workspace.
- * R2-B2: closed-only customer → SCR-WS-03 reopen routing.
+ * R2-B2: closed-only taxpayer → SCR-WS-03 reopen routing.
  */
 export function IntakeWorkspace() {
   const t = useTranslations("intake");

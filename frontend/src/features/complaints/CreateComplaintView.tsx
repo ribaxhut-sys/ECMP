@@ -72,10 +72,10 @@ export function CreateComplaintView() {
   const tErrors = useTranslations("errors");
   const { user, hasPermission } = useAuth();
   const canCreate = hasPermission("complaints:create");
-  const agentBranchId = user?.branchId ?? null;
+  const officerBranchId = user?.branchId ?? null;
 
   const [values, setValues] = useState<CreateComplaintFormValues>(() =>
-    createEmptyComplaintForm({ branchId: agentBranchId, channel: "BRANCH" }),
+    createEmptyComplaintForm({ branchId: officerBranchId, channel: "BRANCH" }),
   );
   const [errors, setErrors] = useState<CreateComplaintFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -136,8 +136,8 @@ export function CreateComplaintView() {
         if (cancelled) return;
         setBranches(res.data);
         const locked =
-          (agentBranchId
-            ? res.data.find((b) => b.id === agentBranchId)
+          (officerBranchId
+            ? res.data.find((b) => b.id === officerBranchId)
             : null) ??
           res.data.find((b) => b.code.toUpperCase() === "PUSAT") ??
           null;
@@ -160,14 +160,14 @@ export function CreateComplaintView() {
     return () => {
       cancelled = true;
     };
-  }, [agentBranchId, canCreate, t, tCommon, tErrors]);
+  }, [officerBranchId, canCreate, t, tCommon, tErrors]);
 
   const lockedBranch = useMemo(() => {
-    if (agentBranchId) {
-      return branches.find((b) => b.id === agentBranchId) ?? null;
+    if (officerBranchId) {
+      return branches.find((b) => b.id === officerBranchId) ?? null;
     }
     return branches.find((b) => b.code.toUpperCase() === "PUSAT") ?? null;
-  }, [agentBranchId, branches]);
+  }, [officerBranchId, branches]);
 
   const updateField = useCallback(
     <K extends keyof CreateComplaintFormValues>(

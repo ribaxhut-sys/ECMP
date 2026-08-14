@@ -364,7 +364,7 @@ export function ComplaintPenangananSection({
       );
     } catch (err) {
       pushError(err, t("penangananLoadError"));
-      // Fallback: let agent fill the create dialog manually.
+      // Fallback: let officer fill the create dialog manually.
       setCreateOpen(true);
     } finally {
       setStarting(false);
