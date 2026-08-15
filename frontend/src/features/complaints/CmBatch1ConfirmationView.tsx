@@ -69,10 +69,7 @@ import {
   shouldShowCmBatch1Category,
 } from "./cmBatch1RegistrationLabels";
 import type { Branch } from "@/lib/api/branches";
-import {
-  PRIORITY_OPTIONS,
-  parseCmBatch1Description,
-} from "./createComplaintForm";
+import { parseCmBatch1Description } from "./createComplaintForm";
 
 /** Case-handling events shown in ComplaintPenangananSection, not repeated in this page's log. */
 const CONFIRMATION_HIDDEN_HISTORY_CODES = new Set([
@@ -1604,10 +1601,12 @@ export function CmBatch1ConfirmationView({
             label={t("approveEscalationPriorityLabel")}
             hint={t("approveEscalationPriorityHint")}
             placeholder={t("selectPriorityPlaceholder")}
-            options={PRIORITY_OPTIONS.map((opt) => ({
-              value: opt.value,
-              label: tPriority(opt.value),
-            }))}
+            options={[
+              { value: "LOW", label: tPriority("LOW") },
+              { value: "MEDIUM", label: tPriority("MEDIUM") },
+              { value: "HIGH", label: tPriority("HIGH") },
+              { value: "CRITICAL", label: tPriority("CRITICAL") },
+            ]}
             value={approvePriority}
             onChange={(e) => setApprovePriority(e.target.value)}
             error={
@@ -1763,10 +1762,12 @@ export function CmBatch1ConfirmationView({
             label={t("reRequestEscalationPriorityLabel")}
             hint={t("reRequestEscalationPriorityHint")}
             placeholder={t("selectPriorityPlaceholder")}
-            options={PRIORITY_OPTIONS.map((opt) => ({
-              value: opt.value,
-              label: tPriority(opt.value),
-            }))}
+            options={[
+              { value: "LOW", label: tPriority("LOW") },
+              { value: "MEDIUM", label: tPriority("MEDIUM") },
+              { value: "HIGH", label: tPriority("HIGH") },
+              { value: "CRITICAL", label: tPriority("CRITICAL") },
+            ]}
             value={reRequestPriority}
             onChange={(e) => setReRequestPriority(e.target.value)}
             error={
