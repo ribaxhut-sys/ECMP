@@ -1772,3 +1772,35 @@ def test_f4_history_immutable_after_rejection_cycle(
     # Current state reflects only the final, satisfied cycle.
     assert reloaded.owner_acceptance is not None
     assert reloaded.owner_acceptance.decision == "ACCEPT"
+
+
+def test_officer_labels_empty_and_directory_failure(db_session: Session) -> None:
+    from app.modules.cm_case.api.router import _officer_labels, get_case_service
+
+    assert _officer_labels(db_session) == {}
+    svc = get_case_service(db_session)
+    assert svc is not None
+
+
+def test_case_repo_get_for_update_and_invalid_id(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseRepository
+
+    repo = SqlAlchemyCaseRepository(db_session)
+    assert repo.get("") is None
+    assert repo.get("not-a-uuid", for_update=True) is None
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Lock read",
+            description="desc",
+            priority="LOW",
+            actor_id="officer-lock",
+        )
+    )
+    locked = repo.get(created.case_id, for_update=True)
+    assert locked is not None
+    assert str(locked.case_id) == created.case_id

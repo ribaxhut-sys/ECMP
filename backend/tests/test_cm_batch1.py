@@ -2353,7 +2353,14 @@ class _FakeTimelineRepo:
         return list(self._entries), len(self._entries)
 
 
-def _timeline_entry(event_type: str, metadata: dict, *, minute: int, actor: str):
+def _timeline_entry(
+    event_type: str,
+    metadata: dict,
+    *,
+    minute: int,
+    actor: str,
+    actor_name: str | None = None,
+):
     from datetime import UTC, datetime
 
     from app.modules.timeline.domain.entity import TimelineEntry
@@ -2367,7 +2374,7 @@ def _timeline_entry(event_type: str, metadata: dict, *, minute: int, actor: str)
         description=None,
         actor_type="USER",
         actor_id=actor,
-        actor_name=None,
+        actor_name=actor_name,
         metadata=metadata,
         created_at=datetime(2026, 8, 7, 9, minute, tzinfo=UTC),
     )
@@ -2497,6 +2504,43 @@ def test_history_maps_case_events_instead_of_other() -> None:
     taken = _timeline_entry("HandlingTakenOver", {}, minute=6, actor="b")
     assert event_code(continued) == "HANDLING_CONTINUED"
     assert event_code(taken) == "HANDLING_TAKEN_OVER"
+
+
+def test_history_replaces_uuid_actor_name_from_directory() -> None:
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    officer_id = str(uuid.uuid4())
+    entries = [
+        _timeline_entry(
+            "ComplaintRegistered",
+            {},
+            minute=1,
+            actor=officer_id,
+            actor_name=officer_id,
+        )
+    ]
+    service = CmBatch1HistoryService(
+        _FakeTimelineRepo(entries),
+        user_directory=_StubDirectory({officer_id: "Ahmad Santoso"}),
+    )
+    items = service.list_history(str(uuid.uuid4()))
+    assert items[0].actor_name == "Ahmad Santoso"
+
+
+def test_history_directory_failure_does_not_raise() -> None:
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    class _BoomDirectory:
+        def display_names(self, user_ids: set[str]) -> dict[str, str]:
+            raise RuntimeError("directory down")
+
+    entries = [_timeline_entry("ComplaintRegistered", {}, minute=1, actor="agent-1")]
+    service = CmBatch1HistoryService(
+        _FakeTimelineRepo(entries),
+        user_directory=_BoomDirectory(),
+    )
+    items = service.list_history(str(uuid.uuid4()))
+    assert items[0].actor_name is None
 
 
 def test_history_hides_case_created_and_work_started_from_list() -> None:

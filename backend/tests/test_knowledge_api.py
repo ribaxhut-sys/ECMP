@@ -1206,6 +1206,32 @@ def test_history_records_file_removal(
     assert removed["actorId"] is not None
 
 
+def test_type_counts_endpoint_matches_citable_set(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    """``GET /type-counts`` must run before ``/{id}`` and count ACTIVE rows."""
+    draft = _create_draft(client, admin_header, title="Draft type-counts")
+    _upload_primary_file(client, admin_header, draft["id"])
+    active = _create_draft(
+        client, admin_header, title="SOP type-counts citable", knowledge_type="SOP"
+    )
+    _upload_primary_file(client, admin_header, active["id"])
+    pub = client.put(f"/api/v1/knowledge/{active['id']}/publish", headers=admin_header)
+    assert pub.status_code == 200, pub.text
+
+    resp = client.get("/api/v1/knowledge/type-counts", headers=admin_header)
+    assert resp.status_code == 200, resp.text
+    counts = resp.json()["data"]
+    assert counts["SOP"] >= 1
+    assert set(counts) == {
+        "SOP",
+        "PERATURAN",
+        "SURAT_EDARAN",
+        "KEPUTUSAN",
+        "PANDUAN",
+    }
+
+
 def test_history_newest_first(client: TestClient, admin_header: dict[str, str]) -> None:
     created = _create_draft(client, admin_header, title="Riwayat urutan terbaru")
     _upload_primary_file(client, admin_header, created["id"])
