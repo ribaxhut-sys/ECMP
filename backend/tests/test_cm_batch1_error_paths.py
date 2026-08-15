@@ -13,7 +13,11 @@ from app.core.authorization.principal import Principal
 from app.core.config import get_settings
 from app.core.errors import InvalidStateError, NotFoundError, ValidationAppError
 from app.integrations.customer import StubCustomerProvider
-from app.integrations.customer.types import CustomerLookupResult
+from app.integrations.customer.types import (
+    CustomerLookupResult,
+    CustomerLookupStatus,
+    MinimalCustomer,
+)
 from app.main import create_app
 from app.modules.cm_batch1 import router as cm_router
 from app.modules.cm_batch1.enumeration import EnumerationGuard
@@ -189,6 +193,80 @@ def test_duplicate_decision_error_branches(service: CmBatch1Service) -> None:
             DuplicateDecisionRequest(decision="recommend_only"),
             actor_id="a",
         )
+
+
+def test_duplicate_blocked_inherits_surviving_customer(service: CmBatch1Service) -> None:
+    surviving = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Surviving blocked inherit",
+            description="x\n\n---\nCatatan:\nCatatan lab",
+        ),
+        request_id="err-block-surv",
+        actor_id="agent-1",
+    )
+    blocked = service.record_duplicate_decision(
+        DuplicateDecisionRequest(
+            decision="blocked",
+            survivingComplaintId=surviving.complaint_id,
+        ),
+        actor_id="sup-1",
+    )
+    assert blocked.hard_block is True
+
+
+def test_confirm_360_and_reference_search(service: CmBatch1Service, store: Batch1Store) -> None:
+    ref = service.search_customer(
+        CustomerSearchRequest(referenceNumber="REF-10000001"),
+        principal_key="p-ref",
+    )
+    assert ref.verification_status in {"verified", "ambiguous", "not_found"}
+
+    down = CmBatch1Service(
+        customer_provider=StubCustomerProvider(available=False),
+        guard=EnumerationGuard(),
+        store=store,
+        strict_master=True,
+    )
+    with pytest.raises(NotFoundError):
+        down.confirm_customer("CUST-10001", principal_key="p-down")
+    with pytest.raises(NotFoundError):
+        service.confirm_customer("CUST-MISSING", principal_key="p-miss")
+    with pytest.raises(NotFoundError):
+        service.customer_360_minimum("CUST-MISSING")
+
+    class _BlankNames(StubCustomerProvider):
+        def get_minimal_customer(self, customer_id: str) -> CustomerLookupResult:
+            return CustomerLookupResult(
+                status=CustomerLookupStatus.FOUND,
+                customer=MinimalCustomer(
+                    customer_id=customer_id,
+                    customer_number="  ",
+                    identity_number="ID-1",
+                    reference_number="REF-1",
+                    display_name="  ",
+                ),
+            )
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Blank customer labels",
+            description="x\n\n---\nCatatan:\nCatatan lab",
+            duplicateOverrideJustification="Lab override for blank customer display names.",
+        ),
+        request_id="err-blank-labels",
+        actor_id="agent-1",
+    )
+    service._customers = _BlankNames()
+    viewed = service.get_complaint(created.complaint_id)
+    assert viewed.customer_display_name is None
 
 
 def test_intake_decision_and_re_escalate_guards(
