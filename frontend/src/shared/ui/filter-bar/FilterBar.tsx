@@ -11,6 +11,8 @@ export interface FilterBarProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
   exportSlot?: ReactNode;
   reset?: ReactNode;
+  /** One visual row (search + filters + actions). Wraps only if the viewport is too narrow. */
+  inline?: boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export function FilterBar({
   actions,
   exportSlot,
   reset,
+  inline = false,
   ...props
 }: FilterBarProps) {
   return (
@@ -37,10 +40,31 @@ export function FilterBar({
       )}
       {...props}
     >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+      <div
+        className={cn(
+          "flex gap-3",
+          inline
+            ? "flex-row flex-wrap items-end"
+            : "flex-col lg:flex-row lg:items-end lg:justify-between",
+        )}
+      >
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 gap-3",
+            inline
+              ? "flex-row flex-wrap items-end"
+              : "flex-col sm:flex-row sm:flex-wrap sm:items-end",
+          )}
+        >
           {search ? (
-            <div className="min-w-0 flex-1 sm:min-w-[14rem]">{search}</div>
+            <div
+              className={cn(
+                "min-w-0 flex-1",
+                inline ? "min-w-[10rem]" : "sm:min-w-[14rem]",
+              )}
+            >
+              {search}
+            </div>
           ) : null}
           {filters ? (
             <div className="flex min-w-0 flex-wrap items-end gap-2">
@@ -48,7 +72,7 @@ export function FilterBar({
             </div>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {advanced && onAdvancedToggle ? (
             <button
               type="button"

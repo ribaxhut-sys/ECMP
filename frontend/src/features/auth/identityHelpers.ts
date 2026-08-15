@@ -39,10 +39,26 @@ export function formatIdentityBranch(
   return `${branchId.slice(0, 8)}…${branchId.slice(-4)}`;
 }
 
+export function moduleRoleDisplayLabels(tUsers: (key: string) => string): Record<string, string> {
+  return {
+    AGENT: tUsers("roleAgent"),
+    CS_AGENT: tUsers("roleAgent"),
+    SUPERVISOR: tUsers("roleSupervisor"),
+    BRANCH_SUPERVISOR: tUsers("roleBranchManager"),
+    MANAGER: tUsers("roleManager"),
+    ADMIN: tUsers("roleAdmin"),
+    ADMINISTRATOR: tUsers("roleAdmin"),
+    SUPER_ADMIN: tUsers("roleAdmin"),
+  };
+}
+
 export function primaryRoleLabel(
   user: Pick<AuthMe, "roles"> | null | undefined,
   fallback: string,
+  labels?: Record<string, string>,
 ): string {
   const role = user?.roles?.[0]?.trim();
-  return role || fallback;
+  if (!role) return fallback;
+  const mapped = labels?.[role.toUpperCase()];
+  return mapped || role;
 }

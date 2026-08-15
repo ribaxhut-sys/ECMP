@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatIdentityBranch,
   identityInitials,
+  moduleRoleDisplayLabels,
   primaryRoleLabel,
 } from "./identityHelpers";
 
@@ -24,6 +25,15 @@ describe("formatIdentityBranch", () => {
 });
 
 describe("primaryRoleLabel", () => {
+  it("maps AGENT to Petugas when labels are provided", () => {
+    const labels = moduleRoleDisplayLabels((key) =>
+      key === "roleAgent" ? "Petugas" : key,
+    );
+    expect(primaryRoleLabel({ roles: ["AGENT"] }, "Pengguna", labels)).toBe(
+      "Petugas",
+    );
+  });
+
   it("returns first role or fallback", () => {
     expect(
       primaryRoleLabel({ roles: ["Supervisor"] }, "Unassigned"),

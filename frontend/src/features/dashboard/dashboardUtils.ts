@@ -1,5 +1,6 @@
 import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import type {
+  BranchCount,
   ComplaintStatus,
   DashboardHeader,
   DashboardRecentActivityItem,
@@ -257,6 +258,29 @@ export function resolutionRatePct(header: DashboardHeader | null): number | null
   return Math.round((header.closedComplaints / header.totalComplaints) * 100);
 }
 
+/** Closed / total as a whole percent; null when there is nothing to rate. */
+export function completionPercent(closed: number, total: number): number | null {
+  if (total <= 0) return null;
+  return Math.round((closed / total) * 100);
+}
+
+/** Higher case-completion first (visible %); then complaint volume. */
+export function compareBranchHealth(
+  a: Pick<BranchCount, "total" | "closed" | "caseTotal" | "caseClosed">,
+  b: Pick<BranchCount, "total" | "closed" | "caseTotal" | "caseClosed">,
+): number {
+  const aCase = completionPercent(a.caseClosed, a.caseTotal) ?? -1;
+  const bCase = completionPercent(b.caseClosed, b.caseTotal) ?? -1;
+  if (bCase !== aCase) return bCase - aCase;
+  return b.total - a.total;
+}
+
+export function sortBranchesByHealth(
+  rows: readonly BranchCount[],
+): BranchCount[] {
+  return [...rows].sort(compareBranchHealth);
+}
+
 /** True proportional width 0–100 from count/max. */
 export function proportionalPct(count: number, max: number): number {
   if (max <= 0 || count <= 0) return 0;
@@ -384,6 +408,23 @@ export type ComplaintActivitySummary = {
   lastTimestamp: string;
 };
 
+/** Higher wins when two events share the same timestamp. */
+const ACTIVITY_OUTCOME_RANK: Record<string, number> = {
+  "complaint.closed": 80,
+  "complaint.resolved": 70,
+  "complaint.escalation_requested": 60,
+  "complaint.escalation_approved": 60,
+  "complaint.escalation_rejected": 60,
+  "complaint.escalation_cancelled": 60,
+  "complaint.handling_continued": 40,
+  "complaint.handling_taken_over": 40,
+  "complaint.created": 10,
+};
+
+function activityOutcomeRank(eventType: string): number {
+  return ACTIVITY_OUTCOME_RANK[eventType] ?? 30;
+}
+
 export function aggregateComplaintActivitySummaries(
   rows: readonly DashboardRecentActivityItem[],
 ): ComplaintActivitySummary[] {
@@ -396,9 +437,11 @@ export function aggregateComplaintActivitySummaries(
 
   const summaries: ComplaintActivitySummary[] = [];
   for (const [complaintNumber, events] of byNumber) {
-    const latest = [...events].sort((a, b) =>
-      a.timestamp.localeCompare(b.timestamp),
-    ).at(-1);
+    const latest = [...events].sort((a, b) => {
+      const byTime = a.timestamp.localeCompare(b.timestamp);
+      if (byTime !== 0) return byTime;
+      return activityOutcomeRank(a.eventType) - activityOutcomeRank(b.eventType);
+    }).at(-1);
     if (!latest) continue;
     summaries.push({
       complaintNumber,
@@ -408,5 +451,9 @@ export function aggregateComplaintActivitySummaries(
     });
   }
 
-  return summaries.sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp));
+  return summaries.sort((a, b) => {
+    const byTime = b.lastTimestamp.localeCompare(a.lastTimestamp);
+    if (byTime !== 0) return byTime;
+    return activityOutcomeRank(b.lastEventType) - activityOutcomeRank(a.lastEventType);
+  });
 }

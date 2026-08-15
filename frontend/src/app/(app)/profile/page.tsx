@@ -8,6 +8,7 @@ import {
   formatIdentityBranch,
   formatIdentityWhen,
   identityInitials,
+  moduleRoleDisplayLabels,
   primaryRoleLabel,
 } from "@/features/auth";
 import { LanguageSwitcher } from "@/shared/i18n";
@@ -29,13 +30,18 @@ export default function ProfilePage() {
   const router = useRouter();
   const { user, status } = useAuth();
   const t = useTranslations("profile");
+  const tUsers = useTranslations("users");
   const tCommon = useTranslations("common");
 
   const initials = useMemo(
     () => identityInitials(user?.fullName ?? user?.username),
     [user?.fullName, user?.username],
   );
-  const roleLabel = primaryRoleLabel(user, t("roleUnassigned"));
+  const roleLabel = primaryRoleLabel(
+    user,
+    t("roleUnassigned"),
+    moduleRoleDisplayLabels(tUsers),
+  );
   const branchLabel = formatIdentityBranch(user?.branchId, t("branchUnassigned"));
   const lastLogin = formatIdentityWhen(user?.lastLoginAt);
   const updatedAt = formatIdentityWhen(user?.updatedAt);

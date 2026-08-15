@@ -2,25 +2,30 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { BranchCount } from "@/lib/api/types";
 import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import {
-  branchBadgeKind,
   DASHBOARD_CAPTION,
   DASHBOARD_SECTION_TITLE,
   DASHBOARD_SURFACE_QUIET,
-  OPS_TONE_DOT,
-  OPS_TONE_TEXT,
-  type BranchBadgeKind,
-  type OpsTone,
+  sortBranchesByHealth,
 } from "./dashboardUtils";
 
-function kindTone(kind: BranchBadgeKind): OpsTone {
-  if (kind === "top") return "healthy";
-  if (kind === "attention") return "attention";
-  return "neutral";
+function casePctLabel(
+  closed: number,
+  total: number,
+  locale: string,
+  empty: string,
+): string {
+  if (total <= 0) return empty;
+  const pct = (closed / total) * 100;
+  const formatted = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: pct % 1 === 0 ? 0 : 1,
+  }).format(pct);
+  return `${formatted}%`;
 }
 
 export function ComplaintByBranch({
@@ -31,15 +36,16 @@ export function ComplaintByBranch({
   loading: boolean;
 }) {
   const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
 
   const ranked = useMemo(() => {
     if (!rows || rows.length === 0) return [];
-    return [...rows].sort((a, b) => b.total - a.total);
+    return sortBranchesByHealth(rows);
   }, [rows]);
 
-  const grandTotal = ranked.reduce((sum, row) => sum + row.total, 0) || 1;
+  const emptyPct = t("branchHealthPctNone");
 
   return (
     <section
@@ -48,9 +54,16 @@ export function ComplaintByBranch({
       aria-label={t("branchHealth")}
       className={`${DASHBOARD_SURFACE_QUIET} flex h-full flex-col p-3.5`}
     >
-      <div>
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("branchHealth")}</h2>
-        <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>{t("byBranch")}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className={DASHBOARD_SECTION_TITLE}>{t("branchHealth")}</h2>
+          <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>{t("byBranch")}</p>
+        </div>
+        {ranked.length > 0 ? (
+          <p className={`shrink-0 ${DASHBOARD_CAPTION}`}>
+            {t("branchHealthListCount", { count: ranked.length })}
+          </p>
+        ) : null}
       </div>
 
       {loading ? (
@@ -71,50 +84,54 @@ export function ComplaintByBranch({
           />
         </div>
       ) : (
-        <ol className="mt-3 space-y-1.5">
-          {ranked.map((row, index) => {
-            const label = row.branchName ?? t("unknownBranch");
-            const pct = Math.round((row.total / grandTotal) * 100);
-            const kind = branchBadgeKind(index, pct, ranked.length);
-            const tone = kindTone(kind);
-            const statusLabel =
-              kind === "top"
-                ? t("topPerformer")
-                : kind === "attention"
-                  ? t("needsAttention")
-                  : null;
-            return (
-              <li
-                key={row.branchId ?? `unassigned-${index}`}
-                className="flex items-center justify-between gap-2 px-1 py-1"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="w-4 shrink-0 tabular-nums text-[11px] text-ecmp-text-secondary">
-                    {index + 1}
-                  </span>
-                  <span className="truncate text-[13px] text-ecmp-text-primary">
-                    {label}
-                  </span>
-                  {statusLabel ? (
-                    <span
-                      className={`inline-flex items-center gap-1 text-[11px] ${OPS_TONE_TEXT[tone]}`}
-                    >
-                      <span
-                        className={`size-1.5 rounded-full ${OPS_TONE_DOT[tone]}`}
-                        aria-hidden
-                      />
-                      {statusLabel}
+        <div className="mt-3 max-h-[20rem] overflow-y-auto pr-1">
+          <div
+            className={`${DASHBOARD_CAPTION} mb-1 grid grid-cols-[minmax(0,1fr)_7.5rem_minmax(11rem,auto)] gap-3 px-1`}
+          >
+            <span />
+            <span className="text-right">{t("branchHealthComplaints")}</span>
+            <span className="text-right">{t("branchHealthCases")}</span>
+          </div>
+          <ol>
+            {ranked.map((row, index) => {
+              const label = row.branchName ?? t("unknownBranch");
+              const pct = casePctLabel(
+                row.caseClosed,
+                row.caseTotal,
+                locale,
+                emptyPct,
+              );
+              return (
+                <li
+                  key={row.branchId ?? `unassigned-${index}`}
+                  className="grid grid-cols-[minmax(0,1fr)_7.5rem_minmax(11rem,auto)] items-baseline gap-3 border-b border-ecmp-border/30 px-1 py-1.5 last:border-0"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="w-6 shrink-0 tabular-nums text-[11px] text-ecmp-text-secondary">
+                      {index + 1}
                     </span>
-                  ) : null}
-                </span>
-                <span className="shrink-0 tabular-nums text-[13px] text-ecmp-text-primary">
-                  {row.total}
-                  <span className={`ml-1.5 ${DASHBOARD_CAPTION}`}>{pct}%</span>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+                    <span className="truncate text-[13px] text-ecmp-text-primary">
+                      {label}
+                    </span>
+                  </span>
+                  <span className="text-right tabular-nums text-[13px] text-ecmp-text-primary">
+                    {t("branchHealthComplaintVolume", {
+                      count: row.total,
+                      cases: row.caseTotal,
+                    })}
+                  </span>
+                  <span className={`text-right tabular-nums ${DASHBOARD_CAPTION}`}>
+                    {t("branchHealthCaseDetail", {
+                      closed: row.caseClosed,
+                      open: row.caseOpen,
+                      pct,
+                    })}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
       )}
     </section>
   );

@@ -249,6 +249,33 @@ def test_list_recent_keeps_resolved_when_not_yet_closed() -> None:
     assert [item.event_type for item in items] == ["complaint.resolved"]
 
 
+def test_list_recent_ranks_closed_above_created_when_same_timestamp() -> None:
+    provider, timeline, complaints, directory = _provider()
+    when = datetime(2026, 8, 15, 6, 55, 54, tzinfo=UTC)
+    aggregate_id = uuid.uuid4()
+    created = _entry(
+        aggregate_id=aggregate_id,
+        event_type="ComplaintRegistered",
+        created_at=when,
+    )
+    closed = _entry(
+        aggregate_id=aggregate_id,
+        event_type="IntakeDispositionRecorded",
+        metadata={"intakeDisposition": "BRANCH_CLOSED"},
+        created_at=when,
+    )
+    timeline.list_recent.return_value = [created, closed]
+    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-2608-0009")
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == [
+        "complaint.closed",
+        "complaint.created",
+    ]
+
+
 def test_list_recent_ranks_escalation_above_created_when_same_timestamp() -> None:
     provider, timeline, complaints, directory = _provider()
     when = datetime(2026, 8, 8, 7, 30, tzinfo=UTC)

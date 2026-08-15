@@ -4,5 +4,6 @@ export {
   formatIdentityBranch,
   formatIdentityWhen,
   identityInitials,
+  moduleRoleDisplayLabels,
   primaryRoleLabel,
 } from "./identityHelpers";

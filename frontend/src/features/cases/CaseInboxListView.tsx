@@ -55,16 +55,43 @@ function profileText(
   return null;
 }
 
+type CustomerListLabel = { name: string; number: string | null };
+
+function customerListLabel(
+  name: string | null | undefined,
+  number: string | null | undefined,
+): CustomerListLabel | null {
+  const displayName = (name || "").trim();
+  const displayNumber = (number || "").trim();
+  if (!displayName && !displayNumber) return null;
+  if (displayName && displayNumber && displayName !== displayNumber) {
+    return { name: displayName, number: displayNumber };
+  }
+  return { name: displayName || displayNumber, number: null };
+}
+
+function putCustomerLabel(
+  map: Record<string, CustomerListLabel>,
+  keys: Array<string | null | undefined>,
+  label: CustomerListLabel | null,
+) {
+  if (!label) return;
+  for (const key of keys) {
+    const id = (key || "").trim();
+    if (id) map[id] = label;
+  }
+}
+
 function customerLabelForId(
   customerId: string | null | undefined,
-  labels: Record<string, string>,
+  labels: Record<string, CustomerListLabel>,
   emDash: string,
-): string {
+): CustomerListLabel {
   const id = (customerId || "").trim();
-  if (!id) return emDash;
+  if (!id) return { name: emDash, number: null };
   if (labels[id]) return labels[id];
-  if (looksLikeUuid(id)) return emDash;
-  return id;
+  if (looksLikeUuid(id)) return { name: emDash, number: null };
+  return { name: id, number: null };
 }
 
 /**
@@ -87,9 +114,9 @@ export function CaseInboxListView() {
   const [draftStatus, setDraftStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [customerLabels, setCustomerLabels] = useState<Record<string, string>>(
-    {},
-  );
+  const [customerLabels, setCustomerLabels] = useState<
+    Record<string, CustomerListLabel>
+  >({});
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -142,15 +169,15 @@ export function CaseInboxListView() {
           return [id, res] as const;
         }),
       ]);
-      const next: Record<string, string> = {};
+      const next: Record<string, CustomerListLabel> = {};
       for (const customer of customersRes?.data ?? []) {
         const name = customer.fullName?.trim();
-        if (!name) continue;
         const number = customer.externalCustomerId?.trim();
-        const label =
-          number && number !== name ? `${name} (${number})` : name;
-        next[customer.id] = label;
-        if (number) next[number] = label;
+        putCustomerLabel(
+          next,
+          [customer.id, number],
+          customerListLabel(name, number),
+        );
       }
       for (const [id, res] of profiles) {
         if (next[id]) continue;
@@ -164,12 +191,7 @@ export function CaseInboxListView() {
           "customer_number",
           "externalId",
         );
-        if (name) {
-          next[id] =
-            number && number !== name ? `${name} (${number})` : name;
-        } else if (number) {
-          next[id] = number;
-        }
+        putCustomerLabel(next, [id, number], customerListLabel(name, number));
       }
       if (!cancelled) setCustomerLabels(next);
     })();
@@ -215,26 +237,42 @@ export function CaseInboxListView() {
     {
       key: "caseNumber",
       header: t("caseNumber"),
-      cell: (row) => (
-        <Link
-          href={`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`}
-          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
-        >
-          {row.caseNumber}
-        </Link>
-      ),
+      cell: (row) => {
+        const complaintNumber = row.complaintNumber?.trim();
+        const complaintId = row.complaintId?.trim();
+        const complaintHref = complaintId
+          ? `/complaints/cm/${encodeURIComponent(complaintId)}`
+          : null;
+        return (
+          <div className="min-w-0 leading-snug">
+            <Link
+              href={`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`}
+              className="block truncate font-medium text-ecmp-primary underline-offset-2 hover:underline"
+            >
+              {row.caseNumber}
+            </Link>
+            {complaintNumber || complaintHref ? (
+              complaintHref ? (
+                <Link
+                  href={complaintHref}
+                  className="block truncate font-mono text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary"
+                >
+                  {complaintNumber || t("parentComplaintNumber")}
+                </Link>
+              ) : (
+                <div className="truncate font-mono text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary">
+                  {complaintNumber}
+                </div>
+              )
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       key: "subject",
       header: t("subject"),
       cell: (row) => row.subject?.trim() || "—",
-    },
-    {
-      key: "status",
-      header: tCommon("status"),
-      headerClassName: "whitespace-nowrap",
-      className: "whitespace-nowrap",
-      cell: (row) => <CaseStatusBadge status={row.status} />,
     },
     {
       key: "priority",
@@ -251,14 +289,33 @@ export function CaseInboxListView() {
       key: "customer",
       header: t("customer"),
       hideOnMobile: true,
-      cell: (row) =>
-        customerLabelForId(row.customerId, customerLabels, tCommon("emDash")),
+      className: "max-w-[14rem]",
+      cell: (row) => {
+        const label = customerLabelForId(
+          row.customerId,
+          customerLabels,
+          tCommon("emDash"),
+        );
+        return (
+          <div className="min-w-0 leading-snug">
+            <div className="truncate font-medium text-ecmp-text-primary">
+              {label.name}
+            </div>
+            {label.number ? (
+              <div className="truncate font-mono text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary">
+                {label.number}
+              </div>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
-      key: "unit",
-      header: t("unit"),
-      hideOnMobile: true,
-      cell: (row) => row.owningUnitId ?? row.ownerUnitId ?? "—",
+      key: "status",
+      header: tCommon("status"),
+      headerClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap",
+      cell: (row) => <CaseStatusBadge status={row.status} />,
     },
   ];
 
@@ -266,7 +323,6 @@ export function CaseInboxListView() {
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("inboxTitle")}
-        description={t("inboxDescription")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("inboxTitle") },

@@ -60,7 +60,7 @@ export function defaultCmBatch1ListFilters(): CmBatch1ListFilters {
     createdBy: "",
     decidedBy: "",
     page: 1,
-    pageSize: 20,
+    pageSize: 10,
   };
 }
 

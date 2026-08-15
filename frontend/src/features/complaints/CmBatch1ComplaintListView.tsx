@@ -28,6 +28,7 @@ import {
   Input,
   PageContainer,
   PageHeader,
+  Pagination,
   Select,
   Skeleton,
   Table,
@@ -42,8 +43,7 @@ import {
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
 import {
-  buildPenangananSummarySegments,
-  joinPenangananSummarySegments,
+  handlerInitialsFromCases,
   penangananCountsFromCases,
   resolvePenangananContextKind,
 } from "./penangananGroups";
@@ -52,6 +52,7 @@ type PenangananListCounts = {
   open: number;
   pusat: number;
   done: number;
+  handlerInitials: string | null;
 };
 
 function customerCellLabel(
@@ -167,8 +168,9 @@ export function CmBatch1ComplaintListView() {
               page: 1,
               pageSize: 50,
             });
+            const cases = res.data ?? [];
             const counts = penangananCountsFromCases(
-              res.data ?? [],
+              cases,
               row.intakeDisposition,
             );
             return [
@@ -177,6 +179,10 @@ export function CmBatch1ComplaintListView() {
                 open: counts.open,
                 pusat: counts.pusat,
                 done: counts.done,
+                handlerInitials: handlerInitialsFromCases(
+                  cases,
+                  row.intakeDisposition,
+                ),
               } satisfies PenangananListCounts,
             ] as const;
           } catch {
@@ -400,27 +406,18 @@ export function CmBatch1ComplaintListView() {
           intakeDisposition: row.intakeDisposition,
           counts: summary,
         });
-        const compact = joinPenangananSummarySegments(
-          buildPenangananSummarySegments(summary, {
-            open: (n) => t("penangananSummaryOpen", { count: n }),
-            pusat: (n) => t("penangananSummaryPusat", { count: n }),
-            done: (n) => t("penangananSummaryDone", { count: n }),
-          }),
-        );
+        const initials = summary.handlerInitials;
 
         if (kind === "closed") {
           return <Badge tone="success">{t("penangananListClosed")}</Badge>;
         }
         if (kind === "hq_waiting") {
           return (
-            <div className="flex flex-col items-start gap-1">
-              <Badge tone="warning">{t("penangananListHqWaiting")}</Badge>
-              {compact ? (
-                <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                  {compact}
-                </span>
-              ) : null}
-            </div>
+            <Badge tone="warning">
+              {initials
+                ? t("penangananListHqWaitingWithOfficer", { initials })
+                : t("penangananListHqWaiting")}
+            </Badge>
           );
         }
         if (kind === "none") {
@@ -429,34 +426,13 @@ export function CmBatch1ComplaintListView() {
           );
         }
         return (
-          <div className="flex flex-col items-start gap-1">
-            <Badge tone="info">{t("penangananListHas")}</Badge>
-            {compact ? (
-              <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-primary">
-                {compact}
-              </span>
-            ) : null}
-          </div>
+          <Badge tone="info">
+            {initials
+              ? t("penangananInProgressWithOfficer", { initials })
+              : t("penangananInProgress")}
+          </Badge>
         );
       },
-    },
-    {
-      key: "open",
-      header: tCommon("actions"),
-      cell: (row) => (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() =>
-            router.push(
-              `/complaints/cm/${encodeURIComponent(row.complaintId)}`,
-            )
-          }
-        >
-          {t("openComplaint")}
-        </Button>
-      ),
     },
   ];
 
@@ -474,7 +450,6 @@ export function CmBatch1ComplaintListView() {
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
         ]}
-        description={t("aggregateListDescription")}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -507,6 +482,7 @@ export function CmBatch1ComplaintListView() {
 
       <form onSubmit={onSubmitFilters} aria-label={t("filtersAriaLabel")}>
         <FilterBar
+          inline
           search={
             <Input
               name="keyword"
@@ -521,27 +497,31 @@ export function CmBatch1ComplaintListView() {
           }
           filters={
             <>
-              <Select
-                name="status"
-                label={t("status")}
-                options={statusFilterOptions}
-                value={draft.status}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, status: e.target.value }))
-                }
-              />
-              <Select
-                name="intakeDisposition"
-                label={t("intakeDispositionFilter")}
-                options={intakeDispositionFilterOptions}
-                value={draft.intakeDisposition}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    intakeDisposition: e.target.value,
-                  }))
-                }
-              />
+              <div className="w-[11.5rem] shrink-0">
+                <Select
+                  name="status"
+                  label={t("status")}
+                  options={statusFilterOptions}
+                  value={draft.status}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, status: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="w-[14rem] shrink-0">
+                <Select
+                  name="intakeDisposition"
+                  label={t("intakeDispositionFilter")}
+                  options={intakeDispositionFilterOptions}
+                  value={draft.intakeDisposition}
+                  onChange={(e) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      intakeDisposition: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </>
           }
           actions={<Button type="submit">{t("applyFilters")}</Button>}
@@ -639,41 +619,28 @@ export function CmBatch1ComplaintListView() {
                 getRowKey={(row) => row.complaintId}
                 stickyHeader
               />
-              {totalPages > 1 ? (
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={filters.page <= 1 || loading}
-                    onClick={() =>
-                      applyFilters({
-                        ...filters,
-                        page: Math.max(1, filters.page - 1),
-                      })
-                    }
-                  >
-                    {tCommon("previous")}
-                  </Button>
-                  <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                    {tCommon("pageOf", { page: filters.page, totalPages })}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={filters.page >= totalPages || loading}
-                    onClick={() =>
-                      applyFilters({
-                        ...filters,
-                        page: Math.min(totalPages, filters.page + 1),
-                      })
-                    }
-                  >
-                    {tCommon("next")}
-                  </Button>
-                </div>
-              ) : null}
+              <Pagination
+                summary={tCommon("pageOf", {
+                  page: filters.page,
+                  totalPages,
+                })}
+                previousLabel={tCommon("previous")}
+                nextLabel={tCommon("next")}
+                previousDisabled={filters.page <= 1 || loading}
+                nextDisabled={filters.page >= totalPages || loading}
+                onPrevious={() =>
+                  applyFilters({
+                    ...filters,
+                    page: Math.max(1, filters.page - 1),
+                  })
+                }
+                onNext={() =>
+                  applyFilters({
+                    ...filters,
+                    page: Math.min(totalPages, filters.page + 1),
+                  })
+                }
+              />
             </>
           )}
         </CardBody>

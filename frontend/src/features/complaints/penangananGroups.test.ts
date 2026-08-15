@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPenangananSummarySegments,
+  handlerInitialsFromCases,
   isHqIntakeDisposition,
   joinPenangananSummarySegments,
   partitionPenanganan,
@@ -140,5 +141,25 @@ describe("penangananGroups", () => {
         counts: { open: 0, pusat: 0, done: 0 },
       }),
     ).toBe("none");
+  });
+
+  it("picks initials from the first open or HQ handler", () => {
+    expect(
+      handlerInitialsFromCases(
+        [
+          {
+            status: "IN_PROGRESS",
+            handlingClaimedByName: "Ahmad Santoso",
+          },
+        ],
+        null,
+      ),
+    ).toBe("ASA");
+    expect(
+      handlerInitialsFromCases(
+        [{ status: "CLOSED", handlingClaimedByName: "Ahmad Santoso" }],
+        null,
+      ),
+    ).toBeNull();
   });
 });

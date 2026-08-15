@@ -3,6 +3,8 @@
  * Case remains SoT behind the UI; labels/groups are presentation only (DEC-020).
  */
 
+import { officerInitials } from "./officerDisplayName";
+
 export type PenangananGroupId = "open" | "pusat" | "done" | "cancelled";
 
 /** Intake dispositions: complaint actively on HQ escalation path (not returned/rejected). */
@@ -81,6 +83,23 @@ export function penangananSummaryCounts(
 }
 
 /** Counts for Aggregate list column (open / HQ / done). */
+export function handlerInitialsFromCases(
+  items: readonly {
+    status: string;
+    handlingClaimedByName?: string | null;
+  }[],
+  intakeDisposition?: string | null,
+): string | null {
+  const parts = partitionPenanganan(items, {
+    complaintOnHqPath: isHqIntakeDisposition(intakeDisposition),
+  });
+  for (const item of [...parts.open, ...parts.pusat]) {
+    const initials = officerInitials(item.handlingClaimedByName);
+    if (initials) return initials;
+  }
+  return null;
+}
+
 export function penangananCountsFromCases(
   items: readonly { status: string }[],
   intakeDisposition?: string | null,

@@ -9,6 +9,8 @@ import {
   CRITICAL_ALERT_VISIBLE_LIMIT,
   dashboardEmptyWorkCta,
   resolveSystemHealth,
+  completionPercent,
+  sortBranchesByHealth,
   sortBranchesHeadOfficeFirst,
   visibleAlertSlice,
 } from "./dashboardUtils";
@@ -216,5 +218,66 @@ describe("aggregateComplaintActivitySummaries", () => {
       lastEventType: "complaint.created",
       actor: "Budi",
     });
+  });
+
+  it("prefers closed over created when timestamps are equal", () => {
+    const summaries = aggregateComplaintActivitySummaries([
+      {
+        eventType: "complaint.created",
+        complaintNumber: "TAB-2608-0009",
+        timestamp: "2026-08-15T06:55:54.516Z",
+        actor: "Ahmad Santoso",
+      },
+      {
+        eventType: "complaint.closed",
+        complaintNumber: "TAB-2608-0009",
+        timestamp: "2026-08-15T06:55:54.516Z",
+        actor: "Ahmad Santoso",
+      },
+    ]);
+
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].lastEventType).toBe("complaint.closed");
+  });
+});
+
+describe("completionPercent", () => {
+  it("returns null when there is no volume", () => {
+    expect(completionPercent(0, 0)).toBeNull();
+  });
+
+  it("rounds closed over total", () => {
+    expect(completionPercent(9, 9)).toBe(100);
+    expect(completionPercent(1, 3)).toBe(33);
+  });
+});
+
+describe("sortBranchesByHealth", () => {
+  it("puts higher case completion first", () => {
+    const sorted = sortBranchesByHealth([
+      {
+        branchId: "a",
+        branchCode: "A",
+        branchName: "Alpha",
+        total: 10,
+        open: 9,
+        closed: 1,
+        caseTotal: 10,
+        caseOpen: 9,
+        caseClosed: 1,
+      },
+      {
+        branchId: "b",
+        branchCode: "B",
+        branchName: "Beta",
+        total: 3,
+        open: 0,
+        closed: 3,
+        caseTotal: 3,
+        caseOpen: 0,
+        caseClosed: 3,
+      },
+    ]);
+    expect(sorted.map((row) => row.branchCode)).toEqual(["B", "A"]);
   });
 });

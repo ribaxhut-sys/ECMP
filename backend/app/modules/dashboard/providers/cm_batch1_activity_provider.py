@@ -97,6 +97,7 @@ _DASHBOARD_HIDDEN_EVENT_TYPES = frozenset(
 
 # F4 close path is one business outcome on the dashboard. Keep CaseClosed;
 # drop resolve + dual-accept rows for the same complaint when close is present.
+# Do not hide ComplaintRegistered — creation remains a visible activity.
 _CLOSE_PATH_PRECURSOR_EVENT_TYPES = frozenset(
     {
         "CaseResolved",
@@ -205,7 +206,8 @@ class CmBatch1ActivityDashboardProvider:
                 a.complaint_number == b.complaint_number
                 and close_in_time
                 and a.event_type == "complaint.created"
-                and b.event_type == "complaint.escalation_requested"
+                and b.event_type
+                in {"complaint.escalation_requested", "complaint.closed"}
             ):
                 out[i], out[i + 1] = b, a
                 i += 2
