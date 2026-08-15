@@ -67,6 +67,10 @@ class CaseRepository(Protocol):
         (BR-005 E4 — double-claim race: only one claim wins).
         """
 
+    def complaint_numbers_by_ids(self, complaint_ids: list[str]) -> dict[str, str]:
+        """Map complaint UUID string → human complaint number."""
+        ...
+
     def list_summaries(
         self,
         *,

@@ -1222,6 +1222,11 @@ def test_api_536_list_visibility_self_unit_admin(db_session: Session) -> None:
         assert admin_list.status_code == 200
         admin_ids = {row["caseId"] for row in admin_list.json()["data"]}
         assert case_a.case_id in admin_ids and case_b.case_id in admin_ids
+        by_id = {row["caseId"]: row for row in admin_list.json()["data"]}
+        n1 = db_session.get(CmBatch1ComplaintORM, uuid.UUID(c1)).complaint_number
+        n2 = db_session.get(CmBatch1ComplaintORM, uuid.UUID(c2)).complaint_number
+        assert by_id[case_a.case_id]["complaintNumber"] == n1
+        assert by_id[case_b.case_id]["complaintNumber"] == n2
         assert admin_list.json()["meta"]["totalItems"] >= 2
 
     app.dependency_overrides.clear()

@@ -13,6 +13,7 @@ class CaseSummaryResponse(BaseModel):
     case_id: str = Field(alias="caseId")
     case_number: str = Field(alias="caseNumber")
     complaint_id: str = Field(alias="complaintId")
+    complaint_number: str | None = Field(default=None, alias="complaintNumber")
     status: str
     case_type: str | None = Field(default=None, alias="caseType")
     category: str | None = None

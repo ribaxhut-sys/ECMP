@@ -68,6 +68,7 @@ export interface CmCaseSummary {
   caseId: string;
   caseNumber: string;
   complaintId: string;
+  complaintNumber?: string | null;
   status: CmCaseStatus;
   caseType?: string | null;
   category?: string | null;

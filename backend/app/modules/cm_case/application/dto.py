@@ -130,6 +130,7 @@ class CaseSummaryDTO:
     owning_unit_id: str | None = None
     owner_unit_id: str | None = None
     customer_id: str | None = None
+    complaint_number: str | None = None
 
 
 @dataclass

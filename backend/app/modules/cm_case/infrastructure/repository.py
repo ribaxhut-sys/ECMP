@@ -144,6 +144,27 @@ class SqlAlchemyCaseRepository:
         )
         return mappers.case_from_orm(row, resolutions, acceptances)
 
+    def complaint_numbers_by_ids(self, complaint_ids: list[str]) -> dict[str, str]:
+        uuids: list[UUID] = []
+        seen: set[UUID] = set()
+        for raw in complaint_ids:
+            try:
+                uid = UUID(str(raw).strip())
+            except ValueError:
+                continue
+            if uid in seen:
+                continue
+            seen.add(uid)
+            uuids.append(uid)
+        if not uuids:
+            return {}
+        rows = self._session.execute(
+            select(CmBatch1ComplaintORM.id, CmBatch1ComplaintORM.complaint_number).where(
+                CmBatch1ComplaintORM.id.in_(uuids)
+            )
+        ).all()
+        return {str(row_id): number for row_id, number in rows}
+
     def list_summaries(
         self,
         *,

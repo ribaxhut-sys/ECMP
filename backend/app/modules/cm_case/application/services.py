@@ -431,6 +431,9 @@ class CaseApplicationService:
             page=page,
             page_size=page_size,
         )
+        numbers = self._repo.complaint_numbers_by_ids(
+            [row.complaint_id for row in rows]
+        )
         items = [
             CaseSummaryDTO(
                 case_id=str(row.id),
@@ -447,6 +450,7 @@ class CaseApplicationService:
                 owning_unit_id=row.owning_unit_id,
                 owner_unit_id=row.owner_unit_id,
                 customer_id=row.customer_id,
+                complaint_number=numbers.get(str(row.complaint_id)),
             )
             for row in rows
         ]

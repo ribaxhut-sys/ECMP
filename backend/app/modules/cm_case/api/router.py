@@ -205,6 +205,7 @@ def list_cases(
                 caseId=i.case_id,
                 caseNumber=i.case_number,
                 complaintId=i.complaint_id,
+                complaintNumber=i.complaint_number,
                 status=i.status,
                 caseType=i.case_type,
                 category=i.category,

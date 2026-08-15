@@ -1023,6 +1023,10 @@ components:
             - CASE-2026-000001
         complaintId:
           type: string
+        complaintNumber:
+          type: string
+          nullable: true
+          description: Parent Aggregate complaint number (human-readable).
         status:
           $ref: "#/components/schemas/CaseStatus"
         caseType:
