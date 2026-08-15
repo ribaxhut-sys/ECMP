@@ -42,6 +42,7 @@ const CLASSIFICATION_OPTIONS = [
   { value: "customer_evidence", label: "classificationCustomerEvidence" },
   { value: "internal_evidence", label: "classificationInternalEvidence" },
   { value: "official_letter", label: "classificationOfficialLetter" },
+  { value: "other", label: "classificationOther" },
 ] as const;
 
 const ACCEPT_MIME =

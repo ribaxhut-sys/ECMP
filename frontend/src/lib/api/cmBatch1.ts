@@ -240,7 +240,8 @@ export type CmBatch1AttachmentStatus =
 export type CmBatch1AttachmentClassification =
   | "customer_evidence"
   | "internal_evidence"
-  | "official_letter";
+  | "official_letter"
+  | "other";
 
 export interface CmBatch1AttachmentResponse {
   attachmentId: string;

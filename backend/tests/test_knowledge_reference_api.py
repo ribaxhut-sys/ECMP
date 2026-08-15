@@ -275,6 +275,39 @@ def test_reference_search_excludes_draft(
     assert draft["title"] not in titles
 
 
+def test_type_counts_match_citable_reference_set(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    """Picker counts ignore DRAFT and include ACTIVE in-window records."""
+    client.post(
+        "/api/v1/knowledge",
+        json={"title": "Draft tidak dihitung", "knowledgeType": "SOP"},
+        headers=admin_header,
+    )
+    _create_active_knowledge(
+        client, admin_header, title="SOP citable type-counts", knowledge_type="SOP"
+    )
+    _create_active_knowledge(
+        client,
+        admin_header,
+        title="Peraturan citable type-counts",
+        knowledge_type="PERATURAN",
+    )
+
+    resp = client.get("/api/v1/knowledge/type-counts", headers=admin_header)
+    assert resp.status_code == 200, resp.text
+    counts = resp.json()["data"]
+    assert counts["SOP"] >= 1
+    assert counts["PERATURAN"] >= 1
+    assert set(counts) == {
+        "SOP",
+        "PERATURAN",
+        "SURAT_EDARAN",
+        "KEPUTUSAN",
+        "PANDUAN",
+    }
+
+
 def test_reference_search_caps_at_ten_results(
     client: TestClient, admin_header: dict[str, str]
 ) -> None:

@@ -40,6 +40,8 @@ import {
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
 import { formatDateTime24 } from "@/shared/utils/datetime";
+import { cn } from "@/shared/utils";
+import { officerDisplayName } from "./officerDisplayName";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
 import {
   CASE_ESCALATE_ACTION_QUERY,
@@ -69,9 +71,14 @@ import {
 import type { Branch } from "@/lib/api/branches";
 import {
   PRIORITY_OPTIONS,
-  formatRegisteredIntakeNote,
   parseCmBatch1Description,
 } from "./createComplaintForm";
+
+/** Case-handling events shown in ComplaintPenangananSection, not repeated in this page's log. */
+const CONFIRMATION_HIDDEN_HISTORY_CODES = new Set([
+  "HANDLING_CONTINUED",
+  "HANDLING_TAKEN_OVER",
+]);
 
 const REJECT_NOTE_MIN = 20;
 const LOG_PAGE_SIZE = 10;
@@ -705,14 +712,38 @@ export function CmBatch1ConfirmationView({
       ? tPriority(priorityRaw as (typeof priorityKnown)[number])
       : priorityRaw || tCommon("emDash");
 
-  const pageTitle =
-    intakeClosed || data?.status === "CLOSED"
-      ? t("intakeClosedBannerTitle")
-      : approvedEscalation
-        ? t("escalationApproved")
-        : pendingEscalation || intakeEscalate
-          ? t("intakeEscalateBannerTitle")
-          : t("complaintRegistered");
+  const registrationUnitLabel = data
+    ? resolveCmBatch1RegistrationUnitLabel(data.owningUnitId, branches)
+    : null;
+  const closedAtBranch =
+    intakeClosed ||
+    (data?.status === "CLOSED" && data?.intakeDisposition === "BRANCH_CLOSED");
+  const closedAtHq = !closedAtBranch && data?.status === "CLOSED";
+  const escalationBannerTitle = approvedEscalation
+    ? t("escalationApproved")
+    : pendingEscalation || intakeEscalate
+      ? t("intakeEscalateBannerTitle")
+      : null;
+  const penangananTitleReady = !penangananSnapshot.loading;
+
+  const pageTitle = closedAtBranch
+    ? t("intakeClosedByUnitTitle", {
+        unit: registrationUnitLabel || tCommon("emDash"),
+      })
+    : closedAtHq
+      ? t("intakeClosedByHqTitle")
+      : escalationBannerTitle
+        ? escalationBannerTitle
+        : !penangananTitleReady
+          ? t("complaintStatusLoading")
+          : penangananSnapshot.handlingClaimedBy
+            ? t("penangananInProgressTitle", {
+                name:
+                  officerDisplayName(
+                    penangananSnapshot.handlingClaimedByName,
+                  ) || tCommon("emDash"),
+              })
+            : t("complaintRegistered");
 
   const rejectNoteOk = rejectNote.trim().length >= REJECT_NOTE_MIN;
   const cancelNoteOk = cancelNote.trim().length >= REJECT_NOTE_MIN;
@@ -769,15 +800,6 @@ export function CmBatch1ConfirmationView({
   /** Note carried by the blob — the only source for events logged before API-517. */
   function blobNoteFor(code: string): string | null {
     switch (code) {
-      case "REGISTERED":
-        return formatRegisteredIntakeNote(
-          intakeHistory.narrative,
-          intakeHistory.branchResolution,
-          {
-            description: t("intakeHistoryDescriptionLabel"),
-            note: t("intakeHistoryNoteLabel"),
-          },
-        );
       case "ESCALATION_REQUESTED":
       case "ESCALATION_RE_REQUESTED":
         return intakeHistory.escalationReason;
@@ -831,7 +853,7 @@ export function CmBatch1ConfirmationView({
     }));
   }
 
-  const logRows: IntakeLogRow[] =
+  const logRows: IntakeLogRow[] = (
     history.length > 0
       ? history.map((entry) => ({
           key: entry.entryId,
@@ -839,15 +861,16 @@ export function CmBatch1ConfirmationView({
           actor: entry.actorName?.trim() || null,
           when: formatDateTime24(entry.occurredAt),
           priority: entry.priority?.trim() || null,
-          // Prefer structured Deskripsi+Catatan for REGISTERED (timeline note is narrative-only).
+          // REGISTERED narrative/note now live in the "isi" card, not the log row.
           note:
             entry.eventCode === "REGISTERED"
-              ? blobNoteFor("REGISTERED")
+              ? null
               : intakeHistoryShowsNote(entry.eventCode)
                 ? entry.note?.trim() || blobNoteFor(entry.eventCode)
                 : null,
         }))
-      : blobOnlyRows();
+      : blobOnlyRows()
+  ).filter((row) => !CONFIRMATION_HIDDEN_HISTORY_CODES.has(row.code));
 
   const logTotalPages = Math.max(
     1,
@@ -892,21 +915,17 @@ export function CmBatch1ConfirmationView({
           { label: t("confirmation") },
         ]}
         description={
-          intakeClosed || data?.status === "CLOSED"
-            ? t("intakeClosedBannerDescription")
-            : pendingEscalation || intakeEscalate
-              ? t("intakeEscalateBannerDescription")
-              : t("confirmationDescription")
+          closedAtBranch
+            ? t("intakeClosedByUnitDescription")
+            : closedAtHq
+              ? t("intakeClosedByHqDescription")
+              : pendingEscalation || intakeEscalate
+                ? t("intakeEscalateBannerDescription")
+                : penangananTitleReady && penangananSnapshot.handlingClaimedBy
+                  ? t("penangananInProgressDescription")
+                  : t("confirmationDescription")
         }
       />
-
-      {intakeClosed ? (
-        <Alert
-          tone="info"
-          title={t("intakeClosedBannerTitle")}
-          description={t("intakeClosedBannerDescription")}
-        />
-      ) : null}
 
       {pendingEscalation || intakeEscalate ? (
         <Alert
@@ -961,27 +980,9 @@ export function CmBatch1ConfirmationView({
       {!loading && data ? (
         <>
           <section className="space-y-[var(--ecmp-panel-gap)]">
-            <SectionHeader
-              title={t("registrationDetails")}
-              description={
-                intakeClosed || data.status === "CLOSED"
-                  ? t("registrationDetailsDescriptionClosed")
-                  : pendingEscalation || intakeEscalate
-                    ? t("registrationDetailsDescriptionEscalate")
-                    : t("registrationDetailsDescription")
-              }
-            />
             <Card>
               <CardBody>
                 <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
-                  {data.subject ? (
-                    <div className="md:col-span-2">
-                      <dt className="sr-only">{t("subject")}</dt>
-                      <dd className="text-[length:var(--ecmp-font-title-size)] font-[number:var(--ecmp-font-title-weight)] leading-[var(--ecmp-font-title-line)] tracking-tight text-ecmp-text-primary">
-                        {data.subject}
-                      </dd>
-                    </div>
-                  ) : null}
                   <div className="space-y-1">
                     <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                       {t("complaintNumber")}
@@ -1046,16 +1047,6 @@ export function CmBatch1ConfirmationView({
                   </div>
                   <div className="space-y-1">
                     <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                      {t("registeredByLabel")}
-                    </dt>
-                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                      {data.createdByName?.trim() ||
-                        data.createdBy?.trim() ||
-                        tCommon("emDash")}
-                    </dd>
-                  </div>
-                  <div className="space-y-1">
-                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                       {t("customer")}
                     </dt>
                     <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -1064,6 +1055,15 @@ export function CmBatch1ConfirmationView({
                         data.customerNumber,
                         data.customerId,
                       ) || tCommon("emDash")}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("registeredByLabel")}
+                    </dt>
+                    <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {officerDisplayName(data.createdByName) ||
+                        tCommon("emDash")}
                     </dd>
                   </div>
                   {intakeEscalate ||
@@ -1113,6 +1113,76 @@ export function CmBatch1ConfirmationView({
             </Card>
           </section>
 
+          {data.subject ||
+          intakeHistory.narrative.trim() ||
+          intakeHistory.branchResolution?.trim() ? (
+            <section className="space-y-[var(--ecmp-panel-gap)]">
+              <Card>
+                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                  {data.subject ? (
+                    <div className="space-y-1">
+                      <p className="sr-only">{t("subject")}</p>
+                      <p className="text-[length:var(--ecmp-font-title-size)] font-[number:var(--ecmp-font-title-weight)] uppercase leading-[var(--ecmp-font-title-line)] tracking-tight text-ecmp-text-primary">
+                        {data.subject}
+                      </p>
+                    </div>
+                  ) : null}
+                  {intakeHistory.narrative.trim() ? (
+                    <div className="space-y-1">
+                      <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("intakeHistoryDescriptionLabel")}
+                      </p>
+                      <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        <KnowledgeReferenceText
+                          text={intakeHistory.narrative.trim()}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                  {intakeHistory.branchResolution?.trim() ? (
+                    <div
+                      className={cn(
+                        "space-y-1",
+                        intakeHistory.narrative.trim() &&
+                          "border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]",
+                      )}
+                    >
+                      <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {data.status === "CLOSED"
+                          ? t("intakeHistoryClosedNoteLabel")
+                          : t("intakeHistoryNoteLabel")}
+                      </p>
+                      <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        <KnowledgeReferenceText
+                          text={intakeHistory.branchResolution.trim()}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </CardBody>
+              </Card>
+            </section>
+          ) : null}
+
+          <CmBatch1BoundAttachmentsCard
+            complaintId={data.complaintId}
+            customerId={data.customerId}
+            allowUpload={
+              !(
+                intakeClosed ||
+                data.status === "CLOSED" ||
+                data.intakeDisposition === "BRANCH_CLOSED"
+              )
+            }
+            allowVoid={
+              !(
+                intakeClosed ||
+                data.status === "CLOSED" ||
+                data.intakeDisposition === "BRANCH_CLOSED"
+              )
+            }
+          />
+
           <section className="space-y-[var(--ecmp-panel-gap)]">
             <SectionHeader
               title={t("intakeHistoryTitle")}
@@ -1155,8 +1225,7 @@ export function CmBatch1ConfirmationView({
                         const number = (safeLogPage - 1) * LOG_PAGE_SIZE + index + 1;
                         const open = openLogKeys.has(row.key);
                         const expandable =
-                          row.code === "REGISTERED" ||
-                          (intakeHistoryShowsNote(row.code) && Boolean(row.note));
+                          intakeHistoryShowsNote(row.code) && Boolean(row.note);
                         const header = (
                           <>
                               <span
@@ -1175,11 +1244,13 @@ export function CmBatch1ConfirmationView({
                                   {intakeHistoryIsCloseEvent(row.code)
                                     ? t("closedByActor", {
                                         name:
-                                          row.actor ||
-                                          data.createdByName?.trim() ||
-                                          tCommon("emDash"),
+                                          officerDisplayName(
+                                            row.actor,
+                                            data.createdByName,
+                                          ) || tCommon("emDash"),
                                       })
-                                    : row.actor || tCommon("emDash")}
+                                    : officerDisplayName(row.actor) ||
+                                      tCommon("emDash")}
                                 </span>
                                 <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                                   {row.when || tCommon("emDash")}
@@ -1239,38 +1310,7 @@ export function CmBatch1ConfirmationView({
                                 id={`intake-log-note-${row.key}`}
                                 className="break-words border-t border-ecmp-border px-3 pb-3 pt-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
                               >
-                                {row.code === "REGISTERED" ? (
-                                  <div className="space-y-3">
-                                    <div className="space-y-1">
-                                      <p className="font-semibold text-ecmp-text-primary">
-                                        {t("intakeHistoryDescriptionLabel")}
-                                      </p>
-                                      <div className="whitespace-pre-wrap">
-                                        <KnowledgeReferenceText
-                                          text={
-                                            intakeHistory.narrative.trim() ||
-                                            "—"
-                                          }
-                                        />
-                                      </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                      <p className="font-semibold text-ecmp-text-primary">
-                                        {t("intakeHistoryNoteLabel")}
-                                      </p>
-                                      <div className="whitespace-pre-wrap">
-                                        <KnowledgeReferenceText
-                                          text={
-                                            (
-                                              intakeHistory.branchResolution ??
-                                              ""
-                                            ).trim() || "—"
-                                          }
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : row.note ? (
+                                {row.note ? (
                                   <div className="whitespace-pre-wrap">
                                     <KnowledgeReferenceText text={row.note} />
                                   </div>
@@ -1317,25 +1357,6 @@ export function CmBatch1ConfirmationView({
               </CardBody>
             </Card>
           </section>
-
-          <CmBatch1BoundAttachmentsCard
-            complaintId={data.complaintId}
-            customerId={data.customerId}
-            allowUpload={
-              !(
-                intakeClosed ||
-                data.status === "CLOSED" ||
-                data.intakeDisposition === "BRANCH_CLOSED"
-              )
-            }
-            allowVoid={
-              !(
-                intakeClosed ||
-                data.status === "CLOSED" ||
-                data.intakeDisposition === "BRANCH_CLOSED"
-              )
-            }
-          />
 
           {!intakeClosed && data.status !== "CLOSED" ? (
             <ComplaintPenangananSection
@@ -1474,8 +1495,9 @@ export function CmBatch1ConfirmationView({
               <p className="max-w-sm text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                 {t("penangananHandledBy", {
                   name:
-                    penangananSnapshot.handlingClaimedByName ||
-                    tCommon("emDash"),
+                    officerDisplayName(
+                      penangananSnapshot.handlingClaimedByName,
+                    ) || tCommon("emDash"),
                 })}
               </p>
             ) : null}
@@ -1528,7 +1550,7 @@ export function CmBatch1ConfirmationView({
             ? t("handleConfirmContinueBody")
             : t("handleConfirmTakeoverBody", {
                 name:
-                  data?.createdByName?.trim() ||
+                  officerDisplayName(data?.createdByName) ||
                   tCommon("emDash"),
               })}
         </p>

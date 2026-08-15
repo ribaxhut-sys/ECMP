@@ -26,15 +26,14 @@ import {
 } from "@/shared/ui";
 import { CaseStatusBadge } from "@/features/cases/CaseStatusBadge";
 import { CreateCaseDialog } from "@/features/cases/CreateCaseDialog";
-import {
-  mergeCreateCaseForm,
-  toCreateCaseRequest,
-} from "@/features/cases/caseForms";
+import { mergeCreateCaseForm, toCreateCaseRequest } from "@/features/cases/caseForms";
 import { rememberCaseId, markCaseHandleClaimed } from "@/features/cases/caseSessionRegistry";
 import {
   canClaimHandling,
   isHandlingReassignRole,
+  sameUserId,
 } from "@/features/cases/handlingClaim";
+import { officerDisplayName } from "./officerDisplayName";
 import { useToast } from "@/shared/providers";
 import {
   buildPenangananSummarySegments,
@@ -155,7 +154,12 @@ function PenangananGroupBlock({
                   {(() => {
                     const claimed = item.handlingClaimedBy?.trim();
                     if (!claimed) return tCommon("emDash");
-                    return handlerNames[claimed] || claimed;
+                    return (
+                      officerDisplayName(
+                        item.handlingClaimedByName,
+                        handlerNames[claimed.toLowerCase()],
+                      ) || tCommon("emDash")
+                    );
                   })()}
                 </Td>
                 <Td className="text-right">
@@ -338,7 +342,7 @@ export function ComplaintPenangananSection({
         const list: { id: string; label: string }[] = [];
         for (const u of res.data ?? []) {
           const label = u.fullName?.trim() || u.username;
-          map[u.id] = label;
+          if (u.id) map[u.id.toLowerCase()] = label;
           list.push({ id: u.id, label });
         }
         setHandlerNames(map);
@@ -381,10 +385,9 @@ export function ComplaintPenangananSection({
     ),
   );
 
-  const claimedBy =
-    parts.open
-      .map((row) => row.handlingClaimedBy?.trim())
-      .find((id) => Boolean(id)) || null;
+  const claimedRow =
+    parts.open.find((row) => Boolean(row.handlingClaimedBy?.trim())) ?? null;
+  const claimedBy = claimedRow?.handlingClaimedBy?.trim() || null;
 
   useEffect(() => {
     onPenangananSnapshot?.({
@@ -394,7 +397,10 @@ export function ComplaintPenangananSection({
         counts.open + counts.pusat + counts.done + counts.cancelled,
       handlingClaimedBy: claimedBy,
       handlingClaimedByName: claimedBy
-        ? handlerNames[claimedBy] || claimedBy
+        ? officerDisplayName(
+            claimedRow?.handlingClaimedByName,
+            handlerNames[claimedBy.toLowerCase()],
+          )
         : null,
     });
   }, [
@@ -404,11 +410,16 @@ export function ComplaintPenangananSection({
     counts.done,
     counts.cancelled,
     claimedBy,
+    claimedRow?.handlingClaimedByName,
     handlerNames,
     onPenangananSnapshot,
   ]);
 
   async function claimHandle(item: CmCaseSummary) {
+    if (sameUserId(item.handlingClaimedBy, user?.id)) {
+      markCaseHandleClaimed(item.caseId);
+      return;
+    }
     try {
       await updateCmCaseStatus(item.caseId, {
         toStatus: item.status,
@@ -436,6 +447,10 @@ export function ComplaintPenangananSection({
   }
 
   function requestContinue(item: CmCaseSummary) {
+    if (sameUserId(item.handlingClaimedBy, user?.id)) {
+      void openItem(item);
+      return;
+    }
     setContinueTarget(item);
   }
 

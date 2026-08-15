@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -14,7 +14,10 @@ import {
   type CmCase,
   type CmCaseStatus,
 } from "@/lib/api";
-import { formatDateTime } from "@/i18n/formatting";
+import { formatDateTime24 } from "@/shared/utils/datetime";
+import { cn } from "@/shared/utils";
+import { formatCmBatch1CustomerLabel } from "@/features/complaints/cmBatch1RegistrationLabels";
+import { officerDisplayName } from "@/features/complaints/officerDisplayName";
 import {
   Badge,
   Button,
@@ -25,7 +28,6 @@ import {
   Modal,
   PageContainer,
   PageHeader,
-  SectionHeader,
   Skeleton,
   Toast,
   type BadgeTone,
@@ -53,6 +55,7 @@ import {
 import {
   canClaimHandling,
   isHandlingReassignRole,
+  sameUserId,
 } from "./handlingClaim";
 
 function priorityTone(priority: string): BadgeTone {
@@ -78,12 +81,6 @@ function profileText(
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return null;
-}
-
-function looksLikeUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value.trim(),
-  );
 }
 
 function MetaItem({
@@ -136,7 +133,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const tCommon = useTranslations("common");
   const tNav = useTranslations("nav");
   const tComplaints = useTranslations("complaints");
-  const locale = useLocale();
   const router = useRouter();
   const { hasPermission, user, roles } = useAuth();
   const canRead = hasPermission("complaints:read");
@@ -216,17 +212,13 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           "externalId",
         );
       const customerName = fromComplaint || from360;
-      if (customerName) {
-        setCustomerLabel(
-          customerNumber && customerNumber !== customerName
-            ? `${customerName} (${customerNumber})`
-            : customerName,
-        );
-      } else if (customerNumber) {
-        setCustomerLabel(customerNumber);
-      } else {
-        setCustomerLabel(null);
-      }
+      setCustomerLabel(
+        formatCmBatch1CustomerLabel(
+          customerName,
+          customerNumber,
+          caseData.customerId,
+        ),
+      );
 
       const users = usersRes?.data ?? [];
       setDirectoryUsers(
@@ -238,24 +230,29 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       const findUser = (id: string | null | undefined) => {
         const key = (id || "").trim();
         if (!key) return null;
-        return users.find((u) => u.id === key) ?? null;
+        return users.find((u) => u.id.toLowerCase() === key.toLowerCase()) ?? null;
       };
 
       const creator = findUser(caseData.createdBy);
       setCreatedByLabel(
-        creator?.fullName?.trim() ||
-          creator?.username?.trim() ||
-          complaint?.createdByName?.trim() ||
-          null,
+        officerDisplayName(
+          creator?.fullName,
+          creator?.username,
+          complaint?.createdByName,
+        ),
       );
 
       const assignee = findUser(caseData.assignedUserId);
       setAssignedLabel(
-        assignee?.fullName?.trim() || assignee?.username?.trim() || null,
+        officerDisplayName(assignee?.fullName, assignee?.username),
       );
       const handler = findUser(caseData.handlingClaimedBy);
       setHandlerLabel(
-        handler?.fullName?.trim() || handler?.username?.trim() || null,
+        officerDisplayName(
+          caseData.handlingClaimedByName,
+          handler?.fullName,
+          handler?.username,
+        ),
       );
     } catch (err) {
       setData(null);
@@ -303,35 +300,25 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   }
 
   const whenCreated = data?.createdAt
-    ? formatDateTime(data.createdAt, locale) || data.createdAt
+    ? formatDateTime24(data.createdAt) || data.createdAt
     : tCommon("emDash");
   const whenUpdated = data?.updatedAt
-    ? formatDateTime(data.updatedAt, locale) || data.updatedAt
+    ? formatDateTime24(data.updatedAt) || data.updatedAt
     : null;
   const whenClosed = data?.closedAt
-    ? formatDateTime(data.closedAt, locale) || data.closedAt
+    ? formatDateTime24(data.closedAt) || data.closedAt
     : null;
 
-  const customerDisplay =
-    customerLabel ||
-    (data?.customerId && !looksLikeUuid(data.customerId)
-      ? data.customerId
-      : tCommon("emDash"));
+  const customerDisplay = customerLabel || tCommon("emDash");
 
-  const creatorDisplay =
-    createdByLabel ||
-    (data?.createdBy && !looksLikeUuid(data.createdBy)
-      ? data.createdBy
-      : tCommon("emDash"));
+  const creatorDisplay = createdByLabel || tCommon("emDash");
 
-  const assignedDisplay =
-    assignedLabel ||
-    (data?.assignedUserId && !looksLikeUuid(data.assignedUserId)
-      ? data.assignedUserId
-      : null);
+  const assignedDisplay = assignedLabel;
 
-  const handlerDisplay =
-    handlerLabel || data?.handlingClaimedBy?.trim() || null;
+  const handlerDisplay = officerDisplayName(
+    data?.handlingClaimedByName,
+    handlerLabel,
+  );
 
   const isCurrentHandler = canClaimHandling({
     handlingClaimedBy: data?.handlingClaimedBy,
@@ -387,7 +374,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const showParentContinueLabel = Boolean(
     data && (caseFinished || data.status === "RESOLVED" || showClose),
   );
-  const parentCtaPrimary = caseFinished;
   const handleConfirmIsCreator = Boolean(
     user?.id?.trim() &&
       complaintCreatedBy?.trim() &&
@@ -401,6 +387,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
 
   async function acceptHandleClaim(): Promise<void> {
     if (!data || handleClaiming) return;
+    if (sameUserId(data.handlingClaimedBy, user?.id)) {
+      markCaseHandleClaimed(data.caseId);
+      setHandlePromptOpen(false);
+      return;
+    }
     setHandleClaiming(true);
     try {
       await updateCmCaseStatus(data.caseId, {
@@ -507,22 +498,40 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       : priority;
   }
 
+  const pageTitle = !data
+    ? t("detail")
+    : caseFinished
+      ? t("pageTitleClosed")
+      : data.status === "RESOLVED"
+        ? t("pageTitleResolved")
+        : handlerDisplay
+          ? t("pageTitleInProgress", { name: handlerDisplay })
+          : t("pageTitleOpen");
+
+  const pageDescription = !data
+    ? undefined
+    : caseFinished
+      ? t("pageDescriptionClosed")
+      : t(
+          nextStepKey(data.status, {
+            canUpdate,
+            showResolve,
+            showClose,
+          }) as
+            | "nextStepStart"
+            | "nextStepResolveOrEscalate"
+            | "nextStepClose"
+            | "nextStepDone"
+            | "nextStepReadOnly",
+        );
+
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       {data && !loading ? (
         <PageHeader
-          overline={t("detail")}
-          title={data.caseNumber}
-          description={data.subject}
+          title={pageTitle}
+          description={pageDescription}
           breadcrumbs={breadcrumbs}
-          meta={
-            <>
-              <CaseStatusBadge status={data.status} />
-              <Badge tone={priorityTone(data.priority)} variant="outline">
-                {priorityLabel(data.priority)}
-              </Badge>
-            </>
-          }
         />
       ) : (
         <PageHeader title={t("detail")} breadcrumbs={breadcrumbs} />
@@ -538,188 +547,176 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           className="flex min-h-[50vh] flex-col gap-[var(--ecmp-section-gap)]"
           data-testid="case-detail-simple"
         >
-          {/* 1. Compact sticky action bar */}
+          <section className="space-y-[var(--ecmp-panel-gap)]">
+            <Card>
+              <CardBody>
+                <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
+                  <MetaItem label={t("caseNumber")} value={data.caseNumber} />
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {tComplaints("status")}
+                    </dt>
+                    <dd className="flex flex-wrap items-center gap-2">
+                      <CaseStatusBadge status={data.status} />
+                      <Badge tone={priorityTone(data.priority)} variant="outline">
+                        {priorityLabel(data.priority)}
+                      </Badge>
+                    </dd>
+                  </div>
+                  <MetaItem
+                    label={t("parentComplaint")}
+                    value={complaintNumber ?? tCommon("emDash")}
+                  />
+                  <MetaItem
+                    label={t("owningUnit")}
+                    value={
+                      data.owningUnitId?.trim() ||
+                      data.ownerUnitId?.trim() ||
+                      tCommon("emDash")
+                    }
+                  />
+                  <MetaItem label={t("customer")} value={customerDisplay} />
+                  <MetaItem
+                    label={tComplaints("penangananHandler")}
+                    value={handlerDisplay || tCommon("emDash")}
+                  />
+                  <MetaItem label={t("createdBy")} value={creatorDisplay} />
+                  <MetaItem label={t("createdAt")} value={whenCreated} />
+                  {assignedDisplay ? (
+                    <MetaItem label={t("assignedTo")} value={assignedDisplay} />
+                  ) : null}
+                  {whenUpdated ? (
+                    <MetaItem label={t("updatedAt")} value={whenUpdated} />
+                  ) : null}
+                  {whenClosed ? (
+                    <MetaItem label={t("closedAt")} value={whenClosed} />
+                  ) : null}
+                  {data.cancelReason ? (
+                    <MetaItem
+                      label={t("cancelReason")}
+                      value={data.cancelReason}
+                    />
+                  ) : null}
+                </dl>
+              </CardBody>
+            </Card>
+          </section>
+
+          {data.subject || data.description || data.resolution ? (
+            <section className="space-y-[var(--ecmp-panel-gap)]">
+              <Card>
+                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                  {data.subject ? (
+                    <div className="space-y-1">
+                      <p className="sr-only">{t("subject")}</p>
+                      <p className="text-[length:var(--ecmp-font-title-size)] font-[number:var(--ecmp-font-title-weight)] uppercase leading-[var(--ecmp-font-title-line)] tracking-tight text-ecmp-text-primary">
+                        {data.subject}
+                      </p>
+                    </div>
+                  ) : null}
+                  {data.description ? (
+                    <div className="space-y-1">
+                      <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("description")}
+                      </p>
+                      <p className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {data.description}
+                      </p>
+                    </div>
+                  ) : null}
+                  <div
+                    className={cn(
+                      "space-y-1",
+                      Boolean(data.description?.trim()) &&
+                        "border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]",
+                    )}
+                  >
+                    <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("resolution")}
+                    </p>
+                    {data.resolution ? (
+                      <>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone={caseStatusTone(data.resolution.status)}>
+                            {data.resolution.status}
+                          </Badge>
+                          <span className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+                            {data.resolution.resolutionCode}
+                          </span>
+                        </div>
+                        <dl className="space-y-[var(--ecmp-form-gap)]">
+                          <MetaItem
+                            label={t("summary")}
+                            value={data.resolution.summary}
+                          />
+                          {data.resolution.detail ? (
+                            <MetaItem
+                              label={t("detailLabel")}
+                              value={data.resolution.detail}
+                              pre
+                            />
+                          ) : null}
+                          <MetaItem
+                            label={t("comment")}
+                            value={data.resolution.comment}
+                          />
+                        </dl>
+                      </>
+                    ) : (
+                      <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+                        {t("noResolutionDescription")}
+                      </p>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            </section>
+          ) : null}
+
+          <CmBatch1BoundAttachmentsCard
+            complaintId={data.complaintId}
+            customerId={data.customerId}
+            allowUpload={!attachmentsLocked}
+            allowVoid={!attachmentsLocked}
+          />
+
           <div
-            className="sticky top-[var(--ecmp-header-height)] z-[calc(var(--ecmp-z-sticky-header)-1)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 bg-ecmp-background/95 px-4 py-3 shadow-ecmp-sm backdrop-blur-sm"
+            className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end"
             data-testid="case-detail-actions"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                  {t("nextStepLabel")}
-                </p>
-                <p className="mt-0.5 text-[length:var(--ecmp-font-body-small-size)] leading-[var(--ecmp-font-body-small-line)] text-ecmp-text-primary">
-                  {t(
-                    nextStepKey(data.status, {
-                      canUpdate,
-                      showResolve,
-                      showClose,
-                    }) as
-                      | "nextStepStart"
-                      | "nextStepResolveOrEscalate"
-                      | "nextStepClose"
-                      | "nextStepDone"
-                      | "nextStepReadOnly",
-                  )}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                {showResolve ? (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    loading={resolvePreparing}
-                    onClick={() => {
-                      void handleResolveClick();
-                    }}
-                  >
-                    {t("resolve")}
-                  </Button>
-                ) : null}
-                {canReassign && claimedBySomeone && !caseFinished ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setReassignUserId("");
-                      setReassignOpen(true);
-                    }}
-                  >
-                    {tComplaints("penangananReassign")}
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  variant={parentCtaPrimary ? "primary" : "ghost"}
-                  onClick={() => goToComplaintPenanganan()}
-                >
-                  {showParentContinueLabel
-                    ? t("continueToParentComplaint")
-                    : t("backToComplaint")}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Compact guidance — one callout, not a competing paragraph */}
-          <div className="rounded-[var(--ecmp-radius-md)] border border-ecmp-info-border bg-ecmp-info-bg px-4 py-3 text-[length:var(--ecmp-font-helper-size)] leading-relaxed text-ecmp-info-text">
-            <span className="font-medium">
-              {t("caseVsComplaintTitle")}
-            </span>
-            {" — "}
-            {t("caseVsComplaintBody")}
-            {showParentContinueLabel ? ` ${t("continueToParentHint")}` : ""}
-          </div>
-
-          {/* 3. Work area + human context */}
-          <div className="grid gap-[var(--ecmp-section-gap)] lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-            <div className="min-w-0 space-y-[var(--ecmp-section-gap)]">
-              <Card>
-                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
-                  <SectionHeader title={t("workContentTitle")} />
-                  <p className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] leading-[var(--ecmp-font-body-line)] text-ecmp-text-primary">
-                    {data.description || tCommon("emDash")}
-                  </p>
-                </CardBody>
-              </Card>
-
-              <Card>
-                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
-                  <SectionHeader title={t("resolution")} />
-                  {data.resolution ? (
-                    <>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={caseStatusTone(data.resolution.status)}>
-                          {data.resolution.status}
-                        </Badge>
-                        <span className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                          {data.resolution.resolutionCode}
-                        </span>
-                      </div>
-                      <dl className="space-y-[var(--ecmp-form-gap)]">
-                        <MetaItem
-                          label={t("summary")}
-                          value={data.resolution.summary}
-                        />
-                        {data.resolution.detail ? (
-                          <MetaItem
-                            label={t("detailLabel")}
-                            value={data.resolution.detail}
-                            pre
-                          />
-                        ) : null}
-                        <MetaItem
-                          label={t("comment")}
-                          value={data.resolution.comment}
-                        />
-                      </dl>
-                    </>
-                  ) : (
-                    <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                      {t("noResolutionDescription")}
-                    </p>
-                  )}
-                </CardBody>
-              </Card>
-
-              <CmBatch1BoundAttachmentsCard
-                complaintId={data.complaintId}
-                customerId={data.customerId}
-                allowUpload={!attachmentsLocked}
-                allowVoid={!attachmentsLocked}
-              />
-            </div>
-
-            <aside className="min-w-0 lg:sticky lg:top-[calc(var(--ecmp-header-height)+5.5rem)]">
-              <Card>
-                <CardBody className="space-y-[var(--ecmp-panel-gap)]">
-                  <h2 className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                    {t("contextTitle")}
-                  </h2>
-                  <dl className="grid gap-[var(--ecmp-form-gap)]">
-                    <MetaItem label={t("customer")} value={customerDisplay} />
-                    {handlerDisplay ? (
-                      <MetaItem
-                        label={tComplaints("penangananHandler")}
-                        value={handlerDisplay}
-                      />
-                    ) : null}
-                    {assignedDisplay ? (
-                      <MetaItem
-                        label={t("assignedTo")}
-                        value={assignedDisplay}
-                      />
-                    ) : null}
-                    <MetaItem
-                      label={t("parentComplaint")}
-                      value={complaintNumber ?? tCommon("emDash")}
-                    />
-                    <MetaItem
-                      label={t("owningUnit")}
-                      value={
-                        data.owningUnitId?.trim() ||
-                        data.ownerUnitId?.trim() ||
-                        tCommon("emDash")
-                      }
-                    />
-                    <MetaItem label={t("createdBy")} value={creatorDisplay} />
-                    <MetaItem label={t("createdAt")} value={whenCreated} />
-                    {whenUpdated ? (
-                      <MetaItem label={t("updatedAt")} value={whenUpdated} />
-                    ) : null}
-                    {whenClosed ? (
-                      <MetaItem label={t("closedAt")} value={whenClosed} />
-                    ) : null}
-                    {data.cancelReason ? (
-                      <MetaItem
-                        label={t("cancelReason")}
-                        value={data.cancelReason}
-                      />
-                    ) : null}
-                  </dl>
-                </CardBody>
-              </Card>
-            </aside>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => goToComplaintPenanganan()}
+            >
+              {showParentContinueLabel
+                ? t("continueToParentComplaint")
+                : t("backToComplaint")}
+            </Button>
+            {canReassign && claimedBySomeone && !caseFinished ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setReassignUserId("");
+                  setReassignOpen(true);
+                }}
+              >
+                {tComplaints("penangananReassign")}
+              </Button>
+            ) : null}
+            {showResolve ? (
+              <Button
+                type="button"
+                variant="primary"
+                loading={resolvePreparing}
+                onClick={() => {
+                  void handleResolveClick();
+                }}
+              >
+                {t("resolve")}
+              </Button>
+            ) : null}
           </div>
 
           <ResolveCaseDialog

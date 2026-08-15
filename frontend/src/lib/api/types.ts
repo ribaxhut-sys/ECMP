@@ -885,6 +885,9 @@ export interface KnowledgeSearchParams {
   limit?: number;
 }
 
+/** Citable (ACTIVE + in-window) counts for the `@` type picker. */
+export type KnowledgeTypeCounts = Record<KnowledgeType, number>;
+
 /** One row of the generic platform audit log, scoped to a Knowledge record
  * (entityType="Knowledge"). ``oldValues``/``newValues`` carry only the
  * fields that actually changed — see KnowledgeService._log. */

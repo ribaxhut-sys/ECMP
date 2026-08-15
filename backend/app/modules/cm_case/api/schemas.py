@@ -26,6 +26,9 @@ class CaseSummaryResponse(BaseModel):
     created_at: datetime | None = Field(default=None, alias="createdAt")
     created_by: str | None = Field(default=None, alias="createdBy")
     handling_claimed_by: str | None = Field(default=None, alias="handlingClaimedBy")
+    handling_claimed_by_name: str | None = Field(
+        default=None, alias="handlingClaimedByName"
+    )
 
 
 class CaseResolutionResponse(BaseModel):
@@ -88,6 +91,9 @@ class CaseResponse(BaseModel):
     created_at: datetime = Field(alias="createdAt")
     created_by: str = Field(alias="createdBy")
     handling_claimed_by: str | None = Field(default=None, alias="handlingClaimedBy")
+    handling_claimed_by_name: str | None = Field(
+        default=None, alias="handlingClaimedByName"
+    )
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
     complaint_status_after_create: str | None = Field(
         default=None, alias="complaintStatusAfterCreate"

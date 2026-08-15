@@ -36,6 +36,7 @@ from app.modules.knowledge.schemas import (
     KnowledgeCreateRequest,
     KnowledgeFileResponse,
     KnowledgeResponse,
+    KnowledgeTypeCounts,
     KnowledgeUpdateRequest,
 )
 
@@ -178,6 +179,16 @@ class KnowledgeService:
             rows = rows[:limit]
         files_by_id = self._files.list_for_knowledge_ids([r.id for r in rows])
         return [self._to_response(r, files_by_id.get(r.id, [])) for r in rows]
+
+    def count_citable_by_type(self) -> KnowledgeTypeCounts:
+        raw = self._repo.count_citable_by_type()
+        return KnowledgeTypeCounts(
+            SOP=raw.get("SOP", 0),
+            PERATURAN=raw.get("PERATURAN", 0),
+            SURAT_EDARAN=raw.get("SURAT_EDARAN", 0),
+            KEPUTUSAN=raw.get("KEPUTUSAN", 0),
+            PANDUAN=raw.get("PANDUAN", 0),
+        )
 
     def get(self, knowledge_id: uuid.UUID, *, caller_may_manage: bool) -> KnowledgeResponse:
         row = self._repo.get(knowledge_id)

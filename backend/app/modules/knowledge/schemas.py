@@ -159,3 +159,13 @@ class KnowledgeResponse(BaseModel):
     updated_at: datetime = Field(alias="updatedAt")
     # Already access-filtered per-caller by the service — never filter again in FE.
     files: list[KnowledgeFileResponse] = Field(default_factory=list)
+
+
+class KnowledgeTypeCounts(BaseModel):
+    """Citable (ACTIVE + in-window) counts for the ``@`` type picker."""
+
+    SOP: int = 0
+    PERATURAN: int = 0
+    SURAT_EDARAN: int = 0
+    KEPUTUSAN: int = 0
+    PANDUAN: int = 0

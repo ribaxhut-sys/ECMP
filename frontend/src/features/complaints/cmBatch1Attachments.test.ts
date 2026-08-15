@@ -55,10 +55,15 @@ describe("cmBatch1AttachmentClassificationLabelKey", () => {
     expect(cmBatch1AttachmentClassificationLabelKey("official_letter")).toBe(
       "classificationOfficialLetter",
     );
+    expect(cmBatch1AttachmentClassificationLabelKey("other")).toBe(
+      "classificationOther",
+    );
   });
 
   it("falls back to the raw code when unknown", () => {
-    expect(cmBatch1AttachmentClassificationLabelKey("other")).toBe("other");
+    expect(cmBatch1AttachmentClassificationLabelKey("unknown_class")).toBe(
+      "unknown_class",
+    );
   });
 });
 

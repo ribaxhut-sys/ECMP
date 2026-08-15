@@ -174,18 +174,42 @@ class CmBatch1HistoryService:
                 eventType=entry.event_type,
                 occurredAt=entry.created_at,
                 actorId=entry.actor_id,
-                actorName=(
-                    entry.actor_name
-                    or (names.get(entry.actor_id) if entry.actor_id else None)
-                ),
+                actorName=self._display_actor_name(entry, names),
                 priority=(dict(entry.metadata or {}).get("priority") or None),
                 note=(dict(entry.metadata or {}).get("note") or None),
             )
             for entry in entries
         ]
 
+    def _usable_person_name(self, raw: str | None) -> str | None:
+        value = (raw or "").strip()
+        if not value:
+            return None
+        try:
+            uuid.UUID(value)
+        except (TypeError, ValueError):
+            return value
+        return None
+
+    def _display_actor_name(
+        self, entry: TimelineEntry, names: dict[str, str]
+    ) -> str | None:
+        stored = self._usable_person_name(entry.actor_name)
+        if stored:
+            return stored
+        if entry.actor_id:
+            looked = self._usable_person_name(names.get(entry.actor_id))
+            if looked:
+                return looked
+        return None
+
     def _actor_names(self, entries: list[TimelineEntry]) -> dict[str, str]:
-        wanted = {e.actor_id for e in entries if e.actor_id and not e.actor_name}
+        wanted: set[str] = set()
+        for entry in entries:
+            if not entry.actor_id:
+                continue
+            if self._usable_person_name(entry.actor_name) is None:
+                wanted.add(entry.actor_id)
         if not wanted:
             return {}
         try:

@@ -10,6 +10,7 @@ import type { Knowledge } from "@/lib/api/types";
 
 const searchKnowledge = vi.fn();
 const fetchKnowledge = vi.fn();
+const fetchKnowledgeTypeCounts = vi.fn();
 const push = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -22,6 +23,8 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     searchKnowledge: (...args: unknown[]) => searchKnowledge(...args),
     fetchKnowledge: (...args: unknown[]) => fetchKnowledge(...args),
+    fetchKnowledgeTypeCounts: (...args: unknown[]) =>
+      fetchKnowledgeTypeCounts(...args),
   };
 });
 
@@ -76,6 +79,16 @@ describe("KnowledgeMentionTextarea", () => {
   beforeEach(() => {
     searchKnowledge.mockReset();
     fetchKnowledge.mockReset();
+    fetchKnowledgeTypeCounts.mockReset();
+    fetchKnowledgeTypeCounts.mockResolvedValue({
+      data: {
+        SOP: 23,
+        PERATURAN: 90,
+        SURAT_EDARAN: 12,
+        KEPUTUSAN: 4,
+        PANDUAN: 0,
+      },
+    });
     fetchKnowledge.mockResolvedValue({
       data: knowledge({ status: "ACTIVE" }),
     });
@@ -96,22 +109,24 @@ describe("KnowledgeMentionTextarea", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Choose type/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/Esc to go back/i)).toHaveLength(1);
+      expect(screen.getByRole("option", { name: /SOP \(23\)/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole("option", { name: /Browse SOP/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /SOP \(23\)/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: /Browse Peraturan|Browse Regulation/i }),
+      screen.getByRole("option", { name: /Peraturan \(90\)|Regulation \(90\)/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: /Browse Surat Edaran|Browse Circular/i }),
+      screen.getByRole("option", { name: /Surat Edaran \(12\)|Circular \(12\)/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: /Browse Keputusan|Browse Decision/i }),
+      screen.getByRole("option", { name: /Keputusan \(4\)|Decision \(4\)/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: /Browse Panduan|Browse Guide/i }),
+      screen.getByRole("option", { name: /Panduan \(0\)|Guide \(0\)/i }),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Browse SOP|Jelajahi SOP/i)).not.toBeInTheDocument();
     expect(searchKnowledge).not.toHaveBeenCalled();
+    expect(fetchKnowledgeTypeCounts).toHaveBeenCalled();
   });
 
   it("removes the bare @ from the text when Escape is pressed on the type picker", async () => {
@@ -140,9 +155,8 @@ describe("KnowledgeMentionTextarea", () => {
     const editor = screen.getByRole("combobox");
     await user.click(editor);
     await user.keyboard("@");
-    await screen.findByText(/Choose type/i);
-
-    await user.click(screen.getByRole("option", { name: /Browse SOP/i }));
+    await screen.findByRole("option", { name: /SOP \(23\)/i });
+    await user.click(screen.getByRole("option", { name: /SOP \(23\)/i }));
 
     await waitFor(() => {
       expect(searchKnowledge).toHaveBeenCalledWith(
@@ -233,6 +247,11 @@ describe("KnowledgeMentionTextarea", () => {
     });
 
     expect(editor.textContent).toContain("SOP Penanganan Pengaduan v2.1");
+    expect(
+      editor
+        .querySelector("[data-knowledge-id]")
+        ?.getAttribute("data-knowledge-type-label"),
+    ).toBe("SOP");
     expect(editor.textContent).not.toContain("knowledge:");
     expect(
       screen.queryByText(/Selected references|Rujukan terpilih/i),

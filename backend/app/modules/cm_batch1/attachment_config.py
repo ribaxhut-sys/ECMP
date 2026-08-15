@@ -27,6 +27,7 @@ class AttachmentConfig:
                 "customer_evidence",
                 "internal_evidence",
                 "official_letter",
+                "other",
             }
         )
     )

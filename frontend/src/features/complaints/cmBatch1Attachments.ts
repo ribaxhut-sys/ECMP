@@ -65,6 +65,7 @@ const CLASSIFICATION_LABEL_KEYS: Readonly<Record<string, string>> = {
   customer_evidence: "classificationCustomerEvidence",
   internal_evidence: "classificationInternalEvidence",
   official_letter: "classificationOfficialLetter",
+  other: "classificationOther",
 };
 
 export function cmBatch1AttachmentClassificationLabelKey(

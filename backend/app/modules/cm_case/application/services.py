@@ -453,8 +453,13 @@ class CaseApplicationService:
         return items, total
 
     def update_status(self, cmd: UpdateStatusCommand) -> CaseDTO:
-        case = self._require(cmd.case_id)
         reason = (cmd.reason or "").strip().upper()
+        # BR-005 E4 — double-claim race: lock the row before reading
+        # ``handling_claimed_by`` so two concurrent claims/reassigns cannot
+        # both observe the pre-claim state. Only one request wins; the other
+        # sees the just-committed claimer once it acquires the lock.
+        claims_handling = reason in (HANDLE_CLAIM_REASON, HANDLE_REASSIGN_REASON)
+        case = self._require(cmd.case_id, for_update=claims_handling)
         if reason == HANDLE_REASSIGN_REASON:
             if not cmd.actor_can_reassign:
                 raise err.conflict(
@@ -490,6 +495,10 @@ class CaseApplicationService:
                     "Another officer is already handling this Case.",
                     details={"handlingClaimedBy": claimed},
                 )
+            # Same officer reclaim is idempotent — do not append another
+            # HandlingContinued / HandlingTakenOver to intake history.
+            if claimed and _ids_equal(claimed, cmd.actor_id):
+                return to_case_dto(case)
             parent = self._repo.get_parent_complaint(case.complaint_id)
             if parent is None:
                 raise err.not_found("Parent Complaint does not exist.")
@@ -670,8 +679,8 @@ class CaseApplicationService:
         self._repo.commit()
         return to_case_dto(case)
 
-    def _require(self, case_id: str) -> CaseAggregate:
-        case = self._repo.get(case_id)
+    def _require(self, case_id: str, *, for_update: bool = False) -> CaseAggregate:
+        case = self._repo.get(case_id, for_update=for_update)
         if case is None:
             raise err.not_found("Case does not exist.")
         return case

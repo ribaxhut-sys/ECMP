@@ -1059,6 +1059,10 @@ components:
           type: string
           nullable: true
           description: Operational handling officer (Mode A claim; not BQ-006 Assigned User).
+        handlingClaimedByName:
+          type: string
+          nullable: true
+          description: Directory display name for handlingClaimedBy (never the user id).
 
     CaseAcceptance:
       type: object
@@ -1248,6 +1252,10 @@ components:
           type: string
           nullable: true
           description: Operational handling officer (Mode A claim; not BQ-006 Assigned User).
+        handlingClaimedByName:
+          type: string
+          nullable: true
+          description: Directory display name for handlingClaimedBy (never the user id).
         updatedAt:
           oneOf:
             - type: string

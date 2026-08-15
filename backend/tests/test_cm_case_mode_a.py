@@ -146,6 +146,18 @@ def test_create_and_handle_claim_timeline_events(db_session: Session) -> None:
     assert dto.handling_claimed_by == "seed"
 
     effects.record_case_event.reset_mock()
+    same_officer = service.update_status(
+        UpdateStatusCommand(
+            case_id=dto.case_id,
+            to_status=dto.status,
+            actor_id="seed",
+            reason="HANDLE_CLAIM",
+        )
+    )
+    assert same_officer.handling_claimed_by == "seed"
+    effects.record_case_event.assert_not_called()
+
+    effects.record_case_event.reset_mock()
     with pytest.raises(ApiError) as claimed_exc:
         service.update_status(
             UpdateStatusCommand(

@@ -76,6 +76,7 @@ export {
   fetchKnowledgeHistory,
   publishKnowledge,
   removeKnowledgeFile,
+  fetchKnowledgeTypeCounts,
   searchKnowledge,
   setPrimaryKnowledgeFile,
   unarchiveKnowledge,

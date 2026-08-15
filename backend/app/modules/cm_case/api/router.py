@@ -22,6 +22,7 @@ from app.core.authorization.org_unit_guard import enforce_org_scope_any
 from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
+from app.integrations.directory.local_adapter import LocalUserDirectory
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.api.schemas import (
     AddCaseRequest,
@@ -94,7 +95,17 @@ def _complaint_creator_id(session: Session, complaint_id: str | None) -> str | N
     return (row.created_by or "").strip() or None
 
 
-def _to_response(dto: CaseDTO) -> CaseResponse:
+def _officer_labels(session: Session, *raw_ids: str | None) -> dict[str, str]:
+    wanted = {str(i).strip() for i in raw_ids if i and str(i).strip()}
+    if not wanted:
+        return {}
+    try:
+        return LocalUserDirectory(session).display_names(wanted)
+    except Exception:
+        return {}
+
+
+def _to_response(dto: CaseDTO, *, session: Session | None = None) -> CaseResponse:
     def res(r):
         if r is None:
             return None
@@ -151,6 +162,13 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
         createdAt=dto.created_at,
         createdBy=dto.created_by,
         handlingClaimedBy=dto.handling_claimed_by,
+        handlingClaimedByName=(
+            _officer_labels(session, dto.handling_claimed_by).get(
+                (dto.handling_claimed_by or "").strip()
+            )
+            if session and dto.handling_claimed_by
+            else None
+        ),
         updatedAt=dto.updated_at,
         complaintStatusAfterCreate=dto.complaint_status_after_create,
         handlingUnitAcceptance=acc(dto.handling_unit_acceptance),
@@ -163,6 +181,7 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
 def list_cases(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
@@ -175,6 +194,10 @@ def list_cases(
         page_size=page_size,
         complaint_id=complaint_id,
         status=status,
+    )
+    names = _officer_labels(
+        session,
+        *[i.handling_claimed_by for i in items],
     )
     return ListResponse(
         data=[
@@ -193,6 +216,11 @@ def list_cases(
                 createdAt=i.created_at,
                 createdBy=i.created_by,
                 handlingClaimedBy=i.handling_claimed_by,
+                handlingClaimedByName=(
+                    names.get(i.handling_claimed_by)
+                    if i.handling_claimed_by
+                    else None
+                ),
             )
             for i in items
         ],
@@ -224,7 +252,7 @@ def create_case(
             actor_unit_id=_actor_unit(principal, session),
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.post("/api/v1/cm/complaints/{complaint_id}/cases", status_code=201)
@@ -252,7 +280,7 @@ def add_case(
             actor_unit_id=_actor_unit(principal, session),
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.get("/api/v1/cm/cases/{case_id}")
@@ -275,7 +303,7 @@ def get_case(
         settings,
     )
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.patch("/api/v1/cm/cases/{case_id}/status")
@@ -308,7 +336,7 @@ def update_case_status(
             ),
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.post("/api/v1/cm/cases/{case_id}/resolve")
@@ -353,7 +381,7 @@ def resolve_case(
             actor_unit_id=actor_unit,
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.post("/api/v1/cm/cases/{case_id}/acceptance")
@@ -398,7 +426,7 @@ def record_case_acceptance(
             note=body.note,
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.post("/api/v1/cm/cases/{case_id}/close")
@@ -431,4 +459,4 @@ def close_case(
             actor_unit_id=_actor_unit(principal, session),
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))

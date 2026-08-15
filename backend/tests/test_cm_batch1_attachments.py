@@ -209,6 +209,22 @@ def test_tc_cm_fr004_02b_reject_oversize(
         )
 
 
+def test_tc_cm_fr004_other_classification_allowed(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-other")
+    result = batch1_attachments.upload(
+        data=b"other class note",
+        filename="note.txt",
+        content_type="text/plain",
+        classification="other",
+        actor_id="a1",
+        complaint_id=complaint_id,
+    )
+    assert result.status == "ACTIVE"
+    assert result.classification == "other"
+
+
 def test_tc_cm_fr004_04_void_with_reason(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:

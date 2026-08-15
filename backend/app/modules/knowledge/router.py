@@ -32,6 +32,7 @@ from app.modules.knowledge.repository import KnowledgeRepository
 from app.modules.knowledge.schemas import (
     KnowledgeCreateRequest,
     KnowledgeResponse,
+    KnowledgeTypeCounts,
     KnowledgeUpdateRequest,
 )
 from app.modules.knowledge.service import KnowledgeService
@@ -99,6 +100,21 @@ def search_knowledge(
         limit=limit,
     )
     return DataResponse(data=data)
+
+
+@router.get(
+    "/type-counts",
+    response_model=DataResponse[KnowledgeTypeCounts],
+    status_code=status.HTTP_200_OK,
+    summary="Citable Knowledge counts by type (@ type picker)",
+)
+def knowledge_type_counts(
+    service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+    principal: Annotated[Principal, Depends(require_permissions("knowledge:read"))],
+) -> DataResponse[KnowledgeTypeCounts]:
+    """ACTIVE + effective-window counts — same set as ``referenceOnly`` search."""
+    del principal
+    return DataResponse(data=service.count_citable_by_type())
 
 
 @router.get(

@@ -36,7 +36,7 @@ describe("shouldShowCmBatch1Category", () => {
 describe("formatCmBatch1CustomerLabel", () => {
   it("formats name with business number", () => {
     expect(formatCmBatch1CustomerLabel("Budi Santoso", "CUST-1042")).toBe(
-      "Budi Santoso (CUST-1042)",
+      "Budi Santoso / CUST-1042",
     );
   });
 

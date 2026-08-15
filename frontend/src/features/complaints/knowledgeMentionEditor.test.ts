@@ -36,6 +36,22 @@ describe("knowledgeMentionEditor", () => {
     );
   });
 
+  it("shows a type tag on the chip without storing it in the marker", () => {
+    const root = document.createElement("div");
+    root.appendChild(
+      createKnowledgeChip(
+        document,
+        "Tata cara v1.0",
+        "e5555555-5555-5555-5555-555555555555",
+        "SOP",
+      ),
+    );
+    expect(root.textContent).toBe("SOP Tata cara v1.0");
+    expect(serializeMentionEditor(root)).toBe(
+      "@[Tata cara v1.0](knowledge:e5555555-5555-5555-5555-555555555555)",
+    );
+  });
+
   it("returns a client rect for a visible offset (menu anchor)", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);

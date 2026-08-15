@@ -14,7 +14,7 @@ vi.mock("@/auth/AuthProvider", () => ({
   useAuth: () => ({
     hasPermission: (p: string) =>
       p === "complaints:read" || p === "complaints:create",
-    user: null,
+    user: { id: "officer-1" },
     roles: [],
   }),
 }));
@@ -301,5 +301,33 @@ describe("ComplaintPenangananSection", () => {
       toStatus: "IN_PROGRESS",
       reason: "HANDLE_CLAIM",
     });
+  });
+
+  it("does not re-ask or re-claim when the current officer already handles", async () => {
+    const user = userEvent.setup();
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "CASE-1",
+          complaintId: "cmp-1",
+          status: "IN_PROGRESS",
+          subject: "Aktif",
+          handlingClaimedBy: "officer-1",
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+
+    renderSection();
+    const continueBtn = await screen.findByRole("button", { name: "Lanjutkan" });
+    await user.click(continueBtn);
+    expect(
+      screen.queryByRole("button", { name: "Ya" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith("/complaints/cm/cases/c1");
+    });
+    expect(updateCmCaseStatus).not.toHaveBeenCalled();
   });
 });

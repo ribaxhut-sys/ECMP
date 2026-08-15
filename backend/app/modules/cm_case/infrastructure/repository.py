@@ -110,19 +110,22 @@ class SqlAlchemyCaseRepository:
         self._session.flush()
         return case
 
-    def get(self, case_id: str) -> CaseAggregate | None:
+    def get(self, case_id: str, *, for_update: bool = False) -> CaseAggregate | None:
         key = (case_id or "").strip()
         if not key:
             return None
         row: CmCaseORM | None = None
         try:
-            row = self._session.get(CmCaseORM, UUID(key))
+            row = self._session.get(
+                CmCaseORM, UUID(key), with_for_update=for_update or None
+            )
         except ValueError:
             row = None
         if row is None:
-            row = self._session.scalar(
-                select(CmCaseORM).where(CmCaseORM.case_number == key)
-            )
+            stmt = select(CmCaseORM).where(CmCaseORM.case_number == key)
+            if for_update:
+                stmt = stmt.with_for_update()
+            row = self._session.scalar(stmt)
         if row is None:
             return None
         resolutions = list(

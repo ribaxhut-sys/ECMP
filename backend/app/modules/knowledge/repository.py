@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.attachment.domain.enums import AttachmentStatus
@@ -84,6 +84,31 @@ class KnowledgeRepository:
                 )
             )
         return list(self._session.scalars(stmt).all())
+
+    def count_citable_by_type(self, *, now: datetime | None = None) -> dict[str, int]:
+        """ACTIVE + in effective window, grouped by knowledge_type.
+
+        Same visibility as ``referenceOnly`` search (uncapped) so the ``@``
+        type picker count matches what a Penyelesaian may cite.
+        """
+        when = now or datetime.now(UTC)
+        stmt = (
+            select(KnowledgeORM.knowledge_type, func.count())
+            .where(
+                KnowledgeORM.deleted_at.is_(None),
+                KnowledgeORM.status == "ACTIVE",
+                or_(
+                    KnowledgeORM.effective_from.is_(None),
+                    KnowledgeORM.effective_from <= when,
+                ),
+                or_(
+                    KnowledgeORM.effective_to.is_(None),
+                    KnowledgeORM.effective_to >= when,
+                ),
+            )
+            .group_by(KnowledgeORM.knowledge_type)
+        )
+        return {str(row[0]): int(row[1]) for row in self._session.execute(stmt).all()}
 
     def create(
         self,

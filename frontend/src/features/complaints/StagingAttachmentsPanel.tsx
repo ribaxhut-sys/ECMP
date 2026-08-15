@@ -14,6 +14,7 @@ import {
 import {
   CM_BATCH1_MAX_MULTI_UPLOAD,
   CM_BATCH1_VOID_REASON_UPLOADER_REMOVED,
+  cmBatch1AttachmentClassificationLabelKey,
   cmBatch1VoidTargetId,
   formatCmBatch1AttachmentBytes,
   isCmBatch1AttachmentVoidable,
@@ -37,6 +38,7 @@ const CLASSIFICATION_OPTIONS = [
   { value: "customer_evidence", label: "classificationCustomerEvidence" },
   { value: "internal_evidence", label: "classificationInternalEvidence" },
   { value: "official_letter", label: "classificationOfficialLetter" },
+  { value: "other", label: "classificationOther" },
 ] as const;
 
 const ACCEPT_MIME =
@@ -401,6 +403,12 @@ export function StagingAttachmentsPanel({
             >
               {visible.map((item) => {
                 const rowId = cmBatch1VoidTargetId(item) ?? item.originalName;
+                const classificationKey =
+                  cmBatch1AttachmentClassificationLabelKey(item.classification);
+                const classificationLabel =
+                  classificationKey === item.classification
+                    ? item.classification
+                    : t(classificationKey);
                 return (
                   <li
                     key={rowId}
@@ -413,7 +421,7 @@ export function StagingAttachmentsPanel({
                       </span>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge tone="neutral">{item.status}</Badge>
-                        <Badge tone="info">{item.classification}</Badge>
+                        <Badge tone="info">{classificationLabel}</Badge>
                         <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                           {formatCmBatch1AttachmentBytes(item.sizeBytes)}
                         </span>

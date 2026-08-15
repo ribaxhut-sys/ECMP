@@ -6,6 +6,7 @@ import type {
   KnowledgeFileRole,
   KnowledgeHistoryEntry,
   KnowledgeSearchParams,
+  KnowledgeTypeCounts,
   KnowledgeUpdateRequest,
 } from "./types";
 
@@ -23,6 +24,14 @@ export function searchKnowledge(
   const qs = query.toString();
   return apiRequest<DataResponse<Knowledge[]>>(
     `/api/v1/knowledge${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export function fetchKnowledgeTypeCounts(): Promise<
+  DataResponse<KnowledgeTypeCounts>
+> {
+  return apiRequest<DataResponse<KnowledgeTypeCounts>>(
+    "/api/v1/knowledge/type-counts",
   );
 }
 

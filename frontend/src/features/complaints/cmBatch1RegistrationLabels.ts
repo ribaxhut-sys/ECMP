@@ -34,7 +34,7 @@ export function shouldShowCmBatch1Category(
   return Boolean(raw) && raw !== "GENERAL";
 }
 
-/** Wajib Pajak: "Nama (nomor)" — names alone are not unique. */
+/** Wajib Pajak: "Nama / nomor" — names alone are not unique. */
 export function formatCmBatch1CustomerLabel(
   displayName: string | null | undefined,
   customerNumber: string | null | undefined,
@@ -42,7 +42,7 @@ export function formatCmBatch1CustomerLabel(
 ): string | null {
   const name = (displayName ?? "").trim();
   const number = (customerNumber ?? "").trim() || (fallbackId ?? "").trim();
-  if (name && number) return `${name} (${number})`;
+  if (name && number) return `${name} / ${number}`;
   if (name) return name;
   if (number) return number;
   return null;

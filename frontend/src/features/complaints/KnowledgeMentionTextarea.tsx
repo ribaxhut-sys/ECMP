@@ -11,8 +11,8 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useTranslations } from "next-intl";
-import { searchKnowledge, fetchKnowledge } from "@/lib/api";
-import type { Knowledge, KnowledgeType } from "@/lib/api/types";
+import { searchKnowledge, fetchKnowledge, fetchKnowledgeTypeCounts } from "@/lib/api";
+import type { Knowledge, KnowledgeType, KnowledgeTypeCounts } from "@/lib/api/types";
 import {
   FormField,
   Badge,
@@ -34,6 +34,7 @@ import {
   knowledgeReferenceChipClass,
   renderMentionEditor,
   serializeMentionEditor,
+  setKnowledgeChipTypeLabel,
 } from "./knowledgeMentionEditor";
 
 const DEBOUNCE_MS = 250;
@@ -101,6 +102,7 @@ export function KnowledgeMentionTextarea({
     null,
   );
   const [previewKnowledgeId, setPreviewKnowledgeId] = useState<string | null>(null);
+  const [typeCounts, setTypeCounts] = useState<KnowledgeTypeCounts | null>(null);
 
   const open = mention !== null;
   mentionRef.current = mention;
@@ -174,6 +176,10 @@ export function KnowledgeMentionTextarea({
           chip.className = knowledgeReferenceChipClass(
             isKnowledgeReferenceActive(res.data),
           );
+          setKnowledgeChipTypeLabel(
+            chip,
+            tKnowledge(knowledgeTypeKey(res.data.knowledgeType)),
+          );
         })
         .catch(() => {
           if (cancelled) return;
@@ -183,7 +189,7 @@ export function KnowledgeMentionTextarea({
     return () => {
       cancelled = true;
     };
-  }, [value]);
+  }, [value, tKnowledge]);
 
   // Anchor "Cari Pengetahuan" beside the typed `@`.
   useLayoutEffect(() => {
@@ -311,7 +317,14 @@ export function KnowledgeMentionTextarea({
       ? `${item.title} v${item.versionLabel}`
       : item.title;
 
-    insertChipAtMention(root, current.start, caret, displayTitle, item.id);
+    insertChipAtMention(
+      root,
+      current.start,
+      caret,
+      displayTitle,
+      item.id,
+      tKnowledge(knowledgeTypeKey(item.knowledgeType)),
+    );
     closeDropdown();
     emitFromEditor();
     root.focus();
@@ -433,6 +446,21 @@ export function KnowledgeMentionTextarea({
     return () => root.removeEventListener("paste", onPaste);
   }, []);
 
+  useEffect(() => {
+    if (!showTypePicker) return;
+    let cancelled = false;
+    fetchKnowledgeTypeCounts()
+      .then((res) => {
+        if (!cancelled) setTypeCounts(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setTypeCounts(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showTypePicker]);
+
   const headerLabel = selectedType
     ? tKnowledge(knowledgeTypeKey(selectedType))
     : showTypePicker
@@ -540,12 +568,20 @@ export function KnowledgeMentionTextarea({
             className="max-h-64 overflow-y-auto py-1"
           >
             {showTypePicker ? (
-              KNOWLEDGE_MENTION_TYPES.map((type, index) => (
+              KNOWLEDGE_MENTION_TYPES.map((type, index) => {
+                const typeLabel = tKnowledge(knowledgeTypeKey(type));
+                const count = typeCounts?.[type];
+                const optionLabel =
+                  count == null
+                    ? typeLabel
+                    : t("typeWithCount", { type: typeLabel, count });
+                return (
                 <li key={type} role="none">
                   <div
                     id={`${listboxId}-type-${index}`}
                     role="option"
                     aria-selected={index === highlighted}
+                    aria-label={optionLabel}
                     className={cn(
                       "flex cursor-pointer items-center gap-2 px-3 py-2 text-[length:var(--ecmp-font-body-small-size)]",
                       index === highlighted
@@ -558,21 +594,17 @@ export function KnowledgeMentionTextarea({
                     }}
                     onMouseEnter={() => setHighlighted(index)}
                   >
-                    <Badge tone="info" className="shrink-0 px-1.5 py-0">
-                      {tKnowledge(knowledgeTypeKey(type))}
+                    <Badge tone="info" className="min-w-0 flex-1 px-1.5 py-0">
+                      {optionLabel}
                     </Badge>
-                    <span className="min-w-0 flex-1 truncate text-ecmp-text-secondary">
-                      {t("browseType", {
-                        type: tKnowledge(knowledgeTypeKey(type)),
-                      })}
-                    </span>
                     <IconChevronRight
                       className="size-4 shrink-0 text-ecmp-text-secondary"
                       aria-hidden
                     />
                   </div>
                 </li>
-              ))
+                );
+              })
             ) : loading ? (
               <li className="flex items-center gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
                 <IconSpinner className="size-4" aria-hidden />

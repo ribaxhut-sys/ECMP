@@ -10,6 +10,7 @@ import {
 
 export const KNOWLEDGE_CHIP_ATTR_ID = "data-knowledge-id";
 export const KNOWLEDGE_CHIP_ATTR_TITLE = "data-knowledge-title";
+export const KNOWLEDGE_CHIP_ATTR_TYPE = "data-knowledge-type-label";
 
 /** Shared chip look: blue italic, underline on hover only, no background.
  * `!` beats the global ``button { font: inherit; color: inherit }`` reset. */
@@ -38,16 +39,52 @@ export function createKnowledgeChip(
   doc: Document,
   title: string,
   knowledgeId: string,
+  typeLabel?: string | null,
 ): HTMLSpanElement {
   const chip = doc.createElement("span");
   chip.setAttribute(KNOWLEDGE_CHIP_ATTR_ID, knowledgeId);
   chip.setAttribute(KNOWLEDGE_CHIP_ATTR_TITLE, title);
   chip.contentEditable = "false";
   chip.className = knowledgeReferenceChipClassName;
-  chip.textContent = title || "—";
   chip.setAttribute("role", "link");
   chip.tabIndex = -1;
+  fillKnowledgeChipContents(chip, title, typeLabel);
   return chip;
+}
+
+/** Add/replace the type tag inside a chip without changing the stored title. */
+export function setKnowledgeChipTypeLabel(
+  chip: HTMLElement,
+  typeLabel: string,
+): void {
+  const title = chip.getAttribute(KNOWLEDGE_CHIP_ATTR_TITLE) ?? "";
+  fillKnowledgeChipContents(chip, title, typeLabel);
+}
+
+function fillKnowledgeChipContents(
+  chip: HTMLElement,
+  title: string,
+  typeLabel?: string | null,
+): void {
+  const doc = chip.ownerDocument;
+  chip.replaceChildren();
+  const label = typeLabel?.trim() ?? "";
+  if (label) {
+    chip.setAttribute(KNOWLEDGE_CHIP_ATTR_TYPE, label);
+    const badge = doc.createElement("span");
+    badge.setAttribute("aria-hidden", "true");
+    badge.className =
+      "mr-1 inline-flex items-center rounded-[var(--ecmp-radius-badge)] bg-ecmp-info-bg px-1.5 py-0 align-baseline text-[length:var(--ecmp-font-caption-size)] font-medium not-italic tracking-wide text-ecmp-info-text";
+    badge.textContent = label;
+    chip.appendChild(badge);
+  } else {
+    chip.removeAttribute(KNOWLEDGE_CHIP_ATTR_TYPE);
+  }
+  chip.appendChild(doc.createTextNode(label ? ` ${title || "—"}` : title || "—"));
+  chip.setAttribute(
+    "aria-label",
+    label ? `${label} ${title || "—"}`.trim() : title || "—",
+  );
 }
 
 /** Walk the editor DOM → storage string with markers. */
@@ -184,6 +221,7 @@ export function insertChipAtMention(
   caretVisible: number,
   title: string,
   knowledgeId: string,
+  typeLabel?: string | null,
 ): void {
   // Rebuild from visible text with mention replaced by a placeholder, then
   // swap placeholder for a chip — keeps mapping simple and reliable.
@@ -211,7 +249,12 @@ export function insertChipAtMention(
   range.setEnd(endPoint.node, endPoint.offset);
   range.deleteContents();
 
-  const chip = createKnowledgeChip(root.ownerDocument, title, knowledgeId);
+  const chip = createKnowledgeChip(
+    root.ownerDocument,
+    title,
+    knowledgeId,
+    typeLabel,
+  );
   range.insertNode(chip);
 
   // Trailing space after chip when needed

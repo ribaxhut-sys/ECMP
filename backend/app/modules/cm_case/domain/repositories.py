@@ -59,8 +59,13 @@ class CaseRepository(Protocol):
     def save(self, case: CaseAggregate) -> CaseAggregate:
         ...
 
-    def get(self, case_id: str) -> CaseAggregate | None:
-        """Load by UUID or Case Number."""
+    def get(self, case_id: str, *, for_update: bool = False) -> CaseAggregate | None:
+        """Load by UUID or Case Number.
+
+        ``for_update`` locks the row (``SELECT ... FOR UPDATE``) so a
+        concurrent claim/reassign cannot read the same pre-claim state
+        (BR-005 E4 — double-claim race: only one claim wins).
+        """
 
     def list_summaries(
         self,
