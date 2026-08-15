@@ -22,11 +22,9 @@ import {
 export function OperationalHealthPanel({
   summary,
   loading,
-  onRefresh,
 }: {
   summary: ReportSummary | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const t = useTranslations("reports");
   const health = useMemo(() => {
@@ -58,11 +56,6 @@ export function OperationalHealthPanel({
             <Empty
               title={t("noHealthData")}
               description={t("noHealthDataDescription")}
-              primaryAction={
-                onRefresh
-                  ? { label: t("refreshReport"), onClick: onRefresh }
-                  : undefined
-              }
             />
           ) : (
             <>

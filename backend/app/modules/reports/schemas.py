@@ -34,6 +34,11 @@ class BranchCount(BaseModel):
     branch_code: str | None = Field(default=None, alias="branchCode")
     branch_name: str | None = Field(default=None, alias="branchName")
     total: int = Field(ge=0)
+    open: int = Field(default=0, ge=0)
+    closed: int = Field(default=0, ge=0)
+    case_total: int = Field(default=0, ge=0, alias="caseTotal")
+    case_open: int = Field(default=0, ge=0, alias="caseOpen")
+    case_closed: int = Field(default=0, ge=0, alias="caseClosed")
 
 
 class ReportSummaryData(BaseModel):

@@ -23,17 +23,13 @@ function InsightTile({
   caption,
   emptyTitle,
   emptyDescription,
-  onRefresh,
 }: {
   title: string;
   value?: string | null;
   caption?: string | null;
   emptyTitle: string;
   emptyDescription: string;
-  onRefresh?: () => void;
 }) {
-  const t = useTranslations("reports");
-
   return (
     <Card className="h-full">
       <CardHeader>
@@ -56,11 +52,6 @@ function InsightTile({
             className="border-0 bg-transparent px-2 py-6"
             title={emptyTitle}
             description={emptyDescription}
-            primaryAction={
-              onRefresh
-                ? { label: t("refreshReport"), onClick: onRefresh }
-                : undefined
-            }
           />
         )}
       </CardBody>
@@ -72,12 +63,10 @@ export function InsightsPanel({
   byStatus,
   byBranch,
   loading,
-  onRefresh,
 }: {
   byStatus: StatusCount[] | null;
   byBranch: BranchCount[] | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const t = useTranslations("reports");
 
@@ -123,7 +112,6 @@ export function InsightsPanel({
             caption={topRisk?.caption}
             emptyTitle={t("insightUnavailable")}
             emptyDescription={t("topRiskUnavailable")}
-            onRefresh={onRefresh}
           />
           <InsightTile
             title={t("highestQueue")}
@@ -131,7 +119,6 @@ export function InsightsPanel({
             caption={queueInsight?.caption}
             emptyTitle={t("insightUnavailable")}
             emptyDescription={t("highestQueueUnavailable")}
-            onRefresh={onRefresh}
           />
         </div>
       )}

@@ -33,16 +33,21 @@ def test_report_repository_aggregations() -> None:
         repo.count_total(branch_id=bid, date_from=now, date_to=now) == 3
     )
 
-    session.execute.return_value.all.return_value = [("OPEN", 2), ("CLOSED", 1)]
+    session.execute.return_value.all.side_effect = [
+        [("OPEN", 2), ("CLOSED", 1)],
+        [(bid, "B1", "Branch 1", 5, 4), (None, None, None, 1, 0)],
+        [("B1", 4, 3)],
+        [],
+    ]
     assert repo.count_by_status(branch_id=bid) == [("OPEN", 2), ("CLOSED", 1)]
 
-    session.execute.return_value.all.return_value = [
-        (bid, "B1", "Branch 1", 5),
-        (None, None, None, 1),
-    ]
     rows = repo.count_by_branch(date_from=now, date_to=now)
     assert rows[0][0] == bid
     assert rows[0][3] == 5
+    assert rows[0][4] == 1
+    assert rows[0][5] == 4
+    assert rows[0][6] == 4
+    assert rows[0][8] == 3
     assert rows[1][0] is None
 
     # Unresolvable branch (soft-deleted / unknown) is a known-empty scope —

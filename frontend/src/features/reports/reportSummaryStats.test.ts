@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   branchPerformanceRows,
+  escalationTotal,
   highestQueueBranch,
   operationalHealthFromRate,
   reportHeadlineCounts,
@@ -48,7 +49,7 @@ describe("resolutionBuckets", () => {
     expect(resolutionBuckets([])).toBeNull();
   });
 
-  it("groups waiting, escalated, and resolved", () => {
+  it("groups waiting, escalated, and resolved into mutually exclusive slices", () => {
     expect(
       resolutionBuckets([
         { status: "NEW", count: 1 },
@@ -61,10 +62,29 @@ describe("resolutionBuckets", () => {
       ]),
     ).toEqual({
       resolved: 7,
-      waiting: 4,
+      waiting: 2,
       escalated: 4,
+      escalationApproved: 2,
       inProgress: 3,
     });
+  });
+});
+
+describe("escalationTotal", () => {
+  it("sums pending and already-approved escalations", () => {
+    expect(
+      escalationTotal({
+        resolved: 0,
+        waiting: 0,
+        escalated: 3,
+        escalationApproved: 2,
+        inProgress: 0,
+      }),
+    ).toBe(5);
+  });
+
+  it("returns 0 for null buckets", () => {
+    expect(escalationTotal(null)).toBe(0);
   });
 });
 
@@ -76,18 +96,33 @@ describe("branchPerformanceRows", () => {
         branchCode: "JKT",
         branchName: "Jakarta",
         total: 10,
+        open: 0,
+        closed: 10,
+        caseTotal: 10,
+        caseOpen: 0,
+        caseClosed: 10,
       },
       {
         branchId: "b2",
         branchCode: "BDG",
         branchName: "Bandung",
         total: 7,
+        open: 0,
+        closed: 7,
+        caseTotal: 7,
+        caseOpen: 0,
+        caseClosed: 7,
       },
       {
         branchId: "b3",
         branchCode: "SBY",
         branchName: "Surabaya",
         total: 4,
+        open: 0,
+        closed: 4,
+        caseTotal: 4,
+        caseOpen: 0,
+        caseClosed: 4,
       },
     ]);
 
@@ -135,12 +170,22 @@ describe("highestQueueBranch", () => {
           branchCode: "JKT",
           branchName: "Jakarta",
           total: 3,
+          open: 1,
+          closed: 2,
+          caseTotal: 3,
+          caseOpen: 1,
+          caseClosed: 2,
         },
         {
           branchId: "b2",
           branchCode: "BDG",
           branchName: "Bandung",
           total: 9,
+          open: 2,
+          closed: 7,
+          caseTotal: 9,
+          caseOpen: 2,
+          caseClosed: 7,
         },
       ])?.branchName,
     ).toBe("Bandung");

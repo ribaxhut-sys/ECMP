@@ -71,7 +71,7 @@ def get_report_by_status(
     "/by-branch",
     response_model=DataResponse[list[BranchCount]],
     status_code=status.HTTP_200_OK,
-    summary="Complaint counts by branch",
+    summary="Complaint and case counts by branch",
 )
 def get_report_by_branch(
     service: Annotated[ReportService, Depends(get_report_service)],

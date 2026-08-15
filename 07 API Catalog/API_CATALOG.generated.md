@@ -195,7 +195,7 @@
 | API-355 | `PUT /api/v1/roles/{id}/data-scopes` | Replace role data scopes |
 | API-210 | `GET /api/v1/reports/summary` | Complaint report summary |
 | API-211 | `GET /api/v1/reports/by-status` | Complaint counts by status |
-| API-212 | `GET /api/v1/reports/by-branch` | Complaint counts by branch |
+| API-212 | `GET /api/v1/reports/by-branch` | Complaint and case counts by branch |
 | API-222 | `GET /api/v1/customers` | List customer references |
 | API-223 | `GET /api/v1/branches` | List branch references |
 | API-213 | `POST /api/v1/users` | Create user |

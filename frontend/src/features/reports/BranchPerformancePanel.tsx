@@ -24,11 +24,9 @@ const rankBarClass = {
 export function BranchPerformancePanel({
   rows,
   loading,
-  onRefresh,
 }: {
   rows: BranchCount[] | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const t = useTranslations("reports");
   const ranked = useMemo(() => branchPerformanceRows(rows), [rows]);
@@ -57,11 +55,6 @@ export function BranchPerformancePanel({
             <Empty
               title={t("noBranchData")}
               description={t("noBranchDataDescription")}
-              primaryAction={
-                onRefresh
-                  ? { label: t("refreshReport"), onClick: onRefresh }
-                  : undefined
-              }
             />
           ) : (
             <ul className="space-y-[var(--ecmp-card-gap)]" role="list">

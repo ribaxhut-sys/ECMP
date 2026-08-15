@@ -52,6 +52,12 @@ def _status_counts(raw: list[tuple[str, int]]) -> list[StatusCount]:
     ]
 
 
+def _completion_ratio(closed: int, total: int) -> float:
+    if total <= 0:
+        return -1.0
+    return closed / total
+
+
 class ReportService:
     def __init__(self, repository: ReportRepository) -> None:
         self._repo = repository
@@ -99,12 +105,35 @@ class ReportService:
         rows = self._repo.count_by_branch(
             branch_id=branch_id, date_from=date_from, date_to=date_to
         )
-        return [
+        items = [
             BranchCount(
                 branchId=row_branch_id,
                 branchCode=code,
                 branchName=name,
                 total=total,
+                open=open_count,
+                closed=closed,
+                caseTotal=case_total,
+                caseOpen=case_open,
+                caseClosed=case_closed,
             )
-            for row_branch_id, code, name, total in rows
+            for (
+                row_branch_id,
+                code,
+                name,
+                total,
+                open_count,
+                closed,
+                case_total,
+                case_open,
+                case_closed,
+            ) in rows
         ]
+        items.sort(
+            key=lambda row: (
+                _completion_ratio(row.case_closed, row.case_total),
+                row.total,
+            ),
+            reverse=True,
+        )
+        return items

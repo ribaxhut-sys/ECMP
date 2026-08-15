@@ -7,10 +7,19 @@ export type ReportHeadlineCounts = {
   closed: number;
 };
 
+/**
+ * Mutually exclusive slices of the Aggregate KPI — they must sum to `total`.
+ * Status labels arrive from `buildAggregateKpis`, where `ASSIGNED` carries
+ * escalateApproved (escalation already approved), not "assigned to an officer".
+ */
 export type ResolutionBuckets = {
   resolved: number;
+  /** NEW + PENDING — open, not yet escalated or worked. */
   waiting: number;
+  /** ESCALATED — escalation awaiting supervisor approval. */
   escalated: number;
+  /** ASSIGNED — escalation approved, on its way to Pusat. */
+  escalationApproved: number;
   inProgress: number;
 };
 
@@ -57,16 +66,27 @@ export function resolutionBuckets(
   const byStatus = new Map(rows.map((row) => [row.status, row.count]));
   const resolved =
     (byStatus.get("RESOLVED") ?? 0) + (byStatus.get("CLOSED") ?? 0);
-  const waiting =
-    (byStatus.get("NEW") ?? 0) +
-    (byStatus.get("ASSIGNED") ?? 0) +
-    (byStatus.get("PENDING") ?? 0);
+  const waiting = (byStatus.get("NEW") ?? 0) + (byStatus.get("PENDING") ?? 0);
   const escalated = byStatus.get("ESCALATED") ?? 0;
+  const escalationApproved = byStatus.get("ASSIGNED") ?? 0;
   const inProgress = byStatus.get("IN_PROGRESS") ?? 0;
 
-  if (resolved + waiting + escalated + inProgress === 0) return null;
+  if (
+    resolved + waiting + escalated + escalationApproved + inProgress ===
+    0
+  ) {
+    return null;
+  }
 
-  return { resolved, waiting, escalated, inProgress };
+  return { resolved, waiting, escalated, escalationApproved, inProgress };
+}
+
+/** Every escalation slice — awaiting approval plus already approved. */
+export function escalationTotal(
+  buckets: ResolutionBuckets | null | undefined,
+): number {
+  if (!buckets) return 0;
+  return buckets.escalated + buckets.escalationApproved;
 }
 
 /** Rank branches for horizontal performance bars (CSS-only). */

@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { fetchBranches } from "@/lib/api/branches";
+import type { Branch } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
-import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
+import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
@@ -60,37 +60,21 @@ function isAppNavItemVisible(
  * Resolve the unit label under the PELAYANAN brand.
  * - Cabang: branch name from catalog (matched by user.branchId).
  * - Pusat / head-office (EBS-001): branchId is null — show "Pusat", not blank.
+ *
+ * Derives from the branch already resolved by `useOrgUnitBranch` in the
+ * caller — no fetch of its own, so the sidebar issues one branch-catalog
+ * request instead of two for the same `user.branchId`.
  */
-function useBrandUnitLabel(): string | null {
+function useBrandUnitLabel(orgUnitBranch: Branch | null | undefined): string | null {
   const { user, hasPermission } = useAuth();
   const tCommon = useTranslations("common");
   const branchId = user?.branchId ?? null;
   const canReadBranches = hasPermission("complaints:read");
-  const [branchName, setBranchName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!branchId || !canReadBranches) {
-      setBranchName(null);
-      return;
-    }
-    let cancelled = false;
-    fetchBranches()
-      .then((res) => {
-        if (cancelled) return;
-        const match = res.data.find((branch) => branch.id === branchId);
-        setBranchName(match?.name ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setBranchName(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [branchId, canReadBranches]);
 
   if (!user) return null;
   if (!branchId) return tCommon("headOfficeUnit");
-  return branchName;
+  if (!canReadBranches) return null;
+  return orgUnitBranch?.name ?? null;
 }
 
 const iconMap = {
@@ -224,7 +208,13 @@ function Brand({
   return content;
 }
 
-function useShellNav(): {
+/**
+ * `orgUnitBranch` is resolved once by the caller (`Sidebar`) and passed in —
+ * this used to call `useOrgUnitCode()` itself, and since both `Sidebar` and
+ * `NavSections` called this hook, the branch catalog was fetched twice per
+ * page load for the identical `user.branchId` lookup.
+ */
+function useShellNav(orgUnitBranch: Branch | null | undefined): {
   groups: typeof APP_NAV_GROUPS;
   itemsById: Record<string, NavItem>;
   homeHref: string;
@@ -237,7 +227,8 @@ function useShellNav(): {
     mockPersona,
     officerWorkMode,
   } = useAuth();
-  const orgUnitCode = useOrgUnitCode();
+  const orgUnitCode =
+    orgUnitBranch === undefined ? undefined : orgUnitBranch?.code ?? null;
   const batchB0 = isShellUiBatch() || isMockSession;
 
   if (!batchB0) {
@@ -585,9 +576,18 @@ function NavGroupSection({
   );
 }
 
-function NavSections({ onNavigate }: { onNavigate?: () => void }) {
+function NavSections({
+  groups,
+  itemsById,
+  isItemVisible,
+  onNavigate,
+}: {
+  groups: typeof APP_NAV_GROUPS;
+  itemsById: Record<string, NavItem>;
+  isItemVisible: (item: NavItem) => boolean;
+  onNavigate?: () => void;
+}) {
   const tCommon = useTranslations("common");
-  const { groups, itemsById, isItemVisible } = useShellNav();
   const unreadCount = useUnreadAnnouncementCount();
   const pendingTransferRequestCount = usePendingTransferRequestCount();
   let itemsWithBadges = itemsById;
@@ -636,8 +636,10 @@ export function Sidebar() {
   const { open, setOpen, isDesktop } = useSidebar();
   const closeDrawer = () => setOpen(false);
   const tCommon = useTranslations("common");
-  const { homeHref } = useShellNav();
-  const brandUnitLabel = useBrandUnitLabel();
+  const orgUnitBranch = useOrgUnitBranch();
+  const { groups, itemsById, homeHref, isItemVisible } =
+    useShellNav(orgUnitBranch);
+  const brandUnitLabel = useBrandUnitLabel(orgUnitBranch);
 
   return (
     <>
@@ -652,7 +654,11 @@ export function Sidebar() {
         <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
           <Brand asLink href={homeHref} branchName={brandUnitLabel} />
         </div>
-        <NavSections />
+        <NavSections
+          groups={groups}
+          itemsById={itemsById}
+          isItemVisible={isItemVisible}
+        />
       </aside>
 
       <div
@@ -690,7 +696,12 @@ export function Sidebar() {
               branchName={brandUnitLabel}
             />
           </div>
-          <NavSections onNavigate={isDesktop ? undefined : closeDrawer} />
+          <NavSections
+            groups={groups}
+            itemsById={itemsById}
+            isItemVisible={isItemVisible}
+            onNavigate={isDesktop ? undefined : closeDrawer}
+          />
         </aside>
       </div>
     </>

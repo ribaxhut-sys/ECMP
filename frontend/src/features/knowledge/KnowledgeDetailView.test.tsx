@@ -89,10 +89,7 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
 
     expect(within(dialog).getByText("Documents")).toBeInTheDocument();
     expect(
-      within(dialog).getByRole("button", { name: /upload primary file/i }),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole("button", { name: /add supporting file/i }),
+      within(dialog).getByRole("button", { name: /upload file/i }),
     ).toBeInTheDocument();
   });
 
@@ -124,10 +121,10 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
 
     expect(within(dialog).getByText("sop-utama.pdf")).toBeInTheDocument();
     expect(
-      within(dialog).queryByRole("button", { name: /upload primary file/i }),
+      within(dialog).queryByRole("button", { name: /upload file/i }),
     ).not.toBeInTheDocument();
     expect(
-      within(dialog).queryByRole("button", { name: /add supporting file/i }),
+      within(dialog).queryByRole("button", { name: /^add file$/i }),
     ).not.toBeInTheDocument();
   });
 

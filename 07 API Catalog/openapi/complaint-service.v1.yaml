@@ -3589,14 +3589,21 @@ paths:
           $ref: "#/components/responses/InternalError"
   /api/v1/reports/by-branch:
     get:
-      summary: Complaint counts by branch
+      summary: Complaint and case counts by branch
       operationId: getReportByBranch
       x-ear-id: API-212
       tags: [Reports]
       security:
         - bearerAuth: []
       description: |
-        SQL `COUNT` + `GROUP BY branch`. Sorted by `total` descending.
+        SQL `COUNT` + `GROUP BY` owning unit. Sorted by case completion
+        percent (caseClosed/caseTotal) descending, then complaint volume.
+        All callers with `reports:read` see every unit; optional `branchId`
+        still filters one unit.
+        Each row includes complaint totals and CM case open/closed so
+        completion percent is computed from cases (one complaint may have
+        several cases). A complaint with no Case row still counts as one case
+        (closed if the complaint is CLOSED).
         Complaints without a branch appear with null branch fields.
         Soft-deleted complaints are excluded. Requires permission `reports:read`.
       parameters:
@@ -5834,12 +5841,17 @@ components:
         count: { type: integer, minimum: 0 }
     BranchCount:
       type: object
-      required: [total]
+      required: [total, open, closed, caseTotal, caseOpen, caseClosed]
       properties:
         branchId: { type: string, format: uuid, nullable: true }
         branchCode: { type: string, nullable: true }
         branchName: { type: string, nullable: true }
-        total: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0, description: Complaint total }
+        open: { type: integer, minimum: 0, description: Complaints not CLOSED }
+        closed: { type: integer, minimum: 0, description: Complaints CLOSED }
+        caseTotal: { type: integer, minimum: 0, description: CM case total }
+        caseOpen: { type: integer, minimum: 0, description: Cases not CLOSED }
+        caseClosed: { type: integer, minimum: 0, description: Cases CLOSED }
     ReportSummary:
       type: object
       required: [total, byStatus]

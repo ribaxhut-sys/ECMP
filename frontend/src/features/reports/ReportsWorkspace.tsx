@@ -14,7 +14,6 @@ import {
 import { BranchPerformancePanel } from "./BranchPerformancePanel";
 import { InsightsPanel } from "./InsightsPanel";
 import { OperationalHealthPanel } from "./OperationalHealthPanel";
-import { PerformanceTrendsPanel } from "./PerformanceTrendsPanel";
 import { ReportSummaryCards } from "./ReportSummaryCards";
 import { ResolutionEffectivenessPanel } from "./ResolutionEffectivenessPanel";
 import { useReportsData } from "./useReportsData";
@@ -94,37 +93,27 @@ export function ReportsWorkspace() {
           <ReportSummaryCards
             summary={data?.summary ?? null}
             loading={loading}
-            onRefresh={() => void reload()}
-          />
-
-          <PerformanceTrendsPanel
-            loading={loading}
-            onRefresh={() => void reload()}
           />
 
           <BranchPerformancePanel
             rows={data?.byBranch ?? null}
             loading={loading}
-            onRefresh={() => void reload()}
           />
 
           <ResolutionEffectivenessPanel
             rows={data?.byStatus ?? data?.summary?.byStatus ?? null}
             loading={loading}
-            onRefresh={() => void reload()}
           />
 
           <OperationalHealthPanel
             summary={data?.summary ?? null}
             loading={loading}
-            onRefresh={() => void reload()}
           />
 
           <InsightsPanel
             byStatus={data?.byStatus ?? data?.summary?.byStatus ?? null}
             byBranch={data?.byBranch ?? null}
             loading={loading}
-            onRefresh={() => void reload()}
           />
         </div>
       )}

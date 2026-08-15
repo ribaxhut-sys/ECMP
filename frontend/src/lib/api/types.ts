@@ -59,6 +59,11 @@ export interface BranchCount {
   branchCode: string | null;
   branchName: string | null;
   total: number;
+  open: number;
+  closed: number;
+  caseTotal: number;
+  caseOpen: number;
+  caseClosed: number;
 }
 
 export interface ReportSummary {

@@ -1,4 +1,4 @@
-import { fetchDashboardAggregateKpis } from "@/lib/api";
+import { fetchDashboardAggregateKpis, fetchReportByBranch } from "@/lib/api";
 import type { BranchCount, ReportSummary, StatusCount } from "@/lib/api/types";
 import { buildAggregateKpis } from "@/features/dashboard/loadDashboardData";
 
@@ -10,9 +10,16 @@ export type ReportsData = {
 
 /**
  * Operational reports use the same Aggregate KPI as the dashboard (DEC-026).
+ *
+ * Branch rows come from API-212 (`/reports/by-branch`), which reads the same
+ * Batch-1 Aggregate. It is a side panel, so a failure there degrades to "no
+ * branch data" instead of taking the whole page down with it.
  */
 export async function loadReportsData(): Promise<ReportsData> {
-  const res = await fetchDashboardAggregateKpis();
+  const [res, branchRes] = await Promise.all([
+    fetchDashboardAggregateKpis(),
+    fetchReportByBranch().catch(() => null),
+  ]);
   const kpis = buildAggregateKpis({
     total: res.data.total,
     open: res.data.open,
@@ -26,9 +33,10 @@ export async function loadReportsData(): Promise<ReportsData> {
     total: kpis.total,
     byStatus: kpis.byStatus,
   };
+  const branchRows = branchRes?.data ?? [];
   return {
     summary,
     byStatus: kpis.byStatus,
-    byBranch: null,
+    byBranch: branchRows.length > 0 ? branchRows : null,
   };
 }

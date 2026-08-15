@@ -24,11 +24,9 @@ function openAccentFromRate(openRate: number): StatAccent {
 export function ReportSummaryCards({
   summary,
   loading,
-  onRefresh,
 }: {
   summary: ReportSummary | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const t = useTranslations("reports");
 
@@ -65,11 +63,6 @@ export function ReportSummaryCards({
         <Empty
           title={t("noSummary")}
           description={t("noSummaryDescription")}
-          primaryAction={
-            onRefresh
-              ? { label: t("refreshReport"), onClick: onRefresh }
-              : undefined
-          }
         />
       </section>
     );
