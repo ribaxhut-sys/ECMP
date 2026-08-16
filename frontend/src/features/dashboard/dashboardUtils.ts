@@ -1,4 +1,5 @@
 import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import { nameInitials } from "@/shared/utils/initials";
 import type {
   BranchCount,
   ComplaintStatus,
@@ -177,23 +178,9 @@ export function slaLevelToOpsTone(level: SlaHealthLevel): OpsTone {
   return "healthy";
 }
 
-/** Three-letter avatar code for activity actors (DH → DHA, Elena → ELE). */
+/** Three-letter avatar code for activity actors (Dedi Harianto → DHA, Elena → ELE). */
 export function actorInitials(actor: string | null | undefined): string {
-  const value = (actor ?? "").trim();
-  if (!value) return "?";
-  const parts = value.split(/\s+/).filter(Boolean);
-  if (parts.length >= 3) {
-    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}${parts[2][0] ?? ""}`.toUpperCase();
-  }
-  if (parts.length === 2) {
-    const first = parts[0] ?? "";
-    const last = parts[1] ?? "";
-    if (last.length >= 2) {
-      return `${first[0] ?? ""}${last.slice(0, 2)}`.toUpperCase();
-    }
-    return `${first.slice(0, 2)}${last[0] ?? ""}`.toUpperCase().slice(0, 3);
-  }
-  return (parts[0] ?? "").slice(0, 3).toUpperCase();
+  return nameInitials(actor) ?? "?";
 }
 
 /** Relative time for activity rows — presentation only. */

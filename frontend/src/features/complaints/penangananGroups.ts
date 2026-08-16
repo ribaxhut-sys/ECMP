@@ -3,7 +3,7 @@
  * Case remains SoT behind the UI; labels/groups are presentation only (DEC-020).
  */
 
-import { officerInitials } from "./officerDisplayName";
+import { officerDisplayName, officerInitials } from "./officerDisplayName";
 
 export type PenangananGroupId = "open" | "pusat" | "done" | "cancelled";
 
@@ -80,6 +80,32 @@ export function penangananSummaryCounts(
     done: parts.done.length,
     cancelled: parts.cancelled.length,
   };
+}
+
+/** PIC yang ditampilkan pada kolom Aggregate list: case terbuka/HQ pertama. */
+export type PenangananHandlerRef = {
+  /** Identitas unik user; jatuh ke nama bila API tidak mengirim id. */
+  key: string;
+  name: string;
+};
+
+export function handlerRefFromCases(
+  items: readonly {
+    status: string;
+    handlingClaimedBy?: string | null;
+    handlingClaimedByName?: string | null;
+  }[],
+  intakeDisposition?: string | null,
+): PenangananHandlerRef | null {
+  const parts = partitionPenanganan(items, {
+    complaintOnHqPath: isHqIntakeDisposition(intakeDisposition),
+  });
+  for (const item of [...parts.open, ...parts.pusat]) {
+    const name = officerDisplayName(item.handlingClaimedByName);
+    if (!name) continue;
+    return { key: (item.handlingClaimedBy || "").trim() || name, name };
+  }
+  return null;
 }
 
 /** Counts for Aggregate list column (open / HQ / done). */

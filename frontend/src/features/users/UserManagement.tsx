@@ -30,6 +30,7 @@ import {
   WorkspaceToolbar,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { disambiguateInitials } from "@/shared/utils/initials";
 import { CreateUserModal } from "./CreateUserModal";
 import { DirectoryPeopleList } from "./DirectoryPeopleList";
 import { DirectoryPreviewPanel } from "./DirectoryPreviewPanel";
@@ -155,6 +156,21 @@ export function UserManagement() {
         matchesDirectorySearch(row, searchQuery),
     );
   }, [rows, searchQuery, directoryFilter]);
+
+  /**
+   * Dihitung atas seluruh direktori, bukan halaman aktif, supaya dua pengguna
+   * bernama sama mendapat inisial berbeda yang tetap sama di daftar dan panel.
+   */
+  const initialsByUserId = useMemo(
+    () =>
+      disambiguateInitials(
+        rows.map((row) => ({
+          key: row.id,
+          name: row.fullName?.trim() || row.username,
+        })),
+      ),
+    [rows],
+  );
 
   const totalItems = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
@@ -617,6 +633,7 @@ export function UserManagement() {
                 rows={pageRows}
                 selectedId={selectedId}
                 unitLabelByBranchId={unitLabelByBranchId}
+                initialsByUserId={initialsByUserId}
                 onSelect={(user) =>
                   setSelectedId((current) =>
                     current === user.id ? null : user.id,
@@ -639,6 +656,9 @@ export function UserManagement() {
             <div className="xl:col-span-4">
               <DirectoryPreviewPanel
                 user={selectedUser}
+                initials={
+                  selectedUser ? initialsByUserId.get(selectedUser.id) : null
+                }
                 unitLabel={
                   selectedUser
                     ? selectedUser.branchId

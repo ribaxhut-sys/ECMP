@@ -72,6 +72,7 @@ function WorkStatRow({
 export function DirectoryPreviewPanel({
   user,
   unitLabel,
+  initials,
   canUpdateStatus,
   updatingStatus,
   onRequestStatusChange,
@@ -81,6 +82,7 @@ export function DirectoryPreviewPanel({
 }: {
   user: UserRef | null;
   unitLabel: string | null;
+  initials?: string | null;
   canUpdateStatus: boolean;
   updatingStatus: boolean;
   onRequestStatusChange: (user: UserRef) => void;
@@ -163,6 +165,7 @@ export function DirectoryPreviewPanel({
           <DirectoryAvatar
             fullName={user.fullName}
             username={user.username}
+            initials={initials}
             size="lg"
           />
           <div className="min-w-0">

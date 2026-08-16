@@ -4,6 +4,8 @@ import { userInitials } from "./directoryHelpers";
 type DirectoryAvatarProps = {
   fullName: string;
   username: string;
+  /** Kode yang sudah dibedakan bila ada pengguna lain berinisial sama. */
+  initials?: string | null;
   size?: "sm" | "md" | "lg";
   className?: string;
 };
@@ -17,10 +19,11 @@ const sizeClass = {
 export function DirectoryAvatar({
   fullName,
   username,
+  initials: resolvedInitials,
   size = "md",
   className,
 }: DirectoryAvatarProps) {
-  const initials = userInitials({ fullName, username });
+  const initials = resolvedInitials || userInitials({ fullName, username });
 
   return (
     <span

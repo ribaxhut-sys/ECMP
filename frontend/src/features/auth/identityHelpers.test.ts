@@ -7,12 +7,19 @@ import {
 } from "./identityHelpers";
 
 describe("identityInitials", () => {
-  it("builds initials from full name", () => {
-    expect(identityInitials("Ada Lovelace")).toBe("AL");
+  it("builds three-letter initials from full name", () => {
+    expect(identityInitials("Ada Lovelace")).toBe("ALO");
+    expect(identityInitials("Budi Santoso")).toBe("BSA");
+    expect(identityInitials("Budi Santoso Pratama")).toBe("BSP");
+  });
+
+  it("keeps three letters for single-word names", () => {
+    expect(identityInitials("Administrator")).toBe("ADM");
   });
 
   it("falls back for empty values", () => {
     expect(identityInitials("")).toBe("?");
+    expect(identityInitials("   ", "U")).toBe("U");
   });
 });
 

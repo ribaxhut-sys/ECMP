@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPenangananSummarySegments,
   handlerInitialsFromCases,
+  handlerRefFromCases,
   isHqIntakeDisposition,
   joinPenangananSummarySegments,
   partitionPenanganan,
@@ -158,6 +159,45 @@ describe("penangananGroups", () => {
     expect(
       handlerInitialsFromCases(
         [{ status: "CLOSED", handlingClaimedByName: "Ahmad Santoso" }],
+        null,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns the handler identity so same-named officers stay distinct", () => {
+    expect(
+      handlerRefFromCases(
+        [
+          {
+            status: "IN_PROGRESS",
+            handlingClaimedBy: "user-1",
+            handlingClaimedByName: "Ahmad Santoso",
+          },
+        ],
+        null,
+      ),
+    ).toEqual({ key: "user-1", name: "Ahmad Santoso" });
+  });
+
+  it("falls back to the name as key when the API omits the user id", () => {
+    expect(
+      handlerRefFromCases(
+        [{ status: "IN_PROGRESS", handlingClaimedByName: "Ahmad Santoso" }],
+        null,
+      ),
+    ).toEqual({ key: "Ahmad Santoso", name: "Ahmad Santoso" });
+  });
+
+  it("ignores a handler name that is really a user id", () => {
+    expect(
+      handlerRefFromCases(
+        [
+          {
+            status: "IN_PROGRESS",
+            handlingClaimedBy: "user-1",
+            handlingClaimedByName: "bd0b9a73-72f4-4173-93f2-c5f6733a0415",
+          },
+        ],
         null,
       ),
     ).toBeNull();

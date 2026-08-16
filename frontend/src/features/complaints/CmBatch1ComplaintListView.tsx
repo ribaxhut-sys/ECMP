@@ -36,6 +36,7 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
+import { disambiguateInitials } from "@/shared/utils/initials";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
@@ -43,16 +44,17 @@ import {
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
 import {
-  handlerInitialsFromCases,
+  handlerRefFromCases,
   penangananCountsFromCases,
   resolvePenangananContextKind,
+  type PenangananHandlerRef,
 } from "./penangananGroups";
 
 type PenangananListCounts = {
   open: number;
   pusat: number;
   done: number;
-  handlerInitials: string | null;
+  handler: PenangananHandlerRef | null;
 };
 
 function customerCellLabel(
@@ -179,10 +181,7 @@ export function CmBatch1ComplaintListView() {
                 open: counts.open,
                 pusat: counts.pusat,
                 done: counts.done,
-                handlerInitials: handlerInitialsFromCases(
-                  cases,
-                  row.intakeDisposition,
-                ),
+                handler: handlerRefFromCases(cases, row.intakeDisposition),
               } satisfies PenangananListCounts,
             ] as const;
           } catch {
@@ -220,6 +219,22 @@ export function CmBatch1ComplaintListView() {
     setDraft(next);
     applyFilters(next);
   }
+
+  /**
+   * Inisial PIC harus membedakan dua orang bernama sama pada halaman yang sama,
+   * jadi kodenya dihitung atas seluruh handler yang tampil — bukan per baris.
+   */
+  const handlerInitialsByKey = useMemo(
+    () =>
+      disambiguateInitials(
+        Object.values(penangananByComplaint).flatMap((summary) =>
+          summary === "loading" || summary === "error" || !summary.handler
+            ? []
+            : [summary.handler],
+        ),
+      ),
+    [penangananByComplaint],
+  );
 
   const statusFilterOptions = useMemo(
     () => [
@@ -406,7 +421,9 @@ export function CmBatch1ComplaintListView() {
           intakeDisposition: row.intakeDisposition,
           counts: summary,
         });
-        const initials = summary.handlerInitials;
+        const initials = summary.handler
+          ? handlerInitialsByKey.get(summary.handler.key) ?? null
+          : null;
 
         if (kind === "closed") {
           return <Badge tone="success">{t("penangananListClosed")}</Badge>;

@@ -1,15 +1,12 @@
 import type { AuthMe } from "@/lib/api/types";
+import { nameInitials } from "@/shared/utils/initials";
 
+/** Avatar identitas — aturan 3 huruf tunggal, lihat `shared/utils/initials`. */
 export function identityInitials(
   name: string | undefined | null,
   fallback = "?",
 ): string {
-  if (!name?.trim()) return fallback;
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase();
-  }
-  return parts[0]!.slice(0, 2).toUpperCase();
+  return nameInitials(name) ?? fallback;
 }
 
 export function formatIdentityWhen(

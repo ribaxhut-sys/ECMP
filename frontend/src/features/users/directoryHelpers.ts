@@ -1,6 +1,7 @@
 import type { RoleRef, UserRef } from "@/lib/api";
 import type { BadgeTone } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
+import { nameInitials } from "@/shared/utils/initials";
 
 export type DirectoryFilter =
   | "all"
@@ -94,13 +95,10 @@ export function filterRolesForHomeUnit(
   return roles.filter((row) => !HEAD_OFFICE_SCOPED_ROLE_CODES.has(row.code));
 }
 
+/** Avatar direktori — aturan 3 huruf tunggal, lihat `shared/utils/initials`. */
 export function userInitials(user: Pick<UserRef, "fullName" | "username">): string {
   const name = user.fullName?.trim() || user.username;
-  const parts = name.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
+  return nameInitials(name) ?? "?";
 }
 
 export function formatWhen(value: string | null | undefined): string | null {

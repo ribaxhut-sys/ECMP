@@ -30,12 +30,13 @@ function user(partial: Partial<UserRef>): UserRef {
 }
 
 describe("userInitials", () => {
-  it("uses two name parts", () => {
-    expect(userInitials(user({ fullName: "Ada Lovelace" }))).toBe("AL");
+  it("uses three letters from the full name", () => {
+    expect(userInitials(user({ fullName: "Ada Lovelace" }))).toBe("ALO");
+    expect(userInitials(user({ fullName: "Andi Wijaya" }))).toBe("AWI");
   });
 
   it("falls back to username", () => {
-    expect(userInitials(user({ fullName: "", username: "ops" }))).toBe("OP");
+    expect(userInitials(user({ fullName: "", username: "ops" }))).toBe("OPS");
   });
 });
 

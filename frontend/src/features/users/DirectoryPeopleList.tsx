@@ -12,11 +12,13 @@ export function DirectoryPeopleList({
   rows,
   selectedId,
   unitLabelByBranchId,
+  initialsByUserId,
   onSelect,
 }: {
   rows: readonly UserRef[];
   selectedId: string | null;
   unitLabelByBranchId: ReadonlyMap<string, string>;
+  initialsByUserId?: ReadonlyMap<string, string>;
   onSelect: (user: UserRef) => void;
 }) {
   const t = useTranslations("users");
@@ -74,6 +76,7 @@ export function DirectoryPeopleList({
                   <DirectoryAvatar
                     fullName={row.fullName}
                     username={row.username}
+                    initials={initialsByUserId?.get(row.id)}
                     size="md"
                   />
                   <div className="min-w-0">
