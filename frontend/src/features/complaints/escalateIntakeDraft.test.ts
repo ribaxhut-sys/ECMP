@@ -44,6 +44,17 @@ describe("escalateIntakeDraft", () => {
     expect(peeked?.hasStagedAttachments).toBe(true);
   });
 
+  it("restores extra Case drafts", () => {
+    stashEscalateIntakeDraft(
+      sampleDraft({
+        extraCaseDrafts: [{ id: "e1", description: "Case 2 uraian" }],
+      }),
+    );
+    expect(peekEscalateIntakeDraft()?.extraCaseDrafts).toEqual([
+      { id: "e1", description: "Case 2 uraian" },
+    ]);
+  });
+
   it("peek does not clear the draft (safe under Strict remount / breadcrumb)", () => {
     stashEscalateIntakeDraft(sampleDraft());
     expect(peekEscalateIntakeDraft()?.values.subject).toBe("Mesin error");

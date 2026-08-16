@@ -67,7 +67,8 @@ const messages = {
     penangananReassignDone: "Dialihkan",
     penangananEscalate: "Ajukan eskalasi ke Pusat",
     penangananStart: "Mulai penanganan",
-    penangananStartAnother: "Mulai penanganan baru",
+    penangananStartAnother: "Tambah Case",
+    penangananAddCase: "Tambah Case",
     penangananEmptyTitle: "Belum ada penanganan",
     penangananEmptyDescription: "Mulai dulu",
     penangananEmptyReadOnlyDescription: "Read only",
@@ -224,7 +225,7 @@ describe("ComplaintPenangananSection", () => {
     unmount();
   });
 
-  it("manageRequestToken creates case and opens case workspace", async () => {
+  it("manageRequestToken creates case and stays on the complaint", async () => {
     const { rerender } = renderSection({
       manageRequestToken: 0,
       seed: {
@@ -237,7 +238,7 @@ describe("ComplaintPenangananSection", () => {
     await waitFor(() => {
       expect(screen.getByText("Belum ada penanganan")).toBeInTheDocument();
     });
-    // Agent empty state: no duplicate Empty CTA — parent "Tangani" drives create.
+    expect(screen.getByRole("button", { name: "Tambah Case" })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Mulai penanganan" }),
     ).not.toBeInTheDocument();
@@ -261,11 +262,11 @@ describe("ComplaintPenangananSection", () => {
 
     await waitFor(() => {
       expect(createCmCase).toHaveBeenCalled();
-      expect(push).toHaveBeenCalledWith("/complaints/cm/cases/new-case-1");
     });
+    expect(push).not.toHaveBeenCalled();
   });
 
-  it("manageRequestToken opens existing open case workspace", async () => {
+  it("manageRequestToken keeps existing cases on the complaint page", async () => {
     fetchCmCases.mockResolvedValue({
       data: [
         {
@@ -294,13 +295,10 @@ describe("ComplaintPenangananSection", () => {
     );
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith("/complaints/cm/cases/c-open");
+      expect(createCmCase).not.toHaveBeenCalled();
     });
-    expect(createCmCase).not.toHaveBeenCalled();
-    expect(updateCmCaseStatus).toHaveBeenCalledWith("c-open", {
-      toStatus: "IN_PROGRESS",
-      reason: "HANDLE_CLAIM",
-    });
+    expect(push).not.toHaveBeenCalled();
+    expect(updateCmCaseStatus).not.toHaveBeenCalled();
   });
 
   it("does not re-ask or re-claim when the current officer already handles", async () => {
@@ -329,5 +327,43 @@ describe("ComplaintPenangananSection", () => {
       expect(push).toHaveBeenCalledWith("/complaints/cm/cases/c1");
     });
     expect(updateCmCaseStatus).not.toHaveBeenCalled();
+  });
+
+  it("shows add-another while under the Case cap and hides it at five", async () => {
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "CASE-1",
+          complaintId: "cmp-1",
+          status: "IN_PROGRESS",
+          subject: "Satu",
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+    const { unmount } = renderSection();
+    expect(
+      await screen.findByRole("button", { name: "Tambah Case" }),
+    ).toBeInTheDocument();
+    unmount();
+
+    fetchCmCases.mockResolvedValue({
+      data: Array.from({ length: 5 }, (_, index) => ({
+        caseId: `c${index + 1}`,
+        caseNumber: `CASE-${index + 1}`,
+        complaintId: "cmp-1",
+        status: "IN_PROGRESS",
+        subject: `S${index + 1}`,
+      })),
+      meta: { totalItems: 5 },
+    });
+    renderSection();
+    await waitFor(() => {
+      expect(screen.getByText("CASE-5")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Tambah Case" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -46,6 +46,9 @@ import {
 
 const SECTION_ID = "penanganan";
 
+/** Matches backend BQ-003 / MAX_CASES_PER_COMPLAINT. */
+const MAX_CASES_PER_COMPLAINT = 5;
+
 /** Query value for `/complaints/cm/[id]?focus=penanganan` deep-link. */
 export const PENANGANAN_FOCUS_QUERY = "penanganan";
 
@@ -242,9 +245,8 @@ export function ComplaintPenangananSection({
   /** Complaint-level HQ escalate (Batch-1). Per-Case ESCALATED not Mode A delivery. */
   onRequestHqEscalation?: (item: CmCaseSummary) => void;
   /**
-   * Increment from parent "Tangani pengaduan" — open existing case page or
-   * create then navigate to `/complaints/cm/cases/{id}`.
-   * Token 0 is ignored (mount).
+   * Increment from parent "Tangani pengaduan" — create the first Case and
+   * stay on this complaint, or scroll to the Case list. Token 0 is ignored.
    */
   manageRequestToken?: number;
   /** Prefill for auto-create when no open penanganan exists yet. */
@@ -494,9 +496,8 @@ export function ComplaintPenangananSection({
         tCommon("success"),
         t("penangananCreated", { number: res.data.caseNumber }),
       );
-      router.push(
-        `/complaints/cm/cases/${encodeURIComponent(res.data.caseId)}`,
-      );
+      await load();
+      scrollToPenangananSection();
     } catch (err) {
       pushError(err, t("penangananLoadError"));
       // Fallback: let officer fill the create dialog manually.
@@ -506,22 +507,12 @@ export function ComplaintPenangananSection({
     }
   }
 
-  /** Parent CTA "Tangani pengaduan" → case workspace URL. */
+  /** Parent CTA "Tangani pengaduan" — stay on this complaint. */
   useEffect(() => {
     if (!manageRequestToken || loading || starting) return;
     if (error) return;
     if (parts.open.length > 0) {
-      const item = parts.open[0]!;
-      if (
-        canClaimHandling({
-          handlingClaimedBy: item.handlingClaimedBy,
-          userId: user?.id,
-        })
-      ) {
-        void openItem(item);
-      } else {
-        viewItem(item);
-      }
+      scrollToPenangananSection();
       return;
     }
     if (allowStart && canCreate && contextKind === "none") {
@@ -542,6 +533,14 @@ export function ComplaintPenangananSection({
     !loading && !error && contextKind === "hq_waiting" && rows.length === 0;
   const showEmptyClosed =
     !loading && !error && contextKind === "closed" && rows.length === 0;
+  const canAddCase =
+    allowStart &&
+    canCreate &&
+    !loading &&
+    !error &&
+    contextKind !== "closed" &&
+    contextKind !== "hq_waiting" &&
+    rows.length < MAX_CASES_PER_COMPLAINT;
 
   return (
     <section
@@ -549,16 +548,27 @@ export function ComplaintPenangananSection({
       aria-labelledby={headingId}
       className="scroll-mt-24 space-y-[var(--ecmp-section-gap)]"
     >
-      <div>
-        <h2
-          id={headingId}
-          className="text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] leading-[var(--ecmp-font-section-title-line)] text-ecmp-text-primary"
-        >
-          {t("penangananTitle")}
-        </h2>
-        <p className="mt-1 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-          {t("penangananDescription")}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2
+            id={headingId}
+            className="text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] leading-[var(--ecmp-font-section-title-line)] text-ecmp-text-primary"
+          >
+            {t("penangananTitle")}
+          </h2>
+          <p className="mt-1 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+            {t("penangananDescription")}
+          </p>
+        </div>
+        {canAddCase ? (
+          <Button
+            type="button"
+            className="shrink-0"
+            onClick={() => setCreateOpen(true)}
+          >
+            {t("penangananAddCase")}
+          </Button>
+        ) : null}
       </div>
 
       {!loading && !error ? (
@@ -689,12 +699,6 @@ export function ComplaintPenangananSection({
             onEscalate={handleEscalate}
             onReassign={() => undefined}
           />
-
-          {allowStart && canCreate && contextKind === "has_counts" ? (
-            <Button type="button" variant="secondary" onClick={() => setCreateOpen(true)}>
-              {t("penangananStartAnother")}
-            </Button>
-          ) : null}
         </div>
       ) : null}
 
@@ -811,9 +815,6 @@ export function ComplaintPenangananSection({
           );
           setCreateOpen(false);
           void load();
-          router.push(
-            `/complaints/cm/cases/${encodeURIComponent(caseData.caseId)}`,
-          );
         }}
       />
     </section>

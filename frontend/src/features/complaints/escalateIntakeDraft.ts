@@ -1,6 +1,10 @@
 /** One-shot draft for priority step after create-form "Lanjut". */
 
 import type { CreateComplaintFormValues } from "./createComplaintForm";
+import {
+  sanitizeExtraCaseDrafts,
+  type IntakeExtraCaseDraft,
+} from "./intakeCaseDrafts";
 
 export type IntakePriorityDraftIntent = "register" | "escalate";
 
@@ -16,6 +20,8 @@ export interface EscalateIntakeDraft {
    * Omitted / undefined after "Lanjut" until the user picks an action.
    */
   intent?: IntakePriorityDraftIntent;
+  /** Extra Case drafts (Case 2…n). Case 1 is the main complaint description. */
+  extraCaseDrafts?: IntakeExtraCaseDraft[];
 }
 
 const STORAGE_KEY = "ecmp.cm.escalateIntakeDraft.v1";
@@ -44,6 +50,7 @@ export function peekEscalateIntakeDraft(): EscalateIntakeDraft | null {
     if (parsed.intent !== "register" && parsed.intent !== "escalate") {
       delete parsed.intent;
     }
+    parsed.extraCaseDrafts = sanitizeExtraCaseDrafts(parsed.extraCaseDrafts);
     return parsed;
   } catch {
     return null;

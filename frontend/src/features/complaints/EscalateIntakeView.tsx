@@ -39,6 +39,7 @@ import {
   type EscalateIntakeDraft,
   type IntakePriorityDraftIntent,
 } from "./escalateIntakeDraft";
+import { createIntakeCasesForRegisteredComplaint } from "./intakeCaseDrafts";
 
 /**
  * Priority + action step after "Lanjut":
@@ -155,6 +156,15 @@ export function EscalateIntakeView() {
       }),
       { idempotencyKey: newCmBatch1IdempotencyKey() },
     );
+    if (!escalate) {
+      await createIntakeCasesForRegisteredComplaint({
+        complaintId: response.data.complaintId,
+        values: withPriority(values),
+        extraDrafts: draft?.extraCaseDrafts ?? [],
+        destinationUnitId:
+          draft?.recordingUnitCode?.trim() || values.branchId.trim() || "",
+      });
+    }
     clearEscalateIntakeDraft();
     const suffix = escalate ? "?intake=escalate" : "";
     router.push(

@@ -57,6 +57,12 @@ import {
   peekEscalateIntakeDraft,
   stashEscalateIntakeDraft,
 } from "./escalateIntakeDraft";
+import {
+  MAX_EXTRA_INTAKE_CASES,
+  emptyExtraCaseDraft,
+  sanitizeExtraCaseDrafts,
+  type IntakeExtraCaseDraft,
+} from "./intakeCaseDrafts";
 
 export type IntakeSubmitIntent = "resolve_branch";
 
@@ -106,6 +112,9 @@ export function CreateComplaintView() {
   const [activeComplaints, setActiveComplaints] = useState<
     CmBatch1ComplaintBrief[]
   >([]);
+  const [extraCaseDrafts, setExtraCaseDrafts] = useState<
+    IntakeExtraCaseDraft[]
+  >([]);
 
   useEffect(() => {
     // Always restore stashed intake draft when present (Lanjut → Back /
@@ -119,6 +128,7 @@ export function CreateComplaintView() {
       );
       setHasStagedAttachments(Boolean(draft.hasStagedAttachments));
       setOverrideJustification(draft.overrideJustification);
+      setExtraCaseDrafts(sanitizeExtraCaseDrafts(draft.extraCaseDrafts));
     }
     consumeIntakeFormResume(); // clear legacy flag if still present
     setFormReady(true);
@@ -309,6 +319,7 @@ export function CreateComplaintView() {
       hasStagedAttachments,
       overrideJustification,
       recordingUnitCode: lockedBranch?.code ?? null,
+      extraCaseDrafts,
     });
     router.push("/complaints/new/escalate");
   }
@@ -559,7 +570,7 @@ export function CreateComplaintView() {
                 <Textarea
                   name="description"
                   id="description"
-                  label={t("descriptionComplaint")}
+                  label={t("intakeCase1Label")}
                   required
                   rows={5}
                   maxLength={5000}
@@ -567,11 +578,90 @@ export function CreateComplaintView() {
                   onChange={onTextChange("description")}
                   error={errors.description}
                   aria-required="true"
-                  hint={t("charCounter", {
+                  hint={t("intakeCase1Hint", {
                     count: values.description.trim().length,
                     max: 5000,
                   })}
                 />
+                <div className="space-y-3">
+                  {extraCaseDrafts.map((draft, index) => (
+                    <div
+                      key={draft.id}
+                      className="space-y-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text">
+                          {t("intakeExtraCaseTitle", { n: index + 2 })}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={submitting}
+                          onClick={() => {
+                            const filled = draft.description.trim().length > 0;
+                            if (
+                              filled &&
+                              !window.confirm(t("intakeExtraCaseDiscardConfirm"))
+                            ) {
+                              return;
+                            }
+                            setExtraCaseDrafts((prev) =>
+                              prev.filter((item) => item.id !== draft.id),
+                            );
+                          }}
+                        >
+                          {tCommon("cancel")}
+                        </Button>
+                      </div>
+                      <Textarea
+                        name={`extraCase-${draft.id}`}
+                        id={`extraCase-${draft.id}`}
+                        label={t("intakeExtraCaseDescription")}
+                        rows={4}
+                        maxLength={5000}
+                        value={draft.description}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setExtraCaseDrafts((prev) =>
+                            prev.map((item) =>
+                              item.id === draft.id
+                                ? { ...item, description: next }
+                                : item,
+                            ),
+                          );
+                        }}
+                        hint={t("charCounter", {
+                          count: draft.description.trim().length,
+                          max: 5000,
+                        })}
+                        disabled={submitting}
+                      />
+                    </div>
+                  ))}
+                  {extraCaseDrafts.length < MAX_EXTRA_INTAKE_CASES ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={submitting}
+                      onClick={() =>
+                        setExtraCaseDrafts((prev) => [
+                          ...prev,
+                          emptyExtraCaseDraft(),
+                        ])
+                      }
+                    >
+                      {t("penangananAddCase")}
+                    </Button>
+                  ) : (
+                    <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+                      {t("intakeExtraCaseMax")}
+                    </p>
+                  )}
+                  <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+                    {t("intakeExtraCaseRegisterHint")}
+                  </p>
+                </div>
                 <KnowledgeMentionTextarea
                   name="resolution"
                   id="resolution"
