@@ -292,7 +292,7 @@ def test_intake_decision_and_re_escalate_guards(
     created = _escalate_pending(service, "err-re-1")
     row = store.get(created.complaint_id)
     assert row is not None
-    row.status = "IN_PROGRESS"
+    row.status = "CLOSED"
     with pytest.raises(InvalidStateError):
         service.decide_intake_escalation(
             created.complaint_id,
@@ -337,14 +337,6 @@ def test_intake_decision_and_re_escalate_guards(
 
     row = store.get(created.complaint_id)
     assert row is not None
-    row.case_created = True
-    with pytest.raises(InvalidStateError):
-        service.request_intake_escalation(
-            created.complaint_id,
-            IntakeEscalationRequestBody(reason="x" * 24),
-            actor_id="agent-1",
-        )
-    row.case_created = False
     row.hq_accepted_at = datetime.now(UTC)
     with pytest.raises(InvalidStateError):
         service.request_intake_escalation(
@@ -352,9 +344,17 @@ def test_intake_decision_and_re_escalate_guards(
             IntakeEscalationRequestBody(reason="x" * 24),
             actor_id="agent-1",
         )
+    row.hq_accepted_at = None
+    row.case_created = True
+    replayed = service.request_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationRequestBody(reason="x" * 24),
+        actor_id="agent-1",
+    )
+    assert replayed.intake_disposition == "ESCALATE_PENDING_APPROVAL"
 
 
-def test_cancel_blocked_when_case_exists(
+def test_cancel_allowed_when_case_exists(
     service: CmBatch1Service, store: Batch1Store
 ) -> None:
     created = _escalate_pending(service, "err-cancel-case")
@@ -370,15 +370,17 @@ def test_cancel_blocked_when_case_exists(
     row = store.get(created.complaint_id)
     assert row is not None
     row.case_created = True
-    with pytest.raises(InvalidStateError):
-        service.decide_intake_escalation(
-            created.complaint_id,
-            IntakeEscalationDecisionRequest(
-                decision="CANCEL",
-                note="Batalkan Eskalasi: tidak boleh setelah Case Pusat ada.",
-            ),
-            actor_id="spv",
-        )
+    row.status = "IN_PROGRESS"
+    cancelled = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="CANCEL",
+            note="Batalkan Eskalasi: Case tetap ada, Pusat belum menerima.",
+        ),
+        actor_id="spv",
+    )
+    assert cancelled.intake_disposition == "ESCALATE_CANCELLED"
+    assert cancelled.case_created is True
 
 
 def test_hq_accept_schedule_return_guards(

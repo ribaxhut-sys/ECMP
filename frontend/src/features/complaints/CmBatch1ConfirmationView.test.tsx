@@ -65,7 +65,6 @@ const messages = {
     next: "Berikutnya",
   },
   priority: { LOW: "Rendah", MEDIUM: "Sedang", HIGH: "Tinggi", CRITICAL: "Kritis" },
-  table: { itemsInView: "{count} item" },
   validation: { priorityRequired: "Prioritas wajib diisi" },
   complaints: {
     home: "Beranda",
@@ -130,6 +129,9 @@ const messages = {
     tagHqReturned: "Dikembalikan Pusat",
     tagHqScheduled: "Kedatangan dijadwalkan",
     tagCaseCreated: "Case dibuat",
+    submitRegisterCase: "Daftarkan Case ini",
+    submitCloseCase: "Selesaikan Case ini",
+    submitEscalateCase: "Ajukan eskalasi Case ini",
     tagCaseWorkStarted: "Pengerjaan dimulai",
     tagCaseAssigned: "Case ditugaskan",
     tagCaseCancelled: "Case dibatalkan",
@@ -335,6 +337,59 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
     expect(
       screen.getByText("Pengaduan sedang berjalan di unit penanganan."),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Ditangani oleh Budi")).not.toBeInTheDocument();
+  });
+
+  it("keeps the HQ-approved title and hides cabang escalate CTAs while a Case is still bound", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+        caseCreated: true,
+      }),
+    });
+    renderView();
+    await waitFor(() => expect(lastPenangananProps).not.toBeNull());
+    expect(lastPenangananProps!.allowEscalate).toBe(false);
+    expect(lastPenangananProps!.onRequestHqEscalation).toBeUndefined();
+    (
+      lastPenangananProps!.onPenangananSnapshot as (s: unknown) => void
+    )({
+      loading: false,
+      openCount: 0,
+      totalCount: 1,
+      handlingClaimedBy: "officer-dewi",
+      handlingClaimedByName: "Dewi Hidayat",
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Eskalasi disetujui" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Ajukan ulang eskalasi" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ditangani oleh Dewi Hidayat"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a single page-level re-request CTA after cancel, not a duplicate in Penanganan", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_CANCELLED",
+        caseCreated: true,
+      }),
+    });
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Ajukan ulang eskalasi" }),
+      ).toBeInTheDocument(),
+    );
+    expect(lastPenangananProps!.allowEscalate).toBe(false);
+    expect(lastPenangananProps!.onRequestHqEscalation).toBeUndefined();
   });
 
   it("titles an open, unclaimed complaint as registered", async () => {
@@ -436,7 +491,7 @@ describe("CmBatch1ConfirmationView — history event filter", () => {
     fetchCmBatch1ComplaintHistory.mockResolvedValue({ data: history });
     renderView();
     await waitFor(() => screen.getByText("Riwayat Pengaduan"));
-    expect(screen.getByText("1 item")).toBeInTheDocument();
+    expect(screen.getByText("1-1 dari 1")).toBeInTheDocument();
     expect(
       screen.queryByText("Melanjutkan penanganan pengaduan"),
     ).not.toBeInTheDocument();

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   ApiError,
   createCmCase,
@@ -271,6 +272,7 @@ export function ComplaintPenangananSection({
 }) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const router = useRouter();
   const { hasPermission, user, roles } = useAuth();
   const { pushSuccess, pushError } = useToast();
@@ -324,12 +326,14 @@ export function ComplaintPenangananSection({
     } catch (err) {
       setRows([]);
       setError(
-        err instanceof ApiError ? err.message : t("penangananLoadError"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("penangananLoadError"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId, t]);
+  }, [canRead, complaintId, t, tErrors, tCommon]);
 
   useEffect(() => {
     void load();
@@ -387,8 +391,10 @@ export function ComplaintPenangananSection({
     ),
   );
 
-  const claimedRow =
-    parts.open.find((row) => Boolean(row.handlingClaimedBy?.trim())) ?? null;
+  const claimedRow = complaintOnHqPath
+    ? null
+    : parts.open.find((row) => Boolean(row.handlingClaimedBy?.trim())) ??
+      null;
   const claimedBy = claimedRow?.handlingClaimedBy?.trim() || null;
 
   useEffect(() => {
@@ -647,6 +653,7 @@ export function ComplaintPenangananSection({
             escalateEnabled={Boolean(
               allowEscalate &&
                 onRequestHqEscalation &&
+                !complaintOnHqPath &&
                 contextKind !== "hq_waiting",
             )}
             currentUserId={user?.id ?? null}

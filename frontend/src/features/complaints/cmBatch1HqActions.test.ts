@@ -10,6 +10,7 @@ import {
   isCmBatch1HqNoteReady,
   isCmBatch1HqRescheduleReady,
   isCmBatch1PusatUnitCode,
+  resolveCmBatch1BranchEscalationCtas,
   resolveCmBatch1HqActionVisibility,
 } from "./cmBatch1HqActions";
 
@@ -85,6 +86,22 @@ describe("resolveCmBatch1HqActionVisibility", () => {
     expect(v.showHqReturn).toBe(true);
     expect(v.showHqReschedule).toBe(false);
     expect(v.showBranchNotifyBanner).toBe(false);
+  });
+
+  it("shows accept/return for IN_PROGRESS approved escalation (bound Case)", () => {
+    const v = resolveCmBatch1HqActionVisibility(
+      {
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: null,
+        hqArrivalDate: null,
+        caseCreated: true,
+      },
+      true,
+    );
+    expect(v.approvedEscalation).toBe(true);
+    expect(v.showHqAcceptAndSchedule).toBe(true);
+    expect(v.showHqReturn).toBe(true);
   });
 
   it("hides HQ actions from branch actors", () => {
@@ -285,5 +302,52 @@ describe("intakeHistoryIsCloseEvent", () => {
     expect(intakeHistoryIsCloseEvent("BRANCH_CLOSED")).toBe(true);
     expect(intakeHistoryIsCloseEvent("CASE_CLOSED")).toBe(true);
     expect(intakeHistoryIsCloseEvent("REGISTERED")).toBe(false);
+  });
+});
+
+describe("resolveCmBatch1BranchEscalationCtas", () => {
+  const branch = {
+    canDecideEscalation: true,
+    canRequestEscalation: true,
+    intakeClosed: false,
+    isHqReviewer: false,
+    isPusatUnitMember: false,
+    intakeEscalateQuery: false,
+  };
+
+  it("shows Batalkan Eskalasi instead of Tangani when approved and HQ has not accepted", () => {
+    const v = resolveCmBatch1BranchEscalationCtas({
+      ...branch,
+      status: "IN_PROGRESS",
+      intakeDisposition: "ESCALATE_APPROVED",
+      hqAcceptedAt: null,
+    });
+    expect(v.showCancelEscalation).toBe(true);
+    expect(v.showManageCases).toBe(false);
+    expect(v.showSupervisorActions).toBe(false);
+    expect(v.showReRequestEscalation).toBe(false);
+  });
+
+  it("hides Batalkan Eskalasi after HQ accepted", () => {
+    const v = resolveCmBatch1BranchEscalationCtas({
+      ...branch,
+      status: "IN_PROGRESS",
+      intakeDisposition: "HQ_SCHEDULED",
+      hqAcceptedAt: "2026-08-17T10:00:00Z",
+    });
+    expect(v.showCancelEscalation).toBe(false);
+    expect(v.showManageCases).toBe(false);
+  });
+
+  it("restores Tangani after cancel, keeping the bound Case", () => {
+    const v = resolveCmBatch1BranchEscalationCtas({
+      ...branch,
+      status: "IN_PROGRESS",
+      intakeDisposition: "ESCALATE_CANCELLED",
+      hqAcceptedAt: null,
+    });
+    expect(v.showCancelEscalation).toBe(false);
+    expect(v.showManageCases).toBe(true);
+    expect(v.showReRequestEscalation).toBe(true);
   });
 });

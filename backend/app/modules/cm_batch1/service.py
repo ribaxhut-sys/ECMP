@@ -53,6 +53,7 @@ from app.modules.cm_batch1.intake_narrative import (
     has_intake_note,
     parse_intake_description,
 )
+from app.modules.cm_batch1.predicates import is_closed
 from app.modules.cm_batch1.schemas import (
     AgingComplaintItemResponse,
     ComplaintBatch1Response,
@@ -273,6 +274,27 @@ def _aggregate_status(raw: str | None) -> str:
     if status in {"REGISTERED", "IN_PROGRESS", "CLOSED"}:
         return status
     return "REGISTERED"
+
+
+_INTAKE_DECISION_NOTE_MIN = 20
+
+
+def _require_open_complaint(row: ComplaintAggregate, action: str) -> None:
+    """Case may already exist (IN_PROGRESS); only CLOSED blocks HQ routing."""
+    if is_closed(row.status):
+        raise InvalidStateError(
+            f"{action} requires an open complaint",
+            details={"status": row.status},
+        )
+
+
+def _supervisor_note_from_intake(reason: str | None) -> str:
+    text = (reason or "").strip()
+    if len(text) >= _INTAKE_DECISION_NOTE_MIN:
+        return text
+    suffix = "Disetujui Supervisor ke Pusat pada intake."
+    combined = f"{text} {suffix}".strip() if text else suffix
+    return combined
 
 
 class CmBatch1Service:
@@ -816,6 +838,7 @@ class CmBatch1Service:
         principal_key: str | None = None,
         authorize_replay: Callable[[str], None] | None = None,
         owning_unit_id: str | None = None,
+        auto_approve_escalation: bool = False,
     ) -> ComplaintBatch1Response:
         if not request_id or not request_id.strip():
             raise ValidationAppError(m("common.idempotency_key_required"))
@@ -998,6 +1021,32 @@ class CmBatch1Service:
                     priority=chosen_priority,
                 )
             )
+        if (
+            intake_disposition == "ESCALATE_PENDING_APPROVAL"
+            and auto_approve_escalation
+        ):
+            note = _supervisor_note_from_intake(parsed_intake.escalation_reason)
+            approved = self._store.update_intake_disposition(
+                row.complaint_id,
+                intake_disposition="ESCALATE_APPROVED",
+                description=append_supervisor_note(row.description or "", note),
+                priority=chosen_priority,
+                decided_by=actor_id,
+            )
+            if approved is not None:
+                row = approved
+            self._side_effects.record(
+                events.intake_escalation_decided(
+                    complaint_id=row.complaint_id,
+                    complaint_number=row.complaint_number,
+                    decision="APPROVE",
+                    next_disposition="ESCALATE_APPROVED",
+                    actor_id=actor_id,
+                    note_present=True,
+                    priority=row.priority,
+                    note=note,
+                )
+            )
         if dup_result == "overridden":
             override_rec = self._store.save_duplicate_decision(
                 customer_id=body.customer_id.strip(),
@@ -1075,14 +1124,7 @@ class CmBatch1Service:
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
 
-        if row.status != "REGISTERED":
-            raise InvalidStateError(
-                "intake escalation decision requires REGISTERED complaint",
-                details={
-                    "status": row.status,
-                    "intakeDisposition": row.intake_disposition,
-                },
-            )
+        _require_open_complaint(row, "intake escalation decision")
 
         current = (row.intake_disposition or "").strip().upper()
         decision = (body.decision or "").strip().upper()
@@ -1091,7 +1133,7 @@ class CmBatch1Service:
         next_priority: str | None = None
 
         if decision == "CANCEL":
-            # Batalkan Eskalasi — only before HQ accepted/claimed.
+            # Batalkan Eskalasi — only before HQ accepted. Bound Case stays.
             if current != "ESCALATE_APPROVED":
                 raise InvalidStateError(
                     "batalkan eskalasi only allowed when ESCALATE_APPROVED",
@@ -1106,14 +1148,6 @@ class CmBatch1Service:
                     details={
                         "intakeDisposition": row.intake_disposition,
                         "hqAcceptedAt": row.hq_accepted_at.isoformat(),
-                    },
-                )
-            if bool(getattr(row, "case_created", False)):
-                raise InvalidStateError(
-                    "cannot batalkan eskalasi after HQ work unit exists",
-                    details={
-                        "intakeDisposition": row.intake_disposition,
-                        "caseCreated": True,
                     },
                 )
             if len(note) < 20:
@@ -1201,20 +1235,14 @@ class CmBatch1Service:
         body: IntakeEscalationRequestBody,
         *,
         actor_id: str | None,
+        auto_approve_escalation: bool = False,
     ) -> ComplaintBatch1Response:
         """Re-ajukan eskalasi setelah CANCELLED/REJECTED — history append-only."""
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
 
-        if row.status != "REGISTERED":
-            raise InvalidStateError(
-                "intake escalation request requires REGISTERED complaint",
-                details={
-                    "status": row.status,
-                    "intakeDisposition": row.intake_disposition,
-                },
-            )
+        _require_open_complaint(row, "intake escalation request")
 
         current = (row.intake_disposition or "").strip().upper()
         # Idempotent: already awaiting approval again (e.g. double-submit after success).
@@ -1239,14 +1267,6 @@ class CmBatch1Service:
                 details={
                     "intakeDisposition": row.intake_disposition,
                     "hqAcceptedAt": row.hq_accepted_at.isoformat(),
-                },
-            )
-        if bool(getattr(row, "case_created", False)):
-            raise InvalidStateError(
-                "cannot re-escalate after HQ work unit exists",
-                details={
-                    "intakeDisposition": row.intake_disposition,
-                    "caseCreated": True,
                 },
             )
 
@@ -1295,6 +1315,30 @@ class CmBatch1Service:
                 note=reason,
             )
         )
+        if auto_approve_escalation:
+            note = _supervisor_note_from_intake(reason)
+            approved = self._store.update_intake_disposition(
+                complaint_id,
+                intake_disposition="ESCALATE_APPROVED",
+                description=append_supervisor_note(updated.description or "", note),
+                priority=next_priority,
+                decided_by=actor_id,
+            )
+            if approved is None:
+                raise NotFoundError(m("complaint.not_found"))
+            updated = approved
+            self._side_effects.record(
+                events.intake_escalation_decided(
+                    complaint_id=updated.complaint_id,
+                    complaint_number=updated.complaint_number,
+                    decision="APPROVE",
+                    next_disposition="ESCALATE_APPROVED",
+                    actor_id=actor_id,
+                    note_present=True,
+                    priority=updated.priority,
+                    note=note,
+                )
+            )
         self._store.commit()
         return self._to_complaint_response(updated, replayed=False)
 
@@ -1309,11 +1353,7 @@ class CmBatch1Service:
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
-        if row.status != "REGISTERED":
-            raise InvalidStateError(
-                "HQ return requires REGISTERED complaint",
-                details={"status": row.status},
-            )
+        _require_open_complaint(row, "HQ return")
         current = (row.intake_disposition or "").strip().upper()
         if current != "ESCALATE_APPROVED":
             raise InvalidStateError(
@@ -1369,11 +1409,7 @@ class CmBatch1Service:
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
-        if row.status != "REGISTERED":
-            raise InvalidStateError(
-                "HQ accept requires REGISTERED complaint",
-                details={"status": row.status},
-            )
+        _require_open_complaint(row, "HQ accept")
         current = (row.intake_disposition or "").strip().upper()
         if current != "ESCALATE_APPROVED":
             raise InvalidStateError(
@@ -1430,11 +1466,7 @@ class CmBatch1Service:
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
-        if row.status != "REGISTERED":
-            raise InvalidStateError(
-                "HQ accept-and-schedule requires REGISTERED complaint",
-                details={"status": row.status},
-            )
+        _require_open_complaint(row, "HQ accept-and-schedule")
         current = (row.intake_disposition or "").strip().upper()
         if current != "ESCALATE_APPROVED":
             raise InvalidStateError(
@@ -1517,11 +1549,7 @@ class CmBatch1Service:
         row = self._store.get(complaint_id)
         if row is None:
             raise NotFoundError(m("complaint.not_found"))
-        if row.status != "REGISTERED":
-            raise InvalidStateError(
-                "HQ schedule requires REGISTERED complaint",
-                details={"status": row.status},
-            )
+        _require_open_complaint(row, "HQ schedule")
         current = (row.intake_disposition or "").strip().upper()
         if current not in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
             raise InvalidStateError(

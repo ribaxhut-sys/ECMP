@@ -34,15 +34,31 @@ def require_supervisor_assign(
     return principal
 
 
+_SUPERVISOR_ESCALATE_ROLES = (
+    "SUPERVISOR",
+    "BRANCH_SUPERVISOR",
+    "MANAGER",
+)
+
+
+def principal_may_auto_approve_intake_escalation(principal: Principal) -> bool:
+    """Supervisor/Manager who may escalate: intake skip PENDING → APPROVED.
+
+    Agent still lands on ESCALATE_PENDING_APPROVAL. Four-eyes is Agent →
+    Supervisor, not Supervisor → another Supervisor.
+    """
+    return principal.has_permission("complaints:escalate") and principal.has_any_role(
+        *_SUPERVISOR_ESCALATE_ROLES
+    )
+
+
 def require_supervisor_escalate(
     principal: Annotated[
         Principal, Depends(require_permissions("complaints:escalate"))
     ],
 ) -> Principal:
     """Escalate gate: complaints:escalate + Supervisor/Manager (F4 parity)."""
-    if not principal.has_any_role(
-        "SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER"
-    ):
+    if not principal.has_any_role(*_SUPERVISOR_ESCALATE_ROLES):
         raise PermissionDeniedError(m("complaint.only_supervisor_escalate"))
     return principal
 

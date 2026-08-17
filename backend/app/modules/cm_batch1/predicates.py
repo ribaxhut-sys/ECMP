@@ -51,6 +51,9 @@ def is_open(status: str | None) -> bool:
     An out-of-set stored value counts as open too — ``_aggregate_status``
     (cm_batch1/service.py) exposes it as REGISTERED rather than hiding it, so
     ``open + closed == total`` holds for every row.
+
+    Intake HQ actions (approve / cancel / HQ accept) use this predicate so a
+    bound Case (``IN_PROGRESS``) does not block Cabang↔Pusat routing.
     """
     return not is_closed(status)
 

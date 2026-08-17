@@ -6,6 +6,8 @@
  * AuthZ rule. Not DEC-F4 Case APIs (API-520…).
  */
 
+import { isHqIntakeDisposition } from "./penangananGroups";
+
 /** Matches backend gates._ESCALATION_REVIEW_ROLES */
 export const CM_BATCH1_HQ_REVIEW_ROLES = [
   "HO_SCHEDULER",
@@ -79,6 +81,12 @@ export interface CmBatch1HqActionVisibility {
   showBranchNotifyBanner: boolean;
 }
 
+const HQ_OPEN_STATUSES = new Set(["REGISTERED", "IN_PROGRESS"]);
+
+function isHqOpenStatus(status: string | null | undefined): boolean {
+  return HQ_OPEN_STATUSES.has((status || "").trim().toUpperCase());
+}
+
 export function resolveCmBatch1HqActionVisibility(
   snapshot: CmBatch1HqActionSnapshot,
   canHqReview: boolean,
@@ -87,8 +95,8 @@ export function resolveCmBatch1HqActionVisibility(
   const disposition = (snapshot.intakeDisposition || "").toUpperCase();
   const hqAccepted = Boolean(snapshot.hqAcceptedAt);
   const approvedEscalation =
-    status === "REGISTERED" && disposition === "ESCALATE_APPROVED";
-  const hqScheduled = status === "REGISTERED" && disposition === "HQ_SCHEDULED";
+    isHqOpenStatus(status) && disposition === "ESCALATE_APPROVED";
+  const hqScheduled = isHqOpenStatus(status) && disposition === "HQ_SCHEDULED";
   return {
     approvedEscalation,
     hqScheduled,
@@ -98,6 +106,69 @@ export function resolveCmBatch1HqActionVisibility(
       canHqReview && hqAccepted && (approvedEscalation || hqScheduled),
     showBranchNotifyBanner:
       hqScheduled && Boolean(snapshot.hqArrivalDate) && !canHqReview,
+  };
+}
+
+export interface CmBatch1BranchEscalationCtaInput {
+  status: string | null | undefined;
+  intakeDisposition: string | null | undefined;
+  hqAcceptedAt: string | null | undefined;
+  canDecideEscalation: boolean;
+  canRequestEscalation: boolean;
+  intakeClosed: boolean;
+  isHqReviewer: boolean;
+  isPusatUnitMember: boolean;
+  intakeEscalateQuery: boolean;
+}
+
+export interface CmBatch1BranchEscalationCtas {
+  pendingEscalation: boolean;
+  showSupervisorActions: boolean;
+  showCancelEscalation: boolean;
+  showReRequestEscalation: boolean;
+  showManageCases: boolean;
+}
+
+/**
+ * Branch confirmation CTAs. Bound Case (IN_PROGRESS) does not hide Batalkan
+ * Eskalasi; hqAcceptedAt does. Tangani pengaduan stays off the HQ path.
+ */
+export function resolveCmBatch1BranchEscalationCtas(
+  input: CmBatch1BranchEscalationCtaInput,
+): CmBatch1BranchEscalationCtas {
+  const status = (input.status || "").trim().toUpperCase();
+  const disposition = (input.intakeDisposition || "").trim().toUpperCase();
+  const hqAccepted = Boolean(input.hqAcceptedAt);
+  const closed =
+    input.intakeClosed || status === "CLOSED" || disposition === "BRANCH_CLOSED";
+  const pendingEscalation =
+    disposition === "ESCALATE_PENDING_APPROVAL" && status !== "CLOSED";
+  const onHqPath = isHqIntakeDisposition(disposition);
+  const showCancelEscalation =
+    input.canDecideEscalation &&
+    disposition === "ESCALATE_APPROVED" &&
+    !hqAccepted &&
+    status !== "CLOSED";
+  const canReRequestDisposition =
+    status !== "CLOSED" &&
+    (disposition === "ESCALATE_CANCELLED" ||
+      disposition === "ESCALATE_REJECTED" ||
+      disposition === "RETURNED_TO_BRANCH");
+  return {
+    pendingEscalation,
+    showSupervisorActions: pendingEscalation && input.canDecideEscalation,
+    showCancelEscalation,
+    showReRequestEscalation:
+      canReRequestDisposition &&
+      input.canRequestEscalation &&
+      !hqAccepted,
+    showManageCases:
+      !closed &&
+      !onHqPath &&
+      !pendingEscalation &&
+      !input.intakeEscalateQuery &&
+      !input.isHqReviewer &&
+      !input.isPusatUnitMember,
   };
 }
 

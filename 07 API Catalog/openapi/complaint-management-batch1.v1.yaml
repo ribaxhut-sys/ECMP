@@ -153,7 +153,12 @@ paths:
         Creates Complaint Aggregate.
         Default status REGISTERED. When `intakeDisposition=BRANCH_CLOSED`, creates
         as CLOSED with resolution evidence in description (branch walk-away —
-        thin BR-009 lab path; MUST NOT create Case — CTO D-02 / BQ-011).
+        thin BR-009 lab path).
+        When `intakeDisposition=ESCALATE_PENDING_APPROVAL`, Agent stays pending
+        supervisor approval. Supervisor/Manager with `complaints:escalate`
+        auto-promotes to `ESCALATE_APPROVED` (four-eyes is Agent→Supervisor).
+        A bound Case may exist afterwards (Complaint↔Case identity stays);
+        HQ routing uses intakeDisposition / hqAcceptedAt, not absence of Case.
         Requires Request Id; Channel Message Id when channel-sourced (D-03).
       parameters:
         - $ref: "#/components/parameters/RequestId"
@@ -279,15 +284,16 @@ paths:
         - bearerAuth: []
       description: |
         Mode A Batch-1 supervisor decision on intake escalate request.
-        Aggregate status stays REGISTERED. MUST NOT create Case (CTO D-02).
         Distinct from foundation Case escalation approve/reject (API-303/304).
+        Bound Case (status IN_PROGRESS / caseCreated) does not block these
+        decisions; Complaint↔Case identity stays. CLOSED blocks.
 
-        - From ESCALATE_PENDING_APPROVAL:
+        - From ESCALATE_PENDING_APPROVAL (REGISTERED or IN_PROGRESS):
           APPROVE → ESCALATE_APPROVED (note ≥20 + priority required; Catatan Supervisor history);
           REJECT → ESCALATE_REJECTED (note ≥20; Penolakan Eskalasi history).
         - From ESCALATE_APPROVED (before HQ accepted — hqAcceptedAt null):
           CANCEL → ESCALATE_CANCELLED (note ≥20; Batalkan Eskalasi history).
-          Blocked when hqAcceptedAt is set or Case exists.
+          Blocked when hqAcceptedAt is set. Case remains bound to the complaint.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -326,11 +332,12 @@ paths:
       description: |
         Mode A Batch-1 re-ajukan eskalasi on an existing Aggregate (no new create).
         From ESCALATE_CANCELLED, ESCALATE_REJECTED, or RETURNED_TO_BRANCH
-        → ESCALATE_PENDING_APPROVAL.
+        → ESCALATE_PENDING_APPROVAL (Agent) or ESCALATE_APPROVED (Supervisor/Manager
+        with complaints:escalate).
         Appends alasan (ajuan ulang) to Alasan eskalasi; refreshes Ajuan eskalasi
         marker. Prior Batalkan Eskalasi / Penolakan Eskalasi / Catatan Supervisor /
-        Pengembalian Pusat sections MUST remain (append-only history). MUST NOT create Case.
-        Blocked when hqAcceptedAt is set or Case exists.
+        Pengembalian Pusat sections MUST remain (append-only history).
+        Bound Case stays. Blocked when hqAcceptedAt is set or complaint is CLOSED.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -370,7 +377,9 @@ paths:
         Mode A Batch-1: Pusat menerima eskalasi yang sudah ESCALATE_APPROVED
         **without** scheduling. Prefer hq-accept-and-schedule for the happy path
         (sets HQ_SCHEDULED for branch customer notify). Gate: escalations:review
-        + HO Scheduler/Admin, or Agent-family on unit PUSAT. MUST NOT create Case.
+        + HO Scheduler/Admin, or Agent-family on unit PUSAT.
+        Allowed while Aggregate is open (REGISTERED or IN_PROGRESS). Bound Case
+        stays; this call does not create a new Case. Blocked after hqAcceptedAt.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -411,7 +420,7 @@ paths:
         (distinct from RETURNED_TO_BRANCH). Originating branch agents see the
         Aggregate in their unit list with a notify-customer signal.
         Mandatory note (≥10) is info for the branch to relay to the customer.
-        Same HQ gate as API-516. MUST NOT create Case.
+        Same HQ gate as API-516. Open REGISTERED or IN_PROGRESS; bound Case stays.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -451,7 +460,8 @@ paths:
         Mode A Batch-1 / DEC-F4 lab: Pusat menolak/mengembalikan eskalasi
         ESCALATE_APPROVED ke cabang asal (sebelum hqAcceptedAt).
         → RETURNED_TO_BRANCH. Mandatory reasonCode + note (≥10). Cabang may
-        re-request via API-518. Same HQ gate as API-516. MUST NOT create Case.
+        re-request via API-518. Same HQ gate as API-516. Open REGISTERED or
+        IN_PROGRESS; bound Case stays.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -897,7 +907,8 @@ components:
             (section `Penyelesaian:` MUST appear in description). ESCALATE_PENDING_APPROVAL =
             registered and awaiting supervisor/manager approval for HQ escalation
             (section `Alasan eskalasi:` MUST appear in description — becomes history for HQ).
-            No Case is created.
+            Supervisor/Manager create with this value is auto-promoted to ESCALATE_APPROVED.
+            A later bound Case does not change HQ routing.
     IntakeHistoryEntry:
       type: object
       required: [entryId, eventCode, eventType, occurredAt]
@@ -930,6 +941,14 @@ components:
           type: string
           nullable: true
           description: Operator note captured with this event; null for pre-API-517 rows
+        caseNumber:
+          type: string
+          nullable: true
+          description: Case number when this event is scoped to one Case
+        intakeAction:
+          type: string
+          nullable: true
+          description: Intake putusan on CaseCreated (register, close, escalate)
     ComplaintBatch1Response:
       type: object
       required: [complaintId, complaintNumber, status, customerId]

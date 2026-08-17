@@ -15,7 +15,10 @@ from app.core.auth import (
     require_any_permission,
     require_permissions,
 )
-from app.core.authorization.gates import require_hq_intake_action
+from app.core.authorization.gates import (
+    principal_may_auto_approve_intake_escalation,
+    require_hq_intake_action,
+)
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.authorization.visibility import is_pusat_unit
 from app.core.config import Settings, get_settings
@@ -315,7 +318,7 @@ def get_user_work_stats(
 @router.post(
     "/complaints",
     response_model=DataResponse[ComplaintBatch1Response],
-    summary="Create Complaint Aggregate idempotent (API-500 / FR-001) — no Case",
+    summary="Create Complaint Aggregate idempotent (API-500 / FR-001)",
 )
 def create_complaint(
     body: CreateComplaintBatch1Request,
@@ -367,6 +370,9 @@ def create_complaint(
         principal_key=_principal_key(principal),
         authorize_replay=_authorize_replay,
         owning_unit_id=owning_unit_id,
+        auto_approve_escalation=principal_may_auto_approve_intake_escalation(
+            principal
+        ),
     )
     if (
         not result.replayed
@@ -539,6 +545,9 @@ def request_intake_escalation(
             complaint_id,
             body,
             actor_id=_principal_key(principal),
+            auto_approve_escalation=principal_may_auto_approve_intake_escalation(
+                principal
+            ),
         )
     )
 

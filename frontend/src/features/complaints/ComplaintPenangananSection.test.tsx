@@ -366,4 +366,36 @@ describe("ComplaintPenangananSection", () => {
       screen.queryByRole("button", { name: "Tambah Case" }),
     ).not.toBeInTheDocument();
   });
+
+  it("does not show Ajukan eskalasi on the Case row while the complaint is on the HQ path", async () => {
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "CASE-1",
+          complaintId: "cmp-1",
+          status: "ASSIGNED",
+          subject: "Aktif",
+          handlingClaimedBy: "officer-1",
+          handlingClaimedByName: "Dewi Hidayat",
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+
+    renderSection({
+      allowEscalate: true,
+      intakeDisposition: "ESCALATE_APPROVED",
+      complaintStatus: "IN_PROGRESS",
+      onRequestHqEscalation: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("CASE-1")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Ajukan eskalasi ke Pusat" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Dewi Hidayat")).toBeInTheDocument();
+  });
 });

@@ -1449,6 +1449,95 @@ def test_api_515_approve_intake_escalation(
     assert "Catatan Supervisor:" in (row.description or "")
 
 
+def test_supervisor_intake_escalate_auto_approves(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Supervisor escalate intake",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat karena kompleks",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            priority="HIGH",
+        ),
+        request_id="esc-spv-auto-1",
+        actor_id="supervisor-1",
+        auto_approve_escalation=True,
+    )
+    assert created.intake_disposition == "ESCALATE_APPROVED"
+    assert created.supervisor_note is not None
+    assert "kompleks" in created.supervisor_note
+    row = store.get(created.complaint_id)
+    assert row is not None
+    assert row.intake_disposition == "ESCALATE_APPROVED"
+    assert row.decided_by == "supervisor-1"
+
+
+def test_api_515_approve_and_hq_accept_with_bound_case(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    from datetime import date
+
+    from app.modules.cm_batch1.schemas import HqAcceptAndScheduleRequest
+
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Escalate with case",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat karena kompleks",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+        ),
+        request_id="esc-case-bound-1",
+        actor_id="agent-1",
+    )
+    row = store.get(created.complaint_id)
+    assert row is not None
+    row.case_created = True
+    row.status = "IN_PROGRESS"
+
+    decided = service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui: Case tetap terikat nomor pengaduan.",
+            priority="HIGH",
+        ),
+        actor_id="supervisor-1",
+    )
+    assert decided.intake_disposition == "ESCALATE_APPROVED"
+    assert decided.status == "IN_PROGRESS"
+    assert decided.case_created is True
+
+    scheduled = service.accept_and_schedule_at_hq(
+        created.complaint_id,
+        HqAcceptAndScheduleRequest(
+            arrivalDate=date(2026, 8, 20),
+            arrivalTime="09:30",
+            note="Bawa KTP asli dan bukti pembayaran terakhir.",
+        ),
+        actor_id="hq-1",
+    )
+    assert scheduled.hq_accepted_at is not None
+    assert scheduled.intake_disposition == "HQ_SCHEDULED"
+    assert scheduled.case_created is True
+
+    with pytest.raises(InvalidStateError):
+        service.decide_intake_escalation(
+            created.complaint_id,
+            IntakeEscalationDecisionRequest(
+                decision="CANCEL",
+                note="Tidak boleh batalkan setelah Pusat menerima pengaduan.",
+            ),
+            actor_id="supervisor-1",
+        )
+
+
 def test_api_515_approve_sets_decided_by(
     service: CmBatch1Service, store: Batch1Store
 ) -> None:
@@ -2543,18 +2632,45 @@ def test_history_directory_failure_does_not_raise() -> None:
     assert items[0].actor_name is None
 
 
-def test_history_hides_case_created_and_work_started_from_list() -> None:
+def test_history_hides_work_started_but_lists_case_created() -> None:
     from app.modules.cm_batch1.history import CmBatch1HistoryService
 
     entries = [
         _timeline_entry("ComplaintRegistered", {}, minute=1, actor="a"),
-        _timeline_entry("CaseCreated", {}, minute=2, actor="a"),
+        _timeline_entry("CaseCreated", {"caseNumber": "CASE-1"}, minute=2, actor="a"),
         _timeline_entry("HandlingContinued", {}, minute=3, actor="a"),
         _timeline_entry("CaseWorkStarted", {}, minute=4, actor="a"),
+        _timeline_entry("CaseResolved", {"caseNumber": "CASE-1"}, minute=5, actor="a"),
+        _timeline_entry("CaseOwnerAccepted", {"caseNumber": "CASE-1"}, minute=6, actor="a"),
+        _timeline_entry("CaseClosed", {"caseNumber": "CASE-1"}, minute=7, actor="a"),
     ]
     service = CmBatch1HistoryService(_FakeTimelineRepo(entries))
     items = service.list_history(str(uuid.uuid4()))
-    assert [i.event_code for i in items] == ["REGISTERED", "HANDLING_CONTINUED"]
+    assert [i.event_code for i in items] == [
+        "REGISTERED",
+        "CASE_CREATED",
+        "HANDLING_CONTINUED",
+        "CASE_CLOSED",
+    ]
+    assert items[1].case_number == "CASE-1"
+
+
+def test_history_carries_intake_action_on_case_created() -> None:
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    entries = [
+        _timeline_entry(
+            "CaseCreated",
+            {"caseNumber": "CASE-2", "intakeAction": "escalate", "note": "Perlu Pusat"},
+            minute=1,
+            actor="a",
+        )
+    ]
+    items = CmBatch1HistoryService(_FakeTimelineRepo(entries)).list_history(
+        str(uuid.uuid4())
+    )
+    assert items[0].intake_action == "escalate"
+    assert items[0].note == "Perlu Pusat"
 
 
 def test_history_carries_note_and_priority_per_event() -> None:

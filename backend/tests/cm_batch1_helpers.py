@@ -29,6 +29,7 @@ def confirmed_create(
     channel_message_id: str | None = None,
     actor_id: str = "actor-1",
     principal_key: str | None = None,
+    auto_approve_escalation: bool = False,
 ):
     """Confirm/lock customer for principal then create (FR-002 AC1 / TD-CM-001)."""
     pk = (principal_key or actor_id or "actor-1")
@@ -50,4 +51,5 @@ def confirmed_create(
         channel_message_id=channel_message_id,
         actor_id=actor_id or pk,
         principal_key=pk,
+        auto_approve_escalation=auto_approve_escalation,
     )

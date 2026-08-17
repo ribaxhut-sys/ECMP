@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -18,6 +18,7 @@ import {
   type CmBatch1HqReturnReasonCode,
   type CmBatch1IntakeHistoryEntry,
 } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
   Badge,
@@ -61,6 +62,7 @@ import {
   isCmBatch1HqNoteReady,
   isCmBatch1HqRescheduleReady,
   isCmBatch1PusatUnitCode,
+  resolveCmBatch1BranchEscalationCtas,
   resolveCmBatch1HqActionVisibility,
 } from "./cmBatch1HqActions";
 import {
@@ -145,7 +147,16 @@ function priorityTone(priority: string): BadgeTone {
   return "info";
 }
 
-/** One row of the intake log: who did what, when, at which priority, with the note. */
+function intakeCreatedActionLabelKey(
+  code: string,
+  intakeAction: string | null,
+): "submitCloseCase" | "submitEscalateCase" | "submitRegisterCase" | null {
+  if (code.trim().toUpperCase() !== "CASE_CREATED") return null;
+  if (intakeAction === "close") return "submitCloseCase";
+  if (intakeAction === "escalate") return "submitEscalateCase";
+  if (intakeAction === "register") return "submitRegisterCase";
+  return null;
+}
 interface IntakeLogRow {
   key: string;
   code: string;
@@ -153,6 +164,8 @@ interface IntakeLogRow {
   when: string | null;
   priority: string | null;
   note: string | null;
+  caseNumber: string | null;
+  intakeAction: string | null;
 }
 
 /**
@@ -167,8 +180,9 @@ export function CmBatch1ConfirmationView({
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
-  const tTable = useTranslations("table");
   const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const intakeEscalate = searchParams.get("intake") === "escalate";
@@ -281,7 +295,7 @@ export function CmBatch1ConfirmationView({
         if (!cancelled) {
           setError(
             err instanceof ApiError
-              ? err.message
+              ? resolveApiErrorMessage(err, tErrors, tCommon)
               : t("couldNotLoadComplaint"),
           );
         }
@@ -292,7 +306,7 @@ export function CmBatch1ConfirmationView({
     return () => {
       cancelled = true;
     };
-  }, [canRead, complaintId, t]);
+  }, [canRead, complaintId, t, tErrors, tCommon]);
 
   const reloadHistory = useCallback(async () => {
     if (!canRead || !complaintId.trim()) return;
@@ -635,9 +649,6 @@ export function CmBatch1ConfirmationView({
           : (data?.status ?? "");
 
   const disposition = (data?.intakeDisposition || "").toUpperCase();
-  const pendingEscalation =
-    data?.status === "REGISTERED" &&
-    disposition === "ESCALATE_PENDING_APPROVAL";
   const hqActions = resolveCmBatch1HqActionVisibility(
     {
       status: data?.status,
@@ -655,30 +666,23 @@ export function CmBatch1ConfirmationView({
     showHqReschedule,
     showBranchNotifyBanner,
   } = hqActions;
-  const showSupervisorActions = pendingEscalation && canDecideEscalation;
-  const showCancelEscalation =
-    approvedEscalation &&
-    canDecideEscalation &&
-    !data?.hqAcceptedAt &&
-    !data?.caseCreated;
-  const canReRequestDisposition =
-    data?.status === "REGISTERED" &&
-    (disposition === "ESCALATE_CANCELLED" ||
-      disposition === "ESCALATE_REJECTED" ||
-      disposition === "RETURNED_TO_BRANCH");
-  const showReRequestEscalation =
-    Boolean(canReRequestDisposition) &&
-    canRequestEscalation &&
-    !data?.hqAcceptedAt &&
-    !data?.caseCreated;
-  const showManageCases =
-    !intakeClosed &&
-    data?.status !== "CLOSED" &&
-    disposition !== "BRANCH_CLOSED" &&
-    !pendingEscalation &&
-    !intakeEscalate &&
-    !canHqReview &&
-    !isPusatUnitMember;
+  const {
+    pendingEscalation,
+    showSupervisorActions,
+    showCancelEscalation,
+    showReRequestEscalation,
+    showManageCases,
+  } = resolveCmBatch1BranchEscalationCtas({
+    status: data?.status,
+    intakeDisposition: data?.intakeDisposition,
+    hqAcceptedAt: data?.hqAcceptedAt,
+    canDecideEscalation,
+    canRequestEscalation,
+    intakeClosed,
+    isHqReviewer: canHqReview,
+    isPusatUnitMember,
+    intakeEscalateQuery: intakeEscalate,
+  });
   /** Bottom CTA: buat penanganan pertama atau ambil alih yang sudah ada. */
   const showTanganiCta =
     showManageCases &&
@@ -844,9 +848,14 @@ export function CmBatch1ConfirmationView({
       key: `blob-${code}`,
       code,
       actor: code === "REGISTERED" ? (data.createdByName ?? null) : null,
-      when: code === "REGISTERED" ? formatDateTime24(data.createdAt ?? "") || null : null,
+      when:
+        code === "REGISTERED"
+          ? formatDateTime24(data.createdAt ?? "", locale) || null
+          : null,
       priority: null,
       note: blobNoteFor(code),
+      caseNumber: null,
+      intakeAction: null,
     }));
   }
 
@@ -856,7 +865,7 @@ export function CmBatch1ConfirmationView({
           key: entry.entryId,
           code: entry.eventCode,
           actor: entry.actorName?.trim() || null,
-          when: formatDateTime24(entry.occurredAt),
+          when: formatDateTime24(entry.occurredAt, locale),
           priority: entry.priority?.trim() || null,
           // REGISTERED narrative/note now live in the "isi" card, not the log row.
           note:
@@ -865,6 +874,8 @@ export function CmBatch1ConfirmationView({
               : intakeHistoryShowsNote(entry.eventCode)
                 ? entry.note?.trim() || blobNoteFor(entry.eventCode)
                 : null,
+          caseNumber: entry.caseNumber?.trim() || null,
+          intakeAction: entry.intakeAction?.trim().toLowerCase() || null,
         }))
       : blobOnlyRows()
   ).filter((row) => !CONFIRMATION_HIDDEN_HISTORY_CODES.has(row.code));
@@ -878,6 +889,9 @@ export function CmBatch1ConfirmationView({
     (safeLogPage - 1) * LOG_PAGE_SIZE,
     safeLogPage * LOG_PAGE_SIZE,
   );
+  const logFrom =
+    logRows.length === 0 ? 0 : (safeLogPage - 1) * LOG_PAGE_SIZE + 1;
+  const logTo = Math.min(safeLogPage * LOG_PAGE_SIZE, logRows.length);
   const allOnPageOpen =
     pagedLogRows.length > 0 &&
     pagedLogRows.every((row) => openLogKeys.has(row.key));
@@ -965,7 +979,7 @@ export function CmBatch1ConfirmationView({
               .catch((err) =>
                 setError(
                   err instanceof ApiError
-                    ? err.message
+                    ? resolveApiErrorMessage(err, tErrors, tCommon)
                     : t("couldNotLoadComplaint"),
                 ),
               )
@@ -1038,7 +1052,7 @@ export function CmBatch1ConfirmationView({
                     </dt>
                     <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                       {data.createdAt
-                        ? formatDateTime24(data.createdAt)
+                        ? formatDateTime24(data.createdAt, locale)
                         : tCommon("emDash")}
                     </dd>
                   </div>
@@ -1201,8 +1215,10 @@ export function CmBatch1ConfirmationView({
                 ) : (
                   <>
                     <WorkspaceToolbar
-                      summary={tTable("itemsInView", {
-                        count: logRows.length,
+                      summary={tCommon("showingItems", {
+                        from: logFrom,
+                        to: logTo,
+                        total: logRows.length,
                       })}
                       actions={
                         <Button
@@ -1223,6 +1239,10 @@ export function CmBatch1ConfirmationView({
                         const open = openLogKeys.has(row.key);
                         const expandable =
                           intakeHistoryShowsNote(row.code) && Boolean(row.note);
+                        const createdActionKey = intakeCreatedActionLabelKey(
+                          row.code,
+                          row.intakeAction,
+                        );
                         const header = (
                           <>
                               <span
@@ -1237,6 +1257,16 @@ export function CmBatch1ConfirmationView({
                                     ? t(HISTORY_LABEL_KEYS[row.code])
                                     : row.code}
                                 </Badge>
+                                {row.caseNumber ? (
+                                  <span className="font-mono text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                                    {row.caseNumber}
+                                  </span>
+                                ) : null}
+                                {createdActionKey ? (
+                                  <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                                    {t(createdActionKey)}
+                                  </span>
+                                ) : null}
                                 <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                                   {intakeHistoryIsCloseEvent(row.code)
                                     ? t("closedByActor", {
@@ -1325,11 +1355,8 @@ export function CmBatch1ConfirmationView({
                         summary={
                           <span>
                             {tCommon("showingItems", {
-                              from: (safeLogPage - 1) * LOG_PAGE_SIZE + 1,
-                              to: Math.min(
-                                safeLogPage * LOG_PAGE_SIZE,
-                                logRows.length,
-                              ),
+                              from: logFrom,
+                              to: logTo,
                               total: logRows.length,
                             })}
                             <span className="mx-2 text-ecmp-border">·</span>
@@ -1361,7 +1388,7 @@ export function CmBatch1ConfirmationView({
               complaintStatus={data.status}
               intakeDisposition={data.intakeDisposition}
               allowStart={showManageCases}
-              allowEscalate={showReRequestEscalation}
+              allowEscalate={false}
               manageRequestToken={manageRequestToken}
               complaintCreatedBy={data.createdBy}
               complaintCreatedByName={data.createdByName}
@@ -1376,11 +1403,6 @@ export function CmBatch1ConfirmationView({
                 priority: data.priority,
                 destinationUnitId: data.owningUnitId || unitCode,
               }}
-              onRequestHqEscalation={
-                showReRequestEscalation
-                  ? () => openReRequestModal()
-                  : undefined
-              }
             />
           ) : null}
 
@@ -1463,7 +1485,7 @@ export function CmBatch1ConfirmationView({
                   : t("hqScheduleArrival")}
               </Button>
             ) : null}
-            {intakeEscalate && !showSupervisorActions ? (
+            {intakeEscalate && pendingEscalation && !showSupervisorActions ? (
               <Button
                 type="button"
                 onClick={() => router.push(CM_BATCH1_ESCALATION_PENDING_HREF)}
@@ -1485,18 +1507,6 @@ export function CmBatch1ConfirmationView({
                     : t("manageCasesHintExisting")}
                 </p>
               </div>
-            ) : null}
-            {!showTanganiCta &&
-            showManageCases &&
-            penangananSnapshot.handlingClaimedBy ? (
-              <p className="max-w-sm text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                {t("penangananHandledBy", {
-                  name:
-                    officerDisplayName(
-                      penangananSnapshot.handlingClaimedByName,
-                    ) || tCommon("emDash"),
-                })}
-              </p>
             ) : null}
             <Button
               type="button"

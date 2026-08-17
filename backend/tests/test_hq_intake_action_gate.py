@@ -8,6 +8,7 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
 from app.core.authorization.gates import (
+    principal_may_auto_approve_intake_escalation,
     principal_may_perform_hq_intake_action,
     require_hq_intake_action,
 )
@@ -114,3 +115,26 @@ def test_hq_routes_depend_on_require_hq_intake_action() -> None:
     for route in routes:
         calls = _dependant_calls(route.dependant)
         assert require_hq_intake_action in calls, route.path
+
+
+def test_supervisor_may_auto_approve_intake_escalation() -> None:
+    supervisor = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:escalate", "complaints:create"}),
+    )
+    assert principal_may_auto_approve_intake_escalation(supervisor) is True
+
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:create"}),
+    )
+    assert principal_may_auto_approve_intake_escalation(agent) is False
+
+    agent_with_escalate = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:escalate", "complaints:create"}),
+    )
+    assert principal_may_auto_approve_intake_escalation(agent_with_escalate) is False
