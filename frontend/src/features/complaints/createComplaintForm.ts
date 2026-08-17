@@ -380,6 +380,9 @@ export function toCmBatch1CreateRequest(
     closeAtBranch?: boolean;
     /** Branch.code — preferred org key (not Branch.id UUID). */
     recordingUnitCode?: string | null;
+    /** Branch-proposed HQ arrival slot — advisory only, sent only when escalating. */
+    proposedArrivalDate?: string | null;
+    proposedArrivalTime?: string | null;
   },
 ): CmBatch1CreateComplaintRequest {
   const body: CmBatch1CreateComplaintRequest = {
@@ -415,6 +418,12 @@ export function toCmBatch1CreateRequest(
   }
   if (options?.escalate) {
     body.intakeDisposition = "ESCALATE_PENDING_APPROVAL";
+    const proposedDate = options.proposedArrivalDate?.trim();
+    const proposedTime = options.proposedArrivalTime?.trim();
+    if (proposedDate && proposedTime) {
+      body.proposedArrivalDate = proposedDate;
+      body.proposedArrivalTime = proposedTime;
+    }
   }
 
   return body;

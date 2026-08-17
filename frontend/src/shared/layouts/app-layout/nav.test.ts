@@ -117,6 +117,7 @@ describe("APP_NAV_GROUPS", () => {
       "complaints",
       "cases",
       "followUp",
+      "hqSchedule",
       "reports",
       "internalDashboard",
       "internalComplaints",
@@ -138,11 +139,12 @@ describe("APP_NAV_GROUPS", () => {
 describe("complaints nav permission gate (Commit 6)", () => {
   const complaintsItem = APP_NAV_ITEMS.find((item) => item.id === "complaints")!;
 
-  it("gates only the complaints, cases, followUp, announcements, and knowledge items", () => {
+  it("gates only the complaints, cases, followUp, hqSchedule, announcements, and knowledge items", () => {
     const gatedItemIds = new Set([
       "complaints",
       "cases",
       "followUp",
+      "hqSchedule",
       "announcements",
       "announcementsManage",
       "knowledge",
@@ -189,6 +191,12 @@ describe("complaints nav permission gate (Commit 6)", () => {
     const casesItem = APP_NAV_ITEMS.find((item) => item.id === "cases")!;
     expect(casesItem.requiredPermissions).toEqual(["complaints:read"]);
     expect(casesItem.href).toBe("/complaints/cm/cases");
+  });
+
+  it("gates HQ schedule on complaints:read at /complaints/cm/hq-schedule (Pusat-only via Sidebar)", () => {
+    const hqScheduleItem = APP_NAV_ITEMS.find((item) => item.id === "hqSchedule")!;
+    expect(hqScheduleItem.requiredPermissions).toEqual(["complaints:read"]);
+    expect(hqScheduleItem.href).toBe("/complaints/cm/hq-schedule");
   });
 
   it("gates knowledge on knowledge:read", () => {
@@ -293,6 +301,7 @@ describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () =
       "complaints",
       "cases",
       "followUp",
+      "hqSchedule",
       "reports",
     ]);
     expect(taxpayer.labelKey).toBe("subgroupTaxpayerComplaints");

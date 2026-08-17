@@ -212,6 +212,18 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟢 Implemented (lab; shared void semantics) |
 | API-513 | API-CM-B1-014 | GET /api/v1/cm/supervisor/queue | FR-001 | 🟢 Implemented (lab; later-review + no-Case aging visibility) |
 
+### hq-schedule v1 — [`openapi/hq-schedule.v1.yaml`](./openapi/hq-schedule.v1.yaml) **1.0.0-lab** — Advisory HQ arrival slot availability + holiday calendar
+
+> Read-mostly grid over CM Batch 1 Aggregate arrival data (`hqArrivalDate/Time`, `proposedArrivalDate/Time`). Pusat stays the sole SoT for the schedule itself — this module never writes a complaint's `hqArrivalDate`/`hqArrivalTime` (see API-500…513 accept-and-schedule / schedule). Branch-proposed slots are advisory only and never reduce `availableCount`. `/availability/detail` is gated by the existing Mode A `require_hq_intake_action` lab gate (mirrors `principal_may_perform_hq_intake_action`) — not a new permission, not SSO/OIDC, not a Mode B unlock. Holiday calendar is minimal CRUD only — no national calendar import/sync.
+
+| API ID | Logical ID | Method & Endpoint | Auth | Status |
+|---|---|---|---|---|
+| API-540 | API-CM-HQ-001 | GET /api/v1/hq-schedule/availability | bearerAuth, permission `complaints:read` | 🟢 Implemented (lab) |
+| API-541 | API-CM-HQ-002 | GET /api/v1/hq-schedule/availability/detail | bearerAuth, gate `require_hq_intake_action` (Mode A) | 🟢 Implemented (lab) |
+| API-542 | API-CM-HQ-003 | GET /api/v1/hq-schedule/holidays | bearerAuth, permission `settings:read` | 🟢 Implemented (lab) |
+| API-543 | API-CM-HQ-004 | POST /api/v1/hq-schedule/holidays | bearerAuth, permission `settings:update` | 🟢 Implemented (lab; upsert by holidayDate, always 200) |
+| API-544 | API-CM-HQ-005 | DELETE /api/v1/hq-schedule/holidays/{holidayDate} | bearerAuth, permission `settings:update` | 🟢 Implemented (lab) |
+
 ### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0** — FRD-CM-B2-001 🔒 LOCKED / CAP-008 Mode A
 
 > Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…536** (logical **API-CM-B2-001…007**). **Implemented (lab)** — root `backend/app/modules/cm_case/`; REL-RC-001 PASS; annotated tag `v1.2.0-rc.1` @ `6890f50`. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A. API-536 = DEC-024 visibility list (not API-526 F4 unlock). SoT Closure: `../deploy/evidence/CAP-008_SoT_Closure_20260801.md`.

@@ -89,6 +89,19 @@ class CreateComplaintBatch1Request(BaseModel):
     intake_disposition: Literal["BRANCH_CLOSED", "ESCALATE_PENDING_APPROVAL"] | None = (
         Field(default=None, alias="intakeDisposition")
     )
+    proposed_arrival_date: date | None = Field(
+        default=None,
+        alias="proposedArrivalDate",
+        description=(
+            "Branch-proposed HQ arrival date on escalation — advisory only, "
+            "Pusat still decides the final schedule."
+        ),
+    )
+    proposed_arrival_time: str | None = Field(
+        default=None,
+        alias="proposedArrivalTime",
+        description="Branch-proposed HQ arrival time HH:MM, paired with proposedArrivalDate.",
+    )
 
 
 class ComplaintBatch1Response(BaseModel):
@@ -180,6 +193,23 @@ class ComplaintBatch1Response(BaseModel):
         alias="hqArrivalNote",
         description="Jadwal kedatangan history section",
     )
+    proposed_arrival_date: date | None = Field(
+        default=None,
+        alias="proposedArrivalDate",
+        description=(
+            "Branch-proposed HQ arrival date, still awaiting Pusat decision. "
+            "Cleared once Pusat accepts/returns the escalation."
+        ),
+    )
+    proposed_arrival_time: str | None = Field(
+        default=None, alias="proposedArrivalTime"
+    )
+    proposed_by: str | None = Field(
+        default=None,
+        alias="proposedBy",
+        description="Actor id of the branch officer who proposed the slot",
+    )
+    proposed_at: datetime | None = Field(default=None, alias="proposedAt")
     hq_return_note: str | None = Field(
         default=None,
         alias="hqReturnNote",
@@ -240,6 +270,16 @@ class IntakeEscalationRequestBody(BaseModel):
     priority: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] | None = Field(
         default=None,
         description="Optional HQ triage priority refresh on re-request.",
+    )
+    proposed_arrival_date: date | None = Field(
+        default=None,
+        alias="proposedArrivalDate",
+        description="Branch-proposed HQ arrival date — advisory only.",
+    )
+    proposed_arrival_time: str | None = Field(
+        default=None,
+        alias="proposedArrivalTime",
+        description="Branch-proposed HQ arrival time HH:MM, paired with proposedArrivalDate.",
     )
 
 

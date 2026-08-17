@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime24 } from "./datetime";
+import { formatDateTime24, toLocalDateKey } from "./datetime";
 
 describe("formatDateTime24", () => {
   it("formats in Indonesian long month and Jakarta time", () => {
@@ -23,5 +23,14 @@ describe("formatDateTime24", () => {
   it("returns the empty placeholder for blank values", () => {
     expect(formatDateTime24(null, "id", "—")).toBe("—");
     expect(formatDateTime24("", "id", "—")).toBe("—");
+  });
+});
+
+describe("toLocalDateKey", () => {
+  it("uses Asia/Jakarta, not UTC", () => {
+    // 17:00 UTC 16 Aug = 00:00 WIB 17 Aug
+    expect(toLocalDateKey(new Date("2026-08-16T17:00:00.000Z"))).toBe("2026-08-17");
+    // 16:59 UTC 16 Aug = 23:59 WIB 16 Aug
+    expect(toLocalDateKey(new Date("2026-08-16T16:59:59.000Z"))).toBe("2026-08-16");
   });
 });

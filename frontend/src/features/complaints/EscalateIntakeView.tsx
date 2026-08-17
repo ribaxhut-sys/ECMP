@@ -29,6 +29,7 @@ import {
 } from "@/shared/ui";
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { ActiveComplaintsBanner } from "./ActiveComplaintsBanner";
+import { HqArrivalSlotPicker, type HqArrivalSlotValue } from "./HqArrivalSlotPicker";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   newCmBatch1IdempotencyKey,
@@ -60,6 +61,7 @@ import {
 export function EscalateIntakeView() {
   const router = useRouter();
   const t = useTranslations("complaints");
+  const tHqSchedule = useTranslations("hqSchedule");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
   const tValidation = useTranslations("validation");
@@ -70,6 +72,7 @@ export function EscalateIntakeView() {
   const [draft, setDraft] = useState<EscalateIntakeDraft | null>(null);
   const [ready, setReady] = useState(false);
   const [rows, setRows] = useState<IntakeCaseDecisionRow[]>([]);
+  const [proposedSlot, setProposedSlot] = useState<HqArrivalSlotValue | null>(null);
   const [priorityError, setPriorityError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   /** True when submitError comes from link_existing (not create). */
@@ -213,6 +216,8 @@ export function EscalateIntakeView() {
         stagingToken: stagingToken.trim() || null,
         escalate,
         recordingUnitCode: draft?.recordingUnitCode ?? null,
+        proposedArrivalDate: escalate ? proposedSlot?.date ?? null : null,
+        proposedArrivalTime: escalate ? proposedSlot?.time ?? null : null,
       }),
       { idempotencyKey: newCmBatch1IdempotencyKey() },
     );
@@ -659,6 +664,24 @@ export function EscalateIntakeView() {
           ))}
         </div>
       </section>
+
+      {anyIntakeCaseEscalates(rows) && (
+        <section className="space-y-[var(--ecmp-panel-gap)]">
+          <SectionHeader
+            title={tHqSchedule("proposedArrivalLabel")}
+            description={tHqSchedule("description")}
+          />
+          <Card>
+            <CardBody>
+              <HqArrivalSlotPicker
+                value={proposedSlot}
+                onChange={setProposedSlot}
+                disabled={submitting || duplicateBusy}
+              />
+            </CardBody>
+          </Card>
+        </section>
+      )}
 
       <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end">
         <Button

@@ -21,6 +21,9 @@ from app.modules.cm_batch1 import models as _cm_batch1_orm  # noqa: E402, F401
 # Complaint Domain Foundation ORM (CAPABILITY-004) — register for Alembic only.
 from app.modules.complaint.infrastructure import orm as _complaint_orm  # noqa: E402, F401
 
+# HQ arrival schedule holiday calendar.
+from app.modules.hq_schedule import models as _hq_schedule_orm  # noqa: E402, F401
+
 # Pengaduan Internal (domain terpisah dari F4 / Batch-1).
 from app.modules.internal_complaint.infrastructure import (  # noqa: E402, F401
     orm as _internal_complaint_orm,

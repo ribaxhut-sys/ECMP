@@ -21,6 +21,10 @@ class ComplaintAggregate:
     hq_accepted_at: datetime | None = None
     hq_arrival_date: date | None = None
     hq_arrival_time: str | None = None
+    proposed_arrival_date: date | None = None
+    proposed_arrival_time: str | None = None
+    proposed_by: str | None = None
+    proposed_at: datetime | None = None
     owning_unit_id: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     created_by: str | None = None

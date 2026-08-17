@@ -18,6 +18,7 @@ from app.modules.cm_case.api.router import router as cm_case_router
 from app.modules.complaint.api import complaint_api_router
 from app.modules.customers.router import router as customers_router
 from app.modules.dashboard.router import router as dashboard_router
+from app.modules.hq_schedule.router import router as hq_schedule_router
 from app.modules.iam.data_scope.router import roles_data_scopes_router
 from app.modules.iam.permission.router import router as permissions_router
 from app.modules.iam.role.router import router as roles_router
@@ -57,6 +58,7 @@ api_router.include_router(knowledge_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(kpi_router)
 api_router.include_router(settings_router)
+api_router.include_router(hq_schedule_router)
 api_router.include_router(attachment_router)
 api_router.include_router(audit_router)
 api_router.include_router(roles_router)

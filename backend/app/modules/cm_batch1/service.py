@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo
 
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import (
@@ -142,6 +143,9 @@ class CmBatch1StoreProtocol(Protocol):
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
         owning_unit_id: str | None = None,
+        proposed_arrival_date: date | None = None,
+        proposed_arrival_time: str | None = None,
+        proposed_by: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]: ...
 
     def commit(self) -> None: ...
@@ -219,7 +223,19 @@ class CmBatch1StoreProtocol(Protocol):
         description: str | None = None,
         priority: str | None = None,
         decided_by: str | None = None,
+        clear_proposed: bool = False,
     ) -> ComplaintAggregate | None: ...
+
+    def propose_arrival(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date,
+        proposed_time: str,
+        proposed_by: str | None,
+    ) -> ComplaintAggregate | None: ...
+
+    def clear_proposed_arrival(self, complaint_id: str) -> ComplaintAggregate | None: ...
 
     def accept_at_hq(
         self,
@@ -266,6 +282,47 @@ def _is_hhmm(value: str) -> bool:
     except ValueError:
         return False
     return 0 <= hour <= 23 and 0 <= minute <= 59
+
+
+_OPERATOR_TZ = ZoneInfo("Asia/Jakarta")
+
+
+def _operator_today() -> date:
+    """Calendar 'today' for advisory slot validation — lab operators are WIB.
+
+    Do not use ``datetime.now(UTC).date()``: between 00:00–07:00 WIB the UTC
+    date is still yesterday, so a local-yesterday proposal would incorrectly
+    pass a UTC past-check.
+    """
+    return datetime.now(_OPERATOR_TZ).date()
+
+
+def _validate_proposed_arrival(
+    proposed_date: date | None, proposed_time: str | None
+) -> None:
+    """Branch-proposed slot is advisory only — format + not-in-the-past only.
+
+    Grid alignment / working-day / holiday checks live in the HQ schedule
+    availability endpoint (UI-side guidance); the escalation write path does
+    not depend on that module.
+    """
+    if proposed_date is None and proposed_time is None:
+        return
+    if proposed_date is None or not (proposed_time or "").strip():
+        raise ValidationAppError(
+            "proposedArrivalDate and proposedArrivalTime must be provided together",
+            details={"field": "proposedArrivalDate"},
+        )
+    if not _is_hhmm(proposed_time):
+        raise ValidationAppError(
+            "proposedArrivalTime must be HH:MM",
+            details={"field": "proposedArrivalTime"},
+        )
+    if proposed_date < _operator_today():
+        raise ValidationAppError(
+            "proposedArrivalDate cannot be in the past",
+            details={"field": "proposedArrivalDate"},
+        )
 
 
 def _aggregate_status(raw: str | None) -> str:
@@ -952,6 +1009,19 @@ class CmBatch1Service:
                     },
                 )
 
+        if body.proposed_arrival_date is not None or body.proposed_arrival_time:
+            if intake_disposition != "ESCALATE_PENDING_APPROVAL":
+                raise ValidationAppError(
+                    "proposedArrivalDate only allowed when escalating",
+                    details={
+                        "field": "proposedArrivalDate",
+                        "intakeDisposition": body.intake_disposition,
+                    },
+                )
+            _validate_proposed_arrival(
+                body.proposed_arrival_date, body.proposed_arrival_time
+            )
+
         dup_result = self._enforce_duplicate_on_create(body)
 
         unit = (owning_unit_id or body.recording_unit_id or "").strip() or None
@@ -969,6 +1039,9 @@ class CmBatch1Service:
             status=initial_status,
             intake_disposition=intake_disposition,
             owning_unit_id=unit,
+            proposed_arrival_date=body.proposed_arrival_date,
+            proposed_arrival_time=(body.proposed_arrival_time or "").strip() or None,
+            proposed_by=actor_id,
         )
         assert row.case_created is False
 
@@ -1210,6 +1283,7 @@ class CmBatch1Service:
             description=next_description,
             priority=next_priority,
             decided_by=actor_id,
+            clear_proposed=decision in {"CANCEL", "REJECT"},
         )
         if updated is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -1291,17 +1365,33 @@ class CmBatch1Service:
                 )
             next_priority = priority
 
+        _validate_proposed_arrival(
+            body.proposed_arrival_date, body.proposed_arrival_time
+        )
+
         next_disp = "ESCALATE_PENDING_APPROVAL"
         next_description = append_re_escalation_reason(row.description or "", reason)
 
+        # Re-escalate always drops the stale proposal (if any) — a fresh
+        # proposal is set below only when the branch supplied one this time.
         updated = self._store.update_intake_disposition(
             complaint_id,
             intake_disposition=next_disp,
             description=next_description,
             priority=next_priority,
+            clear_proposed=True,
         )
         if updated is None:
             raise NotFoundError(m("complaint.not_found"))
+        if body.proposed_arrival_date is not None:
+            updated = self._store.propose_arrival(
+                complaint_id,
+                proposed_date=body.proposed_arrival_date,
+                proposed_time=(body.proposed_arrival_time or "").strip(),
+                proposed_by=actor_id,
+            )
+            if updated is None:
+                raise NotFoundError(m("complaint.not_found"))
 
         self._side_effects.record(
             events.intake_escalation_decided(
@@ -1382,6 +1472,7 @@ class CmBatch1Service:
             intake_disposition="RETURNED_TO_BRANCH",
             description=next_description,
             decided_by=actor_id,
+            clear_proposed=True,
         )
         if updated is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -1748,6 +1839,10 @@ class CmBatch1Service:
             hqAcceptanceNote=parsed.hq_acceptance_note,
             hqArrivalNote=parsed.hq_arrival_note,
             hqReturnNote=parsed.hq_return_note,
+            proposedArrivalDate=row.proposed_arrival_date,
+            proposedArrivalTime=row.proposed_arrival_time,
+            proposedBy=row.proposed_by,
+            proposedAt=row.proposed_at,
             owningUnitId=row.owning_unit_id,
             priority=row.priority,
             createdAt=row.created_at,

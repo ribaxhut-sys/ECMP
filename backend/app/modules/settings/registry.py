@@ -17,6 +17,11 @@ class SettingsKey(StrEnum):
     APP_TIMEZONE = "app.timezone"
     DASHBOARD_RECENT_LIMIT = "dashboard.recent.limit"
     COMPLAINT_NUMBER_PREFIX = "complaint.number.prefix"
+    HQ_SCHEDULE_START = "hq.schedule.start"
+    HQ_SCHEDULE_END = "hq.schedule.end"
+    HQ_SCHEDULE_SLOT_MINUTES = "hq.schedule.slot_minutes"
+    HQ_SCHEDULE_CAPACITY_PER_SLOT = "hq.schedule.capacity_per_slot"
+    HQ_SCHEDULE_WORKDAYS = "hq.schedule.workdays"
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,5 +82,45 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         category="complaint",
         visibility=SettingVisibility.PROTECTED,
         description="Prefix for generated complaint numbers",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_START,
+        value="08:00",
+        value_type=SettingValueType.STRING,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description="HQ arrival schedule opening time (HH:MM)",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_END,
+        value="16:00",
+        value_type=SettingValueType.STRING,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description="HQ arrival schedule closing time (HH:MM)",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_SLOT_MINUTES,
+        value="60",
+        value_type=SettingValueType.INTEGER,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description="HQ arrival schedule slot length in minutes",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_CAPACITY_PER_SLOT,
+        value="2",
+        value_type=SettingValueType.INTEGER,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description="Max taxpayer arrivals accommodated per HQ schedule slot",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_WORKDAYS,
+        value="1,2,3,4,5",
+        value_type=SettingValueType.STRING,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description="ISO weekdays (1=Mon..7=Sun) HQ accepts arrivals, comma-separated",
     ),
 )

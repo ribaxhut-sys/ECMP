@@ -85,6 +85,11 @@ const messages = {
     intakeEscalateBannerTitle: "Ajuan eskalasi tercatat",
     intakeEscalateBannerDescription: "Menunggu persetujuan.",
     escalationApproved: "Eskalasi disetujui",
+    escalationApprovedPageDescription: "Eskalasi disetujui. Pusat belum menerima.",
+    hqPathAcceptedPageTitle: "Diterima Pusat — belum dijadwalkan",
+    hqPathAcceptedPageDescription: "Pusat sudah menerima.",
+    hqPathScheduledPageTitle: "Jadwal kedatangan wajib pajak",
+    hqPathScheduledPageDescription: "Pusat sudah menetapkan jadwal.",
     returnedToBranchBannerTitle: "Dikembalikan ke cabang",
     returnedToBranchBannerDescription: "Lengkapi dokumen.",
     hqScheduledBranchNotifyTitle: "Kedatangan dijadwalkan",
@@ -338,6 +343,27 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
       screen.getByText("Pengaduan sedang berjalan di unit penanganan."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Ditangani oleh Budi")).not.toBeInTheDocument();
+  });
+
+  it("titles a scheduled HQ arrival as taxpayer visit schedule, not waiting for escalation", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "HQ_SCHEDULED",
+        caseCreated: true,
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+        hqArrivalDate: "2026-08-20",
+        hqArrivalTime: "09:30",
+      }),
+    });
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Jadwal kedatangan wajib pajak" }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("2026-08-20 09:30").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Menunggu persetujuan.")).not.toBeInTheDocument();
   });
 
   it("keeps the HQ-approved title and hides cabang escalate CTAs while a Case is still bound", async () => {

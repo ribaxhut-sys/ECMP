@@ -6,7 +6,7 @@ Production path uses :class:`CmBatch1Repository` (SQLAlchemy).
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from threading import Lock
 
 from app.core.authorization.visibility import (
@@ -204,6 +204,9 @@ class Batch1Store:
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
         owning_unit_id: str | None = None,
+        proposed_arrival_date: date | None = None,
+        proposed_arrival_time: str | None = None,
+        proposed_by: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         with self._lock:
             by_req_rec = self._idempotency.get(request_id)
@@ -294,6 +297,10 @@ class Batch1Store:
                 owning_unit_id=unit,
                 created_by=created_by,
                 case_created=False,
+                proposed_arrival_date=proposed_arrival_date,
+                proposed_arrival_time=proposed_arrival_time,
+                proposed_by=proposed_by if proposed_arrival_date else None,
+                proposed_at=now if proposed_arrival_date else None,
             )
             self._complaints[complaint_id] = row
             self._by_number[complaint_number] = complaint_id
@@ -440,6 +447,7 @@ class Batch1Store:
         description: str | None = None,
         priority: str | None = None,
         decided_by: str | None = None,
+        clear_proposed: bool = False,
     ) -> ComplaintAggregate | None:
         with self._lock:
             row = self._complaints.get(str(complaint_id).strip())
@@ -454,6 +462,8 @@ class Batch1Store:
             if decided_by is not None:
                 row.decided_by = decided_by
                 row.decided_at = datetime.now(UTC)
+            if clear_proposed:
+                self._clear_proposed(row)
             return row
 
     def accept_at_hq(
@@ -473,6 +483,7 @@ class Batch1Store:
                 row.description = description
             if intake_disposition is not None:
                 row.intake_disposition = intake_disposition
+            self._clear_proposed(row)
             return row
 
     def schedule_hq_arrival(
@@ -494,6 +505,7 @@ class Batch1Store:
                 row.description = description
             if intake_disposition is not None:
                 row.intake_disposition = intake_disposition
+            self._clear_proposed(row)
             return row
 
     def accept_and_schedule_at_hq(
@@ -515,6 +527,40 @@ class Batch1Store:
             row.hq_arrival_time = arrival_time
             row.description = description
             row.intake_disposition = intake_disposition
+            self._clear_proposed(row)
+            return row
+
+    @staticmethod
+    def _clear_proposed(row: ComplaintAggregate) -> None:
+        row.proposed_arrival_date = None
+        row.proposed_arrival_time = None
+        row.proposed_by = None
+        row.proposed_at = None
+
+    def propose_arrival(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date,
+        proposed_time: str,
+        proposed_by: str | None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.proposed_arrival_date = proposed_date
+            row.proposed_arrival_time = proposed_time
+            row.proposed_by = proposed_by
+            row.proposed_at = datetime.now(UTC)
+            return row
+
+    def clear_proposed_arrival(self, complaint_id: str) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            self._clear_proposed(row)
             return row
 
     def list_complaints(

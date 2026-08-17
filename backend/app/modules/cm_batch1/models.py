@@ -73,6 +73,16 @@ class CmBatch1ComplaintORM(Base):
     # Customer visit schedule at HQ (Batch-1 lab; not foundation Appointment).
     hq_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     hq_arrival_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Branch-proposed slot at escalation time — advisory only, cleared once
+    # Pusat decides (accept/return). Not a reservation.
+    proposed_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    proposed_arrival_time: Mapped[str | None] = mapped_column(
+        String(5), nullable=True
+    )
+    proposed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    proposed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # True after the first Case exists (mark_complaint_in_progress /
     # sync_complaint_status_from_cases). Default false at intake.
     case_created: Mapped[bool] = mapped_column(

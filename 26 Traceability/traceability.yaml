@@ -1,4 +1,4 @@
-version: 0.12
+version: 0.13
 id: TRC-DATA-001
 # 2026-07-21 (DEC-006, Sprint-02A contract freeze): API-003/API-004 merged normative
 # (case-service.v1.yaml v1.4.0), EVT-002/EVT-003 payloads frozen. TRC-L-003/TRC-L-004
@@ -29,6 +29,9 @@ id: TRC-DATA-001
 # 2026-08-01 (B2-14 CAP-007 Engineering): TRC-L-008 Planned → Approved — API-040
 # implemented in implementation/backend + Queue Dashboard FE (API-040 only).
 # No new TRC links invented.
+# 2026-08-17 (HQ arrival advisory lab): TRC-L-017 added for API-540…544
+# (hq-schedule.v1.yaml). Advisory slot grid + holiday CRUD; Pusat remains SoT
+# for hqArrivalDate/Time. Formal TC-catalog IDs deferred — lab pytest cited.
 links:
   - id: TRC-L-009
     domain: Core Platform
@@ -233,6 +236,22 @@ links:
     description: >-
       CAP-008 Mode A Close Case (FRD-CM-B2-001 FR-006). Lab suite
       test_cm_case_mode_a.py; REL-RC-001 PASS
+  - id: TRC-L-017
+    domain: ECMF
+    bp: BP-001
+    br: BR-001
+    fr: FR-001
+    api: [API-540, API-541, API-542, API-543, API-544]
+    events: []
+    tests: []
+    sprint: Mode-A-CM-B1
+    status: Approved
+    description: >-
+      HQ arrival advisory grid + holiday calendar (lab). OpenAPI
+      hq-schedule.v1.yaml API-540…544. Does not write hqArrivalDate/Time
+      (Pusat SoT remains accept-and-schedule / schedule). Lab evidence:
+      tests/test_hq_schedule_api.py, test_hq_schedule_service.py,
+      test_hq_schedule_repository.py, test_cm_batch1_proposed_arrival.py.
 
 artifacts:
   bp:
@@ -289,6 +308,11 @@ artifacts:
     API-533: PATCH /api/v1/cm/cases/{caseId}/status (CAP-008 Mode A)
     API-534: POST /api/v1/cm/cases/{caseId}/resolve (CAP-008 Mode A)
     API-535: POST /api/v1/cm/cases/{caseId}/close (CAP-008 Mode A)
+    API-540: GET /api/v1/hq-schedule/availability (HQ arrival advisory, Mode A lab)
+    API-541: GET /api/v1/hq-schedule/availability/detail (Pusat pending proposals)
+    API-542: GET /api/v1/hq-schedule/holidays
+    API-543: POST /api/v1/hq-schedule/holidays
+    API-544: DELETE /api/v1/hq-schedule/holidays/{holidayDate}
   events:
     EVT-001: CaseCreated
     EVT-002: CaseAssigned

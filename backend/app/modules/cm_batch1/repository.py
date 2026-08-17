@@ -62,6 +62,10 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         hq_accepted_at=row.hq_accepted_at,
         hq_arrival_date=row.hq_arrival_date,
         hq_arrival_time=row.hq_arrival_time,
+        proposed_arrival_date=row.proposed_arrival_date,
+        proposed_arrival_time=row.proposed_arrival_time,
+        proposed_by=row.proposed_by,
+        proposed_at=row.proposed_at,
         owning_unit_id=row.owning_unit_id,
         created_at=row.created_at,
         created_by=row.created_by,
@@ -69,6 +73,13 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         decided_at=row.decided_at,
         case_created=bool(row.case_created),
     )
+
+
+def _clear_proposed(row: CmBatch1ComplaintORM) -> None:
+    row.proposed_arrival_date = None
+    row.proposed_arrival_time = None
+    row.proposed_by = None
+    row.proposed_at = None
 
 
 class CmBatch1Repository:
@@ -410,6 +421,9 @@ class CmBatch1Repository:
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
         owning_unit_id: str | None = None,
+        proposed_arrival_date: date | None = None,
+        proposed_arrival_time: str | None = None,
+        proposed_by: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         """Atomic Claim create — ``created=False`` on idempotent / race-loser replay.
 
@@ -456,6 +470,10 @@ class CmBatch1Repository:
             created_by=created_by,
             created_at=now,
             updated_at=now,
+            proposed_arrival_date=proposed_arrival_date,
+            proposed_arrival_time=proposed_arrival_time,
+            proposed_by=proposed_by if proposed_arrival_date else None,
+            proposed_at=now if proposed_arrival_date else None,
         )
         self._session.add(orm)
         self._session.flush()
@@ -716,6 +734,7 @@ class CmBatch1Repository:
         description: str | None = None,
         priority: str | None = None,
         decided_by: str | None = None,
+        clear_proposed: bool = False,
     ) -> ComplaintAggregate | None:
         """Update intake path label (API-515). Optionally refresh description/priority."""
         try:
@@ -734,6 +753,8 @@ class CmBatch1Repository:
         if decided_by is not None:
             row.decided_by = decided_by
             row.decided_at = datetime.now(UTC)
+        if clear_proposed:
+            _clear_proposed(row)
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)
@@ -758,6 +779,7 @@ class CmBatch1Repository:
             row.description = description
         if intake_disposition is not None:
             row.intake_disposition = intake_disposition
+        _clear_proposed(row)
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)
@@ -784,6 +806,7 @@ class CmBatch1Repository:
             row.description = description
         if intake_disposition is not None:
             row.intake_disposition = intake_disposition
+        _clear_proposed(row)
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)
@@ -810,6 +833,43 @@ class CmBatch1Repository:
         row.hq_arrival_time = arrival_time
         row.description = description
         row.intake_disposition = intake_disposition
+        _clear_proposed(row)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def propose_arrival(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date,
+        proposed_time: str,
+        proposed_by: str | None,
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.proposed_arrival_date = proposed_date
+        row.proposed_arrival_time = proposed_time
+        row.proposed_by = proposed_by
+        row.proposed_at = datetime.now(UTC)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def clear_proposed_arrival(self, complaint_id: str) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        _clear_proposed(row)
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)

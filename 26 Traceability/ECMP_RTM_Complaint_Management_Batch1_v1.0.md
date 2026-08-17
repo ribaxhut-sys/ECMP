@@ -214,6 +214,21 @@ Business Rule
 |---|---|
 | Every Batch 1 API maps to ≥1 Use Case | ✅ PASS |
 
+### 7.2 Lab addendum (2026-08-17) — HQ arrival advisory
+
+> Not a change to the locked Batch-1 FRD matrix above. Documents Mode A lab
+> APIs for branch-proposed HQ arrival slots. Pusat remains SoT for
+> `hqArrivalDate` / `hqArrivalTime`. Catalog: `hq-schedule.v1.yaml`.
+> Trace link: `TRC-L-017`.
+
+| API ID | Logical ID | Path | FR | Status |
+|---|---|---|---|---|
+| API-540 | API-CM-HQ-001 | `GET /api/v1/hq-schedule/availability` | FR-001 (intake/escalation advisory) | Implemented (lab) |
+| API-541 | API-CM-HQ-002 | `GET /api/v1/hq-schedule/availability/detail` | FR-001 | Implemented (lab; `require_hq_intake_action`) |
+| API-542 | API-CM-HQ-003 | `GET /api/v1/hq-schedule/holidays` | FR-001 | Implemented (lab) |
+| API-543 | API-CM-HQ-004 | `POST /api/v1/hq-schedule/holidays` | FR-001 | Implemented (lab; upsert 200) |
+| API-544 | API-CM-HQ-005 | `DELETE /api/v1/hq-schedule/holidays/{holidayDate}` | FR-001 | Implemented (lab) |
+
 ---
 
 ## 8. Domain Model ↔ FR ↔ DB Entity Matrix

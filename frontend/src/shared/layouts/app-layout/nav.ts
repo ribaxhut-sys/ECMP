@@ -151,6 +151,15 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
   },
   { id: "queue", labelKey: "queue", href: "/queue", icon: "queue" },
   {
+    id: "hqSchedule",
+    labelKey: "hqSchedule",
+    href: "/complaints/cm/hq-schedule",
+    icon: "queue",
+    // Gate is Pusat-only (org unit), applied in Sidebar — mirrors
+    // announcementsManage. Not shown to Cabang at all (DEC per product).
+    requiredPermissions: ["complaints:read"],
+  },
+  {
     id: "assignments",
     labelKey: "assignments",
     href: "/assignments",
@@ -265,6 +274,7 @@ const TAXPAYER_COMPLAINTS_ITEM_IDS = [
   "complaints",
   "cases",
   "followUp",
+  "hqSchedule",
   "reports",
 ] as const;
 

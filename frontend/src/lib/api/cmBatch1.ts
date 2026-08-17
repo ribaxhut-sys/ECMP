@@ -99,6 +99,9 @@ export interface CmBatch1CreateComplaintRequest {
   stagingToken?: string | null;
   /** BRANCH_CLOSED = handled at branch. ESCALATE_PENDING_APPROVAL = await supervisor. */
   intakeDisposition?: "BRANCH_CLOSED" | "ESCALATE_PENDING_APPROVAL" | null;
+  /** Branch-proposed HQ arrival slot — advisory only, Pusat still decides. */
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
 }
 
 export interface CmBatch1ComplaintResponse {
@@ -151,6 +154,11 @@ export interface CmBatch1ComplaintResponse {
   hqAcceptanceNote?: string | null;
   hqArrivalNote?: string | null;
   hqReturnNote?: string | null;
+  /** Branch-proposed HQ arrival slot, still awaiting Pusat decision. */
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
+  proposedBy?: string | null;
+  proposedAt?: string | null;
   owningUnitId?: string | null;
   priority?: string | null;
   createdAt?: string | null;
@@ -284,6 +292,9 @@ export interface CmBatch1IntakeEscalationRequestBody {
   /** Alasan ajuan ulang (≥20). Appended to history; cancel/reject notes kept. */
   reason: string;
   priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
+  /** Branch-proposed HQ arrival slot — advisory only, Pusat still decides. */
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
 }
 
 export interface CmBatch1LaterReviewWorkItem {

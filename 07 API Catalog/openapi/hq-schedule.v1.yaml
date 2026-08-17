@@ -1,0 +1,356 @@
+openapi: 3.0.3
+info:
+  title: ECMP HQ Arrival Schedule API
+  version: 1.0.0-lab
+  description: |
+    Advisory HQ arrival slot availability + holiday calendar for the Complaint
+    Management Batch 1 escalation flow. Pusat remains the sole source of truth
+    for `hqArrivalDate` / `hqArrivalTime` (set via
+    `/api/v1/cm/complaints/{complaintId}/hq-accept-and-schedule` and
+    `/hq-schedule`, catalogued in complaint-management-batch1.v1.yaml). This
+    module only answers "what does the grid look like" — a read-mostly
+    capacity/proposal view plus a minimal holiday calendar CRUD for Pusat.
+    Branch-proposed slots (`proposedArrivalDate` / `proposedArrivalTime` on
+    ComplaintBatch1Response) are advisory only and never reduce
+    `availableCount`; only Pusat-scheduled arrivals reduce slot capacity.
+    Logical IDs API-CM-HQ-001…005 map to catalog IDs API-540…544.
+    Not a Mode B unlock — `require_hq_intake_action` is a Mode A lab gate
+    (backend/app/core/authorization/gates.py), not SSO/OIDC.
+  x-ecmp-frd: FRD-CM-001
+  x-ecmp-related-dec:
+    - DEC-020
+  x-ecmp-status: Implemented (lab) — Mode A only
+  x-ecmp-ownership: HQ Schedule read model (`backend/app/modules/hq_schedule/`)
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: HqSchedule-Availability
+    description: Branch-facing and Pusat-detail HQ arrival slot availability grid
+  - name: HqSchedule-Holidays
+    description: Pusat holiday calendar (minimal — no national calendar import/sync)
+paths:
+  /api/v1/hq-schedule/availability:
+    get:
+      summary: Branch-facing aggregate HQ arrival slot availability
+      operationId: hqScheduleGetAvailability
+      x-ear-id: API-540
+      x-ecmp-logical-id: API-CM-HQ-001
+      tags: [HqSchedule-Availability]
+      security:
+        - bearerAuth: []
+      description: |
+        Used inline in the branch escalation slot picker. No per-complaint
+        detail — only slot-level counts. Requires `complaints:read`, not an
+        HQ/Pusat role.
+      parameters:
+        - $ref: "#/components/parameters/DateFrom"
+        - $ref: "#/components/parameters/DateTo"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/AvailabilityResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /api/v1/hq-schedule/availability/detail:
+    get:
+      summary: Pusat detail HQ arrival slot availability (with pending proposals)
+      operationId: hqScheduleGetAvailabilityDetail
+      x-ear-id: API-541
+      x-ecmp-logical-id: API-CM-HQ-002
+      tags: [HqSchedule-Availability]
+      security:
+        - bearerAuth: []
+      description: |
+        Same grid as `/availability`, plus per-slot `pendingProposals` (branch
+        proposals awaiting Pusat accept/schedule/return). Gated by
+        `require_hq_intake_action` — the existing Mode A lab HQ-intake gate
+        (mirrors `principal_may_perform_hq_intake_action`), not a new
+        permission and not SSO/OIDC.
+      parameters:
+        - $ref: "#/components/parameters/DateFrom"
+        - $ref: "#/components/parameters/DateTo"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/AvailabilityResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /api/v1/hq-schedule/holidays:
+    get:
+      summary: List HQ schedule holidays in range
+      operationId: hqScheduleListHolidays
+      x-ear-id: API-542
+      x-ecmp-logical-id: API-CM-HQ-003
+      tags: [HqSchedule-Holidays]
+      security:
+        - bearerAuth: []
+      description: Requires `settings:read`. Range defaults/limits match `/availability`.
+      parameters:
+        - $ref: "#/components/parameters/DateFrom"
+        - $ref: "#/components/parameters/DateTo"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HolidayResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      summary: Create or relabel an HQ schedule holiday
+      operationId: hqScheduleCreateHoliday
+      x-ear-id: API-543
+      x-ecmp-logical-id: API-CM-HQ-004
+      tags: [HqSchedule-Holidays]
+      security:
+        - bearerAuth: []
+      description: |
+        Requires `settings:update`. Upsert by `holidayDate` — if a holiday
+        already exists on that date, its `label` (and `createdBy`) is
+        overwritten in place; response is always `200`, never `201`.
+        Minimal calendar management only — no national calendar import or
+        government holiday sync.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HolidayCreateRequest"
+      responses:
+        "200":
+          description: OK — created or relabelled (upsert)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/HolidayResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /api/v1/hq-schedule/holidays/{holidayDate}:
+    delete:
+      summary: Remove an HQ schedule holiday
+      operationId: hqScheduleDeleteHoliday
+      x-ear-id: API-544
+      x-ecmp-logical-id: API-CM-HQ-005
+      tags: [HqSchedule-Holidays]
+      security:
+        - bearerAuth: []
+      description: Requires `settings:update`.
+      parameters:
+        - $ref: "#/components/parameters/HolidayDate"
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    DateFrom:
+      name: from
+      in: query
+      required: false
+      description: Range start (inclusive). Defaults to today.
+      schema:
+        type: string
+        format: date
+    DateTo:
+      name: to
+      in: query
+      required: false
+      description: |
+        Range end (inclusive). Defaults to `from` + 6 days. Range
+        (`to` - `from`) must not exceed 62 days.
+      schema:
+        type: string
+        format: date
+    HolidayDate:
+      name: holidayDate
+      in: path
+      required: true
+      schema:
+        type: string
+        format: date
+  responses:
+    Error:
+      description: Error envelope
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              details:
+                type: object
+                additionalProperties: true
+  schemas:
+    ProposalSummary:
+      type: object
+      description: One branch-proposed slot awaiting Pusat decision (Pusat detail view only).
+      required: [complaintId, complaintNumber]
+      properties:
+        complaintId:
+          type: string
+        complaintNumber:
+          type: string
+        owningUnitId:
+          type: string
+          nullable: true
+        proposedBy:
+          type: string
+          nullable: true
+        proposedAt:
+          type: string
+          format: date-time
+          nullable: true
+    SlotAvailability:
+      type: object
+      required:
+        - startTime
+        - endTime
+        - capacity
+        - scheduledCount
+        - proposedCount
+        - availableCount
+      properties:
+        startTime:
+          type: string
+          description: HH:MM (24h)
+        endTime:
+          type: string
+          description: HH:MM (24h)
+        capacity:
+          type: integer
+        scheduledCount:
+          type: integer
+          description: Pusat-scheduled arrivals in this slot — reduces availableCount.
+        proposedCount:
+          type: integer
+          description: Branch-proposed (awaiting decision) arrivals in this slot — advisory only.
+        availableCount:
+          type: integer
+          description: capacity - scheduledCount (floored at 0). Never reduced by proposals.
+        pendingProposals:
+          type: array
+          description: Pusat detail only — always empty on the branch-facing aggregate view.
+          items:
+            $ref: "#/components/schemas/ProposalSummary"
+    DayAvailability:
+      type: object
+      required: [date, weekday, closed]
+      properties:
+        date:
+          type: string
+          format: date
+        weekday:
+          type: integer
+          description: ISO weekday, 1=Mon..7=Sun
+        closed:
+          type: boolean
+        closedReason:
+          type: string
+          nullable: true
+          enum: [WEEKEND, HOLIDAY]
+        holidayLabel:
+          type: string
+          nullable: true
+        slots:
+          type: array
+          description: Empty when closed=true.
+          items:
+            $ref: "#/components/schemas/SlotAvailability"
+    AvailabilityResponse:
+      type: object
+      required: [startTime, endTime, slotMinutes, capacityPerSlot, days]
+      properties:
+        startTime:
+          type: string
+          description: HH:MM (24h) — from hq.schedule.start setting
+        endTime:
+          type: string
+          description: HH:MM (24h) — from hq.schedule.end setting
+        slotMinutes:
+          type: integer
+        capacityPerSlot:
+          type: integer
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayAvailability"
+    HolidayCreateRequest:
+      type: object
+      required: [holidayDate, label]
+      properties:
+        holidayDate:
+          type: string
+          format: date
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+    HolidayResponse:
+      type: object
+      required: [holidayDate, label, createdAt]
+      properties:
+        holidayDate:
+          type: string
+          format: date
+        label:
+          type: string
+        createdBy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time

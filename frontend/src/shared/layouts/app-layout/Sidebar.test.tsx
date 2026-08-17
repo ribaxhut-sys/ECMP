@@ -20,7 +20,9 @@ import { Sidebar } from "./Sidebar";
 
 let mockPathname = "/dashboard";
 let mockPermissions: string[] = [];
+let mockRoles: string[] = [];
 let mockUserId: string | null = "user-1";
+let mockOrgUnitBranch: { code: string } | null | undefined = null;
 const unreadCountApi = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -51,6 +53,7 @@ vi.mock("@/auth/AuthProvider", () => ({
     isMockSession: false,
     mockPersona: null,
     officerWorkMode: null,
+    roles: mockRoles,
     hasPermission: (permission: string) =>
       mockPermissions.includes("*") || mockPermissions.includes(permission),
   }),
@@ -58,6 +61,10 @@ vi.mock("@/auth/AuthProvider", () => ({
 
 vi.mock("@/lib/api/branches", () => ({
   fetchBranches: () => Promise.resolve({ data: [] }),
+}));
+
+vi.mock("@/features/announcements/useOrgUnitCode", () => ({
+  useOrgUnitBranch: () => mockOrgUnitBranch,
 }));
 
 vi.mock("@/lib/api", async () => {
@@ -109,7 +116,9 @@ const COMPLAINT_PERMISSIONS = ["complaints:read"];
 beforeEach(() => {
   mockPathname = "/dashboard";
   mockPermissions = [];
+  mockRoles = [];
   mockUserId = "user-1";
+  mockOrgUnitBranch = null;
   window.localStorage.clear();
   unreadCountApi.mockReset();
   unreadCountApi.mockResolvedValue({ data: 0 });
@@ -284,6 +293,68 @@ describe("Scenario 8 — invalid preference never crashes the sidebar", () => {
     expect(
       sidebar.getByRole("button", { name: /^Internal$/i }),
     ).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("HQ schedule — canCmBatch1HqReview-gated sidebar entry", () => {
+  it("hides HQ schedule for a Cabang unit (Pusat agent role)", () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockRoles = ["AGENT"];
+    mockOrgUnitBranch = { code: "UPPPD-A" };
+    const { sidebar } = renderSidebar();
+    expect(
+      sidebar.queryByRole("link", { name: /^HQ Schedule$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides HQ schedule while the org unit is still resolving", () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockRoles = ["AGENT"];
+    mockOrgUnitBranch = undefined;
+    const { sidebar } = renderSidebar();
+    expect(
+      sidebar.queryByRole("link", { name: /^HQ Schedule$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows HQ schedule for a Pusat agent (complaints:read + PUSAT unit)", () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockRoles = ["AGENT"];
+    mockOrgUnitBranch = { code: "PUSAT" };
+    const { sidebar } = renderSidebar();
+    expect(
+      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides HQ schedule for a Pusat-unit user without an HQ-eligible role", () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockRoles = ["VIEWER"];
+    mockOrgUnitBranch = { code: "PUSAT" };
+    const { sidebar } = renderSidebar();
+    expect(
+      sidebar.queryByRole("link", { name: /^HQ Schedule$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows HQ schedule for HO_SCHEDULER with escalations:review, regardless of unit", () => {
+    mockPermissions = [...COMPLAINT_PERMISSIONS, "escalations:review"];
+    mockRoles = ["HO_SCHEDULER"];
+    mockOrgUnitBranch = { code: "UPPPD-A" };
+    const { sidebar } = renderSidebar();
+    expect(
+      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows HQ schedule for Admin with escalations:review, no branchId (Head Office)", () => {
+    mockPermissions = [...COMPLAINT_PERMISSIONS, "escalations:review"];
+    mockRoles = ["ADMIN"];
+    mockOrgUnitBranch = null;
+    const { sidebar } = renderSidebar();
+    expect(
+      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+    ).toBeInTheDocument();
   });
 });
 

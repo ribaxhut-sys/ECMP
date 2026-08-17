@@ -40,7 +40,7 @@ import {
   WorkspaceToolbar,
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
-import { formatDateTime24 } from "@/shared/utils/datetime";
+import { formatDateTime24, toLocalDateKey } from "@/shared/utils/datetime";
 import { cn } from "@/shared/utils";
 import { officerDisplayName } from "./officerDisplayName";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
@@ -52,6 +52,10 @@ import {
 } from "./ComplaintPenangananSection";
 import { CM_BATCH1_ESCALATION_PENDING_HREF } from "./cmBatch1ListFilters";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
+import {
+  HqArrivalSlotPicker,
+  type HqArrivalSlotValue,
+} from "./HqArrivalSlotPicker";
 import {
   canCmBatch1HqReview,
   cmBatch1BlobEventCodes,
@@ -72,6 +76,10 @@ import {
 } from "./cmBatch1RegistrationLabels";
 import type { Branch } from "@/lib/api/branches";
 import { parseCmBatch1Description } from "./createComplaintForm";
+import {
+  hqPathCopyKeys,
+  resolveHqPathPhase,
+} from "./penangananGroups";
 
 /** Case-handling events shown in ComplaintPenangananSection, not repeated in this page's log. */
 const CONFIRMATION_HIDDEN_HISTORY_CODES = new Set([
@@ -268,6 +276,9 @@ export function CmBatch1ConfirmationView({
   const [cancelNote, setCancelNote] = useState("");
   const [reRequestReason, setReRequestReason] = useState("");
   const [reRequestPriority, setReRequestPriority] = useState("");
+  const [reRequestSlot, setReRequestSlot] = useState<HqArrivalSlotValue | null>(
+    null,
+  );
   const [hqReturnNote, setHqReturnNote] = useState("");
   const [hqReturnReasonCode, setHqReturnReasonCode] =
     useState<CmBatch1HqReturnReasonCode>("MISSING_ATTACHMENT");
@@ -377,6 +388,7 @@ export function CmBatch1ConfirmationView({
           : "MEDIUM",
       );
       setReRequestReason("");
+      setReRequestSlot(null);
       setReRequestOpen(true);
     }
 
@@ -465,12 +477,21 @@ export function CmBatch1ConfirmationView({
       const res = await requestCmBatch1IntakeEscalation(data.complaintId, {
         reason,
         priority: priority as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+        proposedArrivalDate:
+          reRequestSlot?.date && reRequestSlot?.time
+            ? reRequestSlot.date
+            : null,
+        proposedArrivalTime:
+          reRequestSlot?.date && reRequestSlot?.time
+            ? reRequestSlot.time
+            : null,
       });
       setData(res.data);
       void reloadHistory();
       setReRequestOpen(false);
       setReRequestReason("");
       setReRequestPriority("");
+      setReRequestSlot(null);
       pushSuccess(
         t("reRequestEscalationToast"),
         t("reRequestEscalationToastDescription", {
@@ -492,6 +513,7 @@ export function CmBatch1ConfirmationView({
         : "MEDIUM",
     );
     setReRequestReason("");
+    setReRequestSlot(null);
     setReRequestOpen(true);
   }
 
@@ -648,7 +670,6 @@ export function CmBatch1ConfirmationView({
           ? t("registered")
           : (data?.status ?? "");
 
-  const disposition = (data?.intakeDisposition || "").toUpperCase();
   const hqActions = resolveCmBatch1HqActionVisibility(
     {
       status: data?.status,
@@ -660,7 +681,6 @@ export function CmBatch1ConfirmationView({
     canHqReview,
   );
   const {
-    approvedEscalation,
     showHqAcceptAndSchedule,
     showHqReturn,
     showHqReschedule,
@@ -720,11 +740,14 @@ export function CmBatch1ConfirmationView({
     intakeClosed ||
     (data?.status === "CLOSED" && data?.intakeDisposition === "BRANCH_CLOSED");
   const closedAtHq = !closedAtBranch && data?.status === "CLOSED";
-  const escalationBannerTitle = approvedEscalation
-    ? t("escalationApproved")
-    : pendingEscalation || intakeEscalate
-      ? t("intakeEscalateBannerTitle")
-      : null;
+  const hqPhase = resolveHqPathPhase({
+    intakeDisposition: data?.intakeDisposition,
+    hqAcceptedAt: data?.hqAcceptedAt,
+  });
+  const hqCopy = hqPhase ? hqPathCopyKeys(hqPhase) : null;
+  const escalationBannerTitle = hqCopy
+    ? t(hqCopy.pageTitle as "escalationApproved")
+    : null;
   const penangananTitleReady = !penangananSnapshot.loading;
 
   const pageTitle = closedAtBranch
@@ -930,11 +953,18 @@ export function CmBatch1ConfirmationView({
             ? t("intakeClosedByUnitDescription")
             : closedAtHq
               ? t("intakeClosedByHqDescription")
-              : pendingEscalation || intakeEscalate
-                ? t("intakeEscalateBannerDescription")
-                : penangananTitleReady && penangananSnapshot.handlingClaimedBy
-                  ? t("penangananInProgressDescription")
-                  : t("confirmationDescription")
+              : hqPhase === "scheduled" && data?.hqArrivalDate
+                ? t("hqScheduledBranchNotifyBody", {
+                    date: data.hqArrivalDate,
+                    time: data.hqArrivalTime ?? "",
+                  })
+                : hqCopy
+                  ? t(hqCopy.pageDescription as "hqPathScheduledPageDescription")
+                  : pendingEscalation || intakeEscalate
+                    ? t("intakeEscalateBannerDescription")
+                    : penangananTitleReady && penangananSnapshot.handlingClaimedBy
+                      ? t("penangananInProgressDescription")
+                      : t("confirmationDescription")
         }
       />
 
@@ -1387,6 +1417,7 @@ export function CmBatch1ConfirmationView({
               complaintId={data.complaintId}
               complaintStatus={data.status}
               intakeDisposition={data.intakeDisposition}
+              hqAcceptedAt={data.hqAcceptedAt}
               allowStart={showManageCases}
               allowEscalate={false}
               manageRequestToken={manageRequestToken}
@@ -1449,8 +1480,14 @@ export function CmBatch1ConfirmationView({
               <Button
                 type="button"
                 onClick={() => {
-                  setArrivalDate("");
-                  setArrivalTime("");
+                  const proposedDate = data?.proposedArrivalDate ?? "";
+                  const proposedStale =
+                    Boolean(proposedDate) &&
+                    proposedDate < toLocalDateKey(new Date());
+                  setArrivalDate(proposedStale ? "" : proposedDate);
+                  setArrivalTime(
+                    proposedStale ? "" : data?.proposedArrivalTime ?? "",
+                  );
                   setArrivalNote("");
                   setHqAcceptOpen(true);
                 }}
@@ -1789,6 +1826,11 @@ export function CmBatch1ConfirmationView({
             aria-required="true"
             disabled={deciding}
           />
+          <HqArrivalSlotPicker
+            value={reRequestSlot}
+            onChange={setReRequestSlot}
+            disabled={deciding}
+          />
         </div>
       </Modal>
 
@@ -1824,6 +1866,16 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
+          {data?.proposedArrivalDate && data?.proposedArrivalTime ? (
+            <Alert
+              tone="info"
+              title={t("proposedArrivalHintTitle")}
+              description={t("branchProposedArrivalHint", {
+                date: data.proposedArrivalDate,
+                time: data.proposedArrivalTime,
+              })}
+            />
+          ) : null}
           <Input
             type="date"
             label={t("hqArrivalDateLabel")}

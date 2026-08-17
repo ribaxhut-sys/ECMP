@@ -17,10 +17,14 @@
 |---|---|---|---|
 | `case-actions.v1.yaml` | ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED) | 1.0.0 | 0 |
 | `case-service.v1.yaml` | ECMP Case Service API | 1.7.0 | 12 |
+| `cm-case-management.v1.yaml` | ECMP Case Management Batch-2 Mode A API | 1.0.0 | 8 |
 | `complaint-domain-service.v1.yaml` | ECMP Complaint Domain Service API | 1.4.0 | 23 |
-| `complaint-management-batch1.v1.yaml` | ECMP Complaint Management Batch 1 API | 1.0.0-planned | 13 |
+| `complaint-management-batch1.v1.yaml` | ECMP Complaint Management Batch 1 API | 1.0.0-planned | 22 |
 | `complaint-management-esc-res.v1.yaml` | ECMP Complaint Management Escalation & Resolution API (DEC-F4) | 1.0.0-planned | 7 |
-| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 101 |
+| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 103 |
+| `dashboard-queues.v1.yaml` | ECMP Dashboard Queues API | 1.0.0 | 1 |
+| `hq-schedule.v1.yaml` | ECMP HQ Arrival Schedule API | 1.0.0-lab | 5 |
+| `internal-complaints.v1.yaml` | ECMP Pengaduan Internal API | 1.0.0 | 16 |
 | `queue-service.v1.yaml` | ECMP Queue Service API | 1.1.0 | 22 |
 
 ## `case-actions.v1.yaml`
@@ -44,6 +48,19 @@
 | API-006 | `GET /v1/cases/{caseId}/timeline` | Get case timeline / audit trail |
 | API-007 | `GET /v1/cases/{caseId}/notes` | List internal notes for a case |
 | API-008 | `POST /v1/cases/{caseId}/notes` | Add an internal note (append-only) |
+
+## `cm-case-management.v1.yaml`
+
+| ID | Operation | Summary |
+|---|---|---|
+| API-536 | `GET /api/v1/cm/cases` | List Cases (visibility-scoped) |
+| API-530 | `POST /api/v1/cm/cases` | Create Case |
+| API-531 | `POST /api/v1/cm/complaints/{complaintId}/cases` | Add Case to Existing Complaint |
+| API-532 | `GET /api/v1/cm/cases/{caseId}` | View Case |
+| API-533 | `PATCH /api/v1/cm/cases/{caseId}/status` | Update Case Status |
+| API-534 | `POST /api/v1/cm/cases/{caseId}/resolve` | Resolve Case |
+| — | `POST /api/v1/cm/cases/{caseId}/acceptance` | Record Handling Unit / Owner closure acceptance |
+| API-535 | `POST /api/v1/cm/cases/{caseId}/close` | Close Case |
 
 ## `complaint-domain-service.v1.yaml`
 
@@ -77,8 +94,17 @@
 
 | ID | Operation | Summary |
 |---|---|---|
+| API-514 | `GET /api/v1/cm/complaints` | List Aggregate Complaints (Mode A coexistence read) |
 | API-500 | `POST /api/v1/cm/complaints` | Create Complaint (idempotent; no Case) |
 | API-501 | `GET /api/v1/cm/complaints/{complaintId}` | Get Complaint confirmation/detail |
+| API-517 | `GET /api/v1/cm/complaints/{complaintId}/history` | Chronological intake history (append-only event log projection) |
+| API-509 | `GET /api/v1/cm/complaints/{complaintId}/attachments` | List attachments for Aggregate complaint |
+| API-515 | `POST /api/v1/cm/complaints/{complaintId}/intake-escalation/decision` | Approve or reject intake escalation (supervisor) |
+| API-518 | `POST /api/v1/cm/complaints/{complaintId}/intake-escalation/request` | Re-request intake escalation after cancel or reject |
+| API-516 | `POST /api/v1/cm/complaints/{complaintId}/hq-accept` | HQ accept approved intake escalation |
+| — | `POST /api/v1/cm/complaints/{complaintId}/hq-accept-and-schedule` | HQ accept and schedule arrival (branch notify) |
+| API-519 | `POST /api/v1/cm/complaints/{complaintId}/hq-return` | HQ return approved escalation to branch |
+| — | `POST /api/v1/cm/complaints/{complaintId}/hq-schedule-arrival` | Schedule customer arrival at HQ (lab) |
 | API-502 | `POST /api/v1/cm/customers/search` | Search Customer by exactly one key type |
 | API-503 | `POST /api/v1/cm/customers/confirm` | Confirm / lock CustomerId in session context |
 | API-504 | `GET /api/v1/cm/customers/{customerId}/batch1-360` | Batch 1 Customer 360 minimum |
@@ -86,7 +112,7 @@
 | API-506 | `POST /api/v1/cm/duplicates/decisions` | Record duplicate decision / linkage |
 | API-507 | `POST /api/v1/attachments` | Upload attachment (Batch 1 semantics) |
 | API-508 | `POST /api/v1/cm/attachments/transfer` | Transfer staged attachments to surviving Complaint |
-| API-509 | `GET /api/v1/cm/complaints/{complaintId}/attachments` | List attachments for Complaint |
+| API-513 | `GET /api/v1/cm/supervisor/queue` | Supervisor later-review and no-Case aging visibility |
 | API-510 | `GET /api/v1/attachments/{id}` | Get attachment metadata |
 | API-512 | `DELETE /api/v1/attachments/{id}` | Logical void (not physical delete) |
 | API-511 | `GET /api/v1/attachments/{id}/download` | Download attachment bytes |
@@ -150,6 +176,7 @@
 | API-392 | `GET /api/v1/dashboard/notifications` | Dashboard notification summary |
 | API-393 | `GET /api/v1/dashboard/trends` | Dashboard complaint trends |
 | API-394 | `GET /api/v1/dashboard/kpi` | Dashboard KPI rates |
+| — | `GET /api/v1/dashboard/aggregate-kpis` | Aggregate (CM Batch-1) complaint KPI counts |
 | API-319 | `GET /api/v1/dashboard/overview` | Dashboard overview composition |
 | API-320 | `GET /api/v1/settings/public` | List public settings |
 | API-321 | `GET /api/v1/settings` | List all settings |
@@ -197,6 +224,7 @@
 | API-211 | `GET /api/v1/reports/by-status` | Complaint counts by status |
 | API-212 | `GET /api/v1/reports/by-branch` | Complaint and case counts by branch |
 | API-222 | `GET /api/v1/customers` | List customer references |
+| API-222 | `PATCH /api/v1/customers/{customerId}` | Update local customer reference phone (Mode A cache) |
 | API-223 | `GET /api/v1/branches` | List branch references |
 | API-213 | `POST /api/v1/users` | Create user |
 | API-214 | `GET /api/v1/users` | List users |
@@ -208,6 +236,43 @@
 | API-352 | `PUT /api/v1/users/{id}/roles` | Replace user roles |
 | API-217 | `PATCH /api/v1/users/{id}/status` | Activate or deactivate user |
 | API-413 | `POST /api/v1/users/{id}/reset-password` | Admin reset user password |
+
+## `dashboard-queues.v1.yaml`
+
+| ID | Operation | Summary |
+|---|---|---|
+| API-040 | `GET /v1/dashboard/queues` | Operational queue dashboard |
+
+## `hq-schedule.v1.yaml`
+
+| ID | Operation | Summary |
+|---|---|---|
+| API-540 | `GET /api/v1/hq-schedule/availability` | Branch-facing aggregate HQ arrival slot availability |
+| API-541 | `GET /api/v1/hq-schedule/availability/detail` | Pusat detail HQ arrival slot availability (with pending proposals) |
+| API-542 | `GET /api/v1/hq-schedule/holidays` | List HQ schedule holidays in range |
+| API-543 | `POST /api/v1/hq-schedule/holidays` | Create or relabel an HQ schedule holiday |
+| API-544 | `DELETE /api/v1/hq-schedule/holidays/{holidayDate}` | Remove an HQ schedule holiday |
+
+## `internal-complaints.v1.yaml`
+
+| ID | Operation | Summary |
+|---|---|---|
+| — | `GET //api/v1/internal/complaints` | List Pengaduan Internal (visibility-scoped) |
+| — | `POST //api/v1/internal/complaints` | Create Pengaduan Internal (Owner = creator unit) |
+| — | `GET //api/v1/internal/complaints/transfer-requests/pending-count` | Sidebar badge — count of PENDING Agent transfer requests (visibility-scoped) |
+| — | `GET //api/v1/internal/complaints/withdraw-requests/pending-count` | Sidebar badge — count of PENDING branch withdraw requests (visibility-scoped) |
+| — | `GET //api/v1/internal/complaints/{complaintId}` | Get Pengaduan Internal detail + history |
+| — | `POST //api/v1/internal/complaints/{complaintId}/transfer` | Transfer Handling Unit (Owner unchanged) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/transfer-request` | Agent-family — (re-)submit a transfer request (first submit, or after REJECTED) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/transfer-request/decision` | Supervisor / Manager / Admin decides a PENDING transfer request |
+| — | `POST //api/v1/internal/complaints/{complaintId}/receive` | Receive / start handling (→ IN_PROGRESS) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/withdraw` | Branch cancels before Pusat receives (→ WITHDRAWN, no Pusat notify) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/withdraw-request` | After Pusat received — branch asks Pusat to withdraw (stays IN_PROGRESS) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/withdraw-request/decision` | Pusat Supervisor / Manager / Admin decides a PENDING withdraw request |
+| — | `PATCH //api/v1/internal/complaints/{complaintId}/status` | Status transition (ASSIGNED / IN_PROGRESS) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/resolve` | Propose / accept / reject resolution |
+| — | `POST //api/v1/internal/complaints/{complaintId}/acceptance` | Handling Unit / Owner acceptance (dual gate → CLOSED) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/close` | Compatibility close (still requires dual acceptance) |
 
 ## `queue-service.v1.yaml`
 

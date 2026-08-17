@@ -75,3 +75,21 @@ export function formatShortDateTime24(iso: string, locale: string): string {
     return iso;
   }
 }
+
+/**
+ * `YYYY-MM-DD` for the operator calendar in Asia/Jakarta — never
+ * `toISOString().slice(0, 10)` (UTC) and never `Date#getFullYear/Month/Date`
+ * (browser TZ). Lab operators are WIB regardless of the machine clock.
+ */
+export function toLocalDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: OPERATOR_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
+}

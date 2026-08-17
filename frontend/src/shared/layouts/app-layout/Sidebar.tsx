@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import type { Branch } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
+import { canCmBatch1HqReview } from "@/features/complaints/cmBatch1HqActions";
 import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
@@ -254,6 +255,14 @@ function useShellNav(orgUnitBranch: Branch | null | undefined): {
             hasPermission,
             orgUnitCode,
           });
+        }
+        if (item.id === "hqSchedule") {
+          // Pusat-only — Cabang sees the slot picker inline on escalation
+          // instead (no sidebar entry). Hide while org unit resolves.
+          // Mirrors backend require_hq_intake_action so Admin/HO_SCHEDULER
+          // without a PUSAT orgUnitCode still see the menu.
+          if (orgUnitCode === undefined) return false;
+          return canCmBatch1HqReview({ roles, hasPermission, unitCode: orgUnitCode });
         }
         return true;
       },

@@ -909,6 +909,22 @@ components:
             (section `Alasan eskalasi:` MUST appear in description — becomes history for HQ).
             Supervisor/Manager create with this value is auto-promoted to ESCALATE_APPROVED.
             A later bound Case does not change HQ routing.
+        proposedArrivalDate:
+          type: string
+          format: date
+          description: |
+            Optional. Branch-proposed HQ arrival date — advisory only; Pusat still
+            decides hqArrivalDate/hqArrivalTime via accept-and-schedule / schedule.
+            Only allowed when intakeDisposition=ESCALATE_PENDING_APPROVAL. Must be
+            provided together with proposedArrivalTime (both or neither) and must
+            not be before the Asia/Jakarta calendar date (operator timezone).
+        proposedArrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: |
+            HH:MM (24h), paired with proposedArrivalDate. See proposedArrivalDate
+            for pairing/eligibility rules.
     IntakeHistoryEntry:
       type: object
       required: [entryId, eventCode, eventType, occurredAt]
@@ -1065,6 +1081,26 @@ components:
           type: string
           nullable: true
           description: Optional note with HQ arrival schedule
+        proposedArrivalDate:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            Branch-proposed HQ arrival date, still awaiting Pusat decision.
+            Advisory only — cleared whenever Pusat accepts/schedules/returns the
+            escalation, or the escalation is rejected/cancelled/re-escalated.
+        proposedArrivalTime:
+          type: string
+          nullable: true
+          description: HH:MM (24h), paired with proposedArrivalDate.
+        proposedBy:
+          type: string
+          nullable: true
+          description: Actor id of the branch officer who proposed the slot
+        proposedAt:
+          type: string
+          format: date-time
+          nullable: true
         owningUnitId:
           type: string
           nullable: true
@@ -1120,6 +1156,20 @@ components:
           type: string
           enum: [LOW, MEDIUM, HIGH, CRITICAL]
           description: Optional priority refresh on re-request.
+        proposedArrivalDate:
+          type: string
+          format: date
+          description: |
+            Optional. Branch-proposed HQ arrival date on re-request — advisory
+            only; Pusat still decides hqArrivalDate/hqArrivalTime. Must be
+            provided together with proposedArrivalTime (both or neither) and
+            must not be before the Asia/Jakarta calendar date. Re-request always drops any stale prior
+            proposal first, then applies this one if given.
+        proposedArrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: HH:MM (24h), paired with proposedArrivalDate.
     HqAcceptRequest:
       type: object
       properties:
