@@ -3,12 +3,14 @@ import {
   buildPenangananSummarySegments,
   handlerInitialsFromCases,
   handlerRefFromCases,
+  hqPathCopyKeys,
   isHqIntakeDisposition,
   joinPenangananSummarySegments,
   partitionPenanganan,
   penangananCountsFromCases,
   penangananGroupForStatus,
   penangananSummaryCounts,
+  resolveHqPathPhase,
   resolvePenangananContextKind,
 } from "./penangananGroups";
 
@@ -37,6 +39,32 @@ describe("penangananGroups", () => {
     expect(isHqIntakeDisposition("ESCALATE_REJECTED")).toBe(false);
     expect(isHqIntakeDisposition("RETURNED_TO_BRANCH")).toBe(false);
     expect(isHqIntakeDisposition(null)).toBe(false);
+  });
+
+  it("splits HQ-path copy by phase", () => {
+    expect(
+      resolveHqPathPhase({ intakeDisposition: "ESCALATE_PENDING_APPROVAL" }),
+    ).toBe("pending_approval");
+    expect(
+      resolveHqPathPhase({
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: null,
+      }),
+    ).toBe("awaiting_accept");
+    expect(
+      resolveHqPathPhase({
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+      }),
+    ).toBe("accepted_unscheduled");
+    expect(
+      resolveHqPathPhase({ intakeDisposition: "HQ_SCHEDULED" }),
+    ).toBe("scheduled");
+    expect(hqPathCopyKeys("scheduled").list).toBe("penangananListHqScheduled");
+    expect(hqPathCopyKeys("scheduled").pageTitle).toBe("hqPathScheduledPageTitle");
+    expect(hqPathCopyKeys("scheduled").groupPusat).toBe(
+      "penangananGroupPusatScheduled",
+    );
   });
 
   it("partitions and counts", () => {

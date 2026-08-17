@@ -72,8 +72,13 @@ const messages = {
     penangananEmptyTitle: "Belum ada penanganan",
     penangananEmptyDescription: "Mulai dulu",
     penangananEmptyReadOnlyDescription: "Read only",
-    penangananEmptyHqTitle: "Menunggu eskalasi",
+    penangananEmptyHqTitle: "Menunggu persetujuan eskalasi",
     penangananEmptyHqDescription: "HQ empty",
+    penangananEmptyHqScheduledTitle: "Jadwal kedatangan WP",
+    penangananEmptyHqScheduledDescription: "HQ scheduled empty",
+    penangananGroupPusatScheduled: "Jadwal kedatangan WP",
+    penangananHqPathScheduledTitle: "Jadwal kedatangan WP",
+    penangananHqPathScheduledDescription: "Scheduled path desc",
     penangananEmptyClosedTitle: "Ditutup",
     penangananEmptyClosedDescription: "Closed empty",
     penangananLoadError: "Gagal",
@@ -397,5 +402,36 @@ describe("ComplaintPenangananSection", () => {
       screen.queryByRole("button", { name: "Ajukan eskalasi ke Pusat" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Dewi Hidayat")).toBeInTheDocument();
+  });
+
+  it("labels the HQ group as taxpayer arrival schedule once HQ_SCHEDULED", async () => {
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "CASE-1",
+          complaintId: "cmp-1",
+          status: "ASSIGNED",
+          subject: "Aktif",
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+
+    renderSection({
+      intakeDisposition: "HQ_SCHEDULED",
+      complaintStatus: "IN_PROGRESS",
+      hqAcceptedAt: "2026-08-17T10:00:00Z",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("CASE-1")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("heading", { name: "Jadwal kedatangan WP" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Menunggu / di Pusat" }),
+    ).not.toBeInTheDocument();
   });
 });

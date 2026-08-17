@@ -21,6 +21,91 @@ export function isHqIntakeDisposition(
   return d.length > 0 && HQ_INTAKE_DISPOSITIONS.has(d);
 }
 
+/** Operator-facing HQ-path phase. Grouping stays `hq_waiting`; copy splits. */
+export type HqPathPhase =
+  | "pending_approval"
+  | "awaiting_accept"
+  | "accepted_unscheduled"
+  | "scheduled";
+
+export function resolveHqPathPhase(input: {
+  intakeDisposition?: string | null;
+  hqAcceptedAt?: string | null;
+}): HqPathPhase | null {
+  const d = (input.intakeDisposition || "").trim().toUpperCase();
+  if (d === "ESCALATE_PENDING_APPROVAL") return "pending_approval";
+  if (d === "HQ_SCHEDULED") return "scheduled";
+  if (d === "ESCALATE_APPROVED") {
+    return input.hqAcceptedAt ? "accepted_unscheduled" : "awaiting_accept";
+  }
+  return null;
+}
+
+export interface HqPathCopyKeys {
+  list: string;
+  listWithOfficer: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  groupPusat: string;
+  pathTitle: string;
+  pathDescription: string;
+  pageTitle: string;
+  pageDescription: string;
+}
+
+export function hqPathCopyKeys(phase: HqPathPhase): HqPathCopyKeys {
+  switch (phase) {
+    case "pending_approval":
+      return {
+        list: "penangananListHqWaiting",
+        listWithOfficer: "penangananListHqWaitingWithOfficer",
+        emptyTitle: "penangananEmptyHqTitle",
+        emptyDescription: "penangananEmptyHqDescription",
+        groupPusat: "penangananGroupPusat",
+        pathTitle: "penangananHqPathTitle",
+        pathDescription: "penangananHqPathDescription",
+        pageTitle: "intakeEscalateBannerTitle",
+        pageDescription: "intakeEscalateBannerDescription",
+      };
+    case "awaiting_accept":
+      return {
+        list: "penangananListHqAwaitingAccept",
+        listWithOfficer: "penangananListHqAwaitingAcceptWithOfficer",
+        emptyTitle: "penangananEmptyHqAwaitingAcceptTitle",
+        emptyDescription: "penangananEmptyHqAwaitingAcceptDescription",
+        groupPusat: "penangananGroupPusat",
+        pathTitle: "penangananHqPathTitle",
+        pathDescription: "penangananHqPathDescription",
+        pageTitle: "escalationApproved",
+        pageDescription: "escalationApprovedPageDescription",
+      };
+    case "accepted_unscheduled":
+      return {
+        list: "penangananListHqAccepted",
+        listWithOfficer: "penangananListHqAcceptedWithOfficer",
+        emptyTitle: "penangananEmptyHqAcceptedTitle",
+        emptyDescription: "penangananEmptyHqAcceptedDescription",
+        groupPusat: "penangananGroupPusat",
+        pathTitle: "penangananHqPathTitle",
+        pathDescription: "penangananHqPathDescription",
+        pageTitle: "hqPathAcceptedPageTitle",
+        pageDescription: "hqPathAcceptedPageDescription",
+      };
+    case "scheduled":
+      return {
+        list: "penangananListHqScheduled",
+        listWithOfficer: "penangananListHqScheduledWithOfficer",
+        emptyTitle: "penangananEmptyHqScheduledTitle",
+        emptyDescription: "penangananEmptyHqScheduledDescription",
+        groupPusat: "penangananGroupPusatScheduled",
+        pathTitle: "penangananHqPathScheduledTitle",
+        pathDescription: "penangananHqPathScheduledDescription",
+        pageTitle: "hqPathScheduledPageTitle",
+        pageDescription: "hqPathScheduledPageDescription",
+      };
+  }
+}
+
 export function isComplaintHandlingClosed(input: {
   complaintStatus?: string | null;
   intakeDisposition?: string | null;

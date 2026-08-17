@@ -46,7 +46,9 @@ import {
 } from "./cmBatch1ListFilters";
 import {
   handlerRefFromCases,
+  hqPathCopyKeys,
   penangananCountsFromCases,
+  resolveHqPathPhase,
   resolvePenangananContextKind,
   type PenangananHandlerRef,
 } from "./penangananGroups";
@@ -430,11 +432,20 @@ export function CmBatch1ComplaintListView() {
           return <Badge tone="success">{t("penangananListClosed")}</Badge>;
         }
         if (kind === "hq_waiting") {
+          const phase = resolveHqPathPhase({
+            intakeDisposition: row.intakeDisposition,
+            hqAcceptedAt: row.hqAcceptedAt,
+          });
+          const copy = phase
+            ? hqPathCopyKeys(phase)
+            : hqPathCopyKeys("pending_approval");
           return (
-            <Badge tone="warning">
+            <Badge tone={phase === "scheduled" ? "info" : "warning"}>
               {initials
-                ? t("penangananListHqWaitingWithOfficer", { initials })
-                : t("penangananListHqWaiting")}
+                ? t(copy.listWithOfficer as "penangananListHqWaitingWithOfficer", {
+                    initials,
+                  })
+                : t(copy.list as "penangananListHqWaiting")}
             </Badge>
           );
         }

@@ -38,10 +38,12 @@ import { officerDisplayName } from "./officerDisplayName";
 import { useToast } from "@/shared/providers";
 import {
   buildPenangananSummarySegments,
+  hqPathCopyKeys,
   isHqIntakeDisposition,
   joinPenangananSummarySegments,
   partitionPenanganan,
   penangananSummaryCounts,
+  resolveHqPathPhase,
   resolvePenangananContextKind,
 } from "./penangananGroups";
 
@@ -229,6 +231,7 @@ export function ComplaintPenangananSection({
   complaintId,
   complaintStatus,
   intakeDisposition,
+  hqAcceptedAt,
   allowStart,
   allowEscalate,
   onRequestHqEscalation,
@@ -241,6 +244,7 @@ export function ComplaintPenangananSection({
   complaintId: string;
   complaintStatus?: string | null;
   intakeDisposition?: string | null;
+  hqAcceptedAt?: string | null;
   allowStart: boolean;
   allowEscalate: boolean;
   /** Complaint-level HQ escalate (Batch-1). Per-Case ESCALATED not Mode A delivery. */
@@ -376,6 +380,8 @@ export function ComplaintPenangananSection({
       done: counts.done,
     },
   });
+  const hqPhase = resolveHqPathPhase({ intakeDisposition, hqAcceptedAt });
+  const hqCopy = hqPhase ? hqPathCopyKeys(hqPhase) : null;
   const compactSummary = joinPenangananSummarySegments(
     buildPenangananSummarySegments(
       {
@@ -582,7 +588,7 @@ export function ComplaintPenangananSection({
           {contextKind === "closed" && !compactSummary
             ? t("penangananListClosed")
             : contextKind === "hq_waiting" && !compactSummary
-              ? t("penangananListHqWaiting")
+              ? t((hqCopy?.list ?? "penangananListHqWaiting") as "penangananListHqWaiting")
               : contextKind === "none"
                 ? t("penangananSummaryNone")
                 : (compactSummary ?? t("penangananSummaryNone"))}
@@ -600,8 +606,10 @@ export function ComplaintPenangananSection({
       {showEmptyHq ? (
         <Alert
           tone="info"
-          title={t("penangananEmptyHqTitle")}
-          description={t("penangananEmptyHqDescription")}
+          title={t((hqCopy?.emptyTitle ?? "penangananEmptyHqTitle") as "penangananEmptyHqTitle")}
+          description={t(
+            (hqCopy?.emptyDescription ?? "penangananEmptyHqDescription") as "penangananEmptyHqDescription",
+          )}
         />
       ) : null}
 
@@ -616,8 +624,10 @@ export function ComplaintPenangananSection({
       {complaintOnHqPath && rows.length > 0 ? (
         <Alert
           tone="info"
-          title={t("penangananHqPathTitle")}
-          description={t("penangananHqPathDescription")}
+          title={t((hqCopy?.pathTitle ?? "penangananHqPathTitle") as "penangananHqPathTitle")}
+          description={t(
+            (hqCopy?.pathDescription ?? "penangananHqPathDescription") as "penangananHqPathDescription",
+          )}
         />
       ) : null}
 
@@ -639,8 +649,10 @@ export function ComplaintPenangananSection({
 
       {showEmptyHq ? (
         <Empty
-          title={t("penangananEmptyHqTitle")}
-          description={t("penangananEmptyHqDescription")}
+          title={t((hqCopy?.emptyTitle ?? "penangananEmptyHqTitle") as "penangananEmptyHqTitle")}
+          description={t(
+            (hqCopy?.emptyDescription ?? "penangananEmptyHqDescription") as "penangananEmptyHqDescription",
+          )}
         />
       ) : null}
 
@@ -668,7 +680,7 @@ export function ComplaintPenangananSection({
             }}
           />
           <PenangananGroupBlock
-            title={t("penangananGroupPusat")}
+            title={t((hqCopy?.groupPusat ?? "penangananGroupPusat") as "penangananGroupPusat")}
             items={parts.pusat}
             continueOnOpen={false}
             escalateEnabled={false}
