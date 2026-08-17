@@ -1003,6 +1003,7 @@ class _StubUserService:
                 "forcePasswordChange": True,
                 "createdAt": now,
                 "updatedAt": now,
+                "initials": "NAG",
             }
         )
 
@@ -1208,6 +1209,7 @@ def _fake_user_response(**overrides: Any) -> UserResponse:
         "isActive": True,
         "createdAt": now,
         "updatedAt": now,
+        "initials": "MON",
     }
     base.update(overrides)
     return UserResponse.model_validate(base)

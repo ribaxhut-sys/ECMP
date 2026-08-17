@@ -85,7 +85,7 @@ def _to_response(user: User) -> UserResponse:
         createdAt=user.created_at,
         updatedAt=user.updated_at,
         preferredLanguage=getattr(user, "preferred_language", None) or "id",
-        initials=getattr(user, "initials", None) or "",
+        initials=getattr(user, "initials", None) or "USR",
     )
 
 
