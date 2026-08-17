@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from app.core.errors import ValidationAppError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.modules.hq_schedule.repository import ArrivalRow
+from app.modules.hq_schedule.schemas import HolidayCreateRequest
 from app.modules.hq_schedule.service import HqScheduleService
 from app.modules.settings.registry import SettingsKey
 from app.modules.settings.service import SettingsService
@@ -33,6 +34,8 @@ class _FakeSettingsRepository:
 class _FakeHoliday:
     holiday_date: date
     label: str
+    created_by: str | None = None
+    created_at: datetime = datetime(2026, 8, 17, tzinfo=UTC)
 
 
 class _FakeHqScheduleRepository:
@@ -44,9 +47,33 @@ class _FakeHqScheduleRepository:
     ) -> None:
         self._holidays = holidays or []
         self._arrivals = arrivals or []
+        self.committed = False
 
     def list_holidays(self, *, date_from: date, date_to: date) -> list[_FakeHoliday]:
         return [h for h in self._holidays if date_from <= h.holiday_date <= date_to]
+
+    def get_holiday(self, holiday_date: date) -> _FakeHoliday | None:
+        return next((h for h in self._holidays if h.holiday_date == holiday_date), None)
+
+    def create_holiday(
+        self, *, holiday_date: date, label: str, created_by: str | None
+    ) -> _FakeHoliday:
+        row = _FakeHoliday(
+            holiday_date=holiday_date,
+            label=label,
+            created_by=created_by,
+            created_at=datetime.now(UTC),
+        )
+        self._holidays.append(row)
+        return row
+
+    def delete_holiday(self, holiday_date: date) -> bool:
+        before = len(self._holidays)
+        self._holidays = [h for h in self._holidays if h.holiday_date != holiday_date]
+        return len(self._holidays) < before
+
+    def commit(self) -> None:
+        self.committed = True
 
     def list_arrivals_in_range(
         self, *, date_from: date, date_to: date
@@ -174,3 +201,78 @@ def test_to_before_from_rejected() -> None:
             date_to=date.today() - timedelta(days=1),
             detail=False,
         )
+
+
+def test_invalid_workdays_setting_falls_back_to_weekdays() -> None:
+    monday = _next_monday(date.today())
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(),
+        _settings_service(**{SettingsKey.HQ_SCHEDULE_WORKDAYS.value: "1,x,3"}),
+    )
+    resp = service.get_availability(date_from=monday, date_to=monday, detail=False)
+    assert not resp.days[0].closed
+
+
+def test_malformed_arrival_times_are_ignored() -> None:
+    monday = _next_monday(date.today())
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="CMP-1",
+            owning_unit_id="PUSAT",
+            hq_arrival_date=monday,
+            hq_arrival_time="xx:yy",
+            proposed_arrival_date=monday,
+            proposed_arrival_time="",
+            proposed_by=None,
+            proposed_at=None,
+        )
+    ]
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals), _settings_service()
+    )
+    slot = service.get_availability(
+        date_from=monday, date_to=monday, detail=True
+    ).days[0].slots[0]
+    assert slot.scheduled_count == 0
+    assert slot.proposed_count == 0
+
+
+def test_holiday_crud_relabels_creates_and_deletes() -> None:
+    monday = _next_monday(date.today())
+    repo = _FakeHqScheduleRepository(
+        holidays=[_FakeHoliday(holiday_date=monday, label="Lama")]
+    )
+    service = HqScheduleService(repo, _settings_service())
+    listed = service.list_holidays(date_from=monday, date_to=monday)
+    assert listed[0].label == "Lama"
+
+    updated = service.create_holiday(
+        HolidayCreateRequest.model_validate(
+            {"holidayDate": monday.isoformat(), "label": "Baru"}
+        ),
+        actor_id="hq-1",
+    )
+    assert updated.label == "Baru"
+    assert repo.committed is True
+
+    with pytest.raises(ValidationAppError):
+        service.create_holiday(
+            HolidayCreateRequest.model_validate(
+                {"holidayDate": monday.isoformat(), "label": "   "}
+            ),
+            actor_id="hq-1",
+        )
+
+    tuesday = monday + timedelta(days=1)
+    created = service.create_holiday(
+        HolidayCreateRequest.model_validate(
+            {"holidayDate": tuesday.isoformat(), "label": "Cuti"}
+        ),
+        actor_id="hq-1",
+    )
+    assert created.label == "Cuti"
+
+    service.delete_holiday(tuesday)
+    with pytest.raises(NotFoundError):
+        service.delete_holiday(tuesday + timedelta(days=1))

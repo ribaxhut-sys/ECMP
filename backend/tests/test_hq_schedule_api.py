@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Iterator
 
 from fastapi.testclient import TestClient
@@ -62,12 +62,42 @@ class _FakeSettingsRepository:
         return _FakeSettingRow(value=values[key])
 
 
+class _FakeHoliday:
+    def __init__(self, holiday_date: date, label: str) -> None:
+        self.holiday_date = holiday_date
+        self.label = label
+        self.created_by = "hq-1"
+        self.created_at = datetime(2026, 8, 17, tzinfo=UTC)
+
+
 class _FakeHqScheduleRepository:
+    def __init__(self) -> None:
+        self._holidays: list[_FakeHoliday] = []
+
     def list_holidays(self, *, date_from: date, date_to: date) -> list:
-        return []
+        return [h for h in self._holidays if date_from <= h.holiday_date <= date_to]
 
     def list_arrivals_in_range(self, *, date_from: date, date_to: date) -> list:
         return []
+
+    def get_holiday(self, holiday_date: date) -> _FakeHoliday | None:
+        return next((h for h in self._holidays if h.holiday_date == holiday_date), None)
+
+    def create_holiday(
+        self, *, holiday_date: date, label: str, created_by: str | None
+    ) -> _FakeHoliday:
+        row = _FakeHoliday(holiday_date, label)
+        row.created_by = created_by or "hq-1"
+        self._holidays.append(row)
+        return row
+
+    def delete_holiday(self, holiday_date: date) -> bool:
+        before = len(self._holidays)
+        self._holidays = [h for h in self._holidays if h.holiday_date != holiday_date]
+        return len(self._holidays) < before
+
+    def commit(self) -> None:
+        return None
 
 
 def _service() -> HqScheduleService:
@@ -100,7 +130,8 @@ def _client_for(principal: Principal) -> Iterator[TestClient]:
     session: Session = factory()
 
     app = create_app()
-    app.dependency_overrides[get_hq_schedule_service] = _service
+    service = _service()
+    app.dependency_overrides[get_hq_schedule_service] = lambda: service
     app.dependency_overrides[get_current_principal] = lambda: principal
     app.dependency_overrides[get_db_session] = lambda: session
     try:
@@ -150,3 +181,37 @@ def test_availability_detail_200_for_pusat_unit_agent() -> None:
     with _client_for(principal) as client:
         resp = client.get("/api/v1/hq-schedule/availability/detail")
     assert resp.status_code == 200, resp.text
+
+
+def test_get_hq_schedule_service_wires_dependencies() -> None:
+    from unittest.mock import MagicMock
+
+    svc = get_hq_schedule_service(MagicMock())
+    assert isinstance(svc, HqScheduleService)
+
+
+def test_holiday_routes_require_settings_permissions() -> None:
+    reader = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read"})
+    )
+    writer = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read", "settings:update"})
+    )
+    day = date.today().isoformat()
+    with _client_for(reader) as client:
+        listed = client.get("/api/v1/hq-schedule/holidays")
+        assert listed.status_code == 200, listed.text
+        denied = client.post(
+            "/api/v1/hq-schedule/holidays",
+            json={"holidayDate": day, "label": "Cuti"},
+        )
+        assert denied.status_code == 403
+    with _client_for(writer) as client:
+        created = client.post(
+            "/api/v1/hq-schedule/holidays",
+            json={"holidayDate": day, "label": "Cuti"},
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["data"]["label"] == "Cuti"
+        deleted = client.delete(f"/api/v1/hq-schedule/holidays/{day}")
+        assert deleted.status_code == 204

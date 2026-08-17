@@ -29,6 +29,7 @@ from app.modules.cm_batch1.schemas import (
     IntakeEscalationDecisionRequest,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
+from app.modules.hq_schedule.models import CmHqHolidayORM
 from app.modules.hq_schedule.repository import HqScheduleRepository
 from cm_batch1_helpers import confirmed_create
 
@@ -40,6 +41,7 @@ _BATCH1_TABLES = [
     CmBatch1NumberCounterORM.__table__,
     CmBatch1DuplicateDecisionORM.__table__,
     CmBatch1LaterReviewItemORM.__table__,
+    CmHqHolidayORM.__table__,
 ]
 
 _TOMORROW = date.today() + timedelta(days=1)
@@ -158,3 +160,21 @@ def test_pending_approval_proposal_is_listed(
     assert row.complaint_id == resp.complaint_id
     assert row.proposed_arrival_date == _TOMORROW
     assert row.proposed_arrival_time == "09:00"
+
+
+def test_holiday_crud_round_trip(db_session: Session) -> None:
+    repo = HqScheduleRepository(db_session)
+    assert repo.get_holiday(_TOMORROW) is None
+    assert repo.delete_holiday(_TOMORROW) is False
+
+    created = repo.create_holiday(
+        holiday_date=_TOMORROW, label="Cuti bersama", created_by="hq-1"
+    )
+    assert created.label == "Cuti bersama"
+    assert repo.get_holiday(_TOMORROW) is not None
+    listed = repo.list_holidays(date_from=_TOMORROW, date_to=_TOMORROW)
+    assert [row.label for row in listed] == ["Cuti bersama"]
+
+    assert repo.delete_holiday(_TOMORROW) is True
+    assert repo.get_holiday(_TOMORROW) is None
+    repo.commit()

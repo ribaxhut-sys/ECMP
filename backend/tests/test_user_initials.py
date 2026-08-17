@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import string
+
+import pytest
+
 from app.modules.users.initials import allocate_user_initials, name_initials
 
 
@@ -31,3 +35,24 @@ def test_two_identical_names_get_distinct_codes() -> None:
     second = allocate_user_initials("Budi Santoso", {first})
     assert first == "BSA"
     assert second == "BSN"
+
+
+def test_name_initials_ignores_punctuation_only() -> None:
+    assert name_initials("...") is None
+    assert name_initials("Li X") == "LIX"
+
+
+def test_allocate_uses_username_then_alphabet_when_name_has_no_letters() -> None:
+    assert allocate_user_initials("...", [], username="andi") == "AND"
+    assert allocate_user_initials("...", []) == "AAA"
+
+
+def test_allocate_raises_when_letter_space_is_exhausted() -> None:
+    taken = {
+        f"{a}{b}{c}"
+        for a in string.ascii_uppercase
+        for b in string.ascii_uppercase
+        for c in string.ascii_uppercase
+    }
+    with pytest.raises(RuntimeError, match="exhausted"):
+        allocate_user_initials("Budi Santoso", taken)

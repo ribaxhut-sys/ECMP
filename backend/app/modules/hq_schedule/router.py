@@ -112,7 +112,7 @@ def create_holiday(
     principal: Annotated[Principal, Depends(require_permissions("settings:update"))],
 ) -> DataResponse[HolidayResponse]:
     return DataResponse(
-        data=service.create_holiday(payload, actor_id=principal.user_id)
+        data=service.create_holiday(payload, actor_id=str(principal.user_id))
     )
 
 
