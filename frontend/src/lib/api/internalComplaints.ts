@@ -15,13 +15,16 @@ export type InternalComplaintStatus =
   | "ASSIGNED"
   | "IN_PROGRESS"
   | "RESOLVED"
-  | "CLOSED";
+  | "CLOSED"
+  | "WITHDRAWN";
 
 export type InternalResolveAction = "PROPOSE" | "ACCEPT" | "REJECT";
 export type InternalAcceptanceParty = "OWNER" | "HANDLING_UNIT";
 export type InternalAcceptanceDecision = "ACCEPT" | "REJECT";
 export type InternalTransferRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type InternalTransferRequestDecision = "APPROVE" | "REJECT";
+export type InternalWithdrawRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type InternalWithdrawRequestDecision = "APPROVE" | "REJECT";
 
 export interface InternalResolution {
   resolutionId: string;
@@ -74,6 +77,7 @@ export interface InternalComplaintSummary {
   relatedComplaintId?: string | null;
   relatedComplaintNumber?: string | null;
   transferRequestStatus?: InternalTransferRequestStatus | string | null;
+  withdrawRequestStatus?: InternalWithdrawRequestStatus | string | null;
 }
 
 export interface InternalComplaint {
@@ -114,6 +118,19 @@ export interface InternalComplaint {
   transferDecidedByName?: string | null;
   transferDecidedAt?: string | null;
   transferDecisionReason?: string | null;
+  withdrawRequestStatus?: InternalWithdrawRequestStatus | string | null;
+  withdrawRequestReason?: string | null;
+  withdrawRequestedBy?: string | null;
+  withdrawRequestedByName?: string | null;
+  withdrawRequestedAt?: string | null;
+  withdrawDecidedBy?: string | null;
+  withdrawDecidedByName?: string | null;
+  withdrawDecidedAt?: string | null;
+  withdrawDecisionReason?: string | null;
+  withdrawnBy?: string | null;
+  withdrawnByName?: string | null;
+  withdrawnAt?: string | null;
+  withdrawReason?: string | null;
 }
 
 export interface CreateInternalComplaintRequest {
@@ -126,13 +143,13 @@ export interface CreateInternalComplaintRequest {
   impact?: string | null;
   relatedComplaintId?: string | null;
   /**
-   * Optional Handling Unit (Cabang ↔ Pusat). Meaning depends on the actor:
-   * Supervisor/Manager (complaints:assign) → direct initial transfer.
-   * Agent-family (no complaints:assign) → becomes a pending transfer
-   * request; requestReason is then required.
+   * Optional Handling Unit (Cabang ↔ Pusat).
+   * Cabang create always goes to Pusat (ASSIGNED) — no requestReason.
+   * Pusat Agent-family + dest cabang → pending transfer request; requestReason required.
+   * Pusat Supervisor/Manager → direct initial transfer.
    */
   handlingUnitId?: string | null;
-  /** Required when the actor is Agent-family and handlingUnitId is set. */
+  /** Required when a Pusat Agent-family actor sets handlingUnitId. */
   requestReason?: string | null;
 }
 
@@ -148,6 +165,15 @@ export interface RequestInternalTransferRequest {
 
 export interface DecideInternalTransferRequest {
   decision: InternalTransferRequestDecision | string;
+  reason?: string | null;
+}
+
+export interface WithdrawInternalComplaintRequest {
+  reason: string;
+}
+
+export interface DecideInternalWithdrawRequest {
+  decision: InternalWithdrawRequestDecision | string;
   reason?: string | null;
 }
 
@@ -180,6 +206,7 @@ export function fetchInternalComplaints(options?: {
   pageSize?: number;
   status?: string;
   pendingTransferRequest?: boolean;
+  pendingWithdrawRequest?: boolean;
 }): Promise<ListResponse<InternalComplaintSummary>> {
   const params = new URLSearchParams({
     page: String(options?.page ?? 1),
@@ -188,6 +215,9 @@ export function fetchInternalComplaints(options?: {
   if (options?.status?.trim()) params.set("status", options.status.trim());
   if (options?.pendingTransferRequest !== undefined) {
     params.set("pendingTransferRequest", String(options.pendingTransferRequest));
+  }
+  if (options?.pendingWithdrawRequest !== undefined) {
+    params.set("pendingWithdrawRequest", String(options.pendingWithdrawRequest));
   }
   return apiRequest<ListResponse<InternalComplaintSummary>>(
     `${internalComplaintPaths().list}?${params.toString()}`,
@@ -277,6 +307,46 @@ export function decideInternalTransferRequest(
 ): Promise<DataResponse<InternalComplaint>> {
   return apiRequest<DataResponse<InternalComplaint>>(
     internalComplaintPaths().transferRequestDecision(id),
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+/** Sidebar badge — pending branch withdraw requests visible to the caller. */
+export function fetchPendingWithdrawRequestCount(): Promise<DataResponse<number>> {
+  return apiRequest<DataResponse<number>>(
+    internalComplaintPaths().pendingWithdrawRequestCount,
+  );
+}
+
+/** Branch cancels before Pusat receives — no Pusat notification. */
+export function withdrawInternalComplaint(
+  id: string,
+  body: WithdrawInternalComplaintRequest,
+): Promise<DataResponse<InternalComplaint>> {
+  return apiRequest<DataResponse<InternalComplaint>>(
+    internalComplaintPaths().withdraw(id),
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+/** After Pusat received: branch asks Pusat to withdraw. */
+export function requestInternalWithdraw(
+  id: string,
+  body: WithdrawInternalComplaintRequest,
+): Promise<DataResponse<InternalComplaint>> {
+  return apiRequest<DataResponse<InternalComplaint>>(
+    internalComplaintPaths().withdrawRequest(id),
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+/** Pusat Supervisor/Manager/Admin decides a pending withdraw request. */
+export function decideInternalWithdrawRequest(
+  id: string,
+  body: DecideInternalWithdrawRequest,
+): Promise<DataResponse<InternalComplaint>> {
+  return apiRequest<DataResponse<InternalComplaint>>(
+    internalComplaintPaths().withdrawRequestDecision(id),
     { method: "POST", body: JSON.stringify(body) },
   );
 }

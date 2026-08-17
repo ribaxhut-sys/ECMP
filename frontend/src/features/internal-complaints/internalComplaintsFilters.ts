@@ -42,7 +42,8 @@ export function filterInternalComplaints(
       return false;
     }
     if (!q) return true;
-    const hay = `${row.number} ${row.title} ${row.ownerUnitId} ${row.handlingUnitId}`.toLowerCase();
+    const hay =
+      `${row.number} ${row.title} ${row.description} ${row.createdByName ?? ""} ${row.ownerUnitId} ${row.handlingUnitId}`.toLowerCase();
     return hay.includes(q);
   });
 }

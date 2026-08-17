@@ -23,6 +23,18 @@ CODE_DEFAULTS: dict[str, str] = {
     "METHOD_NOT_ALLOWED": "Metode HTTP tidak diizinkan.",
     "HTTP_ERROR": "Permintaan gagal.",
     "PASSWORD_CHANGE_REQUIRED": "Anda harus mengubah kata sandi sebelum mengakses aplikasi.",
+    "RELATED_COMPLAINT_NOT_FOUND": (
+        "Pengaduan WP terkait tidak ditemukan. "
+        "Pilih dari daftar, atau kosongkan kolom pencarian."
+    ),
+    "RELATED_COMPLAINT_CLOSED": (
+        "Pengaduan WP terkait sudah ditutup. "
+        "Pilih yang masih berjalan, atau kosongkan kolom pencarian."
+    ),
+    "RELATED_COMPLAINT_NOT_VISIBLE": (
+        "Pengaduan WP itu tidak bisa ditautkan dari akun Anda. "
+        "Pilih pengaduan yang Anda buat atau milik unit Anda, atau kosongkan kolom pencarian."
+    ),
 }
 
 MESSAGES: dict[str, str] = {
@@ -189,6 +201,27 @@ MESSAGES: dict[str, str] = {
     # --- Pengaduan Internal — gerbang permintaan transfer Petugas ---
     "internal.transfer_request_reason_required": (
         "Alasan wajib diisi saat Petugas meminta transfer Handling ke unit lawan."
+    ),
+    "internal.related_complaint_not_found": (
+        "Pengaduan WP terkait tidak ditemukan. "
+        "Pilih dari daftar, atau kosongkan kolom pencarian."
+    ),
+    "internal.related_complaint_closed": (
+        "Pengaduan WP terkait sudah ditutup. "
+        "Pilih yang masih berjalan, atau kosongkan kolom pencarian."
+    ),
+    "internal.related_complaint_not_visible": (
+        "Pengaduan WP itu tidak bisa ditautkan dari akun Anda. "
+        "Pilih pengaduan yang Anda buat atau milik unit Anda, atau kosongkan kolom pencarian."
+    ),
+    "internal.withdraw_reason_required": (
+        "Alasan wajib diisi untuk membatalkan pengaduan."
+    ),
+    "internal.withdraw_not_allowed": (
+        "Anda tidak dapat membatalkan pengaduan ini."
+    ),
+    "internal.withdraw_decide_denied": (
+        "Hanya Pusat yang dapat memutuskan permintaan pembatalan."
     ),
     # --- Escalation ---
     "escalation.already_closed": "Eskalasi sudah berstatus CLOSED.",
@@ -417,6 +450,9 @@ MESSAGES: dict[str, str] = {
     "storage.filename_required": "filename diperlukan.",
     "storage.max_upload_mb_min": "storage.max.upload.mb harus >= 1.",
     "storage.mime_not_allowed": "Tipe MIME tidak diizinkan.",
+    "storage.zip_invalid": (
+        "Berkas ZIP tidak valid. Unggah arsip ZIP utuh; server tidak mengekstrak isinya."
+    ),
     "storage.mime_type_required": "mime_type diperlukan.",
     "storage.original_name_required": "original_name diperlukan.",
     "storage.path_escapes_root": "Path storage keluar dari root storage.",
@@ -831,6 +867,7 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "inactive assignment requires released_at": "assignment.inactive_requires_released_at",
     "max_bytes must be >= 1": "storage.max_bytes_min",
     "mime type is not allowed": "storage.mime_not_allowed",
+    "zip archive is invalid": "storage.zip_invalid",
     "mime_type is required": "storage.mime_type_required",
     "module must be lowercase letters, digits, and underscores ": "config.module_lowercase_format",
     "new complaints must start in OPEN status": "complaint.new_must_start_open",

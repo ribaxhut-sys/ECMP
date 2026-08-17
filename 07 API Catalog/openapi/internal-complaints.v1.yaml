@@ -7,10 +7,17 @@ info:
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
     berubah saat transfer; CLOSED hanya setelah dual acceptance. Nomor:
     `PI-{UNIT}-{YYMM}-{NNN}` (mis. `PI-TAB-2608-001`), counter per unit per
-    bulan; lebar seq melebar otomatis di atas 999. Agent-family tidak dapat
-    men-transfer Handling langsung — create dengan `handlingUnitId` menjadi
-    permintaan (`requestReason` wajib), diputus oleh Supervisor/Manager/Admin
-    yang memegang `internal:escalate-decide` via `/transfer-request/decision`.
+    bulan; lebar seq melebar otomatis di atas 999. Cabang create selalu
+    mengirim Handling ke Pusat (`ASSIGNED`) tanpa gerbang transfer-request.
+    Agent Pusat yang memilih cabang tetap memakai permintaan (`requestReason`
+    wajib), diputus oleh Supervisor/Manager/Admin via `/transfer-request/decision`.
+    Cabang boleh membatalkan sebelum Pusat menerima (`WITHDRAWN`, tanpa
+    notifikasi ke Pusat); setelah Terima, cabang mengajukan pembatalan dan
+    Pusat memutus via `/withdraw-request/decision`. Lampiran memakai mesin
+    bersama CAPABILITY-011 (`POST/GET /api/v1/attachments`) dengan
+    `aggregateType=InternalComplaint` — bukan staging Batch-1 / FR-004.
+    Tipe yang diizinkan untuk Internal: gambar (JPEG/PNG/GIF/WebP) dan ZIP
+    utuh (tidak diekstrak di server).
 servers:
   - url: /
 paths:
@@ -33,6 +40,10 @@ paths:
           in: query
           schema: { type: boolean }
           description: Filter to complaints with a PENDING Agent transfer request.
+        - name: pendingWithdrawRequest
+          in: query
+          schema: { type: boolean }
+          description: Filter to complaints with a PENDING branch withdraw request.
       responses:
         "200":
           description: Paginated list
@@ -41,11 +52,11 @@ paths:
       tags: [Internal-Complaints]
       summary: Create Pengaduan Internal (Owner = creator unit)
       description: >
-        `handlingUnitId` meaning depends on the actor's `complaints:assign`
-        grant: Supervisor/Manager → direct initial transfer (unchanged).
-        Agent-family (no `complaints:assign`) → becomes a PENDING transfer
-        request; `requestReason` is then required and Handling stays at the
-        owner unit until decided.
+        Cabang create always transfers Handling to Pusat (`ASSIGNED`);
+        `requestReason` is not used. Pusat create: Supervisor/Manager with
+        `complaints:assign` → direct initial transfer. Pusat Agent-family
+        (no `complaints:assign`) + `handlingUnitId` → PENDING transfer
+        request; `requestReason` is then required.
       requestBody:
         required: true
         content:
@@ -56,12 +67,26 @@ paths:
         "201":
           description: Created
         "400":
-          description: requestReason missing when Agent-family sets handlingUnitId
+          description: requestReason missing when Pusat Agent-family sets handlingUnitId
   /api/v1/internal/complaints/transfer-requests/pending-count:
     get:
       operationId: getPendingTransferRequestCount
       tags: [Internal-Complaints]
       summary: Sidebar badge — count of PENDING Agent transfer requests (visibility-scoped)
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: integer }
+  /api/v1/internal/complaints/withdraw-requests/pending-count:
+    get:
+      operationId: getPendingWithdrawRequestCount
+      tags: [Internal-Complaints]
+      summary: Sidebar badge — count of PENDING branch withdraw requests (visibility-scoped)
       responses:
         "200":
           description: Count
@@ -175,6 +200,63 @@ paths:
       responses:
         "200":
           description: Received
+  /api/v1/internal/complaints/{complaintId}/withdraw:
+    post:
+      operationId: withdrawInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Branch cancels before Pusat receives (→ WITHDRAWN, no Pusat notify)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawRequest"
+      responses:
+        "200":
+          description: Withdrawn
+  /api/v1/internal/complaints/{complaintId}/withdraw-request:
+    post:
+      operationId: requestInternalWithdraw
+      tags: [Internal-Complaints]
+      summary: After Pusat received — branch asks Pusat to withdraw (stays IN_PROGRESS)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawRequest"
+      responses:
+        "200":
+          description: Request submitted (status PENDING)
+  /api/v1/internal/complaints/{complaintId}/withdraw-request/decision:
+    post:
+      operationId: decideInternalWithdrawRequest
+      tags: [Internal-Complaints]
+      summary: Pusat Supervisor / Manager / Admin decides a PENDING withdraw request
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecideWithdrawRequestRequest"
+      responses:
+        "200":
+          description: Decided
   /api/v1/internal/complaints/{complaintId}/status:
     patch:
       operationId: updateInternalComplaintStatus
@@ -252,12 +334,12 @@ components:
           type: string
           nullable: true
           description: >
-            Optional Handling Unit (Cabang↔Pusat). Direct transfer under
-            complaints:assign; becomes a pending request otherwise.
+            Cabang create always goes to Pusat. Pusat create: direct transfer
+            under complaints:assign; Pusat Agent becomes a pending request.
         requestReason:
           type: string
           nullable: true
-          description: Required when the actor lacks complaints:assign and handlingUnitId is set
+          description: Required when a Pusat Agent sets handlingUnitId
         ownerUnitId:
           type: string
           nullable: true
@@ -279,6 +361,10 @@ components:
         relatedComplaintId: { type: string, nullable: true }
         relatedComplaintNumber: { type: string, nullable: true }
         transferRequestStatus:
+          type: string
+          nullable: true
+          enum: [PENDING, APPROVED, REJECTED]
+        withdrawRequestStatus:
           type: string
           nullable: true
           enum: [PENDING, APPROVED, REJECTED]
@@ -309,6 +395,20 @@ components:
         destinationUnitId: { type: string }
         reason: { type: string, minLength: 1 }
     DecideTransferRequestRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        reason:
+          type: string
+          nullable: true
+          description: Required when decision=REJECT
+    WithdrawRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+    DecideWithdrawRequestRequest:
       type: object
       required: [decision]
       properties:

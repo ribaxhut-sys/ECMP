@@ -52,3 +52,16 @@ export function InternalTransferRequestBadge({
     TRANSFER_REQUEST_TONE[status as keyof typeof TRANSFER_REQUEST_TONE] ?? "neutral";
   return <Badge tone={tone}>{t(`transferRequestStatus${status}`)}</Badge>;
 }
+
+/** Shown only when a withdraw request exists — null status renders nothing. */
+export function InternalWithdrawRequestBadge({
+  status,
+}: {
+  status: string | null | undefined;
+}) {
+  const t = useTranslations("internalComplaints");
+  if (!status) return null;
+  const tone =
+    TRANSFER_REQUEST_TONE[status as keyof typeof TRANSFER_REQUEST_TONE] ?? "neutral";
+  return <Badge tone={tone}>{t(`withdrawRequestStatus${status}`)}</Badge>;
+}

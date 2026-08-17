@@ -6,9 +6,9 @@ export interface InternalComplaintFormValues {
   /** Optional Handling Unit (Cabang ↔ Pusat). Empty = stay at owner unit. */
   destinationUnitId: string;
   /**
-   * Required when destinationUnitId is set AND the actor lacks
-   * complaints:assign (Agent-family) — becomes a transfer request instead
-   * of a direct transfer. Ignored for Supervisor/Manager.
+   * Required when destinationUnitId is set AND the actor is a Pusat
+   * Agent-family (no complaints:assign) — becomes a transfer request.
+   * Cabang create always goes to Pusat without this field.
    */
   requestReason: string;
   category: InternalCategory | "";
@@ -40,15 +40,23 @@ export type InternalComplaintFormErrors = Partial<
 
 export function validateInternalComplaintForm(
   values: InternalComplaintFormValues,
-  options?: { canAssign?: boolean },
+  options?: {
+    canAssign?: boolean;
+    relatedUnresolved?: boolean;
+    /** Pusat Agent picking a cabang destination — not used for cabang→Pusat create. */
+    requireRequestReason?: boolean;
+  },
 ): InternalComplaintFormErrors {
   const errors: InternalComplaintFormErrors = {};
   if (!values.title.trim()) errors.title = "titleRequiredError";
   if (!values.category) errors.category = "categoryRequiredError";
   if (!values.description.trim()) errors.description = "descriptionRequiredError";
-  const canAssign = options?.canAssign ?? true;
-  if (!canAssign && values.destinationUnitId.trim() && !values.requestReason.trim()) {
+  const requireReason = options?.requireRequestReason ?? false;
+  if (requireReason && values.destinationUnitId.trim() && !values.requestReason.trim()) {
     errors.requestReason = "requestReasonRequiredError";
+  }
+  if (options?.relatedUnresolved) {
+    errors.relatedComplaintId = "relatedComplaintNotFoundError";
   }
   return errors;
 }

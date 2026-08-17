@@ -17,7 +17,8 @@ export type InternalStatus =
   | "ASSIGNED"
   | "IN_PROGRESS"
   | "RESOLVED"
-  | "CLOSED";
+  | "CLOSED"
+  | "WITHDRAWN";
 
 export type InternalCategory =
   | "PERFORMANCE"
@@ -33,6 +34,8 @@ export type InternalPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type InternalAcceptanceParty = "OWNER" | "HANDLING_UNIT";
 
 export type InternalTransferRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type InternalWithdrawRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 /** UI list/detail row derived from API. */
 export interface InternalComplaint {
@@ -71,6 +74,19 @@ export interface InternalComplaint {
   transferDecidedByName: string | null;
   transferDecidedAt: string | null;
   transferDecisionReason: string | null;
+  withdrawRequestStatus: InternalWithdrawRequestStatus | string | null;
+  withdrawRequestReason: string | null;
+  withdrawRequestedBy: string | null;
+  withdrawRequestedByName: string | null;
+  withdrawRequestedAt: string | null;
+  withdrawDecidedBy: string | null;
+  withdrawDecidedByName: string | null;
+  withdrawDecidedAt: string | null;
+  withdrawDecisionReason: string | null;
+  withdrawnBy: string | null;
+  withdrawnByName: string | null;
+  withdrawnAt: string | null;
+  withdrawReason: string | null;
 }
 
 /** Matches backend case_acceptance._AGENT_ROLES for related Aggregate filter. */
@@ -91,6 +107,7 @@ export const INTERNAL_STATUSES: readonly InternalStatus[] = [
   "IN_PROGRESS",
   "RESOLVED",
   "CLOSED",
+  "WITHDRAWN",
 ] as const;
 
 export const INTERNAL_CATEGORIES: readonly InternalCategory[] = [
@@ -116,6 +133,7 @@ export const STATUS_LABEL_KEY: Record<InternalStatus, string> = {
   IN_PROGRESS: "statusIN_PROGRESS",
   RESOLVED: "statusRESOLVED",
   CLOSED: "statusCLOSED",
+  WITHDRAWN: "statusWITHDRAWN",
 };
 
 export const CATEGORY_LABEL_KEY: Record<InternalCategory, string> = {
@@ -130,18 +148,22 @@ export const CATEGORY_LABEL_KEY: Record<InternalCategory, string> = {
 
 export const HISTORY_LABEL_KEY: Record<string, string> = {
   CREATED: "activityCREATED",
-  TRANSFER: "activityASSIGNED",
+  TRANSFER: "activityTransferred",
   TRANSFER_REQUESTED: "activityTRANSFER_REQUESTED",
   TRANSFER_REQUEST_APPROVED: "activityTRANSFER_REQUEST_APPROVED",
   TRANSFER_REQUEST_REJECTED: "activityTRANSFER_REQUEST_REJECTED",
   RECEIVED: "activityRECEIVED",
   REVIEW: "activityREVIEW_STARTED",
-  RESOLUTION: "activityFOLLOW_UP_RECORDED",
-  HANDLING_UNIT_ACCEPT: "activityVERIFICATION_REQUESTED",
-  HANDLING_UNIT_REJECT: "activityVERIFICATION_RETURNED",
-  OWNER_ACCEPT: "activityCOMPLETED",
-  OWNER_REJECT: "activityVERIFICATION_RETURNED",
-  CLOSED: "activityCOMPLETED",
+  RESOLUTION: "activityResolutionRecorded",
+  HANDLING_UNIT_ACCEPT: "activityHandlingAccepted",
+  HANDLING_UNIT_REJECT: "activityReturnedToHandling",
+  OWNER_ACCEPT: "activityOwnerAccepted",
+  OWNER_REJECT: "activityReturnedToHandling",
+  CLOSED: "activityClosed",
+  WITHDRAWN: "activityWITHDRAWN",
+  WITHDRAW_REQUESTED: "activityWITHDRAW_REQUESTED",
+  WITHDRAW_REQUEST_APPROVED: "activityWITHDRAW_REQUEST_APPROVED",
+  WITHDRAW_REQUEST_REJECTED: "activityWITHDRAW_REQUEST_REJECTED",
 };
 
 export const STATUS_TONE: Record<InternalStatus, BadgeTone> = {
@@ -150,6 +172,7 @@ export const STATUS_TONE: Record<InternalStatus, BadgeTone> = {
   IN_PROGRESS: "primary",
   RESOLVED: "warning",
   CLOSED: "success",
+  WITHDRAWN: "danger",
 };
 
 export const PRIORITY_TONE: Record<InternalPriority, BadgeTone> = {
@@ -198,6 +221,19 @@ export function mapSummaryToRow(
     transferDecidedByName: null,
     transferDecidedAt: null,
     transferDecisionReason: null,
+    withdrawRequestStatus: row.withdrawRequestStatus ?? null,
+    withdrawRequestReason: null,
+    withdrawRequestedBy: null,
+    withdrawRequestedByName: null,
+    withdrawRequestedAt: null,
+    withdrawDecidedBy: null,
+    withdrawDecidedByName: null,
+    withdrawDecidedAt: null,
+    withdrawDecisionReason: null,
+    withdrawnBy: null,
+    withdrawnByName: null,
+    withdrawnAt: null,
+    withdrawReason: null,
   };
 }
 
@@ -238,6 +274,19 @@ export function mapDetailToRow(dto: ApiInternalComplaint): InternalComplaint {
     transferDecidedByName: dto.transferDecidedByName ?? null,
     transferDecidedAt: dto.transferDecidedAt ?? null,
     transferDecisionReason: dto.transferDecisionReason ?? null,
+    withdrawRequestStatus: dto.withdrawRequestStatus ?? null,
+    withdrawRequestReason: dto.withdrawRequestReason ?? null,
+    withdrawRequestedBy: dto.withdrawRequestedBy ?? null,
+    withdrawRequestedByName: dto.withdrawRequestedByName ?? null,
+    withdrawRequestedAt: dto.withdrawRequestedAt ?? null,
+    withdrawDecidedBy: dto.withdrawDecidedBy ?? null,
+    withdrawDecidedByName: dto.withdrawDecidedByName ?? null,
+    withdrawDecidedAt: dto.withdrawDecidedAt ?? null,
+    withdrawDecisionReason: dto.withdrawDecisionReason ?? null,
+    withdrawnBy: dto.withdrawnBy ?? null,
+    withdrawnByName: dto.withdrawnByName ?? null,
+    withdrawnAt: dto.withdrawnAt ?? null,
+    withdrawReason: dto.withdrawReason ?? null,
   };
 }
 
@@ -268,4 +317,8 @@ export function canRequestTransfer(complaint: InternalComplaint): boolean {
 
 export function hasPendingTransferRequest(complaint: InternalComplaint): boolean {
   return complaint.transferRequestStatus === "PENDING";
+}
+
+export function hasPendingWithdrawRequest(complaint: InternalComplaint): boolean {
+  return complaint.withdrawRequestStatus === "PENDING";
 }

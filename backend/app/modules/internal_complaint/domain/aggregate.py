@@ -11,6 +11,7 @@ from app.core.authorization.visibility import is_pusat_unit
 from app.modules.internal_complaint.domain import errors as err
 from app.modules.internal_complaint.domain.transitions import can_transition_status
 from app.modules.internal_complaint.domain.value_objects import (
+    RESOLUTION_SENTINEL,
     AcceptanceDecision,
     AcceptanceParty,
     HistoryEventType,
@@ -19,6 +20,7 @@ from app.modules.internal_complaint.domain.value_objects import (
     ResolutionProposalStatus,
     ResolveAction,
     TransferRequestStatus,
+    WithdrawRequestStatus,
 )
 
 
@@ -27,6 +29,40 @@ def is_branch_pusat_transfer(source_unit_id: str, target_unit_id: str) -> bool:
     source_is_pusat = is_pusat_unit(source_unit_id)
     target_is_pusat = is_pusat_unit(target_unit_id)
     return source_is_pusat != target_is_pusat
+
+
+def actor_transfer_source(
+    actor_unit_id: str | None, *, actor_is_admin: bool = False
+) -> str:
+    """Cabang actor → cabang source; Admin / Pusat → PUSAT.
+
+    Missing membership for a non-admin is treated as cabang so the actor
+    can only send to Pusat (never pick another branch).
+    """
+    if actor_is_admin or is_pusat_unit(actor_unit_id):
+        return "PUSAT"
+    return (actor_unit_id or "").strip() or "BRANCH"
+
+
+def assert_actor_may_transfer_to(
+    *,
+    actor_unit_id: str | None,
+    actor_is_admin: bool,
+    destination_unit_id: str,
+) -> None:
+    actor_source = actor_transfer_source(
+        actor_unit_id, actor_is_admin=actor_is_admin
+    )
+    if is_branch_pusat_transfer(actor_source, destination_unit_id):
+        return
+    raise err.conflict(
+        "TRANSFER_DIRECTION_NOT_ALLOWED",
+        "Cabang hanya dapat memindahkan ke Pusat; Pusat hanya ke cabang.",
+        details={
+            "actorUnitId": actor_unit_id,
+            "destinationUnitId": destination_unit_id,
+        },
+    )
 
 
 def _utcnow() -> datetime:
@@ -112,6 +148,16 @@ class InternalComplaintAggregate:
     transfer_decided_by: str | None = None
     transfer_decided_at: datetime | None = None
     transfer_decision_reason: str | None = None
+    withdraw_request_status: WithdrawRequestStatus | None = None
+    withdraw_request_reason: str | None = None
+    withdraw_requested_by: str | None = None
+    withdraw_requested_at: datetime | None = None
+    withdraw_decided_by: str | None = None
+    withdraw_decided_at: datetime | None = None
+    withdraw_decision_reason: str | None = None
+    withdrawn_by: str | None = None
+    withdrawn_at: datetime | None = None
+    withdraw_reason: str | None = None
 
     def _append_history(
         self,
@@ -210,12 +256,18 @@ class InternalComplaintAggregate:
         destination_unit_id: str,
         actor_id: str,
         actor_unit_id: str | None = None,
+        actor_is_admin: bool = False,
         reason: str | None = None,
+        enforce_actor_direction: bool = True,
     ) -> None:
         """Transfer changes Handling Unit only — Owner is never mutated."""
-        if self.status in (InternalStatus.CLOSED, InternalStatus.RESOLVED):
+        if self.status in (
+            InternalStatus.CLOSED,
+            InternalStatus.RESOLVED,
+            InternalStatus.WITHDRAWN,
+        ):
             raise err.invalid_state(
-                "Cannot transfer a RESOLVED/CLOSED complaint.",
+                "Cannot transfer a RESOLVED/CLOSED/WITHDRAWN complaint.",
                 details={"status": self.status.value},
             )
         target = (destination_unit_id or "").strip()
@@ -239,6 +291,12 @@ class InternalComplaintAggregate:
                     "destinationUnitId": target,
                 },
             )
+        if enforce_actor_direction:
+            assert_actor_may_transfer_to(
+                actor_unit_id=actor_unit_id,
+                actor_is_admin=actor_is_admin,
+                destination_unit_id=target,
+            )
         self.handling_unit_id = target
         self.status = InternalStatus.ASSIGNED
         self.updated_at = _utcnow()
@@ -258,6 +316,7 @@ class InternalComplaintAggregate:
         reason: str,
         actor_id: str,
         actor_unit_id: str | None = None,
+        actor_is_admin: bool = False,
     ) -> None:
         """Agent-family gate: ask to send Handling to the opposite unit.
 
@@ -300,6 +359,11 @@ class InternalComplaintAggregate:
                     "destinationUnitId": target,
                 },
             )
+        assert_actor_may_transfer_to(
+            actor_unit_id=actor_unit_id,
+            actor_is_admin=actor_is_admin,
+            destination_unit_id=target,
+        )
         now = _utcnow()
         self.transfer_request_status = TransferRequestStatus.PENDING
         self.transfer_request_destination_unit_id = target
@@ -325,6 +389,7 @@ class InternalComplaintAggregate:
         decision: TransferRequestStatus,
         actor_id: str,
         actor_unit_id: str | None = None,
+        actor_is_admin: bool = False,
         reason: str | None = None,
     ) -> None:
         """Supervisor/Manager/Admin decides a pending Agent transfer request.
@@ -357,7 +422,9 @@ class InternalComplaintAggregate:
                 destination_unit_id=target,
                 actor_id=actor_id,
                 actor_unit_id=actor_unit_id,
+                actor_is_admin=actor_is_admin,
                 reason=original_reason,
+                enforce_actor_direction=False,
             )
             return
         if decision == TransferRequestStatus.REJECTED:
@@ -413,6 +480,148 @@ class InternalComplaintAggregate:
             target_unit_id=self.handling_unit_id,
         )
 
+    def withdraw(
+        self,
+        *,
+        actor_id: str,
+        reason: str,
+        actor_unit_id: str | None = None,
+    ) -> None:
+        """Branch (or owner unit) cancels before Pusat receives — no Pusat notify."""
+        if self.status not in (InternalStatus.CREATED, InternalStatus.ASSIGNED):
+            raise err.invalid_state(
+                "Direct withdraw is only allowed before receive.",
+                details={"status": self.status.value},
+            )
+        reason_text = (reason or "").strip()
+        if not reason_text:
+            raise err.validation(
+                "reason is required to withdraw",
+                details={"field": "reason"},
+            )
+        now = _utcnow()
+        self.status = InternalStatus.WITHDRAWN
+        self.withdrawn_by = actor_id
+        self.withdrawn_at = now
+        self.withdraw_reason = reason_text
+        self.updated_at = now
+        self._append_history(
+            event_type=HistoryEventType.WITHDRAWN,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            note=reason_text,
+        )
+
+    def request_withdraw(
+        self,
+        *,
+        actor_id: str,
+        reason: str,
+        actor_unit_id: str | None = None,
+    ) -> None:
+        """After Pusat received: branch asks Pusat to withdraw (ticket stays IN_PROGRESS)."""
+        if self.status != InternalStatus.IN_PROGRESS:
+            raise err.invalid_state(
+                "Withdraw request requires status IN_PROGRESS.",
+                details={"status": self.status.value},
+            )
+        if is_pusat_unit(self.owner_unit_id) or not is_pusat_unit(self.handling_unit_id):
+            raise err.invalid_state(
+                "Withdraw request is only for branch-owned complaints received by Pusat."
+            )
+        if self.withdraw_request_status == WithdrawRequestStatus.PENDING:
+            raise err.conflict(
+                "WITHDRAW_REQUEST_PENDING",
+                "A withdraw request is already pending decision.",
+            )
+        reason_text = (reason or "").strip()
+        if not reason_text:
+            raise err.validation(
+                "reason is required for a withdraw request",
+                details={"field": "reason"},
+            )
+        now = _utcnow()
+        self.withdraw_request_status = WithdrawRequestStatus.PENDING
+        self.withdraw_request_reason = reason_text
+        self.withdraw_requested_by = actor_id
+        self.withdraw_requested_at = now
+        self.withdraw_decided_by = None
+        self.withdraw_decided_at = None
+        self.withdraw_decision_reason = None
+        self.updated_at = now
+        self._append_history(
+            event_type=HistoryEventType.WITHDRAW_REQUESTED,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            note=reason_text,
+        )
+
+    def decide_withdraw_request(
+        self,
+        *,
+        decision: WithdrawRequestStatus,
+        actor_id: str,
+        actor_unit_id: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        if self.withdraw_request_status != WithdrawRequestStatus.PENDING:
+            raise err.conflict(
+                "NO_PENDING_WITHDRAW_REQUEST",
+                "No pending withdraw request to decide.",
+            )
+        if self.status != InternalStatus.IN_PROGRESS:
+            raise err.invalid_state(
+                "Withdraw decision requires status IN_PROGRESS.",
+                details={"status": self.status.value},
+            )
+        now = _utcnow()
+        if decision == WithdrawRequestStatus.REJECTED:
+            reason_text = (reason or "").strip()
+            if not reason_text:
+                raise err.validation(
+                    "reason is required when rejecting a withdraw request",
+                    details={"field": "reason"},
+                )
+            self.withdraw_request_status = WithdrawRequestStatus.REJECTED
+            self.withdraw_decided_by = actor_id
+            self.withdraw_decided_at = now
+            self.withdraw_decision_reason = reason_text
+            self.updated_at = now
+            self._append_history(
+                event_type=HistoryEventType.WITHDRAW_REQUEST_REJECTED,
+                actor_id=actor_id,
+                actor_unit_id=actor_unit_id,
+                note=reason_text,
+            )
+            return
+        if decision != WithdrawRequestStatus.APPROVED:
+            raise err.validation("Unsupported withdraw request decision")
+        reason_text = (
+            (reason or "").strip()
+            or (self.withdraw_request_reason or "").strip()
+        )
+        self.withdraw_request_status = WithdrawRequestStatus.APPROVED
+        self.withdraw_decided_by = actor_id
+        self.withdraw_decided_at = now
+        self.withdraw_decision_reason = (reason or "").strip() or None
+        self.status = InternalStatus.WITHDRAWN
+        self.withdrawn_by = actor_id
+        self.withdrawn_at = now
+        self.withdraw_reason = reason_text
+        self.updated_at = now
+        self._append_history(
+            event_type=HistoryEventType.WITHDRAW_REQUEST_APPROVED,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            note=reason_text,
+        )
+        self._append_history(
+            event_type=HistoryEventType.WITHDRAWN,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            note=reason_text,
+        )
+
     def transition_status(
         self,
         *,
@@ -421,6 +630,7 @@ class InternalComplaintAggregate:
         destination_unit_id: str | None = None,
         reason: str | None = None,
         actor_unit_id: str | None = None,
+        actor_is_admin: bool = False,
     ) -> None:
         raw = (to_status or "").strip().upper()
         if self.status == InternalStatus.CLOSED:
@@ -442,6 +652,7 @@ class InternalComplaintAggregate:
                 destination_unit_id=destination_unit_id or "",
                 actor_id=actor_id,
                 actor_unit_id=actor_unit_id,
+                actor_is_admin=actor_is_admin,
                 reason=reason,
             )
             return
@@ -482,12 +693,12 @@ class InternalComplaintAggregate:
 
         now = _utcnow()
         if action == ResolveAction.PROPOSE:
-            code = (resolution_code or "").strip()
+            code = (resolution_code or "").strip() or RESOLUTION_SENTINEL
             summ = (summary or "").strip()
-            if not code or not summ:
+            if not summ:
                 raise err.validation(
-                    "resolutionCode and summary are required for PROPOSE",
-                    details={"fields": ["resolutionCode", "summary"]},
+                    "summary is required for PROPOSE",
+                    details={"fields": ["summary"]},
                 )
             record = ResolutionRecord(
                 resolution_id=str(uuid4()),
@@ -517,10 +728,11 @@ class InternalComplaintAggregate:
                 code = code or pending.resolution_code
                 summ = summ or pending.summary
                 detail = detail if detail is not None else pending.detail
-            if not code or not summ:
+            code = code or RESOLUTION_SENTINEL
+            if not summ:
                 raise err.validation(
-                    "resolutionCode and summary are required for ACCEPT",
-                    details={"fields": ["resolutionCode", "summary"]},
+                    "summary is required for ACCEPT",
+                    details={"fields": ["summary"]},
                 )
             record = ResolutionRecord(
                 resolution_id=str(uuid4()),

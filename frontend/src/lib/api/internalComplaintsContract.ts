@@ -26,5 +26,12 @@ export function internalComplaintPaths() {
     transferRequestDecision: (id: string) =>
       `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/transfer-request/decision`,
     pendingTransferRequestCount: `${INTERNAL_COMPLAINTS_BASE}/transfer-requests/pending-count`,
+    withdraw: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/withdraw`,
+    withdrawRequest: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/withdraw-request`,
+    withdrawRequestDecision: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/withdraw-request/decision`,
+    pendingWithdrawRequestCount: `${INTERNAL_COMPLAINTS_BASE}/withdraw-requests/pending-count`,
   } as const;
 }

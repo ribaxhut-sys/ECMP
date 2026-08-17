@@ -1,0 +1,109 @@
+/** Branch → Pusat withdraw / receive UI gate (ECMP-MODEA-INT-001). */
+
+import { isPusatUnitCode } from "./transferDirection";
+
+const ADMIN_ROLES = new Set(["ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"]);
+
+function roleSet(roles: readonly string[]): Set<string> {
+  return new Set(roles.map((role) => role.trim().toUpperCase()).filter(Boolean));
+}
+
+function hasAny(roles: Set<string>, allowed: Set<string>): boolean {
+  for (const role of roles) {
+    if (allowed.has(role)) return true;
+  }
+  return false;
+}
+
+function idsEqual(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = (left || "").trim().toLowerCase();
+  const b = (right || "").trim().toLowerCase();
+  return Boolean(a) && Boolean(b) && a === b;
+}
+
+function unitsEqual(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = (left || "").trim().toUpperCase();
+  const b = (right || "").trim().toUpperCase();
+  return Boolean(a) && Boolean(b) && a === b;
+}
+
+export function isWaitingForPusatReceive(input: {
+  status: string;
+  ownerUnitId: string;
+  handlingUnitId: string;
+}): boolean {
+  if (input.status !== "ASSIGNED" && input.status !== "CREATED") return false;
+  return (
+    !isPusatUnitCode(input.ownerUnitId) && isPusatUnitCode(input.handlingUnitId)
+  );
+}
+
+export function mayOwnerWithdraw(input: {
+  roles: readonly string[];
+  actorUserId: string;
+  creatorUserId: string;
+  actorUnitCode: string | null;
+  ownerUnitId: string;
+  hasAssignPermission: boolean;
+}): boolean {
+  if (idsEqual(input.actorUserId, input.creatorUserId)) return true;
+  const roles = roleSet(input.roles);
+  if (hasAny(roles, ADMIN_ROLES)) return true;
+  return (
+    input.hasAssignPermission &&
+    unitsEqual(input.actorUnitCode, input.ownerUnitId)
+  );
+}
+
+export function mayReceiveInternal(input: {
+  status: string;
+  actorUnitCode: string | null;
+  handlingUnitId: string;
+  hasUpdatePermission: boolean;
+}): boolean {
+  if (!input.hasUpdatePermission) return false;
+  if (input.status !== "CREATED" && input.status !== "ASSIGNED") return false;
+  return unitsEqual(input.actorUnitCode, input.handlingUnitId);
+}
+
+export function mayRequestWithdraw(input: {
+  status: string;
+  ownerUnitId: string;
+  handlingUnitId: string;
+  withdrawRequestStatus: string | null | undefined;
+  roles: readonly string[];
+  actorUserId: string;
+  creatorUserId: string;
+  actorUnitCode: string | null;
+  hasAssignPermission: boolean;
+}): boolean {
+  if (input.status !== "IN_PROGRESS") return false;
+  if (input.withdrawRequestStatus === "PENDING") return false;
+  if (isPusatUnitCode(input.ownerUnitId) || !isPusatUnitCode(input.handlingUnitId)) {
+    return false;
+  }
+  return mayOwnerWithdraw(input);
+}
+
+export function mayDecideWithdraw(input: {
+  withdrawRequestStatus: string | null | undefined;
+  roles: readonly string[];
+  actorUnitCode: string | null;
+  handlingUnitId: string;
+  hasAssignPermission: boolean;
+  hasEscalateDecidePermission: boolean;
+}): boolean {
+  if (input.withdrawRequestStatus !== "PENDING") return false;
+  const roles = roleSet(input.roles);
+  if (hasAny(roles, ADMIN_ROLES)) return true;
+  const canDecide =
+    input.hasAssignPermission || input.hasEscalateDecidePermission;
+  if (!canDecide) return false;
+  return unitsEqual(input.actorUnitCode, input.handlingUnitId);
+}

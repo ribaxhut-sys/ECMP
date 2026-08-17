@@ -2,8 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { useAuth } from "@/auth/AuthProvider";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Alert,
   Button,
@@ -40,12 +39,13 @@ import {
   InternalPriorityBadge,
   InternalStatusBadge,
   InternalTransferRequestBadge,
+  InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, locale: string): string {
   if (!value) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+    return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
       new Date(value),
     );
   } catch {
@@ -58,8 +58,7 @@ export function InternalComplaintListView() {
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
-  const { hasPermission } = useAuth();
-  const canCreate = hasPermission("complaints:create");
+  const locale = useLocale();
   const { rows: allRows, loading, error } = useInternalComplaints();
 
   const [filters, setFilters] = useState<InternalListFilters>(
@@ -143,6 +142,7 @@ export function InternalComplaintListView() {
         <div className="flex flex-wrap gap-1">
           <InternalStatusBadge status={row.status} />
           <InternalTransferRequestBadge status={row.transferRequestStatus} />
+          <InternalWithdrawRequestBadge status={row.withdrawRequestStatus} />
         </div>
       ),
     },
@@ -154,7 +154,7 @@ export function InternalComplaintListView() {
     {
       key: "created",
       header: t("createdAt"),
-      cell: (row) => formatDate(row.createdAt),
+      cell: (row) => formatDate(row.createdAt, locale),
     },
   ];
 
@@ -169,14 +169,12 @@ export function InternalComplaintListView() {
           { label: t("listTitle") },
         ]}
         actions={
-          canCreate ? (
-            <Button
-              type="button"
-              onClick={() => router.push("/internal/complaints/new")}
-            >
-              {t("create")}
-            </Button>
-          ) : undefined
+          <Button
+            type="button"
+            onClick={() => router.push("/internal/complaints/new")}
+          >
+            {t("create")}
+          </Button>
         }
       />
 
@@ -185,11 +183,13 @@ export function InternalComplaintListView() {
       <Card>
         <CardBody className="space-y-4">
           <FilterBar
+            searchPlacement="bottom"
             search={
               <Input
                 label={t("search")}
                 value={draft.q}
                 onChange={(e) => setDraft((d) => ({ ...d, q: e.target.value }))}
+                placeholder={t("searchPlaceholder")}
               />
             }
             filters={

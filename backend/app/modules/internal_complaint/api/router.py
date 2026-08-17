@@ -18,6 +18,7 @@ from app.core.authorization.org_unit_guard import (
     enforce_org_scope_any,
     org_scope_enforcement_enabled,
 )
+from app.core.authorization.visibility import is_pusat_unit
 from app.core.config import Settings, get_settings
 from app.core.errors import PermissionDeniedError, ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
@@ -29,6 +30,7 @@ from app.modules.internal_complaint.api.schemas import (
     CloseRequest,
     CreateInternalComplaintRequest,
     DecideTransferRequestRequest,
+    DecideWithdrawRequestRequest,
     HistoryEventResponse,
     InternalComplaintResponse,
     InternalComplaintSummaryResponse,
@@ -39,18 +41,22 @@ from app.modules.internal_complaint.api.schemas import (
     StartHandlingRequest,
     TransferRequest,
     UpdateStatusRequest,
+    WithdrawRequest,
 )
 from app.modules.internal_complaint.application.dto import (
     CloseCommand,
     CreateInternalComplaintCommand,
     DecideTransferRequestCommand,
+    DecideWithdrawRequestCommand,
     InternalComplaintDTO,
     RecordAcceptanceCommand,
     RequestTransferCommand,
+    RequestWithdrawCommand,
     ResolveCommand,
     StartHandlingCommand,
     TransferCommand,
     UpdateStatusCommand,
+    WithdrawCommand,
 )
 from app.modules.internal_complaint.application.related_aggregate import (
     resolve_related_aggregate,
@@ -94,6 +100,30 @@ def _require_actor_unit(principal: Principal, session: Session) -> str:
 _ADMIN_FAMILY_ROLES = ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN")
 
 
+def _actor_is_admin(principal: Principal) -> bool:
+    return principal.has_any_role(*_ADMIN_FAMILY_ROLES)
+
+
+def _units_match(left: str | None, right: str | None) -> bool:
+    a = OrgUnitResolver.normalize(left)
+    b = OrgUnitResolver.normalize(right)
+    return bool(a) and bool(b) and a == b
+
+
+def _may_owner_withdraw(
+    principal: Principal, dto: InternalComplaintDTO, session: Session
+) -> bool:
+    if str(principal.user_id) == dto.created_by:
+        return True
+    if _actor_is_admin(principal):
+        return True
+    unit = _actor_unit(principal, session)
+    return bool(
+        principal.has_permission("complaints:assign")
+        and _units_match(unit, dto.owner_unit_id)
+    )
+
+
 def _enforce_internal_org_scope(
     principal: Principal, resource_org_unit_id: str | None, settings: Settings
 ) -> None:
@@ -118,6 +148,9 @@ def _display_names_for_dto(
         dto.closed_by,
         dto.transfer_requested_by,
         dto.transfer_decided_by,
+        dto.withdraw_requested_by,
+        dto.withdraw_decided_by,
+        dto.withdrawn_by,
         *(e.actor_id for e in dto.history),
         *(a.actor_id for a in dto.acceptance_history),
     }
@@ -224,6 +257,23 @@ def _to_response(
         ),
         transferDecidedAt=dto.transfer_decided_at,
         transferDecisionReason=dto.transfer_decision_reason,
+        withdrawRequestStatus=dto.withdraw_request_status,
+        withdrawRequestReason=dto.withdraw_request_reason,
+        withdrawRequestedBy=dto.withdraw_requested_by,
+        withdrawRequestedByName=(
+            names.get(dto.withdraw_requested_by) if dto.withdraw_requested_by else None
+        ),
+        withdrawRequestedAt=dto.withdraw_requested_at,
+        withdrawDecidedBy=dto.withdraw_decided_by,
+        withdrawDecidedByName=(
+            names.get(dto.withdraw_decided_by) if dto.withdraw_decided_by else None
+        ),
+        withdrawDecidedAt=dto.withdraw_decided_at,
+        withdrawDecisionReason=dto.withdraw_decision_reason,
+        withdrawnBy=dto.withdrawn_by,
+        withdrawnByName=names.get(dto.withdrawn_by) if dto.withdrawn_by else None,
+        withdrawnAt=dto.withdrawn_at,
+        withdrawReason=dto.withdraw_reason,
     )
 
 
@@ -240,6 +290,9 @@ def list_internal_complaints(
     pending_transfer_request: Annotated[
         bool | None, Query(alias="pendingTransferRequest")
     ] = None,
+    pending_withdraw_request: Annotated[
+        bool | None, Query(alias="pendingWithdrawRequest")
+    ] = None,
 ) -> ListResponse[InternalComplaintSummaryResponse]:
     items, total = service.list_complaints(
         principal,
@@ -248,6 +301,7 @@ def list_internal_complaints(
         status=status,
         org_unit_id=_actor_unit(principal, session),
         pending_transfer_request=pending_transfer_request,
+        pending_withdraw_request=pending_withdraw_request,
     )
     creator_ids = {i.created_by for i in items if i.created_by}
     names = (
@@ -272,6 +326,7 @@ def list_internal_complaints(
                 relatedComplaintId=i.related_complaint_id,
                 relatedComplaintNumber=i.related_complaint_number,
                 transferRequestStatus=i.transfer_request_status,
+                withdrawRequestStatus=i.withdraw_request_status,
             )
             for i in items
         ],
@@ -294,6 +349,21 @@ def get_pending_transfer_request_count(
     return DataResponse(data=count)
 
 
+@router.get("/api/v1/internal/complaints/withdraw-requests/pending-count")
+def get_pending_withdraw_request_count(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[int]:
+    """Sidebar badge — pending branch withdraw requests visible to the caller."""
+    count = service.count_pending_withdraw_requests(
+        principal, org_unit_id=_actor_unit(principal, session)
+    )
+    return DataResponse(data=count)
+
+
 @router.post("/api/v1/internal/complaints", status_code=201)
 def create_internal_complaint(
     body: CreateInternalComplaintRequest,
@@ -304,12 +374,8 @@ def create_internal_complaint(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> DataResponse[InternalComplaintResponse]:
     # Owner = creator unit (server-side). Client ownerUnitId ignored.
-    # relatedComplaintNumber from client is ignored — snapshot from Aggregate DB.
-    # Optional handlingUnitId (Cabang ↔ Pusat) meaning depends on complaints:assign:
-    # - held (Supervisor/Manager/Admin family) -> direct initial transfer, as before.
-    # - not held (Agent-family) -> becomes a pending transfer request; the
-    #   complaint stays local (CREATED, Handling = Owner) until a Supervisor,
-    #   Manager or Admin decides via /transfer-request/decision.
+    # Cabang create always sends Handling to Pusat (ASSIGNED) — no Agent
+    # transfer-request hop. Pusat create keeps the assign vs request gate.
     owner_unit = _require_actor_unit(principal, session)
     related = resolve_related_aggregate(
         session,
@@ -336,7 +402,20 @@ def create_internal_complaint(
         )
     )
     dest = OrgUnitResolver.normalize(body.handling_unit_id)
-    if dest and dest != OrgUnitResolver.normalize(dto.handling_unit_id):
+    if not is_pusat_unit(owner_unit):
+        dest = dest if dest and is_pusat_unit(dest) else "PUSAT"
+        if dest != OrgUnitResolver.normalize(dto.handling_unit_id):
+            dto = service.transfer(
+                TransferCommand(
+                    complaint_id=dto.complaint_id,
+                    destination_unit_id=dest,
+                    actor_id=str(principal.user_id),
+                    reason="Kirim ke Pusat saat dibuat",
+                    actor_unit_id=owner_unit,
+                    actor_is_admin=_actor_is_admin(principal),
+                )
+            )
+    elif dest and dest != OrgUnitResolver.normalize(dto.handling_unit_id):
         if principal.has_permission("complaints:assign"):
             dto = service.transfer(
                 TransferCommand(
@@ -345,6 +424,7 @@ def create_internal_complaint(
                     actor_id=str(principal.user_id),
                     reason="Initial transfer on create",
                     actor_unit_id=owner_unit,
+                    actor_is_admin=_actor_is_admin(principal),
                 )
             )
         else:
@@ -361,6 +441,7 @@ def create_internal_complaint(
                     reason=reason,
                     actor_id=str(principal.user_id),
                     actor_unit_id=owner_unit,
+                    actor_is_admin=_actor_is_admin(principal),
                 )
             )
     return DataResponse(data=_to_response(dto, session=session))
@@ -391,6 +472,7 @@ def request_internal_transfer(
             reason=body.reason,
             actor_id=str(principal.user_id),
             actor_unit_id=_actor_unit(principal, session),
+            actor_is_admin=_actor_is_admin(principal),
         )
     )
     return DataResponse(data=_to_response(dto, session=session))
@@ -419,6 +501,7 @@ def decide_internal_transfer_request(
             reason=body.reason,
             actor_id=str(principal.user_id),
             actor_unit_id=_actor_unit(principal, session),
+            actor_is_admin=_actor_is_admin(principal),
         )
     )
     return DataResponse(data=_to_response(dto, session=session))
@@ -467,6 +550,7 @@ def transfer_internal_complaint(
             actor_id=str(principal.user_id),
             reason=body.reason,
             actor_unit_id=_actor_unit(principal, session),
+            actor_is_admin=_actor_is_admin(principal),
         )
     )
     return DataResponse(data=_to_response(dto, session=session))
@@ -497,6 +581,91 @@ def receive_internal_complaint(
     return DataResponse(data=_to_response(dto, session=session))
 
 
+@router.post("/api/v1/internal/complaints/{complaint_id}/withdraw")
+def withdraw_internal_complaint(
+    complaint_id: str,
+    body: WithdrawRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[InternalComplaintResponse]:
+    """Owner-unit cancel before Pusat receives — no Pusat notification."""
+    current = service.get(complaint_id)
+    enforce_org_scope(principal, current.owner_unit_id, settings)
+    if not _may_owner_withdraw(principal, current, session):
+        raise PermissionDeniedError(m("internal.withdraw_not_allowed"))
+    dto = service.withdraw(
+        WithdrawCommand(
+            complaint_id=complaint_id,
+            actor_id=str(principal.user_id),
+            reason=body.reason,
+            actor_unit_id=_actor_unit(principal, session),
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/internal/complaints/{complaint_id}/withdraw-request")
+def request_internal_withdraw(
+    complaint_id: str,
+    body: WithdrawRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[InternalComplaintResponse]:
+    current = service.get(complaint_id)
+    enforce_org_scope(principal, current.owner_unit_id, settings)
+    if not _may_owner_withdraw(principal, current, session):
+        raise PermissionDeniedError(m("internal.withdraw_not_allowed"))
+    dto = service.request_withdraw(
+        RequestWithdrawCommand(
+            complaint_id=complaint_id,
+            actor_id=str(principal.user_id),
+            reason=body.reason,
+            actor_unit_id=_actor_unit(principal, session),
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/internal/complaints/{complaint_id}/withdraw-request/decision")
+def decide_internal_withdraw_request(
+    complaint_id: str,
+    body: DecideWithdrawRequestRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[InternalComplaintResponse]:
+    current = service.get(complaint_id)
+    can_decide = (
+        _actor_is_admin(principal)
+        or principal.has_permission("complaints:assign")
+        or principal.has_permission("internal:escalate-decide")
+    )
+    if not can_decide:
+        raise PermissionDeniedError(m("internal.withdraw_decide_denied"))
+    _enforce_internal_org_scope(principal, current.handling_unit_id, settings)
+    dto = service.decide_withdraw_request(
+        DecideWithdrawRequestCommand(
+            complaint_id=complaint_id,
+            decision=body.decision,
+            actor_id=str(principal.user_id),
+            reason=body.reason,
+            actor_unit_id=_actor_unit(principal, session),
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
 @router.patch("/api/v1/internal/complaints/{complaint_id}/status")
 def update_internal_complaint_status(
     complaint_id: str,
@@ -522,6 +691,7 @@ def update_internal_complaint_status(
             destination_unit_id=body.destination_unit_id,
             reason=body.reason,
             actor_unit_id=_actor_unit(principal, session),
+            actor_is_admin=_actor_is_admin(principal),
         )
     )
     return DataResponse(data=_to_response(dto, session=session))

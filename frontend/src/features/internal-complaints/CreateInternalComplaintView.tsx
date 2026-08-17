@@ -1,29 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import {
   Alert,
   Button,
   Card,
   CardBody,
-  Empty,
   Input,
+  Modal,
+  ModalSection,
   PageContainer,
   PageHeader,
   Select,
   SectionHeader,
-  Textarea,
-  Toast,
   type SelectOption,
 } from "@/shared/ui";
+import { ApiError } from "@/lib/api/client";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { fetchBranches, type Branch } from "@/lib/api/branches";
 import { fetchCmBatch1Complaints } from "@/lib/api/cmBatch1";
 import {
   createInternalComplaint,
 } from "@/lib/api/internalComplaints";
+import { uploadAttachment } from "@/lib/api/attachments";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
   defaultInternalComplaintForm,
   isInternalComplaintFormValid,
@@ -37,9 +41,22 @@ import {
   isInternalAgentFamily,
 } from "./types";
 import {
+  looksLikeRelatedComplaintQuery,
+  matchRelatedComplaint,
+  mergeRelatedComplaintRefs,
+  relatedComplaintFromListRow,
+  resolveRelatedComplaintPayload,
+  type RelatedComplaintRef,
+} from "./relatedComplaintMatch";
+import {
+  CANONICAL_PUSAT_UNIT_CODE,
   filterTransferDestinations,
   formatUnitOptionLabel,
+  isAdminFamily,
+  isPusatUnitCode,
+  resolveCreateSourceUnitCode,
 } from "./transferDirection";
+import { InternalComplaintFileStaging } from "./InternalComplaintAttachments";
 
 const RELATED_DATALIST_ID = "internal-related-complaint-numbers";
 
@@ -48,6 +65,8 @@ export function CreateInternalComplaintView() {
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const { user, userId, roles, hasPermission } = useAuth();
   const canCreate = hasPermission("complaints:create");
   const canAssign = hasPermission("complaints:assign");
@@ -60,12 +79,16 @@ export function CreateInternalComplaintView() {
   >({});
   const [branches, setBranches] = useState<Branch[]>([]);
   const [relatedSuggestions, setRelatedSuggestions] = useState<
-    { id: string; number: string }[]
+    RelatedComplaintRef[]
   >([]);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+  const [createdTicket, setCreatedTicket] = useState<{
+    id: string;
+    number: string;
+    uploadFail?: string;
+  } | null>(null);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
 
   useEffect(() => {
     fetchBranches(100)
@@ -79,21 +102,60 @@ export function CreateInternalComplaintView() {
       status: string;
       pageSize: number;
       createdBy?: string;
-    } = { status: "REGISTERED", pageSize: 20 };
+    } = { status: "OPEN", pageSize: 20 };
     if (agentOnly && userId) {
       filters.createdBy = userId;
     }
     fetchCmBatch1Complaints(filters)
       .then((res) => {
         setRelatedSuggestions(
-          (res.data ?? []).map((row) => ({
-            id: row.complaintId,
-            number: row.complaintNumber,
-          })),
+          (res.data ?? [])
+            .map(relatedComplaintFromListRow)
+            .filter((row): row is RelatedComplaintRef => row !== null),
         );
       })
       .catch(() => setRelatedSuggestions([]));
   }, [roles, userId]);
+
+  const relatedSuggestionsRef = useRef(relatedSuggestions);
+  relatedSuggestionsRef.current = relatedSuggestions;
+
+  const matchedRelated = useMemo(
+    () => matchRelatedComplaint(values.relatedComplaintId, relatedSuggestions),
+    [relatedSuggestions, values.relatedComplaintId],
+  );
+
+  useEffect(() => {
+    const raw = values.relatedComplaintId.trim();
+    if (!looksLikeRelatedComplaintQuery(raw)) return;
+    const handle = window.setTimeout(() => {
+      if (matchRelatedComplaint(raw, relatedSuggestionsRef.current)) return;
+      const agentOnly = isInternalAgentFamily(roles);
+      const filters: {
+        status: string;
+        pageSize: number;
+        keyword: string;
+        createdBy?: string;
+      } = { status: "OPEN", pageSize: 10, keyword: raw };
+      if (agentOnly && userId) {
+        filters.createdBy = userId;
+      }
+      void fetchCmBatch1Complaints(filters)
+        .then((res) => {
+          const incoming = (res.data ?? [])
+            .map(relatedComplaintFromListRow)
+            .filter((row): row is RelatedComplaintRef => row !== null);
+          if (incoming.length === 0) return;
+          setRelatedSuggestions((prev) =>
+            mergeRelatedComplaintRefs(prev, incoming),
+          );
+        })
+        .catch(() => {
+          /* preview stays hidden when lookup fails */
+        });
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [roles, userId, values.relatedComplaintId]);
 
   function setField<K extends keyof InternalComplaintFormValues>(
     key: K,
@@ -110,15 +172,40 @@ export function CreateInternalComplaintView() {
     value: priority,
     label: tPriority(priority),
   }));
-  const actorUnitCode = useMemo(() => {
+  const actorBranchCode = useMemo(() => {
     const branchId = user?.branchId;
     if (!branchId) return null;
     return branches.find((b) => b.id === branchId)?.code ?? null;
   }, [branches, user?.branchId]);
 
+  const sourceUnitCode = useMemo(
+    () =>
+      resolveCreateSourceUnitCode(actorBranchCode, {
+        treatMissingAsPusat: isAdminFamily(roles),
+      }),
+    [actorBranchCode, roles],
+  );
+  const fromPusat = isPusatUnitCode(sourceUnitCode);
+
+  const pusatBranch = useMemo(
+    () => branches.find((b) => isPusatUnitCode(b.code)) ?? null,
+    [branches],
+  );
+  const pusatDestinationCode =
+    pusatBranch?.code.trim() || CANONICAL_PUSAT_UNIT_CODE;
+
+  useEffect(() => {
+    if (fromPusat) return;
+    setValues((prev) =>
+      prev.destinationUnitId === pusatDestinationCode
+        ? prev
+        : { ...prev, destinationUnitId: pusatDestinationCode },
+    );
+  }, [fromPusat, pusatDestinationCode]);
+
   const transferDestinations = useMemo(
-    () => filterTransferDestinations(branches, actorUnitCode),
-    [branches, actorUnitCode],
+    () => filterTransferDestinations(branches, sourceUnitCode),
+    [branches, sourceUnitCode],
   );
 
   const unitOptions: SelectOption[] = [
@@ -129,20 +216,41 @@ export function CreateInternalComplaintView() {
     })),
   ];
 
-  /** Resolve typed number to Aggregate id when it matches a suggestion. */
-  function resolveRelatedPayload(): string | null {
-    const raw = values.relatedComplaintId.trim();
-    if (!raw) return null;
-    const hit = relatedSuggestions.find(
-      (row) =>
-        row.number.toUpperCase() === raw.toUpperCase() || row.id === raw,
-    );
-    return hit?.id ?? raw;
+  function relatedLinkError(err: unknown): string {
+    if (err instanceof ApiError) {
+      if (
+        err.code === "RELATED_COMPLAINT_NOT_FOUND" ||
+        err.code === "NOT_FOUND"
+      ) {
+        return t("relatedComplaintNotFoundError");
+      }
+      if (err.code === "RELATED_COMPLAINT_CLOSED") {
+        return t("relatedComplaintClosedError");
+      }
+      if (err.code === "RELATED_COMPLAINT_NOT_VISIBLE") {
+        return t("relatedComplaintNotVisibleError");
+      }
+      return resolveApiErrorMessage(err, tErrors, tCommon, "validationError");
+    }
+    return t("submitFailed");
+  }
+
+  function goToCreatedTicket(id: string): void {
+    router.push(`/internal/complaints/${encodeURIComponent(id)}`);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const fieldErrors = validateInternalComplaintForm(values, { canAssign });
+    if (!canCreate || createdTicket) return;
+    const related = resolveRelatedComplaintPayload(
+      values.relatedComplaintId,
+      relatedSuggestions,
+    );
+    const fieldErrors = validateInternalComplaintForm(values, {
+      canAssign,
+      requireRequestReason: !canAssign && fromPusat,
+      relatedUnresolved: related.status === "unresolved",
+    });
     setErrors(fieldErrors);
     if (!isInternalComplaintFormValid(fieldErrors)) return;
 
@@ -157,42 +265,36 @@ export function CreateInternalComplaintView() {
         priority: values.priority,
         chronology: values.chronology.trim() || null,
         impact: values.impact.trim() || null,
-        relatedComplaintId: resolveRelatedPayload(),
+        relatedComplaintId:
+          related.status === "matched" || related.status === "literal"
+            ? related.id
+            : null,
         handlingUnitId: dest || null,
-        requestReason: !canAssign && dest ? values.requestReason.trim() || null : null,
+        requestReason:
+          !canAssign && fromPusat && dest
+            ? values.requestReason.trim() || null
+            : null,
       });
       const id = created.data.complaintId;
-      setToastMessage(t("submitted"));
-      setToastOpen(true);
-      router.push(`/internal/complaints/${encodeURIComponent(id)}`);
+      const number = created.data.complaintNumber?.trim() || id;
+      const failed: string[] = [];
+      for (const file of stagedFiles) {
+        try {
+          await uploadAttachment("InternalComplaint", id, file);
+        } catch {
+          failed.push(file.name);
+        }
+      }
+      setCreatedTicket({
+        id,
+        number,
+        uploadFail: failed.length > 0 ? failed.join(", ") : undefined,
+      });
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : t("submitFailed"));
+      setSubmitError(relatedLinkError(err));
     } finally {
       setSaving(false);
     }
-  }
-
-  if (!canCreate) {
-    return (
-      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
-        <PageHeader
-          title={t("createTitle")}
-          breadcrumbs={[
-            { label: tCommon("home"), href: "/dashboard" },
-            { label: t("title"), href: "/internal" },
-            { label: t("create") },
-          ]}
-        />
-        <Empty
-          title={tCommon("accessRestricted")}
-          description={t("createAccessRestrictedDescription")}
-          primaryAction={{
-            label: tCommon("goHome"),
-            onClick: () => router.push("/dashboard"),
-          }}
-        />
-      </PageContainer>
-    );
   }
 
   return (
@@ -210,11 +312,23 @@ export function CreateInternalComplaintView() {
           ]}
         />
 
+        {!canCreate ? (
+          <Alert
+            tone="warning"
+            title={t("createRestrictedTitle")}
+            description={t("createAccessRestrictedDescription")}
+          />
+        ) : null}
+
         {submitError ? <Alert tone="danger" title={submitError} /> : null}
 
         <Card className="w-full">
           <CardBody>
             <form className="space-y-6" onSubmit={onSubmit}>
+              <fieldset
+                disabled={!canCreate || Boolean(createdTicket)}
+                className="min-w-0 space-y-6 border-0 p-0"
+              >
               <SectionHeader title={t("sectionBasics")} />
               <Input
                 label={t("titleField")}
@@ -228,6 +342,7 @@ export function CreateInternalComplaintView() {
                   label={t("category")}
                   options={categoryOptions}
                   value={values.category}
+                  placeholder={t("categoryPlaceholder")}
                   onChange={(e) =>
                     setField(
                       "category",
@@ -249,32 +364,95 @@ export function CreateInternalComplaintView() {
                   }
                 />
               </div>
+              <div className="space-y-2">
               <Input
                 label={t("relatedComplaint")}
                 value={values.relatedComplaintId}
                 onChange={(e) => setField("relatedComplaintId", e.target.value)}
+                placeholder={t("relatedComplaintPlaceholder")}
                 hint={t("relatedComplaintHint")}
                 list={RELATED_DATALIST_ID}
-                placeholder={t("relatedComplaintPlaceholder")}
                 autoComplete="off"
+                error={
+                  errors.relatedComplaintId
+                    ? t(errors.relatedComplaintId)
+                    : undefined
+                }
               />
               <datalist id={RELATED_DATALIST_ID}>
                 {relatedSuggestions.map((row) => (
                   <option key={row.id} value={row.number} />
                 ))}
               </datalist>
-              <Select
-                label={t("initialTransferUnit")}
-                options={unitOptions}
-                value={values.destinationUnitId}
-                onChange={(e) => setField("destinationUnitId", e.target.value)}
-                hint={canAssign ? t("initialTransferHint") : t("transferRequestHint")}
-              />
-              {!canAssign && values.destinationUnitId ? (
-                <Textarea
+              {matchedRelated ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken px-4 py-3"
+                >
+                  <dl className="grid gap-3 sm:grid-cols-3">
+                    <div className="min-w-0">
+                      <dt className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                        {t("subject")}
+                      </dt>
+                      <dd className="truncate text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {matchedRelated.subject || tCommon("emDash")}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                        {t("createdAt")}
+                      </dt>
+                      <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {formatDateTime24(
+                          matchedRelated.createdAt,
+                          locale,
+                          tCommon("emDash"),
+                        )}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                        {t("createdBy")}
+                      </dt>
+                      <dd className="truncate text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        {matchedRelated.createdByName || tCommon("emDash")}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : null}
+              </div>
+              {fromPusat ? (
+                <Select
+                  label={t("initialTransferUnit")}
+                  options={unitOptions}
+                  value={values.destinationUnitId}
+                  onChange={(e) => setField("destinationUnitId", e.target.value)}
+                  hint={
+                    canAssign
+                      ? t("initialTransferHint")
+                      : t("transferRequestHint")
+                  }
+                />
+              ) : (
+                <Input
+                  name="destinationUnitId"
+                  label={t("initialTransferUnit")}
+                  value={formatUnitOptionLabel(
+                    pusatDestinationCode,
+                    pusatBranch?.name,
+                  )}
+                  readOnly
+                  hint={t("destinationLockedToPusatHint")}
+                />
+              )}
+              {!canAssign && fromPusat && values.destinationUnitId ? (
+                <KnowledgeMentionTextarea
+                  id="internal-request-reason"
                   label={t("requestReason")}
                   value={values.requestReason}
-                  onChange={(e) => setField("requestReason", e.target.value)}
+                  onChange={(next) => setField("requestReason", next)}
                   error={
                     errors.requestReason ? t(errors.requestReason) : undefined
                   }
@@ -284,27 +462,39 @@ export function CreateInternalComplaintView() {
               ) : null}
 
               <SectionHeader title={t("sectionNarrative")} />
-              <Textarea
+              <KnowledgeMentionTextarea
+                id="internal-description"
                 label={t("description")}
                 value={values.description}
-                onChange={(e) => setField("description", e.target.value)}
+                onChange={(next) => setField("description", next)}
                 error={errors.description ? t(errors.description) : undefined}
                 required
               />
-              <Textarea
+              <KnowledgeMentionTextarea
+                id="internal-chronology"
                 label={t("chronology")}
                 value={values.chronology}
-                onChange={(e) => setField("chronology", e.target.value)}
+                onChange={(next) => setField("chronology", next)}
               />
-              <Textarea
+              <KnowledgeMentionTextarea
+                id="internal-impact"
                 label={t("impact")}
                 value={values.impact}
-                onChange={(e) => setField("impact", e.target.value)}
+                onChange={(next) => setField("impact", next)}
               />
+              <InternalComplaintFileStaging
+                files={stagedFiles}
+                onChange={setStagedFiles}
+                disabled={!canCreate || Boolean(createdTicket) || saving}
+              />
+              </fieldset>
 
               <div className="flex flex-wrap justify-center gap-3">
-                <Button type="submit" disabled={saving}>
-                  {saving ? tCommon("loading") : t("submit")}
+                <Button
+                  type="submit"
+                  disabled={saving || !canCreate || Boolean(createdTicket)}
+                >
+                  {saving ? tCommon("loading") : t("submitComplaint")}
                 </Button>
                 <Button
                   type="button"
@@ -319,12 +509,39 @@ export function CreateInternalComplaintView() {
         </Card>
       </div>
 
-      <Toast
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        title={toastMessage}
-        tone="success"
-      />
+      <Modal
+        open={Boolean(createdTicket)}
+        onClose={() => {
+          if (createdTicket) goToCreatedTicket(createdTicket.id);
+        }}
+        title={t("submittedTitle")}
+        size="sm"
+        footer={
+          <Button
+            type="button"
+            onClick={() => {
+              if (createdTicket) goToCreatedTicket(createdTicket.id);
+            }}
+          >
+            {t("submittedView")}
+          </Button>
+        }
+      >
+        <ModalSection>
+          <p className="text-sm text-ecmp-text-primary">
+            {t("submittedBody", {
+              number: createdTicket?.number ?? tCommon("emDash"),
+            })}
+          </p>
+          {createdTicket?.uploadFail ? (
+            <p className="mt-2 text-sm text-ecmp-danger">
+              {t("attachmentsPartialFail", {
+                detail: createdTicket.uploadFail,
+              })}
+            </p>
+          ) : null}
+        </ModalSection>
+      </Modal>
     </PageContainer>
   );
 }

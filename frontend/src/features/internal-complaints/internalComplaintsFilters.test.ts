@@ -44,6 +44,19 @@ function row(
     transferDecidedByName: null,
     transferDecidedAt: null,
     transferDecisionReason: null,
+    withdrawRequestStatus: null,
+    withdrawRequestReason: null,
+    withdrawRequestedBy: null,
+    withdrawRequestedByName: null,
+    withdrawRequestedAt: null,
+    withdrawDecidedBy: null,
+    withdrawDecidedByName: null,
+    withdrawDecidedAt: null,
+    withdrawDecisionReason: null,
+    withdrawnBy: null,
+    withdrawnByName: null,
+    withdrawnAt: null,
+    withdrawReason: null,
     ...partial,
   };
 }
@@ -79,6 +92,37 @@ describe("internalComplaintsFilters", () => {
         ownerUnitId: "PUSAT",
       })[0].id,
     ).toBe("2");
+  });
+
+  it("filters by search across number, subject, description, and reporter", () => {
+    const rows = [
+      row({
+        id: "1",
+        number: "PI-TAB-2608-001",
+        title: "Antrian panjang",
+        description: "Loket penuh",
+        createdByName: "Ani",
+      }),
+      row({ id: "2", number: "PI-TAB-2608-002", title: "Lain" }),
+    ];
+    expect(
+      filterInternalComplaints(rows, {
+        ...defaultInternalListFilters(),
+        q: "pelapor-tidak-ada",
+      }),
+    ).toHaveLength(0);
+    expect(
+      filterInternalComplaints(rows, {
+        ...defaultInternalListFilters(),
+        q: "Ani",
+      })[0].id,
+    ).toBe("1");
+    expect(
+      filterInternalComplaints(rows, {
+        ...defaultInternalListFilters(),
+        q: "Loket",
+      })[0].id,
+    ).toBe("1");
   });
 
   it("sorts newest first", () => {

@@ -18,6 +18,13 @@ describe("internalComplaintPaths", () => {
       "/api/v1/internal/complaints/id/acceptance",
     );
     expect(paths.close("id")).toBe("/api/v1/internal/complaints/id/close");
+    expect(paths.withdraw("id")).toBe("/api/v1/internal/complaints/id/withdraw");
+    expect(paths.withdrawRequest("id")).toBe(
+      "/api/v1/internal/complaints/id/withdraw-request",
+    );
+    expect(paths.pendingWithdrawRequestCount).toBe(
+      "/api/v1/internal/complaints/withdraw-requests/pending-count",
+    );
     expect(INTERNAL_COMPLAINTS_BASE.startsWith(FOUNDATION_COMPLAINTS_BASE)).toBe(
       false,
     );

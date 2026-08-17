@@ -91,6 +91,7 @@ export {
 export {
   downloadAttachment,
   fetchAttachment,
+  fetchAttachments,
   uploadAttachment,
 } from "./attachments";
 export type { AttachmentDownloadResult } from "./attachments";
@@ -200,15 +201,19 @@ export {
   closeInternalComplaint,
   createInternalComplaint,
   decideInternalTransferRequest,
+  decideInternalWithdrawRequest,
   fetchInternalComplaint,
   fetchInternalComplaints,
   fetchPendingTransferRequestCount,
+  fetchPendingWithdrawRequestCount,
   internalComplaintPaths,
   receiveInternalComplaint,
   recordInternalAcceptance,
   requestInternalTransfer,
+  requestInternalWithdraw,
   resolveInternalComplaint,
   transferInternalComplaint,
+  withdrawInternalComplaint,
 } from "./internalComplaints";
 export type {
   CreateInternalComplaintRequest,
@@ -224,9 +229,12 @@ export type {
   InternalResolveAction,
   InternalTransferRequestDecision,
   InternalTransferRequestStatus,
+  InternalWithdrawRequestDecision,
+  InternalWithdrawRequestStatus,
   RecordInternalAcceptanceRequest,
   RequestInternalTransferRequest,
   ResolveInternalComplaintRequest,
   TransferInternalComplaintRequest,
+  WithdrawInternalComplaintRequest,
 } from "./internalComplaints";
 export type * from "./types";

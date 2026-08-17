@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.authorization.case_acceptance import (
@@ -15,6 +15,8 @@ from app.core.authorization.case_acceptance import (
 from app.core.authorization.org_unit_resolver import OrgUnitResolver
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import resolve_row_visibility
+from app.core.errors import ApiError
+from app.core.user_messages import m
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.internal_complaint.domain import errors as err
 
@@ -64,17 +66,21 @@ def resolve_related_aggregate(
     if row is None:
         row = session.scalar(
             select(CmBatch1ComplaintORM).where(
-                CmBatch1ComplaintORM.complaint_number == key
+                func.upper(CmBatch1ComplaintORM.complaint_number) == key.upper()
             )
         )
     if row is None:
-        raise err.not_found("Related Aggregate complaint does not exist.")
+        raise ApiError(
+            404,
+            "RELATED_COMPLAINT_NOT_FOUND",
+            m("internal.related_complaint_not_found"),
+        )
 
     status = (row.status or "").strip().upper()
     if status == "CLOSED":
         raise err.conflict(
             "RELATED_COMPLAINT_CLOSED",
-            "Related Aggregate must not be CLOSED.",
+            m("internal.related_complaint_closed"),
             details={"relatedComplaintId": str(row.id), "status": status},
         )
 
@@ -91,7 +97,7 @@ def resolve_related_aggregate(
         if not _ids_equal(str(principal.user_id), row.created_by):
             raise err.conflict(
                 "RELATED_COMPLAINT_NOT_VISIBLE",
-                "Agent may only link Aggregate complaints they created.",
+                m("internal.related_complaint_not_visible"),
                 details={"relatedComplaintId": str(row.id)},
             )
         return RelatedAggregateRef(
@@ -103,7 +109,7 @@ def resolve_related_aggregate(
         if not _units_equal(actor_unit_id, row.owning_unit_id):
             raise err.conflict(
                 "RELATED_COMPLAINT_NOT_VISIBLE",
-                "Related Aggregate is outside actor unit scope.",
+                m("internal.related_complaint_not_visible"),
                 details={
                     "relatedComplaintId": str(row.id),
                     "owningUnitId": row.owning_unit_id,
@@ -117,7 +123,7 @@ def resolve_related_aggregate(
     if not _ids_equal(str(principal.user_id), row.created_by):
         raise err.conflict(
             "RELATED_COMPLAINT_NOT_VISIBLE",
-            "Related Aggregate is not visible to the actor.",
+            m("internal.related_complaint_not_visible"),
             details={"relatedComplaintId": str(row.id)},
         )
     return RelatedAggregateRef(

@@ -154,6 +154,7 @@ class SqlAlchemyInternalComplaintRepository:
         page: int = 1,
         page_size: int = 20,
         pending_transfer_request: bool | None = None,
+        pending_withdraw_request: bool | None = None,
     ) -> tuple[list[InternalComplaintORM], int]:
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
@@ -164,6 +165,8 @@ class SqlAlchemyInternalComplaintRepository:
             )
         if pending_transfer_request:
             stmt = stmt.where(InternalComplaintORM.transfer_request_status == "PENDING")
+        if pending_withdraw_request:
+            stmt = stmt.where(InternalComplaintORM.withdraw_request_status == "PENDING")
 
         vis = (visibility or "").upper()
         if vis == "ALL":

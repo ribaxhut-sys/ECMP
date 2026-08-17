@@ -163,8 +163,8 @@ describe("Scenario 2 & 6 — auto mode expands the subgroup owning the active ro
   });
 });
 
-describe("Scenario 7 — internal verification route", () => {
-  it("expands Internal and marks Verification active", () => {
+describe("Scenario 7 — internal approval queue route", () => {
+  it("expands Internal and marks Approval active", () => {
     mockPermissions = ["*"];
     mockPathname = "/internal/verification";
     const { sidebar } = renderSidebar();
@@ -178,7 +178,7 @@ describe("Scenario 7 — internal verification route", () => {
       internalToggle.getAttribute("aria-controls")!,
     )!;
     const verificationLink = within(panel).getByRole("link", {
-      name: /Verification/i,
+      name: /Approval/i,
     });
     expect(verificationLink).toHaveAttribute("aria-current", "page");
   });

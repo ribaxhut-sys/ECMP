@@ -12,12 +12,18 @@ class InternalStatus(StrEnum):
     IN_PROGRESS = "IN_PROGRESS"
     RESOLVED = "RESOLVED"
     CLOSED = "CLOSED"
+    WITHDRAWN = "WITHDRAWN"
 
 
 class ResolveAction(StrEnum):
     PROPOSE = "PROPOSE"
     ACCEPT = "ACCEPT"
     REJECT = "REJECT"
+
+
+# Machine sentinel — not shown to operators. Explicit codes (incl. lab
+# leftovers such as IC-OK) remain accepted.
+RESOLUTION_SENTINEL = "IC_DONE"
 
 
 class ResolutionProposalStatus(StrEnum):
@@ -44,6 +50,14 @@ class TransferRequestStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class WithdrawRequestStatus(StrEnum):
+    """Branch asks Pusat to withdraw after receive — one PENDING at a time."""
+
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class HistoryEventType(StrEnum):
     CREATED = "CREATED"
     TRANSFER = "TRANSFER"
@@ -58,6 +72,10 @@ class HistoryEventType(StrEnum):
     OWNER_ACCEPT = "OWNER_ACCEPT"
     OWNER_REJECT = "OWNER_REJECT"
     CLOSED = "CLOSED"
+    WITHDRAWN = "WITHDRAWN"
+    WITHDRAW_REQUESTED = "WITHDRAW_REQUESTED"
+    WITHDRAW_REQUEST_APPROVED = "WITHDRAW_REQUEST_APPROVED"
+    WITHDRAW_REQUEST_REJECTED = "WITHDRAW_REQUEST_REJECTED"
 
 
 # Legacy lab format ``PI-YYYY-NNNNNN`` (global per-year counter — kept

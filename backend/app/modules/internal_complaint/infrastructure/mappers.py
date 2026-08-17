@@ -18,6 +18,7 @@ from app.modules.internal_complaint.domain.value_objects import (
     InternalStatus,
     ResolutionProposalStatus,
     TransferRequestStatus,
+    WithdrawRequestStatus,
 )
 from app.modules.internal_complaint.infrastructure.orm import (
     InternalComplaintAcceptanceORM,
@@ -201,6 +202,20 @@ def complaint_from_orm(
         transfer_decided_by=row.transfer_decided_by,
         transfer_decided_at=row.transfer_decided_at,
         transfer_decision_reason=row.transfer_decision_reason,
+        withdraw_request_status=(
+            WithdrawRequestStatus(row.withdraw_request_status)
+            if row.withdraw_request_status
+            else None
+        ),
+        withdraw_request_reason=row.withdraw_request_reason,
+        withdraw_requested_by=row.withdraw_requested_by,
+        withdraw_requested_at=row.withdraw_requested_at,
+        withdraw_decided_by=row.withdraw_decided_by,
+        withdraw_decided_at=row.withdraw_decided_at,
+        withdraw_decision_reason=row.withdraw_decision_reason,
+        withdrawn_by=row.withdrawn_by,
+        withdrawn_at=row.withdrawn_at,
+        withdraw_reason=row.withdraw_reason,
     )
 
 
@@ -244,3 +259,17 @@ def apply_complaint_to_orm(
     row.transfer_decided_by = complaint.transfer_decided_by
     row.transfer_decided_at = complaint.transfer_decided_at
     row.transfer_decision_reason = complaint.transfer_decision_reason
+    row.withdraw_request_status = (
+        complaint.withdraw_request_status.value
+        if complaint.withdraw_request_status
+        else None
+    )
+    row.withdraw_request_reason = complaint.withdraw_request_reason
+    row.withdraw_requested_by = complaint.withdraw_requested_by
+    row.withdraw_requested_at = complaint.withdraw_requested_at
+    row.withdraw_decided_by = complaint.withdraw_decided_by
+    row.withdraw_decided_at = complaint.withdraw_decided_at
+    row.withdraw_decision_reason = complaint.withdraw_decision_reason
+    row.withdrawn_by = complaint.withdrawn_by
+    row.withdrawn_at = complaint.withdrawn_at
+    row.withdraw_reason = complaint.withdraw_reason

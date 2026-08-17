@@ -4,11 +4,14 @@
  * API-backed hooks for Pengaduan Internal (replaces in-memory mock SoT).
  */
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { ApiError } from "@/lib/api/client";
 import {
   fetchInternalComplaint,
   fetchInternalComplaints,
   type InternalComplaint as ApiDetail,
 } from "@/lib/api/internalComplaints";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   mapDetailToRow,
   mapSummaryToRow,
@@ -21,6 +24,8 @@ export function useInternalComplaints(): {
   error: string | null;
   reload: () => void;
 } {
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const [rows, setRows] = useState<InternalComplaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +44,11 @@ export function useInternalComplaints(): {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load");
+        setError(
+          err instanceof ApiError
+            ? resolveApiErrorMessage(err, tErrors, tCommon)
+            : tErrors("unexpectedError"),
+        );
         setRows([]);
       })
       .finally(() => {
@@ -48,7 +57,7 @@ export function useInternalComplaints(): {
     return () => {
       cancelled = true;
     };
-  }, [tick]);
+  }, [tick, tErrors, tCommon]);
 
   return { rows, loading, error, reload };
 }
@@ -60,6 +69,8 @@ export function useInternalComplaint(id: string): {
   error: string | null;
   reload: () => void;
 } {
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const [complaint, setComplaint] = useState<InternalComplaint | null>(null);
   const [detail, setDetail] = useState<ApiDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,7 +97,11 @@ export function useInternalComplaint(id: string): {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load");
+        setError(
+          err instanceof ApiError
+            ? resolveApiErrorMessage(err, tErrors, tCommon)
+            : tErrors("unexpectedError"),
+        );
         setComplaint(null);
         setDetail(null);
       })
@@ -96,7 +111,7 @@ export function useInternalComplaint(id: string): {
     return () => {
       cancelled = true;
     };
-  }, [id, tick]);
+  }, [id, tick, tErrors, tCommon]);
 
   return { complaint, detail, loading, error, reload };
 }

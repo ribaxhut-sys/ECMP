@@ -10,6 +10,7 @@ import { mayManageAnnouncements } from "@/features/announcements/announcementMan
 import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
+import { usePendingWithdrawRequestCount } from "@/features/internal-complaints/usePendingWithdrawRequestCount";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
@@ -590,6 +591,7 @@ function NavSections({
   const tCommon = useTranslations("common");
   const unreadCount = useUnreadAnnouncementCount();
   const pendingTransferRequestCount = usePendingTransferRequestCount();
+  const pendingWithdrawRequestCount = usePendingWithdrawRequestCount();
   let itemsWithBadges = itemsById;
   if (unreadCount > 0 && itemsWithBadges.announcements) {
     itemsWithBadges = {
@@ -603,6 +605,15 @@ function NavSections({
       internalAssignments: {
         ...itemsWithBadges.internalAssignments,
         badge: pendingTransferRequestCount,
+      },
+    };
+  }
+  if (pendingWithdrawRequestCount > 0 && itemsWithBadges.internalFollowUp) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      internalFollowUp: {
+        ...itemsWithBadges.internalFollowUp,
+        badge: pendingWithdrawRequestCount,
       },
     };
   }

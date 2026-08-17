@@ -79,6 +79,16 @@ class InternalComplaintDTO:
     transfer_decided_by: str | None = None
     transfer_decided_at: datetime | None = None
     transfer_decision_reason: str | None = None
+    withdraw_request_status: str | None = None
+    withdraw_request_reason: str | None = None
+    withdraw_requested_by: str | None = None
+    withdraw_requested_at: datetime | None = None
+    withdraw_decided_by: str | None = None
+    withdraw_decided_at: datetime | None = None
+    withdraw_decision_reason: str | None = None
+    withdrawn_by: str | None = None
+    withdrawn_at: datetime | None = None
+    withdraw_reason: str | None = None
 
 
 @dataclass
@@ -96,6 +106,7 @@ class InternalComplaintSummaryDTO:
     related_complaint_id: str | None = None
     related_complaint_number: str | None = None
     transfer_request_status: str | None = None
+    withdraw_request_status: str | None = None
 
 
 @dataclass
@@ -121,6 +132,7 @@ class TransferCommand:
     actor_id: str
     reason: str | None = None
     actor_unit_id: str | None = None
+    actor_is_admin: bool = False
 
 
 @dataclass
@@ -132,6 +144,7 @@ class RequestTransferCommand:
     reason: str
     actor_id: str
     actor_unit_id: str | None = None
+    actor_is_admin: bool = False
 
 
 @dataclass
@@ -141,6 +154,7 @@ class DecideTransferRequestCommand:
     actor_id: str
     reason: str | None = None
     actor_unit_id: str | None = None
+    actor_is_admin: bool = False
 
 
 @dataclass
@@ -159,6 +173,7 @@ class UpdateStatusCommand:
     destination_unit_id: str | None = None
     reason: str | None = None
     actor_unit_id: str | None = None
+    actor_is_admin: bool = False
 
 
 @dataclass
@@ -189,4 +204,29 @@ class CloseCommand:
     complaint_id: str
     actor_id: str
     note: str | None = None
+    actor_unit_id: str | None = None
+
+
+@dataclass
+class WithdrawCommand:
+    complaint_id: str
+    actor_id: str
+    reason: str
+    actor_unit_id: str | None = None
+
+
+@dataclass
+class RequestWithdrawCommand:
+    complaint_id: str
+    actor_id: str
+    reason: str
+    actor_unit_id: str | None = None
+
+
+@dataclass
+class DecideWithdrawRequestCommand:
+    complaint_id: str
+    decision: str
+    actor_id: str
+    reason: str | None = None
     actor_unit_id: str | None = None

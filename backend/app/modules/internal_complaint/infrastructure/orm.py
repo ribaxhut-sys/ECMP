@@ -36,6 +36,10 @@ class InternalComplaintORM(Base):
             "ix_internal_complaints_transfer_request_status",
             "transfer_request_status",
         ),
+        Index(
+            "ix_internal_complaints_withdraw_request_status",
+            "withdraw_request_status",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -89,6 +93,30 @@ class InternalComplaintORM(Base):
     transfer_decision_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )
+    withdraw_request_status: Mapped[str | None] = mapped_column(
+        String(16), nullable=True
+    )
+    withdraw_request_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    withdraw_requested_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    withdraw_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    withdraw_decided_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    withdraw_decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    withdraw_decision_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    withdrawn_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    withdraw_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     closed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

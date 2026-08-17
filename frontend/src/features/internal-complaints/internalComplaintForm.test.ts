@@ -26,7 +26,23 @@ describe("internalComplaintForm", () => {
     expect(isInternalComplaintFormValid(errors)).toBe(true);
   });
 
-  it("requires a reason when an Agent (no complaints:assign) picks a destination", () => {
+  it("requires a reason when a Pusat Agent (no complaints:assign) picks a destination", () => {
+    const values = {
+      ...defaultInternalComplaintForm(),
+      title: "Issue",
+      category: "OPERATIONAL" as const,
+      description: "Details",
+      destinationUnitId: "UPPPD-GAMBIR",
+    };
+    const errors = validateInternalComplaintForm(values, {
+      canAssign: false,
+      requireRequestReason: true,
+    });
+    expect(errors.requestReason).toBe("requestReasonRequiredError");
+    expect(isInternalComplaintFormValid(errors)).toBe(false);
+  });
+
+  it("does not require a reason for a branch Agent sending to Pusat", () => {
     const values = {
       ...defaultInternalComplaintForm(),
       title: "Issue",
@@ -34,9 +50,12 @@ describe("internalComplaintForm", () => {
       description: "Details",
       destinationUnitId: "PUSAT",
     };
-    const errors = validateInternalComplaintForm(values, { canAssign: false });
-    expect(errors.requestReason).toBe("requestReasonRequiredError");
-    expect(isInternalComplaintFormValid(errors)).toBe(false);
+    const errors = validateInternalComplaintForm(values, {
+      canAssign: false,
+      requireRequestReason: false,
+    });
+    expect(errors.requestReason).toBeUndefined();
+    expect(isInternalComplaintFormValid(errors)).toBe(true);
   });
 
   it("does not require a reason for Supervisor/Manager (complaints:assign)", () => {
@@ -61,5 +80,19 @@ describe("internalComplaintForm", () => {
     };
     const errors = validateInternalComplaintForm(values, { canAssign: false });
     expect(errors.requestReason).toBeUndefined();
+  });
+
+  it("rejects an unmatched related-complaint search", () => {
+    const values = {
+      ...defaultInternalComplaintForm(),
+      title: "Issue",
+      category: "OPERATIONAL" as const,
+      description: "Details",
+      relatedComplaintId: "bukan nomor",
+    };
+    const errors = validateInternalComplaintForm(values, {
+      relatedUnresolved: true,
+    });
+    expect(errors.relatedComplaintId).toBe("relatedComplaintNotFoundError");
   });
 });

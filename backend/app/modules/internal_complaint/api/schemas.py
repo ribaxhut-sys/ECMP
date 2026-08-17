@@ -31,6 +31,9 @@ class InternalComplaintSummaryResponse(BaseModel):
     transfer_request_status: str | None = Field(
         default=None, alias="transferRequestStatus"
     )
+    withdraw_request_status: str | None = Field(
+        default=None, alias="withdrawRequestStatus"
+    )
 
 
 class ResolutionResponse(BaseModel):
@@ -145,6 +148,37 @@ class InternalComplaintResponse(BaseModel):
     transfer_decision_reason: str | None = Field(
         default=None, alias="transferDecisionReason"
     )
+    withdraw_request_status: str | None = Field(
+        default=None, alias="withdrawRequestStatus"
+    )
+    withdraw_request_reason: str | None = Field(
+        default=None, alias="withdrawRequestReason"
+    )
+    withdraw_requested_by: str | None = Field(
+        default=None, alias="withdrawRequestedBy"
+    )
+    withdraw_requested_by_name: str | None = Field(
+        default=None, alias="withdrawRequestedByName"
+    )
+    withdraw_requested_at: datetime | None = Field(
+        default=None, alias="withdrawRequestedAt"
+    )
+    withdraw_decided_by: str | None = Field(
+        default=None, alias="withdrawDecidedBy"
+    )
+    withdraw_decided_by_name: str | None = Field(
+        default=None, alias="withdrawDecidedByName"
+    )
+    withdraw_decided_at: datetime | None = Field(
+        default=None, alias="withdrawDecidedAt"
+    )
+    withdraw_decision_reason: str | None = Field(
+        default=None, alias="withdrawDecisionReason"
+    )
+    withdrawn_by: str | None = Field(default=None, alias="withdrawnBy")
+    withdrawn_by_name: str | None = Field(default=None, alias="withdrawnByName")
+    withdrawn_at: datetime | None = Field(default=None, alias="withdrawnAt")
+    withdraw_reason: str | None = Field(default=None, alias="withdrawReason")
 
 
 class CreateInternalComplaintRequest(BaseModel):
@@ -165,12 +199,10 @@ class CreateInternalComplaintRequest(BaseModel):
     related_complaint_number: str | None = Field(
         default=None, alias="relatedComplaintNumber"
     )
-    # Owner always derived from principal. handlingUnitId meaning depends on
-    # the actor's permission: with complaints:assign (Supervisor/Manager) it
-    # is a direct initial transfer, same as before. Without it (Agent-family)
-    # it becomes a pending transfer request — requestReason is then required
-    # and Handling Unit stays at the owner unit until Supervisor/Manager/Admin
-    # decides via /transfer-request/decision.
+    # Owner always derived from principal. Cabang create always sends Handling
+    # to Pusat (ASSIGNED). Pusat create: complaints:assign → direct transfer;
+    # Agent-family + handlingUnitId → pending transfer request (requestReason
+    # required).
     owner_unit_id: str | None = Field(default=None, alias="ownerUnitId")
     handling_unit_id: str | None = Field(default=None, alias="handlingUnitId")
     request_reason: str | None = Field(default=None, alias="requestReason")
@@ -236,3 +268,16 @@ class CloseRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     note: str | None = None
+
+
+class WithdrawRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    reason: str = Field(min_length=1)
+
+
+class DecideWithdrawRequestRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    decision: Literal["APPROVE", "REJECT"]
+    reason: str | None = None

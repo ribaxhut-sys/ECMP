@@ -48,6 +48,7 @@ Draft
 | **DEC-025** | CM Target Single SoT + Mode A Complaint Closure | 🟢 **Accepted** (2026-08-13) | Target CM Single SoT; Dual-SoT DEC-020 tetap sampai Retirement follow-up; BR-009 auto-close + status `IN_PROGRESS` — **bukan** cutover; M-025-1 terpisah |
 | **DEC-026** | Foundation `/api/v1/complaints` namespace retirement | 🟢 **Accepted with Conditions** (2026-08-13) | M-026-1…2 executed; M-026-3 unused-leave tables (H1); CA BC bukan objek retire |
 | **DEC-MODEA-B2-001** | Mode A Delivery Baseline BQ Lock (CAP-008) | **Accepted** | BQ-002…014 LOCKED; Residual BQ ZERO; FRD Batch-2 prerequisite READY |
+| **ECMP-MODEA-INT-001** | Pengaduan Internal Journey Contract | **Accepted (Mode A UI)** | `/internal/*` copy + gerbang tutup; **bukan** Dual-SoT WP / bukan ADR |
 
 > DEC-020 (SoT remapping) closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, or real-customer production.
 > **DEC-MODEA-B2-001** locks Batch-2 Mode A Case Management BQs and registers capability **CAP-008** (former working ID CAP-02 retired). Pack: `../18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`.

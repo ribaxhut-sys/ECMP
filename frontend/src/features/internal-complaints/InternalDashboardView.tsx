@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/auth/AuthProvider";
 import {
   Alert,
   Button,
@@ -27,8 +26,6 @@ export function InternalDashboardView() {
   const router = useRouter();
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
-  const { hasPermission } = useAuth();
-  const canCreate = hasPermission("complaints:create");
   const { rows, loading, error } = useInternalComplaints();
   const recent = useMemo(() => sortByMostRecent(rows).slice(0, 8), [rows]);
 
@@ -75,11 +72,9 @@ export function InternalDashboardView() {
           { label: t("title") },
         ]}
         actions={
-          canCreate ? (
-            <Button type="button" onClick={() => router.push("/internal/complaints/new")}>
-              {t("create")}
-            </Button>
-          ) : undefined
+          <Button type="button" onClick={() => router.push("/internal/complaints/new")}>
+            {t("create")}
+          </Button>
         }
       />
       {error ? <Alert tone="danger" title={error} /> : null}

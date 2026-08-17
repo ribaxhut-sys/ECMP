@@ -16,6 +16,7 @@ import type { InternalComplaint } from "./types";
 import {
   InternalStatusBadge,
   InternalTransferRequestBadge,
+  InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
 
 function FilteredList({
@@ -61,6 +62,7 @@ function FilteredList({
         <div className="flex flex-wrap gap-1">
           <InternalStatusBadge status={row.status} />
           <InternalTransferRequestBadge status={row.transferRequestStatus} />
+          <InternalWithdrawRequestBadge status={row.withdrawRequestStatus} />
         </div>
       ),
     },
@@ -128,7 +130,7 @@ export function InternalReportsView() {
     <FilteredList
       title={t("reportsTitle")}
       description={t("reportsDescription")}
-      statuses={["CLOSED", "RESOLVED", "IN_PROGRESS", "ASSIGNED", "CREATED"]}
+      statuses={["CLOSED", "RESOLVED", "IN_PROGRESS", "ASSIGNED", "CREATED", "WITHDRAWN"]}
     />
   );
 }

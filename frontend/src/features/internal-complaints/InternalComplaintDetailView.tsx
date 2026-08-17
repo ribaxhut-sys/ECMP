@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
   Alert,
   Button,
@@ -24,19 +25,26 @@ import {
   type TimelineItem,
 } from "@/shared/ui";
 import { fetchBranches, type Branch } from "@/lib/api/branches";
+import { ApiError } from "@/lib/api/client";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
 import {
   decideInternalTransferRequest,
+  decideInternalWithdrawRequest,
   receiveInternalComplaint,
   recordInternalAcceptance,
   requestInternalTransfer,
+  requestInternalWithdraw,
   resolveInternalComplaint,
   transferInternalComplaint,
+  withdrawInternalComplaint,
 } from "@/lib/api/internalComplaints";
 import { useInternalComplaint } from "./mock/useInternalComplaints";
+import { InternalComplaintAttachmentsPanel } from "./InternalComplaintAttachments";
+import { visibleInternalAcceptanceActions } from "./acceptanceGate";
+import { buildInternalResolveRequest } from "./resolvePayload";
 import {
   HISTORY_LABEL_KEY,
-  canAccept,
-  canReceive,
   canRequestTransfer,
   canResolve,
   canTransfer,
@@ -47,14 +55,25 @@ import {
   InternalStatusBadge,
 } from "./components/InternalBadges";
 import {
-  filterTransferDestinations,
+  filterInternalTransferDestinations,
   formatUnitOptionLabel,
+  isAdminFamily,
 } from "./transferDirection";
+import {
+  isWaitingForPusatReceive,
+  mayDecideWithdraw,
+  mayOwnerWithdraw,
+  mayReceiveInternal,
+  mayRequestWithdraw,
+} from "./withdrawGate";
 
-function formatDateTime(value: string | null | undefined): string {
+function formatDateTime(
+  value: string | null | undefined,
+  locale: string,
+): string {
   if (!value) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -78,6 +97,23 @@ function displayPersonName(
   return id ? unknownLabel : "—";
 }
 
+function MetaItem({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+        {label}
+      </dt>
+      <dd className="text-sm text-ecmp-text-primary">{children}</dd>
+    </div>
+  );
+}
+
 type ModalKind =
   | "transfer"
   | "resolve"
@@ -86,12 +122,19 @@ type ModalKind =
   | "requestTransfer"
   | "decideApprove"
   | "decideReject"
+  | "withdraw"
+  | "requestWithdraw"
+  | "decideWithdrawApprove"
+  | "decideWithdrawReject"
   | null;
 
 export function InternalComplaintDetailView({ id }: { id: string }) {
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
-  const { hasPermission } = useAuth();
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
+  const { hasPermission, roles, userId } = useAuth();
+  const actorUnitCode = useOrgUnitCode();
   const { complaint, loading, error, reload } = useInternalComplaint(id);
 
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -99,8 +142,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const [destinationUnitId, setDestinationUnitId] = useState("");
   const [transferReason, setTransferReason] = useState("");
   const [resolveSummary, setResolveSummary] = useState("");
-  const [resolveCode, setResolveCode] = useState("IC-OK");
   const [resolveComment, setResolveComment] = useState("");
+  const [resolveFieldError, setResolveFieldError] = useState<
+    "resolutionSummaryRequiredError" | "commentRequiredError" | null
+  >(null);
   const [acceptParty, setAcceptParty] = useState<"OWNER" | "HANDLING_UNIT">(
     "OWNER",
   );
@@ -108,6 +153,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const [requestDestinationUnitId, setRequestDestinationUnitId] = useState("");
   const [requestReasonText, setRequestReasonText] = useState("");
   const [decisionReason, setDecisionReason] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -140,22 +186,29 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           title: t(HISTORY_LABEL_KEY[event.eventType] ?? "activityCREATED"),
           description:
             [event.note, unitMove].filter(Boolean).join(" · ") || undefined,
-          time: formatDateTime(event.occurredAt),
+          time: formatDateTime(event.occurredAt, locale),
           actor: t("historyActor", { name: actorName }),
         };
       });
-  }, [complaint, t]);
+  }, [complaint, t, locale]);
 
-  const unitOptions: SelectOption[] = useMemo(
-    () =>
-      filterTransferDestinations(branches, complaint?.handlingUnitId).map(
-        (b) => ({
-          value: b.code,
-          label: formatUnitOptionLabel(b.code, b.name),
-        }),
-      ),
-    [branches, complaint?.handlingUnitId],
-  );
+  const actorIsAdmin = isAdminFamily(roles);
+  const unitOptions: SelectOption[] = useMemo(() => {
+    if (actorUnitCode === undefined) return [];
+    return filterInternalTransferDestinations(branches, {
+      actorUnitId: actorUnitCode,
+      handlingUnitId: complaint?.handlingUnitId,
+      actorIsAdmin,
+    }).map((b) => ({
+      value: b.code,
+      label: formatUnitOptionLabel(b.code, b.name),
+    }));
+  }, [
+    actorIsAdmin,
+    actorUnitCode,
+    branches,
+    complaint?.handlingUnitId,
+  ]);
 
   if (loading) {
     return (
@@ -193,29 +246,113 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       setToastMessage(okMessage);
       reload();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : t("actionFailed"));
+      setActionError(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("actionFailed"),
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  const complaintId = complaint.id;
+
+  function submitResolve(action: "PROPOSE" | "ACCEPT") {
+    const payload = buildInternalResolveRequest({
+      action,
+      summary: resolveSummary,
+      comment: resolveComment,
+    });
+    if (!payload.ok) {
+      setResolveFieldError(payload.error);
+      return;
+    }
+    setResolveFieldError(null);
+    void run(
+      () => resolveInternalComplaint(complaintId, payload.body),
+      action === "PROPOSE" ? t("proposeOk") : t("resolveOk"),
+    );
+  }
+
   const canAssign = hasPermission("complaints:assign");
   const canDecideTransferRequest = hasPermission("internal:escalate-decide");
-  const showReceive = canReceive(complaint.status) && hasPermission("complaints:update");
-  const showTransfer = canTransfer(complaint.status) && canAssign;
+  const canUpdate = hasPermission("complaints:update");
+  const waitingForPusat = isWaitingForPusatReceive({
+    status: complaint.status,
+    ownerUnitId: complaint.ownerUnitId,
+    handlingUnitId: complaint.handlingUnitId,
+  });
+  const ownerMayWithdraw = mayOwnerWithdraw({
+    roles,
+    actorUserId: userId ?? "",
+    creatorUserId: complaint.createdBy,
+    actorUnitCode: actorUnitCode ?? null,
+    ownerUnitId: complaint.ownerUnitId,
+    hasAssignPermission: canAssign,
+  });
+  const showReceive = mayReceiveInternal({
+    status: complaint.status,
+    actorUnitCode: actorUnitCode ?? null,
+    handlingUnitId: complaint.handlingUnitId,
+    hasUpdatePermission: canUpdate,
+  });
+  const showWithdraw = waitingForPusat && ownerMayWithdraw && canUpdate;
+  const showRequestWithdraw = mayRequestWithdraw({
+    status: complaint.status,
+    ownerUnitId: complaint.ownerUnitId,
+    handlingUnitId: complaint.handlingUnitId,
+    withdrawRequestStatus: complaint.withdrawRequestStatus,
+    roles,
+    actorUserId: userId ?? "",
+    creatorUserId: complaint.createdBy,
+    actorUnitCode: actorUnitCode ?? null,
+    hasAssignPermission: canAssign,
+  }) && canUpdate;
+  const showDecideWithdraw = mayDecideWithdraw({
+    withdrawRequestStatus: complaint.withdrawRequestStatus,
+    roles,
+    actorUnitCode: actorUnitCode ?? null,
+    handlingUnitId: complaint.handlingUnitId,
+    hasAssignPermission: canAssign,
+    hasEscalateDecidePermission: canDecideTransferRequest,
+  });
+  const showTransfer =
+    canTransfer(complaint.status) && canAssign && unitOptions.length > 0;
   const showResolve = canResolve(complaint.status) && hasPermission("complaints:update");
-  const showAccept = canAccept(complaint.status) && hasPermission("complaints:update");
+  const acceptanceActions = visibleInternalAcceptanceActions({
+    status: complaint.status,
+    hasUpdatePermission: hasPermission("complaints:update"),
+    actorUnitReady: actorUnitCode !== undefined && Boolean(userId),
+    roles,
+    actorUnitCode: actorUnitCode ?? null,
+    ownerUnitId: complaint.ownerUnitId,
+    handlingUnitId: complaint.handlingUnitId,
+    actorUserId: userId ?? "",
+    creatorUserId: complaint.createdBy,
+    handlingUnitAcceptance: complaint.handlingUnitAcceptance,
+    ownerAcceptance: complaint.ownerAcceptance,
+  });
+  const showAcceptHandling = acceptanceActions.acceptHandling;
+  const showAcceptOwner = acceptanceActions.acceptOwner;
+  const rejectParties = acceptanceActions.rejectParties;
+  const showReject = rejectParties.length > 0;
+  const rejectPartyLocked = rejectParties.length === 1;
+  const localClosure = acceptanceActions.gate === "local";
+  const showClosureHint = complaint.status === "RESOLVED";
   // Agent-family: request instead of direct transfer, and may re-apply after reject.
   const showRequestTransfer =
     !canAssign &&
     hasPermission("complaints:create") &&
-    canRequestTransfer(complaint);
+    canRequestTransfer(complaint) &&
+    unitOptions.length > 0;
   const showReapplyTransfer =
     !canAssign &&
     hasPermission("complaints:create") &&
     complaint.transferRequestStatus === "REJECTED" &&
     complaint.status === "CREATED" &&
-    complaint.handlingUnitId === complaint.ownerUnitId;
+    complaint.handlingUnitId === complaint.ownerUnitId &&
+    unitOptions.length > 0;
   const showDecideTransferRequest =
     canDecideTransferRequest && hasPendingTransferRequest(complaint);
 
@@ -287,6 +424,57 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                 </Button>
               </>
             ) : null}
+            {showWithdraw ? (
+              <Button
+                type="button"
+                variant="danger"
+                disabled={busy}
+                onClick={() => {
+                  setCancelReason("");
+                  setModal("withdraw");
+                }}
+              >
+                {t("withdraw")}
+              </Button>
+            ) : null}
+            {showRequestWithdraw ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => {
+                  setCancelReason("");
+                  setModal("requestWithdraw");
+                }}
+              >
+                {t("requestWithdraw")}
+              </Button>
+            ) : null}
+            {showDecideWithdraw ? (
+              <>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setDecisionReason("");
+                    setModal("decideWithdrawApprove");
+                  }}
+                >
+                  {t("approveWithdrawRequest")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={busy}
+                  onClick={() => {
+                    setDecisionReason("");
+                    setModal("decideWithdrawReject");
+                  }}
+                >
+                  {t("rejectWithdrawRequest")}
+                </Button>
+              </>
+            ) : null}
             {showReceive ? (
               <Button
                 type="button"
@@ -315,128 +503,193 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               <Button
                 type="button"
                 disabled={busy}
-                onClick={() => setModal("resolve")}
+                onClick={() => {
+                  setResolveFieldError(null);
+                  setModal("resolve");
+                }}
               >
                 {t("resolve")}
               </Button>
             ) : null}
-            {showAccept ? (
-              <>
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setAcceptParty("HANDLING_UNIT");
-                    setModal("accept");
-                  }}
-                >
-                  {t("acceptHandling")}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setAcceptParty("OWNER");
-                    setModal("accept");
-                  }}
-                >
-                  {t("acceptOwner")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="danger"
-                  disabled={busy}
-                  onClick={() => setModal("reject")}
-                >
-                  {t("reject")}
-                </Button>
-              </>
+            {showAcceptHandling ? (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setAcceptParty("HANDLING_UNIT");
+                  setAcceptNote("");
+                  setModal("accept");
+                }}
+              >
+                {t("acceptHandling")}
+              </Button>
+            ) : null}
+            {showAcceptOwner ? (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setAcceptParty("OWNER");
+                  setAcceptNote("");
+                  setModal("accept");
+                }}
+              >
+                {localClosure ? t("acceptLocal") : t("acceptOwner")}
+              </Button>
+            ) : null}
+            {showReject ? (
+              <Button
+                type="button"
+                variant="danger"
+                disabled={busy}
+                onClick={() => {
+                  setAcceptParty(rejectParties[0] ?? "HANDLING_UNIT");
+                  setAcceptNote("");
+                  setModal("reject");
+                }}
+              >
+                {t("rejectReturnToHandling")}
+              </Button>
             ) : null}
           </div>
         }
       />
 
       {actionError ? <Alert tone="danger" title={actionError} /> : null}
+      {showWithdraw ? (
+        <Alert tone="info" title={t("waitingForPusatReceiveHint")} />
+      ) : null}
+      {showDecideWithdraw ? (
+        <Alert tone="warning" title={t("pendingWithdrawRequestHint")} />
+      ) : null}
+      {showRequestWithdraw && complaint.withdrawRequestStatus === "REJECTED" ? (
+        <Alert tone="info" title={t("requestWithdrawHint")} />
+      ) : null}
+      {showClosureHint ? (
+        <Alert
+          tone="info"
+          title={
+            localClosure ? t("closureHintLocal") : t("closureHintTransferred")
+          }
+        />
+      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>{t("sectionBasics")}</CardTitle>
           </CardHeader>
-          <CardBody className="space-y-2 text-sm">
-            <div className="flex flex-wrap gap-2">
-              <InternalStatusBadge status={complaint.status} />
-              <InternalPriorityBadge priority={complaint.priority} />
-            </div>
-            <p>
-              <span className="text-ecmp-text-secondary">{t("ownerUnit")}: </span>
-              {complaint.ownerUnitId}
-            </p>
-            <p>
-              <span className="text-ecmp-text-secondary">
-                {t("handlingUnit")}:{" "}
-              </span>
-              {complaint.handlingUnitId}
-            </p>
-            {complaint.relatedComplaintNumber ? (
-              <p>
-                <span className="text-ecmp-text-secondary">
-                  {t("relatedComplaint")}:{" "}
-                </span>
-                {complaint.relatedComplaintNumber}
-              </p>
-            ) : null}
-            <p>
-              <span className="text-ecmp-text-secondary">
-                {t("handlingAcceptance")}:{" "}
-              </span>
-              {complaint.handlingUnitAcceptance ?? "—"}
-            </p>
-            <p>
-              <span className="text-ecmp-text-secondary">
-                {t("ownerAcceptance")}:{" "}
-              </span>
-              {complaint.ownerAcceptance ?? "—"}
-            </p>
-            <p>
-              <span className="text-ecmp-text-secondary">{t("createdBy")}: </span>
-              {displayPersonName(
-                complaint.createdByName,
-                complaint.createdBy,
-                t("unknownUser"),
-              )}
-            </p>
-            <p>
-              <span className="text-ecmp-text-secondary">{t("createdAt")}: </span>
-              {formatDateTime(complaint.createdAt)}
-            </p>
+          <CardBody className="space-y-4 text-sm">
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+              <MetaItem label={t("status")}>
+                <div className="flex flex-wrap gap-2">
+                  <InternalStatusBadge status={complaint.status} />
+                  <InternalPriorityBadge priority={complaint.priority} />
+                </div>
+              </MetaItem>
+              <MetaItem label={t("relatedComplaint")}>
+                {complaint.relatedComplaintNumber || tCommon("emDash")}
+              </MetaItem>
+              <MetaItem label={t("ownerUnit")}>{complaint.ownerUnitId}</MetaItem>
+              <MetaItem label={t("handlingUnit")}>
+                {complaint.handlingUnitId}
+              </MetaItem>
+              <MetaItem label={t("handlingAcceptance")}>
+                {complaint.handlingUnitAcceptance === "ACCEPT"
+                  ? t("acceptanceAccepted")
+                  : complaint.handlingUnitAcceptance === "REJECT"
+                    ? t("acceptanceRejected")
+                    : tCommon("emDash")}
+              </MetaItem>
+              <MetaItem label={t("ownerAcceptance")}>
+                {complaint.ownerAcceptance === "ACCEPT"
+                  ? t("acceptanceAccepted")
+                  : complaint.ownerAcceptance === "REJECT"
+                    ? t("acceptanceRejected")
+                    : tCommon("emDash")}
+              </MetaItem>
+              <MetaItem label={t("createdBy")}>
+                {displayPersonName(
+                  complaint.createdByName,
+                  complaint.createdBy,
+                  t("unknownUser"),
+                )}
+              </MetaItem>
+              <MetaItem label={t("createdAt")}>
+                {formatDateTime(complaint.createdAt, locale)}
+              </MetaItem>
+            </dl>
             {complaint.closedAt ? (
-              <>
-                <p>
-                  <span className="text-ecmp-text-secondary">
-                    {t("closedBy")}:{" "}
-                  </span>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+                <MetaItem label={t("closedBy")}>
                   {displayPersonName(
                     complaint.closedByName,
                     complaint.closedBy,
                     t("unknownUser"),
                   )}
+                </MetaItem>
+                <MetaItem label={t("closedAt")}>
+                  {formatDateTime(complaint.closedAt, locale)}
+                </MetaItem>
+              </dl>
+            ) : null}
+            {complaint.resolutionSummary ? (
+              <dl>
+                <MetaItem label={t("resolutionSummary")}>
+                  {complaint.resolutionSummary}
+                </MetaItem>
+              </dl>
+            ) : null}
+            {complaint.withdrawRequestStatus ? (
+              <div className="mt-2 space-y-1 rounded-md border border-ecmp-border p-3">
+                <p className="font-medium">
+                  {t("withdrawRequestSectionTitle")}:{" "}
+                  {t(`withdrawRequestStatus${complaint.withdrawRequestStatus}`)}
+                </p>
+                <p>
+                  <span className="text-ecmp-text-secondary">{t("reason")}: </span>
+                  {complaint.withdrawRequestReason ?? "—"}
                 </p>
                 <p>
                   <span className="text-ecmp-text-secondary">
-                    {t("closedAt")}:{" "}
+                    {t("requestedBy")}:{" "}
                   </span>
-                  {formatDateTime(complaint.closedAt)}
+                  {displayPersonName(
+                    complaint.withdrawRequestedByName,
+                    complaint.withdrawRequestedBy,
+                    t("unknownUser"),
+                  )}
                 </p>
-              </>
+                {complaint.withdrawRequestStatus !== "PENDING" ? (
+                  <>
+                    <p>
+                      <span className="text-ecmp-text-secondary">
+                        {t("decidedBy")}:{" "}
+                      </span>
+                      {displayPersonName(
+                        complaint.withdrawDecidedByName,
+                        complaint.withdrawDecidedBy,
+                        t("unknownUser"),
+                      )}
+                    </p>
+                    {complaint.withdrawDecisionReason ? (
+                      <p>
+                        <span className="text-ecmp-text-secondary">
+                          {t("decisionReason")}:{" "}
+                        </span>
+                        {complaint.withdrawDecisionReason}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
             ) : null}
-            {complaint.resolutionSummary ? (
-              <p>
-                <span className="text-ecmp-text-secondary">
-                  {t("resolution")}:{" "}
-                </span>
-                {complaint.resolutionSummary}
-              </p>
+            {complaint.status === "WITHDRAWN" && complaint.withdrawReason ? (
+              <dl>
+                <MetaItem label={t("withdrawReason")}>
+                  {complaint.withdrawReason}
+                </MetaItem>
+              </dl>
             ) : null}
             {complaint.transferRequestStatus ? (
               <div className="mt-2 space-y-1 rounded-md border border-ecmp-border p-3">
@@ -498,23 +751,41 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           <CardBody className="space-y-3 text-sm whitespace-pre-wrap">
             <div>
               <div className="text-ecmp-text-secondary">{t("description")}</div>
-              <div>{complaint.description}</div>
+              <div>
+                <KnowledgeReferenceText text={complaint.description} />
+              </div>
             </div>
             {complaint.chronology ? (
               <div>
                 <div className="text-ecmp-text-secondary">{t("chronology")}</div>
-                <div>{complaint.chronology}</div>
+                <div>
+                  <KnowledgeReferenceText text={complaint.chronology} />
+                </div>
               </div>
             ) : null}
             {complaint.impact ? (
               <div>
                 <div className="text-ecmp-text-secondary">{t("impact")}</div>
-                <div>{complaint.impact}</div>
+                <div>
+                  <KnowledgeReferenceText text={complaint.impact} />
+                </div>
               </div>
             ) : null}
           </CardBody>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("sectionAttachments")}</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <InternalComplaintAttachmentsPanel
+            complaintId={complaint.id}
+            canUpload={hasPermission("attachment:create")}
+          />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -660,61 +931,176 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       </Modal>
 
       <Modal
+        open={modal === "withdraw"}
+        onClose={() => setModal(null)}
+        title={t("withdraw")}
+      >
+        <ModalSection className="space-y-3">
+          <p className="text-sm text-ecmp-text-secondary">{t("withdrawPrompt")}</p>
+          <Textarea
+            label={t("withdrawReason")}
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            hint={t("withdrawReasonHint")}
+            required
+          />
+          <Button
+            type="button"
+            variant="danger"
+            disabled={busy || !cancelReason.trim()}
+            onClick={() =>
+              run(
+                () =>
+                  withdrawInternalComplaint(complaint.id, {
+                    reason: cancelReason.trim(),
+                  }),
+                t("withdrawOk"),
+              )
+            }
+          >
+            {t("withdraw")}
+          </Button>
+        </ModalSection>
+      </Modal>
+
+      <Modal
+        open={modal === "requestWithdraw"}
+        onClose={() => setModal(null)}
+        title={t("requestWithdraw")}
+      >
+        <ModalSection className="space-y-3">
+          <p className="text-sm text-ecmp-text-secondary">
+            {t("requestWithdrawPrompt")}
+          </p>
+          <Textarea
+            label={t("withdrawReason")}
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            hint={t("withdrawReasonHint")}
+            required
+          />
+          <Button
+            type="button"
+            disabled={busy || !cancelReason.trim()}
+            onClick={() =>
+              run(
+                () =>
+                  requestInternalWithdraw(complaint.id, {
+                    reason: cancelReason.trim(),
+                  }),
+                t("requestWithdrawOk"),
+              )
+            }
+          >
+            {t("requestWithdraw")}
+          </Button>
+        </ModalSection>
+      </Modal>
+
+      <Modal
+        open={
+          modal === "decideWithdrawApprove" || modal === "decideWithdrawReject"
+        }
+        onClose={() => setModal(null)}
+        title={
+          modal === "decideWithdrawReject"
+            ? t("rejectWithdrawRequest")
+            : t("approveWithdrawRequest")
+        }
+      >
+        <ModalSection className="space-y-3">
+          <p className="text-sm text-ecmp-text-secondary">
+            {t("withdrawRequestDecidePrompt", {
+              reason: complaint.withdrawRequestReason ?? "—",
+            })}
+          </p>
+          <Textarea
+            label={t("decisionReason")}
+            value={decisionReason}
+            onChange={(e) => setDecisionReason(e.target.value)}
+            hint={
+              modal === "decideWithdrawReject"
+                ? t("decisionReasonRequiredHint")
+                : t("decisionReasonOptionalHint")
+            }
+          />
+          <Button
+            type="button"
+            variant={modal === "decideWithdrawReject" ? "danger" : "primary"}
+            disabled={
+              busy ||
+              (modal === "decideWithdrawReject" && !decisionReason.trim())
+            }
+            onClick={() =>
+              run(
+                () =>
+                  decideInternalWithdrawRequest(complaint.id, {
+                    decision:
+                      modal === "decideWithdrawReject" ? "REJECT" : "APPROVE",
+                    reason: decisionReason.trim() || null,
+                  }),
+                modal === "decideWithdrawReject"
+                  ? t("rejectWithdrawRequestOk")
+                  : t("approveWithdrawRequestOk"),
+              )
+            }
+          >
+            {modal === "decideWithdrawReject"
+              ? t("rejectWithdrawRequest")
+              : t("approveWithdrawRequest")}
+          </Button>
+        </ModalSection>
+      </Modal>
+
+      <Modal
         open={modal === "resolve"}
         onClose={() => setModal(null)}
         title={t("resolve")}
       >
         <ModalSection className="space-y-3">
           <Input
-            label={t("resolutionCode")}
-            value={resolveCode}
-            onChange={(e) => setResolveCode(e.target.value)}
-          />
-          <Input
             label={t("resolutionSummary")}
             value={resolveSummary}
-            onChange={(e) => setResolveSummary(e.target.value)}
+            onChange={(e) => {
+              setResolveSummary(e.target.value);
+              if (resolveFieldError === "resolutionSummaryRequiredError") {
+                setResolveFieldError(null);
+              }
+            }}
+            error={
+              resolveFieldError === "resolutionSummaryRequiredError"
+                ? t(resolveFieldError)
+                : undefined
+            }
           />
           <Textarea
             label={t("comment")}
             value={resolveComment}
-            onChange={(e) => setResolveComment(e.target.value)}
+            onChange={(e) => {
+              setResolveComment(e.target.value);
+              if (resolveFieldError === "commentRequiredError") {
+                setResolveFieldError(null);
+              }
+            }}
+            error={
+              resolveFieldError === "commentRequiredError"
+                ? t(resolveFieldError)
+                : undefined
+            }
           />
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="secondary"
               disabled={busy}
-              onClick={() =>
-                run(
-                  () =>
-                    resolveInternalComplaint(complaint.id, {
-                      action: "PROPOSE",
-                      comment: resolveComment || "propose",
-                      resolutionCode: resolveCode,
-                      summary: resolveSummary || "proposed",
-                    }),
-                  t("proposeOk"),
-                )
-              }
+              onClick={() => submitResolve("PROPOSE")}
             >
               {t("propose")}
             </Button>
             <Button
               type="button"
               disabled={busy}
-              onClick={() =>
-                run(
-                  () =>
-                    resolveInternalComplaint(complaint.id, {
-                      action: "ACCEPT",
-                      comment: resolveComment || "accept",
-                      resolutionCode: resolveCode,
-                      summary: resolveSummary || "resolved",
-                    }),
-                  t("resolveOk"),
-                )
-              }
+              onClick={() => submitResolve("ACCEPT")}
             >
               {t("resolveAccept")}
             </Button>
@@ -725,20 +1111,34 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       <Modal
         open={modal === "accept" || modal === "reject"}
         onClose={() => setModal(null)}
-        title={modal === "reject" ? t("reject") : t("acceptance")}
+        title={modal === "reject" ? t("rejectReturnToHandling") : t("acceptance")}
       >
         <ModalSection className="space-y-3">
-          <Select
-            label={t("party")}
-            options={[
-              { value: "HANDLING_UNIT", label: t("partyHandling") },
-              { value: "OWNER", label: t("partyOwner") },
-            ]}
-            value={acceptParty}
-            onChange={(e) =>
-              setAcceptParty(e.target.value as "OWNER" | "HANDLING_UNIT")
-            }
-          />
+          {modal === "reject" && !rejectPartyLocked ? (
+            <Select
+              label={t("party")}
+              options={rejectParties.map((party) => ({
+                value: party,
+                label:
+                  party === "HANDLING_UNIT"
+                    ? t("partyHandling")
+                    : t("partyOwner"),
+              }))}
+              value={acceptParty}
+              onChange={(e) =>
+                setAcceptParty(e.target.value as "OWNER" | "HANDLING_UNIT")
+              }
+            />
+          ) : (
+            <p className="text-sm text-ecmp-text-primary">
+              <span className="text-ecmp-text-secondary">{t("party")}: </span>
+              {localClosure
+                ? t("partyOwnerLocal")
+                : acceptParty === "HANDLING_UNIT"
+                  ? t("partyHandling")
+                  : t("partyOwner")}
+            </p>
+          )}
           <Textarea
             label={t("note")}
             value={acceptNote}
@@ -760,7 +1160,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               )
             }
           >
-            {modal === "reject" ? t("reject") : t("confirmAccept")}
+            {modal === "reject" ? t("rejectReturnToHandling") : t("confirmAccept")}
           </Button>
         </ModalSection>
       </Modal>
