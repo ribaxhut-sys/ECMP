@@ -2710,6 +2710,30 @@ def test_history_carries_note_and_priority_per_event() -> None:
     assert items[1].priority == "HIGH"
 
 
+def test_history_exposes_hq_arrival_slot_from_metadata() -> None:
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+
+    entries = [
+        _timeline_entry(
+            "HqArrivalScheduled",
+            {
+                "arrivalDate": "2026-08-20",
+                "arrivalTime": "09:30",
+                "note": "Bawa dokumen asli",
+            },
+            minute=1,
+            actor="hq-1",
+        )
+    ]
+    items = CmBatch1HistoryService(_FakeTimelineRepo(entries)).list_history(
+        str(uuid.uuid4())
+    )
+    assert items[0].event_code == "HQ_ARRIVAL_SCHEDULED"
+    assert items[0].arrival_date == "2026-08-20"
+    assert items[0].arrival_time == "09:30"
+    assert items[0].note == "Bawa dokumen asli"
+
+
 def test_event_note_is_clipped_not_dropped() -> None:
     from app.modules.cm_batch1 import event_factory as ev
 

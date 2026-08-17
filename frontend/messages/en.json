@@ -1282,6 +1282,7 @@
     "hqScheduledToastDescription": "Complaint {number}: {date} at {time}.",
     "hqScheduleFailed": "Failed to save visit schedule",
     "hqArrivalValue": "{date} at {time}",
+    "hqArrivalSlotLabel": "{weekday}, {date} at {time}",
     "proposedArrivalHintTitle": "Branch-proposed slot",
     "branchProposedArrivalHint": "Branch proposed {date} at {time} — advisory only, you may change it.",
     "escalationDecisionFailed": "Escalation decision failed",

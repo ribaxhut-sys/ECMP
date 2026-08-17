@@ -104,8 +104,8 @@ export function resolveCmBatch1HqActionVisibility(
     showHqReturn: approvedEscalation && canHqReview && !hqAccepted,
     showHqReschedule:
       canHqReview && hqAccepted && (approvedEscalation || hqScheduled),
-    showBranchNotifyBanner:
-      hqScheduled && Boolean(snapshot.hqArrivalDate) && !canHqReview,
+    // Slot copy lives on PageHeader + Penanganan card — do not repeat a banner.
+    showBranchNotifyBanner: false,
   };
 }
 

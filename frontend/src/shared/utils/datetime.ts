@@ -93,3 +93,86 @@ export function toLocalDateKey(date: Date): string {
   const day = parts.find((part) => part.type === "day")?.value ?? "";
   return `${year}-${month}-${day}`;
 }
+
+const HQ_ARRIVAL_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const HQ_ARRIVAL_TIME_RE = /^\d{2}:\d{2}$/;
+/** Calendar line written into older HQ-arrival notes: `YYYY-MM-DD HH:MM` plus optional WP note. */
+const HQ_ARRIVAL_BLOB_RE =
+  /^(\d{4}-\d{2}-\d{2})(?:[ T]| pukul | at )(\d{2})[:.](\d{2})(?:\s*\n([\s\S]*))?$/i;
+
+const HQ_ARRIVAL_WEEKDAY_OPTIONS: Intl.DateTimeFormatOptions = {
+  weekday: "long",
+  timeZone: OPERATOR_TIME_ZONE,
+};
+
+const HQ_ARRIVAL_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: OPERATOR_TIME_ZONE,
+};
+
+/**
+ * Parse a calendar date+time as a fixed-offset Asia/Jakarta instant.
+ * Indonesia has no DST; do not use the browser timezone.
+ */
+export function hqArrivalInstant(
+  date: string,
+  time: string,
+): Date | null {
+  const ymd = date.trim();
+  const hm = time.trim();
+  if (!HQ_ARRIVAL_DATE_RE.test(ymd) || !HQ_ARRIVAL_TIME_RE.test(hm)) return null;
+  const instant = new Date(`${ymd}T${hm}:00+07:00`);
+  return Number.isNaN(instant.getTime()) ? null : instant;
+}
+
+export function formatHqArrivalSlot(
+  date: string,
+  time: string,
+  locale: string,
+): { weekday: string; date: string; time: string } | null {
+  const instant = hqArrivalInstant(date, time);
+  if (!instant) return null;
+  const tag = bcp47(locale);
+  return {
+    weekday: new Intl.DateTimeFormat(tag, HQ_ARRIVAL_WEEKDAY_OPTIONS).format(
+      instant,
+    ),
+    date: new Intl.DateTimeFormat(tag, HQ_ARRIVAL_DATE_OPTIONS).format(instant),
+    time: new Intl.DateTimeFormat(tag, OPERATOR_TIME_OPTIONS).format(instant),
+  };
+}
+
+export function parseHqArrivalScheduleBlob(
+  note: string | null | undefined,
+): { date: string; time: string; wpNote: string } | null {
+  const text = (note ?? "").trim();
+  if (!text) return null;
+  const match = text.match(HQ_ARRIVAL_BLOB_RE);
+  if (!match) return null;
+  return {
+    date: match[1],
+    time: `${match[2]}:${match[3]}`,
+    wpNote: (match[4] ?? "").trim(),
+  };
+}
+
+/** Prefer structured slot fields; fall back to the legacy note blob. Never invent a slot. */
+export function resolveHqArrivalDisplay(input: {
+  arrivalDate?: string | null;
+  arrivalTime?: string | null;
+  note?: string | null;
+}): { date: string; time: string; wpNote: string } | null {
+  const date = (input.arrivalDate ?? "").trim();
+  const time = (input.arrivalTime ?? "").trim();
+  const parsedNote = parseHqArrivalScheduleBlob(input.note);
+  if (date && time) {
+    return {
+      date,
+      time,
+      wpNote: parsedNote ? parsedNote.wpNote : (input.note ?? "").trim(),
+    };
+  }
+  return parsedNote;
+}

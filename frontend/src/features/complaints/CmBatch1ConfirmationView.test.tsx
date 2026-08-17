@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { CmBatch1ConfirmationView } from "./CmBatch1ConfirmationView";
 import type { CmBatch1ComplaintResponse, CmBatch1IntakeHistoryEntry } from "@/lib/api";
@@ -230,6 +230,7 @@ const messages = {
     hqArrivalNoteHint: "x",
     hqScheduleSave: "x",
     hqArrivalValue: "{date} {time}",
+    hqArrivalSlotLabel: "{weekday}, {date} pukul {time}",
   },
 };
 
@@ -362,8 +363,12 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
         screen.getByRole("heading", { name: "Jadwal kedatangan wajib pajak" }),
       ).toBeInTheDocument(),
     );
-    expect(screen.getAllByText("2026-08-20 09:30").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Kamis, 20 Agustus 2026 pukul 09.30").length).toBeGreaterThanOrEqual(
+      1,
+    );
     expect(screen.queryByText("Menunggu persetujuan.")).not.toBeInTheDocument();
+    expect(lastPenangananProps?.hqArrivalDate).toBe("2026-08-20");
+    expect(lastPenangananProps?.hqArrivalTime).toBe("09:30");
   });
 
   it("keeps the HQ-approved title and hides cabang escalate CTAs while a Case is still bound", async () => {
@@ -524,5 +529,50 @@ describe("CmBatch1ConfirmationView — history event filter", () => {
     expect(
       screen.queryByText("Mengambil alih penanganan pengaduan"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the taxpayer visit slot on the HQ arrival history header, not the later complaint SoT", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "HQ_SCHEDULED",
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+        hqArrivalDate: "2026-08-21",
+        hqArrivalTime: "14:00",
+        hqArrivalNote: "Catatan terbaru",
+      }),
+    });
+    fetchCmBatch1ComplaintHistory.mockResolvedValue({
+      data: [
+        {
+          entryId: "h1",
+          eventCode: "HQ_ARRIVAL_SCHEDULED",
+          eventType: "HqArrivalScheduled",
+          occurredAt: "2026-08-17T02:00:00Z",
+          actorName: "Pusat",
+          arrivalDate: "2026-08-20",
+          arrivalTime: "09:30",
+          note: "Bawa dokumen asli",
+        },
+      ] satisfies CmBatch1IntakeHistoryEntry[],
+    });
+    renderView();
+    await waitFor(() =>
+      expect(screen.getAllByText("Kedatangan dijadwalkan").length).toBeGreaterThan(
+        0,
+      ),
+    );
+    expect(
+      screen.getByText("Kamis, 20 Agustus 2026 pukul 09.30"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Jumat, 21 Agustus 2026 pukul 14.00"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Bawa dokumen asli")).not.toBeInTheDocument();
+    expect(screen.queryByText("Catatan terbaru")).not.toBeInTheDocument();
+    expect(screen.getByText("Lihat catatan")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Lihat catatan"));
+    expect(screen.getByText("Bawa dokumen asli")).toBeInTheDocument();
+    expect(screen.queryByText("Catatan terbaru")).not.toBeInTheDocument();
   });
 });

@@ -1267,6 +1267,7 @@
     "hqScheduledToastDescription": "Pengaduan {number}: {date} pukul {time}.",
     "hqScheduleFailed": "Gagal menyimpan jadwal kedatangan",
     "hqArrivalValue": "{date} pukul {time}",
+    "hqArrivalSlotLabel": "{weekday}, {date} pukul {time}",
     "proposedArrivalHintTitle": "Usulan slot dari cabang",
     "branchProposedArrivalHint": "Cabang mengusulkan {date} pukul {time} — hanya usulan, Pusat boleh mengubahnya.",
     "escalationDecisionFailed": "Keputusan eskalasi gagal",

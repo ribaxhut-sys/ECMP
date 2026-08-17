@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
@@ -18,6 +18,7 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
   Empty,
   ErrorState,
   Modal,
@@ -36,6 +37,7 @@ import {
 } from "@/features/cases/handlingClaim";
 import { officerDisplayName } from "./officerDisplayName";
 import { useToast } from "@/shared/providers";
+import { formatHqArrivalSlot } from "@/shared/utils/datetime";
 import {
   buildPenangananSummarySegments,
   hqPathCopyKeys,
@@ -232,6 +234,9 @@ export function ComplaintPenangananSection({
   complaintStatus,
   intakeDisposition,
   hqAcceptedAt,
+  hqArrivalDate,
+  hqArrivalTime,
+  hqArrivalNote,
   allowStart,
   allowEscalate,
   onRequestHqEscalation,
@@ -245,6 +250,9 @@ export function ComplaintPenangananSection({
   complaintStatus?: string | null;
   intakeDisposition?: string | null;
   hqAcceptedAt?: string | null;
+  hqArrivalDate?: string | null;
+  hqArrivalTime?: string | null;
+  hqArrivalNote?: string | null;
   allowStart: boolean;
   allowEscalate: boolean;
   /** Complaint-level HQ escalate (Batch-1). Per-Case ESCALATED not Mode A delivery. */
@@ -277,6 +285,7 @@ export function ComplaintPenangananSection({
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const router = useRouter();
   const { hasPermission, user, roles } = useAuth();
   const { pushSuccess, pushError } = useToast();
@@ -541,10 +550,24 @@ export function ComplaintPenangananSection({
   /** Agent CTA is bottom "Tangani pengaduan" — skip duplicate Alert/Empty. */
   const showEmptyNoneAgentCta = showEmptyNone && allowStart && canCreate;
   const showEmptyNoneReadOnly = showEmptyNone && !showEmptyNoneAgentCta;
+  const showScheduledSlotCard =
+    !loading && !error && hqPhase === "scheduled" && rows.length === 0;
   const showEmptyHq =
-    !loading && !error && contextKind === "hq_waiting" && rows.length === 0;
+    !loading &&
+    !error &&
+    contextKind === "hq_waiting" &&
+    rows.length === 0 &&
+    !showScheduledSlotCard;
   const showEmptyClosed =
     !loading && !error && contextKind === "closed" && rows.length === 0;
+  const scheduledSlotParts =
+    showScheduledSlotCard && hqArrivalDate && hqArrivalTime
+      ? formatHqArrivalSlot(hqArrivalDate, hqArrivalTime, locale)
+      : null;
+  const scheduledSlotLabel = scheduledSlotParts
+    ? t("hqArrivalSlotLabel", scheduledSlotParts)
+    : null;
+  const scheduledWpNote = hqArrivalNote?.trim() || "";
   const canAddCase =
     allowStart &&
     canCreate &&
@@ -583,7 +606,7 @@ export function ComplaintPenangananSection({
         ) : null}
       </div>
 
-      {!loading && !error ? (
+      {!loading && !error && !showScheduledSlotCard ? (
         <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
           {contextKind === "closed" && !compactSummary
             ? t("penangananListClosed")
@@ -621,7 +644,7 @@ export function ComplaintPenangananSection({
         />
       ) : null}
 
-      {complaintOnHqPath && rows.length > 0 ? (
+      {complaintOnHqPath && rows.length > 0 && hqPhase !== "scheduled" ? (
         <Alert
           tone="info"
           title={t((hqCopy?.pathTitle ?? "penangananHqPathTitle") as "penangananHqPathTitle")}
@@ -629,6 +652,32 @@ export function ComplaintPenangananSection({
             (hqCopy?.pathDescription ?? "penangananHqPathDescription") as "penangananHqPathDescription",
           )}
         />
+      ) : null}
+
+      {showScheduledSlotCard ? (
+        <Card>
+          <h3 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] leading-[var(--ecmp-font-card-title-line)] tracking-tight text-ecmp-text-primary">
+            {t(
+              (hqCopy?.emptyTitle ?? "penangananEmptyHqScheduledTitle") as "penangananEmptyHqScheduledTitle",
+            )}
+          </h3>
+          {scheduledSlotLabel ? (
+            <p className="mt-2 text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
+              {scheduledSlotLabel}
+            </p>
+          ) : null}
+          {scheduledWpNote ? (
+            <p className="mt-2 whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+              {scheduledWpNote}
+            </p>
+          ) : null}
+          <p className="mt-2 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+            {t(
+              (hqCopy?.emptyDescription ??
+                "penangananEmptyHqScheduledDescription") as "penangananEmptyHqScheduledDescription",
+            )}
+          </p>
+        </Card>
       ) : null}
 
       {loading ? <Skeleton rows={4} /> : null}

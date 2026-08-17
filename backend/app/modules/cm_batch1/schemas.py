@@ -500,6 +500,19 @@ class IntakeHistoryEntry(BaseModel):
         alias="intakeAction",
         description="Intake putusan when recorded on CaseCreated (register, close, escalate)",
     )
+    arrival_date: str | None = Field(
+        default=None,
+        alias="arrivalDate",
+        description=(
+            "HQ taxpayer-visit calendar date (YYYY-MM-DD, Asia/Jakarta) when this "
+            "event is HQ_ARRIVAL_SCHEDULED; not occurredAt"
+        ),
+    )
+    arrival_time: str | None = Field(
+        default=None,
+        alias="arrivalTime",
+        description="HQ taxpayer-visit clock time (HH:MM, 24h Asia/Jakarta)",
+    )
 
 
 class SupervisorQueueResponse(BaseModel):

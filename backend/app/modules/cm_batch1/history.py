@@ -75,6 +75,15 @@ _EVENT_TYPE_CODES = {
     "HandlingTakenOver": "HANDLING_TAKEN_OVER",
 }
 
+
+def _meta_text(meta: dict[str, Any], key: str) -> str | None:
+    raw = meta.get(key)
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    return value or None
+
+
 # Internal Case lifecycle noise — CaseCreated stays visible (one row per Case).
 _HISTORY_HIDDEN_EVENT_TYPES = frozenset(
     {
@@ -196,21 +205,25 @@ class CmBatch1HistoryService:
         ]
         entries = omit_resolved_when_closed(entries)
         names = self._actor_names(entries)
-        return [
-            IntakeHistoryEntry(
+
+        def to_item(entry: TimelineEntry) -> IntakeHistoryEntry:
+            meta = dict(entry.metadata or {})
+            return IntakeHistoryEntry(
                 entryId=str(entry.id),
                 eventCode=event_code(entry),
                 eventType=entry.event_type,
                 occurredAt=entry.created_at,
                 actorId=entry.actor_id,
                 actorName=self._display_actor_name(entry, names),
-                priority=(dict(entry.metadata or {}).get("priority") or None),
-                note=(dict(entry.metadata or {}).get("note") or None),
-                caseNumber=(dict(entry.metadata or {}).get("caseNumber") or None),
-                intakeAction=(dict(entry.metadata or {}).get("intakeAction") or None),
+                priority=(meta.get("priority") or None),
+                note=(meta.get("note") or None),
+                caseNumber=(meta.get("caseNumber") or None),
+                intakeAction=(meta.get("intakeAction") or None),
+                arrivalDate=_meta_text(meta, "arrivalDate"),
+                arrivalTime=_meta_text(meta, "arrivalTime"),
             )
-            for entry in entries
-        ]
+
+        return [to_item(entry) for entry in entries]
 
     def _usable_person_name(self, raw: str | None) -> str | None:
         value = (raw or "").strip()

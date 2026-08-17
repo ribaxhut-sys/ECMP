@@ -965,6 +965,19 @@ components:
           type: string
           nullable: true
           description: Intake putusan on CaseCreated (register, close, escalate)
+        arrivalDate:
+          type: string
+          nullable: true
+          description: >
+            Taxpayer-visit calendar date (YYYY-MM-DD, Asia/Jakarta) for
+            HQ_ARRIVAL_SCHEDULED. Distinct from occurredAt (when HQ saved the slot).
+            Null on other event codes and on rows logged before the field existed.
+        arrivalTime:
+          type: string
+          nullable: true
+          description: >
+            Taxpayer-visit clock time (HH:MM, 24h Asia/Jakarta) paired with
+            arrivalDate. Null when arrivalDate is null.
     ComplaintBatch1Response:
       type: object
       required: [complaintId, complaintNumber, status, customerId]

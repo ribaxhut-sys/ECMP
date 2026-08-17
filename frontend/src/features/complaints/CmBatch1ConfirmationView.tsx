@@ -40,7 +40,7 @@ import {
   WorkspaceToolbar,
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
-import { formatDateTime24, toLocalDateKey } from "@/shared/utils/datetime";
+import { formatDateTime24, formatHqArrivalSlot, resolveHqArrivalDisplay, toLocalDateKey } from "@/shared/utils/datetime";
 import { cn } from "@/shared/utils";
 import { officerDisplayName } from "./officerDisplayName";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
@@ -174,6 +174,8 @@ interface IntakeLogRow {
   note: string | null;
   caseNumber: string | null;
   intakeAction: string | null;
+  arrivalDate: string | null;
+  arrivalTime: string | null;
 }
 
 /**
@@ -684,7 +686,6 @@ export function CmBatch1ConfirmationView({
     showHqAcceptAndSchedule,
     showHqReturn,
     showHqReschedule,
-    showBranchNotifyBanner,
   } = hqActions;
   const {
     pendingEscalation,
@@ -745,6 +746,18 @@ export function CmBatch1ConfirmationView({
     hqAcceptedAt: data?.hqAcceptedAt,
   });
   const hqCopy = hqPhase ? hqPathCopyKeys(hqPhase) : null;
+  function formatHqArrivalLabel(
+    date: string | null | undefined,
+    time: string | null | undefined,
+  ): string | null {
+    if (!date?.trim() || !time?.trim()) return null;
+    const parts = formatHqArrivalSlot(date, time, locale);
+    return parts ? t("hqArrivalSlotLabel", parts) : null;
+  }
+  const scheduledSlotLabel = formatHqArrivalLabel(
+    data?.hqArrivalDate,
+    data?.hqArrivalTime,
+  );
   const escalationBannerTitle = hqCopy
     ? t(hqCopy.pageTitle as "escalationApproved")
     : null;
@@ -839,13 +852,6 @@ export function CmBatch1ConfirmationView({
         return data?.hqAcceptanceNote?.trim() || null;
       case "HQ_RETURNED":
         return data?.hqReturnNote?.trim() || null;
-      case "HQ_ARRIVAL_SCHEDULED":
-        return data?.hqArrivalDate && data?.hqArrivalTime
-          ? t("hqArrivalValue", {
-              date: data.hqArrivalDate,
-              time: data.hqArrivalTime,
-            }) + (data.hqArrivalNote ? `\n${data.hqArrivalNote}` : "")
-          : null;
       default:
         return null;
     }
@@ -867,39 +873,68 @@ export function CmBatch1ConfirmationView({
       hqArrivalTime: data.hqArrivalTime,
       intakeClosed,
     });
-    return codes.map((code) => ({
-      key: `blob-${code}`,
-      code,
-      actor: code === "REGISTERED" ? (data.createdByName ?? null) : null,
-      when:
-        code === "REGISTERED"
-          ? formatDateTime24(data.createdAt ?? "", locale) || null
-          : null,
-      priority: null,
-      note: blobNoteFor(code),
-      caseNumber: null,
-      intakeAction: null,
-    }));
+    return codes.map((code) => {
+      const arrival =
+        code === "HQ_ARRIVAL_SCHEDULED"
+          ? resolveHqArrivalDisplay({
+              arrivalDate: data.hqArrivalDate,
+              arrivalTime: data.hqArrivalTime,
+              note: data.hqArrivalNote,
+            })
+          : null;
+      return {
+        key: `blob-${code}`,
+        code,
+        actor: code === "REGISTERED" ? (data.createdByName ?? null) : null,
+        when:
+          code === "REGISTERED"
+            ? formatDateTime24(data.createdAt ?? "", locale) || null
+            : null,
+        priority: null,
+        note:
+          code === "HQ_ARRIVAL_SCHEDULED"
+            ? arrival?.wpNote || null
+            : blobNoteFor(code),
+        caseNumber: null,
+        intakeAction: null,
+        arrivalDate: arrival?.date ?? null,
+        arrivalTime: arrival?.time ?? null,
+      };
+    });
   }
 
   const logRows: IntakeLogRow[] = (
     history.length > 0
-      ? history.map((entry) => ({
-          key: entry.entryId,
-          code: entry.eventCode,
-          actor: entry.actorName?.trim() || null,
-          when: formatDateTime24(entry.occurredAt, locale),
-          priority: entry.priority?.trim() || null,
-          // REGISTERED narrative/note now live in the "isi" card, not the log row.
-          note:
-            entry.eventCode === "REGISTERED"
-              ? null
-              : intakeHistoryShowsNote(entry.eventCode)
-                ? entry.note?.trim() || blobNoteFor(entry.eventCode)
-                : null,
-          caseNumber: entry.caseNumber?.trim() || null,
-          intakeAction: entry.intakeAction?.trim().toLowerCase() || null,
-        }))
+      ? history.map((entry) => {
+          const arrival =
+            entry.eventCode === "HQ_ARRIVAL_SCHEDULED"
+              ? resolveHqArrivalDisplay({
+                  arrivalDate: entry.arrivalDate,
+                  arrivalTime: entry.arrivalTime,
+                  note: entry.note,
+                })
+              : null;
+          return {
+            key: entry.entryId,
+            code: entry.eventCode,
+            actor: entry.actorName?.trim() || null,
+            when: formatDateTime24(entry.occurredAt, locale),
+            priority: entry.priority?.trim() || null,
+            // REGISTERED narrative/note now live in the "isi" card, not the log row.
+            note:
+              entry.eventCode === "REGISTERED"
+                ? null
+                : entry.eventCode === "HQ_ARRIVAL_SCHEDULED"
+                  ? arrival?.wpNote || null
+                  : intakeHistoryShowsNote(entry.eventCode)
+                    ? entry.note?.trim() || blobNoteFor(entry.eventCode)
+                    : null,
+            caseNumber: entry.caseNumber?.trim() || null,
+            intakeAction: entry.intakeAction?.trim().toLowerCase() || null,
+            arrivalDate: arrival?.date ?? null,
+            arrivalTime: arrival?.time ?? null,
+          };
+        })
       : blobOnlyRows()
   ).filter((row) => !CONFIRMATION_HIDDEN_HISTORY_CODES.has(row.code));
 
@@ -953,11 +988,8 @@ export function CmBatch1ConfirmationView({
             ? t("intakeClosedByUnitDescription")
             : closedAtHq
               ? t("intakeClosedByHqDescription")
-              : hqPhase === "scheduled" && data?.hqArrivalDate
-                ? t("hqScheduledBranchNotifyBody", {
-                    date: data.hqArrivalDate,
-                    time: data.hqArrivalTime ?? "",
-                  })
+              : hqPhase === "scheduled" && scheduledSlotLabel
+                ? scheduledSlotLabel
                 : hqCopy
                   ? t(hqCopy.pageDescription as "hqPathScheduledPageDescription")
                   : pendingEscalation || intakeEscalate
@@ -973,17 +1005,6 @@ export function CmBatch1ConfirmationView({
           tone="info"
           title={t("intakeEscalateBannerTitle")}
           description={t("intakeEscalateBannerDescription")}
-        />
-      ) : null}
-
-      {showBranchNotifyBanner ? (
-        <Alert
-          tone="warning"
-          title={t("hqScheduledBranchNotifyTitle")}
-          description={t("hqScheduledBranchNotifyBody", {
-            date: data?.hqArrivalDate ?? "",
-            time: data?.hqArrivalTime ?? "",
-          })}
         />
       ) : null}
 
@@ -1267,6 +1288,10 @@ export function CmBatch1ConfirmationView({
                       {pagedLogRows.map((row, index) => {
                         const number = (safeLogPage - 1) * LOG_PAGE_SIZE + index + 1;
                         const open = openLogKeys.has(row.key);
+                        const arrivalSlotLabel =
+                          row.code === "HQ_ARRIVAL_SCHEDULED"
+                            ? formatHqArrivalLabel(row.arrivalDate, row.arrivalTime)
+                            : null;
                         const expandable =
                           intakeHistoryShowsNote(row.code) && Boolean(row.note);
                         const createdActionKey = intakeCreatedActionLabelKey(
@@ -1287,6 +1312,11 @@ export function CmBatch1ConfirmationView({
                                     ? t(HISTORY_LABEL_KEYS[row.code])
                                     : row.code}
                                 </Badge>
+                                {arrivalSlotLabel ? (
+                                  <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                                    {arrivalSlotLabel}
+                                  </span>
+                                ) : null}
                                 {row.caseNumber ? (
                                   <span className="font-mono text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                                     {row.caseNumber}
@@ -1418,6 +1448,9 @@ export function CmBatch1ConfirmationView({
               complaintStatus={data.status}
               intakeDisposition={data.intakeDisposition}
               hqAcceptedAt={data.hqAcceptedAt}
+              hqArrivalDate={data.hqArrivalDate}
+              hqArrivalTime={data.hqArrivalTime}
+              hqArrivalNote={data.hqArrivalNote}
               allowStart={showManageCases}
               allowEscalate={false}
               manageRequestToken={manageRequestToken}

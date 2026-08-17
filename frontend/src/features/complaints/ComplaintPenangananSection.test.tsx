@@ -76,6 +76,7 @@ const messages = {
     penangananEmptyHqDescription: "HQ empty",
     penangananEmptyHqScheduledTitle: "Jadwal kedatangan WP",
     penangananEmptyHqScheduledDescription: "HQ scheduled empty",
+    hqArrivalSlotLabel: "{weekday}, {date} pukul {time}",
     penangananGroupPusatScheduled: "Jadwal kedatangan WP",
     penangananHqPathScheduledTitle: "Jadwal kedatangan WP",
     penangananHqPathScheduledDescription: "Scheduled path desc",
@@ -433,5 +434,26 @@ describe("ComplaintPenangananSection", () => {
     expect(
       screen.queryByRole("heading", { name: "Menunggu / di Pusat" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows one compact scheduled slot card instead of duplicate HQ empty copy", async () => {
+    renderSection({
+      intakeDisposition: "HQ_SCHEDULED",
+      complaintStatus: "IN_PROGRESS",
+      hqAcceptedAt: "2026-08-17T10:00:00Z",
+      hqArrivalDate: "2026-08-20",
+      hqArrivalTime: "09:30",
+      hqArrivalNote: "Bawa dokumen asli",
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Kamis, 20 Agustus 2026 pukul 09.30"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Bawa dokumen asli")).toBeInTheDocument();
+    expect(screen.getByText("HQ scheduled empty")).toBeInTheDocument();
+    expect(screen.getAllByText("Jadwal kedatangan WP")).toHaveLength(1);
+    expect(screen.queryByText("HQ empty")).not.toBeInTheDocument();
   });
 });

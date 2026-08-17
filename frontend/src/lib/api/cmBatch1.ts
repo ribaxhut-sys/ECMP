@@ -193,6 +193,10 @@ export interface CmBatch1IntakeHistoryEntry {
   caseNumber?: string | null;
   /** Intake putusan on CaseCreated: register, close, escalate. */
   intakeAction?: string | null;
+  /** Taxpayer-visit calendar date (YYYY-MM-DD) on HQ_ARRIVAL_SCHEDULED; not occurredAt. */
+  arrivalDate?: string | null;
+  /** Taxpayer-visit clock time (HH:MM, Asia/Jakarta) on HQ_ARRIVAL_SCHEDULED. */
+  arrivalTime?: string | null;
 }
 
 export interface CmBatch1DuplicateCheckRequest {

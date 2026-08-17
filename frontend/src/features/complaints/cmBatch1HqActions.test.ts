@@ -126,7 +126,7 @@ describe("resolveCmBatch1HqActionVisibility", () => {
     expect(v.showHqReschedule).toBe(true);
   });
 
-  it("shows branch notify banner only for non-HQ viewers after schedule", () => {
+  it("does not duplicate a branch notify banner after the visit slot is scheduled", () => {
     const v = resolveCmBatch1HqActionVisibility(
       {
         status: "REGISTERED",
@@ -137,7 +137,7 @@ describe("resolveCmBatch1HqActionVisibility", () => {
       },
       false,
     );
-    expect(v.showBranchNotifyBanner).toBe(true);
+    expect(v.showBranchNotifyBanner).toBe(false);
     expect(v.showHqReschedule).toBe(false);
   });
 });
