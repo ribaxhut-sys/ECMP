@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Alert,
   Badge,
@@ -52,6 +52,7 @@ const EMPTY_FORM: FormState = {
 export function IntakeWorkspace() {
   const t = useTranslations("intake");
   const tShell = useTranslations("shell");
+  const locale = useLocale();
   const router = useRouter();
   const {
     registerIntake,
@@ -250,7 +251,7 @@ export function IntakeWorkspace() {
                         {draft.customerName} · {draft.subject || t("heldNoSubject")}
                       </p>
                       <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                        {new Date(draft.heldAt).toLocaleString()}
+                        {new Date(draft.heldAt).toLocaleString(locale)}
                       </p>
                     </div>
                     <Button

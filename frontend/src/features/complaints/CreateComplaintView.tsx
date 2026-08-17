@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ChangeEvent,
 } from "react";
@@ -12,41 +11,28 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  checkCmBatch1Duplicates,
-  createCmBatch1Complaint,
   fetchBranches,
-  recordCmBatch1DuplicateDecision,
   type Branch,
   type CmBatch1ComplaintBrief,
-  type CmBatch1DuplicateCheckResponse,
 } from "@/lib/api";
-import {
-  resolveApiErrorMessage,
-  translateValidationErrors,
-} from "@/shared/i18n/resolveApiErrorMessage";
+import { translateValidationErrors, resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
   Button,
   Card,
   CardBody,
-  Empty,
   Input,
-  Modal,
   PageContainer,
   PageHeader,
   SectionHeader,
-  Textarea,
 } from "@/shared/ui";
 import { CustomerSearchPanel } from "./CustomerSearchPanel";
 import { ActiveComplaintsBanner } from "./ActiveComplaintsBanner";
-import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
 import { StagingAttachmentsPanel } from "./StagingAttachmentsPanel";
 import {
   createEmptyComplaintForm,
-  newCmBatch1IdempotencyKey,
   newCmBatch1StagingToken,
-  toCmBatch1CreateRequest,
   validateCmBatch1CreateForm,
   type CreateComplaintFieldErrors,
   type CreateComplaintFormValues,
@@ -64,11 +50,9 @@ import {
   type IntakeExtraCaseDraft,
 } from "./intakeCaseDrafts";
 
-export type IntakeSubmitIntent = "resolve_branch";
-
 /**
- * Create Complaint — Mode A Batch-1 Aggregate intake (API-500).
- * Outcomes: Lanjut → priority → Daftarkan | Ajukan eskalasi; Selesai (BRANCH_CLOSED).
+ * Create Complaint — Mode A Batch-1 Aggregate intake.
+ * This screen only collects the draft; Lanjut opens per-Case decisions.
  */
 export function CreateComplaintView() {
   const router = useRouter();
@@ -86,14 +70,8 @@ export function CreateComplaintView() {
   const [errors, setErrors] = useState<CreateComplaintFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchesError, setBranchesError] = useState<string | null>(null);
-
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [duplicateResult, setDuplicateResult] =
-    useState<CmBatch1DuplicateCheckResponse | null>(null);
-  const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [overrideJustification, setOverrideJustification] = useState<
     string | null
   >(null);
@@ -102,11 +80,6 @@ export function CreateComplaintView() {
   );
   const [hasStagedAttachments, setHasStagedAttachments] = useState(false);
   const [stagingBusy, setStagingBusy] = useState(false);
-  const intakeIntentRef = useRef<IntakeSubmitIntent>("resolve_branch");
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmIntent, setConfirmIntent] = useState<"resolve_branch" | null>(
-    null,
-  );
   /** False until session draft restore (if any) has been applied. */
   const [formReady, setFormReady] = useState(false);
   const [activeComplaints, setActiveComplaints] = useState<
@@ -135,9 +108,6 @@ export function CreateComplaintView() {
   }, []);
 
   useEffect(() => {
-    if (!canCreate) {
-      return;
-    }
     let cancelled = false;
     (async () => {
       setBranchesError(null);
@@ -170,7 +140,7 @@ export function CreateComplaintView() {
     return () => {
       cancelled = true;
     };
-  }, [officerBranchId, canCreate, t, tCommon, tErrors]);
+  }, [officerBranchId, t, tCommon, tErrors]);
 
   const lockedBranch = useMemo(() => {
     if (officerBranchId) {
@@ -209,7 +179,6 @@ export function CreateComplaintView() {
         return next;
       });
       setOverrideJustification(null);
-      setDuplicateResult(null);
       setInfoMessage(null);
     },
     [],
@@ -223,31 +192,7 @@ export function CreateComplaintView() {
     }));
     setActiveComplaints([]);
     setOverrideJustification(null);
-    setDuplicateResult(null);
   }, []);
-
-  if (!canCreate) {
-    return (
-      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
-        <PageHeader
-          title={t("create")}
-          breadcrumbs={[
-            { label: tCommon("home"), href: "/dashboard" },
-            { label: t("title"), href: "/complaints" },
-            { label: tCommon("create") },
-          ]}
-        />
-        <Empty
-          title={tCommon("accessRestricted")}
-          description={t("createAccessRestrictedDescription")}
-          primaryAction={{
-            label: tCommon("goHome"),
-            onClick: () => router.push("/dashboard"),
-          }}
-        />
-      </PageContainer>
-    );
-  }
 
   if (!formReady) {
     return null;
@@ -279,30 +224,16 @@ export function CreateComplaintView() {
       validateCmBatch1CreateForm(values),
       tValidation,
     );
-    // Catatan wajib untuk Lanjut/Daftarkan dan Selesai di cabang.
+    // Catatan wajib sebelum Lanjut (putusan per Case di langkah berikutnya).
     if (!values.resolution.trim() && !nextErrors.resolution) {
       nextErrors.resolution = tValidation("intakeNoteRequired");
     }
     return nextErrors;
   }
 
-  function requestConfirmResolveBranch(): void {
-    setSubmitError(null);
-    setInfoMessage(null);
-    const nextErrors = validateIntakeForm();
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
-      const firstKey = Object.keys(nextErrors)[0];
-      const el = firstKey ? document.getElementById(firstKey) : null;
-      el?.focus();
-      return;
-    }
-    setConfirmIntent("resolve_branch");
-    setConfirmOpen(true);
-  }
-
-  /** Continue to priority step — Daftarkan / Ajukan eskalasi chosen there. */
+  /** Lanjut — putusan per Case dipilih di langkah berikutnya. */
   function continueToPriority(): void {
+    if (!canCreate) return;
     setSubmitError(null);
     setInfoMessage(null);
     const nextErrors = validateIntakeForm();
@@ -324,156 +255,6 @@ export function CreateComplaintView() {
     router.push("/complaints/new/escalate");
   }
 
-  function closeConfirm(): void {
-    if (submitting) return;
-    setConfirmOpen(false);
-    setConfirmIntent(null);
-  }
-
-  async function createAggregate(
-    justification: string | null,
-  ): Promise<void> {
-    const intent = intakeIntentRef.current;
-    const closeAtBranch = intent === "resolve_branch";
-    const response = await createCmBatch1Complaint(
-      toCmBatch1CreateRequest(values, {
-        duplicateOverrideJustification: justification,
-        // Always send token: BE bind is a no-op if nothing staged; omitting
-        // it after upload (race / stale hasStaged flag) leaves orphans.
-        stagingToken: stagingToken.trim() || null,
-        closeAtBranch,
-        recordingUnitCode: lockedBranch?.code ?? null,
-      }),
-      { idempotencyKey: newCmBatch1IdempotencyKey() },
-    );
-    clearEscalateIntakeDraft();
-    const complaintId = response.data.complaintId;
-    const suffix = closeAtBranch ? "?intake=closed" : "";
-    router.push(`/complaints/cm/${encodeURIComponent(complaintId)}${suffix}`);
-  }
-
-  async function executeIntake(intent: IntakeSubmitIntent): Promise<void> {
-    intakeIntentRef.current = intent;
-    setSubmitError(null);
-    setInfoMessage(null);
-
-    setSubmitting(true);
-    try {
-      if (overrideJustification) {
-        await createAggregate(overrideJustification);
-        return;
-      }
-
-      const dup = await checkCmBatch1Duplicates({
-        customerId: values.customerId.trim(),
-        category: values.category.trim() || "GENERAL",
-        subject: values.subject.trim(),
-        channel: values.channel.trim(),
-      });
-      setDuplicateResult(dup.data);
-
-      if (dup.data.warning) {
-        setDuplicateOpen(true);
-        return;
-      }
-
-      await createAggregate(null);
-    } catch (err) {
-      setSubmitError(
-        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
-          t("unableToCreate"),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function onConfirmAction(): Promise<void> {
-    if (!confirmIntent) return;
-    setConfirmOpen(false);
-    setConfirmIntent(null);
-    await executeIntake("resolve_branch");
-  }
-
-  async function onDuplicateDecide(payload: {
-    decision: "link_existing" | "override" | "recommend_only" | "blocked";
-    survivingComplaintId?: string;
-    justification?: string;
-  }): Promise<void> {
-    setDuplicateBusy(true);
-    setSubmitError(null);
-    try {
-      if (payload.decision === "recommend_only") {
-        await recordCmBatch1DuplicateDecision({
-          decision: "recommend_only",
-          customerId: values.customerId.trim(),
-          survivingComplaintId: payload.survivingComplaintId,
-        });
-        setDuplicateOpen(false);
-        setInfoMessage(t("recommendOnlyRecorded"));
-        return;
-      }
-
-      if (payload.decision === "link_existing") {
-        const surviving = payload.survivingComplaintId?.trim();
-        if (!surviving) {
-          setSubmitError(t("survivingIdRequired"));
-          return;
-        }
-        await recordCmBatch1DuplicateDecision({
-          decision: "link_existing",
-          customerId: values.customerId.trim(),
-          survivingComplaintId: surviving,
-          // FE always mints STG-*; only send when files were actually staged.
-          stagingToken: hasStagedAttachments
-            ? stagingToken.trim() || null
-            : null,
-        });
-        clearEscalateIntakeDraft();
-        setDuplicateOpen(false);
-        router.replace(
-          `/complaints/cm/${encodeURIComponent(surviving)}`,
-        );
-        return;
-      }
-
-      if (payload.decision === "override") {
-        const justification = payload.justification?.trim() ?? "";
-        setOverrideJustification(justification);
-        setDuplicateOpen(false);
-        setSubmitting(true);
-        try {
-          await createAggregate(justification);
-        } finally {
-          setSubmitting(false);
-        }
-        return;
-      }
-
-      if (payload.decision === "blocked") {
-        await recordCmBatch1DuplicateDecision({
-          decision: "blocked",
-          customerId: values.customerId.trim(),
-        });
-        setDuplicateOpen(false);
-        setSubmitError(t("createBlockedByDuplicate"));
-      }
-    } catch (err) {
-      setSubmitError(
-        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
-          t("unableToRecordDuplicateDecision"),
-      );
-    } finally {
-      setDuplicateBusy(false);
-    }
-  }
-
-  const confirmCopy = {
-    title: t("confirmCloseTitle"),
-    body: t("confirmCloseBody"),
-    action: t("confirmCloseAction"),
-  };
-
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
@@ -485,6 +266,14 @@ export function CreateComplaintView() {
         ]}
         description={t("batch1IntakeDescription")}
       />
+
+      {!canCreate ? (
+        <Alert
+          tone="warning"
+          title={t("createRestrictedTitle")}
+          description={t("createAccessRestrictedDescription")}
+        />
+      ) : null}
 
       <form
         noValidate
@@ -514,19 +303,23 @@ export function CreateComplaintView() {
           />
         ) : null}
 
+        <fieldset
+          disabled={!canCreate}
+          className="min-w-0 space-y-[var(--ecmp-section-gap)] border-0 p-0"
+        >
         <CustomerSearchPanel
           confirmedCustomerId={values.customerId}
           confirmedDisplayName={values.customerName}
           onConfirmed={onCustomerConfirmed}
           onCleared={onCustomerCleared}
           onActiveComplaintsChange={setActiveComplaints}
-          disabled={submitting}
+          disabled={stagingBusy}
         />
 
         {values.customerId.trim() ? (
           <ActiveComplaintsBanner
             complaints={activeComplaints}
-            disabled={submitting || duplicateBusy}
+            disabled={stagingBusy}
           />
         ) : null}
 
@@ -567,21 +360,21 @@ export function CreateComplaintView() {
                   aria-required="true"
                   autoComplete="off"
                 />
-                <Textarea
+                <KnowledgeMentionTextarea
                   name="description"
                   id="description"
-                  label={t("intakeCase1Label")}
+                  label={t("intakeCaseNLabel", { n: 1 })}
                   required
                   rows={5}
                   maxLength={5000}
                   value={values.description}
-                  onChange={onTextChange("description")}
+                  onChange={(next) => updateField("description", next)}
                   error={errors.description}
-                  aria-required="true"
                   hint={t("intakeCase1Hint", {
                     count: values.description.trim().length,
                     max: 5000,
                   })}
+                  disabled={stagingBusy}
                 />
                 <div className="space-y-3">
                   {extraCaseDrafts.map((draft, index) => (
@@ -589,15 +382,12 @@ export function CreateComplaintView() {
                       key={draft.id}
                       className="space-y-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border p-3"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text">
-                          {t("intakeExtraCaseTitle", { n: index + 2 })}
-                        </p>
+                      <div className="flex justify-end">
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          disabled={submitting}
+                          disabled={stagingBusy}
                           onClick={() => {
                             const filled = draft.description.trim().length > 0;
                             if (
@@ -614,15 +404,14 @@ export function CreateComplaintView() {
                           {tCommon("cancel")}
                         </Button>
                       </div>
-                      <Textarea
+                      <KnowledgeMentionTextarea
                         name={`extraCase-${draft.id}`}
                         id={`extraCase-${draft.id}`}
-                        label={t("intakeExtraCaseDescription")}
+                        label={t("intakeCaseNLabel", { n: index + 2 })}
                         rows={4}
                         maxLength={5000}
                         value={draft.description}
-                        onChange={(e) => {
-                          const next = e.target.value;
+                        onChange={(next) => {
                           setExtraCaseDrafts((prev) =>
                             prev.map((item) =>
                               item.id === draft.id
@@ -635,7 +424,7 @@ export function CreateComplaintView() {
                           count: draft.description.trim().length,
                           max: 5000,
                         })}
-                        disabled={submitting}
+                        disabled={stagingBusy}
                       />
                     </div>
                   ))}
@@ -643,7 +432,7 @@ export function CreateComplaintView() {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={submitting}
+                      disabled={stagingBusy}
                       onClick={() =>
                         setExtraCaseDrafts((prev) => [
                           ...prev,
@@ -678,7 +467,7 @@ export function CreateComplaintView() {
                     count: values.resolution.trim().length,
                     max: 5000,
                   })}
-                  disabled={submitting}
+                  disabled={stagingBusy}
                 />
               </fieldset>
             </CardBody>
@@ -696,81 +485,33 @@ export function CreateComplaintView() {
         <StagingAttachmentsPanel
           stagingToken={stagingToken}
           customerId={values.customerId}
-          disabled={submitting || duplicateBusy}
+          disabled={stagingBusy}
           onStagingTokenResolved={setStagingToken}
           onHasStagedChange={setHasStagedAttachments}
           onBusyChange={setStagingBusy}
         />
+        </fieldset>
 
         <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end">
           <Button
             type="button"
             variant="outline"
             onClick={onCancel}
-            disabled={submitting || duplicateBusy || stagingBusy}
+            disabled={stagingBusy}
             aria-label={t("backAriaLabel")}
           >
             {tCommon("back")}
           </Button>
           <Button
             type="button"
-            variant="outline"
-            disabled={submitting || duplicateBusy || stagingBusy}
+            disabled={!canCreate || stagingBusy}
             onClick={continueToPriority}
             aria-label={t("submitRegisterContinueAriaLabel")}
           >
             {t("submitRegisterContinue")}
           </Button>
-          <Button
-            type="button"
-            loading={submitting}
-            disabled={submitting || duplicateBusy || stagingBusy}
-            onClick={requestConfirmResolveBranch}
-            aria-label={t("submitResolveBranchAriaLabel")}
-          >
-            {submitting ? t("creating") : t("submitResolveBranch")}
-          </Button>
         </div>
       </form>
-
-      <Modal
-        open={confirmOpen}
-        onClose={closeConfirm}
-        title={confirmCopy.title}
-        size="sm"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={submitting}
-              onClick={closeConfirm}
-            >
-              {tCommon("cancel")}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={submitting}
-              onClick={() => void onConfirmAction()}
-            >
-              {confirmCopy.action}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-          {confirmCopy.body}
-        </p>
-      </Modal>
-
-      <DuplicateWarningPanel
-        open={duplicateOpen}
-        result={duplicateResult}
-        busy={duplicateBusy || submitting}
-        onClose={() => setDuplicateOpen(false)}
-        onDecide={onDuplicateDecide}
-      />
     </PageContainer>
   );
 }

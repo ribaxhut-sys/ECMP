@@ -51,7 +51,13 @@ describe("escalateIntakeDraft", () => {
       }),
     );
     expect(peekEscalateIntakeDraft()?.extraCaseDrafts).toEqual([
-      { id: "e1", description: "Case 2 uraian" },
+      {
+        id: "e1",
+        description: "Case 2 uraian",
+        priority: "",
+        note: "",
+        action: "register",
+      },
     ]);
   });
 

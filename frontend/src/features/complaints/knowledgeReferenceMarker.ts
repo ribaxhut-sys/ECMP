@@ -1,16 +1,33 @@
 /**
- * `@[title](knowledge:<uuid>)` reference marker — Knowledge Reference on
- * Penyelesaian (Complaint Resolution). Mirrors the backend parser
- * (app/modules/resolutions/knowledge_markers.py) exactly; this module is
- * the Resolution feature's own interpretation of text it stores — the
- * Knowledge module itself is untouched.
+ * `@[title](<kind>:<uuid>)` reference marker — inline `@` mentions on
+ * Catatan (Batch-1 intake note) and Penyelesaian (Complaint Resolution).
+ * Mirrors the backend parser (app/modules/resolutions/knowledge_markers.py,
+ * `knowledge` kind only — see note below) exactly for that one kind; this
+ * module is the Resolution/Intake feature's own interpretation of text it
+ * stores — the Knowledge/Announcement/Attachment modules themselves are
+ * untouched.
+ *
+ * Three mention kinds share this one grammar:
+ *   - `knowledge`    — Pengetahuan (SOP/Peraturan/…)
+ *   - `announcement` — Pengumuman aktif
+ *   - `attachment`   — Lampiran PUBLIC (announcement attachment catalog)
  *
  * The `title` is a display snapshot only (stability, LOCKED — a reference
- * never re-resolves by title on read); `knowledgeId` is the sole
- * identifier used for validation and navigation.
+ * never re-resolves by title on read); `id` is the sole identifier used
+ * for validation and navigation.
  */
 
-const MARKER_RE = /@\[([^\]\n]*)\]\(knowledge:([0-9a-fA-F-]{36})\)/g;
+export type MentionKind = "knowledge" | "announcement" | "attachment";
+
+/** Catalog order for the `@` empty-query source picker. */
+export const MENTION_KINDS: readonly MentionKind[] = [
+  "knowledge",
+  "announcement",
+  "attachment",
+] as const;
+
+const MARKER_RE =
+  /@\[([^\]\n]*)\]\((knowledge|announcement|attachment):([0-9a-fA-F-]{36})\)/g;
 
 /** Trigger detection: an `@` immediately before the caret, not already
  * inside a marker, followed only by non-bracket/non-whitespace-run text. */
@@ -18,16 +35,20 @@ const TRIGGER_RE = /(?:^|[\s([])@([^\s@[\]()]{0,40})$/;
 
 export type KnowledgeReferenceSegment =
   | { type: "text"; value: string }
-  | { type: "reference"; knowledgeId: string; title: string };
+  | { type: "reference"; kind: MentionKind; id: string; title: string };
 
 /** Strip characters that would break the marker's own grammar. Cosmetic
- * only — never affects the referenced Knowledge, only the inline snapshot. */
+ * only — never affects the referenced record, only the inline snapshot. */
 function sanitizeTitleForMarker(title: string): string {
   return title.replace(/[[\]()]/g, "").replace(/\s+/g, " ").trim();
 }
 
-export function buildKnowledgeMarker(title: string, knowledgeId: string): string {
-  return `@[${sanitizeTitleForMarker(title)}](knowledge:${knowledgeId})`;
+export function buildMentionMarker(
+  kind: MentionKind,
+  title: string,
+  id: string,
+): string {
+  return `@[${sanitizeTitleForMarker(title)}](${kind}:${id})`;
 }
 
 /** Split text into alternating plain-text and reference segments for
@@ -43,7 +64,12 @@ export function parseKnowledgeReferenceSegments(
     if (match.index > lastIndex) {
       segments.push({ type: "text", value: text.slice(lastIndex, match.index) });
     }
-    segments.push({ type: "reference", knowledgeId: match[2], title: match[1] });
+    segments.push({
+      type: "reference",
+      kind: match[2] as MentionKind,
+      id: match[3],
+      title: match[1],
+    });
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < text.length) {
@@ -52,17 +78,20 @@ export function parseKnowledgeReferenceSegments(
   return segments;
 }
 
-/** Ordered, de-duplicated Knowledge ids referenced in `text`. */
-export function extractKnowledgeIds(text: string): string[] {
-  const ids: string[] = [];
+/** Ordered, de-duplicated (by kind+id) references in `text`. */
+export function extractMentionRefs(
+  text: string,
+): { kind: MentionKind; id: string }[] {
+  const refs: { kind: MentionKind; id: string }[] = [];
   const seen = new Set<string>();
   for (const segment of parseKnowledgeReferenceSegments(text)) {
-    if (segment.type === "reference" && !seen.has(segment.knowledgeId)) {
-      seen.add(segment.knowledgeId);
-      ids.push(segment.knowledgeId);
-    }
+    if (segment.type !== "reference") continue;
+    const key = `${segment.kind}:${segment.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    refs.push({ kind: segment.kind, id: segment.id });
   }
-  return ids;
+  return refs;
 }
 
 export interface MentionQuery {
@@ -91,14 +120,15 @@ export function detectMentionQuery(
  * or the following character isn't already whitespace) so selecting a
  * reference mid-sentence never produces a double space. Returns the new
  * text and the caret position right after the inserted text. */
-export function insertKnowledgeMarker(
+export function insertMentionMarker(
   text: string,
   mention: MentionQuery,
   caretIndex: number,
+  kind: MentionKind,
   title: string,
-  knowledgeId: string,
+  id: string,
 ): { text: string; caret: number } {
-  const marker = buildKnowledgeMarker(title, knowledgeId);
+  const marker = buildMentionMarker(kind, title, id);
   const after = text.slice(caretIndex);
   const needsSpace = after.length === 0 || !/^\s/.test(after);
   const insertion = needsSpace ? `${marker} ` : marker;

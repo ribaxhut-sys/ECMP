@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, closeCmCase, type CmCase } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { Alert, Button, Modal, ModalSection, Textarea } from "@/shared/ui";
 import { emptyCloseCaseForm, toCloseCaseRequest } from "./caseForms";
 
@@ -18,6 +19,8 @@ export function CloseCaseDialog({
   onClosed?: (caseData: CmCase) => void;
 }) {
   const t = useTranslations("cases");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const [note, setNote] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -43,7 +46,9 @@ export function CloseCaseDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : t("closeFailed"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("closeFailed"),
       );
     } finally {
       setSubmitting(false);

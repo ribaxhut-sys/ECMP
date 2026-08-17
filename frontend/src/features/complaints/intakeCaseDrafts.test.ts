@@ -3,6 +3,7 @@ import { createEmptyComplaintForm } from "./createComplaintForm";
 import {
   MAX_INTAKE_CASES,
   buildIntakeCaseForms,
+  buildIntakeDecisionRows,
   sanitizeExtraCaseDrafts,
 } from "./intakeCaseDrafts";
 
@@ -34,8 +35,35 @@ describe("intakeCaseDrafts", () => {
     expect(forms).toHaveLength(2);
     expect(forms[0]?.description).toBe("Uraian case 1");
     expect(forms[1]?.description).toBe("Uraian case 2");
+    expect(forms[1]?.subject).toBe("Uraian case 2");
     expect(forms[0]?.priority).toBe("HIGH");
     expect(forms[0]?.destinationUnitId).toBe("UPPPD-X");
+  });
+
+  it("keeps per-Case action and priority on extras", () => {
+    const values = {
+      ...createEmptyComplaintForm({ channel: "BRANCH" }),
+      subject: "Mesin error",
+      description: "Uraian case 1",
+      priority: "LOW" as const,
+    };
+    const rows = buildIntakeDecisionRows(
+      values,
+      [
+        {
+          id: "b",
+          description: "Uraian case 2",
+          priority: "HIGH",
+          note: "Selesai di cabang",
+          action: "close",
+        },
+      ],
+      "escalate",
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.action).toBe("escalate");
+    expect(rows[1]?.action).toBe("close");
+    expect(rows[1]?.priority).toBe("HIGH");
   });
 
   it("caps total cases at BQ-003 max", () => {

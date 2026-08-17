@@ -9,6 +9,7 @@ import {
   resolveCmCase,
   type CmCase,
 } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
   Button,
@@ -17,6 +18,7 @@ import {
   Select,
   Textarea,
 } from "@/shared/ui";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
   emptyResolveCaseForm,
   toResolveCaseRequest,
@@ -54,6 +56,8 @@ export function ResolveCaseDialog({
 }) {
   const t = useTranslations("cases");
   const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const [values, setValues] = useState(emptyResolveCaseForm());
   const [fieldErrors, setFieldErrors] = useState<
     ReturnType<typeof validateResolveCaseForm>
@@ -135,7 +139,9 @@ export function ResolveCaseDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : t("resolveFailed"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("resolveFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -199,11 +205,11 @@ export function ResolveCaseDialog({
           />
         ) : null}
         {values.intent !== "ESCALATE" ? (
-          <Textarea
+          <KnowledgeMentionTextarea
             name="comment"
             label={t("commentRequired")}
             value={values.comment}
-            onChange={(e) => setField("comment", e.target.value)}
+            onChange={(next) => setField("comment", next)}
             error={
               fieldErrors.comment ? tValidation(fieldErrors.comment) : undefined
             }

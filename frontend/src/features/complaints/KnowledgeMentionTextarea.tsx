@@ -11,22 +11,38 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useTranslations } from "next-intl";
-import { searchKnowledge, fetchKnowledge, fetchKnowledgeTypeCounts } from "@/lib/api";
-import type { Knowledge, KnowledgeType, KnowledgeTypeCounts } from "@/lib/api/types";
+import {
+  fetchActiveAnnouncements,
+  fetchAnnouncementAttachmentLibrary,
+  fetchKnowledgeTypeCounts,
+  searchKnowledge,
+} from "@/lib/api";
+import type { KnowledgeType, KnowledgeTypeCounts } from "@/lib/api/types";
 import {
   FormField,
   Badge,
   controlSurfaceClass,
   formFieldDescribedBy,
 } from "@/shared/ui";
-import { IconChevronRight, IconFile, IconSpinner } from "@/shared/icons";
+import {
+  IconBell,
+  IconChevronRight,
+  IconFile,
+  IconPaperclip,
+  IconSpinner,
+} from "@/shared/icons";
 import { cn } from "@/shared/utils";
 import { knowledgeTypeKey } from "@/features/knowledge/KnowledgeBadges";
 import { KnowledgePreviewModal } from "@/features/knowledge/KnowledgePreviewModal";
-import { detectMentionQuery, type MentionQuery } from "./knowledgeReferenceMarker";
-import { isKnowledgeReferenceActive } from "./knowledgeReferenceActivity";
 import {
-  KNOWLEDGE_CHIP_ATTR_ID,
+  detectMentionQuery,
+  type MentionKind,
+  type MentionQuery,
+} from "./knowledgeReferenceMarker";
+import { resolveMentionReferenceMeta } from "./knowledgeReferenceActivity";
+import {
+  MENTION_CHIP_ATTR_ID,
+  MENTION_CHIP_ATTR_KIND,
   deleteVisibleRange,
   getVisibleOffsetRect,
   getVisibleTextAndCaret,
@@ -34,17 +50,19 @@ import {
   knowledgeReferenceChipClass,
   renderMentionEditor,
   serializeMentionEditor,
-  setKnowledgeChipTypeLabel,
+  setMentionChipTypeLabel,
 } from "./knowledgeMentionEditor";
 
 const DEBOUNCE_MS = 250;
-/** Must stay aligned with backend KnowledgeService.REFERENCE_SEARCH_DEFAULT_LIMIT. */
+/** Must stay aligned with backend KnowledgeService.REFERENCE_SEARCH_DEFAULT_LIMIT
+ * for the knowledge source; reused client-side as a display cap for the
+ * announcement/attachment sources, which have no server-side limit param. */
 const REFERENCE_SEARCH_LIMIT = 10;
 const MENU_WIDTH_PX = 360;
 const MENU_GAP_PX = 4;
 const MENU_VIEWPORT_PAD_PX = 8;
 
-/** Catalog order for the `@` empty-query type picker (Option A). */
+/** Catalog order for the `@` empty-query type picker (Knowledge sub-flow). */
 export const KNOWLEDGE_MENTION_TYPES: readonly KnowledgeType[] = [
   "SOP",
   "PERATURAN",
@@ -52,6 +70,23 @@ export const KNOWLEDGE_MENTION_TYPES: readonly KnowledgeType[] = [
   "KEPUTUSAN",
   "PANDUAN",
 ] as const;
+
+/** Outermost `@` picker — which record kind to search. */
+const MENTION_SOURCES: readonly MentionKind[] = [
+  "knowledge",
+  "announcement",
+  "attachment",
+] as const;
+
+/** One normalized row for the results list, regardless of source. */
+type MentionResult = {
+  kind: MentionKind;
+  id: string;
+  /** Stored as the chip title / marker snapshot. */
+  title: string;
+  /** Badge shown in front of the title (Knowledge sub-type, or a fixed label). */
+  typeLabel: string;
+};
 
 export function KnowledgeMentionTextarea({
   id,
@@ -88,13 +123,15 @@ export function KnowledgeMentionTextarea({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeqRef = useRef(0);
   const mentionRef = useRef<MentionQuery | null>(null);
+  const sourceRef = useRef<MentionKind | null>(null);
   const selectedTypeRef = useRef<KnowledgeType | null>(null);
   /** After Escape, don't reopen from keyup until the user types again. */
   const suppressMentionUntilInputRef = useRef(false);
 
   const [mention, setMention] = useState<MentionQuery | null>(null);
+  const [source, setSource] = useState<MentionKind | null>(null);
   const [selectedType, setSelectedType] = useState<KnowledgeType | null>(null);
-  const [results, setResults] = useState<Knowledge[]>([]);
+  const [results, setResults] = useState<MentionResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState(0);
@@ -103,16 +140,37 @@ export function KnowledgeMentionTextarea({
   );
   const [previewKnowledgeId, setPreviewKnowledgeId] = useState<string | null>(null);
   const [typeCounts, setTypeCounts] = useState<KnowledgeTypeCounts | null>(null);
+  const [sourceCounts, setSourceCounts] = useState<Partial<
+    Record<MentionKind, number>
+  > | null>(null);
 
   const open = mention !== null;
   mentionRef.current = mention;
+  sourceRef.current = source;
   selectedTypeRef.current = selectedType;
 
-  /** Empty `@` with no type chosen → show SOP / Peraturan / … first. */
+  /** Outermost level: which source to search. Free-text typed before a
+   * source is chosen does not fall through to a search — there is no
+   * single meaningful query across three disjoint domains, unlike the
+   * Knowledge type sub-picker below. */
+  const showSourcePicker = open && source === null;
+  /** Empty `@` with Pengetahuan chosen but no type yet → show SOP / Peraturan / … */
   const showTypePicker =
-    open && (mention?.query ?? "") === "" && selectedType === null;
+    open &&
+    source === "knowledge" &&
+    selectedType === null &&
+    (mention?.query ?? "") === "";
 
   const describedBy = formFieldDescribedBy(inputId, { hint, error });
+
+  const sourceLabel = useCallback(
+    (kind: MentionKind): string => {
+      if (kind === "knowledge") return t("sourceKnowledge");
+      if (kind === "announcement") return t("sourceAnnouncement");
+      return t("sourceAttachment");
+    },
+    [t],
+  );
 
   const updateMenuPosition = useCallback(() => {
     const root = editorRef.current;
@@ -159,27 +217,29 @@ export function KnowledgeMentionTextarea({
     renderMentionEditor(root, value);
   }, [value]);
 
-  // Mark inline chips red when the referenced Knowledge is no longer active.
+  // Mark inline chips red when the referenced record is no longer active
+  // (deleted / archived / expired / access revoked) — any of the 3 kinds.
   useEffect(() => {
     const root = editorRef.current;
-    if (!root || !value.includes("knowledge:")) return;
+    if (!root) return;
+    if (!MENTION_SOURCES.some((kind) => value.includes(`${kind}:`))) return;
     let cancelled = false;
     const chips = Array.from(
-      root.querySelectorAll<HTMLElement>(`[${KNOWLEDGE_CHIP_ATTR_ID}]`),
+      root.querySelectorAll<HTMLElement>(`[${MENTION_CHIP_ATTR_ID}]`),
     );
     for (const chip of chips) {
-      const id = chip.getAttribute(KNOWLEDGE_CHIP_ATTR_ID);
-      if (!id) continue;
-      fetchKnowledge(id)
-        .then((res) => {
+      const kind = chip.getAttribute(MENTION_CHIP_ATTR_KIND) as MentionKind | null;
+      const chipId = chip.getAttribute(MENTION_CHIP_ATTR_ID);
+      if (!kind || !chipId) continue;
+      resolveMentionReferenceMeta(kind, chipId, {
+        knowledgeType: (knowledgeType) => tKnowledge(knowledgeTypeKey(knowledgeType)),
+        announcement: t("sourceAnnouncement"),
+        attachment: t("sourceAttachment"),
+      })
+        .then(({ active, typeLabel }) => {
           if (cancelled) return;
-          chip.className = knowledgeReferenceChipClass(
-            isKnowledgeReferenceActive(res.data),
-          );
-          setKnowledgeChipTypeLabel(
-            chip,
-            tKnowledge(knowledgeTypeKey(res.data.knowledgeType)),
-          );
+          chip.className = knowledgeReferenceChipClass(active);
+          setMentionChipTypeLabel(chip, typeLabel);
         })
         .catch(() => {
           if (cancelled) return;
@@ -189,9 +249,9 @@ export function KnowledgeMentionTextarea({
     return () => {
       cancelled = true;
     };
-  }, [value, tKnowledge]);
+  }, [value, t, tKnowledge]);
 
-  // Anchor "Cari Pengetahuan" beside the typed `@`.
+  // Anchor the picker beside the typed `@`.
   useLayoutEffect(() => {
     if (!open) {
       setMenuPos(null);
@@ -211,26 +271,71 @@ export function KnowledgeMentionTextarea({
     mention?.query,
     results.length,
     loading,
+    showSourcePicker,
     showTypePicker,
+    source,
     selectedType,
     updateMenuPosition,
   ]);
 
   const runSearch = useCallback(
-    (query: string, type: KnowledgeType | null) => {
+    (activeSource: MentionKind, query: string, knowledgeType: KnowledgeType | null) => {
       const seq = ++requestSeqRef.current;
       setLoading(true);
       setSearchError(null);
-      searchKnowledge({
-        q: query,
-        type: type ?? undefined,
-        status: "ACTIVE",
-        referenceOnly: true,
-        limit: REFERENCE_SEARCH_LIMIT,
-      })
-        .then((res) => {
+
+      const rows: Promise<MentionResult[]> =
+        activeSource === "knowledge"
+          ? searchKnowledge({
+              q: query,
+              type: knowledgeType ?? undefined,
+              status: "ACTIVE",
+              referenceOnly: true,
+              limit: REFERENCE_SEARCH_LIMIT,
+            }).then((res) =>
+              res.data.slice(0, REFERENCE_SEARCH_LIMIT).map((item) => ({
+                kind: "knowledge" as const,
+                id: item.id,
+                title: item.versionLabel
+                  ? `${item.title} v${item.versionLabel}`
+                  : item.title,
+                typeLabel: tKnowledge(knowledgeTypeKey(item.knowledgeType)),
+              })),
+            )
+          : activeSource === "announcement"
+            ? fetchActiveAnnouncements().then((res) => {
+                const q = query.trim().toLowerCase();
+                const filtered = q
+                  ? res.data.filter(
+                      (a) =>
+                        a.title.toLowerCase().includes(q) ||
+                        a.referenceNumber.toLowerCase().includes(q),
+                    )
+                  : res.data;
+                return filtered.slice(0, REFERENCE_SEARCH_LIMIT).map((item) => ({
+                  kind: "announcement" as const,
+                  id: item.id,
+                  title: item.title,
+                  typeLabel: t("sourceAnnouncement"),
+                }));
+              })
+            : fetchAnnouncementAttachmentLibrary({ q: query || undefined }).then(
+                (res) =>
+                  res.data
+                    .filter((item) => item.accessLevel === "PUBLIC")
+                    .slice(0, REFERENCE_SEARCH_LIMIT)
+                    .map((item) => ({
+                      kind: "attachment" as const,
+                      id: item.id,
+                      title: item.fileName,
+                      typeLabel: t("sourceAttachment"),
+                    })),
+              );
+
+      rows
+        .then((mapped) => {
           if (seq !== requestSeqRef.current) return;
-          setResults(res.data.slice(0, REFERENCE_SEARCH_LIMIT));
+          setResults(mapped);
           setHighlighted(0);
         })
         .catch(() => {
@@ -243,12 +348,30 @@ export function KnowledgeMentionTextarea({
           setLoading(false);
         });
     },
-    [t],
+    [t, tKnowledge],
   );
 
-  function scheduleSearch(query: string, type: KnowledgeType | null) {
+  function scheduleSearch(
+    activeSource: MentionKind,
+    query: string,
+    knowledgeType: KnowledgeType | null,
+  ) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => runSearch(query, type), DEBOUNCE_MS);
+    debounceRef.current = setTimeout(
+      () => runSearch(activeSource, query, knowledgeType),
+      DEBOUNCE_MS,
+    );
+  }
+
+  function enterSourcePicker() {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    requestSeqRef.current += 1;
+    setSource(null);
+    setSelectedType(null);
+    setResults([]);
+    setSearchError(null);
+    setLoading(false);
+    setHighlighted(0);
   }
 
   function enterTypePicker() {
@@ -263,6 +386,7 @@ export function KnowledgeMentionTextarea({
 
   function closeDropdown() {
     setMention(null);
+    setSource(null);
     setSelectedType(null);
     setResults([]);
     setSearchError(null);
@@ -273,16 +397,28 @@ export function KnowledgeMentionTextarea({
   function syncMentionUi(nextMention: MentionQuery | null) {
     setMention(nextMention);
     if (!nextMention) {
-      enterTypePicker();
+      enterSourcePicker();
       return;
     }
     const query = nextMention.query;
-    const type = selectedTypeRef.current;
-    if (query === "" && type === null) {
-      enterTypePicker();
+    const activeSource = sourceRef.current;
+    if (activeSource === null) {
+      // Outermost picker — always the 3-source list; typed text is not a
+      // cross-source query (no single search spans Knowledge/Pengumuman/
+      // Lampiran), so just keep results/loading state clean.
+      enterSourcePicker();
       return;
     }
-    scheduleSearch(query, type);
+    if (activeSource === "knowledge") {
+      const type = selectedTypeRef.current;
+      if (query === "" && type === null) {
+        enterTypePicker();
+        return;
+      }
+      scheduleSearch("knowledge", query, type);
+      return;
+    }
+    scheduleSearch(activeSource, query, null);
   }
 
   function emitFromEditor() {
@@ -301,29 +437,48 @@ export function KnowledgeMentionTextarea({
     syncMentionUi(detectMentionQuery(text, caret));
   }
 
+  function selectSource(kind: MentionKind) {
+    setSource(kind);
+    setHighlighted(0);
+    const query = mentionRef.current?.query ?? "";
+    if (kind === "knowledge") {
+      // A query may already be typed (the source picker ignores it, but
+      // still tracks it) — carry it over exactly like the type picker's own
+      // "typing bypasses the picker" behavior, instead of showing an empty
+      // type picker.
+      if (query === "") {
+        enterTypePicker();
+      } else {
+        setSelectedType(null);
+        runSearch("knowledge", query, null);
+      }
+      return;
+    }
+    setSelectedType(null);
+    runSearch(kind, query, null);
+  }
+
   function selectType(type: KnowledgeType) {
     setSelectedType(type);
     setHighlighted(0);
-    runSearch(mentionRef.current?.query ?? "", type);
+    runSearch("knowledge", mentionRef.current?.query ?? "", type);
   }
 
-  function selectResult(item: Knowledge) {
+  function selectResult(item: MentionResult) {
     const root = editorRef.current;
     const current = mentionRef.current;
     if (!root || !current) return;
 
     const { caret } = getVisibleTextAndCaret(root);
-    const displayTitle = item.versionLabel
-      ? `${item.title} v${item.versionLabel}`
-      : item.title;
 
     insertChipAtMention(
       root,
       current.start,
       caret,
-      displayTitle,
+      item.kind,
+      item.title,
       item.id,
-      tKnowledge(knowledgeTypeKey(item.knowledgeType)),
+      item.typeLabel,
     );
     closeDropdown();
     emitFromEditor();
@@ -350,6 +505,26 @@ export function KnowledgeMentionTextarea({
   function onEditorKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!open) return;
 
+    if (showSourcePicker) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setHighlighted((i) => (i + 1) % MENTION_SOURCES.length);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setHighlighted(
+          (i) => (i - 1 + MENTION_SOURCES.length) % MENTION_SOURCES.length,
+        );
+      } else if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        const kind = MENTION_SOURCES[highlighted];
+        if (kind) selectSource(kind);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        dismissEmptyMentionTrigger();
+      }
+      return;
+    }
+
     if (showTypePicker) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -367,7 +542,10 @@ export function KnowledgeMentionTextarea({
         if (type) selectType(type);
       } else if (event.key === "Escape") {
         event.preventDefault();
-        dismissEmptyMentionTrigger();
+        enterSourcePicker();
+      } else if (event.key === "Backspace") {
+        event.preventDefault();
+        enterSourcePicker();
       }
       return;
     }
@@ -387,28 +565,37 @@ export function KnowledgeMentionTextarea({
       }
     } else if (event.key === "Escape") {
       event.preventDefault();
-      if (selectedType && (mention?.query ?? "") === "") {
+      const query = mention?.query ?? "";
+      if (query === "" && source === "knowledge" && selectedType) {
         enterTypePicker();
-      } else if ((mention?.query ?? "") === "") {
-        dismissEmptyMentionTrigger();
+      } else if (query === "") {
+        enterSourcePicker();
       } else {
         suppressMentionUntilInputRef.current = true;
         closeDropdown();
       }
-    } else if (event.key === "Backspace" && selectedType && (mention?.query ?? "") === "") {
-      // Empty query after a type was chosen — Backspace returns to type list.
+    } else if (event.key === "Backspace" && (mention?.query ?? "") === "") {
+      // Empty query in the results view — Backspace steps back one level
       // (Does not delete the `@`; browser still handles that on a later press.)
       event.preventDefault();
-      enterTypePicker();
+      if (source === "knowledge" && selectedType) {
+        enterTypePicker();
+      } else {
+        enterSourcePicker();
+      }
     }
   }
 
   function onEditorClick(event: ReactMouseEvent<HTMLDivElement>) {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    const chip = target.closest(`[data-knowledge-id]`);
+    const chip = target.closest(`[${MENTION_CHIP_ATTR_KIND}]`);
     if (!chip || !editorRef.current?.contains(chip)) return;
-    const knowledgeId = chip.getAttribute("data-knowledge-id");
+    // Only Knowledge chips preview in place while composing; Pengumuman and
+    // Lampiran are read on save (KnowledgeReferenceText) — no in-editor
+    // preview surface for those two exists yet (Future Work).
+    if (chip.getAttribute(MENTION_CHIP_ATTR_KIND) !== "knowledge") return;
+    const knowledgeId = chip.getAttribute(MENTION_CHIP_ATTR_ID);
     if (!knowledgeId) return;
     event.preventDefault();
     setPreviewKnowledgeId(knowledgeId);
@@ -416,22 +603,26 @@ export function KnowledgeMentionTextarea({
 
   const activeOptionId = !open
     ? undefined
-    : showTypePicker
-      ? `${listboxId}-type-${highlighted}`
-      : results[highlighted]
-        ? `${listboxId}-option-${highlighted}`
-        : undefined;
+    : showSourcePicker
+      ? `${listboxId}-source-${highlighted}`
+      : showTypePicker
+        ? `${listboxId}-type-${highlighted}`
+        : results[highlighted]
+          ? `${listboxId}-option-${highlighted}`
+          : undefined;
 
   useEffect(() => {
     if (!open) return;
-    const id = showTypePicker
-      ? `${listboxId}-type-${highlighted}`
-      : `${listboxId}-option-${highlighted}`;
-    const el = document.getElementById(id);
+    const idFor = showSourcePicker
+      ? `${listboxId}-source-${highlighted}`
+      : showTypePicker
+        ? `${listboxId}-type-${highlighted}`
+        : `${listboxId}-option-${highlighted}`;
+    const el = document.getElementById(idFor);
     if (el && typeof el.scrollIntoView === "function") {
       el.scrollIntoView({ block: "nearest" });
     }
-  }, [highlighted, listboxId, open, results.length, showTypePicker]);
+  }, [highlighted, listboxId, open, results.length, showSourcePicker, showTypePicker]);
 
   // Prevent contenteditable from inserting raw HTML on paste.
   useEffect(() => {
@@ -461,11 +652,49 @@ export function KnowledgeMentionTextarea({
     };
   }, [showTypePicker]);
 
-  const headerLabel = selectedType
-    ? tKnowledge(knowledgeTypeKey(selectedType))
-    : showTypePicker
-      ? t("chooseType")
-      : t("searchTitle");
+  // Counts shown next to each source in the outermost `@` picker.
+  useEffect(() => {
+    if (!showSourcePicker) return;
+    let cancelled = false;
+    Promise.all([
+      fetchKnowledgeTypeCounts().then((res) =>
+        Object.values(res.data).reduce((sum, n) => sum + n, 0),
+      ),
+      fetchActiveAnnouncements().then((res) => res.data.length),
+      fetchAnnouncementAttachmentLibrary({}).then(
+        (res) => res.data.filter((item) => item.accessLevel === "PUBLIC").length,
+      ),
+    ])
+      .then(([knowledge, announcement, attachment]) => {
+        if (!cancelled) setSourceCounts({ knowledge, announcement, attachment });
+      })
+      .catch(() => {
+        if (!cancelled) setSourceCounts(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showSourcePicker]);
+
+  const headerLabel = showSourcePicker
+    ? t("chooseSource")
+    : source === "knowledge"
+      ? selectedType
+        ? tKnowledge(knowledgeTypeKey(selectedType))
+        : showTypePicker
+          ? t("chooseType")
+          : t("searchTitle")
+      : source
+        ? sourceLabel(source)
+        : t("searchTitle");
+
+  function goBackOneLevel() {
+    if (source === "knowledge" && selectedType) {
+      enterTypePicker();
+    } else {
+      enterSourcePicker();
+    }
+  }
 
   return (
     <div className="relative">
@@ -540,13 +769,13 @@ export function KnowledgeMentionTextarea({
             >
               @
             </span>
-            {selectedType ? (
+            {!showSourcePicker ? (
               <button
                 type="button"
                 className="min-w-0 truncate text-left hover:text-ecmp-primary hover:underline"
                 onMouseDown={(event) => {
                   event.preventDefault();
-                  enterTypePicker();
+                  goBackOneLevel();
                 }}
                 title={t("backWithEsc")}
               >
@@ -556,7 +785,11 @@ export function KnowledgeMentionTextarea({
               <span className="min-w-0 truncate">{headerLabel}</span>
             )}
           </div>
-          {showTypePicker ? (
+          {showSourcePicker ? (
+            <p className="border-b border-ecmp-border px-3 py-1.5 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+              {t("sourcePickerHint")}
+            </p>
+          ) : showTypePicker ? (
             <p className="border-b border-ecmp-border px-3 py-1.5 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
               {t("typePickerHint")}
             </p>
@@ -567,7 +800,60 @@ export function KnowledgeMentionTextarea({
             aria-label={headerLabel}
             className="max-h-64 overflow-y-auto py-1"
           >
-            {showTypePicker ? (
+            {showSourcePicker ? (
+              MENTION_SOURCES.map((kind, index) => {
+                const count = sourceCounts?.[kind];
+                const optionLabel =
+                  count == null
+                    ? sourceLabel(kind)
+                    : t("typeWithCount", { type: sourceLabel(kind), count });
+                return (
+                <li key={kind} role="none">
+                  <div
+                    id={`${listboxId}-source-${index}`}
+                    role="option"
+                    aria-selected={index === highlighted}
+                    aria-label={optionLabel}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 px-3 py-2 text-[length:var(--ecmp-font-body-small-size)]",
+                      index === highlighted
+                        ? "bg-ecmp-primary-muted"
+                        : "hover:bg-ecmp-hover",
+                    )}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectSource(kind);
+                    }}
+                    onMouseEnter={() => setHighlighted(index)}
+                  >
+                    {kind === "knowledge" ? (
+                      <IconFile
+                        className="size-4 shrink-0 text-ecmp-text-secondary"
+                        aria-hidden
+                      />
+                    ) : kind === "announcement" ? (
+                      <IconBell
+                        className="size-4 shrink-0 text-ecmp-text-secondary"
+                        aria-hidden
+                      />
+                    ) : (
+                      <IconPaperclip
+                        className="size-4 shrink-0 text-ecmp-text-secondary"
+                        aria-hidden
+                      />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">
+                      {optionLabel}
+                    </span>
+                    <IconChevronRight
+                      className="size-4 shrink-0 text-ecmp-text-secondary"
+                      aria-hidden
+                    />
+                  </div>
+                </li>
+                );
+              })
+            ) : showTypePicker ? (
               KNOWLEDGE_MENTION_TYPES.map((type, index) => {
                 const typeLabel = tKnowledge(knowledgeTypeKey(type));
                 const count = typeCounts?.[type];
@@ -616,11 +902,15 @@ export function KnowledgeMentionTextarea({
               </li>
             ) : results.length === 0 ? (
               <li className="px-3 py-3 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                {t("empty")}
+                {source === "announcement"
+                  ? t("emptyAnnouncement")
+                  : source === "attachment"
+                    ? t("emptyAttachment")
+                    : t("empty")}
               </li>
             ) : (
               results.map((item, index) => (
-                <li key={item.id} role="none">
+                <li key={`${item.kind}:${item.id}`} role="none">
                   <div
                     id={`${listboxId}-option-${index}`}
                     role="option"
@@ -643,12 +933,10 @@ export function KnowledgeMentionTextarea({
                     />
                     <div className="flex min-w-0 items-center gap-2">
                       <Badge tone="info" className="shrink-0 px-1.5 py-0">
-                        {tKnowledge(knowledgeTypeKey(item.knowledgeType))}
+                        {item.typeLabel}
                       </Badge>
                       <p className="truncate font-medium text-ecmp-text-primary">
-                        {item.versionLabel
-                          ? `${item.title} v${item.versionLabel}`
-                          : item.title}
+                        {item.title}
                       </p>
                     </div>
                   </div>

@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 import { IconTrendDown, IconTrendUp } from "@/shared/icons";
 import { Badge, type BadgeTone } from "@/shared/ui/badge";
@@ -61,6 +62,7 @@ export function StatCard({
   variant = "default",
   ...props
 }: StatCardProps) {
+  const tCommon = useTranslations("common");
   const isPrimary = hierarchy === "primary";
   const isSupporting = hierarchy === "supporting";
 
@@ -104,7 +106,7 @@ export function StatCard({
         <div
           className="mt-3 space-y-2"
           aria-busy="true"
-          aria-label="Loading"
+          aria-label={tCommon("loadingContent")}
         >
           <div className="h-8 animate-pulse rounded-[var(--ecmp-radius-md)] bg-ecmp-secondary-muted motion-reduce:animate-none" />
           <div className="h-4 w-1/2 animate-pulse rounded-[var(--ecmp-radius-md)] bg-ecmp-secondary-muted motion-reduce:animate-none" />

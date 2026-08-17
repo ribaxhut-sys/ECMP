@@ -43,6 +43,13 @@ from app.modules.cm_case.domain.value_objects import (
     CaseStatus,
     ResolveAction,
 )
+
+_INTAKE_ACTIONS = frozenset({"register", "close", "escalate"})
+
+
+def _intake_action(raw: str | None) -> str | None:
+    value = (raw or "").strip().lower()
+    return value if value in _INTAKE_ACTIONS else None
 from app.modules.timeline.domain.entity import TimelineEntry
 from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
@@ -100,6 +107,7 @@ class SideEffects(Protocol):
         before: dict | None = None,
         after: dict | None = None,
         note: str | None = None,
+        extra_metadata: dict | None = None,
     ) -> None: ...
 
 
@@ -115,8 +123,19 @@ class NoOpSideEffects:
         before: dict | None = None,
         after: dict | None = None,
         note: str | None = None,
+        extra_metadata: dict | None = None,
     ) -> None:
-        _ = (case, event_name, title, actor_id, actor_unit_id, before, after, note)
+        _ = (
+            case,
+            event_name,
+            title,
+            actor_id,
+            actor_unit_id,
+            before,
+            after,
+            note,
+            extra_metadata,
+        )
 
 
 class AuditTimelineSideEffects:
@@ -143,6 +162,7 @@ class AuditTimelineSideEffects:
         before: dict | None = None,
         after: dict | None = None,
         note: str | None = None,
+        extra_metadata: dict | None = None,
     ) -> None:
         actor_uuid: UUID | None = None
         try:
@@ -150,6 +170,11 @@ class AuditTimelineSideEffects:
         except ValueError:
             actor_uuid = None
 
+        extra = {
+            key: value
+            for key, value in dict(extra_metadata or {}).items()
+            if value is not None and value != ""
+        }
         self._audit.log(
             event_type=event_name,
             entity_type="Case",
@@ -165,6 +190,8 @@ class AuditTimelineSideEffects:
                 # F4 history rule — "unit mana yang melakukan" alongside actor_id.
                 "actorUnitId": actor_unit_id,
                 "note": note,
+                "priority": case.priority,
+                **extra,
             },
             commit=False,
         )
@@ -188,6 +215,8 @@ class AuditTimelineSideEffects:
                 "caseStatus": case.status.value,
                 "actorUnitId": actor_unit_id,
                 "note": note,
+                "priority": case.priority,
+                **extra,
             },
         )
         self._timeline.add(entry)
@@ -357,6 +386,8 @@ class CaseApplicationService:
             actor_id=cmd.actor_id,
             actor_unit_id=cmd.actor_unit_id,
             after=case.to_snapshot(),
+            note=(cmd.note or "").strip() or None,
+            extra_metadata={"intakeAction": _intake_action(cmd.intake_action)},
         )
         self._record_handling_claim(
             case=case,

@@ -876,6 +876,7 @@ class CmBatch1Repository:
             keyword_clause = (
                 CmBatch1ComplaintORM.complaint_number.ilike(pattern, escape="\\")
                 | CmBatch1ComplaintORM.subject.ilike(pattern, escape="\\")
+                | CmBatch1ComplaintORM.description.ilike(pattern, escape="\\")
                 | CmBatch1ComplaintORM.customer_id.ilike(pattern, escape="\\")
             )
             stmt = stmt.where(keyword_clause)

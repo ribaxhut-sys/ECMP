@@ -123,6 +123,8 @@ class CreateCaseRequest(BaseModel):
     destination_unit_id: str | None = Field(default=None, alias="destinationUnitId")
     assigned_user_id: str | None = Field(default=None, alias="assignedUserId")
     sla_policy_version_id: str | None = Field(default=None, alias="slaPolicyVersionId")
+    note: str | None = None
+    intake_action: str | None = Field(default=None, alias="intakeAction")
 
 
 class AddCaseRequest(BaseModel):

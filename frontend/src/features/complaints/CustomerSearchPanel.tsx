@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   confirmCmBatch1Customer,
   fetchCmBatch1Customer360,
@@ -896,6 +896,7 @@ function CustomerComplaintHistoryList({
   statusOpenLabel: string;
   statusClosedLabel: string;
 }) {
+  const locale = useLocale();
   if (rows.length === 0) {
     return <Empty title={emptyLabel} description={hint} />;
   }
@@ -909,7 +910,7 @@ function CustomerComplaintHistoryList({
           const id = briefId(row, index);
           const number = row.complaintNumber?.trim() || id;
           const isClosed = (row.status || "").toUpperCase() === "CLOSED";
-          const created = formatDateTime24(row.createdAt);
+          const created = formatDateTime24(row.createdAt, locale);
           const href = `/complaints/cm/${encodeURIComponent(id)}`;
           return (
             <li

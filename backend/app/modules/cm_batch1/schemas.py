@@ -450,6 +450,16 @@ class IntakeHistoryEntry(BaseModel):
         default=None,
         description="Operator note captured with this event; null for older rows",
     )
+    case_number: str | None = Field(
+        default=None,
+        alias="caseNumber",
+        description="Case number when this event is scoped to one Case",
+    )
+    intake_action: str | None = Field(
+        default=None,
+        alias="intakeAction",
+        description="Intake putusan when recorded on CaseCreated (register, close, escalate)",
+    )
 
 
 class SupervisorQueueResponse(BaseModel):

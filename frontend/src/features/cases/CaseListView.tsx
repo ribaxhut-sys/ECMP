@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -38,7 +39,7 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
   const t = useTranslations("cases");
   const tCommon = useTranslations("common");
   const tNav = useTranslations("nav");
-  const tTable = useTranslations("table");
+  const tErrors = useTranslations("errors");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -74,12 +75,14 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
     } catch (err) {
       setCases([]);
       setError(
-        err instanceof ApiError ? err.message : t("unableToLoadList"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToLoadList"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId, t]);
+  }, [canRead, complaintId, t, tErrors, tCommon]);
 
   useEffect(() => {
     void reload();
@@ -241,7 +244,11 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
             description={t("modeADescription", { id: complaintId })}
           />
           <WorkspaceToolbar
-            summary={tTable("itemsInView", { count: cases.length })}
+            summary={tCommon("showingItems", {
+              from: cases.length === 0 ? 0 : 1,
+              to: cases.length,
+              total: cases.length,
+            })}
             actions={
               <Button
                 type="button"

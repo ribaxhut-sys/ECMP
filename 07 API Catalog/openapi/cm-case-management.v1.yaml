@@ -1346,6 +1346,16 @@ components:
         slaPolicyVersionId:
           type: string
           description: Optional explicit bind; otherwise system selects active policy. Countdown NOT activated.
+        note:
+          type: string
+          nullable: true
+          description: Optional operator note stored on the CaseCreated timeline row.
+        intakeAction:
+          type: string
+          nullable: true
+          description: >
+            Optional intake putusan for history (register, close, escalate).
+            Ignored when omitted or unknown.
 
     AddCaseRequest:
       type: object

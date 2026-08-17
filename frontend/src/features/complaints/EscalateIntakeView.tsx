@@ -24,9 +24,12 @@ import {
   PageHeader,
   SectionHeader,
   Select,
+  Textarea,
+  RadioGroup,
 } from "@/shared/ui";
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { ActiveComplaintsBanner } from "./ActiveComplaintsBanner";
+import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   newCmBatch1IdempotencyKey,
   toCmBatch1CreateRequest,
@@ -39,11 +42,20 @@ import {
   type EscalateIntakeDraft,
   type IntakePriorityDraftIntent,
 } from "./escalateIntakeDraft";
-import { createIntakeCasesForRegisteredComplaint } from "./intakeCaseDrafts";
+import {
+  anyIntakeCaseEscalates,
+  buildIntakeDecisionRows,
+  extrasFromDecisionRows,
+  parseIntakeCaseAction,
+  parseIntakePriority,
+  createIntakeCasesForRegisteredComplaint,
+  type IntakeCaseAction,
+  type IntakeCaseDecisionRow,
+} from "./intakeCaseDrafts";
 
 /**
- * Priority + action step after "Lanjut":
- * set priority, then Daftarkan or Ajukan eskalasi (with confirm).
+ * After "Lanjut": per-Case priority, note, and one action
+ * (register / close Case / request escalation).
  */
 export function EscalateIntakeView() {
   const router = useRouter();
@@ -57,7 +69,7 @@ export function EscalateIntakeView() {
 
   const [draft, setDraft] = useState<EscalateIntakeDraft | null>(null);
   const [ready, setReady] = useState(false);
-  const [priority, setPriority] = useState("");
+  const [rows, setRows] = useState<IntakeCaseDecisionRow[]>([]);
   const [priorityError, setPriorityError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   /** True when submitError comes from link_existing (not create). */
@@ -67,8 +79,6 @@ export function EscalateIntakeView() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmIntent, setConfirmIntent] =
-    useState<IntakePriorityDraftIntent | null>(null);
-  const [activeIntent, setActiveIntent] =
     useState<IntakePriorityDraftIntent | null>(null);
   const submitIntentRef = useRef<IntakePriorityDraftIntent>("register");
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -103,6 +113,15 @@ export function EscalateIntakeView() {
   useEffect(() => {
     const loaded = peekEscalateIntakeDraft();
     setDraft(loaded);
+    if (loaded) {
+      setRows(
+        buildIntakeDecisionRows(
+          loaded.values,
+          loaded.extraCaseDrafts ?? [],
+          loaded.case1Action,
+        ),
+      );
+    }
     setReady(true);
   }, []);
 
@@ -119,24 +138,65 @@ export function EscalateIntakeView() {
     [tPriority],
   );
 
+  function persistRows(next: IntakeCaseDecisionRow[]): void {
+    setRows(next);
+    setDraft((current) => {
+      if (!current) return current;
+      const primary = next[0];
+      const p = parseIntakePriority(primary?.priority);
+      const updated: EscalateIntakeDraft = {
+        ...current,
+        values: {
+          ...current.values,
+          priority:
+            p === "LOW" || p === "MEDIUM" || p === "HIGH" || p === "CRITICAL"
+              ? p
+              : current.values.priority,
+          resolution: primary?.note ?? current.values.resolution,
+        },
+        extraCaseDrafts: extrasFromDecisionRows(next),
+        case1Action: primary?.action,
+      };
+      stashEscalateIntakeDraft(updated);
+      return updated;
+    });
+  }
+
+  function patchRow(
+    id: string,
+    patch: Partial<Pick<IntakeCaseDecisionRow, "priority" | "note" | "action">>,
+  ): void {
+    persistRows(
+      rows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
+  }
+
   function withPriority(
     values: CreateComplaintFormValues,
   ): CreateComplaintFormValues {
-    const p = priority.trim().toUpperCase();
-    const allowed = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
-    const nextPriority = (allowed as readonly string[]).includes(p)
-      ? (p as (typeof allowed)[number])
-      : "";
-    return { ...values, priority: nextPriority };
+    const p = parseIntakePriority(rows[0]?.priority);
+    const nextPriority =
+      p === "LOW" || p === "MEDIUM" || p === "HIGH" || p === "CRITICAL"
+        ? p
+        : values.priority;
+    return { ...values, priority: nextPriority, resolution: rows[0]?.note ?? values.resolution };
   }
 
-  function ensurePrioritySelected(): boolean {
-    if (!priority.trim()) {
+  function ensureCaseDecisions(): boolean {
+    const missingPriority = rows.find((row) => !parseIntakePriority(row.priority));
+    if (missingPriority) {
       setPriorityError(tValidation("priorityRequired"));
-      document.getElementById("priority")?.focus();
+      document.getElementById(`case-priority-${missingPriority.id}`)?.focus();
+      return false;
+    }
+    const needsNote = rows.find((row) => !row.note.trim());
+    if (needsNote) {
+      setEscalationReasonMissing(true);
+      document.getElementById(`case-note-${needsNote.id}`)?.focus();
       return false;
     }
     setPriorityError(null);
+    setEscalationReasonMissing(false);
     return true;
   }
 
@@ -146,7 +206,7 @@ export function EscalateIntakeView() {
     stagingToken: string,
     intent: IntakePriorityDraftIntent,
   ): Promise<void> {
-    const escalate = intent === "escalate";
+    const escalate = anyIntakeCaseEscalates(rows) || intent === "escalate";
     const response = await createCmBatch1Complaint(
       toCmBatch1CreateRequest(withPriority(values), {
         duplicateOverrideJustification: justification,
@@ -156,15 +216,14 @@ export function EscalateIntakeView() {
       }),
       { idempotencyKey: newCmBatch1IdempotencyKey() },
     );
-    if (!escalate) {
-      await createIntakeCasesForRegisteredComplaint({
-        complaintId: response.data.complaintId,
-        values: withPriority(values),
-        extraDrafts: draft?.extraCaseDrafts ?? [],
-        destinationUnitId:
-          draft?.recordingUnitCode?.trim() || values.branchId.trim() || "",
-      });
-    }
+    await createIntakeCasesForRegisteredComplaint({
+      complaintId: response.data.complaintId,
+      values: withPriority(values),
+      extraDrafts: extrasFromDecisionRows(rows),
+      destinationUnitId:
+        draft?.recordingUnitCode?.trim() || values.branchId.trim() || "",
+      rows,
+    });
     clearEscalateIntakeDraft();
     const suffix = escalate ? "?intake=escalate" : "";
     router.push(
@@ -175,14 +234,13 @@ export function EscalateIntakeView() {
   async function submitWithIntent(
     intent: IntakePriorityDraftIntent,
   ): Promise<void> {
-    if (!draft) return;
+    if (!canCreate || !draft) return;
     submitIntentRef.current = intent;
-    setActiveIntent(intent);
     setSubmitError(null);
     setLinkError(false);
     setEscalationReasonMissing(false);
     setInfoMessage(null);
-    if (!ensurePrioritySelected()) return;
+    if (!ensureCaseDecisions()) return;
 
     setSubmitting(true);
     try {
@@ -219,20 +277,15 @@ export function EscalateIntakeView() {
     }
   }
 
-  function requestConfirm(intent: IntakePriorityDraftIntent): void {
-    if (!draft) return;
+  function requestConfirm(): void {
+    if (!canCreate || !draft) return;
     setSubmitError(null);
     setLinkError(false);
     setEscalationReasonMissing(false);
     setInfoMessage(null);
-    if (!ensurePrioritySelected()) return;
+    if (!ensureCaseDecisions()) return;
 
-    if (!draft.values.resolution.trim()) {
-      setEscalationReasonMissing(true);
-      return;
-    }
-
-    setConfirmIntent(intent);
+    setConfirmIntent(anyIntakeCaseEscalates(rows) ? "escalate" : "register");
     setConfirmOpen(true);
   }
 
@@ -347,7 +400,7 @@ export function EscalateIntakeView() {
     survivingComplaintId: string;
     label: string;
   }): Promise<void> {
-    if (!draft) return;
+    if (!canCreate || !draft) return;
     const surviving = payload.survivingComplaintId.trim();
     if (!surviving) {
       setLinkError(true);
@@ -374,30 +427,6 @@ export function EscalateIntakeView() {
     } finally {
       setDuplicateBusy(false);
     }
-  }
-
-  if (!canCreate) {
-    return (
-      <PageContainer className="space-y-[var(--ecmp-section-gap)]">
-        <PageHeader
-          title={pageTitle}
-          breadcrumbs={[
-            { label: tCommon("home"), href: "/dashboard" },
-            { label: t("title"), href: "/complaints" },
-            { label: tCommon("create"), href: "/complaints/new" },
-            { label: pageTitle },
-          ]}
-        />
-        <Empty
-          title={tCommon("accessRestricted")}
-          description={t("createAccessRestrictedDescription")}
-          primaryAction={{
-            label: tCommon("goHome"),
-            onClick: () => router.push("/dashboard"),
-          }}
-        />
-      </PageContainer>
-    );
   }
 
   if (!ready) {
@@ -430,35 +459,21 @@ export function EscalateIntakeView() {
 
   const values = draft.values;
   const showNote = Boolean(values.resolution.trim());
-  const priorityKey = priority.trim().toUpperCase();
-  const priorityLabel =
-    priorityKey === "LOW" ||
-    priorityKey === "MEDIUM" ||
-    priorityKey === "HIGH" ||
-    priorityKey === "CRITICAL"
-      ? tPriority(priorityKey)
-      : priorityKey;
-
-  const confirmCopy =
-    confirmIntent === "escalate"
-      ? {
-          title: t("confirmEscalateTitle"),
-          body: t("confirmEscalateBody", {
-            customer: values.customerName.trim() || values.customerId.trim(),
-            subject: values.subject.trim(),
-            priority: priorityLabel,
-          }),
-          action: t("confirmEscalateAction"),
-        }
-      : {
-          title: t("confirmRegisterTitle"),
-          body: t("confirmRegisterBody", {
-            customer: values.customerName.trim() || values.customerId.trim(),
-            subject: values.subject.trim(),
-            priority: priorityLabel,
-          }),
-          action: t("confirmRegisterAction"),
-        };
+  const actionLabel = (action: IntakeCaseAction) =>
+    action === "close"
+      ? t("submitCloseCase")
+      : action === "escalate"
+        ? t("submitEscalate")
+        : t("submitRegisterCase");
+  const confirmCopy = {
+    title: t("confirmCaseDecisionsTitle"),
+    lead: t("confirmCaseDecisionsLead", {
+      customer: values.customerName.trim() || values.customerId.trim(),
+      subject: values.subject.trim(),
+    }),
+    autoClose: t("confirmCaseDecisionsAutoClose"),
+    action: t("confirmCaseDecisionsAction"),
+  };
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -472,6 +487,14 @@ export function EscalateIntakeView() {
         ]}
         description={pageDescription}
       />
+
+      {!canCreate ? (
+        <Alert
+          tone="warning"
+          title={t("createRestrictedTitle")}
+          description={t("createAccessRestrictedDescription")}
+        />
+      ) : null}
 
       {escalationReasonMissing ? (
         <Alert
@@ -499,7 +522,7 @@ export function EscalateIntakeView() {
 
       <ActiveComplaintsBanner
         complaints={activeComplaints}
-        disabled={submitting || duplicateBusy}
+        disabled={!canCreate || submitting || duplicateBusy}
         linking={duplicateBusy}
         onLinkExisting={onLinkExistingActive}
       />
@@ -525,7 +548,11 @@ export function EscalateIntakeView() {
                   {t("intakeNarrativeLabel")}
                 </dt>
                 <dd className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                  {values.description.trim() || t("intakeNarrativeEmpty")}
+                  {values.description.trim() ? (
+                    <KnowledgeReferenceText text={values.description.trim()} />
+                  ) : (
+                    t("intakeNarrativeEmpty")
+                  )}
                 </dd>
               </div>
               {showNote ? (
@@ -534,7 +561,7 @@ export function EscalateIntakeView() {
                     {t("intakeNoteLabel")}
                   </dt>
                   <dd className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                    {values.resolution.trim()}
+                    <KnowledgeReferenceText text={values.resolution.trim()} />
                   </dd>
                 </div>
               ) : null}
@@ -553,30 +580,84 @@ export function EscalateIntakeView() {
 
       <section className="space-y-[var(--ecmp-panel-gap)]">
         <SectionHeader
-          title={t("priority")}
-          description={t("intakePriorityHint")}
+          title={t("intakeCaseDecisionsTitle")}
+          description={t("intakeCaseDecisionsHint")}
         />
-        <Card>
-          <CardBody>
-            <div className="max-w-xs">
-              <Select
-                name="priority"
-                id="priority"
-                label={t("priority")}
-                placeholder={t("selectPriorityPlaceholder")}
-                options={priorityOptions}
-                value={priority}
-                onChange={(e) => {
-                  setPriority(e.target.value);
-                  setPriorityError(null);
-                }}
-                error={priorityError ?? undefined}
-                required
-                aria-required="true"
-              />
-            </div>
-          </CardBody>
-        </Card>
+        <div className="space-y-[var(--ecmp-panel-gap)]">
+          {rows.map((row) => (
+            <Card key={row.id}>
+              <CardBody className="space-y-[var(--ecmp-form-gap)]">
+                <h3 className="text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
+                  {t("intakeCaseDecisionHeading", { n: row.n })}
+                </h3>
+                <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                  {row.description || t("intakeNarrativeEmpty")}
+                </div>
+                <div className="max-w-xs">
+                  <Select
+                    name={`case-priority-${row.id}`}
+                    id={`case-priority-${row.id}`}
+                    label={t("priority")}
+                    placeholder={t("selectPriorityPlaceholder")}
+                    options={priorityOptions}
+                    value={row.priority}
+                    onChange={(e) => {
+                      patchRow(row.id, { priority: e.target.value });
+                      setPriorityError(null);
+                    }}
+                    error={
+                      priorityError && !parseIntakePriority(row.priority)
+                        ? priorityError
+                        : undefined
+                    }
+                    required
+                    aria-required="true"
+                    disabled={!canCreate || submitting || duplicateBusy}
+                  />
+                </div>
+                <Textarea
+                  name={`case-note-${row.id}`}
+                  id={`case-note-${row.id}`}
+                  label={t("intakeNoteLabel")}
+                  rows={3}
+                  maxLength={5000}
+                  value={row.note}
+                  required
+                  aria-required="true"
+                  disabled={!canCreate || submitting || duplicateBusy}
+                  error={
+                    escalationReasonMissing && !row.note.trim()
+                      ? tValidation("intakeNoteRequired")
+                      : undefined
+                  }
+                  onChange={(e) => {
+                    patchRow(row.id, { note: e.target.value });
+                    if (e.target.value.trim()) setEscalationReasonMissing(false);
+                  }}
+                  hint={t("intakeCaseNoteHint")}
+                />
+                <RadioGroup
+                  name={`case-action-${row.id}`}
+                  label={t("intakeCaseActionLabel")}
+                  orientation="horizontal"
+                  required
+                  disabled={!canCreate || submitting || duplicateBusy}
+                  value={row.action}
+                  onChange={(value) =>
+                    patchRow(row.id, {
+                      action: parseIntakeCaseAction(value),
+                    })
+                  }
+                  options={[
+                    { value: "register", label: t("submitRegisterCase") },
+                    { value: "escalate", label: t("submitEscalateCase") },
+                    { value: "close", label: t("submitCloseCase") },
+                  ]}
+                />
+              </CardBody>
+            </Card>
+          ))}
+        </div>
       </section>
 
       <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end">
@@ -585,7 +666,6 @@ export function EscalateIntakeView() {
           variant="outline"
           disabled={submitting || duplicateBusy}
           onClick={() => {
-            // Draft stays in sessionStorage; create form restores on mount.
             router.push("/complaints/new");
           }}
         >
@@ -593,26 +673,12 @@ export function EscalateIntakeView() {
         </Button>
         <Button
           type="button"
-          variant="outline"
-          loading={submitting && activeIntent === "escalate"}
-          disabled={submitting || duplicateBusy}
-          onClick={() => requestConfirm("escalate")}
-          aria-label={t("submitEscalateAriaLabel")}
+          loading={submitting}
+          disabled={!canCreate || submitting || duplicateBusy}
+          onClick={() => requestConfirm()}
+          aria-label={t("submitCaseDecisionsAriaLabel")}
         >
-          {submitting && activeIntent === "escalate"
-            ? t("creating")
-            : t("submitEscalate")}
-        </Button>
-        <Button
-          type="button"
-          loading={submitting && activeIntent === "register"}
-          disabled={submitting || duplicateBusy}
-          onClick={() => requestConfirm("register")}
-          aria-label={t("submitRegisterAriaLabel")}
-        >
-          {submitting && activeIntent === "register"
-            ? t("creating")
-            : t("submitRegister")}
+          {submitting ? t("creating") : t("submitCaseDecisions")}
         </Button>
       </div>
 
@@ -642,9 +708,23 @@ export function EscalateIntakeView() {
           </>
         }
       >
-        <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-          {confirmCopy.body}
-        </p>
+        <div className="space-y-3 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+          <p>{confirmCopy.lead}</p>
+          <ul className="list-none space-y-1.5 text-ecmp-text-primary">
+            {rows.map((row) => (
+              <li key={row.n}>
+                <span className="font-medium">
+                  {t("confirmCaseDecisionLabel", { n: row.n })}
+                </span>
+                {": "}
+                {actionLabel(row.action)}
+              </li>
+            ))}
+          </ul>
+          <p className="text-[length:var(--ecmp-font-helper-size)]">
+            {confirmCopy.autoClose}
+          </p>
+        </div>
       </Modal>
 
       <DuplicateWarningPanel

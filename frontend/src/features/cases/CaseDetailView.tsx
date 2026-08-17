@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -15,6 +15,7 @@ import {
   type CmCaseStatus,
 } from "@/lib/api";
 import { formatDateTime24 } from "@/shared/utils/datetime";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { cn } from "@/shared/utils";
 import { formatCmBatch1CustomerLabel } from "@/features/complaints/cmBatch1RegistrationLabels";
 import { officerDisplayName } from "@/features/complaints/officerDisplayName";
@@ -33,6 +34,7 @@ import {
   type BadgeTone,
 } from "@/shared/ui";
 import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
+import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
 import {
   CASE_ESCALATE_ACTION_QUERY,
   PENANGANAN_FOCUS_QUERY,
@@ -133,6 +135,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const tCommon = useTranslations("common");
   const tNav = useTranslations("nav");
   const tComplaints = useTranslations("complaints");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const router = useRouter();
   const { hasPermission, user, roles } = useAuth();
   const canRead = hasPermission("complaints:read");
@@ -264,11 +268,15 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setComplaintStatus(null);
       setComplaintCreatedBy(null);
       setComplaintCreatedByName(null);
-      setError(err instanceof ApiError ? err.message : t("unableToLoad"));
+      setError(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToLoad"),
+      );
     } finally {
       setLoading(false);
     }
-  }, [canRead, caseId, t]);
+  }, [canRead, caseId, t, tErrors, tCommon]);
 
   useEffect(() => {
     void reload();
@@ -300,13 +308,13 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   }
 
   const whenCreated = data?.createdAt
-    ? formatDateTime24(data.createdAt) || data.createdAt
+    ? formatDateTime24(data.createdAt, locale) || data.createdAt
     : tCommon("emDash");
   const whenUpdated = data?.updatedAt
-    ? formatDateTime24(data.updatedAt) || data.updatedAt
+    ? formatDateTime24(data.updatedAt, locale) || data.updatedAt
     : null;
   const whenClosed = data?.closedAt
-    ? formatDateTime24(data.closedAt) || data.closedAt
+    ? formatDateTime24(data.closedAt, locale) || data.closedAt
     : null;
 
   const customerDisplay = customerLabel || tCommon("emDash");
@@ -403,7 +411,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       await reload();
     } catch (err) {
       showErrorToast(
-        err instanceof ApiError ? err.message : tComplaints("penangananLoadError"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : tComplaints("penangananLoadError"),
       );
     } finally {
       setHandleClaiming(false);
@@ -426,7 +436,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       await reload();
     } catch (err) {
       showErrorToast(
-        err instanceof ApiError ? err.message : tComplaints("penangananLoadError"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : tComplaints("penangananLoadError"),
       );
     } finally {
       setReassigning(false);
@@ -484,7 +496,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       if (ready) setResolveOpen(true);
     } catch (err) {
       showErrorToast(
-        err instanceof ApiError ? err.message : t("resolveFailed"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("resolveFailed"),
       );
     } finally {
       setResolvePreparing(false);
@@ -620,7 +634,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                         {t("description")}
                       </p>
                       <p className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                        {data.description}
+                        <KnowledgeReferenceText text={data.description} />
                       </p>
                     </div>
                   ) : null}
@@ -656,10 +670,16 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                               pre
                             />
                           ) : null}
-                          <MetaItem
-                            label={t("comment")}
-                            value={data.resolution.comment}
-                          />
+                          <div className="space-y-1">
+                            <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                              {t("comment")}
+                            </dt>
+                            <dd className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                              <KnowledgeReferenceText
+                                text={data.resolution.comment}
+                              />
+                            </dd>
+                          </div>
                         </dl>
                       </>
                     ) : (

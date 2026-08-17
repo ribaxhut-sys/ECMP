@@ -2132,7 +2132,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [Complaint, Queue, Notification]
+            enum: [Complaint, Queue, Notification, InternalComplaint]
         - name: aggregateId
           in: query
           required: false
@@ -2170,8 +2170,10 @@ paths:
       description: |
         Multipart upload of a file bound to any aggregate via
         `aggregateType` + `aggregateId` (CAPABILITY-011). Validates size
-        (settings `storage.max.upload.mb`), MIME (`storage.allowed.mime`),
-        extension, and rejects empty files. Computes SHA-256 checksum
+        (settings `storage.max.upload.mb`, default 50), MIME (`storage.allowed.mime`),
+        extension, and rejects empty files. ZIP (`application/zip`, including
+        Windows aliases) is stored as an opaque blob and is never extracted.
+        Computes SHA-256 checksum
         and stores bytes through StorageProvider under
         `yyyy/mm/<uuid>.<ext>` (`storage.provider` / `storage.root.path`).
         Requires `attachment:create`.
@@ -2185,7 +2187,7 @@ paths:
               properties:
                 aggregateType:
                   type: string
-                  enum: [Complaint, Queue, Notification]
+                  enum: [Complaint, Queue, Notification, InternalComplaint]
                   description: Owning aggregate type
                   example: Complaint
                 aggregateId:
@@ -5172,6 +5174,10 @@ components:
         complaintNumber: { type: string }
         timestamp: { type: string, format: date-time }
         actor: { type: string }
+        caseNumber:
+          type: string
+          nullable: true
+          description: Case number when the event is scoped to one Case
       description: Latest timeline event (max 10 on dashboard summary).
     DashboardAggregateKpis:
       type: object
@@ -5426,7 +5432,7 @@ components:
         id: { type: string, format: uuid }
         aggregateType:
           type: string
-          enum: [Complaint, Queue, Notification]
+          enum: [Complaint, Queue, Notification, Announcement, Knowledge, InternalComplaint]
         aggregateId: { type: string, format: uuid }
         fileName:
           type: string
@@ -5846,9 +5852,17 @@ components:
         branchId: { type: string, format: uuid, nullable: true }
         branchCode: { type: string, nullable: true }
         branchName: { type: string, nullable: true }
+        unitCode:
+          type: string
+          nullable: true
+          description: Stable 3-letter unit code (matches complaint number prefix, e.g. "TAB")
         total: { type: integer, minimum: 0, description: Complaint total }
         open: { type: integer, minimum: 0, description: Complaints not CLOSED }
         closed: { type: integer, minimum: 0, description: Complaints CLOSED }
+        escalated:
+          type: integer
+          minimum: 0
+          description: Complaints with an active escalation (ESCALATE_PENDING_APPROVAL / ESCALATE_APPROVED)
         caseTotal: { type: integer, minimum: 0, description: CM case total }
         caseOpen: { type: integer, minimum: 0, description: Cases not CLOSED }
         caseClosed: { type: integer, minimum: 0, description: Cases CLOSED }
@@ -5947,6 +5961,7 @@ components:
         - isActive
         - createdAt
         - updatedAt
+        - initials
       properties:
         id: { type: string, format: uuid }
         username: { type: string }
@@ -5961,6 +5976,13 @@ components:
         lastLoginAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        initials:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: >
+            Unique 3-letter avatar code assigned at registration. Inactive and
+            soft-deleted users keep the code so it cannot be reused.
         preferredLanguage:
           type: string
           enum: [id, en]

@@ -1,13 +1,60 @@
 /**
- * Operator-facing datetime — Bahasa Indonesia, 24-hour, Asia/Jakarta.
- * Do not use the host locale (`undefined`): lab/server Node is often en-US
- * and renders "Aug 14, 2026, 10:51" instead of "14 Agu 2026, 10.51".
+ * Operator-facing datetime — locale-aware, 24-hour, Asia/Jakarta.
+ * Date and time are formatted separately so `month: "long"` does not insert
+ * ICU's "pukul" (e.g. "14 Agustus 2026, 10.51" not "… pukul 10.51").
+ *
+ * The locale argument is required: operator screens must follow the language
+ * the user picked in the switcher, not the browser's. Pass `useLocale()` from
+ * next-intl in components, or thread the active locale through helpers.
  */
 
-export const OPERATOR_TIME_ZONE = "Asia/Jakarta";
-export const OPERATOR_DATE_LOCALE = "id-ID";
+import { LOCALE_META, DEFAULT_LOCALE, isAppLocale } from "@/i18n/config";
 
-const OPERATOR_DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+export const OPERATOR_TIME_ZONE = "Asia/Jakarta";
+
+const OPERATOR_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  timeZone: OPERATOR_TIME_ZONE,
+};
+
+const OPERATOR_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: OPERATOR_TIME_ZONE,
+};
+
+function bcp47(locale: string | undefined): string {
+  return LOCALE_META[isAppLocale(locale) ? locale : DEFAULT_LOCALE].bcp47;
+}
+
+export function formatDateTime24(
+  value: string | null | undefined,
+  locale: string,
+  empty = "",
+): string {
+  if (!value) return empty;
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return empty || value;
+    const tag = bcp47(locale);
+    const datePart = new Intl.DateTimeFormat(
+      tag,
+      OPERATOR_DATE_OPTIONS,
+    ).format(date);
+    const timePart = new Intl.DateTimeFormat(
+      tag,
+      OPERATOR_TIME_OPTIONS,
+    ).format(date);
+    return `${datePart}, ${timePart}`;
+  } catch {
+    return value;
+  }
+}
+
+const OPERATOR_SHORT_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
   day: "2-digit",
   month: "short",
   year: "numeric",
@@ -17,19 +64,14 @@ const OPERATOR_DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   timeZone: OPERATOR_TIME_ZONE,
 };
 
-export function formatDateTime24(
-  value: string | null | undefined,
-  empty = "",
-): string {
-  if (!value) return empty;
+/** Compact single-part variant (short month, one Intl call) used in history/timeline panels. */
+export function formatShortDateTime24(iso: string, locale: string): string {
   try {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return empty || value;
     return new Intl.DateTimeFormat(
-      OPERATOR_DATE_LOCALE,
-      OPERATOR_DATE_TIME_OPTIONS,
-    ).format(date);
+      bcp47(locale),
+      OPERATOR_SHORT_DATETIME_OPTIONS,
+    ).format(new Date(iso));
   } catch {
-    return value;
+    return iso;
   }
 }

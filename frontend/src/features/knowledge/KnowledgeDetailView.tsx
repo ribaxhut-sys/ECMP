@@ -147,9 +147,9 @@ export function KnowledgeDetailView({ id }: { id: string }) {
       pushSuccess(tCommon("success"), t("publishedSuccess"));
     } catch (err) {
       setActionError(
-        err instanceof ApiError && err.message
-          ? err.message
-          : resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToPublish"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToPublish"),
       );
     } finally {
       setBusy(false);

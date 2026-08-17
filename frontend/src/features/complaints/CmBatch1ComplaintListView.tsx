@@ -9,7 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -36,6 +36,7 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { disambiguateInitials } from "@/shared/utils/initials";
 import {
   cmBatch1FiltersFromSearchParams,
@@ -87,11 +88,11 @@ export function CmBatch1ComplaintListView() {
   const t = useTranslations("complaints");
   const tCases = useTranslations("cases");
   const tCommon = useTranslations("common");
-  const tTable = useTranslations("table");
   const tPriority = useTranslations("priority");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
-  const canCreate = hasPermission("complaints:create");
 
   const filters = useMemo(
     () => cmBatch1FiltersFromSearchParams(searchParams),
@@ -136,13 +137,13 @@ export function CmBatch1ComplaintListView() {
       setPenangananByComplaint({});
       setError(
         err instanceof ApiError
-          ? err.message
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
           : t("unableToLoadAggregateList"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead, filters, t]);
+  }, [canRead, filters, t, tErrors, tCommon]);
 
   useEffect(() => {
     void load();
@@ -395,7 +396,7 @@ export function CmBatch1ComplaintListView() {
     {
       key: "createdAt",
       header: t("createdAt"),
-      cell: (row) => formatDateTime24(row.createdAt, tCommon("emDash")),
+      cell: (row) => formatDateTime24(row.createdAt, locale, tCommon("emDash")),
     },
     {
       key: "penanganan",
@@ -454,6 +455,9 @@ export function CmBatch1ComplaintListView() {
   ];
 
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
+  const rangeFrom =
+    total === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
+  const rangeTo = Math.min(filters.page * filters.pageSize, total);
   const hasActiveFilters = Boolean(
     filters.keyword.trim() || filters.status || filters.intakeDisposition,
   );
@@ -485,14 +489,12 @@ export function CmBatch1ComplaintListView() {
                 {t("supervisorQueue")}
               </Button>
             ) : null}
-            {canCreate ? (
-              <Button
-                type="button"
-                onClick={() => router.push("/complaints/new")}
-              >
-                {t("create")}
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              onClick={() => router.push("/complaints/new")}
+            >
+              {t("create")}
+            </Button>
           </div>
         }
       />
@@ -596,18 +598,13 @@ export function CmBatch1ComplaintListView() {
                       label: t("clearFilters"),
                       onClick: onResetFilters,
                     }
-                  : canCreate
-                    ? {
-                        label: t("create"),
-                        onClick: () => router.push("/complaints/new"),
-                      }
-                    : {
-                        label: tCommon("refresh"),
-                        onClick: () => void load(),
-                      }
+                  : {
+                      label: t("create"),
+                      onClick: () => router.push("/complaints/new"),
+                    }
               }
               secondaryAction={
-                hasActiveFilters && canCreate
+                hasActiveFilters
                   ? {
                       label: t("create"),
                       onClick: () => router.push("/complaints/new"),
@@ -618,7 +615,11 @@ export function CmBatch1ComplaintListView() {
           ) : (
             <>
               <WorkspaceToolbar
-                summary={tTable("itemsInView", { count: rows.length })}
+                summary={tCommon("showingItems", {
+                  from: rangeFrom,
+                  to: rangeTo,
+                  total,
+                })}
                 actions={
                   <Button
                     type="button"

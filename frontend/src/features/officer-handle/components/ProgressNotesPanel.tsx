@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Alert, Button, Card, CardBody, CardHeader, Textarea } from "@/shared/ui";
 import type { MockProgressNote } from "@/features/supervisor-assign/mock/assignmentRepository";
 
@@ -18,6 +18,7 @@ export function ProgressNotesPanel({
   onRecord,
 }: ProgressNotesPanelProps) {
   const t = useTranslations("officerHandle");
+  const locale = useLocale();
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -55,7 +56,7 @@ export function ProgressNotesPanel({
               >
                 <p className="text-ecmp-text-primary">{note.text}</p>
                 <p className="mt-1 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                  {new Date(note.recordedAt).toLocaleString()}
+                  {new Date(note.recordedAt).toLocaleString(locale)}
                 </p>
               </li>
             ))}

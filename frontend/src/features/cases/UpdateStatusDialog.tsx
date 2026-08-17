@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   ApiError,
   updateCmCaseStatus,
@@ -39,6 +40,8 @@ export function UpdateStatusDialog({
 }) {
   const t = useTranslations("cases");
   const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const targets = allowedStatusTargets(caseData.status);
   const [values, setValues] = useState(
     emptyUpdateStatusForm({
@@ -92,7 +95,9 @@ export function UpdateStatusDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : t("updateFailed"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("updateFailed"),
       );
     } finally {
       setSubmitting(false);

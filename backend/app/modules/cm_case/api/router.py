@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
@@ -187,9 +188,15 @@ def list_cases(
     complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
     status: Annotated[str | None, Query()] = None,
 ) -> ListResponse[CaseSummaryResponse]:
-    """API-536 / DEC-024 — visibility-scoped Case list."""
+    """API-536 / DEC-024 — visibility-scoped Case list.
+
+    Mode A JWTs have no ``orgUnitId`` claim. Patch the principal with the
+    same membership fallback as Aggregate ``list_complaints`` so SUPERVISOR
+    UNIT visibility is not empty (UM-BUG-005).
+    """
+    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
     items, total = service.list_cases(
-        principal,
+        vis_principal,
         page=page,
         page_size=page_size,
         complaint_id=complaint_id,
@@ -251,6 +258,8 @@ def create_case(
             sla_policy_version_id=body.sla_policy_version_id,
             actor_id=str(principal.user_id),
             actor_unit_id=_actor_unit(principal, session),
+            note=body.note,
+            intake_action=body.intake_action,
         )
     )
     return DataResponse(data=_to_response(dto, session=session))

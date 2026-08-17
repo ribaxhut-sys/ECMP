@@ -125,6 +125,8 @@ export interface CreateCmCaseRequest {
   destinationUnitId?: string | null;
   assignedUserId?: string | null;
   slaPolicyVersionId?: string | null;
+  note?: string | null;
+  intakeAction?: "register" | "close" | "escalate" | null;
 }
 
 export interface AddCmCaseRequest {

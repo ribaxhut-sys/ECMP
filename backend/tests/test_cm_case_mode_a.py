@@ -1232,6 +1232,54 @@ def test_api_536_list_visibility_self_unit_admin(db_session: Session) -> None:
     app.dependency_overrides.clear()
 
 
+def test_api_536_supervisor_list_uses_membership_when_jwt_has_no_org_unit(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UM-BUG-005 — Mode A Supervisor without orgUnitId still sees unit cases."""
+    from app.core.authorization.org_unit_resolver import OrgUnitResolver
+    from app.modules.cm_case.application.dto import CreateCaseCommand
+
+    supervisor_id = uuid.uuid4()
+    repo = SqlAlchemyCaseRepository(db_session)
+    svc = CaseApplicationService(repo, side_effects=NoOpSideEffects())
+    complaint_id = _seed_complaint(db_session)
+    created = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Unit case",
+            description="via membership fallback",
+            priority="MEDIUM",
+            destination_unit_id="BR-A",
+            actor_id="agent-1",
+        )
+    )
+
+    monkeypatch.setattr(
+        OrgUnitResolver,
+        "resolve_principal_membership",
+        lambda self, uid: "BR-A" if uid == supervisor_id else None,
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: Principal(
+        user_id=supervisor_id,
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id=None,
+    )
+    app.dependency_overrides[get_db_session] = lambda: db_session
+    with TestClient(app) as client:
+        empty_claim = client.get("/api/v1/cm/cases")
+        assert empty_claim.status_code == 200, empty_claim.text
+        ids = {row["caseId"] for row in empty_claim.json()["data"]}
+        assert created.case_id in ids
+        assert empty_claim.json()["meta"]["totalItems"] >= 1
+
+    app.dependency_overrides.clear()
+
+
 # ---------------------------------------------------------------------------
 # F4 business rules — Complaint Owner vs Handling Unit, closure acceptance.
 # ---------------------------------------------------------------------------

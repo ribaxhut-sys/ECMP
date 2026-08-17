@@ -1,23 +1,27 @@
 /**
- * Contenteditable helpers for Option A Knowledge mentions:
- * visible chips (title only) ↔ stored `@[title](knowledge:id)` markers.
+ * Contenteditable helpers for Option A `@` mentions:
+ * visible chips (title only) ↔ stored `@[title](<kind>:id)` markers.
+ * Shared by all three mention kinds (knowledge / announcement / attachment).
  */
 
 import {
-  buildKnowledgeMarker,
+  buildMentionMarker,
   parseKnowledgeReferenceSegments,
+  type MentionKind,
 } from "./knowledgeReferenceMarker";
 
-export const KNOWLEDGE_CHIP_ATTR_ID = "data-knowledge-id";
-export const KNOWLEDGE_CHIP_ATTR_TITLE = "data-knowledge-title";
-export const KNOWLEDGE_CHIP_ATTR_TYPE = "data-knowledge-type-label";
+export const MENTION_CHIP_ATTR_KIND = "data-mention-kind";
+export const MENTION_CHIP_ATTR_ID = "data-mention-id";
+export const MENTION_CHIP_ATTR_TITLE = "data-mention-title";
+export const MENTION_CHIP_ATTR_TYPE = "data-mention-type-label";
 
 /** Shared chip look: blue italic, underline on hover only, no background.
  * `!` beats the global ``button { font: inherit; color: inherit }`` reset. */
 export const knowledgeReferenceChipClassName =
   "inline cursor-pointer border-0 bg-transparent p-0 align-baseline !font-medium !italic !text-ecmp-primary underline-offset-2 hover:underline";
 
-/** Inactive / expired / archived reference — red so it differs from ACTIVE. */
+/** Inactive / expired / archived / deleted reference — red so it differs
+ * from an active one. */
 export const knowledgeReferenceChipInactiveClassName =
   "inline cursor-pointer border-0 bg-transparent p-0 align-baseline !font-medium !italic !text-ecmp-danger underline-offset-2 hover:underline";
 
@@ -27,41 +31,44 @@ export function knowledgeReferenceChipClass(active: boolean): string {
     : knowledgeReferenceChipInactiveClassName;
 }
 
-export function isKnowledgeChip(node: Node | null): node is HTMLElement {
+export function isMentionChip(node: Node | null): node is HTMLElement {
   return (
     node instanceof HTMLElement &&
-    node.hasAttribute(KNOWLEDGE_CHIP_ATTR_ID) &&
-    node.hasAttribute(KNOWLEDGE_CHIP_ATTR_TITLE)
+    node.hasAttribute(MENTION_CHIP_ATTR_KIND) &&
+    node.hasAttribute(MENTION_CHIP_ATTR_ID) &&
+    node.hasAttribute(MENTION_CHIP_ATTR_TITLE)
   );
 }
 
-export function createKnowledgeChip(
+export function createMentionChip(
   doc: Document,
+  kind: MentionKind,
   title: string,
-  knowledgeId: string,
+  id: string,
   typeLabel?: string | null,
 ): HTMLSpanElement {
   const chip = doc.createElement("span");
-  chip.setAttribute(KNOWLEDGE_CHIP_ATTR_ID, knowledgeId);
-  chip.setAttribute(KNOWLEDGE_CHIP_ATTR_TITLE, title);
+  chip.setAttribute(MENTION_CHIP_ATTR_KIND, kind);
+  chip.setAttribute(MENTION_CHIP_ATTR_ID, id);
+  chip.setAttribute(MENTION_CHIP_ATTR_TITLE, title);
   chip.contentEditable = "false";
   chip.className = knowledgeReferenceChipClassName;
   chip.setAttribute("role", "link");
   chip.tabIndex = -1;
-  fillKnowledgeChipContents(chip, title, typeLabel);
+  fillMentionChipContents(chip, title, typeLabel);
   return chip;
 }
 
 /** Add/replace the type tag inside a chip without changing the stored title. */
-export function setKnowledgeChipTypeLabel(
+export function setMentionChipTypeLabel(
   chip: HTMLElement,
   typeLabel: string,
 ): void {
-  const title = chip.getAttribute(KNOWLEDGE_CHIP_ATTR_TITLE) ?? "";
-  fillKnowledgeChipContents(chip, title, typeLabel);
+  const title = chip.getAttribute(MENTION_CHIP_ATTR_TITLE) ?? "";
+  fillMentionChipContents(chip, title, typeLabel);
 }
 
-function fillKnowledgeChipContents(
+function fillMentionChipContents(
   chip: HTMLElement,
   title: string,
   typeLabel?: string | null,
@@ -70,7 +77,7 @@ function fillKnowledgeChipContents(
   chip.replaceChildren();
   const label = typeLabel?.trim() ?? "";
   if (label) {
-    chip.setAttribute(KNOWLEDGE_CHIP_ATTR_TYPE, label);
+    chip.setAttribute(MENTION_CHIP_ATTR_TYPE, label);
     const badge = doc.createElement("span");
     badge.setAttribute("aria-hidden", "true");
     badge.className =
@@ -78,7 +85,7 @@ function fillKnowledgeChipContents(
     badge.textContent = label;
     chip.appendChild(badge);
   } else {
-    chip.removeAttribute(KNOWLEDGE_CHIP_ATTR_TYPE);
+    chip.removeAttribute(MENTION_CHIP_ATTR_TYPE);
   }
   chip.appendChild(doc.createTextNode(label ? ` ${title || "—"}` : title || "—"));
   chip.setAttribute(
@@ -95,10 +102,11 @@ export function serializeMentionEditor(root: HTMLElement): string {
       out += node.textContent ?? "";
       return;
     }
-    if (isKnowledgeChip(node)) {
-      const id = node.getAttribute(KNOWLEDGE_CHIP_ATTR_ID) ?? "";
-      const title = node.getAttribute(KNOWLEDGE_CHIP_ATTR_TITLE) ?? "";
-      out += buildKnowledgeMarker(title, id);
+    if (isMentionChip(node)) {
+      const kind = node.getAttribute(MENTION_CHIP_ATTR_KIND) as MentionKind;
+      const id = node.getAttribute(MENTION_CHIP_ATTR_ID) ?? "";
+      const title = node.getAttribute(MENTION_CHIP_ATTR_TITLE) ?? "";
+      out += buildMentionMarker(kind, title, id);
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -151,7 +159,7 @@ export function renderMentionEditor(
       });
     } else {
       root.appendChild(
-        createKnowledgeChip(doc, segment.title, segment.knowledgeId),
+        createMentionChip(doc, segment.kind, segment.title, segment.id),
       );
     }
   }
@@ -193,8 +201,8 @@ function visibleTextOfFragment(root: Node): string {
       out += node.textContent ?? "";
       return;
     }
-    if (isKnowledgeChip(node)) {
-      out += node.getAttribute(KNOWLEDGE_CHIP_ATTR_TITLE) ?? node.textContent ?? "";
+    if (isMentionChip(node)) {
+      out += node.getAttribute(MENTION_CHIP_ATTR_TITLE) ?? node.textContent ?? "";
       return;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -219,8 +227,9 @@ export function insertChipAtMention(
   root: HTMLElement,
   mentionStart: number,
   caretVisible: number,
+  kind: MentionKind,
   title: string,
-  knowledgeId: string,
+  id: string,
   typeLabel?: string | null,
 ): void {
   // Rebuild from visible text with mention replaced by a placeholder, then
@@ -229,7 +238,7 @@ export function insertChipAtMention(
   const before = text.slice(0, mentionStart);
   const after = text.slice(caretVisible);
   const needsSpace = after.length === 0 || !/^\s/.test(after);
-  const placeholder = "\uFFF0"; // private-use sentinel
+  const placeholder = String.fromCharCode(0xfff0); // private-use sentinel
   const nextVisible = before + placeholder + (needsSpace ? " " : "") + after;
 
   // Map current chips by title+id order from existing DOM, then re-apply
@@ -249,12 +258,7 @@ export function insertChipAtMention(
   range.setEnd(endPoint.node, endPoint.offset);
   range.deleteContents();
 
-  const chip = createKnowledgeChip(
-    root.ownerDocument,
-    title,
-    knowledgeId,
-    typeLabel,
-  );
+  const chip = createMentionChip(root.ownerDocument, kind, title, id, typeLabel);
   range.insertNode(chip);
 
   // Trailing space after chip when needed
@@ -312,7 +316,7 @@ export function deleteVisibleRange(
 
 /**
  * Client rect for a visible-text offset (e.g. the `@` that opened the menu).
- * Used to anchor the Knowledge search popover beside the trigger.
+ * Used to anchor the mention search popover beside the trigger.
  */
 export function getVisibleOffsetRect(
   root: HTMLElement,
@@ -367,9 +371,9 @@ function locateVisibleOffset(
       seen += len;
       return false;
     }
-    if (isKnowledgeChip(node)) {
+    if (isMentionChip(node)) {
       const title =
-        node.getAttribute(KNOWLEDGE_CHIP_ATTR_TITLE) ?? node.textContent ?? "";
+        node.getAttribute(MENTION_CHIP_ATTR_TITLE) ?? node.textContent ?? "";
       const len = title.length;
       if (seen + len >= target) {
         // Caret lands on chip boundary — place after chip when target is end

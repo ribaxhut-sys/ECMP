@@ -20,6 +20,8 @@ class CreateCaseCommand:
     actor_id: str = "system"
     # F4 history rule — acting unit, recorded on the CaseCreated event.
     actor_unit_id: str | None = None
+    note: str | None = None
+    intake_action: str | None = None
 
 
 @dataclass(frozen=True)

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { CmBatch1ComplaintBrief } from "@/lib/api";
 import { Alert, Badge, Button, Empty, Modal } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
@@ -44,6 +44,7 @@ export function ActiveComplaintsBanner({
 }: ActiveComplaintsBannerProps) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [showAll, setShowAll] = useState(false);
   const [pendingLink, setPendingLink] = useState<{
     survivingComplaintId: string;
@@ -121,7 +122,7 @@ export function ActiveComplaintsBanner({
               {preview.map((row, index) => {
                 const id = briefId(row, index);
                 const number = rowLabel(row, index);
-                const created = formatDateTime24(row.createdAt);
+                const created = formatDateTime24(row.createdAt, locale);
                 return (
                   <li
                     key={id}
@@ -199,7 +200,7 @@ export function ActiveComplaintsBanner({
               {complaints.map((row, index) => {
                 const id = briefId(row, index);
                 const number = rowLabel(row, index);
-                const created = formatDateTime24(row.createdAt);
+                const created = formatDateTime24(row.createdAt, locale);
                 return (
                   <li
                     key={id}

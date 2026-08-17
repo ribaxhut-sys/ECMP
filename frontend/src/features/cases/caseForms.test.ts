@@ -53,6 +53,25 @@ describe("toCreateCaseRequest / toAddCaseRequest", () => {
     expect(toCreateCaseRequest("c1", values).destinationUnitId).toBeNull();
     expect(toAddCaseRequest(values).destinationUnitId).toBeNull();
   });
+
+  it("passes intake note and action on create", () => {
+    const values = {
+      ...emptyCreateCaseForm(),
+      caseType: "BILLING",
+      subject: "Charge",
+      description: "Wrong fee",
+      priority: "LOW",
+    };
+    expect(
+      toCreateCaseRequest("c1", values, {
+        note: "  Perlu Pusat  ",
+        intakeAction: "escalate",
+      }),
+    ).toMatchObject({
+      note: "Perlu Pusat",
+      intakeAction: "escalate",
+    });
+  });
 });
 
 describe("validateUpdateStatusForm", () => {

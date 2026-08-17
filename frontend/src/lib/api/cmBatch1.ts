@@ -181,6 +181,10 @@ export interface CmBatch1IntakeHistoryEntry {
   priority?: string | null;
   /** Operator note captured with this event; null for rows logged before API-517. */
   note?: string | null;
+  /** Case number when this event is scoped to one Case. */
+  caseNumber?: string | null;
+  /** Intake putusan on CaseCreated: register, close, escalate. */
+  intakeAction?: string | null;
 }
 
 export interface CmBatch1DuplicateCheckRequest {

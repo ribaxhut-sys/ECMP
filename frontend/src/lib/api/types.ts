@@ -58,9 +58,13 @@ export interface BranchCount {
   branchId: string | null;
   branchCode: string | null;
   branchName: string | null;
+  /** Stable 3-letter unit code, matches the complaint number prefix (e.g. "TAB"). */
+  unitCode: string | null;
   total: number;
   open: number;
   closed: number;
+  /** Complaints with an active escalation (ESCALATE_PENDING_APPROVAL / ESCALATE_APPROVED). */
+  escalated: number;
   caseTotal: number;
   caseOpen: number;
   caseClosed: number;
@@ -135,6 +139,7 @@ export interface DashboardRecentActivityItem {
   complaintNumber: string;
   timestamp: string;
   actor: string;
+  caseNumber?: string | null;
 }
 
 export interface DashboardSummary {
@@ -198,7 +203,8 @@ export type AttachmentAggregateType =
   | "Queue"
   | "Notification"
   | "Announcement"
-  | "Knowledge";
+  | "Knowledge"
+  | "InternalComplaint";
 export type AttachmentStatus =
   | "UPLOADED"
   | "AVAILABLE"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -100,9 +101,9 @@ function customerLabelForId(
 export function CaseInboxListView() {
   const t = useTranslations("cases");
   const tCommon = useTranslations("common");
-  const tTable = useTranslations("table");
   const tStatus = useTranslations("status");
   const tPriority = useTranslations("priority");
+  const tErrors = useTranslations("errors");
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
@@ -137,12 +138,14 @@ export function CaseInboxListView() {
       setRows([]);
       setTotal(0);
       setError(
-        err instanceof ApiError ? err.message : t("unableToLoadList"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToLoadList"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead, page, statusFilter, t]);
+  }, [canRead, page, statusFilter, t, tErrors, tCommon]);
 
   useEffect(() => {
     void load();
@@ -349,7 +352,7 @@ export function CaseInboxListView() {
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-            {tTable("itemsInView", { count: rows.length })}
+            {tCommon("showingItems", { from, to, total })}
           </span>
           <Button
             type="button"

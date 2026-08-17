@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchCmBatch1Complaints, fetchCmCases } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Badge,
   Button,
@@ -60,7 +61,7 @@ export function FollowUpListView() {
   const router = useRouter();
   const t = useTranslations("followUp");
   const tCommon = useTranslations("common");
-  const tTable = useTranslations("table");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
 
@@ -88,11 +89,15 @@ export function FollowUpListView() {
       );
     } catch (err) {
       setRows([]);
-      setError(err instanceof ApiError ? err.message : t("unableToLoad"));
+      setError(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToLoad"),
+      );
     } finally {
       setLoading(false);
     }
-  }, [canRead, t]);
+  }, [canRead, t, tErrors, tCommon]);
 
   useEffect(() => {
     void load();
@@ -222,7 +227,11 @@ export function FollowUpListView() {
           ) : (
             <>
               <WorkspaceToolbar
-                summary={tTable("itemsInView", { count: rows.length })}
+                summary={tCommon("showingItems", {
+                  from: rows.length === 0 ? 0 : 1,
+                  to: rows.length,
+                  total: rows.length,
+                })}
                 actions={
                   <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
                     {tCommon("refresh")}

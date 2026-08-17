@@ -2,7 +2,9 @@
 
 import type { CreateComplaintFormValues } from "./createComplaintForm";
 import {
+  parseIntakeCaseAction,
   sanitizeExtraCaseDrafts,
+  type IntakeCaseAction,
   type IntakeExtraCaseDraft,
 } from "./intakeCaseDrafts";
 
@@ -22,6 +24,8 @@ export interface EscalateIntakeDraft {
   intent?: IntakePriorityDraftIntent;
   /** Extra Case drafts (Case 2…n). Case 1 is the main complaint description. */
   extraCaseDrafts?: IntakeExtraCaseDraft[];
+  /** Putusan Case 1 di langkah prioritas (default daftarkan). */
+  case1Action?: IntakeCaseAction;
 }
 
 const STORAGE_KEY = "ecmp.cm.escalateIntakeDraft.v1";
@@ -51,6 +55,7 @@ export function peekEscalateIntakeDraft(): EscalateIntakeDraft | null {
       delete parsed.intent;
     }
     parsed.extraCaseDrafts = sanitizeExtraCaseDrafts(parsed.extraCaseDrafts);
+    parsed.case1Action = parseIntakeCaseAction(parsed.case1Action);
     return parsed;
   } catch {
     return null;

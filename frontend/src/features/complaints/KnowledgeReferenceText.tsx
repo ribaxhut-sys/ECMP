@@ -3,72 +3,92 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { fetchKnowledge } from "@/lib/api";
+import { fetchAttachment } from "@/lib/api";
+import type { Attachment } from "@/lib/api/types";
 import { Badge } from "@/shared/ui";
+import { useToast } from "@/shared/providers";
 import { knowledgeTypeKey } from "@/features/knowledge/KnowledgeBadges";
+import { AttachmentViewer } from "@/features/attachments/AttachmentViewer";
 import {
-  extractKnowledgeIds,
+  extractMentionRefs,
   parseKnowledgeReferenceSegments,
+  type MentionKind,
 } from "./knowledgeReferenceMarker";
-import {
-  isKnowledgeReferenceActive,
-  type KnowledgeReferenceMeta,
-} from "./knowledgeReferenceActivity";
+import { resolveMentionReferenceMeta } from "./knowledgeReferenceActivity";
 import { knowledgeReferenceChipClass } from "./knowledgeMentionEditor";
 
+type MentionMeta = { active: boolean; typeLabel: string };
+
 /**
- * Read-mode renderer for `resolutionNotes` — plain text stays plain text;
- * each `@[title](knowledge:<id>)` marker renders as a clickable italic
- * reference (type tag + title; blue if active, red if inactive).
+ * Read-mode renderer for `resolutionNotes` / Catatan — plain text stays
+ * plain text; each `@[title](<kind>:<id>)` marker renders as a clickable
+ * italic reference (type tag + title; blue if active, red if inactive).
+ * Covers all 3 mention kinds: knowledge, announcement, attachment.
  */
 export function KnowledgeReferenceText({ text }: { text: string }) {
   const router = useRouter();
+  const { pushError } = useToast();
   const t = useTranslations("knowledgeMention");
   const tKnowledge = useTranslations("knowledge");
   const segments = useMemo(
     () => parseKnowledgeReferenceSegments(text),
     [text],
   );
-  const knowledgeIds = useMemo(() => extractKnowledgeIds(text), [text]);
-  const knowledgeIdsKey = knowledgeIds.join("|");
+  const refs = useMemo(() => extractMentionRefs(text), [text]);
+  const refsKey = refs.map((ref) => `${ref.kind}:${ref.id}`).join("|");
 
-  const [metaById, setMetaById] = useState<
-    Record<string, KnowledgeReferenceMeta>
-  >({});
+  const [metaByKey, setMetaByKey] = useState<Record<string, MentionMeta>>({});
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (knowledgeIds.length === 0) {
-      setMetaById({});
+    if (refs.length === 0) {
+      setMetaByKey({});
       return;
     }
     let cancelled = false;
-    for (const id of knowledgeIds) {
-      fetchKnowledge(id)
-        .then((res) => {
+    for (const ref of refs) {
+      const key = `${ref.kind}:${ref.id}`;
+      resolveMentionReferenceMeta(ref.kind, ref.id, {
+        knowledgeType: (type) => tKnowledge(knowledgeTypeKey(type)),
+        announcement: t("sourceAnnouncement"),
+        attachment: t("sourceAttachment"),
+      })
+        .then((meta) => {
           if (cancelled) return;
-          setMetaById((prev) => ({
-            ...prev,
-            [id]: {
-              active: isKnowledgeReferenceActive(res.data),
-              knowledgeType: res.data.knowledgeType,
-              status: res.data.status,
-            },
-          }));
+          setMetaByKey((prev) => ({ ...prev, [key]: meta }));
         })
         .catch(() => {
           if (cancelled) return;
-          setMetaById((prev) => ({
+          setMetaByKey((prev) => ({
             ...prev,
-            [id]: { active: false },
+            [key]: { active: false, typeLabel: "" },
           }));
         });
     }
     return () => {
       cancelled = true;
     };
-    // knowledgeIdsKey tracks identity; knowledgeIds is derived from the same text.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable key from ids
-  }, [knowledgeIdsKey]);
+    // refsKey tracks identity; refs is derived from the same text.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refsKey]);
+
+  function openAttachment(id: string) {
+    fetchAttachment(id)
+      .then((res) => setPreviewAttachment(res.data))
+      .catch((err) => pushError(err, t("attachmentPreviewError")));
+  }
+
+  function openReference(kind: MentionKind, id: string) {
+    if (kind === "knowledge") {
+      router.push(`/knowledge/${id}`);
+    } else if (kind === "announcement") {
+      router.push(`/announcements/${id}`);
+    } else {
+      openAttachment(id);
+    }
+  }
 
   return (
     <span className="whitespace-pre-wrap break-words">
@@ -76,7 +96,7 @@ export function KnowledgeReferenceText({ text }: { text: string }) {
         if (segment.type === "text") {
           return <span key={index}>{segment.value}</span>;
         }
-        const meta = metaById[segment.knowledgeId];
+        const meta = metaByKey[`${segment.kind}:${segment.id}`];
         const active = meta?.active ?? true;
         const title = segment.title || t("untitledReference");
         return (
@@ -84,21 +104,28 @@ export function KnowledgeReferenceText({ text }: { text: string }) {
             key={index}
             type="button"
             className={knowledgeReferenceChipClass(active)}
-            onClick={() => router.push(`/knowledge/${segment.knowledgeId}`)}
-            title={active ? t("openKnowledge") : t("inactiveReference")}
+            onClick={() => openReference(segment.kind, segment.id)}
+            title={active ? t("openReference") : t("inactiveReference")}
           >
-            {meta?.knowledgeType ? (
+            {meta?.typeLabel ? (
               <Badge
                 tone={active ? "info" : "danger"}
                 className="mr-1 inline-flex px-1.5 py-0 align-baseline not-italic"
               >
-                {tKnowledge(knowledgeTypeKey(meta.knowledgeType))}
+                {meta.typeLabel}
               </Badge>
             ) : null}
             {title}
           </button>
         );
       })}
+      {previewAttachment ? (
+        <AttachmentViewer
+          attachment={previewAttachment}
+          open
+          onClose={() => setPreviewAttachment(null)}
+        />
+      ) : null}
     </span>
   );
 }

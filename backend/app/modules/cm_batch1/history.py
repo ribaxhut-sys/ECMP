@@ -75,8 +75,36 @@ _EVENT_TYPE_CODES = {
     "HandlingTakenOver": "HANDLING_TAKEN_OVER",
 }
 
-# Internal Case lifecycle noise — riwayat menampilkan Handling* saja.
-_HISTORY_HIDDEN_EVENT_TYPES = frozenset({"CaseCreated", "CaseWorkStarted"})
+# Internal Case lifecycle noise — CaseCreated stays visible (one row per Case).
+_HISTORY_HIDDEN_EVENT_TYPES = frozenset(
+    {
+        "CaseWorkStarted",
+        "CaseHandlingUnitAccepted",
+        "CaseOwnerAccepted",
+        "CaseHandlingUnitRejected",
+        "CaseOwnerRejected",
+    }
+)
+
+
+def _case_number(entry: TimelineEntry) -> str:
+    return str((entry.metadata or {}).get("caseNumber") or "").strip()
+
+
+def omit_resolved_when_closed(entries: list[TimelineEntry]) -> list[TimelineEntry]:
+    """Keep CaseClosed as the business outcome; drop CaseResolved for that Case."""
+    closed = {
+        _case_number(entry)
+        for entry in entries
+        if entry.event_type == "CaseClosed" and _case_number(entry)
+    }
+    if not closed:
+        return entries
+    return [
+        entry
+        for entry in entries
+        if not (entry.event_type == "CaseResolved" and _case_number(entry) in closed)
+    ]
 
 
 def event_code(entry: TimelineEntry) -> str:
@@ -166,6 +194,7 @@ class CmBatch1HistoryService:
             for entry in entries
             if entry.event_type not in _HISTORY_HIDDEN_EVENT_TYPES
         ]
+        entries = omit_resolved_when_closed(entries)
         names = self._actor_names(entries)
         return [
             IntakeHistoryEntry(
@@ -177,6 +206,8 @@ class CmBatch1HistoryService:
                 actorName=self._display_actor_name(entry, names),
                 priority=(dict(entry.metadata or {}).get("priority") or None),
                 note=(dict(entry.metadata or {}).get("note") or None),
+                caseNumber=(dict(entry.metadata or {}).get("caseNumber") or None),
+                intakeAction=(dict(entry.metadata or {}).get("intakeAction") or None),
             )
             for entry in entries
         ]

@@ -233,7 +233,9 @@ describe("CAP-008 case lifecycle flow", () => {
       />,
     );
 
-    setFieldValue(/comment/i, "Done");
+    const commentEditor = document.getElementById("comment") as HTMLElement;
+    await user.click(commentEditor);
+    await user.keyboard("Done");
     await user.click(
       screen.getByRole("button", { name: /submit resolution/i }),
     );

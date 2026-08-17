@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils";
 import { Button } from "@/shared/ui/button";
 
@@ -6,7 +7,9 @@ export interface PaginationProps extends HTMLAttributes<HTMLElement> {
   /** Summary text e.g. "Page 2 of 10" — parent formats. */
   summary?: ReactNode;
   pageSizeSlot?: ReactNode;
+  /** Pre-translated — caller owns locale (`common.previous`). Falls back to a translated default if omitted. */
   previousLabel?: string;
+  /** Pre-translated — caller owns locale (`common.next`). Falls back to a translated default if omitted. */
   nextLabel?: string;
   onPrevious?: () => void;
   onNext?: () => void;
@@ -29,8 +32,8 @@ export function Pagination({
   className,
   summary,
   pageSizeSlot,
-  previousLabel = "Previous",
-  nextLabel = "Next",
+  previousLabel,
+  nextLabel,
   onPrevious,
   onNext,
   previousDisabled,
@@ -38,9 +41,10 @@ export function Pagination({
   pages,
   ...props
 }: PaginationProps) {
+  const tCommon = useTranslations("common");
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={tCommon("paginationNav")}
       className={cn(
         "flex flex-col gap-3 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:items-center sm:justify-between",
         className,
@@ -58,7 +62,7 @@ export function Pagination({
           onClick={onPrevious}
           disabled={previousDisabled || !onPrevious}
         >
-          {previousLabel}
+          {previousLabel ?? tCommon("previous")}
         </Button>
         {pages?.map((item) => (
           <Button
@@ -79,7 +83,7 @@ export function Pagination({
           onClick={onNext}
           disabled={nextDisabled || !onNext}
         >
-          {nextLabel}
+          {nextLabel ?? tCommon("next")}
         </Button>
       </div>
     </nav>

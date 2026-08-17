@@ -76,8 +76,14 @@ export function validateCreateCaseForm(
 export function toCreateCaseRequest(
   complaintId: string,
   values: CreateCaseFormValues,
+  extras?: {
+    note?: string | null;
+    intakeAction?: "register" | "close" | "escalate" | null;
+  },
 ): CreateCmCaseRequest {
   const destinationUnitId = values.destinationUnitId.trim() || null;
+  const note = extras?.note?.trim() || null;
+  const intakeAction = extras?.intakeAction ?? null;
   return {
     complaintId,
     caseType: values.caseType.trim(),
@@ -86,6 +92,8 @@ export function toCreateCaseRequest(
     description: values.description.trim(),
     priority: values.priority.trim(),
     destinationUnitId,
+    ...(note ? { note } : {}),
+    ...(intakeAction ? { intakeAction } : {}),
   };
 }
 

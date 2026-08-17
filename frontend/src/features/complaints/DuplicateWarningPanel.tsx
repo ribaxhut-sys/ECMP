@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type {
   CmBatch1DuplicateCheckResponse,
   CmBatch1DuplicateDecision,
@@ -35,6 +35,7 @@ export function DuplicateWarningPanel({
 }: DuplicateWarningPanelProps) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [selectedId, setSelectedId] = useState("");
   const [showOtherId, setShowOtherId] = useState(false);
   const [otherId, setOtherId] = useState("");
@@ -200,6 +201,7 @@ export function DuplicateWarningPanel({
               const isClosed = statusRaw === "CLOSED" || c.open === false;
               const createdLabel = formatDateTime24(
                 typeof c.createdAt === "string" ? c.createdAt : undefined,
+                locale,
               );
               const selected = effectiveSurviving === id;
               const detailHref = `/complaints/cm/${encodeURIComponent(id)}`;

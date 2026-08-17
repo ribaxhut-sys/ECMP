@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { formatShortDateTime24 } from "@/shared/utils/datetime";
 import {
   Alert,
   Badge,
@@ -20,27 +21,13 @@ export interface ClosureHistoryPanelProps {
   complaint: MockComplaint;
 }
 
-function formatWhen(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
 /**
  * SCR-HX-02 — Closure record portion only (WF-001-18 for SCR-WS-12).
  * Escalation portion lives in escalation-handling EscalationHistoryPanel (R2-B3).
  */
 export function ClosureHistoryPanel({ complaint }: ClosureHistoryPanelProps) {
   const t = useTranslations("reopenApproval");
+  const locale = useLocale();
   const history = useMemo(
     () => complaint.decisionHistory ?? [],
     [complaint.decisionHistory],
@@ -72,7 +59,7 @@ export function ClosureHistoryPanel({ complaint }: ClosureHistoryPanelProps) {
                 : entry.type === "REOPEN_APPROVE"
                   ? t("hx.reopenApprove")
                   : t("hx.reopenReject"),
-          time: formatWhen(entry.at),
+          time: formatShortDateTime24(entry.at, locale),
           actor: entry.actorName,
           status: entry.type,
           statusTone:
@@ -83,7 +70,7 @@ export function ClosureHistoryPanel({ complaint }: ClosureHistoryPanelProps) {
                 : "info",
           description: entry.reason ?? complaint.resolutionSummary ?? undefined,
         })),
-    [closureEntries, complaint.resolutionSummary, t],
+    [closureEntries, complaint.resolutionSummary, t, locale],
   );
 
   if (!hasRequiredClosureHistory(complaint)) {
@@ -126,7 +113,9 @@ export function ClosureHistoryPanel({ complaint }: ClosureHistoryPanelProps) {
               {t("hx.closedAt")}
             </dt>
             <dd className="text-ecmp-text-primary">
-              {complaint.closedAt ? formatWhen(complaint.closedAt) : "—"}
+              {complaint.closedAt
+                ? formatShortDateTime24(complaint.closedAt, locale)
+                : "—"}
             </dd>
           </div>
           <div>
