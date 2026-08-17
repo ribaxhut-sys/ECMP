@@ -13,6 +13,37 @@ const PDF_EXT = new Set([".pdf"]);
 
 export type PreviewKind = "image" | "pdf" | "unsupported";
 
+/** Internal complaint create/detail — images + ZIP only. */
+export const INTERNAL_COMPLAINT_FILE_ACCEPT =
+  "image/jpeg,image/png,image/gif,image/webp,application/zip,.jpg,.jpeg,.png,.gif,.webp,.zip";
+
+const INTERNAL_ALLOWED_EXT = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".zip",
+]);
+const INTERNAL_ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/zip",
+  "application/x-zip",
+  "application/x-zip-compressed",
+]);
+
+export function isAllowedInternalComplaintFile(file: File): boolean {
+  const name = file.name.trim().toLowerCase();
+  const idx = name.lastIndexOf(".");
+  const ext = idx > 0 ? name.slice(idx) : "";
+  if (INTERNAL_ALLOWED_EXT.has(ext)) return true;
+  return INTERNAL_ALLOWED_MIME.has((file.type || "").trim().toLowerCase());
+}
+
 export function normalizeExtension(extension: string | null | undefined, filename: string): string {
   const fromMeta = (extension ?? "").trim().toLowerCase();
   if (fromMeta) {
@@ -50,10 +81,13 @@ export function formatFileSize(bytes: number): string {
   return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
 }
 
-export function formatUploadDate(value: string | null | undefined): string {
+export function formatUploadDate(
+  value: string | null | undefined,
+  locale: string,
+): string {
   if (!value) return "—";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "short",
       year: "numeric",

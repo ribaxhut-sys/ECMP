@@ -12,6 +12,7 @@ import {
   type CmBatch1AttachmentClassification,
   type CmBatch1AttachmentResponse,
 } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   CM_BATCH1_MAX_MULTI_UPLOAD,
   CM_BATCH1_VOID_REASON_UPLOADER_REMOVED,
@@ -46,7 +47,7 @@ const CLASSIFICATION_OPTIONS = [
 ] as const;
 
 const ACCEPT_MIME =
-  "application/pdf,image/jpeg,image/png,image/webp,video/mp4,text/plain,.pdf,.jpg,.jpeg,.png,.webp,.mp4,.txt";
+  "application/pdf,image/jpeg,image/png,image/gif,image/webp,video/mp4,text/plain,application/zip,.pdf,.jpg,.jpeg,.png,.gif,.webp,.mp4,.txt,.zip";
 
 /**
  * Bound attachments on Aggregate confirmation (API-509 list + API-507 upload + API-512 void).
@@ -64,6 +65,8 @@ export function CmBatch1BoundAttachmentsCard({
   allowUpload?: boolean;
 }) {
   const t = useTranslations("complaints");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const { hasPermission } = useAuth();
   const canRead =
     hasPermission("attachment:read") || hasPermission("*");
@@ -126,14 +129,14 @@ export function CmBatch1BoundAttachmentsCard({
       } else {
         setError(
           err instanceof ApiError
-            ? err.message
+            ? resolveApiErrorMessage(err, tErrors, tCommon)
             : t("unableToLoadAggregateAttachments"),
         );
       }
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId, t]);
+  }, [canRead, complaintId, t, tErrors, tCommon]);
 
   useEffect(() => {
     void load();
@@ -175,7 +178,7 @@ export function CmBatch1BoundAttachmentsCard({
           } catch (err) {
             const detail =
               err instanceof ApiError
-                ? err.message
+                ? resolveApiErrorMessage(err, tErrors, tCommon)
                 : err instanceof Error
                   ? err.message
                   : t("unableToUploadAttachment");
@@ -219,7 +222,7 @@ export function CmBatch1BoundAttachmentsCard({
         setUploading(false);
       }
     },
-    [canUpload, classification, complaintId, customerId, t, uploading],
+    [canUpload, classification, complaintId, customerId, t, tErrors, tCommon, uploading],
   );
 
   const onVoid = useCallback(
@@ -247,7 +250,7 @@ export function CmBatch1BoundAttachmentsCard({
         setItems(snapshot);
         setError(
           err instanceof ApiError
-            ? err.message
+            ? resolveApiErrorMessage(err, tErrors, tCommon)
             : err instanceof Error
               ? err.message
               : t("unableToVoidAttachment"),
@@ -256,7 +259,7 @@ export function CmBatch1BoundAttachmentsCard({
         setVoidingId(null);
       }
     },
-    [canVoid, closePreviewTab, t, voidingId],
+    [canVoid, closePreviewTab, t, tErrors, tCommon, voidingId],
   );
 
   const onOpen = useCallback(
@@ -292,14 +295,14 @@ export function CmBatch1BoundAttachmentsCard({
           err instanceof ApiError
             ? err.status === 404
               ? t("attachmentBlobMissing")
-              : err.message
+              : resolveApiErrorMessage(err, tErrors, tCommon)
             : t("unableToOpenAttachment"),
         );
       } finally {
         setBusyId(null);
       }
     },
-    [busyId, canRead, t],
+    [busyId, canRead, t, tErrors, tCommon],
   );
 
   if (!canRead) {

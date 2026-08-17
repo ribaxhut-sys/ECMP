@@ -15,7 +15,11 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.core.user_messages import m
 from app.modules.attachment.domain.enums import AggregateType
-from app.modules.attachment.service import AttachmentService, sanitize_filename
+from app.modules.attachment.service import (
+    AttachmentService,
+    normalize_upload_mime,
+    sanitize_filename,
+)
 from app.modules.cm_batch1 import event_factory as events
 from app.modules.cm_batch1.antivirus import AntivirusScanner, StubAntivirusScanner
 from app.modules.cm_batch1.attachment_config import (
@@ -150,7 +154,11 @@ class CmBatch1AttachmentService:
                 },
             )
 
-        mime_type = (content_type or "").strip().lower() or "application/octet-stream"
+        if not data:
+            raise ValidationAppError(m("storage.file_empty"), details={"sizeBytes": 0})
+        mime_type = normalize_upload_mime(
+            content_type=content_type, filename=filename, data=data
+        )
         if mime_type not in cfg.allowed_mime_types:
             raise ValidationAppError(
                 m("storage.mime_not_allowed"),
@@ -159,8 +167,6 @@ class CmBatch1AttachmentService:
                     "allowed": sorted(cfg.allowed_mime_types),
                 },
             )
-        if not data:
-            raise ValidationAppError(m("storage.file_empty"), details={"sizeBytes": 0})
         if len(data) > cfg.max_file_size_bytes:
             raise ValidationAppError(
                 m("storage.file_exceeds_max_size"),

@@ -7,6 +7,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchAttachment, type Attachment } from "@/lib/api";
 import { Empty, ErrorState, Skeleton, type EmptyActionConfig } from "@/shared/ui";
 import { AttachmentCard } from "./AttachmentCard";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 export interface AttachmentListProps {
   /** Preloaded metadata (preferred when already available). */
@@ -20,12 +21,17 @@ export interface AttachmentListProps {
   emptyPrimaryAction?: EmptyActionConfig;
 }
 
-function mapError(error: unknown, t: (key: string) => string): string {
+function mapError(
+  error: unknown,
+  t: (key: string) => string,
+  tErrors: Parameters<typeof resolveApiErrorMessage>[1],
+  tCommon: Parameters<typeof resolveApiErrorMessage>[2],
+): string {
   if (error instanceof ApiError) {
     if (error.status === 404) return t("someNotFound404");
     if (error.status === 403) return t("noReadPermission403");
     if (error.status === 500) return t("serverErrorLoading500");
-    return error.message;
+    return resolveApiErrorMessage(error, tErrors, tCommon);
   }
   return t("failedToLoad");
 }
@@ -40,6 +46,7 @@ export function AttachmentList({
   const router = useRouter();
   const t = useTranslations("attachments");
   const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
   const canRead = hasPermission("attachment:read") || hasPermission("*");
 
@@ -67,11 +74,11 @@ export function AttachmentList({
       setItems(results);
     } catch (err) {
       setItems([]);
-      setError(mapError(err, t));
+      setError(mapError(err, t, tErrors, tCommon));
     } finally {
       setLoading(false);
     }
-  }, [canRead, t]);
+  }, [canRead, t, tErrors, tCommon]);
 
   const idsKey = (attachmentIds ?? []).join(",");
 

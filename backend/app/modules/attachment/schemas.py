@@ -9,7 +9,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 AggregateTypeLiteral = Literal[
-    "Complaint", "Queue", "Notification", "Announcement", "Knowledge"
+    "Complaint",
+    "Queue",
+    "Notification",
+    "Announcement",
+    "Knowledge",
+    "InternalComplaint",
+]
+PlatformFormAggregateLiteral = Literal[
+    "Complaint", "Queue", "Notification", "InternalComplaint"
 ]
 AttachmentStatusLiteral = Literal["UPLOADED", "AVAILABLE", "DELETED", "FAILED"]
 

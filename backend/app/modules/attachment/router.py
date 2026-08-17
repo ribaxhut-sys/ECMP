@@ -7,7 +7,7 @@ optional Batch 1 form fields dispatch to CmBatch1AttachmentService orchestration
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
 from fastapi.responses import Response
@@ -31,13 +31,16 @@ from app.modules.attachment.permissions import (
     ATTACHMENT_READ,
 )
 from app.modules.attachment.registration import build_attachment_service
-from app.modules.attachment.schemas import AttachmentResponse
+from app.modules.attachment.schemas import AttachmentResponse, PlatformFormAggregateLiteral
 from app.modules.attachment.service import AttachmentService
 from app.modules.audit.hooks import write_audit
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import Batch1AttachmentResponse
+from app.modules.internal_complaint.attachment_authorization import (
+    assert_can_access_internal_complaint_attachment,
+)
 from app.modules.knowledge.authorization import assert_can_access_knowledge_attachment
 
 router = APIRouter(prefix="/api/v1/attachments", tags=["Attachments"])
@@ -73,9 +76,11 @@ async def upload_attachment(
         CmBatch1AttachmentService, Depends(get_cm_batch1_attachment_service)
     ],
     principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_CREATE))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     file: Annotated[UploadFile, File()],
     aggregate_type: Annotated[
-        Literal["Complaint", "Queue", "Notification"] | None,
+        PlatformFormAggregateLiteral | None,
         Form(alias="aggregateType"),
     ] = None,
     aggregate_id: Annotated[uuid.UUID | None, Form(alias="aggregateId")] = None,
@@ -119,6 +124,13 @@ async def upload_attachment(
             m("storage.aggregate_type_id_required"),
             details={},
         )
+    if aggregate_type == AggregateType.INTERNAL_COMPLAINT.value:
+        assert_can_access_internal_complaint_attachment(
+            principal=principal,
+            session=session,
+            aggregate_id=aggregate_id,
+            settings=settings,
+        )
     result_platform = service.upload(
         aggregate_type=aggregate_type,
         aggregate_id=aggregate_id,
@@ -139,8 +151,10 @@ async def upload_attachment(
 def list_attachments(
     service: Annotated[AttachmentService, Depends(get_attachment_service)],
     principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     aggregate_type: Annotated[
-        Literal["Complaint", "Queue", "Notification"] | None,
+        PlatformFormAggregateLiteral | None,
         Query(alias="aggregateType"),
     ] = None,
     aggregate_id: Annotated[
@@ -150,7 +164,18 @@ def list_attachments(
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 50,
 ) -> ListResponse[AttachmentResponse]:
     """API-386 — paginated attachment metadata list."""
-    _ = principal
+    if aggregate_type == AggregateType.INTERNAL_COMPLAINT.value:
+        if aggregate_id is None:
+            raise ValidationAppError(
+                m("storage.aggregate_type_id_required"),
+                details={},
+            )
+        assert_can_access_internal_complaint_attachment(
+            principal=principal,
+            session=session,
+            aggregate_id=aggregate_id,
+            settings=settings,
+        )
     data, meta = service.list(
         aggregate_type=aggregate_type,
         aggregate_id=aggregate_id,
@@ -173,6 +198,7 @@ def get_attachment(
     ],
     principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_READ))],
     session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[Any]:
     """API-324 / API-510 — metadata including integrity hash."""
     linked = batch1.try_get_by_platform_id(attachment_id)
@@ -189,6 +215,13 @@ def get_attachment(
     elif entity.aggregate_type == AggregateType.KNOWLEDGE.value:
         assert_can_access_knowledge_attachment(
             principal=principal, session=session, attachment_id=attachment_id
+        )
+    elif entity.aggregate_type == AggregateType.INTERNAL_COMPLAINT.value:
+        assert_can_access_internal_complaint_attachment(
+            principal=principal,
+            session=session,
+            aggregate_id=entity.aggregate_id,
+            settings=settings,
         )
     return DataResponse(data=entity)
 
@@ -254,6 +287,13 @@ def download_attachment(
         assert_can_access_knowledge_attachment(
             principal=principal, session=session, attachment_id=platform_id
         )
+    elif entity.aggregate_type == AggregateType.INTERNAL_COMPLAINT.value:
+        assert_can_access_internal_complaint_attachment(
+            principal=principal,
+            session=session,
+            aggregate_id=entity.aggregate_id,
+            settings=settings,
+        )
 
     headers = {
         "Content-Disposition": f'attachment; filename="{entity.original_name}"',
@@ -280,6 +320,7 @@ def delete_attachment(
         CmBatch1AttachmentService, Depends(get_cm_batch1_attachment_service)
     ],
     principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_DELETE))],
+    settings: Annotated[Settings, Depends(get_settings)],
     reason: Annotated[str | None, Query()] = None,
 ) -> Response | DataResponse[Batch1AttachmentResponse]:
     """API-326 / API-512 — platform soft-delete or Batch 1 void-with-reason."""
@@ -302,6 +343,13 @@ def delete_attachment(
     if before.aggregate_type == AggregateType.ANNOUNCEMENT.value:
         assert_can_manage_announcement_attachment(
             principal=principal, session=session, attachment_id=attachment_id
+        )
+    elif before.aggregate_type == AggregateType.INTERNAL_COMPLAINT.value:
+        assert_can_access_internal_complaint_attachment(
+            principal=principal,
+            session=session,
+            aggregate_id=before.aggregate_id,
+            settings=settings,
         )
     service.soft_delete(attachment_id)
     write_audit(

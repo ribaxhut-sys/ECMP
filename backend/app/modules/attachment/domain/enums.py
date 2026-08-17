@@ -13,6 +13,7 @@ class AggregateType(StrEnum):
     NOTIFICATION = "Notification"
     ANNOUNCEMENT = "Announcement"
     KNOWLEDGE = "Knowledge"
+    INTERNAL_COMPLAINT = "InternalComplaint"
 
 
 class AttachmentStatus(StrEnum):

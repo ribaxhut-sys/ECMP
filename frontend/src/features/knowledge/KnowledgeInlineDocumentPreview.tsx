@@ -12,6 +12,7 @@ import { getPreviewKind, type PreviewKind } from "@/features/attachments/fileTyp
 import { Alert, Button } from "@/shared/ui";
 import { IconDownload, IconSpinner } from "@/shared/icons";
 import { toViewerAttachment } from "./KnowledgeFileManager";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 /**
  * Inline document preview for Knowledge detail (content-first).
@@ -26,6 +27,8 @@ export function KnowledgeInlineDocumentPreview({
 }) {
   const t = useTranslations("attachments");
   const tKnowledge = useTranslations("knowledge");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const attachment: Attachment = toViewerAttachment(file, knowledgeId);
   const kind: PreviewKind = getPreviewKind(
     attachment.mimeType,
@@ -66,7 +69,7 @@ export function KnowledgeInlineDocumentPreview({
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError) {
-          setError(err.message || t("failedToLoadFile"));
+          setError(resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") || t("failedToLoadFile"));
         } else {
           setError(t("failedToLoadFile"));
         }
@@ -79,7 +82,7 @@ export function KnowledgeInlineDocumentPreview({
       cancelled = true;
       revoke();
     };
-  }, [attachment.id, kind, revoke, t]);
+  }, [attachment.id, kind, revoke, t, tErrors, tCommon]);
 
   async function onDownload() {
     try {

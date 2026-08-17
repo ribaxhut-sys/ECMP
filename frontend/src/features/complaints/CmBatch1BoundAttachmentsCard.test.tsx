@@ -103,13 +103,17 @@ describe("CmBatch1BoundAttachmentsCard", () => {
   });
 
   it("still surfaces server errors when listing attachments", async () => {
+    // Non-404 errors must render a localized message, never the raw backend
+    // string verbatim (backend always responds in Bahasa Indonesia; the UI
+    // may be running in any locale).
     fetchCmBatch1ComplaintAttachments.mockRejectedValue(
       new ApiError(500, "INTERNAL", "store unavailable"),
     );
     renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
     await waitFor(() => {
-      expect(screen.getByText("store unavailable")).toBeInTheDocument();
+      expect(screen.getByText("An unexpected error occurred.")).toBeInTheDocument();
     });
+    expect(screen.queryByText("store unavailable")).toBeNull();
     expect(screen.queryByTestId("bound-empty")).toBeNull();
   });
 

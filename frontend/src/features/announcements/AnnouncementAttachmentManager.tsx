@@ -441,6 +441,7 @@ export function AnnouncementAttachmentUploadControls({
         type="file"
         multiple
         className="hidden"
+        accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.doc,.docx,.xls,.xlsx,.zip,application/zip,image/jpeg,image/png,image/gif,image/webp"
         onChange={(e) => void onFileSelected(e)}
       />
       <div className="flex flex-wrap gap-2">

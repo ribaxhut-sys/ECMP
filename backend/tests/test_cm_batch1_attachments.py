@@ -141,8 +141,10 @@ def _create_complaint(cm_service: CmBatch1Service, request_id: str) -> str:
 
 def test_unit_config_provider_defaults() -> None:
     cfg = DefaultAttachmentConfigProvider().get()
-    assert cfg.max_file_size_bytes == 10 * 1024 * 1024
+    assert cfg.max_file_size_bytes == 50 * 1024 * 1024
     assert "application/pdf" in cfg.allowed_mime_types
+    assert "application/zip" in cfg.allowed_mime_types
+    assert "image/gif" in cfg.allowed_mime_types
     assert cfg.checksum_algorithm == "SHA-256"
     assert cfg.antivirus_mode == "STUB_ONLY"
     assert cfg.abandoned_staging_action == "VOID"

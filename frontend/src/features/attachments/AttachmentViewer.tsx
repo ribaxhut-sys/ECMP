@@ -17,13 +17,19 @@ import {
 } from "@/shared/icons";
 import { Alert, Button } from "@/shared/ui";
 import { getPreviewKind, type PreviewKind } from "./fileTypes";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
-function mapLoadError(error: unknown, t: (key: string) => string): string {
+function mapLoadError(
+  error: unknown,
+  t: (key: string) => string,
+  tErrors: ReturnType<typeof useTranslations>,
+  tCommon: ReturnType<typeof useTranslations>,
+): string {
   if (error instanceof ApiError) {
     if (error.status === 404) return t("notFound404");
     if (error.status === 403) return t("noPermissionToViewFile403");
     if (error.status === 500) return t("serverErrorLoadingFile500");
-    return error.message || t("failedToLoadFile");
+    return resolveApiErrorMessage(error, tErrors, tCommon, "unexpectedError") || t("failedToLoadFile");
   }
   return t("failedToLoadFile");
 }
@@ -44,6 +50,8 @@ export function AttachmentViewer({
   onClose,
 }: AttachmentViewerProps) {
   const t = useTranslations("attachments");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const kind: PreviewKind = getPreviewKind(
     attachment.mimeType,
     attachment.extension,
@@ -79,11 +87,11 @@ export function AttachmentViewer({
       urlRef.current = url;
       setObjectUrl(url);
     } catch (err) {
-      setError(mapLoadError(err, t));
+      setError(mapLoadError(err, t, tErrors, tCommon));
     } finally {
       setLoading(false);
     }
-  }, [attachment.id, kind, revoke, t]);
+  }, [attachment.id, kind, revoke, t, tErrors, tCommon]);
 
   useEffect(() => {
     if (!open) {
@@ -125,9 +133,9 @@ export function AttachmentViewer({
       anchor.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(mapLoadError(err, t));
+      setError(mapLoadError(err, t, tErrors, tCommon));
     }
-  }, [attachment.originalName, attachment.id, t]);
+  }, [attachment.originalName, attachment.id, t, tErrors, tCommon]);
 
   const handleOpenTab = useCallback(async () => {
     try {
@@ -142,9 +150,9 @@ export function AttachmentViewer({
       // Revoke after the new tab has a chance to load.
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
-      setError(mapLoadError(err, t));
+      setError(mapLoadError(err, t, tErrors, tCommon));
     }
-  }, [attachment.id, t]);
+  }, [attachment.id, t, tErrors, tCommon]);
 
   if (!open || typeof document === "undefined") return null;
 

@@ -16,9 +16,9 @@ import { KnowledgeFileTypeIcon } from "./KnowledgeFileTypeIcon";
 import { KnowledgeInlineDocumentPreview } from "./KnowledgeInlineDocumentPreview";
 import { pickKnowledgeDisplayFile } from "./knowledgeListMeta";
 
-/** Same accept list as shared attachment storage defaults (PDF, image, office). */
+/** Same accept list as shared attachment storage defaults (PDF, image, office, ZIP). */
 export const KNOWLEDGE_FILE_ACCEPT =
-  ".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.doc,.docx,.xls,.xlsx";
+  ".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.doc,.docx,.xls,.xlsx,.zip";
 
 export function toViewerAttachment(file: KnowledgeFile, knowledgeId: string) {
   const ext = file.fileName.includes(".")
@@ -137,9 +137,9 @@ export function KnowledgeFileManager({
       onChanged(next);
     } catch (err) {
       const message =
-        err instanceof ApiError && err.message
-          ? err.message
-          : resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToUploadFile");
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToUploadFile");
       setError(message);
     } finally {
       setBusy(false);
@@ -156,9 +156,9 @@ export function KnowledgeFileManager({
       const message =
         err instanceof ApiError && err.status === 409
           ? t("filesDraftOnly")
-          : err instanceof ApiError && err.message
-            ? err.message
-            : resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToRemoveFile");
+          : err instanceof ApiError
+            ? resolveApiErrorMessage(err, tErrors, tCommon)
+            : t("unableToRemoveFile");
       setError(message);
     } finally {
       setBusy(false);

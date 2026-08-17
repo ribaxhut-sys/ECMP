@@ -3,7 +3,24 @@ import type {
   Attachment,
   AttachmentAggregateType,
   DataResponse,
+  ListResponse,
 } from "./types";
+
+/** API-386 — GET /api/v1/attachments?aggregateType=&aggregateId= */
+export function fetchAttachments(
+  aggregateType: AttachmentAggregateType,
+  aggregateId: string,
+  pageSize = 50,
+): Promise<ListResponse<Attachment>> {
+  const params = new URLSearchParams({
+    aggregateType,
+    aggregateId,
+    pageSize: String(pageSize),
+  });
+  return apiRequest<ListResponse<Attachment>>(
+    `/api/v1/attachments?${params.toString()}`,
+  );
+}
 
 /** API-324 — GET /api/v1/attachments/{id} (metadata only; no file bytes). */
 export function fetchAttachment(

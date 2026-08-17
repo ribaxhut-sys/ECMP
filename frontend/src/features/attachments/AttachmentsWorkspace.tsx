@@ -31,7 +31,8 @@ import { IconClose, IconDownload } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 
 /** Keep accept simple — complex MIME lists break the picker on some OS/browsers. */
-const CATALOG_ACCEPT = ".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.doc,.docx,.xls,.xlsx";
+const CATALOG_ACCEPT =
+  ".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.doc,.docx,.xls,.xlsx,.zip";
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 10;
 type CatalogOrgScope = "all" | "pusat" | "cabang";

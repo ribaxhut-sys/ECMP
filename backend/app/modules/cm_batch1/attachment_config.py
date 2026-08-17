@@ -8,7 +8,7 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class AttachmentConfig:
-    max_file_size_bytes: int = 10 * 1024 * 1024
+    max_file_size_bytes: int = 50 * 1024 * 1024
     allowed_mime_types: frozenset[str] = field(
         default_factory=lambda: frozenset(
             {
@@ -16,8 +16,10 @@ class AttachmentConfig:
                 "image/jpeg",
                 "image/png",
                 "image/webp",
+                "image/gif",
                 "video/mp4",
                 "text/plain",
+                "application/zip",
             }
         )
     )

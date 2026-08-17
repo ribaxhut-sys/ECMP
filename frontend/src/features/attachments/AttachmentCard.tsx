@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   ApiError,
   downloadAttachment,
@@ -15,6 +15,7 @@ import {
   IconImage,
 } from "@/shared/icons";
 import { Alert, Badge, Button, Card, CardBody } from "@/shared/ui";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { AttachmentViewer } from "./AttachmentViewer";
 import {
   fileTypeLabel,
@@ -44,6 +45,9 @@ export interface AttachmentCardProps {
 
 export function AttachmentCard({ attachment }: AttachmentCardProps) {
   const t = useTranslations("attachments");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const kind = getPreviewKind(
     attachment.mimeType,
     attachment.extension,
@@ -58,10 +62,10 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
       if (error.status === 404) return t("notFound404");
       if (error.status === 403) return t("permissionDenied403");
       if (error.status === 500) return t("serverError500");
-      return error.message;
+      return resolveApiErrorMessage(error, tErrors, tCommon);
     }
     return t("actionFailed");
-  }, [t]);
+  }, [t, tErrors, tCommon]);
 
   const handleDownload = useCallback(async () => {
     setBusy(true);
@@ -158,7 +162,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
                 {t("uploadDate")}
               </dt>
               <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                {formatUploadDate(attachment.uploadedAt)}
+                {formatUploadDate(attachment.uploadedAt, locale)}
               </dd>
             </div>
           </dl>
