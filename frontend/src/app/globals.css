@@ -35,6 +35,14 @@
   --ecmp-color-info-foreground: #ffffff;
   --ecmp-color-info-muted: #e0f2fe;
 
+  /* ── Chart categorical series (validated set, fixed order — see dataviz
+     skill palette.md). Distinct from the semantic tokens above: these carry
+     series identity, never status/state. ── */
+  --ecmp-chart-series-1: #2a78d6;
+  --ecmp-chart-series-2: #eb6834;
+  --ecmp-chart-series-3: #1baf7a;
+  --ecmp-chart-series-4: #eda100;
+
   /* ── Surface system ── */
   --ecmp-color-background: #f1f5f9;
   --ecmp-color-surface: #ffffff;
@@ -269,6 +277,11 @@
   --ecmp-color-info-foreground: #082f49;
   --ecmp-color-info-muted: #0c4a6e;
 
+  --ecmp-chart-series-1: #3987e5;
+  --ecmp-chart-series-2: #d95926;
+  --ecmp-chart-series-3: #199e70;
+  --ecmp-chart-series-4: #c98500;
+
   --ecmp-color-background: #0b1220;
   --ecmp-color-surface: #111827;
   --ecmp-color-surface-raised: #1e293b;
@@ -339,6 +352,12 @@
   --color-ecmp-info: var(--ecmp-color-info);
   --color-ecmp-info-foreground: var(--ecmp-color-info-foreground);
   --color-ecmp-info-muted: var(--ecmp-color-info-muted);
+
+  /* Chart categorical series */
+  --color-ecmp-chart-series-1: var(--ecmp-chart-series-1);
+  --color-ecmp-chart-series-2: var(--ecmp-chart-series-2);
+  --color-ecmp-chart-series-3: var(--ecmp-chart-series-3);
+  --color-ecmp-chart-series-4: var(--ecmp-chart-series-4);
 
   /* Surfaces */
   --color-ecmp-background: var(--ecmp-color-background);

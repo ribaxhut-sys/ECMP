@@ -27,6 +27,9 @@ describe("resolveActivityMeta", () => {
     expect(resolveActivityMeta("complaint.escalation_cancelled").labelKey).toBe(
       "activityEscalationCancelled",
     );
+    expect(resolveActivityMeta("complaint.case_created").labelKey).toBe(
+      "activityCaseCreated",
+    );
     expect(resolveActivityMeta("complaint.case_status_changed").labelKey).toBe(
       "activityCaseStatusChanged",
     );

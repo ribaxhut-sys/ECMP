@@ -1,10 +1,5 @@
-import {
-  fetchDashboardAggregateKpis,
-  fetchDashboardTrends,
-  fetchReportByBranch,
-} from "@/lib/api";
+import { fetchDashboardAggregateKpis, fetchDashboardTrends } from "@/lib/api";
 import type {
-  BranchCount,
   DashboardHeader,
   DashboardSlaSummary,
   DashboardTrendItem,
@@ -34,7 +29,6 @@ export type DashboardData = {
   /** Always null (BQ-005 / CAP-006 deferred). */
   sla: DashboardSlaSummary | null;
   byStatus: StatusCount[] | null;
-  byBranch: BranchCount[] | null;
   /** 30-day daily complaint-count trend from CM Aggregate. */
   trend: DashboardTrendItem[] | null;
 };
@@ -118,9 +112,8 @@ async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
  * SLA clocks stay null (BQ-005 / CAP-006 deferred).
  */
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [aggregate, byBranch, trends] = await Promise.allSettled([
+  const [aggregate, trends] = await Promise.allSettled([
     loadAggregateKpis(),
-    fetchReportByBranch(),
     fetchDashboardTrends("30d"),
   ]);
 
@@ -132,7 +125,6 @@ export async function loadDashboardData(): Promise<DashboardData> {
     header: aggregate.value.header,
     sla: null,
     byStatus: aggregate.value.byStatus,
-    byBranch: byBranch.status === "fulfilled" ? byBranch.value.data : null,
     trend: trends.status === "fulfilled" ? trends.value.data.items : null,
   };
 }

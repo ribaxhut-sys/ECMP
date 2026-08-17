@@ -14,6 +14,14 @@ export function fetchReportByStatus(): Promise<DataResponse<StatusCount[]>> {
   return apiRequest<DataResponse<StatusCount[]>>("/api/v1/reports/by-status");
 }
 
-export function fetchReportByBranch(): Promise<DataResponse<BranchCount[]>> {
-  return apiRequest<DataResponse<BranchCount[]>>("/api/v1/reports/by-branch");
+export function fetchReportByBranch(
+  options: { dateFrom?: string; dateTo?: string } = {},
+): Promise<DataResponse<BranchCount[]>> {
+  const params = new URLSearchParams();
+  if (options.dateFrom) params.set("dateFrom", options.dateFrom);
+  if (options.dateTo) params.set("dateTo", options.dateTo);
+  const qs = params.toString();
+  return apiRequest<DataResponse<BranchCount[]>>(
+    `/api/v1/reports/by-branch${qs ? `?${qs}` : ""}`,
+  );
 }

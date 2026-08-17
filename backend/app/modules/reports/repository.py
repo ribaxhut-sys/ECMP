@@ -194,37 +194,77 @@ class ReportRepository:
         branch_id: uuid.UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
-    ) -> list[tuple[uuid.UUID | None, str | None, str | None, int, int, int, int, int, int]]:
-        filters = self._base_filters(
-            branch_id=branch_id, date_from=date_from, date_to=date_to
+    ) -> list[
+        tuple[uuid.UUID | None, str | None, str | None, int, int, int, int, int, int, int]
+    ]:
+        """Every active branch, zero-filled when the filter window has no work.
+
+        LEFT JOIN from Branch (not from complaints) so Kesehatan Cabang can
+        show the full unit set; idle units stay at 0 instead of disappearing.
+        """
+        if branch_id is not None:
+            unit = owning_unit_for_branch(self._session, branch_id)
+            if not unit:
+                return []
+
+        date_filters: list[object] = []
+        if date_from is not None:
+            date_filters.append(CmBatch1ComplaintORM.created_at >= date_from)
+        if date_to is not None:
+            date_filters.append(CmBatch1ComplaintORM.created_at <= date_to)
+
+        complaint_sub = (
+            select(
+                CmBatch1ComplaintORM.owning_unit_id.label("unit"),
+                func.count().label("total"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (CmBatch1ComplaintORM.status == CLOSED_STATUS, 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("closed"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                CmBatch1ComplaintORM.intake_disposition.in_(
+                                    ESCALATION_ACTIVE
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("escalated"),
+            )
+            .where(*date_filters)
+            .group_by(CmBatch1ComplaintORM.owning_unit_id)
+            .subquery()
         )
-        if filters is None:
-            return []
-        closed_col = func.coalesce(
-            func.sum(
-                case((CmBatch1ComplaintORM.status == CLOSED_STATUS, 1), else_=0)
-            ),
-            0,
-        ).label("closed")
-        total_col = func.count().label("total")
+
+        branch_filters: list[object] = [
+            Branch.deleted_at.is_(None),
+            Branch.is_active.is_(True),
+        ]
+        if branch_id is not None:
+            branch_filters.append(Branch.id == branch_id)
+
         stmt = (
             select(
                 Branch.id,
                 Branch.code,
                 Branch.name,
-                total_col,
-                closed_col,
+                func.coalesce(complaint_sub.c.total, 0),
+                func.coalesce(complaint_sub.c.closed, 0),
+                func.coalesce(complaint_sub.c.escalated, 0),
             )
-            .select_from(CmBatch1ComplaintORM)
-            .outerjoin(
-                Branch,
-                Branch.code == CmBatch1ComplaintORM.owning_unit_id,
-            )
-        )
-        if filters:
-            stmt = stmt.where(*filters)
-        stmt = stmt.group_by(Branch.id, Branch.code, Branch.name).order_by(
-            total_col.desc()
+            .outerjoin(complaint_sub, complaint_sub.c.unit == Branch.code)
+            .where(*branch_filters)
+            .order_by(Branch.name)
         )
         complaint_rows = list(self._session.execute(stmt).all())
         case_by_unit = self._case_counts_by_unit(
@@ -233,19 +273,20 @@ class ReportRepository:
         implied_by_unit = self._implied_case_counts_by_unit(
             branch_id=branch_id, date_from=date_from, date_to=date_to
         )
-        seen_units: set[str | None] = set()
         result: list[
-            tuple[uuid.UUID | None, str | None, str | None, int, int, int, int, int, int]
+            tuple[
+                uuid.UUID | None, str | None, str | None, int, int, int, int, int, int, int
+            ]
         ] = []
-        for branch_uuid, code, name, total, closed in complaint_rows:
+        for branch_uuid, code, name, total, closed, escalated in complaint_rows:
             total_n = int(total)
             closed_n = int(closed or 0)
             open_n = max(0, total_n - closed_n)
+            escalated_n = int(escalated or 0)
             case_total, case_open, case_closed = self._combine_case_counts(
                 case_by_unit.get(code, (0, 0, 0)),
                 implied_by_unit.get(code, (0, 0, 0)),
             )
-            seen_units.add(code)
             result.append(
                 (
                     branch_uuid,
@@ -254,35 +295,11 @@ class ReportRepository:
                     total_n,
                     open_n,
                     closed_n,
+                    escalated_n,
                     case_total,
                     case_open,
                     case_closed,
                 )
             )
-        for unit, (case_total, case_open, case_closed) in case_by_unit.items():
-            if unit in seen_units:
-                continue
-            case_total, case_open, case_closed = self._combine_case_counts(
-                (case_total, case_open, case_closed),
-                implied_by_unit.get(unit, (0, 0, 0)),
-            )
-            branch = None
-            if unit:
-                branch = self._session.scalar(
-                    select(Branch).where(Branch.code == unit)
-                )
-            result.append(
-                (
-                    getattr(branch, "id", None),
-                    unit,
-                    getattr(branch, "name", None),
-                    0,
-                    0,
-                    0,
-                    case_total,
-                    case_open,
-                    case_closed,
-                )
-            )
-        result.sort(key=lambda row: (row[3], row[6]), reverse=True)
+        result.sort(key=lambda row: (row[3], row[7]), reverse=True)
         return result

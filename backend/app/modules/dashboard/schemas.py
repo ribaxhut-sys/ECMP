@@ -110,6 +110,7 @@ class DashboardRecentActivityItem(BaseModel):
     complaint_number: str = Field(alias="complaintNumber")
     timestamp: datetime
     actor: str
+    case_number: str | None = Field(default=None, alias="caseNumber")
 
 
 class DashboardAggregateKpiResponse(BaseModel):

@@ -1,4 +1,5 @@
 import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import { nameInitials } from "@/shared/utils/initials";
 import type {
   BranchCount,
@@ -183,7 +184,10 @@ export function actorInitials(actor: string | null | undefined): string {
   return nameInitials(actor) ?? "?";
 }
 
-/** Relative time for activity rows — presentation only. */
+/**
+ * Relative time for same-day activity; calendar datetime after 24h.
+ * id-ID RelativeTimeFormat would otherwise show "kemarin dulu" for -2 days.
+ */
 export function formatRelativeTime(
   value: string,
   locale: string,
@@ -201,11 +205,7 @@ export function formatRelativeTime(
   if (Math.abs(diffMin) < 60) return rtf.format(diffMin, "minute");
   const diffHour = Math.round(diffSec / 3600);
   if (Math.abs(diffHour) < 24) return rtf.format(diffHour, "hour");
-  const diffDay = Math.round(diffSec / 86400);
-  if (Math.abs(diffDay) < 30) return rtf.format(diffDay, "day");
-  const diffMonth = Math.round(diffSec / 2_592_000);
-  if (Math.abs(diffMonth) < 12) return rtf.format(diffMonth, "month");
-  return rtf.format(Math.round(diffSec / 31_536_000), "year");
+  return formatDateTime24(value, locale, value);
 }
 
 /** Simple ranking badges for branch volume share. */
@@ -236,7 +236,10 @@ export function resolveSystemHealth(input: {
   return "healthy";
 }
 
-export function dashboardEnvironmentLabel(): "production" | "development" {
+export function dashboardEnvironmentLabel(): "lab" | "production" | "development" {
+  const surface = (process.env.NEXT_PUBLIC_ECMP_SURFACE ?? "").trim().toLowerCase();
+  if (surface === "lab") return "lab";
+  if (surface === "production") return "production";
   return process.env.NODE_ENV === "production" ? "production" : "development";
 }
 
@@ -373,6 +376,68 @@ export function branchOptionLabel(branch: { code: string; name: string }): strin
     : `${branch.code} — ${branch.name}`;
 }
 
+/**
+ * Compact branch name for tight chart labels — every branch shares the
+ * "UPPPD" unit prefix (e.g. "UPPPD Tanah Abang"), so it adds no information
+ * there and just eats horizontal space. Drops it; leaves other names as-is.
+ */
+export function branchHealthShortLabel(name: string): string {
+  return name.replace(/^UPPPD[\s-]+/i, "").trim() || name;
+}
+
+/** The 3 per-branch bars in fixed order (never reordered): case total, resolved at branch, escalated. */
+export const BRANCH_HEALTH_BAR_KEYS = ["caseTotal", "caseClosed", "escalated"] as const;
+
+export type BranchHealthBarKey = (typeof BRANCH_HEALTH_BAR_KEYS)[number];
+
+/**
+ * Shared scale for the branch health bars — the largest single value across
+ * all 3 bars, maxed across every row, so bar length stays comparable within
+ * a branch and across branches.
+ */
+export function branchHealthScale(rows: readonly BranchCount[]): number {
+  let max = 0;
+  for (const row of rows) {
+    max = Math.max(max, row.caseTotal, row.caseClosed, row.escalated);
+  }
+  return max;
+}
+
+/**
+ * UTC month window as ISO strings — dateTo is inclusive (end of the last
+ * day), matching /reports/by-branch's `created_at <= dateTo` filter.
+ */
+export function monthDateRangeIso(
+  year: number,
+  month: number,
+): { dateFrom: string; dateTo: string } {
+  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
+}
+
+/** Localized "January".."December" options, value = 1-12. */
+export function branchHealthMonthOptions(
+  locale: string,
+): { value: number; label: string }[] {
+  const formatter = new Intl.DateTimeFormat(locale, { month: "long" });
+  return Array.from({ length: 12 }, (_, i) => {
+    const label = formatter.format(new Date(Date.UTC(2000, i, 1)));
+    return {
+      value: i + 1,
+      label: label.charAt(0).toUpperCase() + label.slice(1),
+    };
+  });
+}
+
+/** Most recent `span` years, newest first, ending at `currentYear`. */
+export function branchHealthYearOptions(
+  currentYear: number,
+  span = 5,
+): number[] {
+  return Array.from({ length: span }, (_, i) => currentYear - i);
+}
+
 const HEAD_OFFICE_UNIT_CODE = "PUSAT";
 
 /** Head Office (Pusat) first, then every other branch alphabetically by name. */
@@ -405,6 +470,7 @@ const ACTIVITY_OUTCOME_RANK: Record<string, number> = {
   "complaint.escalation_cancelled": 60,
   "complaint.handling_continued": 40,
   "complaint.handling_taken_over": 40,
+  "complaint.case_created": 20,
   "complaint.created": 10,
 };
 
@@ -443,4 +509,14 @@ export function aggregateComplaintActivitySummaries(
     if (byTime !== 0) return byTime;
     return activityOutcomeRank(b.lastEventType) - activityOutcomeRank(a.lastEventType);
   });
+}
+
+export function activitySubjectText(
+  row: Pick<DashboardRecentActivityItem, "complaintNumber"> & {
+    caseNumber?: string | null;
+  },
+): string {
+  const caseNumber = row.caseNumber?.trim();
+  if (!caseNumber) return row.complaintNumber;
+  return `${row.complaintNumber} · ${caseNumber}`;
 }

@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from app.core.enums import ComplaintStatus
 from app.core.errors import ValidationAppError
 from app.core.user_messages import m
+from app.modules.cm_batch1.complaint_number import resolve_unit_code
 from app.modules.reports.repository import ReportRepository
 from app.modules.reports.schemas import (
     BranchCount,
@@ -110,9 +111,11 @@ class ReportService:
                 branchId=row_branch_id,
                 branchCode=code,
                 branchName=name,
+                unitCode=resolve_unit_code(code) if code else None,
                 total=total,
                 open=open_count,
                 closed=closed,
+                escalated=escalated,
                 caseTotal=case_total,
                 caseOpen=case_open,
                 caseClosed=case_closed,
@@ -124,6 +127,7 @@ class ReportService:
                 total,
                 open_count,
                 closed,
+                escalated,
                 case_total,
                 case_open,
                 case_closed,

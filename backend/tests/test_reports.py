@@ -45,16 +45,21 @@ def test_by_branch_sorts_by_case_completion_percent() -> None:
     branch_b = uuid.uuid4()
     repo = MagicMock()
     repo.count_by_branch.return_value = [
-        (branch_a, "BR-A", "Alpha", 10, 9, 1, 8, 2, 6),
-        (branch_b, "BR-B", "Beta", 3, 0, 3, 3, 0, 3),
-        (None, None, None, 1, 1, 0, 0, 0, 0),
+        (branch_a, "UPPPD-TANAH-ABANG", "UPPPD Tanah Abang", 10, 9, 1, 2, 8, 2, 6),
+        (branch_b, "BR-B", "Beta", 3, 0, 3, 1, 3, 0, 3),
+        (None, None, None, 1, 1, 0, 0, 0, 0, 0),
     ]
 
     result = ReportService(repo).by_branch()
 
-    assert [item.branch_code for item in result] == ["BR-B", "BR-A", None]
+    assert [item.branch_code for item in result] == ["BR-B", "UPPPD-TANAH-ABANG", None]
     assert result[0].closed == 3
     assert result[1].closed == 1
+    assert result[0].unit_code == "BRB"
+    assert result[1].unit_code == "TAB"
+    assert result[2].unit_code is None
+    assert result[0].escalated == 1
+    assert result[1].escalated == 2
 
 
 def test_invalid_date_range_rejected() -> None:
@@ -70,3 +75,26 @@ def test_invalid_date_range_rejected() -> None:
 
 def test_combine_case_counts_adds_implied_no_case_complaints() -> None:
     assert ReportRepository._combine_case_counts((5, 3, 2), (4, 1, 3)) == (9, 4, 5)
+
+
+def test_count_by_branch_keeps_idle_active_branches() -> None:
+    """Kesehatan Cabang needs the full unit set, including zeros."""
+    session = MagicMock()
+    repo = ReportRepository(session)
+    idle_id = uuid.uuid4()
+    active_id = uuid.uuid4()
+    session.execute.return_value.all.side_effect = [
+        [
+            (idle_id, "UPPPD-GAMBIR", "UPPPD Gambir", 0, 0, 0),
+            (active_id, "UPPPD-TANAH-ABANG", "UPPPD Tanah Abang", 12, 5, 2),
+        ],
+        [("UPPPD-TANAH-ABANG", 10, 2)],
+        [],
+    ]
+    rows = repo.count_by_branch()
+    codes = [row[1] for row in rows]
+    assert codes[0] == "UPPPD-TANAH-ABANG"
+    assert "UPPPD-GAMBIR" in codes
+    assert rows[0][3] == 12
+    gambir = next(row for row in rows if row[1] == "UPPPD-GAMBIR")
+    assert gambir[3:] == (0, 0, 0, 0, 0, 0, 0)

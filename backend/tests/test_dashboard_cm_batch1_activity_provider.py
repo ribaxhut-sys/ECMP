@@ -134,9 +134,9 @@ def test_list_recent_omits_attachment_bind_from_dashboard_feed() -> None:
     assert timeline.list_recent.call_args.kwargs["limit"] >= 10
 
 
-def test_list_recent_maps_handling_and_hides_case_created() -> None:
+def test_list_recent_maps_handling_and_case_created() -> None:
     provider, timeline, complaints, directory = _provider()
-    created = _entry(event_type="CaseCreated")
+    created = _entry(event_type="CaseCreated", metadata={"caseNumber": "CASE-9"})
     handling = _entry(event_type="HandlingTakenOver")
     timeline.list_recent.return_value = [created, handling]
     complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000011")
@@ -144,7 +144,11 @@ def test_list_recent_maps_handling_and_hides_case_created() -> None:
 
     items = provider.list_recent(limit=10)
 
-    assert [item.event_type for item in items] == ["complaint.handling_taken_over"]
+    assert [item.event_type for item in items] == [
+        "complaint.case_created",
+        "complaint.handling_taken_over",
+    ]
+    assert items[0].case_number == "CASE-9"
 
 
 def test_list_recent_maps_handling_continued() -> None:

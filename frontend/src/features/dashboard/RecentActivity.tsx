@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { isOwnModuleActivity } from "@/features/auth";
 import {
   fetchBranches,
   fetchDashboardRecentActivity,
@@ -17,6 +18,7 @@ import { formatDateTime24 } from "@/shared/utils/datetime";
 import { resolveActivityMeta } from "./activityLabels";
 import {
   actorInitials,
+  activitySubjectText,
   aggregateComplaintActivitySummaries,
   branchOptionLabel,
   DASHBOARD_CAPTION,
@@ -27,6 +29,11 @@ import {
 } from "./dashboardUtils";
 
 const RECENT_ACTIVITY_LIMIT = 10;
+
+/** Shared meta line in complaint summary. `!text-[12px]` on the date button
+ * beats global `button { font: inherit }` which otherwise uses body size. */
+const COMPLAINT_SUMMARY_META =
+  "min-w-0 truncate text-[12px] leading-snug text-ecmp-text-primary";
 
 type MobilePane = "activity" | "summary";
 
@@ -206,7 +213,7 @@ export function RecentActivity() {
                       href={`/complaints?keyword=${encodeURIComponent(row.complaintNumber)}`}
                       className="font-mono text-[12px] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
                     >
-                      {row.complaintNumber}
+                      {activitySubjectText(row)}
                     </Link>
                   ),
                 };
@@ -224,7 +231,11 @@ export function RecentActivity() {
               {summaries.map((summary) => {
                 const meta = resolveActivityMeta(summary.lastEventType);
                 const selected = selectedNumber === summary.complaintNumber;
-                const when = formatDateTime24(summary.lastTimestamp, tCommon("emDash"));
+                const when = formatDateTime24(
+                  summary.lastTimestamp,
+                  locale,
+                  tCommon("emDash"),
+                );
                 const actor = summary.actor || tCommon("emDash");
                 return (
                   <li
@@ -244,23 +255,38 @@ export function RecentActivity() {
                         {t(meta.badgeKey)}
                       </Badge>
                     </div>
-                    <button
-                      type="button"
-                      aria-pressed={selected}
-                      aria-label={t("filterActivityByComplaint")}
-                      onClick={() =>
-                        setSelectedNumber((current) =>
-                          current === summary.complaintNumber
-                            ? null
-                            : summary.complaintNumber,
-                        )
-                      }
-                      className={`mt-0.5 w-full truncate text-left hover:text-ecmp-text-primary ${DASHBOARD_CAPTION}`}
-                    >
-                      {when}
-                      <span aria-hidden> · </span>
-                      {actor}
-                    </button>
+                    <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
+                      <button
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={t("filterActivityByComplaint")}
+                        onClick={() =>
+                          setSelectedNumber((current) =>
+                            current === summary.complaintNumber
+                              ? null
+                              : summary.complaintNumber,
+                          )
+                        }
+                        className={`${COMPLAINT_SUMMARY_META} text-left not-italic !text-[12px] !leading-snug !font-normal`}
+                      >
+                        {when}
+                      </button>
+                      <span className="text-[12px] text-ecmp-text-secondary" aria-hidden>
+                        ·
+                      </span>
+                      {isOwnModuleActivity(actor, user) ? (
+                        <Link
+                          href="/profile"
+                          className={`${COMPLAINT_SUMMARY_META} italic text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus`}
+                        >
+                          {actor}
+                        </Link>
+                      ) : (
+                        <span className={`${COMPLAINT_SUMMARY_META} italic`}>
+                          {actor}
+                        </span>
+                      )}
+                    </div>
                   </li>
                 );
               })}

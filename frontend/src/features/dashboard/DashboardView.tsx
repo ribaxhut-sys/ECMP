@@ -146,10 +146,7 @@ export function DashboardView() {
 
           <div className={`grid grid-cols-1 ${DASHBOARD_CARD_GAP} xl:grid-cols-12`}>
             <div className="xl:col-span-6">
-              <ComplaintByBranch
-                rows={data?.byBranch ?? null}
-                loading={firstLoad}
-              />
+              <ComplaintByBranch />
             </div>
             <div className="xl:col-span-6">
               <SlaCards sla={data?.sla ?? null} loading={firstLoad} />

@@ -1,15 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import {
   actorInitials,
+  activitySubjectText,
   aggregateComplaintActivitySummaries,
+  branchHealthMonthOptions,
+  branchHealthScale,
+  branchHealthShortLabel,
+  branchHealthYearOptions,
   branchOptionLabel,
   buildCriticalAlerts,
   buildQueueHealthRows,
   CRITICAL_ALERT_VISIBLE_LIMIT,
   dashboardEmptyWorkCta,
+  formatRelativeTime,
   resolveSystemHealth,
   completionPercent,
+  dashboardEnvironmentLabel,
+  monthDateRangeIso,
   sortBranchesByHealth,
   sortBranchesHeadOfficeFirst,
   visibleAlertSlice,
@@ -26,6 +35,88 @@ describe("branchOptionLabel", () => {
     expect(
       branchOptionLabel({ code: "JKT-01", name: "Cabang Jakarta Pusat" }),
     ).toBe("JKT-01 — Cabang Jakarta Pusat");
+  });
+});
+
+describe("branchHealthShortLabel", () => {
+  it("drops the shared UPPPD prefix", () => {
+    expect(branchHealthShortLabel("UPPPD Tanah Abang")).toBe("Tanah Abang");
+  });
+
+  it("handles a hyphenated prefix too", () => {
+    expect(branchHealthShortLabel("UPPPD-Tanah Abang")).toBe("Tanah Abang");
+  });
+
+  it("leaves names without the prefix untouched", () => {
+    expect(branchHealthShortLabel("Kantor Pusat")).toBe("Kantor Pusat");
+  });
+});
+
+describe("branchHealthScale", () => {
+  it("takes the largest single value across the 3 bars, maxed across rows", () => {
+    const rows = [
+      {
+        branchId: "a",
+        branchCode: "A",
+        branchName: "Alpha",
+        unitCode: "ALP",
+        total: 100,
+        open: 20,
+        closed: 30,
+        escalated: 40,
+        caseTotal: 60,
+        caseOpen: 10,
+        caseClosed: 50,
+      },
+      {
+        branchId: "b",
+        branchCode: "B",
+        branchName: "Beta",
+        unitCode: "BET",
+        total: 900,
+        open: 5,
+        closed: 5,
+        escalated: 2,
+        caseTotal: 900,
+        caseOpen: 5,
+        caseClosed: 5,
+      },
+    ];
+    // Row a: max(caseTotal 60, caseClosed 50, escalated 40) = 60.
+    // Row b: max(caseTotal 900, caseClosed 5, escalated 2) = 900.
+    expect(branchHealthScale(rows)).toBe(900);
+  });
+
+  it("is 0 for an empty row set", () => {
+    expect(branchHealthScale([])).toBe(0);
+  });
+});
+
+describe("monthDateRangeIso", () => {
+  it("spans the full month in UTC, dateTo inclusive of the last instant", () => {
+    const { dateFrom, dateTo } = monthDateRangeIso(2026, 8);
+    expect(dateFrom).toBe("2026-08-01T00:00:00.000Z");
+    expect(dateTo).toBe("2026-08-31T23:59:59.999Z");
+  });
+
+  it("handles February in a leap year", () => {
+    const { dateTo } = monthDateRangeIso(2028, 2);
+    expect(dateTo).toBe("2028-02-29T23:59:59.999Z");
+  });
+});
+
+describe("branchHealthMonthOptions", () => {
+  it("returns 12 months, 1-indexed, capitalized", () => {
+    const options = branchHealthMonthOptions("id");
+    expect(options).toHaveLength(12);
+    expect(options[0]).toEqual({ value: 1, label: "Januari" });
+    expect(options[7]).toEqual({ value: 8, label: "Agustus" });
+  });
+});
+
+describe("branchHealthYearOptions", () => {
+  it("returns the most recent years, newest first", () => {
+    expect(branchHealthYearOptions(2026, 3)).toEqual([2026, 2025, 2024]);
   });
 });
 
@@ -166,6 +257,23 @@ describe("resolveSystemHealth", () => {
   });
 });
 
+describe("dashboardEnvironmentLabel", () => {
+  const originalSurface = process.env.NEXT_PUBLIC_ECMP_SURFACE;
+
+  afterEach(() => {
+    if (originalSurface === undefined) {
+      delete process.env.NEXT_PUBLIC_ECMP_SURFACE;
+    } else {
+      process.env.NEXT_PUBLIC_ECMP_SURFACE = originalSurface;
+    }
+  });
+
+  it("returns lab when the lab surface is baked in", () => {
+    process.env.NEXT_PUBLIC_ECMP_SURFACE = "lab";
+    expect(dashboardEnvironmentLabel()).toBe("lab");
+  });
+});
+
 describe("visibleAlertSlice", () => {
   const items = [1, 2, 3, 4, 5];
 
@@ -259,6 +367,8 @@ describe("sortBranchesByHealth", () => {
         branchId: "a",
         branchCode: "A",
         branchName: "Alpha",
+        unitCode: null,
+        escalated: 0,
         total: 10,
         open: 9,
         closed: 1,
@@ -270,6 +380,8 @@ describe("sortBranchesByHealth", () => {
         branchId: "b",
         branchCode: "B",
         branchName: "Beta",
+        unitCode: null,
+        escalated: 0,
         total: 3,
         open: 0,
         closed: 3,
@@ -279,5 +391,32 @@ describe("sortBranchesByHealth", () => {
       },
     ]);
     expect(sorted.map((row) => row.branchCode)).toEqual(["B", "A"]);
+  });
+});
+
+describe("formatRelativeTime", () => {
+  const nowMs = Date.parse("2026-08-16T12:00:00.000Z");
+
+  it("keeps hour-scale relative labels on the same day", () => {
+    expect(
+      formatRelativeTime("2026-08-16T10:00:00.000Z", "id", nowMs),
+    ).toBe(new Intl.RelativeTimeFormat("id", { numeric: "auto" }).format(-2, "hour"));
+  });
+
+  it("uses calendar datetime instead of kemarin dulu after 24h", () => {
+    const value = "2026-08-14T12:00:00.000Z";
+    expect(formatRelativeTime(value, "id", nowMs)).toBe(formatDateTime24(value, "id"));
+    expect(formatRelativeTime(value, "id", nowMs)).not.toMatch(/kemarin/);
+  });
+});
+
+describe("activitySubjectText", () => {
+  it("appends case number when present", () => {
+    expect(
+      activitySubjectText({
+        complaintNumber: "TAB-2608-0001",
+        caseNumber: "CASE-3",
+      }),
+    ).toBe("TAB-2608-0001 · CASE-3");
   });
 });

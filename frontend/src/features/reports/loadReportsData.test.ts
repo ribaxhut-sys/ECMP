@@ -85,6 +85,46 @@ describe("loadReportsData", () => {
     expect(data.byBranch?.[0]?.branchName).toBe("Jakarta");
   });
 
+  it("keeps idle branch rows so Kesehatan Cabang can show the full unit set", async () => {
+    aggregateMock.mockResolvedValue({
+      data: { total: 12, open: 7, closed: 5, escalatePending: 2 },
+    } as never);
+    byBranchMock.mockResolvedValue({
+      data: [
+        {
+          branchId: "idle",
+          branchCode: "UPPPD-GAMBIR",
+          branchName: "UPPPD Gambir",
+          unitCode: "GAM",
+          total: 0,
+          open: 0,
+          closed: 0,
+          escalated: 0,
+          caseTotal: 0,
+          caseOpen: 0,
+          caseClosed: 0,
+        },
+        {
+          branchId: "tab",
+          branchCode: "UPPPD-TANAH-ABANG",
+          branchName: "UPPPD Tanah Abang",
+          unitCode: "TAB",
+          total: 12,
+          open: 7,
+          closed: 5,
+          escalated: 2,
+          caseTotal: 15,
+          caseOpen: 10,
+          caseClosed: 5,
+        },
+      ],
+    } as never);
+
+    const data = await loadReportsData();
+    expect(data.byBranch).toHaveLength(2);
+    expect(data.byBranch?.map((row) => row.unitCode)).toEqual(["GAM", "TAB"]);
+  });
+
   it("degrades to null branch rows without failing the page when API-212 errors", async () => {
     aggregateMock.mockResolvedValue({
       data: { total: 1, open: 1, closed: 0, escalatePending: 0 },

@@ -119,9 +119,11 @@ export function LiveStatusBar({
 
           <div className="flex shrink-0 items-center gap-3">
             <p className="hidden text-ecmp-text-secondary md:inline">
-              {env === "production"
-                ? t("envProduction")
-                : t("envDevelopment")}
+              {env === "lab"
+                ? t("envLab")
+                : env === "production"
+                  ? t("envProduction")
+                  : t("envDevelopment")}
             </p>
             {canCreate ? (
               <button

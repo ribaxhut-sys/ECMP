@@ -17,6 +17,7 @@ export type ActivityLabelKey =
   | "activityHqAccepted"
   | "activityHqReturned"
   | "activityHqArrivalScheduled"
+  | "activityCaseCreated"
   | "activityCaseStatusChanged"
   | "activityCaseCancelled"
   | "activityResolutionUpdated"
@@ -130,6 +131,11 @@ const EVENT_MAP: Record<string, ActivityMeta> = {
     labelKey: "activityHqArrivalScheduled",
     badgeKey: "activityBadgeAppointment",
     statusTone: "info",
+  },
+  "complaint.case_created": {
+    labelKey: "activityCaseCreated",
+    badgeKey: "activityBadgeNew",
+    statusTone: "primary",
   },
   "complaint.case_status_changed": {
     labelKey: "activityCaseStatusChanged",

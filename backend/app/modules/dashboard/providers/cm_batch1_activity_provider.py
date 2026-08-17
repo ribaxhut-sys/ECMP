@@ -49,6 +49,7 @@ _EVENT_TYPE_MAP: dict[str, str] = {
     "HqArrivalScheduled": "complaint.hq_arrival_scheduled",
     "HandlingContinued": "complaint.handling_continued",
     "HandlingTakenOver": "complaint.handling_taken_over",
+    "CaseCreated": "complaint.case_created",
     "CaseAssigned": "complaint.assigned",
     "CaseCancelled": "complaint.case_cancelled",
     "CaseStatusChanged": "complaint.case_status_changed",
@@ -90,7 +91,6 @@ _DASHBOARD_HIDDEN_EVENT_TYPES = frozenset(
         "AttachmentSuperseded",
         "AttachmentVoided",
         "AttachmentTransferred",
-        "CaseCreated",
         "CaseWorkStarted",
     }
 )
@@ -182,12 +182,14 @@ class CmBatch1ActivityDashboardProvider:
                 or entry.actor_name
                 or _SYSTEM_ACTOR
             )
+            case_number = str((entry.metadata or {}).get("caseNumber") or "").strip() or None
             items.append(
                 DashboardRecentActivityItem(
                     eventType=_map_event_type(entry.event_type, entry.metadata),
                     complaintNumber=complaint_number,
                     timestamp=entry.created_at,
                     actor=actor_name,
+                    caseNumber=case_number,
                 )
             )
         # Same-second create+escalate often lists "created" above "escalation"
