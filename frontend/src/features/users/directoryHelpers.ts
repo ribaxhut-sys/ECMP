@@ -101,9 +101,12 @@ export function userInitials(user: Pick<UserRef, "fullName" | "username">): stri
   return nameInitials(name) ?? "?";
 }
 
-export function formatWhen(value: string | null | undefined): string | null {
+export function formatWhen(
+  value: string | null | undefined,
+  locale: string,
+): string | null {
   if (!value) return null;
-  const formatted = formatDateTime24(value);
+  const formatted = formatDateTime24(value, locale);
   return formatted || null;
 }
 
@@ -190,5 +193,29 @@ export function matchesDirectorySearch(user: UserRef, query: string): boolean {
   return (
     user.username.toLowerCase().includes(q) ||
     user.fullName.toLowerCase().includes(q)
+  );
+}
+
+/** Sentinel: do not restrict the directory by unit. */
+export const DIRECTORY_BRANCH_FILTER_ALL = "all";
+
+/**
+ * Admin directory unit filter.
+ * Selecting the Pusat catalog row also includes members with no `branchId`
+ * (Admin Pusat), because the directory already labels those as Pusat.
+ */
+export function matchesDirectoryBranch(
+  user: Pick<UserRef, "branchId">,
+  branchFilter: string,
+  pusatBranchId?: string | null,
+): boolean {
+  if (!branchFilter || branchFilter === DIRECTORY_BRANCH_FILTER_ALL) {
+    return true;
+  }
+  if (user.branchId === branchFilter) return true;
+  return (
+    Boolean(pusatBranchId) &&
+    branchFilter === pusatBranchId &&
+    user.branchId == null
   );
 }

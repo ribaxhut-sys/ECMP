@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { UserRef } from "@/lib/api";
 import { cn } from "@/shared/utils";
 import { Badge } from "@/shared/ui";
@@ -23,6 +23,7 @@ export function DirectoryPeopleList({
 }) {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
 
   return (
     <div
@@ -47,7 +48,7 @@ export function DirectoryPeopleList({
       <ul className="divide-y divide-ecmp-border">
         {rows.map((row) => {
           const selected = row.id === selectedId;
-          const updated = formatWhen(row.updatedAt);
+          const updated = formatWhen(row.updatedAt, locale);
 
           return (
             <li key={row.id} role="none">

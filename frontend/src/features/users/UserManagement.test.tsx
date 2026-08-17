@@ -347,4 +347,56 @@ describe("UserManagement — credential surface removed", () => {
     );
     expect(screen.queryByText("Member 1")).not.toBeInTheDocument();
   });
+
+  it("lets an administrator filter the directory by branch", async () => {
+    const user = userEvent.setup();
+    fetchAllUsers.mockResolvedValue([
+      ROWS[0]!,
+      {
+        ...ROWS[0]!,
+        id: "u-2",
+        username: "3102",
+        fullName: "Member Two",
+        branchId: "b-pusat",
+      },
+      {
+        ...ROWS[0]!,
+        id: "u-admin",
+        username: "admin",
+        fullName: "Lab Admin",
+        roleId: "r-3",
+        roleCode: "ADMIN",
+        roleName: "Administrator",
+        branchId: null,
+      },
+    ]);
+    renderWithProviders(<UserManagement />);
+    await screen.findByText("Member One");
+
+    const branchField = screen.getByLabelText("Branch");
+    expect(
+      within(branchField).getByRole("option", { name: "All branches" }),
+    ).toBeInTheDocument();
+    expect(
+      within(branchField).getByRole("option", { name: "Regional Jawa Barat" }),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(branchField, "b-1");
+    expect(screen.getByText("Member One")).toBeInTheDocument();
+    expect(screen.queryByText("Member Two")).not.toBeInTheDocument();
+    expect(screen.queryByText("Lab Admin")).not.toBeInTheDocument();
+
+    await user.selectOptions(branchField, "b-pusat");
+    expect(screen.getByText("Member Two")).toBeInTheDocument();
+    expect(screen.getByText("Lab Admin")).toBeInTheDocument();
+    expect(screen.queryByText("Member One")).not.toBeInTheDocument();
+  });
+
+  it("does not show the branch filter to a branch manager", async () => {
+    authRoles = ["MANAGER"];
+    authBranchId = "b-1";
+    renderWithProviders(<UserManagement />);
+    await screen.findByText("Member One");
+    expect(screen.queryByLabelText("Branch")).toBeNull();
+  });
 });

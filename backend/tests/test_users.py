@@ -32,6 +32,7 @@ def _user_row(**overrides: object) -> SimpleNamespace:
         "username": "jdoe",
         "email": "jdoe@example.com",
         "full_name": "Jane Doe",
+        "initials": "JDO",
         "password_hash": hash_password("Secret123"),
         "role_id": uuid.uuid4(),
         "branch_id": None,
@@ -56,6 +57,7 @@ def _create_repo(
     repo = MagicMock()
     repo.username_exists.return_value = False
     repo.email_exists.return_value = False
+    repo.list_taken_initials.return_value = set()
     repo.role_exists.return_value = True
     repo.get_role_code.return_value = role_code
     repo.branch_exists.return_value = True
@@ -103,6 +105,8 @@ def test_create_user_hashes_password_and_hides_hash() -> None:
     assert added.is_active is True
     assert added.force_password_change is True
     assert added.branch_id == _BRANCH_ID
+    assert added.initials == "JDO"
+    assert result.initials == "JDO"
     repo.ensure_user_role.assert_called_once_with(created.id, role_id)
     repo.commit.assert_called_once()
     repo.rollback.assert_not_called()

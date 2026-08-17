@@ -30,14 +30,15 @@ import {
   WorkspaceToolbar,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { disambiguateInitials } from "@/shared/utils/initials";
 import { CreateUserModal } from "./CreateUserModal";
 import { DirectoryPeopleList } from "./DirectoryPeopleList";
 import { DirectoryPreviewPanel } from "./DirectoryPreviewPanel";
 import {
+  DIRECTORY_BRANCH_FILTER_ALL,
   filterRolesForHomeUnit,
   filterRolesForUserForm,
   HEAD_OFFICE_SCOPED_ROLE_CODES,
+  matchesDirectoryBranch,
   matchesDirectoryFilter,
   matchesDirectorySearch,
   userFormRoleLabel,
@@ -74,6 +75,7 @@ export function UserManagement() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [directoryFilter, setDirectoryFilter] = useState<DirectoryFilter>("all");
+  const [branchFilter, setBranchFilter] = useState(DIRECTORY_BRANCH_FILTER_ALL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [statusCandidate, setStatusCandidate] = useState<UserRef | null>(null);
@@ -149,35 +151,48 @@ export function UserManagement() {
     void load();
   }, [load]);
 
+  const pusatBranchId = useMemo(
+    () =>
+      branches.find(
+        (branch) => branch.code.toUpperCase() === HEAD_OFFICE_UNIT_CODE,
+      )?.id ?? null,
+    [branches],
+  );
+
   const filteredRows = useMemo(() => {
+    const unitFilter = isHeadOfficeAdmin
+      ? branchFilter
+      : DIRECTORY_BRANCH_FILTER_ALL;
     return rows.filter(
       (row) =>
+        matchesDirectoryBranch(row, unitFilter, pusatBranchId) &&
         matchesDirectoryFilter(row, directoryFilter) &&
         matchesDirectorySearch(row, searchQuery),
     );
-  }, [rows, searchQuery, directoryFilter]);
+  }, [
+    rows,
+    searchQuery,
+    directoryFilter,
+    branchFilter,
+    isHeadOfficeAdmin,
+    pusatBranchId,
+  ]);
 
-  /**
-   * Dihitung atas seluruh direktori, bukan halaman aktif, supaya dua pengguna
-   * bernama sama mendapat inisial berbeda yang tetap sama di daftar dan panel.
-   */
-  const initialsByUserId = useMemo(
-    () =>
-      disambiguateInitials(
-        rows.map((row) => ({
-          key: row.id,
-          name: row.fullName?.trim() || row.username,
-        })),
-      ),
-    [rows],
-  );
+  const initialsByUserId = useMemo(() => {
+    const stored = new Map<string, string>();
+    for (const row of rows) {
+      const code = row.initials?.trim().toUpperCase();
+      if (code) stored.set(row.id, code);
+    }
+    return stored;
+  }, [rows]);
 
   const totalItems = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, directoryFilter, pageSize]);
+  }, [searchQuery, directoryFilter, branchFilter, pageSize]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -231,14 +246,6 @@ export function UserManagement() {
     }
   }
 
-  const pusatBranchId = useMemo(
-    () =>
-      branches.find(
-        (branch) => branch.code.toUpperCase() === HEAD_OFFICE_UNIT_CODE,
-      )?.id ?? null,
-    [branches],
-  );
-
   // Cabang: no Admin. Pusat (null unit or PUSAT branch): same personas + Admin.
   const selectableRoles = useMemo(() => {
     if (!roleCandidate) return [];
@@ -288,6 +295,32 @@ export function UserManagement() {
     }
   }
 
+  const unitScopedRows = useMemo(() => {
+    const unitFilter = isHeadOfficeAdmin
+      ? branchFilter
+      : DIRECTORY_BRANCH_FILTER_ALL;
+    return rows.filter((row) =>
+      matchesDirectoryBranch(row, unitFilter, pusatBranchId),
+    );
+  }, [rows, branchFilter, isHeadOfficeAdmin, pusatBranchId]);
+
+  const branchFilterOptions = useMemo(
+    () => [
+      { value: DIRECTORY_BRANCH_FILTER_ALL, label: t("allBranches") },
+      ...[...branches]
+        .sort((a, b) =>
+          (a.name || a.code).localeCompare(b.name || b.code, undefined, {
+            sensitivity: "base",
+          }),
+        )
+        .map((branch) => ({
+          value: branch.id,
+          label: branch.name?.trim() || branch.code,
+        })),
+    ],
+    [branches, t],
+  );
+
   const filterOptions = useMemo(
     () => [
       {
@@ -295,21 +328,21 @@ export function UserManagement() {
         label: t("filterActive"),
         active: directoryFilter === "active",
         tone: "healthy" as const,
-        count: rows.filter((row) => row.isActive).length,
+        count: unitScopedRows.filter((row) => row.isActive).length,
       },
       {
         id: "inactive",
         label: t("filterInactive"),
         active: directoryFilter === "inactive",
         tone: "default" as const,
-        count: rows.filter((row) => !row.isActive).length,
+        count: unitScopedRows.filter((row) => !row.isActive).length,
       },
       {
         id: "administrator",
         label: t("filterAdministrators"),
         active: directoryFilter === "administrator",
         tone: "critical" as const,
-        count: rows.filter((row) =>
+        count: unitScopedRows.filter((row) =>
           matchesDirectoryFilter(row, "administrator"),
         ).length,
       },
@@ -318,15 +351,16 @@ export function UserManagement() {
         label: t("filterManagers"),
         active: directoryFilter === "manager",
         tone: "attention" as const,
-        count: rows.filter((row) => matchesDirectoryFilter(row, "manager"))
-          .length,
+        count: unitScopedRows.filter((row) =>
+          matchesDirectoryFilter(row, "manager"),
+        ).length,
       },
       {
         id: "supervisor",
         label: t("filterSupervisors"),
         active: directoryFilter === "supervisor",
         tone: "attention" as const,
-        count: rows.filter((row) =>
+        count: unitScopedRows.filter((row) =>
           matchesDirectoryFilter(row, "supervisor"),
         ).length,
       },
@@ -335,10 +369,12 @@ export function UserManagement() {
         label: t("filterAgents"),
         active: directoryFilter === "officer",
         tone: "healthy" as const,
-        count: rows.filter((row) => matchesDirectoryFilter(row, "officer")).length,
+        count: unitScopedRows.filter((row) =>
+          matchesDirectoryFilter(row, "officer"),
+        ).length,
       },
     ],
-    [directoryFilter, rows, t],
+    [directoryFilter, unitScopedRows, t],
   );
 
   if (!canRead) {
@@ -518,31 +554,29 @@ export function UserManagement() {
         </div>
       </Modal>
 
-      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("quickFilters")}>
-        <SectionHeader
-          title={t("quickFilters")}
-          description={t("quickFiltersDescription")}
-        />
-        <QuickFilters
-          label={t("quickFilters")}
-          options={filterOptions}
-          onSelect={(id) => {
-            const next = id as DirectoryFilter;
-            setDirectoryFilter((current) => (current === next ? "all" : next));
-          }}
-        />
-      </section>
-
       <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("directorySearch")}>
-        <div className="w-full max-w-xl">
-          <Input
-            name="directorySearch"
-            label={t("directorySearch")}
-            placeholder={t("searchPlaceholder")}
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            helper={t("searchHelper")}
-          />
+        <div className="flex flex-col gap-[var(--ecmp-form-gap)] sm:flex-row sm:items-start">
+          <div className="w-full max-w-xl">
+            <Input
+              name="directorySearch"
+              label={t("directorySearch")}
+              placeholder={t("searchPlaceholder")}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              helper={t("searchHelper")}
+            />
+          </div>
+          {isHeadOfficeAdmin && branches.length > 0 ? (
+            <div className="w-full max-w-xs">
+              <Select
+                name="directoryBranch"
+                label={t("branch")}
+                options={branchFilterOptions}
+                value={branchFilter}
+                onChange={(event) => setBranchFilter(event.target.value)}
+              />
+            </div>
+          ) : null}
         </div>
 
         <WorkspaceToolbar
@@ -556,11 +590,11 @@ export function UserManagement() {
                 })
           }
           actions={
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="w-[9.5rem]">
                 <Select
                   name="directoryPageSize"
-                  label={t("pageSizeLabel")}
+                  aria-label={t("pageSizeLabel")}
                   options={pageSizeOptions}
                   value={String(pageSize)}
                   onChange={(e) => {
@@ -579,6 +613,21 @@ export function UserManagement() {
               </Button>
             </div>
           }
+        />
+      </section>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("quickFilters")}>
+        <SectionHeader
+          title={t("quickFilters")}
+          description={t("quickFiltersDescription")}
+        />
+        <QuickFilters
+          label={t("quickFilters")}
+          options={filterOptions}
+          onSelect={(id) => {
+            const next = id as DirectoryFilter;
+            setDirectoryFilter((current) => (current === next ? "all" : next));
+          }}
         />
       </section>
 
@@ -615,12 +664,15 @@ export function UserManagement() {
               onClick: () => void load(),
             }}
             secondaryAction={
-              searchQuery.trim() || directoryFilter !== "all"
+              searchQuery.trim() ||
+              directoryFilter !== "all" ||
+              branchFilter !== DIRECTORY_BRANCH_FILTER_ALL
                 ? {
                     label: t("clearSearch"),
                     onClick: () => {
                       setSearchQuery("");
                       setDirectoryFilter("all");
+                      setBranchFilter(DIRECTORY_BRANCH_FILTER_ALL);
                     },
                   }
                 : undefined

@@ -102,7 +102,7 @@ Get-Content .\deploy\seed-lab-module-users-200.sql -Raw |
 docker compose restart backend
 ```
 
-Buat user lab lewat UI **Users** (perlu akun admin dulu). Password sementara create-user lab: `LabTemp!2026` (hanya Mode A lab).
+Buat user lab lewat UI **Users** (perlu akun admin dulu). Password sementara create-user lab: `asd12345` (hanya Mode A lab).
 
 > DB lokal baru belum otomatis berisi user VPS (`admin` / NIK lab). Buat admin/agent/supervisor di lokal lewat UI, atau salin seed user secara terpisah — **jangan** commit password ke git.
 

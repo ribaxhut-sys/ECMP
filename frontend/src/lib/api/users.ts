@@ -10,6 +10,7 @@ export interface UserRef {
   username: string;
   email: string;
   fullName: string;
+  initials?: string | null;
   roleId: string;
   roleCode: string | null;
   roleName: string | null;

@@ -257,7 +257,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-212 | GET /api/v1/reports/by-branch | Counts by branch (pengaduan + case; urut % selesai; semua unit) | bearerAuth, permission `reports:read` | 🟢 Implemented |
-| API-213 | POST /api/v1/users | Create user (unique username/email; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
+| API-213 | POST /api/v1/users | Create user (unique username/email/initials; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
 | API-214 | GET /api/v1/users | List users (paginated) | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-215 | GET /api/v1/users/{id} | Get user by id | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-216 | PUT /api/v1/users/{id} | Update user (password re-hashed when provided; hash never exposed) | bearerAuth, permission `users:update` | 🟢 Implemented |

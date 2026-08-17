@@ -44,6 +44,11 @@ class UserRepository:
         stmt = select(User.id).where(*filters)
         return self._session.scalar(stmt) is not None
 
+    def list_taken_initials(self) -> set[str]:
+        """All stored initials, including inactive and soft-deleted users."""
+        stmt = select(User.initials).where(User.initials.is_not(None))
+        return {code for code in self._session.scalars(stmt).all() if code}
+
     def role_exists(self, role_id: uuid.UUID) -> bool:
         stmt = select(Role.id).where(
             Role.id == role_id,

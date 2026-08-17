@@ -35,7 +35,7 @@ def test_report_repository_aggregations() -> None:
 
     session.execute.return_value.all.side_effect = [
         [("OPEN", 2), ("CLOSED", 1)],
-        [(bid, "B1", "Branch 1", 5, 4), (None, None, None, 1, 0)],
+        [(bid, "B1", "Branch 1", 5, 4, 2), (None, None, None, 1, 0, 0)],
         [("B1", 4, 3)],
         [],
     ]
@@ -46,8 +46,9 @@ def test_report_repository_aggregations() -> None:
     assert rows[0][3] == 5
     assert rows[0][4] == 1
     assert rows[0][5] == 4
-    assert rows[0][6] == 4
-    assert rows[0][8] == 3
+    assert rows[0][6] == 2
+    assert rows[0][7] == 4
+    assert rows[0][9] == 3
     assert rows[1][0] is None
 
     # Unresolvable branch (soft-deleted / unknown) is a known-empty scope —

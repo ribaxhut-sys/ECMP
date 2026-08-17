@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   fetchCmBatch1UserWorkStats,
   type CmBatch1UserWorkStats,
@@ -92,6 +92,7 @@ export function DirectoryPreviewPanel({
 }) {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
   const router = useRouter();
 
   const userId = user?.id ?? null;
@@ -140,9 +141,9 @@ export function DirectoryPreviewPanel({
     );
   }
 
-  const lastLogin = formatWhen(user.lastLoginAt);
-  const updated = formatWhen(user.updatedAt);
-  const created = formatWhen(user.createdAt);
+  const lastLogin = formatWhen(user.lastLoginAt, locale);
+  const updated = formatWhen(user.updatedAt, locale);
+  const created = formatWhen(user.createdAt, locale);
 
   return (
     <Card

@@ -5,6 +5,7 @@ import {
   directoryRoleLabel,
   filterRolesForHomeUnit,
   filterRolesForUserForm,
+  matchesDirectoryBranch,
   matchesDirectoryFilter,
   matchesDirectorySearch,
   roleDisplayName,
@@ -211,5 +212,30 @@ describe("filterRolesForHomeUnit", () => {
       "AGENT",
       "VIEWER",
     ]);
+  });
+});
+
+describe("matchesDirectoryBranch", () => {
+  it("passes every row when the filter is all", () => {
+    expect(matchesDirectoryBranch(user({ branchId: "b-1" }), "all")).toBe(true);
+    expect(matchesDirectoryBranch(user({ branchId: null }), "all")).toBe(true);
+  });
+
+  it("keeps only members of the selected branch", () => {
+    expect(matchesDirectoryBranch(user({ branchId: "b-1" }), "b-1")).toBe(true);
+    expect(matchesDirectoryBranch(user({ branchId: "b-2" }), "b-1")).toBe(false);
+    expect(matchesDirectoryBranch(user({ branchId: null }), "b-1")).toBe(false);
+  });
+
+  it("includes null-unit members when filtering Pusat", () => {
+    expect(
+      matchesDirectoryBranch(user({ branchId: null }), "b-pusat", "b-pusat"),
+    ).toBe(true);
+    expect(
+      matchesDirectoryBranch(user({ branchId: "b-pusat" }), "b-pusat", "b-pusat"),
+    ).toBe(true);
+    expect(
+      matchesDirectoryBranch(user({ branchId: "b-1" }), "b-pusat", "b-pusat"),
+    ).toBe(false);
   });
 });
