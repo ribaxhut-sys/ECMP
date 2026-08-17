@@ -42,20 +42,6 @@ export function ConfigurationHelpPanel({
       impact: t("helpSlaImpact"),
       bestPractice: t("helpSlaBestPractice"),
     },
-    notifications: {
-      description: t("helpNotificationsDescription"),
-      status: t("statusDisabled"),
-      statusTone: "neutral",
-      impact: t("helpNotificationsImpact"),
-      bestPractice: t("helpNotificationsBestPractice"),
-    },
-    security: {
-      description: t("helpSecurityDescription"),
-      status: t("helpStatusProfileLinked"),
-      statusTone: "warning",
-      impact: t("helpSecurityImpact"),
-      bestPractice: t("helpSecurityBestPractice"),
-    },
     workflow: {
       description: t("helpWorkflowDescription"),
       status: t("statusDisabled"),

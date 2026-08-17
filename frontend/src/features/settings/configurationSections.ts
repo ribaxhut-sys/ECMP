@@ -2,8 +2,6 @@ export type ConfigurationSection =
   | "general"
   | "preferences"
   | "sla"
-  | "notifications"
-  | "security"
   | "workflow"
   | "advanced";
 
@@ -11,8 +9,6 @@ export const CONFIGURATION_SECTIONS: readonly ConfigurationSection[] = [
   "general",
   "preferences",
   "sla",
-  "notifications",
-  "security",
   "workflow",
   "advanced",
 ] as const;

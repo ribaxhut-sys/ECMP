@@ -3,9 +3,7 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
-  IconAlert,
   IconAssignments,
-  IconBell,
   IconCheck,
   IconSettings,
   IconUser,
@@ -21,8 +19,6 @@ const sectionIcon: Record<ConfigurationSection, ReactNode> = {
   general: <IconSettings className="size-4" aria-hidden />,
   preferences: <IconUser className="size-4" aria-hidden />,
   sla: <IconCheck className="size-4" aria-hidden />,
-  notifications: <IconBell className="size-4" aria-hidden />,
-  security: <IconAlert className="size-4" aria-hidden />,
   workflow: <IconAssignments className="size-4" aria-hidden />,
   advanced: <IconUsers className="size-4" aria-hidden />,
 };
@@ -43,8 +39,6 @@ export function ConfigurationNav({
     general: t("navGeneral"),
     preferences: t("navPreferences"),
     sla: t("navSlaPolicies"),
-    notifications: t("navNotifications"),
-    security: t("navSecurity"),
     workflow: t("navWorkflow"),
     advanced: t("navAdvanced"),
   };

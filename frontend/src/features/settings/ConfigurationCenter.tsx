@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SlaPolicyManagement } from "@/features/sla";
 import { LanguageSwitcher } from "@/shared/i18n/LanguageSwitcher";
 import {
   Badge,
-  Button,
   Card,
   CardBody,
   CardHeader,
@@ -38,34 +36,18 @@ type UnavailableItem = {
     | "groupDateTime"
     | "groupThresholds"
     | "groupEscalation"
-    | "groupEmail"
-    | "groupWebhook"
-    | "groupAlerts"
-    | "groupPassword"
-    | "groupSession"
-    | "groupAccess"
     | "groupAssignment"
     | "groupResolution"
-    | "groupWorkflowEscalation"
-    | "groupDeveloper"
-    | "groupExperimental";
+    | "groupWorkflowEscalation";
   descriptionKey:
     | "groupLocalizationDescription"
     | "groupRegionalDescription"
     | "groupDateTimeDescription"
     | "groupThresholdsDescription"
     | "groupEscalationDescription"
-    | "groupEmailDescription"
-    | "groupWebhookDescription"
-    | "groupAlertsDescription"
-    | "groupPasswordDescription"
-    | "groupSessionDescription"
-    | "groupAccessDescription"
     | "groupAssignmentDescription"
     | "groupResolutionDescription"
-    | "groupWorkflowEscalationDescription"
-    | "groupDeveloperDescription"
-    | "groupExperimentalDescription";
+    | "groupWorkflowEscalationDescription";
 };
 
 const UNAVAILABLE_ITEMS: readonly UnavailableItem[] = [
@@ -94,36 +76,6 @@ const UNAVAILABLE_ITEMS: readonly UnavailableItem[] = [
     descriptionKey: "groupEscalationDescription",
   },
   {
-    id: "email",
-    section: "notifications",
-    titleKey: "groupEmail",
-    descriptionKey: "groupEmailDescription",
-  },
-  {
-    id: "webhook",
-    section: "notifications",
-    titleKey: "groupWebhook",
-    descriptionKey: "groupWebhookDescription",
-  },
-  {
-    id: "alerts",
-    section: "notifications",
-    titleKey: "groupAlerts",
-    descriptionKey: "groupAlertsDescription",
-  },
-  {
-    id: "session",
-    section: "security",
-    titleKey: "groupSession",
-    descriptionKey: "groupSessionDescription",
-  },
-  {
-    id: "access",
-    section: "security",
-    titleKey: "groupAccess",
-    descriptionKey: "groupAccessDescription",
-  },
-  {
     id: "assignment",
     section: "workflow",
     titleKey: "groupAssignment",
@@ -144,7 +96,6 @@ const UNAVAILABLE_ITEMS: readonly UnavailableItem[] = [
 ];
 
 export function ConfigurationCenter() {
-  const router = useRouter();
   const t = useTranslations("settings");
   const tCommon = useTranslations("common");
   const [activeSection, setActiveSection] =
@@ -169,16 +120,6 @@ export function ConfigurationCenter() {
       title: t("sectionSlaTitle"),
       description: t("sectionSlaDescription"),
       keywords: t("sectionSlaKeywords"),
-    },
-    notifications: {
-      title: t("sectionNotificationsTitle"),
-      description: t("sectionNotificationsDescription"),
-      keywords: t("sectionNotificationsKeywords"),
-    },
-    security: {
-      title: t("sectionSecurityTitle"),
-      description: t("sectionSecurityDescription"),
-      keywords: t("sectionSecurityKeywords"),
     },
     workflow: {
       title: t("sectionWorkflowTitle"),
@@ -213,16 +154,6 @@ export function ConfigurationCenter() {
         title: t("sectionSlaTitle"),
         description: t("sectionSlaDescription"),
         keywords: t("sectionSlaKeywords"),
-      },
-      notifications: {
-        title: t("sectionNotificationsTitle"),
-        description: t("sectionNotificationsDescription"),
-        keywords: t("sectionNotificationsKeywords"),
-      },
-      security: {
-        title: t("sectionSecurityTitle"),
-        description: t("sectionSecurityDescription"),
-        keywords: t("sectionSecurityKeywords"),
       },
       workflow: {
         title: t("sectionWorkflowTitle"),
@@ -389,69 +320,6 @@ export function ConfigurationCenter() {
                       ))}
                     </div>
                   ) : null}
-                </div>
-              ) : null}
-
-              {activeSection === "notifications" ? (
-                <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] md:grid-cols-2">
-                  {unavailableForSection.length > 0 ? (
-                    unavailableForSection.map((item) => (
-                      <UnavailableSettingCard
-                        key={item.id}
-                        title={t(item.titleKey)}
-                        description={t(item.descriptionKey)}
-                      />
-                    ))
-                  ) : (
-                    <Empty
-                      title={t("searchEmptyTitle")}
-                      description={t("searchEmptyDescription")}
-                      primaryAction={{
-                        label: t("clearSearch"),
-                        onClick: () => setSearchQuery(""),
-                      }}
-                    />
-                  )}
-                </div>
-              ) : null}
-
-              {activeSection === "security" ? (
-                <div className="space-y-[var(--ecmp-card-gap)]">
-                  <Card>
-                    <CardHeader
-                      action={
-                        <Badge tone="warning">{t("statusNeedsReview")}</Badge>
-                      }
-                    >
-                      <PanelHeader
-                        title={t("groupPassword")}
-                        description={t("groupPasswordDescription")}
-                        className="mb-0 border-0 pb-0"
-                      />
-                    </CardHeader>
-                    <CardBody className="space-y-[var(--ecmp-panel-gap)]">
-                      <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                        {t("securityPasswordGuidance")}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-[var(--ecmp-touch-min)]"
-                        onClick={() => router.push("/profile/security")}
-                      >
-                        {t("openProfileSecurity")}
-                      </Button>
-                    </CardBody>
-                  </Card>
-                  <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] md:grid-cols-2">
-                    {unavailableForSection.map((item) => (
-                      <UnavailableSettingCard
-                        key={item.id}
-                        title={t(item.titleKey)}
-                        description={t(item.descriptionKey)}
-                      />
-                    ))}
-                  </div>
                 </div>
               ) : null}
 
