@@ -586,7 +586,6 @@
   },
   "auth": {
     "signIn": "Sign in",
-    "brandName": "ECMP",
     "brandProduct": "Complaint Management Platform",
     "signingIn": "Signing in…",
     "signInFailed": "Sign in failed",

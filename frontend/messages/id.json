@@ -586,7 +586,6 @@
   },
   "auth": {
     "signIn": "Masuk",
-    "brandName": "ECMP",
     "brandProduct": "Platform Manajemen Komplain",
     "signingIn": "Sedang masuk…",
     "signInFailed": "Gagal masuk",
