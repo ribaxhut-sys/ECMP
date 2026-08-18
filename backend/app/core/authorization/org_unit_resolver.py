@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,6 +20,9 @@ from app.core.errors import NotFoundError
 from app.core.user_messages import m
 from app.models import Branch, User
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
+
+if TYPE_CHECKING:
+    from app.core.authorization.principal import Principal
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
 
@@ -98,6 +101,21 @@ class OrgUnitResolver:
         try:
             return self.resolve_user(principal_user_id)
         except NotFoundError:
+            return None
+
+    def resolve_principal(self, principal: Principal) -> str | None:
+        """Effective org unit for the acting principal — claim first, membership
+        fallback (see ``resolve_principal_membership``). Every endpoint that
+        needs "what unit is this caller in" (not "what unit owns this
+        resource") should go through this, not read ``principal.org_unit_id``
+        directly — that claim is empty in Mode A dev auth.
+        """
+        claimed = self.normalize(principal.org_unit_id)
+        if claimed:
+            return claimed
+        try:
+            return self.resolve_principal_membership(principal.user_id)
+        except Exception:
             return None
 
     def resolve_cm_complaint(self, complaint_id: str | uuid.UUID) -> str | None:

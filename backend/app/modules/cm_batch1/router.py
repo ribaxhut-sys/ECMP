@@ -214,13 +214,7 @@ def _effective_org_unit(
     resolver: OrgUnitResolver, principal: Principal
 ) -> str | None:
     """Claim first; membership fallback fail-open (Mode A / offline lab)."""
-    claimed = resolver.normalize(principal.org_unit_id)
-    if claimed:
-        return claimed
-    try:
-        return resolver.resolve_principal_membership(principal.user_id)
-    except Exception:
-        return None
+    return resolver.resolve_principal(principal)
 
 
 def _enforce_cm_org_or_pusat_hq(
