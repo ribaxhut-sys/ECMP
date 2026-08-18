@@ -33,12 +33,9 @@ export {
   fetchReportByBranch,
   fetchReportCycleTime,
 } from "./reports";
-export { fetchKpiSummary } from "./kpi";
-export type { KpiSummaryFilters } from "./kpi";
 export {
   fetchDashboardAggregateKpis,
   fetchDashboardRecentActivity,
-  fetchDashboardSummary,
   fetchDashboardTrends,
 } from "./dashboard";
 export {

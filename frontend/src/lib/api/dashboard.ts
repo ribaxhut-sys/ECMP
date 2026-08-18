@@ -2,19 +2,9 @@ import { apiRequest } from "./client";
 import type {
   DashboardAggregateKpis,
   DashboardRecentActivityItem,
-  DashboardSummary,
   DashboardTrends,
   DataResponse,
 } from "./types";
-
-/** API-319 — GET /api/v1/dashboard/overview (CAPABILITY-013 moved widgets). */
-export function fetchDashboardSummary(): Promise<
-  DataResponse<DashboardSummary>
-> {
-  return apiRequest<DataResponse<DashboardSummary>>(
-    "/api/v1/dashboard/overview",
-  );
-}
 
 /**
  * GET /api/v1/dashboard/aggregate-kpis — CM Aggregate KPI (DEC-026).
