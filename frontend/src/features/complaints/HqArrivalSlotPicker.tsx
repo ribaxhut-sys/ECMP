@@ -8,6 +8,16 @@ import {
 } from "@/lib/api/hqSchedule";
 import { Alert, Select } from "@/shared/ui";
 
+const weekdayFormatter = new Intl.DateTimeFormat("id-ID", { weekday: "long" });
+
+/** "2026-08-18" -> "18-08-2026 (Selasa)" for display; API params stay ISO. */
+function formatDateOption(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-");
+  if (!year || !month || !day) return isoDate;
+  const weekday = weekdayFormatter.format(new Date(`${isoDate}T00:00:00`));
+  return `${day}-${month}-${year} (${weekday})`;
+}
+
 export interface HqArrivalSlotValue {
   date: string;
   time: string;
@@ -79,15 +89,20 @@ export function HqArrivalSlotPicker({
     );
   }
 
-  const dateOptions = openDays.map((day) => ({ value: day.date, label: day.date }));
-  const selectedDay = openDays.find((day) => day.date === value?.date) ?? null;
-  const slotOptions = (selectedDay?.slots ?? []).map((slot) => ({
-    value: slot.startTime,
-    label: `${slot.startTime}–${slot.endTime} (${t("availableCount", {
-      count: slot.availableCount,
-    })})`,
-    disabled: slot.availableCount <= 0,
+  const dateOptions = openDays.map((day) => ({
+    value: day.date,
+    label: formatDateOption(day.date),
   }));
+  const selectedDay = openDays.find((day) => day.date === value?.date) ?? null;
+  const slotOptions = (selectedDay?.slots ?? [])
+    .filter((slot) => !slot.isBreak)
+    .map((slot) => ({
+      value: slot.startTime,
+      label: `${slot.startTime}–${slot.endTime} (${t("availableCount", {
+        count: slot.availableCount,
+      })})`,
+      disabled: slot.availableCount <= 0,
+    }));
 
   return (
     <div className="grid gap-[var(--ecmp-form-gap)] sm:grid-cols-2">

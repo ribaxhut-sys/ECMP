@@ -2634,7 +2634,17 @@
     "holidayCreatedToast": "Hari libur disimpan",
     "holidayCreateFailed": "Gagal menyimpan hari libur",
     "holidayDeletedToast": "Hari libur dihapus",
-    "holidayDeleteFailed": "Gagal menghapus hari libur"
+    "holidayDeleteFailed": "Gagal menghapus hari libur",
+    "holidayImportHint": "Hanya libur bertanggal tetap (Tahun Baru, Hari Buruh, Hari Lahir Pancasila, Kemerdekaan, Natal). Idul Fitri, Nyepi, Waisak, dan cuti bersama berubah tiap tahun — tambahkan manual setelah kalender resmi terbit.",
+    "holidayImportYearLabel": "Tahun",
+    "holidayImportButton": "Impor libur tanggal tetap",
+    "holidayImportedToast": "{count} hari libur nasional diimpor untuk {year}.",
+    "holidayImportFailed": "Impor hari libur nasional gagal.",
+    "holidayFixedNewYear": "Tahun Baru Masehi",
+    "holidayFixedLabourDay": "Hari Buruh Internasional",
+    "holidayFixedPancasilaDay": "Hari Lahir Pancasila",
+    "holidayFixedIndependenceDay": "Hari Kemerdekaan RI",
+    "holidayFixedChristmas": "Hari Natal"
   },
   "followUp": {
     "title": "Tindak lanjut",

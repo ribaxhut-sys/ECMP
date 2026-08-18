@@ -2,13 +2,16 @@
  * HQ schedule calendar — Cabang uses the aggregate API; Pusat uses detail.
  */
 import { cleanup, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
+import type { HqScheduleAvailabilityResponse } from "@/lib/api/hqSchedule";
 
 const fetchHqScheduleAvailability = vi.fn();
 const fetchHqScheduleAvailabilityDetail = vi.fn();
 const fetchHqScheduleHolidays = vi.fn();
 const fetchBranches = vi.fn();
+const createHqScheduleHoliday = vi.fn();
 const hasPermission = vi.fn<(permission: string) => boolean>(() => false);
 let mockRoles: string[] = [];
 let mockOrgUnitCode: string | null | undefined = "UPPPD-A";
@@ -36,7 +39,7 @@ vi.mock("@/lib/api/hqSchedule", () => ({
   fetchHqScheduleAvailabilityDetail: (...args: unknown[]) =>
     fetchHqScheduleAvailabilityDetail(...args),
   fetchHqScheduleHolidays: (...args: unknown[]) => fetchHqScheduleHolidays(...args),
-  createHqScheduleHoliday: vi.fn(),
+  createHqScheduleHoliday: (...args: unknown[]) => createHqScheduleHoliday(...args),
   deleteHqScheduleHoliday: vi.fn(),
 }));
 
@@ -49,9 +52,10 @@ const emptyGrid = {
   days: [],
 };
 
-function gridWithCases() {
+function gridWithCases(): HqScheduleAvailabilityResponse {
   return {
     startTime: "08:00",
+    endTime: "10:00",
     slotMinutes: 60,
     capacityPerSlot: 2,
     days: [
@@ -111,6 +115,7 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailabilityDetail.mockReset();
     fetchHqScheduleHolidays.mockReset();
     fetchBranches.mockReset();
+    createHqScheduleHoliday.mockReset();
     hasPermission.mockReset().mockImplementation((permission: string) => {
       return permission === "complaints:read";
     });
@@ -122,6 +127,7 @@ describe("HqScheduleView", () => {
     fetchBranches.mockResolvedValue({
       data: [{ id: "b1", code: "UPPPD-A", name: "Cabang Tanah Abang" }],
     });
+    createHqScheduleHoliday.mockResolvedValue({ data: {} });
   });
 
   it("loads the branch aggregate grid for a Cabang agent", async () => {
@@ -171,5 +177,58 @@ describe("HqScheduleView", () => {
     renderWithProviders(<HqScheduleView />);
 
     expect(await screen.findByText("Break")).toBeInTheDocument();
+  });
+
+  it("hides weekend columns and merges the break row into one cell", async () => {
+    const grid = gridWithCases();
+    grid.days.push(
+      {
+        date: "2026-08-22",
+        weekday: 6,
+        closed: true,
+        closedReason: "WEEKEND",
+        holidayLabel: null,
+        slots: [],
+      },
+      {
+        date: "2026-08-23",
+        weekday: 7,
+        closed: true,
+        closedReason: "WEEKEND",
+        holidayLabel: null,
+        slots: [],
+      },
+    );
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    await screen.findByText("Break");
+    expect(screen.queryByText("2026-08-22")).not.toBeInTheDocument();
+    expect(screen.queryByText("2026-08-23")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Break")).toHaveLength(1);
+  });
+
+  it("imports the fixed-date national holidays for the selected year", async () => {
+    hasPermission.mockImplementation((permission: string) =>
+      ["complaints:read", "settings:read", "settings:update"].includes(permission),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<HqScheduleView />);
+
+    const importButton = await screen.findByRole("button", {
+      name: /Import fixed-date holidays/i,
+    });
+    await user.click(importButton);
+
+    await waitFor(() => {
+      expect(createHqScheduleHoliday).toHaveBeenCalledTimes(5);
+    });
+    const currentYear = new Date().getFullYear();
+    expect(createHqScheduleHoliday).toHaveBeenCalledWith(
+      expect.objectContaining({ holidayDate: `${currentYear}-01-01` }),
+    );
+    expect(createHqScheduleHoliday).toHaveBeenCalledWith(
+      expect.objectContaining({ holidayDate: `${currentYear}-08-17` }),
+    );
   });
 });

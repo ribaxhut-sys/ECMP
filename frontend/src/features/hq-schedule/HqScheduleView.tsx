@@ -31,12 +31,34 @@ import {
   PageContainer,
   PageHeader,
   SectionHeader,
+  Select,
 } from "@/shared/ui";
 import { useToast } from "@/shared/providers";
 import { toLocalDateKey } from "@/shared/utils/datetime";
 import { cn } from "@/shared/utils";
 
 const RANGE_DAYS = 6; // one week, inclusive
+
+/**
+ * Fixed-date national holidays only (same calendar date every year, set by
+ * law) — Idul Fitri, Nyepi, Waisak, and cuti bersama move every year and
+ * are only confirmed once the government publishes that year's SKB 3
+ * Menteri, so they must still be added manually.
+ */
+const FIXED_NATIONAL_HOLIDAYS: readonly { month: number; day: number; labelKey: string }[] = [
+  { month: 1, day: 1, labelKey: "holidayFixedNewYear" },
+  { month: 5, day: 1, labelKey: "holidayFixedLabourDay" },
+  { month: 6, day: 1, labelKey: "holidayFixedPancasilaDay" },
+  { month: 8, day: 17, labelKey: "holidayFixedIndependenceDay" },
+  { month: 12, day: 25, labelKey: "holidayFixedChristmas" },
+];
+
+function importYearOptions(centerYear: number): { value: string; label: string }[] {
+  return [centerYear - 1, centerYear, centerYear + 1, centerYear + 2].map((year) => ({
+    value: String(year),
+    label: String(year),
+  }));
+}
 
 function startOfWeek(date: Date): Date {
   const copy = new Date(date);
@@ -52,10 +74,39 @@ function addDays(date: Date, days: number): Date {
   return copy;
 }
 
+/** "2026-08-20" -> "20-08-2026" for display; API params/inputs stay ISO. */
+function formatDateDMY(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-");
+  return year && month && day ? `${day}-${month}-${year}` : isoDate;
+}
+
 function slotTone(availableCount: number): "success" | "warning" | "danger" {
   if (availableCount <= 0) return "danger";
   if (availableCount === 1) return "warning";
   return "success";
+}
+
+type BreakRowSegment =
+  | { closed: true; day: HqScheduleDayAvailability }
+  | { closed: false; span: number };
+
+/** Groups a break-time row into per-holiday cells plus one merged "break" cell per run of open days. */
+function breakRowSegments(days: HqScheduleDayAvailability[]): BreakRowSegment[] {
+  const segments: BreakRowSegment[] = [];
+  let openRun = 0;
+  for (const day of days) {
+    if (day.closed) {
+      if (openRun > 0) {
+        segments.push({ closed: false, span: openRun });
+        openRun = 0;
+      }
+      segments.push({ closed: true, day });
+    } else {
+      openRun += 1;
+    }
+  }
+  if (openRun > 0) segments.push({ closed: false, span: openRun });
+  return segments;
 }
 
 function CaseTag({
@@ -107,22 +158,13 @@ function ScheduleSlotCell({
   slot,
   canOpenCase,
   branchNameByCode,
-  breakLabel,
   slotRatioLabel,
 }: {
   slot: HqScheduleSlotAvailability;
   canOpenCase: (owningUnitId: string | null | undefined) => boolean;
   branchNameByCode: Map<string, string>;
-  breakLabel: string;
   slotRatioLabel: string;
 }) {
-  if (slot.isBreak) {
-    return (
-      <td className="border-b border-ecmp-border/70 p-2 text-center align-top text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-        {breakLabel}
-      </td>
-    );
-  }
   const tone = slotTone(slot.availableCount);
   return (
     <td
@@ -177,6 +219,8 @@ export function HqScheduleView() {
   const [holidayDeletingDate, setHolidayDeletingDate] = useState<string | null>(
     null,
   );
+  const [importYear, setImportYear] = useState(() => String(new Date().getFullYear()));
+  const [importing, setImporting] = useState(false);
 
   const rangeFrom = useMemo(() => toLocalDateKey(weekStart), [weekStart]);
   const rangeTo = useMemo(
@@ -281,6 +325,26 @@ export function HqScheduleView() {
     }
   }
 
+  async function submitImportHolidays(): Promise<void> {
+    const year = Number(importYear);
+    if (!Number.isInteger(year)) return;
+    setImporting(true);
+    try {
+      for (const holiday of FIXED_NATIONAL_HOLIDAYS) {
+        const holidayDate = `${year}-${String(holiday.month).padStart(2, "0")}-${String(
+          holiday.day,
+        ).padStart(2, "0")}`;
+        await createHqScheduleHoliday({ holidayDate, label: t(holiday.labelKey) });
+      }
+      pushSuccess(t("holidayImportedToast", { count: FIXED_NATIONAL_HOLIDAYS.length, year }));
+      reloadHolidays();
+    } catch (err) {
+      pushError(err, t("holidayImportFailed"));
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const weekdayFormatterLong = useMemo(
     () => new Intl.DateTimeFormat("id-ID", { weekday: "long" }),
     [],
@@ -302,8 +366,10 @@ export function HqScheduleView() {
   }
 
   const showLoading = status !== "authenticated" || !orgReady || loading;
+  const visibleDays: HqScheduleDayAvailability[] =
+    data?.days.filter((day) => day.closedReason !== "WEEKEND") ?? [];
   const templateSlots: HqScheduleDayAvailability["slots"] =
-    data?.days.find((day) => !day.closed)?.slots ?? [];
+    visibleDays.find((day) => !day.closed)?.slots ?? [];
 
   return (
     <PageContainer>
@@ -349,13 +415,13 @@ export function HqScheduleView() {
                   <th className="sticky left-0 z-10 border-b border-r border-ecmp-border/70 bg-ecmp-surface-sunken p-2 text-center text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
                     {t("timeColumnHeader")}
                   </th>
-                  {data.days.map((day) => (
+                  {visibleDays.map((day) => (
                     <th
                       key={day.date}
                       className="border-b border-ecmp-border/70 bg-ecmp-surface-sunken p-2 text-center"
                     >
                       <div className="text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
-                        {day.date}
+                        {formatDateDMY(day.date)}
                       </div>
                       <div className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-wide text-ecmp-text-secondary">
                         <span className="hidden md:inline">
@@ -373,7 +439,7 @@ export function HqScheduleView() {
                 {templateSlots.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={data.days.length + 1}
+                      colSpan={visibleDays.length + 1}
                       className="p-4 text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
                     >
                       {t("weekClosed")}
@@ -385,37 +451,59 @@ export function HqScheduleView() {
                       <td className="sticky left-0 z-10 border-b border-r border-ecmp-border/70 bg-ecmp-surface p-2 text-center align-middle text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
                         {templateSlot.startTime}
                       </td>
-                      {data.days.map((day) => {
-                        if (day.closed) {
-                          return (
-                            <td
-                              key={day.date}
-                              className="border-b border-ecmp-border/70 bg-ecmp-danger-subtle p-2 text-center align-middle text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger-text"
-                            >
-                              {day.closedReason === "HOLIDAY"
-                                ? day.holidayLabel || t("holiday")
-                                : t("weekend")}
-                            </td>
-                          );
-                        }
-                        const slot = day.slots[index];
-                        if (!slot) {
-                          return <td key={day.date} className="border-b border-ecmp-border/70 p-2" />;
-                        }
-                        return (
-                          <ScheduleSlotCell
-                            key={day.date}
-                            slot={slot}
-                            canOpenCase={canOpenCase}
-                            branchNameByCode={branchNameByCode}
-                            breakLabel={t("breakLabel")}
-                            slotRatioLabel={t("slotRatio", {
-                              scheduled: slot.scheduledCount,
-                              capacity: slot.capacity,
-                            })}
-                          />
-                        );
-                      })}
+                      {templateSlot.isBreak
+                        ? breakRowSegments(visibleDays).map((segment, segmentIndex) =>
+                            segment.closed ? (
+                              <td
+                                key={segment.day.date}
+                                className="border-b border-ecmp-border/70 bg-ecmp-danger-subtle p-2 text-center align-middle text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger-text"
+                              >
+                                {segment.day.closedReason === "HOLIDAY"
+                                  ? segment.day.holidayLabel || t("holiday")
+                                  : t("weekend")}
+                              </td>
+                            ) : (
+                              <td
+                                key={`break-${segmentIndex}`}
+                                colSpan={segment.span}
+                                className="border-b border-ecmp-border/70 p-2 text-center align-middle text-[length:var(--ecmp-font-body-size)] font-bold text-ecmp-text-secondary"
+                              >
+                                {t("breakLabel")}
+                              </td>
+                            ),
+                          )
+                        : visibleDays.map((day) => {
+                            if (day.closed) {
+                              return (
+                                <td
+                                  key={day.date}
+                                  className="border-b border-ecmp-border/70 bg-ecmp-danger-subtle p-2 text-center align-middle text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger-text"
+                                >
+                                  {day.closedReason === "HOLIDAY"
+                                    ? day.holidayLabel || t("holiday")
+                                    : t("weekend")}
+                                </td>
+                              );
+                            }
+                            const slot = day.slots[index];
+                            if (!slot) {
+                              return (
+                                <td key={day.date} className="border-b border-ecmp-border/70 p-2" />
+                              );
+                            }
+                            return (
+                              <ScheduleSlotCell
+                                key={day.date}
+                                slot={slot}
+                                canOpenCase={canOpenCase}
+                                branchNameByCode={branchNameByCode}
+                                slotRatioLabel={t("slotRatio", {
+                                  scheduled: slot.scheduledCount,
+                                  capacity: slot.capacity,
+                                })}
+                              />
+                            );
+                          })}
                     </tr>
                   ))
                 )}
@@ -440,7 +528,7 @@ export function HqScheduleView() {
                         className="flex items-center justify-between gap-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border px-3 py-2"
                       >
                         <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                          {holiday.holidayDate} — {holiday.label}
+                          {formatDateDMY(holiday.holidayDate)} — {holiday.label}
                         </span>
                         {canManageHolidays ? (
                           <Button
@@ -460,6 +548,31 @@ export function HqScheduleView() {
                     ))}
                   </ul>
                 )}
+
+                {canManageHolidays ? (
+                  <div className="space-y-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                    <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+                      {t("holidayImportHint")}
+                    </p>
+                    <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)]">
+                      <Select
+                        label={t("holidayImportYearLabel")}
+                        value={importYear}
+                        onChange={(e) => setImportYear(e.target.value)}
+                        options={importYearOptions(new Date().getFullYear())}
+                        disabled={importing}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={importing}
+                        onClick={() => void submitImportHolidays()}
+                      >
+                        {t("holidayImportButton")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
 
                 {canManageHolidays ? (
                   <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">

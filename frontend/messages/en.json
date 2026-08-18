@@ -2634,7 +2634,17 @@
     "holidayCreatedToast": "Holiday saved",
     "holidayCreateFailed": "Failed to save the holiday",
     "holidayDeletedToast": "Holiday removed",
-    "holidayDeleteFailed": "Failed to remove the holiday"
+    "holidayDeleteFailed": "Failed to remove the holiday",
+    "holidayImportHint": "Fixed-date holidays only (New Year, Labour Day, Pancasila Day, Independence Day, Christmas). Eid al-Fitr, Nyepi, Waisak, and collective leave dates move every year — add those manually once the official calendar is published.",
+    "holidayImportYearLabel": "Year",
+    "holidayImportButton": "Import fixed-date holidays",
+    "holidayImportedToast": "{count} national holidays imported for {year}.",
+    "holidayImportFailed": "Failed to import national holidays.",
+    "holidayFixedNewYear": "New Year's Day",
+    "holidayFixedLabourDay": "International Labour Day",
+    "holidayFixedPancasilaDay": "Pancasila Day",
+    "holidayFixedIndependenceDay": "Indonesian Independence Day",
+    "holidayFixedChristmas": "Christmas Day"
   },
   "followUp": {
     "title": "Follow-up",
