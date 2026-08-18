@@ -87,49 +87,55 @@ export function HqArrivalSlotPicker({
     }));
 
   return (
-    <div className="grid gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
-      <DatePicker
-        name="proposedArrivalDate"
-        id="proposedArrivalDate"
-        label={t("proposeDateLabel")}
-        min={minDate}
-        max={maxDate}
-        disabledWeekdays={[0, 6]}
-        value={selectedDate}
-        disabled={disabled}
-        onChange={(date) => onChange(date ? { date, time: "" } : null)}
-      />
-
-      {!selectedDate ? null : dayLoading ? (
-        <p className="self-end text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-          {t("proposeLoading")}
-        </p>
-      ) : dayFailed ? (
-        <Alert
-          tone="warning"
-          title={t("loadError")}
-          description={t("proposeUnavailableHint")}
-        />
-      ) : !day || day.closed || slotOptions.length === 0 ? (
-        <Alert
-          tone="info"
-          title={t("proposeNoSlotsTitle")}
-          description={t("proposeNoSlotsHint")}
-        />
-      ) : (
-        <Select
-          name="proposedArrivalTime"
-          id="proposedArrivalTime"
-          label={t("proposeTimeLabel")}
-          placeholder={t("proposeTimePlaceholder")}
-          options={slotOptions}
-          value={value?.time ?? ""}
+    <div className="flex flex-wrap justify-end gap-[var(--ecmp-form-gap)]">
+      <div className="w-full sm:w-56">
+        <DatePicker
+          name="proposedArrivalDate"
+          id="proposedArrivalDate"
+          label={t("proposeDateLabel")}
+          min={minDate}
+          max={maxDate}
+          disabledWeekdays={[0, 6]}
+          value={selectedDate}
           disabled={disabled}
-          onChange={(e) => {
-            if (!selectedDate) return;
-            onChange({ date: selectedDate, time: e.target.value });
-          }}
+          onChange={(date) => onChange(date ? { date, time: "" } : null)}
         />
+      </div>
+
+      {!selectedDate ? null : (
+        <div className="w-full sm:w-56">
+          {dayLoading ? (
+            <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+              {t("proposeLoading")}
+            </p>
+          ) : dayFailed ? (
+            <Alert
+              tone="warning"
+              title={t("loadError")}
+              description={t("proposeUnavailableHint")}
+            />
+          ) : !day || day.closed || slotOptions.length === 0 ? (
+            <Alert
+              tone="info"
+              title={t("proposeNoSlotsTitle")}
+              description={t("proposeNoSlotsHint")}
+            />
+          ) : (
+            <Select
+              name="proposedArrivalTime"
+              id="proposedArrivalTime"
+              label={t("proposeTimeLabel")}
+              placeholder={t("proposeTimePlaceholder")}
+              options={slotOptions}
+              value={value?.time ?? ""}
+              disabled={disabled}
+              onChange={(e) => {
+                if (!selectedDate) return;
+                onChange({ date: selectedDate, time: e.target.value });
+              }}
+            />
+          )}
+        </div>
       )}
     </div>
   );
