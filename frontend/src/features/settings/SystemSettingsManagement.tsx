@@ -5,7 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
-  type FormEvent,
+  type KeyboardEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -153,9 +153,13 @@ export function SystemSettingsManagement({
     setDraftValue("");
   }
 
-  async function onSave(event: FormEvent) {
-    event.preventDefault();
-    if (!editingKey || !canUpdate) return;
+  async function submitSave(): Promise<void> {
+    if (!editingKey || !canUpdate || saving) return;
+    const current = settings.find((item) => item.key === editingKey);
+    if (current && draftValue === current.value) {
+      cancelEdit();
+      return;
+    }
     setSaving(true);
     setActionError(null);
     try {
@@ -176,6 +180,18 @@ export function SystemSettingsManagement({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  function onDraftKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!saving) cancelEdit();
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void submitSave();
     }
   }
 
@@ -237,7 +253,7 @@ export function SystemSettingsManagement({
           }
         />
       ) : !loadError ? (
-        <form onSubmit={onSave} className="space-y-[var(--ecmp-card-gap)]">
+        <div className="space-y-[var(--ecmp-card-gap)]">
           {grouped.map(([category, rows]) => (
             <Card key={category}>
               <CardHeader
@@ -296,10 +312,13 @@ export function SystemSettingsManagement({
                       <div className="mt-3 space-y-3">
                         {editing ? (
                           <Input
+                            name={`setting-${row.key}`}
                             value={draftValue}
                             onChange={(e) => setDraftValue(e.target.value)}
+                            onKeyDown={onDraftKeyDown}
                             label={t("valueColumn")}
                             aria-label={t("valueAriaLabel", { key: title })}
+                            autoFocus
                           />
                         ) : (
                           <p className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
@@ -312,9 +331,10 @@ export function SystemSettingsManagement({
                             {editing ? (
                               <>
                                 <Button
-                                  type="submit"
+                                  type="button"
                                   size="sm"
                                   loading={saving}
+                                  onClick={() => void submitSave()}
                                   className="min-h-[var(--ecmp-touch-min)]"
                                 >
                                   {tCommon("save")}
@@ -351,7 +371,7 @@ export function SystemSettingsManagement({
               </CardBody>
             </Card>
           ))}
-        </form>
+        </div>
       ) : null}
     </section>
   );
