@@ -2615,6 +2615,8 @@
     "timeColumnHeader": "Time",
     "todayLabel": "Today",
     "weekClosed": "No working slots this week.",
+    "weeklyListTitle": "This week's escalations",
+    "weeklyListEmpty": "No escalations scheduled this week.",
     "breakLabel": "Break",
     "slotRatio": "{scheduled}/{capacity} slot",
     "proposeDateLabel": "Arrival date",

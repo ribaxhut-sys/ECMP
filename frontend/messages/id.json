@@ -2615,6 +2615,8 @@
     "timeColumnHeader": "Jam",
     "todayLabel": "Hari ini",
     "weekClosed": "Tidak ada slot kerja pada minggu ini.",
+    "weeklyListTitle": "Daftar eskalasi minggu ini",
+    "weeklyListEmpty": "Tidak ada eskalasi terjadwal minggu ini.",
     "breakLabel": "Istirahat",
     "slotRatio": "{scheduled}/{capacity} slot",
     "proposeDateLabel": "Tanggal kedatangan",

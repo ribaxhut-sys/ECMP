@@ -196,6 +196,7 @@ def test_scheduled_cases_scoped_to_caller_unit_on_aggregate_view() -> None:
             proposed_arrival_time=None,
             proposed_by=None,
             proposed_at=None,
+            case_numbers=("CASE-2026-000001", "CASE-2026-000002"),
         ),
         ArrivalRow(
             complaint_id="c2",
@@ -220,6 +221,10 @@ def test_scheduled_cases_scoped_to_caller_unit_on_aggregate_view() -> None:
     )
     own_slot = own_view.days[0].slots[0]
     assert [c.complaint_number for c in own_slot.scheduled_cases] == ["TAB-2608-0001"]
+    assert own_slot.scheduled_cases[0].case_numbers == [
+        "CASE-2026-000001",
+        "CASE-2026-000002",
+    ]
 
     no_caller_view = service.get_availability(
         date_from=monday, date_to=monday, detail=False

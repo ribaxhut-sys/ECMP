@@ -128,6 +128,11 @@ function CaseTag({
   );
 }
 
+/** Case number(s) tracking this complaint's escalation — always populated by the time HQ schedules an arrival. */
+function caseNumbersLabel(proposal: HqScheduleProposalSummary): string {
+  return proposal.caseNumbers.join(", ");
+}
+
 function CaseLine({
   proposal,
   canOpen,
@@ -144,10 +149,10 @@ function CaseLine({
           href={`/complaints/cm/${encodeURIComponent(proposal.complaintId)}`}
           className="font-medium text-ecmp-primary hover:underline"
         >
-          {proposal.complaintNumber}
+          {caseNumbersLabel(proposal)}
         </Link>
       ) : (
-        <span className="text-ecmp-text-secondary">{proposal.complaintNumber}</span>
+        <span className="text-ecmp-text-secondary">{caseNumbersLabel(proposal)}</span>
       )}
       <CaseTag proposal={proposal} branchNameByCode={branchNameByCode} />
     </div>
@@ -174,7 +179,7 @@ function ScheduleSlotCell({
         tone === "warning" && "bg-ecmp-warning-subtle",
       )}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-center gap-1 text-center">
         {slot.scheduledCases.map((proposal) => (
           <CaseLine
             key={proposal.complaintId}
@@ -183,11 +188,86 @@ function ScheduleSlotCell({
             branchNameByCode={branchNameByCode}
           />
         ))}
-        <Badge tone={tone} variant="solid" className="self-start">
+        <Badge tone={tone} variant="solid">
           {slotRatioLabel}
         </Badge>
       </div>
     </td>
+  );
+}
+
+/**
+ * Weekly escalation list, grouped by weekday then time slot — same
+ * already-scoped data as the table above (Cabang: own unit only, Pusat:
+ * every branch), just flattened into a list instead of a grid.
+ */
+function WeeklyEscalationList({
+  days,
+  canSeeDetail,
+  weekdayFormatter,
+  title,
+  emptyLabel,
+}: {
+  days: HqScheduleDayAvailability[];
+  canSeeDetail: boolean;
+  weekdayFormatter: Intl.DateTimeFormat;
+  title: string;
+  emptyLabel: string;
+}) {
+  const openDays = days.filter((day) => !day.closed);
+  const daysWithEscalations = openDays
+    .map((day) => ({
+      day,
+      slots: day.slots.filter(
+        (slot) => !slot.isBreak && slot.scheduledCases.length > 0,
+      ),
+    }))
+    .filter((entry) => entry.slots.length > 0);
+
+  return (
+    <section className="space-y-[var(--ecmp-panel-gap)]">
+      <SectionHeader title={title} />
+      <Card>
+        <CardBody className="space-y-4">
+          {daysWithEscalations.length === 0 ? (
+            <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+              {emptyLabel}
+            </p>
+          ) : (
+            daysWithEscalations.map(({ day, slots }) => (
+              <div key={day.date} className="space-y-2">
+                <p className="text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
+                  {weekdayFormatter.format(new Date(`${day.date}T00:00:00`))}
+                </p>
+                {slots.map((slot) => (
+                  <div key={slot.startTime} className="pl-3">
+                    <p className="text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
+                      {slot.startTime}
+                    </p>
+                    <ol className="list-decimal space-y-0.5 pl-4">
+                      {slot.scheduledCases.map((proposal) => (
+                        <li
+                          key={proposal.complaintId}
+                          className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
+                        >
+                          {caseNumbersLabel(proposal)}
+                          {canSeeDetail && (
+                            <span className="text-ecmp-text-secondary">
+                              {" "}
+                              ({proposal.unitCode})
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </CardBody>
+      </Card>
+    </section>
   );
 }
 
@@ -528,6 +608,14 @@ export function HqScheduleView() {
               </tbody>
             </table>
           </div>
+
+          <WeeklyEscalationList
+            days={data.days}
+            canSeeDetail={canSeeDetail}
+            weekdayFormatter={weekdayFormatterLong}
+            title={t("weeklyListTitle")}
+            emptyLabel={t("weeklyListEmpty")}
+          />
 
           {showHolidayPanel ? (
           <section className="space-y-[var(--ecmp-panel-gap)]">

@@ -9,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 from app.modules.hq_schedule.models import CmHqHolidayORM
 
 
@@ -23,6 +24,8 @@ class ArrivalRow:
     proposed_arrival_time: str | None
     proposed_by: str | None
     proposed_at: datetime | None
+    # Case(s) tracking this complaint's escalation — empty if none created yet.
+    case_numbers: tuple[str, ...] = ()
 
 
 class HqScheduleRepository:
@@ -88,6 +91,9 @@ class HqScheduleRepository:
             )
         )
         rows = self._session.scalars(stmt).all()
+        case_numbers_by_complaint = self._case_numbers_by_complaint(
+            [str(r.id) for r in rows]
+        )
         return [
             ArrivalRow(
                 complaint_id=str(r.id),
@@ -107,9 +113,26 @@ class HqScheduleRepository:
                 ),
                 proposed_by=r.proposed_by,
                 proposed_at=r.proposed_at,
+                case_numbers=tuple(case_numbers_by_complaint.get(str(r.id), ())),
             )
             for r in rows
         ]
+
+    def _case_numbers_by_complaint(
+        self, complaint_ids: list[str]
+    ) -> dict[str, list[str]]:
+        """Case.complaint_id is a plain string column (no FK) — join by hand."""
+        if not complaint_ids:
+            return {}
+        stmt = (
+            select(CmCaseORM.complaint_id, CmCaseORM.case_number)
+            .where(CmCaseORM.complaint_id.in_(complaint_ids))
+            .order_by(CmCaseORM.created_at)
+        )
+        result: dict[str, list[str]] = {}
+        for complaint_id, case_number in self._session.execute(stmt):
+            result.setdefault(complaint_id, []).append(case_number)
+        return result
 
     def commit(self) -> None:
         self._session.commit()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Generator
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -29,6 +29,7 @@ from app.modules.cm_batch1.schemas import (
     IntakeEscalationDecisionRequest,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 from app.modules.hq_schedule.models import CmHqHolidayORM
 from app.modules.hq_schedule.repository import HqScheduleRepository
 from cm_batch1_helpers import confirmed_create
@@ -42,6 +43,7 @@ _BATCH1_TABLES = [
     CmBatch1DuplicateDecisionORM.__table__,
     CmBatch1LaterReviewItemORM.__table__,
     CmHqHolidayORM.__table__,
+    CmCaseORM.__table__,
 ]
 
 _TOMORROW = date.today() + timedelta(days=1)
@@ -160,6 +162,62 @@ def test_pending_approval_proposal_is_listed(
     assert row.complaint_id == resp.complaint_id
     assert row.proposed_arrival_date == _TOMORROW
     assert row.proposed_arrival_time == "09:00"
+
+
+def test_case_numbers_joined_by_complaint_id(
+    service: CmBatch1Service, db_session: Session
+) -> None:
+    """CmCaseORM.complaint_id is a plain string column, not an FK — the join
+    is manual (HqScheduleRepository._case_numbers_by_complaint). A complaint
+    can carry more than one case."""
+    resp = confirmed_create(
+        service,
+        _escalate_body(
+            proposedArrivalDate=_TOMORROW.isoformat(), proposedArrivalTime="09:00"
+        ),
+        request_id="hq-repo-req-4",
+    )
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            CmCaseORM(
+                id=uuid.uuid4(),
+                case_number="CASE-2026-000001",
+                complaint_id=resp.complaint_id,
+                customer_id="cust-1",
+                status="OPEN",
+                case_type="ESCALATION",
+                subject="Eskalasi ke Pusat",
+                description="Perlu ditinjau Pusat.",
+                priority="MEDIUM",
+                owning_unit_id="PUSAT",
+                owner_unit_id="UPPPD-A",
+                created_by="agent-1",
+                created_at=now,
+            ),
+            CmCaseORM(
+                id=uuid.uuid4(),
+                case_number="CASE-2026-000002",
+                complaint_id=resp.complaint_id,
+                customer_id="cust-1",
+                status="OPEN",
+                case_type="ESCALATION",
+                subject="Eskalasi ke Pusat — lanjutan",
+                description="Case kedua untuk complaint yang sama.",
+                priority="MEDIUM",
+                owning_unit_id="PUSAT",
+                owner_unit_id="UPPPD-A",
+                created_by="agent-1",
+                created_at=now,
+            ),
+        ]
+    )
+    db_session.flush()
+
+    hq_repo = HqScheduleRepository(db_session)
+    rows = hq_repo.list_arrivals_in_range(date_from=_TOMORROW, date_to=_TOMORROW)
+    assert len(rows) == 1
+    assert rows[0].case_numbers == ("CASE-2026-000001", "CASE-2026-000002")
 
 
 def test_holiday_crud_round_trip(db_session: Session) -> None:

@@ -1,7 +1,7 @@
 /**
  * HQ schedule calendar — Cabang uses the aggregate API; Pusat uses detail.
  */
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
@@ -79,12 +79,14 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
                 complaintNumber: "TAB-2608-0001",
                 owningUnitId: "UPPPD-A",
                 unitCode: "TAB",
+                caseNumbers: ["CASE-2026-000001"],
               },
               {
                 complaintId: "case-other",
                 complaintNumber: "GAM-2608-0002",
                 owningUnitId: "UPPPD-B",
                 unitCode: "GAM",
+                caseNumbers: ["CASE-2026-000002"],
               },
             ],
           },
@@ -152,10 +154,10 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
 
-    const ownLink = await screen.findByRole("link", { name: "TAB-2608-0001" });
+    const ownLink = await screen.findByRole("link", { name: "CASE-2026-000001" });
     expect(ownLink).toHaveAttribute("href", "/complaints/cm/case-own");
 
-    const otherCase = screen.getByText("GAM-2608-0002");
+    const otherCase = screen.getAllByText("CASE-2026-000002")[0];
     expect(otherCase.closest("a")).toBeNull();
 
     await waitFor(() => {
@@ -168,8 +170,34 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailabilityDetail.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
 
-    expect(await screen.findByRole("link", { name: "TAB-2608-0001" })).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: "GAM-2608-0002" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "CASE-2026-000001" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "CASE-2026-000002" }),
+    ).toBeInTheDocument();
+  });
+
+  it("lists the week's escalations grouped by weekday and time below the table", async () => {
+    mockOrgUnitCode = "PUSAT";
+    fetchHqScheduleAvailabilityDetail.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    const heading = await screen.findByText("This week's escalations");
+    const section = heading.closest("section")!;
+    expect(within(section).getByText("Senin")).toBeInTheDocument();
+    expect(within(section).getByText("08:00")).toBeInTheDocument();
+    expect(within(section).getByText(/CASE-2026-000001/)).toBeInTheDocument();
+    expect(within(section).getByText(/CASE-2026-000002/)).toBeInTheDocument();
+    expect(within(section).getByText(/\(TAB\)/)).toBeInTheDocument();
+    expect(within(section).getByText(/\(GAM\)/)).toBeInTheDocument();
+  });
+
+  it("shows an empty state in the weekly list when nothing is scheduled", async () => {
+    renderWithProviders(<HqScheduleView />);
+    expect(
+      await screen.findByText("No escalations scheduled this week."),
+    ).toBeInTheDocument();
   });
 
   it("tags a break slot instead of showing case data", async () => {

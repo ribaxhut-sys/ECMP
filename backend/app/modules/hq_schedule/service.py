@@ -267,6 +267,7 @@ class HqScheduleService:
                     complaintNumber=a.complaint_number,
                     owningUnitId=a.owning_unit_id,
                     unitCode=resolve_unit_code(a.owning_unit_id),
+                    caseNumbers=list(a.case_numbers),
                 )
                 for a in visible_scheduled
             ]

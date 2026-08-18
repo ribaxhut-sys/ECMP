@@ -35,6 +35,8 @@ class ProposalSummary(BaseModel):
     complaint_number: str = Field(alias="complaintNumber")
     owning_unit_id: str | None = Field(default=None, alias="owningUnitId")
     unit_code: str = Field(alias="unitCode")
+    # Case(s) tracking this complaint's escalation — scheduled cases only.
+    case_numbers: list[str] = Field(default_factory=list, alias="caseNumbers")
     proposed_by: str | None = Field(default=None, alias="proposedBy")
     proposed_at: datetime | None = Field(default=None, alias="proposedAt")
 

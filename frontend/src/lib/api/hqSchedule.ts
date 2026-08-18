@@ -12,6 +12,8 @@ export interface HqScheduleProposalSummary {
   complaintNumber: string;
   owningUnitId?: string | null;
   unitCode: string;
+  /** Case(s) tracking this complaint's escalation — empty for pending proposals. */
+  caseNumbers: string[];
   proposedBy?: string | null;
   proposedAt?: string | null;
 }
