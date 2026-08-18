@@ -3,18 +3,9 @@ import type {
   BranchCount,
   CycleTimeSummary,
   DataResponse,
-  ReportSummary,
-  StatusCount,
 } from "./types";
 
-export function fetchReportSummary(): Promise<DataResponse<ReportSummary>> {
-  return apiRequest<DataResponse<ReportSummary>>("/api/v1/reports/summary");
-}
-
-export function fetchReportByStatus(): Promise<DataResponse<StatusCount[]>> {
-  return apiRequest<DataResponse<StatusCount[]>>("/api/v1/reports/by-status");
-}
-
+/** GET /api/v1/reports/by-branch — used by dashboard Kesehatan Cabang (API-212). */
 export function fetchReportByBranch(
   options: { dateFrom?: string; dateTo?: string } = {},
 ): Promise<DataResponse<BranchCount[]>> {
