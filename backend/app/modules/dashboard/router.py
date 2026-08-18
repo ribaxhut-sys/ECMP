@@ -105,6 +105,8 @@ def get_dashboard_aggregate_kpis(
     ],
     session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
+    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[DashboardAggregateKpiResponse]:
     """Branch-scoped Aggregate KPI for dashboard cards and reports (one SoT).
 
@@ -116,7 +118,11 @@ def get_dashboard_aggregate_kpis(
     recent-activity (UM-BUG-009).
     """
     branch_id = _effective_branch_id(session, principal, branch_id)
-    return DataResponse(data=service.aggregate_kpis(branch_id=branch_id))
+    return DataResponse(
+        data=service.aggregate_kpis(
+            branch_id=branch_id, date_from=date_from, date_to=date_to
+        )
+    )
 
 
 @router.get(

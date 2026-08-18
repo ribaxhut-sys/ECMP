@@ -303,3 +303,44 @@ class ReportRepository:
             )
         result.sort(key=lambda row: (row[3], row[7]), reverse=True)
         return result
+
+    def closed_case_durations_days(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> list[float]:
+        """Days between Case creation and closure, for closed cases only.
+
+        The window filters on ``closed_at`` (not ``created_at``): a cycle-time
+        report answers "what did we finish this period", so a case opened in
+        June and closed in August belongs to August.
+        """
+        from app.modules.cm_case.infrastructure.orm import CmCaseORM
+
+        filters: list[object] = [
+            CmCaseORM.status == CLOSED_STATUS,
+            CmCaseORM.closed_at.is_not(None),
+        ]
+        if branch_id is not None:
+            unit = owning_unit_for_branch(self._session, branch_id)
+            if not unit:
+                return []
+            filters.append(CmCaseORM.owning_unit_id == unit)
+        if date_from is not None:
+            filters.append(CmCaseORM.closed_at >= date_from)
+        if date_to is not None:
+            filters.append(CmCaseORM.closed_at <= date_to)
+
+        rows = self._session.execute(
+            select(CmCaseORM.created_at, CmCaseORM.closed_at).where(*filters)
+        ).all()
+        durations: list[float] = []
+        for created_at, closed_at in rows:
+            if created_at is None or closed_at is None:
+                continue
+            seconds = (closed_at - created_at).total_seconds()
+            # Clock skew or a backdated close must not produce a negative age.
+            durations.append(max(0.0, seconds) / 86400.0)
+        return durations

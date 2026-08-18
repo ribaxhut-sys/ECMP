@@ -16,6 +16,7 @@ pattern). Creator ``User.branch_id`` is no longer used for complaint KPI/activit
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, or_, select
@@ -218,13 +219,26 @@ class CmBatch1ActivityDashboardProvider:
         return out
 
     def complaint_kpis(
-        self, *, branch_id: uuid.UUID | None = None
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> DashboardAggregateKpiResponse:
         """COUNT Aggregate complaints, optionally locked to one branch unit.
 
         Scope = ``owning_unit_id`` equal to ``Branch.code`` for ``branch_id``.
         Matches Aggregate list UNIT visibility (not creator membership).
+
+        ``date_from``/``date_to`` narrow the same counts to a registration
+        window (``created_at``) so /reports can report per period while still
+        reading the one Aggregate SoT the dashboard reads (DEC-026).
         """
+        window: list[Any] = []
+        if date_from is not None:
+            window.append(CmBatch1ComplaintORM.created_at >= date_from)
+        if date_to is not None:
+            window.append(CmBatch1ComplaintORM.created_at <= date_to)
         owning_unit: str | None
         if branch_id is None:
             owning_unit = None  # unrestricted
@@ -241,16 +255,17 @@ class CmBatch1ActivityDashboardProvider:
                     inProgress=0,
                 )
 
-        total = self._count_complaints(owning_unit)
+        total = self._count_complaints(owning_unit, *window)
         # Open = not CLOSED (DEC-025 M-025-1 / predicates.is_open), matching
         # KPI/dashboard summary — an out-of-set stored status stays open here
         # too, so open+closed=total.
         open_count = self._count_complaints(
             owning_unit,
             CmBatch1ComplaintORM.status != CLOSED_STATUS,
+            *window,
         )
         closed = self._count_complaints(
-            owning_unit, CmBatch1ComplaintORM.status == CLOSED_STATUS
+            owning_unit, CmBatch1ComplaintORM.status == CLOSED_STATUS, *window
         )
         # Donut slices are mutually exclusive and sum to total: REGISTERED
         # unescalated / pending / approved + IN_PROGRESS + CLOSED.
@@ -258,6 +273,7 @@ class CmBatch1ActivityDashboardProvider:
             owning_unit,
             CmBatch1ComplaintORM.status == "REGISTERED",
             CmBatch1ComplaintORM.intake_disposition == "ESCALATE_PENDING_APPROVAL",
+            *window,
         )
         # REGISTERED but not held in an escalation path — not "Baru" if
         # already ESCALATE_APPROVED (that is a different operational state).
@@ -273,14 +289,16 @@ class CmBatch1ActivityDashboardProvider:
                     )
                 ),
             ),
+            *window,
         )
         escalate_approved = self._count_complaints(
             owning_unit,
             CmBatch1ComplaintORM.status == "REGISTERED",
             CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+            *window,
         )
         in_progress = self._count_complaints(
-            owning_unit, CmBatch1ComplaintORM.status == "IN_PROGRESS"
+            owning_unit, CmBatch1ComplaintORM.status == "IN_PROGRESS", *window
         )
         return DashboardAggregateKpiResponse(
             total=total,

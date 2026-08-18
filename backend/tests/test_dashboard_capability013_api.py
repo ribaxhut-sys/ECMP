@@ -250,7 +250,9 @@ def test_aggregate_kpis_branch_scoped_principal_locked_to_own_branch() -> None:
         branch_id=other_branch,
     )
 
-    svc.aggregate_kpis.assert_called_once_with(branch_id=own_branch)
+    svc.aggregate_kpis.assert_called_once_with(
+        branch_id=own_branch, date_from=None, date_to=None
+    )
 
 
 def test_aggregate_kpis_head_office_defaults_to_all_branches() -> None:
@@ -266,7 +268,35 @@ def test_aggregate_kpis_head_office_defaults_to_all_branches() -> None:
         service=svc, principal=principal, session=session, branch_id=None
     )
 
-    svc.aggregate_kpis.assert_called_once_with(branch_id=None)
+    svc.aggregate_kpis.assert_called_once_with(
+        branch_id=None, date_from=None, date_to=None
+    )
+
+
+def test_aggregate_kpis_forwards_period_window() -> None:
+    """/reports sends a period; the router passes it through untouched."""
+    svc = MagicMock()
+    svc.aggregate_kpis.return_value = DashboardAggregateKpiResponse(
+        total=0, open=0, closed=0, escalatePending=0
+    )
+    principal = Principal(user_id=uuid.uuid4(), roles=("ADMIN",))
+    session = MagicMock()
+    session.scalar.return_value = None
+    date_from = datetime(2026, 8, 1, tzinfo=UTC)
+    date_to = datetime(2026, 8, 31, tzinfo=UTC)
+
+    get_dashboard_aggregate_kpis(
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=None,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    svc.aggregate_kpis.assert_called_once_with(
+        branch_id=None, date_from=date_from, date_to=date_to
+    )
 
 
 def test_overview_router_handler() -> None:

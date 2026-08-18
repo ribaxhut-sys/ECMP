@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import type { BranchCount, StatusCount } from "@/lib/api/types";
+import type { StatusCount } from "@/lib/api/types";
 import {
   Card,
   CardBody,
@@ -12,10 +12,7 @@ import {
   SectionHeader,
   Skeleton,
 } from "@/shared/ui";
-import {
-  highestQueueBranch,
-  resolutionBuckets,
-} from "./reportSummaryStats";
+import { resolutionBuckets } from "./reportSummaryStats";
 
 function InsightTile({
   title,
@@ -61,17 +58,14 @@ function InsightTile({
 
 export function InsightsPanel({
   byStatus,
-  byBranch,
   loading,
 }: {
   byStatus: StatusCount[] | null;
-  byBranch: BranchCount[] | null;
   loading: boolean;
 }) {
   const t = useTranslations("reports");
 
   const buckets = useMemo(() => resolutionBuckets(byStatus), [byStatus]);
-  const topQueue = useMemo(() => highestQueueBranch(byBranch), [byBranch]);
 
   const topRisk =
     buckets && buckets.escalated > 0
@@ -86,13 +80,6 @@ export function InsightsPanel({
           }
         : null;
 
-  const queueInsight = topQueue
-    ? {
-        value: topQueue.branchName?.trim() || t("unknownBranch"),
-        caption: t("highestQueueCaption", { count: topQueue.total }),
-      }
-    : null;
-
   return (
     <section
       className="space-y-[var(--ecmp-panel-gap)]"
@@ -105,20 +92,13 @@ export function InsightsPanel({
       {loading ? (
         <Skeleton rows={3} />
       ) : (
-        <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)]">
           <InsightTile
             title={t("topOperationalRisk")}
             value={topRisk?.value}
             caption={topRisk?.caption}
             emptyTitle={t("insightUnavailable")}
             emptyDescription={t("topRiskUnavailable")}
-          />
-          <InsightTile
-            title={t("highestQueue")}
-            value={queueInsight?.value}
-            caption={queueInsight?.caption}
-            emptyTitle={t("insightUnavailable")}
-            emptyDescription={t("highestQueueUnavailable")}
           />
         </div>
       )}

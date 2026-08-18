@@ -22,10 +22,12 @@ export function fetchDashboardSummary(): Promise<
  * are locked server-side to their own branch.
  */
 export function fetchDashboardAggregateKpis(
-  options: { branchId?: string } = {},
+  options: { branchId?: string; dateFrom?: string; dateTo?: string } = {},
 ): Promise<DataResponse<DashboardAggregateKpis>> {
   const params = new URLSearchParams();
   if (options.branchId) params.set("branchId", options.branchId);
+  if (options.dateFrom) params.set("dateFrom", options.dateFrom);
+  if (options.dateTo) params.set("dateTo", options.dateTo);
   const qs = params.toString();
   return apiRequest<DataResponse<DashboardAggregateKpis>>(
     `/api/v1/dashboard/aggregate-kpis${qs ? `?${qs}` : ""}`,

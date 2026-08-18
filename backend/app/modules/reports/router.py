@@ -13,7 +13,12 @@ from app.core.auth import Principal, require_permissions
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.reports.repository import ReportRepository
-from app.modules.reports.schemas import BranchCount, ReportSummaryData, StatusCount
+from app.modules.reports.schemas import (
+    BranchCount,
+    CycleTimeData,
+    ReportSummaryData,
+    StatusCount,
+)
 from app.modules.reports.service import ReportService
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
@@ -83,6 +88,27 @@ def get_report_by_branch(
     _ = principal
     return DataResponse(
         data=service.by_branch(
+            branch_id=branch_id, date_from=date_from, date_to=date_to
+        )
+    )
+
+
+@router.get(
+    "/cycle-time",
+    response_model=DataResponse[CycleTimeData],
+    status_code=status.HTTP_200_OK,
+    summary="How long closed cases took, over the closure window",
+)
+def get_report_cycle_time(
+    service: Annotated[ReportService, Depends(get_report_service)],
+    principal: Annotated[Principal, Depends(require_permissions("reports:read"))],
+    branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
+    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
+) -> DataResponse[CycleTimeData]:
+    _ = principal
+    return DataResponse(
+        data=service.cycle_time(
             branch_id=branch_id, date_from=date_from, date_to=date_to
         )
     )

@@ -18,6 +18,9 @@ from app.modules.dashboard.domain.dto import (
     TrendBucket,
     TrendPeriod,
 )
+from app.modules.dashboard.providers.cm_batch1_activity_provider import (
+    CmBatch1ActivityDashboardProvider,
+)
 from app.modules.dashboard.providers.complaint_provider import (
     ComplaintDashboardProvider,
 )
@@ -26,6 +29,7 @@ from app.modules.dashboard.providers.notification_provider import (
 )
 from app.modules.dashboard.providers.queue_provider import QueueDashboardProvider
 from app.modules.dashboard.providers.sla_provider import SlaDashboardProvider
+from app.modules.dashboard.schemas import DashboardAggregateKpiResponse
 from app.modules.dashboard.service import DashboardService, _pct
 
 
@@ -35,6 +39,7 @@ def _svc(
     queue: MagicMock | None = None,
     sla: MagicMock | None = None,
     notification: MagicMock | None = None,
+    activity: MagicMock | None = None,
 ) -> DashboardService:
     return DashboardService(
         complaint_provider=complaint or MagicMock(spec=ComplaintDashboardProvider),
@@ -42,6 +47,7 @@ def _svc(
         sla_provider=sla or MagicMock(spec=SlaDashboardProvider),
         notification_provider=notification
         or MagicMock(spec=NotificationDashboardProvider),
+        activity_provider=activity,
     )
 
 
@@ -125,6 +131,38 @@ def test_kpi_formulas() -> None:
     assert result.escalation_rate == 20.0
     assert result.average_resolution_time == 3600.0
     assert result.average_queue_waiting_time == 90.0
+
+
+def test_aggregate_kpis_forwards_period_window_normalized_to_utc() -> None:
+    """/reports may narrow the Aggregate KPI to a period (same SoT, one window)."""
+    activity = MagicMock(spec=CmBatch1ActivityDashboardProvider)
+    activity.complaint_kpis.return_value = DashboardAggregateKpiResponse(
+        total=3, open=2, closed=1, escalatePending=0
+    )
+    svc = _svc(activity=activity)
+
+    result = svc.aggregate_kpis(
+        date_from=datetime(2026, 8, 1),  # naive — service normalizes to UTC
+        date_to=datetime(2026, 8, 31, tzinfo=UTC),
+    )
+
+    assert result.total == 3
+    activity.complaint_kpis.assert_called_once_with(
+        branch_id=None,
+        date_from=datetime(2026, 8, 1, tzinfo=UTC),
+        date_to=datetime(2026, 8, 31, tzinfo=UTC),
+    )
+
+
+def test_aggregate_kpis_invalid_period_raises() -> None:
+    activity = MagicMock(spec=CmBatch1ActivityDashboardProvider)
+    svc = _svc(activity=activity)
+    with pytest.raises(ValidationAppError):
+        svc.aggregate_kpis(
+            date_from=datetime(2026, 8, 31, tzinfo=UTC),
+            date_to=datetime(2026, 8, 1, tzinfo=UTC),
+        )
+    activity.complaint_kpis.assert_not_called()
 
 
 def test_invalid_date_range_raises() -> None:

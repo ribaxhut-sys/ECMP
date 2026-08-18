@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  branchPerformanceRows,
   escalationTotal,
-  highestQueueBranch,
   operationalHealthFromRate,
   reportHeadlineCounts,
   resolutionBuckets,
@@ -88,76 +86,6 @@ describe("escalationTotal", () => {
   });
 });
 
-describe("branchPerformanceRows", () => {
-  it("ranks top / middle / lowest by volume", () => {
-    const rows = branchPerformanceRows([
-      {
-        branchId: "b1",
-        branchCode: "JKT",
-        branchName: "Jakarta",
-        unitCode: null,
-        escalated: 0,
-        total: 10,
-        open: 0,
-        closed: 10,
-        caseTotal: 10,
-        caseOpen: 0,
-        caseClosed: 10,
-      },
-      {
-        branchId: "b2",
-        branchCode: "BDG",
-        branchName: "Bandung",
-        unitCode: null,
-        escalated: 0,
-        total: 7,
-        open: 0,
-        closed: 7,
-        caseTotal: 7,
-        caseOpen: 0,
-        caseClosed: 7,
-      },
-      {
-        branchId: "b3",
-        branchCode: "SBY",
-        branchName: "Surabaya",
-        unitCode: null,
-        escalated: 0,
-        total: 4,
-        open: 0,
-        closed: 4,
-        caseTotal: 4,
-        caseOpen: 0,
-        caseClosed: 4,
-      },
-    ]);
-
-    expect(rows).toEqual([
-      {
-        key: "b1",
-        name: "Jakarta",
-        total: 10,
-        share: 100,
-        rank: "top",
-      },
-      {
-        key: "b2",
-        name: "Bandung",
-        total: 7,
-        share: 70,
-        rank: "middle",
-      },
-      {
-        key: "b3",
-        name: "Surabaya",
-        total: 4,
-        share: 40,
-        rank: "lowest",
-      },
-    ]);
-  });
-});
-
 describe("operationalHealthFromRate", () => {
   it("maps thresholds", () => {
     expect(operationalHealthFromRate(null)).toBeNull();
@@ -167,37 +95,3 @@ describe("operationalHealthFromRate", () => {
   });
 });
 
-describe("highestQueueBranch", () => {
-  it("returns the busiest branch", () => {
-    expect(
-      highestQueueBranch([
-        {
-          branchId: "b1",
-          branchCode: "JKT",
-          branchName: "Jakarta",
-          unitCode: null,
-          escalated: 0,
-          total: 3,
-          open: 1,
-          closed: 2,
-          caseTotal: 3,
-          caseOpen: 1,
-          caseClosed: 2,
-        },
-        {
-          branchId: "b2",
-          branchCode: "BDG",
-          branchName: "Bandung",
-          unitCode: null,
-          escalated: 0,
-          total: 9,
-          open: 2,
-          closed: 7,
-          caseTotal: 9,
-          caseOpen: 2,
-          caseClosed: 7,
-        },
-      ])?.branchName,
-    ).toBe("Bandung");
-  });
-});

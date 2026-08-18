@@ -269,6 +269,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-212 | GET /api/v1/reports/by-branch | Counts by branch (pengaduan + case; urut % selesai; semua unit) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-545 | GET /api/v1/reports/cycle-time | Umur penyelesaian kasus tertutup (rata-rata/median/p90 + sebaran; window pada `closedAt`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-213 | POST /api/v1/users | Create user (unique username/email/initials; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
 | API-214 | GET /api/v1/users | List users (paginated) | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-215 | GET /api/v1/users/{id} | Get user by id | bearerAuth, permission `users:read` | 🟢 Implemented |
@@ -284,6 +285,14 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-413 | POST /api/v1/users/{id}/reset-password | Admin/supervisor reset + force change | bearerAuth, permission `users:reset_password` | 🟢 Implemented |
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+
+> **2026-08-18 (Laporan periode + umur penyelesaian):** complaint-service —
+> API-545 `GET /api/v1/reports/cycle-time` (rata-rata/median/p90 + sebaran umur
+> kasus tertutup; window difilter pada `closedAt`, bukan `createdAt`).
+> `GET /api/v1/dashboard/aggregate-kpis` menerima `dateFrom`/`dateTo` sehingga
+> `/reports` bisa melaporkan per periode dari SoT Aggregate yang sama (DEC-026).
+> Tidak ada perubahan perilaku domain; panel "Performa Cabang" di `/reports`
+> dihapus (duplikat Kesehatan Cabang di dasbor) — API-212 tetap utuh.
 
 > **2026-07-24 (CAPABILITY-008 Complaint SLA Foundation):**
 > complaint-domain-service v1.4 — API-409…412 start/complete/recalculate/get SLA.

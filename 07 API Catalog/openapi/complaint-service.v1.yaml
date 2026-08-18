@@ -1944,6 +1944,9 @@ paths:
         Branch-scoped principals are locked to their own branch via
         `_effective_branch_id` (same convention as recent-activity / UM-BUG-009).
         Head Office (no own branch) may pass `branchId` or omit for all branches.
+        Optional `dateFrom`/`dateTo` narrow every count to a registration window
+        (`created_at`), so /reports can report per period from this same SoT
+        (DEC-026). Omitted = all time, which is what the dashboard sends.
       parameters:
         - name: branchId
           in: query
@@ -1952,6 +1955,8 @@ paths:
             type: string
             format: uuid
           description: Optional branch filter (ignored / overridden for branch-scoped principals).
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
       responses:
         "200":
           description: Aggregate complaint KPI counts
@@ -3619,6 +3624,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BranchCountListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/cycle-time:
+    get:
+      summary: Cycle time of closed cases
+      operationId: getReportCycleTime
+      x-ear-id: API-545
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        How long closed CM cases took, measured from case `createdAt` to
+        `closedAt` and reported in days (average, median, p90, fastest,
+        slowest) plus an age-band distribution.
+        The `dateFrom`/`dateTo` window filters on **closure** date, not
+        creation: a case opened in June and closed in August belongs to
+        August. Complaints carry no `closedAt`, so cycle time is measured on
+        Cases — the unit that records closure time.
+        An empty window returns `closedCases: 0` with zeroed buckets, not 404.
+        Requires permission `reports:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Cycle time summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleTimeDataResponse"
+              example:
+                data:
+                  closedCases: 10
+                  averageDays: 4.1
+                  medianDays: 4.0
+                  p90Days: 7.4
+                  fastestDays: 0.5
+                  slowestDays: 9.0
+                  buckets:
+                    - { key: sameDay, count: 2 }
+                    - { key: upTo3Days, count: 3 }
+                    - { key: upTo7Days, count: 4 }
+                    - { key: over7Days, count: 1 }
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -5886,6 +5941,35 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/StatusCount" }
+    CycleTimeBucket:
+      type: object
+      required: [key, count]
+      properties:
+        key:
+          type: string
+          description: Age band — sameDay (<1d), upTo3Days, upTo7Days, over7Days
+        count: { type: integer, minimum: 0 }
+    CycleTime:
+      type: object
+      required: [closedCases, buckets]
+      properties:
+        closedCases:
+          type: integer
+          minimum: 0
+          description: Cases closed inside the window (basis of every figure below)
+        averageDays: { type: number, nullable: true }
+        medianDays: { type: number, nullable: true }
+        p90Days: { type: number, nullable: true }
+        fastestDays: { type: number, nullable: true }
+        slowestDays: { type: number, nullable: true }
+        buckets:
+          type: array
+          items: { $ref: "#/components/schemas/CycleTimeBucket" }
+    CycleTimeDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/CycleTime" }
     BranchCountListDataResponse:
       type: object
       required: [data]

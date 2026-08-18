@@ -98,3 +98,56 @@ def test_count_by_branch_keeps_idle_active_branches() -> None:
     assert rows[0][3] == 12
     gambir = next(row for row in rows if row[1] == "UPPPD-GAMBIR")
     assert gambir[3:] == (0, 0, 0, 0, 0, 0, 0)
+
+
+def test_cycle_time_summarizes_closed_case_durations() -> None:
+    """Average, median, p90 and the age-band distribution over closed cases."""
+    repo = MagicMock()
+    repo.closed_case_durations_days.return_value = [0.5, 2.0, 5.0, 9.0, 4.0]
+
+    result = ReportService(repo).cycle_time()
+
+    assert result.closed_cases == 5
+    assert result.average_days == 4.1
+    assert result.median_days == 4.0
+    assert result.p90_days == 7.4
+    assert result.fastest_days == 0.5
+    assert result.slowest_days == 9.0
+    assert {b.key: b.count for b in result.buckets} == {
+        "sameDay": 1,
+        "upTo3Days": 1,
+        "upTo7Days": 2,
+        "over7Days": 1,
+    }
+
+
+def test_cycle_time_empty_window_reports_zero_not_none_buckets() -> None:
+    repo = MagicMock()
+    repo.closed_case_durations_days.return_value = []
+
+    result = ReportService(repo).cycle_time()
+
+    assert result.closed_cases == 0
+    assert result.average_days is None
+    assert [b.count for b in result.buckets] == [0, 0, 0, 0]
+
+
+def test_cycle_time_rejects_inverted_window() -> None:
+    repo = MagicMock()
+    with pytest.raises(ValidationAppError):
+        ReportService(repo).cycle_time(
+            date_from=datetime(2026, 8, 31, tzinfo=UTC),
+            date_to=datetime(2026, 8, 1, tzinfo=UTC),
+        )
+    repo.closed_case_durations_days.assert_not_called()
+
+
+def test_cycle_time_forwards_normalized_window_to_repository() -> None:
+    repo = MagicMock()
+    repo.closed_case_durations_days.return_value = []
+
+    ReportService(repo).cycle_time(date_from=datetime(2026, 8, 1))
+
+    repo.closed_case_durations_days.assert_called_once_with(
+        branch_id=None, date_from=datetime(2026, 8, 1, tzinfo=UTC), date_to=None
+    )

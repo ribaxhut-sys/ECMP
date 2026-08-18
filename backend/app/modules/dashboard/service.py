@@ -120,12 +120,25 @@ class DashboardService:
         return self._activity.list_recent(limit=limit, branch_id=branch_id)
 
     def aggregate_kpis(
-        self, *, branch_id: uuid.UUID | None = None
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> DashboardAggregateKpiResponse:
-        """DEC-020 Aggregate complaint KPI counts (branch-lockable via router)."""
+        """DEC-020 Aggregate complaint KPI counts (branch-lockable via router).
+
+        An optional ``date_from``/``date_to`` window lets /reports read the
+        same SoT per period; the dashboard keeps calling it without one.
+        """
         if self._activity is None:
             raise RuntimeError("Dashboard aggregate_kpis requires Activity wiring")
-        return self._activity.complaint_kpis(branch_id=branch_id)
+        f = _validate_filters(
+            DashboardFilters(branch_id=branch_id, date_from=date_from, date_to=date_to)
+        )
+        return self._activity.complaint_kpis(
+            branch_id=branch_id, date_from=f.date_from, date_to=f.date_to
+        )
 
     def queue(
         self, filters: DashboardFilters | None = None

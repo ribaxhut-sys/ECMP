@@ -10,12 +10,29 @@ import {
   ErrorState,
   PageContainer,
   PageHeader,
+  Select,
 } from "@/shared/ui";
-import { BranchPerformancePanel } from "./BranchPerformancePanel";
+import { cycleTimeBucketRows } from "./cycleTimeStats";
+import { CycleTimePanel } from "./CycleTimePanel";
 import { InsightsPanel } from "./InsightsPanel";
 import { OperationalHealthPanel } from "./OperationalHealthPanel";
+import {
+  buildReportCsv,
+  downloadCsv,
+  reportCsvFilename,
+} from "./reportCsv";
 import { ReportSummaryCards } from "./ReportSummaryCards";
 import { ResolutionEffectivenessPanel } from "./ResolutionEffectivenessPanel";
+import {
+  REPORT_PERIOD_KEYS,
+  REPORT_PERIOD_LABEL_KEY,
+  type ReportPeriodKey,
+} from "./reportPeriods";
+import {
+  reportHeadlineCounts,
+  resolutionBuckets,
+  resolutionRatePercent,
+} from "./reportSummaryStats";
 import { useReportsData } from "./useReportsData";
 
 export function ReportsWorkspace() {
@@ -24,24 +41,90 @@ export function ReportsWorkspace() {
   const t = useTranslations("reports");
   const tCommon = useTranslations("common");
   const canRead = hasPermission("reports:read") || hasPermission("*");
-  const { state, reload } = useReportsData();
+  const { state, reload, period, setPeriod } = useReportsData();
   const loading = state.status === "loading" || state.status === "idle";
   const data = state.status === "success" ? state.data : null;
 
   useEffect(() => {
     if (!canRead) return;
-    void reload();
-  }, [canRead, reload]);
+    void reload(period);
+  }, [canRead, reload, period]);
 
-  const refreshAction = (
-    <Button
-      variant="outline"
-      onClick={() => void reload()}
-      disabled={loading}
-      className="min-h-[var(--ecmp-touch-min)]"
-    >
-      {loading ? tCommon("refreshing") : t("refreshReport")}
-    </Button>
+  const exportCsv = () => {
+    if (!data) return;
+    const headlines = reportHeadlineCounts(data.summary);
+    const buckets = resolutionBuckets(data.byStatus);
+    const rate = resolutionRatePercent(headlines);
+    const rows: (string | number)[][] = [
+      [t("title"), t(REPORT_PERIOD_LABEL_KEY[period])],
+      [t("csvGeneratedAt"), new Date().toISOString()],
+      [],
+      [t("csvMetric"), t("csvCount")],
+      [t("totalComplaints"), headlines?.total ?? 0],
+      [t("openComplaints"), headlines?.open ?? 0],
+      [t("closedComplaints"), headlines?.closed ?? 0],
+      [t("resolutionRate"), rate == null ? "" : `${rate}%`],
+    ];
+    if (data.cycleTime && data.cycleTime.closedCases > 0) {
+      const cycle = data.cycleTime;
+      rows.push(
+        [],
+        [t("cycleTime"), t("csvCount")],
+        [t("cycleTimeClosedCases"), cycle.closedCases],
+        [t("cycleTimeMedian"), cycle.medianDays ?? ""],
+        [t("cycleTimeAverage"), cycle.averageDays ?? ""],
+        [t("cycleTimeP90"), cycle.p90Days ?? ""],
+      );
+      for (const row of cycleTimeBucketRows(cycle)) {
+        rows.push([t(row.labelKey), row.count]);
+      }
+    }
+    if (buckets) {
+      rows.push(
+        [],
+        [t("resolutionEffectiveness"), t("csvCount")],
+        [t("resolved"), buckets.resolved],
+        [t("inProgress"), buckets.inProgress],
+        [t("waiting"), buckets.waiting],
+        [t("escalated"), buckets.escalated],
+        [t("escalationApproved"), buckets.escalationApproved],
+      );
+    }
+    downloadCsv(reportCsvFilename(period), buildReportCsv(rows));
+  };
+
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="w-[12rem]">
+        <Select
+          name="reportPeriod"
+          aria-label={t("periodLabel")}
+          value={period}
+          disabled={loading}
+          onChange={(e) => setPeriod(e.target.value as ReportPeriodKey)}
+          options={REPORT_PERIOD_KEYS.map((key) => ({
+            value: key,
+            label: t(REPORT_PERIOD_LABEL_KEY[key]),
+          }))}
+        />
+      </div>
+      <Button
+        variant="outline"
+        onClick={exportCsv}
+        disabled={loading || !data}
+        className="min-h-[var(--ecmp-touch-min)]"
+      >
+        {t("exportCsv")}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => void reload(period)}
+        disabled={loading}
+        className="min-h-[var(--ecmp-touch-min)]"
+      >
+        {loading ? tCommon("refreshing") : t("refreshReport")}
+      </Button>
+    </div>
   );
 
   if (!canRead) {
@@ -77,8 +160,7 @@ export function ReportsWorkspace() {
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
         ]}
-        description={t("singleSourceDescription")}
-        actions={refreshAction}
+        actions={headerActions}
       />
 
       {state.status === "error" ? (
@@ -86,7 +168,7 @@ export function ReportsWorkspace() {
           title={t("unableToLoad")}
           message={state.error}
           actionLabel={t("refreshReport")}
-          onRetry={() => void reload()}
+          onRetry={() => void reload(period)}
         />
       ) : (
         <div className="flex flex-col gap-[var(--ecmp-section-gap)]">
@@ -95,13 +177,13 @@ export function ReportsWorkspace() {
             loading={loading}
           />
 
-          <BranchPerformancePanel
-            rows={data?.byBranch ?? null}
+          <ResolutionEffectivenessPanel
+            rows={data?.byStatus ?? data?.summary?.byStatus ?? null}
             loading={loading}
           />
 
-          <ResolutionEffectivenessPanel
-            rows={data?.byStatus ?? data?.summary?.byStatus ?? null}
+          <CycleTimePanel
+            summary={data?.cycleTime ?? null}
             loading={loading}
           />
 
@@ -112,7 +194,6 @@ export function ReportsWorkspace() {
 
           <InsightsPanel
             byStatus={data?.byStatus ?? data?.summary?.byStatus ?? null}
-            byBranch={data?.byBranch ?? null}
             loading={loading}
           />
         </div>

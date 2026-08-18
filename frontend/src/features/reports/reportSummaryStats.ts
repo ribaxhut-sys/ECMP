@@ -1,4 +1,4 @@
-import type { BranchCount, ReportSummary, StatusCount } from "@/lib/api/types";
+import type { ReportSummary, StatusCount } from "@/lib/api/types";
 import type { ProgressMeterTone } from "@/shared/ui";
 
 export type ReportHeadlineCounts = {
@@ -21,14 +21,6 @@ export type ResolutionBuckets = {
   /** ASSIGNED — escalation approved, on its way to Pusat. */
   escalationApproved: number;
   inProgress: number;
-};
-
-export type BranchPerformanceRow = {
-  key: string;
-  name: string;
-  total: number;
-  share: number;
-  rank: "top" | "middle" | "lowest";
 };
 
 export type OperationalHealth = {
@@ -89,31 +81,6 @@ export function escalationTotal(
   return buckets.escalated + buckets.escalationApproved;
 }
 
-/** Rank branches for horizontal performance bars (CSS-only). */
-export function branchPerformanceRows(
-  rows: BranchCount[] | null | undefined,
-): BranchPerformanceRow[] | null {
-  if (!rows || rows.length === 0) return null;
-
-  const sorted = [...rows].sort((a, b) => b.total - a.total);
-  const max = Math.max(...sorted.map((row) => row.total), 1);
-  const last = sorted.length - 1;
-
-  return sorted.map((row, index) => {
-    let rank: BranchPerformanceRow["rank"] = "middle";
-    if (index === 0) rank = "top";
-    else if (index === last) rank = "lowest";
-
-    return {
-      key: row.branchId ?? row.branchCode ?? `branch-${index}`,
-      name: row.branchName?.trim() || row.branchCode?.trim() || "—",
-      total: row.total,
-      share: Math.round((row.total / max) * 100),
-      rank,
-    };
-  });
-}
-
 /** Operational health from resolution rate (higher closure = healthier). */
 export function operationalHealthFromRate(
   rate: number | null | undefined,
@@ -126,14 +93,6 @@ export function operationalHealthFromRate(
     return { score: rate, tone: "attention", labelKey: "attention" };
   }
   return { score: rate, tone: "critical", labelKey: "critical" };
-}
-
-/** Highest-volume branch — factual queue proxy, not quality ranking. */
-export function highestQueueBranch(
-  rows: BranchCount[] | null | undefined,
-): BranchCount | null {
-  if (!rows || rows.length === 0) return null;
-  return [...rows].sort((a, b) => b.total - a.total)[0] ?? null;
 }
 
 function countOpen(rows: StatusCount[]): number {

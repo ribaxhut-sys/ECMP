@@ -3,18 +3,20 @@ import { loadReportsData } from "./loadReportsData";
 
 vi.mock("@/lib/api", () => ({
   fetchDashboardAggregateKpis: vi.fn(),
-  fetchReportByBranch: vi.fn(),
+  fetchReportCycleTime: vi.fn(),
 }));
 
-import { fetchDashboardAggregateKpis, fetchReportByBranch } from "@/lib/api";
+import { fetchDashboardAggregateKpis, fetchReportCycleTime } from "@/lib/api";
 
 const aggregateMock = vi.mocked(fetchDashboardAggregateKpis);
-const byBranchMock = vi.mocked(fetchReportByBranch);
+const cycleTimeMock = vi.mocked(fetchReportCycleTime);
 
 describe("loadReportsData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    byBranchMock.mockResolvedValue({ data: [] } as never);
+    cycleTimeMock.mockResolvedValue({
+      data: { closedCases: 0, buckets: [] },
+    } as never);
   });
 
   it("maps Batch-1 Aggregate KPI into report summary (same SoT as dashboard)", async () => {
@@ -43,96 +45,39 @@ describe("loadReportsData", () => {
     expect(data.byStatus?.reduce((sum, row) => sum + row.count, 0)).toBe(16);
   });
 
-  it("throws when Aggregate KPI fails (no foundation fallback)", async () => {
-    const boom = new Error("aggregate down");
-    aggregateMock.mockRejectedValue(boom);
-    byBranchMock.mockResolvedValue({ data: [] } as never);
-    await expect(loadReportsData()).rejects.toThrow("aggregate down");
-  });
-
-  it("returns null branch rows when there are none (API-212 side panel)", async () => {
+  it("forwards the selected period window to the Aggregate KPI", async () => {
     aggregateMock.mockResolvedValue({
       data: { total: 0, open: 0, closed: 0, escalatePending: 0 },
     } as never);
-    byBranchMock.mockResolvedValue({ data: [] } as never);
 
-    const data = await loadReportsData();
-    expect(data.byBranch).toBeNull();
+    await loadReportsData({
+      dateFrom: "2026-08-01T00:00:00.000Z",
+      dateTo: "2026-08-31T23:59:59.999Z",
+    });
+
+    expect(aggregateMock).toHaveBeenCalledWith({
+      dateFrom: "2026-08-01T00:00:00.000Z",
+      dateTo: "2026-08-31T23:59:59.999Z",
+    });
+    expect(cycleTimeMock).toHaveBeenCalledWith({
+      dateFrom: "2026-08-01T00:00:00.000Z",
+      dateTo: "2026-08-31T23:59:59.999Z",
+    });
   });
 
-  it("passes through branch rows when API-212 returns data", async () => {
+  it("degrades to no cycle time instead of failing the page", async () => {
     aggregateMock.mockResolvedValue({
       data: { total: 1, open: 1, closed: 0, escalatePending: 0 },
     } as never);
-    byBranchMock.mockResolvedValue({
-      data: [
-        {
-          branchId: "b1",
-          branchCode: "JKT",
-          branchName: "Jakarta",
-          total: 1,
-          open: 1,
-          closed: 0,
-          caseTotal: 0,
-          caseOpen: 0,
-          caseClosed: 0,
-        },
-      ],
-    } as never);
-
-    const data = await loadReportsData();
-    expect(data.byBranch).toHaveLength(1);
-    expect(data.byBranch?.[0]?.branchName).toBe("Jakarta");
-  });
-
-  it("keeps idle branch rows so Kesehatan Cabang can show the full unit set", async () => {
-    aggregateMock.mockResolvedValue({
-      data: { total: 12, open: 7, closed: 5, escalatePending: 2 },
-    } as never);
-    byBranchMock.mockResolvedValue({
-      data: [
-        {
-          branchId: "idle",
-          branchCode: "UPPPD-GAMBIR",
-          branchName: "UPPPD Gambir",
-          unitCode: "GAM",
-          total: 0,
-          open: 0,
-          closed: 0,
-          escalated: 0,
-          caseTotal: 0,
-          caseOpen: 0,
-          caseClosed: 0,
-        },
-        {
-          branchId: "tab",
-          branchCode: "UPPPD-TANAH-ABANG",
-          branchName: "UPPPD Tanah Abang",
-          unitCode: "TAB",
-          total: 12,
-          open: 7,
-          closed: 5,
-          escalated: 2,
-          caseTotal: 15,
-          caseOpen: 10,
-          caseClosed: 5,
-        },
-      ],
-    } as never);
-
-    const data = await loadReportsData();
-    expect(data.byBranch).toHaveLength(2);
-    expect(data.byBranch?.map((row) => row.unitCode)).toEqual(["GAM", "TAB"]);
-  });
-
-  it("degrades to null branch rows without failing the page when API-212 errors", async () => {
-    aggregateMock.mockResolvedValue({
-      data: { total: 1, open: 1, closed: 0, escalatePending: 0 },
-    } as never);
-    byBranchMock.mockRejectedValue(new Error("by-branch down"));
+    cycleTimeMock.mockRejectedValue(new Error("cycle-time down"));
 
     const data = await loadReportsData();
     expect(data.summary?.total).toBe(1);
-    expect(data.byBranch).toBeNull();
+    expect(data.cycleTime).toBeNull();
+  });
+
+  it("throws when Aggregate KPI fails (no foundation fallback)", async () => {
+    aggregateMock.mockRejectedValue(new Error("aggregate down"));
+    await expect(loadReportsData()).rejects.toThrow("aggregate down");
   });
 });

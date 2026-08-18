@@ -43,6 +43,29 @@ class BranchCount(BaseModel):
     case_closed: int = Field(default=0, ge=0, alias="caseClosed")
 
 
+class CycleTimeBucket(BaseModel):
+    """Share of closed cases per age band (labels resolved by the UI)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    key: str
+    count: int = Field(default=0, ge=0)
+
+
+class CycleTimeData(BaseModel):
+    """How long closed cases took, in days (RES-CM cycle time)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    closed_cases: int = Field(default=0, ge=0, alias="closedCases")
+    average_days: float | None = Field(default=None, alias="averageDays")
+    median_days: float | None = Field(default=None, alias="medianDays")
+    p90_days: float | None = Field(default=None, alias="p90Days")
+    fastest_days: float | None = Field(default=None, alias="fastestDays")
+    slowest_days: float | None = Field(default=None, alias="slowestDays")
+    buckets: list[CycleTimeBucket] = Field(default_factory=list)
+
+
 class ReportSummaryData(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

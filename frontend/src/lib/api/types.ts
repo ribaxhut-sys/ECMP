@@ -54,6 +54,22 @@ export interface StatusCount {
   labelKey?: string;
 }
 
+/** GET /api/v1/reports/cycle-time — how long closed cases took, in days. */
+export interface CycleTimeBucket {
+  key: string;
+  count: number;
+}
+
+export interface CycleTimeSummary {
+  closedCases: number;
+  averageDays: number | null;
+  medianDays: number | null;
+  p90Days: number | null;
+  fastestDays: number | null;
+  slowestDays: number | null;
+  buckets: CycleTimeBucket[];
+}
+
 export interface BranchCount {
   branchId: string | null;
   branchCode: string | null;
