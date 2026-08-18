@@ -89,7 +89,7 @@
     "workspace": "Workspace",
     "followUp": "Follow-up",
     "cases": "Cases",
-    "hqSchedule": "HQ Schedule",
+    "hqSchedule": "Escalation Schedule",
     "queue": "Queue",
     "assignments": "Assignments",
     "resolutions": "Resolutions",
@@ -2596,7 +2596,7 @@
     "itemsInView": "{count} items in this view"
   },
   "hqSchedule": {
-    "title": "HQ Arrival Schedule",
+    "title": "Taxpayer Escalation Schedule",
     "description": "Slot availability for taxpayer arrivals at HQ, used when escalating a complaint.",
     "previousWeek": "Previous week",
     "thisWeek": "This week",

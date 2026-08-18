@@ -89,7 +89,7 @@
     "workspace": "Ruang kerja",
     "followUp": "Tindak lanjut",
     "cases": "Case",
-    "hqSchedule": "Jadwal Pusat",
+    "hqSchedule": "Jadwal Eskalasi",
     "queue": "Antrian",
     "assignments": "Penugasan",
     "resolutions": "Resolusi",
@@ -2596,7 +2596,7 @@
     "itemsInView": "{count} item dalam tampilan ini"
   },
   "hqSchedule": {
-    "title": "Jadwal Kedatangan Pusat",
+    "title": "Jadwal Eskalasi Wajib Pajak",
     "description": "Ketersediaan slot kedatangan wajib pajak ke Pusat, dipakai saat eskalasi pengaduan.",
     "previousWeek": "Minggu sebelumnya",
     "thisWeek": "Minggu ini",

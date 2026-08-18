@@ -136,7 +136,7 @@ describe("HqScheduleView", () => {
       expect(fetchHqScheduleAvailability).toHaveBeenCalled();
     });
     expect(fetchHqScheduleAvailabilityDetail).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: /HQ Arrival Schedule/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Taxpayer Escalation Schedule/i })).toBeInTheDocument();
   });
 
   it("loads the Pusat detail grid for a PUSAT agent", async () => {

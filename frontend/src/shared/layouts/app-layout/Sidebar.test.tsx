@@ -313,7 +313,7 @@ describe("HQ schedule — complaints:read sidebar entry", () => {
     mockOrgUnitBranch = { code: "UPPPD-A" };
     const { sidebar } = renderSidebar();
     expect(
-      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+      sidebar.getByRole("link", { name: /^Escalation Schedule$/i }),
     ).toBeInTheDocument();
   });
 
@@ -323,7 +323,7 @@ describe("HQ schedule — complaints:read sidebar entry", () => {
     mockOrgUnitBranch = undefined;
     const { sidebar } = renderSidebar();
     expect(
-      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+      sidebar.getByRole("link", { name: /^Escalation Schedule$/i }),
     ).toBeInTheDocument();
   });
 
@@ -333,7 +333,7 @@ describe("HQ schedule — complaints:read sidebar entry", () => {
     mockOrgUnitBranch = { code: "PUSAT" };
     const { sidebar } = renderSidebar();
     expect(
-      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+      sidebar.getByRole("link", { name: /^Escalation Schedule$/i }),
     ).toBeInTheDocument();
   });
 
@@ -343,7 +343,7 @@ describe("HQ schedule — complaints:read sidebar entry", () => {
     mockOrgUnitBranch = { code: "PUSAT" };
     const { sidebar } = renderSidebar();
     expect(
-      sidebar.queryByRole("link", { name: /^HQ Schedule$/i }),
+      sidebar.queryByRole("link", { name: /^Escalation Schedule$/i }),
     ).not.toBeInTheDocument();
   });
 });
@@ -406,7 +406,7 @@ describe("HQ schedule today-count badge", () => {
     const { sidebar } = renderSidebar();
 
     const link = await waitFor(() =>
-      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+      sidebar.getByRole("link", { name: /^Escalation Schedule$/i }),
     );
     await waitFor(() => {
       expect(within(link).getByText("5")).toBeInTheDocument();
@@ -420,7 +420,7 @@ describe("HQ schedule today-count badge", () => {
     const { sidebar } = renderSidebar();
 
     const link = await waitFor(() =>
-      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+      sidebar.getByRole("link", { name: /^Escalation Schedule$/i }),
     );
     expect(hqScheduleDetailApi).not.toHaveBeenCalled();
     expect(within(link).queryByText(/^\d+$/)).not.toBeInTheDocument();
