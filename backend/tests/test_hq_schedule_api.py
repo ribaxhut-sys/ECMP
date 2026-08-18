@@ -26,6 +26,7 @@ from app.main import create_app
 from app.models import Branch, User
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
+from app.modules.hq_schedule.repository import ArrivalRow
 from app.modules.hq_schedule.router import get_hq_schedule_service
 from app.modules.hq_schedule.service import HqScheduleService
 from app.modules.settings.registry import SettingsKey
@@ -71,14 +72,15 @@ class _FakeHoliday:
 
 
 class _FakeHqScheduleRepository:
-    def __init__(self) -> None:
+    def __init__(self, *, arrivals: list | None = None) -> None:
         self._holidays: list[_FakeHoliday] = []
+        self._arrivals = arrivals or []
 
     def list_holidays(self, *, date_from: date, date_to: date) -> list:
         return [h for h in self._holidays if date_from <= h.holiday_date <= date_to]
 
     def list_arrivals_in_range(self, *, date_from: date, date_to: date) -> list:
-        return []
+        return list(self._arrivals)
 
     def get_holiday(self, holiday_date: date) -> _FakeHoliday | None:
         return next((h for h in self._holidays if h.holiday_date == holiday_date), None)
@@ -100,9 +102,10 @@ class _FakeHqScheduleRepository:
         return None
 
 
-def _service() -> HqScheduleService:
+def _service(*, arrivals: list | None = None) -> HqScheduleService:
     return HqScheduleService(
-        _FakeHqScheduleRepository(), SettingsService(_FakeSettingsRepository())
+        _FakeHqScheduleRepository(arrivals=arrivals),
+        SettingsService(_FakeSettingsRepository()),
     )
 
 
@@ -118,7 +121,9 @@ def _principal(
 
 
 @contextmanager
-def _client_for(principal: Principal) -> Iterator[TestClient]:
+def _client_for(
+    principal: Principal, *, service: HqScheduleService | None = None
+) -> Iterator[TestClient]:
     engine = create_engine(
         "sqlite:///:memory:",
         future=True,
@@ -130,7 +135,7 @@ def _client_for(principal: Principal) -> Iterator[TestClient]:
     session: Session = factory()
 
     app = create_app()
-    service = _service()
+    service = service or _service()
     app.dependency_overrides[get_hq_schedule_service] = lambda: service
     app.dependency_overrides[get_current_principal] = lambda: principal
     app.dependency_overrides[get_db_session] = lambda: session
@@ -181,6 +186,49 @@ def test_availability_detail_200_for_pusat_unit_agent() -> None:
     with _client_for(principal) as client:
         resp = client.get("/api/v1/hq-schedule/availability/detail")
     assert resp.status_code == 200, resp.text
+
+
+def test_availability_scopes_scheduled_cases_to_callers_own_unit() -> None:
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="TAB-2608-0001",
+            owning_unit_id="UPPPD-TANAH-ABANG",
+            hq_arrival_date=date.today(),
+            hq_arrival_time="08:00",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+        ),
+        ArrivalRow(
+            complaint_id="c2",
+            complaint_number="GAM-2608-0001",
+            owning_unit_id="UPPPD-GAMBIR",
+            hq_arrival_date=date.today(),
+            hq_arrival_time="08:15",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+        ),
+    ]
+    principal = _principal(
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id="UPPPD-TANAH-ABANG",
+    )
+    with _client_for(principal, service=_service(arrivals=arrivals)) as client:
+        resp = client.get(
+            "/api/v1/hq-schedule/availability",
+            params={"from": date.today().isoformat(), "to": date.today().isoformat()},
+        )
+    assert resp.status_code == 200, resp.text
+    slots = resp.json()["data"]["days"][0]["slots"]
+    scheduled_numbers = {
+        case["complaintNumber"] for slot in slots for case in slot["scheduledCases"]
+    }
+    assert scheduled_numbers == {"TAB-2608-0001"}
 
 
 def test_get_hq_schedule_service_wires_dependencies() -> None:

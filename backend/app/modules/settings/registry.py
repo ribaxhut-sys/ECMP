@@ -22,6 +22,8 @@ class SettingsKey(StrEnum):
     HQ_SCHEDULE_SLOT_MINUTES = "hq.schedule.slot_minutes"
     HQ_SCHEDULE_CAPACITY_PER_SLOT = "hq.schedule.capacity_per_slot"
     HQ_SCHEDULE_WORKDAYS = "hq.schedule.workdays"
+    HQ_SCHEDULE_BREAK_START = "hq.schedule.break_start"
+    HQ_SCHEDULE_BREAK_END = "hq.schedule.break_end"
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,5 +124,21 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         category="hq_schedule",
         visibility=SettingVisibility.PROTECTED,
         description="ISO weekdays (1=Mon..7=Sun) HQ accepts arrivals, comma-separated",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_BREAK_START,
+        value="12:00",
+        value_type=SettingValueType.STRING,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description="HQ arrival schedule lunch break start (HH:MM)",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_BREAK_END,
+        value="13:00",
+        value_type=SettingValueType.STRING,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description="HQ arrival schedule lunch break end (HH:MM)",
     ),
 )

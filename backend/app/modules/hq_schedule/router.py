@@ -55,11 +55,19 @@ def get_availability(
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
 ) -> DataResponse[AvailabilityResponse]:
-    """Cabang view — used inline in the escalation slot picker (no complaint detail)."""
-    _ = principal
+    """Cabang view — used inline in the escalation slot picker.
+
+    Carries no other branch's complaint detail: scheduled cases are scoped to
+    the caller's own org unit only (see HqScheduleService._slots_for_day).
+    """
     start, end = _default_range(date_from, date_to)
     return DataResponse(
-        data=service.get_availability(date_from=start, date_to=end, detail=False)
+        data=service.get_availability(
+            date_from=start,
+            date_to=end,
+            detail=False,
+            caller_unit_id=principal.org_unit_id,
+        )
     )
 
 

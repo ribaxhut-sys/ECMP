@@ -27,13 +27,14 @@ class HolidayResponse(BaseModel):
 
 
 class ProposalSummary(BaseModel):
-    """One branch-proposed slot awaiting Pusat decision (Pusat detail view only)."""
+    """One scheduled or branch-proposed slot occupant (Pusat detail view only)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     complaint_id: str = Field(alias="complaintId")
     complaint_number: str = Field(alias="complaintNumber")
     owning_unit_id: str | None = Field(default=None, alias="owningUnitId")
+    unit_code: str = Field(alias="unitCode")
     proposed_by: str | None = Field(default=None, alias="proposedBy")
     proposed_at: datetime | None = Field(default=None, alias="proposedAt")
 
@@ -44,12 +45,16 @@ class SlotAvailability(BaseModel):
     start_time: str = Field(alias="startTime")
     end_time: str = Field(alias="endTime")
     capacity: int
+    is_break: bool = Field(default=False, alias="isBreak")
     scheduled_count: int = Field(alias="scheduledCount")
     proposed_count: int = Field(alias="proposedCount")
     available_count: int = Field(alias="availableCount")
     # Pusat detail only — empty for the branch-facing aggregate view.
     pending_proposals: list[ProposalSummary] = Field(
         default_factory=list, alias="pendingProposals"
+    )
+    scheduled_cases: list[ProposalSummary] = Field(
+        default_factory=list, alias="scheduledCases"
     )
 
 

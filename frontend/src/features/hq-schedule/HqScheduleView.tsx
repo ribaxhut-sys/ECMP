@@ -1,22 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
+import { canCmBatch1HqReview } from "@/features/complaints/cmBatch1HqActions";
+import { fetchBranches, type Branch } from "@/lib/api";
 import {
   createHqScheduleHoliday,
   deleteHqScheduleHoliday,
+  fetchHqScheduleAvailability,
   fetchHqScheduleAvailabilityDetail,
   fetchHqScheduleHolidays,
   type HqScheduleAvailabilityResponse,
   type HqScheduleDayAvailability,
   type HqScheduleHoliday,
+  type HqScheduleProposalSummary,
+  type HqScheduleSlotAvailability,
 } from "@/lib/api/hqSchedule";
 import {
   Badge,
   Button,
   Card,
   CardBody,
+  Empty,
   ErrorState,
   Input,
   Loading,
@@ -44,47 +52,115 @@ function addDays(date: Date, days: number): Date {
   return copy;
 }
 
-function DayColumnHeader({
-  day,
-  weekdayLabel,
-  holidayLabel,
-  weekendLabel,
+function slotTone(availableCount: number): "success" | "warning" | "danger" {
+  if (availableCount <= 0) return "danger";
+  if (availableCount === 1) return "warning";
+  return "success";
+}
+
+function CaseTag({
+  proposal,
+  branchNameByCode,
 }: {
-  day: HqScheduleDayAvailability;
-  weekdayLabel: string;
-  holidayLabel: string;
-  weekendLabel: string;
+  proposal: HqScheduleProposalSummary;
+  branchNameByCode: Map<string, string>;
 }) {
-  const closed = day.closed;
+  const title = branchNameByCode.get(proposal.owningUnitId ?? "") || proposal.unitCode;
   return (
-    <div
+    <span
+      title={title}
+      className="cursor-help border-b border-dotted border-ecmp-text-secondary/60 text-ecmp-text-secondary"
+    >
+      {" "}
+      ({proposal.unitCode})
+    </span>
+  );
+}
+
+function CaseLine({
+  proposal,
+  canOpen,
+  branchNameByCode,
+}: {
+  proposal: HqScheduleProposalSummary;
+  canOpen: boolean;
+  branchNameByCode: Map<string, string>;
+}) {
+  return (
+    <div className="text-[length:var(--ecmp-font-caption-size)]">
+      {canOpen ? (
+        <Link
+          href={`/complaints/cm/${encodeURIComponent(proposal.complaintId)}`}
+          className="font-medium text-ecmp-primary hover:underline"
+        >
+          {proposal.complaintNumber}
+        </Link>
+      ) : (
+        <span className="text-ecmp-text-secondary">{proposal.complaintNumber}</span>
+      )}
+      <CaseTag proposal={proposal} branchNameByCode={branchNameByCode} />
+    </div>
+  );
+}
+
+function ScheduleSlotCell({
+  slot,
+  canOpenCase,
+  branchNameByCode,
+  breakLabel,
+  slotRatioLabel,
+}: {
+  slot: HqScheduleSlotAvailability;
+  canOpenCase: (owningUnitId: string | null | undefined) => boolean;
+  branchNameByCode: Map<string, string>;
+  breakLabel: string;
+  slotRatioLabel: string;
+}) {
+  if (slot.isBreak) {
+    return (
+      <td className="border-b border-ecmp-border/70 p-2 text-center align-top text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+        {breakLabel}
+      </td>
+    );
+  }
+  const tone = slotTone(slot.availableCount);
+  return (
+    <td
       className={cn(
-        "flex flex-col items-center gap-1 rounded-[var(--ecmp-radius-md)] px-2 py-2 text-center",
-        closed
-          ? "border border-ecmp-danger-border bg-ecmp-danger-bg text-ecmp-danger-text"
-          : "border border-ecmp-border/70 bg-ecmp-surface-sunken text-ecmp-text-primary",
+        "border-b border-ecmp-border/70 p-2 align-top",
+        tone === "danger" && "bg-ecmp-danger-subtle",
+        tone === "warning" && "bg-ecmp-warning-subtle",
       )}
     >
-      <span className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-wide">
-        {weekdayLabel}
-      </span>
-      <span className="text-[length:var(--ecmp-font-body-size)] font-semibold">
-        {day.date}
-      </span>
-      {closed && (
-        <span className="text-[length:var(--ecmp-font-caption-size)] font-medium">
-          {day.closedReason === "HOLIDAY"
-            ? day.holidayLabel || holidayLabel
-            : weekendLabel}
-        </span>
-      )}
-    </div>
+      <div className="flex flex-col gap-1">
+        {slot.scheduledCases.map((proposal) => (
+          <CaseLine
+            key={proposal.complaintId}
+            proposal={proposal}
+            canOpen={canOpenCase(proposal.owningUnitId)}
+            branchNameByCode={branchNameByCode}
+          />
+        ))}
+        <Badge tone={tone} variant="solid" className="self-start">
+          {slotRatioLabel}
+        </Badge>
+      </div>
+    </td>
   );
 }
 
 export function HqScheduleView() {
   const t = useTranslations("hqSchedule");
-  const { hasPermission } = useAuth();
+  const tCommon = useTranslations("common");
+  const { hasPermission, roles, status } = useAuth();
+  const unitCode = useOrgUnitCode();
+  const canRead = hasPermission("complaints:read");
+  const orgReady = unitCode !== undefined;
+  const canSeeDetail = canCmBatch1HqReview({
+    roles,
+    hasPermission,
+    unitCode,
+  });
   const canReadHolidays = hasPermission("settings:read");
   const canManageHolidays = hasPermission("settings:update");
   const showHolidayPanel = canReadHolidays || canManageHolidays;
@@ -93,6 +169,7 @@ export function HqScheduleView() {
   const [data, setData] = useState<HqScheduleAvailabilityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [holidays, setHolidays] = useState<HqScheduleHoliday[]>([]);
   const [holidayDate, setHolidayDate] = useState("");
   const [holidayLabel, setHolidayLabel] = useState("");
@@ -108,10 +185,14 @@ export function HqScheduleView() {
   );
 
   useEffect(() => {
+    if (status !== "authenticated" || !canRead || !orgReady) return;
     let cancelled = false;
     setLoading(true);
     setError(false);
-    fetchHqScheduleAvailabilityDetail(rangeFrom, rangeTo)
+    const fetchGrid = canSeeDetail
+      ? fetchHqScheduleAvailabilityDetail
+      : fetchHqScheduleAvailability;
+    fetchGrid(rangeFrom, rangeTo)
       .then((res) => {
         if (!cancelled) setData(res.data);
       })
@@ -124,7 +205,36 @@ export function HqScheduleView() {
     return () => {
       cancelled = true;
     };
-  }, [rangeFrom, rangeTo]);
+  }, [canRead, canSeeDetail, orgReady, rangeFrom, rangeTo, status]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !canRead) return;
+    let cancelled = false;
+    fetchBranches(100)
+      .then((res) => {
+        if (!cancelled) setBranches(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setBranches([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canRead, status]);
+
+  const branchNameByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const branch of branches) map.set(branch.code, branch.name);
+    return map;
+  }, [branches]);
+
+  const canOpenCase = useCallback(
+    (owningUnitId: string | null | undefined): boolean => {
+      if (canSeeDetail) return true;
+      return unitCode != null && owningUnitId != null && unitCode === owningUnitId;
+    },
+    [canSeeDetail, unitCode],
+  );
 
   const reloadHolidays = useCallback(() => {
     if (!showHolidayPanel) {
@@ -171,10 +281,29 @@ export function HqScheduleView() {
     }
   }
 
-  const weekdayFormatter = useMemo(
+  const weekdayFormatterLong = useMemo(
+    () => new Intl.DateTimeFormat("id-ID", { weekday: "long" }),
+    [],
+  );
+  const weekdayFormatterShort = useMemo(
     () => new Intl.DateTimeFormat("id-ID", { weekday: "short" }),
     [],
   );
+
+  if (status === "authenticated" && !canRead) {
+    return (
+      <PageContainer>
+        <Empty
+          title={tCommon("accessRestricted")}
+          description={t("accessRestrictedDescription")}
+        />
+      </PageContainer>
+    );
+  }
+
+  const showLoading = status !== "authenticated" || !orgReady || loading;
+  const templateSlots: HqScheduleDayAvailability["slots"] =
+    data?.days.find((day) => !day.closed)?.slots ?? [];
 
   return (
     <PageContainer>
@@ -208,90 +337,90 @@ export function HqScheduleView() {
         }
       />
 
-      {loading && <Loading label={t("loading")} />}
-      {!loading && error && <ErrorState message={t("loadError")} />}
+      {showLoading && <Loading label={t("loading")} />}
+      {!showLoading && error && <ErrorState message={t("loadError")} />}
 
-      {!loading && !error && data && (
+      {!showLoading && !error && data && (
         <div className="space-y-[var(--ecmp-panel-gap)]">
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${data.days.length}, minmax(0, 1fr))` }}
-          >
-            {data.days.map((day) => (
-              <DayColumnHeader
-                key={day.date}
-                day={day}
-                weekdayLabel={weekdayFormatter.format(new Date(`${day.date}T00:00:00`))}
-                holidayLabel={t("holiday")}
-                weekendLabel={t("weekend")}
-              />
-            ))}
-          </div>
-
-          <div className="overflow-x-auto">
-            <div
-              className="grid min-w-[720px] gap-2"
-              style={{ gridTemplateColumns: `repeat(${data.days.length}, minmax(0, 1fr))` }}
-            >
-              {data.days.map((day) => (
-                <div key={day.date} className="flex flex-col gap-2">
-                  {day.closed ? (
-                    <div className="rounded-[var(--ecmp-radius-md)] border border-dashed border-ecmp-danger-border bg-ecmp-danger-subtle px-3 py-4 text-center text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger-text">
-                      {day.closedReason === "HOLIDAY"
-                        ? day.holidayLabel || t("holiday")
-                        : t("weekend")}
-                    </div>
-                  ) : (
-                    day.slots.map((slot) => {
-                      const full = slot.availableCount <= 0;
-                      return (
-                        <Card
-                          key={`${day.date}-${slot.startTime}`}
-                          padding={false}
-                          className={cn(
-                            "p-3",
-                            full && "border-ecmp-warning-border bg-ecmp-warning-subtle",
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[length:var(--ecmp-font-body-size)] font-medium">
-                              {slot.startTime}–{slot.endTime}
-                            </span>
-                            <Badge tone={full ? "warning" : "success"} variant="soft">
-                              {t("availableCount", { count: slot.availableCount })}
-                            </Badge>
-                          </div>
-                          <p className="mt-1 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                            {t("scheduledOfCapacity", {
+          <div className="overflow-x-auto rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70">
+            <table className="w-full min-w-[640px] border-collapse">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-10 border-b border-r border-ecmp-border/70 bg-ecmp-surface-sunken p-2 text-center text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
+                    {t("timeColumnHeader")}
+                  </th>
+                  {data.days.map((day) => (
+                    <th
+                      key={day.date}
+                      className="border-b border-ecmp-border/70 bg-ecmp-surface-sunken p-2 text-center"
+                    >
+                      <div className="text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
+                        {day.date}
+                      </div>
+                      <div className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-wide text-ecmp-text-secondary">
+                        <span className="hidden md:inline">
+                          {weekdayFormatterLong.format(new Date(`${day.date}T00:00:00`))}
+                        </span>
+                        <span className="md:hidden">
+                          {weekdayFormatterShort.format(new Date(`${day.date}T00:00:00`))}
+                        </span>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {templateSlots.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={data.days.length + 1}
+                      className="p-4 text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
+                    >
+                      {t("weekClosed")}
+                    </td>
+                  </tr>
+                ) : (
+                  templateSlots.map((templateSlot, index) => (
+                    <tr key={templateSlot.startTime}>
+                      <td className="sticky left-0 z-10 border-b border-r border-ecmp-border/70 bg-ecmp-surface p-2 text-center align-middle text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
+                        {templateSlot.startTime}
+                      </td>
+                      {data.days.map((day) => {
+                        if (day.closed) {
+                          return (
+                            <td
+                              key={day.date}
+                              className="border-b border-ecmp-border/70 bg-ecmp-danger-subtle p-2 text-center align-middle text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger-text"
+                            >
+                              {day.closedReason === "HOLIDAY"
+                                ? day.holidayLabel || t("holiday")
+                                : t("weekend")}
+                            </td>
+                          );
+                        }
+                        const slot = day.slots[index];
+                        if (!slot) {
+                          return <td key={day.date} className="border-b border-ecmp-border/70 p-2" />;
+                        }
+                        return (
+                          <ScheduleSlotCell
+                            key={day.date}
+                            slot={slot}
+                            canOpenCase={canOpenCase}
+                            branchNameByCode={branchNameByCode}
+                            breakLabel={t("breakLabel")}
+                            slotRatioLabel={t("slotRatio", {
                               scheduled: slot.scheduledCount,
                               capacity: slot.capacity,
                             })}
-                          </p>
-                          {slot.proposedCount > 0 && (
-                            <div className="mt-2 space-y-1 border-t border-ecmp-border/60 pt-2">
-                              <p className="text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-primary">
-                                {t("pendingProposalsCount", { count: slot.proposedCount })}
-                              </p>
-                              <ul className="space-y-1">
-                                {slot.pendingProposals.map((proposal) => (
-                                  <li
-                                    key={proposal.complaintId}
-                                    className="flex items-center justify-between gap-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary"
-                                  >
-                                    <span>{proposal.complaintNumber}</span>
-                                    <span>{proposal.owningUnitId ?? "—"}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </Card>
-                      );
-                    })
-                  )}
-                </div>
-              ))}
-            </div>
+                          />
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
           {showHolidayPanel ? (

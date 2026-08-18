@@ -183,6 +183,79 @@ def test_scheduled_and_proposed_counted_separately() -> None:
     assert pusat_slot.pending_proposals[0].complaint_number == "CMP-2"
 
 
+def test_scheduled_cases_scoped_to_caller_unit_on_aggregate_view() -> None:
+    monday = _next_monday(date.today())
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="TAB-2608-0001",
+            owning_unit_id="UPPPD-TANAH-ABANG",
+            hq_arrival_date=monday,
+            hq_arrival_time="08:00",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+        ),
+        ArrivalRow(
+            complaint_id="c2",
+            complaint_number="GAM-2608-0001",
+            owning_unit_id="UPPPD-GAMBIR",
+            hq_arrival_date=monday,
+            hq_arrival_time="08:15",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+        ),
+    ]
+    repo = _FakeHqScheduleRepository(arrivals=arrivals)
+    service = HqScheduleService(repo, _settings_service())
+
+    own_view = service.get_availability(
+        date_from=monday,
+        date_to=monday,
+        detail=False,
+        caller_unit_id="UPPPD-TANAH-ABANG",
+    )
+    own_slot = own_view.days[0].slots[0]
+    assert [c.complaint_number for c in own_slot.scheduled_cases] == ["TAB-2608-0001"]
+
+    no_caller_view = service.get_availability(
+        date_from=monday, date_to=monday, detail=False
+    )
+    assert no_caller_view.days[0].slots[0].scheduled_cases == []
+
+    pusat_view = service.get_availability(
+        date_from=monday, date_to=monday, detail=True
+    )
+    pusat_slot = pusat_view.days[0].slots[0]
+    assert sorted(c.complaint_number for c in pusat_slot.scheduled_cases) == [
+        "GAM-2608-0001",
+        "TAB-2608-0001",
+    ]
+    assert pusat_slot.scheduled_cases[0].unit_code in {"TAB", "GAM"}
+
+
+def test_break_slot_tagged_and_excluded_from_open_capacity() -> None:
+    monday = _next_monday(date.today())
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(),
+        _settings_service(
+            **{
+                SettingsKey.HQ_SCHEDULE_END.value: "11:00",
+                SettingsKey.HQ_SCHEDULE_BREAK_START.value: "09:00",
+                SettingsKey.HQ_SCHEDULE_BREAK_END.value: "10:00",
+            }
+        ),
+    )
+    resp = service.get_availability(date_from=monday, date_to=monday, detail=False)
+    slots_by_start = {s.start_time: s for s in resp.days[0].slots}
+    assert slots_by_start["08:00"].is_break is False
+    assert slots_by_start["09:00"].is_break is True
+    assert slots_by_start["10:00"].is_break is False
+
+
 def test_range_too_large_rejected() -> None:
     service = HqScheduleService(_FakeHqScheduleRepository(), _settings_service())
     with pytest.raises(ValidationAppError):

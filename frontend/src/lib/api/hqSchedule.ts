@@ -11,6 +11,7 @@ export interface HqScheduleProposalSummary {
   complaintId: string;
   complaintNumber: string;
   owningUnitId?: string | null;
+  unitCode: string;
   proposedBy?: string | null;
   proposedAt?: string | null;
 }
@@ -19,11 +20,14 @@ export interface HqScheduleSlotAvailability {
   startTime: string;
   endTime: string;
   capacity: number;
+  isBreak: boolean;
   scheduledCount: number;
   proposedCount: number;
   availableCount: number;
   /** Pusat detail view only — empty on the branch-facing aggregate view. */
   pendingProposals: HqScheduleProposalSummary[];
+  /** Pusat detail view only — empty on the branch-facing aggregate view. */
+  scheduledCases: HqScheduleProposalSummary[];
 }
 
 export interface HqScheduleDayAvailability {

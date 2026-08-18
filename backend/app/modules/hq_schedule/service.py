@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date, time, timedelta
 
 from app.core.errors import NotFoundError, ValidationAppError
+from app.modules.cm_batch1.complaint_number import resolve_unit_code
 from app.modules.hq_schedule.repository import ArrivalRow, HqScheduleRepository
 from app.modules.hq_schedule.schemas import (
     AvailabilityResponse,
@@ -43,6 +44,8 @@ class ScheduleConfig:
     slot_minutes: int
     capacity_per_slot: int
     workdays: frozenset[int]
+    break_start: time | None
+    break_end: time | None
 
 
 class HqScheduleService:
@@ -74,12 +77,22 @@ class HqScheduleService:
             )
         except ValueError:
             workdays = frozenset({1, 2, 3, 4, 5})
+        break_start_raw = self._settings.get_string(
+            SettingsKey.HQ_SCHEDULE_BREAK_START, default="12:00"
+        ).strip()
+        break_end_raw = self._settings.get_string(
+            SettingsKey.HQ_SCHEDULE_BREAK_END, default="13:00"
+        ).strip()
+        break_start = _parse_hhmm(break_start_raw) if break_start_raw else None
+        break_end = _parse_hhmm(break_end_raw) if break_end_raw else None
         return ScheduleConfig(
             start=_parse_hhmm(start_raw),
             end=_parse_hhmm(end_raw),
             slot_minutes=max(1, slot_minutes),
             capacity_per_slot=max(0, capacity),
             workdays=workdays or frozenset({1, 2, 3, 4, 5}),
+            break_start=break_start,
+            break_end=break_end,
         )
 
     @staticmethod
@@ -109,7 +122,12 @@ class HqScheduleService:
         return False, None, None
 
     def get_availability(
-        self, *, date_from: date, date_to: date, detail: bool
+        self,
+        *,
+        date_from: date,
+        date_to: date,
+        detail: bool,
+        caller_unit_id: str | None = None,
     ) -> AvailabilityResponse:
         if date_to < date_from:
             raise ValidationAppError(
@@ -141,7 +159,12 @@ class HqScheduleService:
             day_slots: list[SlotAvailability] = []
             if not closed:
                 day_slots = self._slots_for_day(
-                    cursor, slots, arrivals, config=config, detail=detail
+                    cursor,
+                    slots,
+                    arrivals,
+                    config=config,
+                    detail=detail,
+                    caller_unit_id=caller_unit_id,
                 )
             days.append(
                 DayAvailability(
@@ -171,6 +194,7 @@ class HqScheduleService:
         *,
         config: ScheduleConfig,
         detail: bool,
+        caller_unit_id: str | None,
     ) -> list[SlotAvailability]:
         scheduled_for_day = [
             a for a in arrivals if a.hq_arrival_date == day and a.hq_arrival_time
@@ -181,9 +205,18 @@ class HqScheduleService:
             if a.proposed_arrival_date == day and a.proposed_arrival_time
         ]
 
+        break_lo = _minutes(config.break_start) if config.break_start else None
+        break_hi = _minutes(config.break_end) if config.break_end else None
+
         result: list[SlotAvailability] = []
         for slot_start, slot_end in slots:
             lo, hi = _minutes(slot_start), _minutes(slot_end)
+            is_break = (
+                break_lo is not None
+                and break_hi is not None
+                and lo < break_hi
+                and break_lo < hi
+            )
 
             def in_slot(value: str | None, *, lo: int = lo, hi: int = hi) -> bool:
                 if not value:
@@ -206,20 +239,48 @@ class HqScheduleService:
                         complaintId=a.complaint_id,
                         complaintNumber=a.complaint_number,
                         owningUnitId=a.owning_unit_id,
+                        unitCode=resolve_unit_code(a.owning_unit_id),
                         proposedBy=a.proposed_by,
                         proposedAt=a.proposed_at,
                     )
                     for a in proposed
                 ]
+            # Pusat (detail=True) sees every branch's scheduled cases; a Cabang
+            # caller only ever gets its own — never another branch's case
+            # identity, not even to filter client-side.
+            caller_code = (
+                None if caller_unit_id is None else resolve_unit_code(caller_unit_id)
+            )
+            visible_scheduled = (
+                scheduled
+                if detail
+                else [
+                    a
+                    for a in scheduled
+                    if caller_code is not None
+                    and resolve_unit_code(a.owning_unit_id) == caller_code
+                ]
+            )
+            scheduled_cases = [
+                ProposalSummary(
+                    complaintId=a.complaint_id,
+                    complaintNumber=a.complaint_number,
+                    owningUnitId=a.owning_unit_id,
+                    unitCode=resolve_unit_code(a.owning_unit_id),
+                )
+                for a in visible_scheduled
+            ]
             result.append(
                 SlotAvailability(
                     startTime=slot_start.strftime("%H:%M"),
                     endTime=slot_end.strftime("%H:%M"),
                     capacity=config.capacity_per_slot,
+                    isBreak=is_break,
                     scheduledCount=scheduled_count,
                     proposedCount=proposed_count,
                     availableCount=available,
                     pendingProposals=pending,
+                    scheduledCases=scheduled_cases,
                 )
             )
         return result

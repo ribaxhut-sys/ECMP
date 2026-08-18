@@ -1,0 +1,175 @@
+/**
+ * HQ schedule calendar — Cabang uses the aggregate API; Pusat uses detail.
+ */
+import { cleanup, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "@/test/harness";
+
+const fetchHqScheduleAvailability = vi.fn();
+const fetchHqScheduleAvailabilityDetail = vi.fn();
+const fetchHqScheduleHolidays = vi.fn();
+const fetchBranches = vi.fn();
+const hasPermission = vi.fn<(permission: string) => boolean>(() => false);
+let mockRoles: string[] = [];
+let mockOrgUnitCode: string | null | undefined = "UPPPD-A";
+
+vi.mock("@/auth/AuthProvider", () => ({
+  useAuth: () => ({
+    hasPermission,
+    roles: mockRoles,
+    status: "authenticated",
+    user: null,
+  }),
+}));
+
+vi.mock("@/features/announcements/useOrgUnitCode", () => ({
+  useOrgUnitCode: () => mockOrgUnitCode,
+}));
+
+vi.mock("@/lib/api", () => ({
+  fetchBranches: (...args: unknown[]) => fetchBranches(...args),
+}));
+
+vi.mock("@/lib/api/hqSchedule", () => ({
+  fetchHqScheduleAvailability: (...args: unknown[]) =>
+    fetchHqScheduleAvailability(...args),
+  fetchHqScheduleAvailabilityDetail: (...args: unknown[]) =>
+    fetchHqScheduleAvailabilityDetail(...args),
+  fetchHqScheduleHolidays: (...args: unknown[]) => fetchHqScheduleHolidays(...args),
+  createHqScheduleHoliday: vi.fn(),
+  deleteHqScheduleHoliday: vi.fn(),
+}));
+
+import { HqScheduleView } from "./HqScheduleView";
+
+const emptyGrid = {
+  startTime: "08:00",
+  slotMinutes: 60,
+  capacityPerSlot: 2,
+  days: [],
+};
+
+function gridWithCases() {
+  return {
+    startTime: "08:00",
+    slotMinutes: 60,
+    capacityPerSlot: 2,
+    days: [
+      {
+        date: "2026-08-17",
+        weekday: 1,
+        closed: false,
+        slots: [
+          {
+            startTime: "08:00",
+            endTime: "09:00",
+            capacity: 2,
+            isBreak: false,
+            scheduledCount: 2,
+            proposedCount: 0,
+            availableCount: 0,
+            pendingProposals: [],
+            scheduledCases: [
+              {
+                complaintId: "case-own",
+                complaintNumber: "TAB-2608-0001",
+                owningUnitId: "UPPPD-A",
+                unitCode: "TAB",
+              },
+              {
+                complaintId: "case-other",
+                complaintNumber: "GAM-2608-0002",
+                owningUnitId: "UPPPD-B",
+                unitCode: "GAM",
+              },
+            ],
+          },
+          {
+            startTime: "09:00",
+            endTime: "10:00",
+            capacity: 2,
+            isBreak: true,
+            scheduledCount: 0,
+            proposedCount: 0,
+            availableCount: 2,
+            pendingProposals: [],
+            scheduledCases: [],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("HqScheduleView", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  beforeEach(() => {
+    fetchHqScheduleAvailability.mockReset();
+    fetchHqScheduleAvailabilityDetail.mockReset();
+    fetchHqScheduleHolidays.mockReset();
+    fetchBranches.mockReset();
+    hasPermission.mockReset().mockImplementation((permission: string) => {
+      return permission === "complaints:read";
+    });
+    mockRoles = ["AGENT"];
+    mockOrgUnitCode = "UPPPD-A";
+    fetchHqScheduleAvailability.mockResolvedValue({ data: emptyGrid });
+    fetchHqScheduleAvailabilityDetail.mockResolvedValue({ data: emptyGrid });
+    fetchHqScheduleHolidays.mockResolvedValue({ data: [] });
+    fetchBranches.mockResolvedValue({
+      data: [{ id: "b1", code: "UPPPD-A", name: "Cabang Tanah Abang" }],
+    });
+  });
+
+  it("loads the branch aggregate grid for a Cabang agent", async () => {
+    renderWithProviders(<HqScheduleView />);
+    await waitFor(() => {
+      expect(fetchHqScheduleAvailability).toHaveBeenCalled();
+    });
+    expect(fetchHqScheduleAvailabilityDetail).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: /HQ Arrival Schedule/i })).toBeInTheDocument();
+  });
+
+  it("loads the Pusat detail grid for a PUSAT agent", async () => {
+    mockOrgUnitCode = "PUSAT";
+    renderWithProviders(<HqScheduleView />);
+    await waitFor(() => {
+      expect(fetchHqScheduleAvailabilityDetail).toHaveBeenCalled();
+    });
+    expect(fetchHqScheduleAvailability).not.toHaveBeenCalled();
+  });
+
+  it("lets a Cabang agent open only its own case, with a tooltip on the branch tag", async () => {
+    fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    const ownLink = await screen.findByRole("link", { name: "TAB-2608-0001" });
+    expect(ownLink).toHaveAttribute("href", "/complaints/cm/case-own");
+
+    const otherCase = screen.getByText("GAM-2608-0002");
+    expect(otherCase.closest("a")).toBeNull();
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Cabang Tanah Abang")).toBeInTheDocument();
+    });
+  });
+
+  it("lets a Pusat reviewer open every case regardless of branch", async () => {
+    mockOrgUnitCode = "PUSAT";
+    fetchHqScheduleAvailabilityDetail.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    expect(await screen.findByRole("link", { name: "TAB-2608-0001" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "GAM-2608-0002" })).toBeInTheDocument();
+  });
+
+  it("tags a break slot instead of showing case data", async () => {
+    fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    expect(await screen.findByText("Break")).toBeInTheDocument();
+  });
+});
