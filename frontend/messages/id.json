@@ -2613,6 +2613,7 @@
     "availableCount": "{count, plural, =0 {Penuh} one {# slot tersisa} other {# slot tersisa}}",
     "pendingProposalsCount": "{count, plural, one {# usulan menunggu keputusan} other {# usulan menunggu keputusan}}",
     "timeColumnHeader": "Jam",
+    "todayLabel": "Hari ini",
     "weekClosed": "Tidak ada slot kerja pada minggu ini.",
     "breakLabel": "Istirahat",
     "slotRatio": "{scheduled}/{capacity} slot",

@@ -155,8 +155,8 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     labelKey: "hqSchedule",
     href: "/complaints/cm/hq-schedule",
     icon: "queue",
-    // Gate is Pusat-only (org unit), applied in Sidebar — mirrors
-    // announcementsManage. Not shown to Cabang at all (DEC per product).
+    // Cabang + Pusat: anyone with complaints:read. Per-complaint pending
+    // proposals stay on the Pusat detail API, not this menu gate.
     requiredPermissions: ["complaints:read"],
   },
   {

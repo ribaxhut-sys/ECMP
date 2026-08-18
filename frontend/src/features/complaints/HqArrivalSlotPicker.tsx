@@ -94,6 +94,7 @@ export function HqArrivalSlotPicker({
         label={t("proposeDateLabel")}
         min={minDate}
         max={maxDate}
+        disabledWeekdays={[0, 6]}
         value={selectedDate}
         disabled={disabled}
         onChange={(date) => onChange(date ? { date, time: "" } : null)}

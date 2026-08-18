@@ -7,9 +7,9 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import type { Branch } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
-import { canCmBatch1HqReview } from "@/features/complaints/cmBatch1HqActions";
 import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
+import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTodayCount";
 import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
 import { usePendingWithdrawRequestCount } from "@/features/internal-complaints/usePendingWithdrawRequestCount";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
@@ -255,14 +255,6 @@ function useShellNav(orgUnitBranch: Branch | null | undefined): {
             hasPermission,
             orgUnitCode,
           });
-        }
-        if (item.id === "hqSchedule") {
-          // Pusat-only — Cabang sees the slot picker inline on escalation
-          // instead (no sidebar entry). Hide while org unit resolves.
-          // Mirrors backend require_hq_intake_action so Admin/HO_SCHEDULER
-          // without a PUSAT orgUnitCode still see the menu.
-          if (orgUnitCode === undefined) return false;
-          return canCmBatch1HqReview({ roles, hasPermission, unitCode: orgUnitCode });
         }
         return true;
       },
@@ -599,6 +591,7 @@ function NavSections({
 }) {
   const tCommon = useTranslations("common");
   const unreadCount = useUnreadAnnouncementCount();
+  const hqScheduleTodayCount = useHqScheduleTodayCount();
   const pendingTransferRequestCount = usePendingTransferRequestCount();
   const pendingWithdrawRequestCount = usePendingWithdrawRequestCount();
   let itemsWithBadges = itemsById;
@@ -606,6 +599,12 @@ function NavSections({
     itemsWithBadges = {
       ...itemsWithBadges,
       announcements: { ...itemsWithBadges.announcements, badge: unreadCount },
+    };
+  }
+  if (hqScheduleTodayCount > 0 && itemsWithBadges.hqSchedule) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      hqSchedule: { ...itemsWithBadges.hqSchedule, badge: hqScheduleTodayCount },
     };
   }
   if (pendingTransferRequestCount > 0 && itemsWithBadges.internalAssignments) {

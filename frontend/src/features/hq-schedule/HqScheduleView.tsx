@@ -370,6 +370,7 @@ export function HqScheduleView() {
     data?.days.filter((day) => day.closedReason !== "WEEKEND") ?? [];
   const templateSlots: HqScheduleDayAvailability["slots"] =
     visibleDays.find((day) => !day.closed)?.slots ?? [];
+  const todayIso = toLocalDateKey(new Date());
 
   return (
     <PageContainer>
@@ -415,24 +416,41 @@ export function HqScheduleView() {
                   <th className="sticky left-0 z-10 border-b border-r border-ecmp-border/70 bg-ecmp-surface-sunken p-2 text-center text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
                     {t("timeColumnHeader")}
                   </th>
-                  {visibleDays.map((day) => (
-                    <th
-                      key={day.date}
-                      className="border-b border-ecmp-border/70 bg-ecmp-surface-sunken p-2 text-center"
-                    >
-                      <div className="text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
-                        {formatDateDMY(day.date)}
-                      </div>
-                      <div className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-wide text-ecmp-text-secondary">
-                        <span className="hidden md:inline">
-                          {weekdayFormatterLong.format(new Date(`${day.date}T00:00:00`))}
-                        </span>
-                        <span className="md:hidden">
-                          {weekdayFormatterShort.format(new Date(`${day.date}T00:00:00`))}
-                        </span>
-                      </div>
-                    </th>
-                  ))}
+                  {visibleDays.map((day) => {
+                    const isToday = day.date === todayIso;
+                    return (
+                      <th
+                        key={day.date}
+                        className={cn(
+                          "border-b border-ecmp-border/70 p-2 text-center",
+                          isToday ? "bg-ecmp-primary-muted" : "bg-ecmp-surface-sunken",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "text-[length:var(--ecmp-font-body-size)] font-semibold",
+                            isToday ? "text-ecmp-primary" : "text-ecmp-text-primary",
+                          )}
+                        >
+                          {formatDateDMY(day.date)}
+                        </div>
+                        <div
+                          className={cn(
+                            "text-[length:var(--ecmp-font-caption-size)] uppercase tracking-wide",
+                            isToday ? "text-ecmp-primary" : "text-ecmp-text-secondary",
+                          )}
+                        >
+                          <span className="hidden md:inline">
+                            {weekdayFormatterLong.format(new Date(`${day.date}T00:00:00`))}
+                          </span>
+                          <span className="md:hidden">
+                            {weekdayFormatterShort.format(new Date(`${day.date}T00:00:00`))}
+                          </span>
+                          {isToday ? ` · ${t("todayLabel")}` : ""}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>

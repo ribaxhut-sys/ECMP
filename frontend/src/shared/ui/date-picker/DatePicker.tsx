@@ -102,8 +102,12 @@ export interface DatePickerProps {
   /** ISO `yyyy-mm-dd` bounds (inclusive). */
   min?: string;
   max?: string;
+  /** Days of week to disable (0=Sunday..6=Saturday, matches `Date#getDay`). */
+  disabledWeekdays?: readonly number[];
   placeholder?: string;
 }
+
+const POPOVER_ESTIMATED_HEIGHT = 320;
 
 /**
  * App-controlled date picker — always renders dd/mm/yyyy, regardless of the
@@ -124,11 +128,13 @@ export function DatePicker({
   onChange,
   min,
   max,
+  disabledWeekdays,
   placeholder = "dd/mm/yyyy",
 }: DatePickerProps) {
   const inputId = id ?? name ?? "date-picker";
   const describedBy = formFieldDescribedBy(inputId, { description, helper, error });
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<"down" | "up">("down");
   const selected = parseISO(value);
   const minDate = parseISO(min);
   const maxDate = parseISO(max);
@@ -166,7 +172,23 @@ export function DatePicker({
   function isDisabledDate(date: Date): boolean {
     if (minDate && date < minDate) return true;
     if (maxDate && date > maxDate) return true;
+    if (disabledWeekdays?.includes(date.getDay())) return true;
     return false;
+  }
+
+  function toggleOpen() {
+    setOpen((wasOpen) => {
+      const nextOpen = !wasOpen;
+      if (nextOpen && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        setPlacement(
+          spaceBelow < POPOVER_ESTIMATED_HEIGHT && spaceAbove > spaceBelow ? "up" : "down",
+        );
+      }
+      return nextOpen;
+    });
   }
 
   const grid = useMemo(() => buildCalendarGrid(viewMonth), [viewMonth]);
@@ -192,7 +214,7 @@ export function DatePicker({
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-describedby={describedBy}
-          onClick={() => setOpen((o) => !o)}
+          onClick={toggleOpen}
           className={cn(
             "ecmp-touch flex w-full items-center justify-between gap-2 rounded-[var(--ecmp-radius-input)] px-3 text-left",
             controlSurfaceClass(error),
@@ -207,7 +229,10 @@ export function DatePicker({
           <div
             role="dialog"
             aria-label={label}
-            className="absolute left-0 top-full z-[var(--ecmp-z-dropdown)] mt-2 w-72 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface p-3 shadow-ecmp-md"
+            className={cn(
+              "absolute left-0 z-[var(--ecmp-z-dropdown)] w-72 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface p-3 shadow-ecmp-md",
+              placement === "up" ? "bottom-full mb-2" : "top-full mt-2",
+            )}
           >
             <div className="mb-2 flex items-center justify-between">
               <button

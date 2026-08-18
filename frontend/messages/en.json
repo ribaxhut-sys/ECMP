@@ -2613,6 +2613,7 @@
     "availableCount": "{count, plural, =0 {Full} one {# slot left} other {# slots left}}",
     "pendingProposalsCount": "{count, plural, one {# proposal awaiting decision} other {# proposals awaiting decision}}",
     "timeColumnHeader": "Time",
+    "todayLabel": "Today",
     "weekClosed": "No working slots this week.",
     "breakLabel": "Break",
     "slotRatio": "{scheduled}/{capacity} slot",

@@ -24,6 +24,7 @@ let mockRoles: string[] = [];
 let mockUserId: string | null = "user-1";
 let mockOrgUnitBranch: { code: string } | null | undefined = null;
 const unreadCountApi = vi.fn();
+const hqScheduleDetailApi = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -63,8 +64,15 @@ vi.mock("@/lib/api/branches", () => ({
   fetchBranches: () => Promise.resolve({ data: [] }),
 }));
 
+vi.mock("@/lib/api/hqSchedule", () => ({
+  fetchHqScheduleAvailabilityDetail: (...args: unknown[]) =>
+    hqScheduleDetailApi(...args),
+}));
+
 vi.mock("@/features/announcements/useOrgUnitCode", () => ({
   useOrgUnitBranch: () => mockOrgUnitBranch,
+  useOrgUnitCode: () =>
+    mockOrgUnitBranch === undefined ? undefined : (mockOrgUnitBranch?.code ?? null),
 }));
 
 vi.mock("@/lib/api", async () => {
@@ -122,6 +130,8 @@ beforeEach(() => {
   window.localStorage.clear();
   unreadCountApi.mockReset();
   unreadCountApi.mockResolvedValue({ data: 0 });
+  hqScheduleDetailApi.mockReset();
+  hqScheduleDetailApi.mockResolvedValue({ data: { days: [] } });
 });
 
 afterEach(() => {
@@ -296,65 +306,45 @@ describe("Scenario 8 — invalid preference never crashes the sidebar", () => {
   });
 });
 
-describe("HQ schedule — canCmBatch1HqReview-gated sidebar entry", () => {
-  it("hides HQ schedule for a Cabang unit (Pusat agent role)", () => {
+describe("HQ schedule — complaints:read sidebar entry", () => {
+  it("shows HQ schedule for a Cabang unit with complaints:read", () => {
     mockPermissions = COMPLAINT_PERMISSIONS;
     mockRoles = ["AGENT"];
     mockOrgUnitBranch = { code: "UPPPD-A" };
     const { sidebar } = renderSidebar();
     expect(
-      sidebar.queryByRole("link", { name: /^HQ Schedule$/i }),
-    ).not.toBeInTheDocument();
+      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+    ).toBeInTheDocument();
   });
 
-  it("hides HQ schedule while the org unit is still resolving", () => {
+  it("shows HQ schedule while the org unit is still resolving", () => {
     mockPermissions = COMPLAINT_PERMISSIONS;
     mockRoles = ["AGENT"];
     mockOrgUnitBranch = undefined;
     const { sidebar } = renderSidebar();
     expect(
-      sidebar.queryByRole("link", { name: /^HQ Schedule$/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows HQ schedule for a Pusat agent (complaints:read + PUSAT unit)", () => {
-    mockPermissions = COMPLAINT_PERMISSIONS;
-    mockRoles = ["AGENT"];
-    mockOrgUnitBranch = { code: "PUSAT" };
-    const { sidebar } = renderSidebar();
-    expect(
       sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
     ).toBeInTheDocument();
   });
 
-  it("hides HQ schedule for a Pusat-unit user without an HQ-eligible role", () => {
+  it("shows HQ schedule for a Pusat viewer with complaints:read", () => {
     mockPermissions = COMPLAINT_PERMISSIONS;
     mockRoles = ["VIEWER"];
     mockOrgUnitBranch = { code: "PUSAT" };
     const { sidebar } = renderSidebar();
     expect(
+      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides HQ schedule without complaints:read", () => {
+    mockPermissions = ["settings:read"];
+    mockRoles = ["ADMIN"];
+    mockOrgUnitBranch = { code: "PUSAT" };
+    const { sidebar } = renderSidebar();
+    expect(
       sidebar.queryByRole("link", { name: /^HQ Schedule$/i }),
     ).not.toBeInTheDocument();
-  });
-
-  it("shows HQ schedule for HO_SCHEDULER with escalations:review, regardless of unit", () => {
-    mockPermissions = [...COMPLAINT_PERMISSIONS, "escalations:review"];
-    mockRoles = ["HO_SCHEDULER"];
-    mockOrgUnitBranch = { code: "UPPPD-A" };
-    const { sidebar } = renderSidebar();
-    expect(
-      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("shows HQ schedule for Admin with escalations:review, no branchId (Head Office)", () => {
-    mockPermissions = [...COMPLAINT_PERMISSIONS, "escalations:review"];
-    mockRoles = ["ADMIN"];
-    mockOrgUnitBranch = null;
-    const { sidebar } = renderSidebar();
-    expect(
-      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
-    ).toBeInTheDocument();
   });
 });
 
@@ -391,5 +381,48 @@ describe("unread announcement badge on the bell", () => {
     );
     expect(link).toHaveAttribute("href", "/announcements");
     expect(within(link).queryByText("0")).not.toBeInTheDocument();
+  });
+});
+
+describe("HQ schedule today-count badge", () => {
+  it("shows today's scheduled count for a Pusat reviewer", async () => {
+    mockPermissions = ["*", "complaints:read", "escalations:review"];
+    mockRoles = ["HO_SCHEDULER"];
+    hqScheduleDetailApi.mockResolvedValue({
+      data: {
+        days: [
+          {
+            date: "2026-08-18",
+            weekday: 2,
+            closed: false,
+            slots: [
+              { startTime: "08:00", endTime: "09:00", capacity: 2, isBreak: false, scheduledCount: 2, proposedCount: 0, availableCount: 0, pendingProposals: [], scheduledCases: [] },
+              { startTime: "09:00", endTime: "10:00", capacity: 2, isBreak: false, scheduledCount: 3, proposedCount: 0, availableCount: 0, pendingProposals: [], scheduledCases: [] },
+            ],
+          },
+        ],
+      },
+    });
+    const { sidebar } = renderSidebar();
+
+    const link = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+    );
+    await waitFor(() => {
+      expect(within(link).getByText("5")).toBeInTheDocument();
+    });
+  });
+
+  it("shows no badge for a Cabang agent (not HQ-review eligible)", async () => {
+    mockPermissions = ["complaints:read"];
+    mockRoles = ["AGENT"];
+    mockOrgUnitBranch = { code: "UPPPD-A" };
+    const { sidebar } = renderSidebar();
+
+    const link = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^HQ Schedule$/i }),
+    );
+    expect(hqScheduleDetailApi).not.toHaveBeenCalled();
+    expect(within(link).queryByText(/^\d+$/)).not.toBeInTheDocument();
   });
 });

@@ -193,7 +193,7 @@ describe("complaints nav permission gate (Commit 6)", () => {
     expect(casesItem.href).toBe("/complaints/cm/cases");
   });
 
-  it("gates HQ schedule on complaints:read at /complaints/cm/hq-schedule (Pusat-only via Sidebar)", () => {
+  it("gates HQ schedule on complaints:read at /complaints/cm/hq-schedule", () => {
     const hqScheduleItem = APP_NAV_ITEMS.find((item) => item.id === "hqSchedule")!;
     expect(hqScheduleItem.requiredPermissions).toEqual(["complaints:read"]);
     expect(hqScheduleItem.href).toBe("/complaints/cm/hq-schedule");
