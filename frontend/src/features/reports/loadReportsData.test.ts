@@ -28,6 +28,7 @@ describe("loadReportsData", () => {
         escalatePending: 4,
         waitingAssignment: 3,
         escalateApproved: 1,
+        escalateScheduled: 0,
         inProgress: 2,
       },
     } as never);

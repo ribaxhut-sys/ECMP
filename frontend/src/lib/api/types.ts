@@ -172,6 +172,8 @@ export interface DashboardAggregateKpis {
   escalatePending: number;
   waitingAssignment: number;
   escalateApproved: number;
+  /** HQ visit already scheduled — still on the escalation path. */
+  escalateScheduled: number;
   inProgress: number;
 }
 

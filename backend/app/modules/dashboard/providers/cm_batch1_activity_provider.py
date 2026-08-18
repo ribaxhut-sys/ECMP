@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.integrations.directory import LocalUserDirectory
 from app.models import Branch
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
-from app.modules.cm_batch1.predicates import CLOSED_STATUS
+from app.modules.cm_batch1.predicates import CLOSED_STATUS, ESCALATION_ACTIVE, HQ_SCHEDULED
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.dashboard.schemas import (
     DashboardAggregateKpiResponse,
@@ -252,6 +252,7 @@ class CmBatch1ActivityDashboardProvider:
                     escalatePending=0,
                     waitingAssignment=0,
                     escalateApproved=0,
+                    escalateScheduled=0,
                     inProgress=0,
                 )
 
@@ -268,26 +269,21 @@ class CmBatch1ActivityDashboardProvider:
             owning_unit, CmBatch1ComplaintORM.status == CLOSED_STATUS, *window
         )
         # Donut slices are mutually exclusive and sum to total: REGISTERED
-        # unescalated / pending / approved + IN_PROGRESS + CLOSED.
+        # unescalated / pending / approved + HQ-scheduled + IN_PROGRESS + CLOSED.
         escalate_pending = self._count_complaints(
             owning_unit,
             CmBatch1ComplaintORM.status == "REGISTERED",
             CmBatch1ComplaintORM.intake_disposition == "ESCALATE_PENDING_APPROVAL",
             *window,
         )
-        # REGISTERED but not held in an escalation path — not "Baru" if
-        # already ESCALATE_APPROVED (that is a different operational state).
+        # REGISTERED but not held in an escalation path — the whole
+        # ESCALATION_ACTIVE set has its own slice, HQ_SCHEDULED included.
         waiting_assignment = self._count_complaints(
             owning_unit,
             CmBatch1ComplaintORM.status == "REGISTERED",
             or_(
                 CmBatch1ComplaintORM.intake_disposition.is_(None),
-                CmBatch1ComplaintORM.intake_disposition.notin_(
-                    (
-                        "ESCALATE_PENDING_APPROVAL",
-                        "ESCALATE_APPROVED",
-                    )
-                ),
+                CmBatch1ComplaintORM.intake_disposition.notin_(ESCALATION_ACTIVE),
             ),
             *window,
         )
@@ -297,8 +293,22 @@ class CmBatch1ActivityDashboardProvider:
             CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
             *window,
         )
+        # A scheduled HQ visit binds a Case, so these rows are usually
+        # IN_PROGRESS; they are still escalation, not ordinary handling.
+        escalate_scheduled = self._count_complaints(
+            owning_unit,
+            CmBatch1ComplaintORM.status != CLOSED_STATUS,
+            CmBatch1ComplaintORM.intake_disposition == HQ_SCHEDULED,
+            *window,
+        )
         in_progress = self._count_complaints(
-            owning_unit, CmBatch1ComplaintORM.status == "IN_PROGRESS", *window
+            owning_unit,
+            CmBatch1ComplaintORM.status == "IN_PROGRESS",
+            or_(
+                CmBatch1ComplaintORM.intake_disposition.is_(None),
+                CmBatch1ComplaintORM.intake_disposition != HQ_SCHEDULED,
+            ),
+            *window,
         )
         return DashboardAggregateKpiResponse(
             total=total,
@@ -307,6 +317,7 @@ class CmBatch1ActivityDashboardProvider:
             escalatePending=escalate_pending,
             waitingAssignment=waiting_assignment,
             escalateApproved=escalate_approved,
+            escalateScheduled=escalate_scheduled,
             inProgress=in_progress,
         )
 

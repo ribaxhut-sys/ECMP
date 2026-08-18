@@ -18,6 +18,7 @@ describe("buildAggregateKpis", () => {
       { status: "NEW", count: 1, labelKey: "openUnescalated" },
       { status: "ESCALATED", count: 0, labelKey: "waitingEscalationApproval" },
       { status: "ASSIGNED", count: 0, labelKey: "escalationApproved" },
+      { status: "PENDING", count: 0, labelKey: "escalationScheduled" },
       { status: "IN_PROGRESS", count: 0, labelKey: "queueInProgress" },
       { status: "CLOSED", count: 2, labelKey: "closedComplaints" },
     ]);
@@ -38,6 +39,7 @@ describe("buildAggregateKpis", () => {
       { status: "NEW", count: 0, labelKey: "openUnescalated" },
       { status: "ESCALATED", count: 1, labelKey: "waitingEscalationApproval" },
       { status: "ASSIGNED", count: 0, labelKey: "escalationApproved" },
+      { status: "PENDING", count: 0, labelKey: "escalationScheduled" },
       { status: "IN_PROGRESS", count: 0, labelKey: "queueInProgress" },
       { status: "CLOSED", count: 2, labelKey: "closedComplaints" },
     ]);
@@ -59,9 +61,30 @@ describe("buildAggregateKpis", () => {
       { status: "NEW", count: 3, labelKey: "openUnescalated" },
       { status: "ESCALATED", count: 4, labelKey: "waitingEscalationApproval" },
       { status: "ASSIGNED", count: 1, labelKey: "escalationApproved" },
+      { status: "PENDING", count: 0, labelKey: "escalationScheduled" },
       { status: "IN_PROGRESS", count: 2, labelKey: "queueInProgress" },
       { status: "CLOSED", count: 6, labelKey: "closedComplaints" },
     ]);
     expect(kpis.byStatus.reduce((sum, row) => sum + row.count, 0)).toBe(16);
+  });
+
+  it("keeps HQ_SCHEDULED on the escalation path instead of in-progress", () => {
+    const kpis = buildAggregateKpis({
+      total: 3,
+      open: 3,
+      closed: 0,
+      escalatePending: 0,
+      waitingAssignment: 0,
+      escalateApproved: 0,
+      escalateScheduled: 3,
+      inProgress: 0,
+    });
+    expect(
+      kpis.byStatus.find((row) => row.labelKey === "escalationScheduled")?.count,
+    ).toBe(3);
+    expect(
+      kpis.byStatus.find((row) => row.labelKey === "queueInProgress")?.count,
+    ).toBe(0);
+    expect(kpis.byStatus.reduce((sum, row) => sum + row.count, 0)).toBe(3);
   });
 });

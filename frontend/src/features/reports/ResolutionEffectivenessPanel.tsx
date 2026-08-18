@@ -9,7 +9,12 @@ import {
   Skeleton,
   StatCard,
 } from "@/shared/ui";
-import { escalationTotal, resolutionBuckets } from "./reportSummaryStats";
+import {
+  escalationTotal,
+  operationalHealthFromRate,
+  resolutionBuckets,
+  resolutionRatePercent,
+} from "./reportSummaryStats";
 
 export function ResolutionEffectivenessPanel({
   rows,
@@ -20,6 +25,20 @@ export function ResolutionEffectivenessPanel({
 }) {
   const t = useTranslations("reports");
   const buckets = useMemo(() => resolutionBuckets(rows), [rows]);
+  const resolvedRate = resolutionRatePercent(
+    buckets
+      ? {
+          total:
+            buckets.resolved +
+            buckets.waiting +
+            buckets.inProgress +
+            escalationTotal(buckets),
+          open: 0,
+          closed: buckets.resolved,
+        }
+      : null,
+  );
+  const resolvedHealth = operationalHealthFromRate(resolvedRate);
 
   return (
     <section
@@ -42,11 +61,19 @@ export function ResolutionEffectivenessPanel({
         <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             hierarchy="secondary"
-            accent="healthy"
+            accent={resolvedHealth?.tone ?? "normal"}
             title={t("resolved")}
             value={<span className="tabular-nums">{buckets.resolved}</span>}
-            status={t("healthy")}
-            statusTone="success"
+            status={resolvedHealth ? t(resolvedHealth.labelKey) : undefined}
+            statusTone={
+              resolvedHealth?.labelKey === "healthy"
+                ? "success"
+                : resolvedHealth?.labelKey === "attention"
+                  ? "warning"
+                  : resolvedHealth
+                    ? "danger"
+                    : undefined
+            }
             subtitle={t("resolvedStory")}
           />
           <StatCard
@@ -79,11 +106,15 @@ export function ResolutionEffectivenessPanel({
               escalationTotal(buckets) > 0 ? "warning" : "success"
             }
             subtitle={
-              buckets.escalationApproved > 0
-                ? t("escalatedStoryWithApproved", {
-                    approved: buckets.escalationApproved,
+              buckets.escalationScheduled > 0
+                ? t("escalatedStoryWithScheduled", {
+                    scheduled: buckets.escalationScheduled,
                   })
-                : t("escalatedStory")
+                : buckets.escalationApproved > 0
+                  ? t("escalatedStoryWithApproved", {
+                      approved: buckets.escalationApproved,
+                    })
+                  : t("escalatedStory")
             }
           />
         </div>

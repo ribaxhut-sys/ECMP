@@ -29,6 +29,7 @@ import {
   type ReportPeriodKey,
 } from "./reportPeriods";
 import {
+  escalationTotal,
   reportHeadlineCounts,
   resolutionBuckets,
   resolutionRatePercent,
@@ -86,8 +87,9 @@ export function ReportsWorkspace() {
         [t("resolved"), buckets.resolved],
         [t("inProgress"), buckets.inProgress],
         [t("waiting"), buckets.waiting],
-        [t("escalated"), buckets.escalated],
+        [t("escalated"), escalationTotal(buckets)],
         [t("escalationApproved"), buckets.escalationApproved],
+        [t("escalationScheduled"), buckets.escalationScheduled],
       );
     }
     downloadCsv(reportCsvFilename(period), buildReportCsv(rows));

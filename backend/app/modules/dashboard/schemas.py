@@ -130,6 +130,9 @@ class DashboardAggregateKpiResponse(BaseModel):
     escalate_pending: int = Field(default=0, alias="escalatePending")
     waiting_assignment: int = Field(default=0, alias="waitingAssignment")
     escalate_approved: int = Field(default=0, alias="escalateApproved")
+    #: HQ visit already scheduled — still on the escalation path
+    #: (``ESCALATION_ACTIVE``) whatever the aggregate status says.
+    escalate_scheduled: int = Field(default=0, alias="escalateScheduled")
     in_progress: int = Field(default=0, alias="inProgress")
 
 

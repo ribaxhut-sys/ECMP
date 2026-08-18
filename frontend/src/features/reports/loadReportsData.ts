@@ -37,6 +37,7 @@ export async function loadReportsData(
     escalatePending: res.data.escalatePending,
     waitingAssignment: res.data.waitingAssignment,
     escalateApproved: res.data.escalateApproved,
+    escalateScheduled: res.data.escalateScheduled,
     inProgress: res.data.inProgress,
   });
   const summary: ReportSummary = {

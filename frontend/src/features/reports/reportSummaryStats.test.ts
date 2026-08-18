@@ -60,25 +60,27 @@ describe("resolutionBuckets", () => {
       ]),
     ).toEqual({
       resolved: 7,
-      waiting: 2,
+      waiting: 1,
       escalated: 4,
       escalationApproved: 2,
+      escalationScheduled: 1,
       inProgress: 3,
     });
   });
 });
 
 describe("escalationTotal", () => {
-  it("sums pending and already-approved escalations", () => {
+  it("sums pending, approved, and HQ-scheduled escalations", () => {
     expect(
       escalationTotal({
         resolved: 0,
         waiting: 0,
         escalated: 3,
         escalationApproved: 2,
+        escalationScheduled: 3,
         inProgress: 0,
       }),
-    ).toBe(5);
+    ).toBe(8);
   });
 
   it("returns 0 for null buckets", () => {

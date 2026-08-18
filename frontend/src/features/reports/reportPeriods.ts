@@ -2,10 +2,12 @@
  * Period presets for /reports.
  *
  * The dashboard answers "what is happening now"; reports answer "what happened
- * in this period". Ranges are half-open on the display side but sent as an
- * inclusive `dateFrom`/`dateTo` pair, matching the backend's `created_at`
- * window on the Batch-1 Aggregate.
+ * in this period". Bounds are calendar days in Asia/Jakarta (never UTC month
+ * arithmetic — see `toLocalDateKey`), sent as an inclusive `dateFrom`/`dateTo`
+ * pair matching the backend window.
  */
+import { hqArrivalInstant, toLocalDateKey } from "@/shared/utils/datetime";
+
 export const REPORT_PERIOD_KEYS = [
   "all",
   "thisMonth",
@@ -23,24 +25,47 @@ export type ReportPeriodRange = {
   dateTo?: string;
 };
 
-function startOfDay(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  );
+type Ymd = { year: number; month: number; day: number };
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
 }
 
-function endOfDay(date: Date): Date {
-  return new Date(
-    Date.UTC(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate(),
-      23,
-      59,
-      59,
-      999,
-    ),
+function jakartaYmd(date: Date): Ymd {
+  const [year, month, day] = toLocalDateKey(date).split("-").map(Number);
+  return { year, month, day };
+}
+
+function addCalendarDays(parts: Ymd, delta: number): Ymd {
+  const utc = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + delta));
+  return {
+    year: utc.getUTCFullYear(),
+    month: utc.getUTCMonth() + 1,
+    day: utc.getUTCDate(),
+  };
+}
+
+/** 00:00 Asia/Jakarta on that calendar day. */
+function jakartaDayStart(parts: Ymd): Date {
+  const instant = hqArrivalInstant(
+    `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}`,
+    "00:00",
   );
+  if (!instant) {
+    throw new RangeError(
+      `invalid Jakarta calendar day ${parts.year}-${parts.month}-${parts.day}`,
+    );
+  }
+  return instant;
+}
+
+function inclusiveEndIso(parts: Ymd): string {
+  const next = addCalendarDays(parts, 1);
+  return new Date(jakartaDayStart(next).getTime() - 1).toISOString();
+}
+
+function startIso(parts: Ymd): string {
+  return jakartaDayStart(parts).toISOString();
 }
 
 /** Resolve a preset into the query window sent to the Aggregate KPI. */
@@ -50,37 +75,39 @@ export function reportPeriodRange(
 ): ReportPeriodRange {
   if (key === "all") return {};
 
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
+  const today = jakartaYmd(now);
 
   if (key === "thisMonth") {
     return {
-      dateFrom: new Date(Date.UTC(year, month, 1)).toISOString(),
-      dateTo: endOfDay(now).toISOString(),
+      dateFrom: startIso({ year: today.year, month: today.month, day: 1 }),
+      dateTo: inclusiveEndIso(today),
     };
   }
 
   if (key === "lastMonth") {
+    const firstThisMonth = { year: today.year, month: today.month, day: 1 };
+    const lastDayPrev = addCalendarDays(firstThisMonth, -1);
     return {
-      dateFrom: new Date(Date.UTC(year, month - 1, 1)).toISOString(),
-      dateTo: new Date(
-        Date.UTC(year, month, 1, 0, 0, 0, -1),
-      ).toISOString(),
+      dateFrom: startIso({
+        year: lastDayPrev.year,
+        month: lastDayPrev.month,
+        day: 1,
+      }),
+      dateTo: inclusiveEndIso(lastDayPrev),
     };
   }
 
   if (key === "last90") {
-    const from = new Date(now);
-    from.setUTCDate(from.getUTCDate() - 89);
+    const from = addCalendarDays(today, -89);
     return {
-      dateFrom: startOfDay(from).toISOString(),
-      dateTo: endOfDay(now).toISOString(),
+      dateFrom: startIso(from),
+      dateTo: inclusiveEndIso(today),
     };
   }
 
   return {
-    dateFrom: new Date(Date.UTC(year, 0, 1)).toISOString(),
-    dateTo: endOfDay(now).toISOString(),
+    dateFrom: startIso({ year: today.year, month: 1, day: 1 }),
+    dateTo: inclusiveEndIso(today),
   };
 }
 

@@ -1972,6 +1972,7 @@ paths:
                   escalatePending: 4
                   waitingAssignment: 3
                   escalateApproved: 1
+                  escalateScheduled: 0
                   inProgress: 2
         "401":
           $ref: "#/components/responses/Unauthenticated"
@@ -5243,6 +5244,7 @@ components:
         - escalatePending
         - waitingAssignment
         - escalateApproved
+        - escalateScheduled
         - inProgress
       properties:
         total: { type: integer, minimum: 0 }
@@ -5258,24 +5260,32 @@ components:
           type: integer
           minimum: 0
           description: >
-            REGISTERED and not held in ESCALATE_PENDING_APPROVAL or
-            ESCALATE_APPROVED (operational "menunggu penugasan", not "baru")
+            REGISTERED and not held in ESCALATION_ACTIVE
+            (pending approval, approved, or HQ_SCHEDULED)
         escalateApproved:
           type: integer
           minimum: 0
           description: >
             REGISTERED and intakeDisposition=ESCALATE_APPROVED
             (exclusive of IN_PROGRESS / CLOSED)
+        escalateScheduled:
+          type: integer
+          minimum: 0
+          description: >
+            Not CLOSED and intakeDisposition=HQ_SCHEDULED — still on the
+            escalation path (usually IN_PROGRESS with a bound Case)
         inProgress:
           type: integer
           minimum: 0
-          description: status=IN_PROGRESS (DEC-025 parent status)
+          description: >
+            status=IN_PROGRESS and intakeDisposition is not HQ_SCHEDULED
       description: |
         DEC-020 Aggregate complaint KPI counts for dashboard cards.
         Branch scope = Aggregate owningUnitId matched to Branch.code
         (aligned with CM Batch-1 list visibility; not creator membership).
         Donut slices must use waitingAssignment / escalatePending /
-        escalateApproved / inProgress / closed — not a single "NEW" bucket.
+        escalateApproved / escalateScheduled / inProgress / closed —
+        not a single "NEW" bucket.
     DashboardAggregateKpiDataResponse:
       type: object
       required: [data]

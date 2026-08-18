@@ -12,7 +12,7 @@ import {
   SectionHeader,
   Skeleton,
 } from "@/shared/ui";
-import { resolutionBuckets } from "./reportSummaryStats";
+import { escalationTotal, resolutionBuckets } from "./reportSummaryStats";
 
 function InsightTile({
   title,
@@ -68,9 +68,9 @@ export function InsightsPanel({
   const buckets = useMemo(() => resolutionBuckets(byStatus), [byStatus]);
 
   const topRisk =
-    buckets && buckets.escalated > 0
+    buckets && escalationTotal(buckets) > 0
       ? {
-          value: t("topRiskEscalated", { count: buckets.escalated }),
+          value: t("topRiskEscalated", { count: escalationTotal(buckets) }),
           caption: t("topRiskEscalatedCaption"),
         }
       : buckets && buckets.waiting > 0

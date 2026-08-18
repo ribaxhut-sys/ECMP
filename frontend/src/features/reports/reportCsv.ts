@@ -3,6 +3,8 @@
  * half a report. Built in the browser from the data already on screen, so no
  * second read of the Aggregate can disagree with what the user is looking at.
  */
+import { toLocalDateKey } from "@/shared/utils/datetime";
+
 export type ReportCsvRow = (string | number)[];
 
 const SEPARATOR = ",";
@@ -29,7 +31,7 @@ export function reportCsvFilename(
   periodKey: string,
   now: Date = new Date(),
 ): string {
-  const stamp = now.toISOString().slice(0, 10);
+  const stamp = toLocalDateKey(now);
   return `laporan-pengaduan-${periodKey}-${stamp}.csv`;
 }
 

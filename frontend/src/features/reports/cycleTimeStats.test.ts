@@ -41,6 +41,21 @@ describe("cycleTimeBucketRows", () => {
     expect(cycleTimeBucketRows(null)).toEqual([]);
   });
 
+  it("puts leftover rounding percent on the last band so shares sum to 100", () => {
+    const rows = cycleTimeBucketRows(
+      summary({
+        closedCases: 3,
+        buckets: [
+          { key: "sameDay", count: 1 },
+          { key: "upTo3Days", count: 1 },
+          { key: "upTo7Days", count: 1 },
+          { key: "over7Days", count: 0 },
+        ],
+      }),
+    );
+    expect(rows.map((r) => r.share).reduce((a, b) => a + b, 0)).toBe(100);
+  });
+
   it("skips bands the UI has no label for instead of rendering a raw key", () => {
     const rows = cycleTimeBucketRows(
       summary({ buckets: [{ key: "someFutureBand", count: 10 }] }),

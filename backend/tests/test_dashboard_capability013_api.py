@@ -430,6 +430,7 @@ def test_capability013_endpoints_shape(
         "escalatePending",
         "waitingAssignment",
         "escalateApproved",
+        "escalateScheduled",
         "inProgress",
     ):
         assert key in aggregate

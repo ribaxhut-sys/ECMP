@@ -29,6 +29,9 @@ from app.modules.cm_batch1.predicates import (
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.store import Batch1Store
 from app.modules.dashboard.domain.dto import DashboardFilters
+from app.modules.dashboard.providers.cm_batch1_activity_provider import (
+    CmBatch1ActivityDashboardProvider,
+)
 from app.modules.dashboard.providers.complaint_provider import (
     ComplaintDashboardProvider,
 )
@@ -126,6 +129,9 @@ _ACTOR = f"predicate-actor-{uuid.uuid4().hex[:8]}"
 _SEED: tuple[tuple[str, str | None], ...] = (
     ("CLOSED", "BRANCH_CLOSED"),
     ("IN_PROGRESS", None),
+    # Production shape: an HQ visit binds a Case, so the row is IN_PROGRESS
+    # while still travelling the escalation path.
+    ("IN_PROGRESS", "HQ_SCHEDULED"),
     ("REGISTERED", "ESCALATE_PENDING_APPROVAL"),
     ("REGISTERED", "HQ_SCHEDULED"),
     ("REGISTERED", "ESCALATE_REJECTED"),
@@ -196,7 +202,7 @@ def test_dashboard_escalated_counts_the_active_path_only(seeded: Session) -> Non
     _, family_total = repo.list_complaints(
         created_by=_ACTOR, intake_disposition="ESCALATED"
     )
-    assert family_total == 3  # PENDING_APPROVAL + HQ_SCHEDULED + REJECTED
+    assert family_total == 4  # PENDING_APPROVAL + 2x HQ_SCHEDULED + REJECTED
 
     with_seed = provider.escalation_count(DashboardFilters())
     seeded.execute(
@@ -204,8 +210,8 @@ def test_dashboard_escalated_counts_the_active_path_only(seeded: Session) -> Non
     )
     seeded.commit()
     baseline = provider.escalation_count(DashboardFilters())
-    # HQ_SCHEDULED counts (still at HQ); the rejected row does not.
-    assert with_seed - baseline == 2
+    # Both HQ_SCHEDULED rows count (still at HQ); the rejected row does not.
+    assert with_seed - baseline == 3
 
 
 @_PG
@@ -241,9 +247,48 @@ def test_report_donut_maps_status_first_and_never_emits_assigned(
     baseline = dict(repo.count_by_status())
     delta = _delta(baseline, counts)
     assert delta["CLOSED"] == 1
-    assert delta["IN_PROGRESS"] == 1
+    # Status decides first, so IN_PROGRESS+HQ_SCHEDULED lands here.
+    assert delta["IN_PROGRESS"] == 2
     # PENDING_APPROVAL + HQ_SCHEDULED — the rejected row is no longer escalated.
     assert delta["ESCALATED"] == 2
     # REGISTERED+REJECTED, REGISTERED+None, and the out-of-set status row.
     assert delta["NEW"] == 3
     assert delta.get("ASSIGNED", 0) == 0
+
+
+@_PG
+def test_aggregate_kpi_slices_partition_and_count_hq_scheduled(
+    seeded: Session,
+) -> None:
+    """The donut may not lose an escalation: HQ_SCHEDULED has its own slice.
+
+    Before ``escalate_scheduled`` these rows fell into ``waiting_assignment``
+    (REGISTERED) or ``in_progress`` (case bound), so /reports showed
+    "0 dieskalasi" while every row sat on the escalation path.
+    """
+    provider = CmBatch1ActivityDashboardProvider(seeded)
+    after = provider.complaint_kpis()
+    seeded.execute(
+        delete(CmBatch1ComplaintORM).where(CmBatch1ComplaintORM.created_by == _ACTOR)
+    )
+    seeded.commit()
+    before = provider.complaint_kpis()
+
+    assert after.escalate_scheduled - before.escalate_scheduled == 2
+    assert after.escalate_pending - before.escalate_pending == 1
+    # The plain IN_PROGRESS row only; the HQ-scheduled one moved to its slice.
+    assert after.in_progress - before.in_progress == 1
+    # REGISTERED+REJECTED and REGISTERED+None. LEGACY_UNKNOWN is open
+    # (DEC-025) but is not REGISTERED, so it has no donut slice.
+    assert after.waiting_assignment - before.waiting_assignment == 2
+    seed_total = after.total - before.total
+    seed_sliced = (
+        (after.waiting_assignment - before.waiting_assignment)
+        + (after.escalate_pending - before.escalate_pending)
+        + (after.escalate_approved - before.escalate_approved)
+        + (after.escalate_scheduled - before.escalate_scheduled)
+        + (after.in_progress - before.in_progress)
+        + (after.closed - before.closed)
+    )
+    assert seed_total == len(_SEED)
+    assert seed_sliced == seed_total - 1

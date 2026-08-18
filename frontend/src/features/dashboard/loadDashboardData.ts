@@ -18,6 +18,7 @@ export type AggregateDashboardKpis = {
   escalatePending: number;
   waitingAssignment: number;
   escalateApproved: number;
+  escalateScheduled: number;
   inProgress: number;
   /** Mutually exclusive operational slices — sum equals total. */
   byStatus: StatusCount[];
@@ -40,15 +41,24 @@ export function buildAggregateKpis(input: {
   escalatePending: number;
   waitingAssignment?: number;
   escalateApproved?: number;
+  escalateScheduled?: number;
   inProgress?: number;
 }): AggregateDashboardKpis {
   const escalateApproved = input.escalateApproved ?? 0;
+  const escalateScheduled = input.escalateScheduled ?? 0;
   const inProgress = input.inProgress ?? 0;
   const waitingAssignment =
     input.waitingAssignment ??
-    Math.max(0, input.open - input.escalatePending - escalateApproved);
+    Math.max(
+      0,
+      input.open -
+        input.escalatePending -
+        escalateApproved -
+        escalateScheduled -
+        inProgress,
+    );
   // Mutually exclusive slices. Open-and-not-escalated is "Terbuka", not "Baru".
-  // ESCALATE_PENDING / ESCALATE_APPROVED stay in their own slices.
+  // PENDING is the HQ_SCHEDULED slice (still ESCALATION_ACTIVE), not "waiting".
   const byStatus: StatusCount[] = [
     {
       status: "NEW",
@@ -64,6 +74,11 @@ export function buildAggregateKpis(input: {
       status: "ASSIGNED",
       count: escalateApproved,
       labelKey: "escalationApproved",
+    },
+    {
+      status: "PENDING",
+      count: escalateScheduled,
+      labelKey: "escalationScheduled",
     },
     {
       status: "IN_PROGRESS",
@@ -83,6 +98,7 @@ export function buildAggregateKpis(input: {
     escalatePending: input.escalatePending,
     waitingAssignment,
     escalateApproved,
+    escalateScheduled,
     inProgress,
     byStatus,
     header: {
@@ -103,6 +119,7 @@ async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
     escalatePending: data.escalatePending,
     waitingAssignment: data.waitingAssignment,
     escalateApproved: data.escalateApproved,
+    escalateScheduled: data.escalateScheduled,
     inProgress: data.inProgress,
   });
 }

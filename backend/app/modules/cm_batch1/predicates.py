@@ -9,11 +9,12 @@ report donut.
 ``status`` is the Aggregate lifecycle SoT; ``intake_disposition`` is the intake
 path label and never overrides it.
 
-Not covered here: ``cm_batch1_activity_provider.py``'s aggregate-KPI donut
-(``escalate_pending`` / ``waiting_assignment`` / ``escalate_approved``) is a
-different, mutually-exclusive REGISTERED-only partition by design (the four
-slices + IN_PROGRESS + CLOSED sum to total). Folding HQ_SCHEDULED into it
-would add or redefine a slice — a UI/contract decision, not a predicate fix.
+Also here: ``cm_batch1_activity_provider.py``'s aggregate-KPI donut is a
+different, mutually-exclusive partition (``waiting_assignment`` /
+``escalate_pending`` / ``escalate_approved`` / ``escalate_scheduled`` +
+``in_progress`` + ``closed`` sum to total). ``escalate_scheduled`` is the
+HQ_SCHEDULED slice: without it the donut reported "0 escalated" while every
+row sat on the escalation path, contradicting ``ESCALATION_ACTIVE`` here.
 """
 
 from __future__ import annotations
@@ -23,11 +24,14 @@ AGGREGATE_STATUSES: tuple[str, ...] = ("REGISTERED", "IN_PROGRESS", "CLOSED")
 
 CLOSED_STATUS = "CLOSED"
 
+#: Escalation approved and an HQ visit is on the calendar.
+HQ_SCHEDULED = "HQ_SCHEDULED"
+
 #: Still travelling the escalation path — the KPI/dashboard "escalated" count.
 ESCALATION_ACTIVE: tuple[str, ...] = (
     "ESCALATE_PENDING_APPROVAL",
     "ESCALATE_APPROVED",
-    "HQ_SCHEDULED",
+    HQ_SCHEDULED,
 )
 
 #: Ever entered escalation — list drill-down pseudo-value ``ESCALATED``.
@@ -37,7 +41,7 @@ ESCALATION_FAMILY: tuple[str, ...] = (
     "ESCALATE_REJECTED",
     "ESCALATE_CANCELLED",
     "RETURNED_TO_BRANCH",
-    "HQ_SCHEDULED",
+    HQ_SCHEDULED,
 )
 
 

@@ -291,6 +291,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > kasus tertutup; window difilter pada `closedAt`, bukan `createdAt`).
 > `GET /api/v1/dashboard/aggregate-kpis` menerima `dateFrom`/`dateTo` sehingga
 > `/reports` bisa melaporkan per periode dari SoT Aggregate yang sama (DEC-026).
+> Irisan donut menambah `escalateScheduled` (HQ_SCHEDULED) agar `/reports` tidak
+> menampilkan "0 dieskalasi" untuk pengaduan yang sudah dijadwalkan ke Pusat.
 > Tidak ada perubahan perilaku domain; panel "Performa Cabang" di `/reports`
 > dihapus (duplikat Kesehatan Cabang di dasbor) — API-212 tetap utuh.
 

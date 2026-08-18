@@ -6,6 +6,7 @@ import {
   reportPeriodRange,
 } from "./reportPeriods";
 
+/** 17:30 WIB on 18 Aug 2026 — same calendar day as the UTC clock. */
 const NOW = new Date("2026-08-18T10:30:00.000Z");
 
 describe("reportPeriodRange", () => {
@@ -14,36 +15,45 @@ describe("reportPeriodRange", () => {
     expect(reportPeriodRange("all", NOW)).toEqual({});
   });
 
-  it("spans the current month up to the end of today", () => {
+  it("spans the current Jakarta month up to the end of today WIB", () => {
     expect(reportPeriodRange("thisMonth", NOW)).toEqual({
-      dateFrom: "2026-08-01T00:00:00.000Z",
-      dateTo: "2026-08-18T23:59:59.999Z",
+      dateFrom: "2026-07-31T17:00:00.000Z",
+      dateTo: "2026-08-18T16:59:59.999Z",
     });
   });
 
-  it("closes the previous month on its last instant", () => {
+  it("closes the previous Jakarta month on its last instant", () => {
     expect(reportPeriodRange("lastMonth", NOW)).toEqual({
-      dateFrom: "2026-07-01T00:00:00.000Z",
-      dateTo: "2026-07-31T23:59:59.999Z",
+      dateFrom: "2026-06-30T17:00:00.000Z",
+      dateTo: "2026-07-31T16:59:59.999Z",
     });
   });
 
   it("rolls the previous month across a year boundary", () => {
-    const range = reportPeriodRange("lastMonth", new Date("2026-01-09T00:00:00.000Z"));
-    expect(range.dateFrom).toBe("2025-12-01T00:00:00.000Z");
-    expect(range.dateTo).toBe("2025-12-31T23:59:59.999Z");
+    const range = reportPeriodRange(
+      "lastMonth",
+      new Date("2026-01-09T00:00:00.000Z"),
+    );
+    expect(range.dateFrom).toBe("2025-11-30T17:00:00.000Z");
+    expect(range.dateTo).toBe("2025-12-31T16:59:59.999Z");
   });
 
-  it("counts 90 days inclusive of today", () => {
+  it("does not put 1 Sep 02:00 WIB into last-month of August", () => {
+    const firstOfSeptemberWib = new Date("2026-08-31T19:00:00.000Z");
+    const range = reportPeriodRange("thisMonth", firstOfSeptemberWib);
+    expect(range.dateFrom).toBe("2026-08-31T17:00:00.000Z");
+  });
+
+  it("counts 90 Jakarta days inclusive of today", () => {
     expect(reportPeriodRange("last90", NOW)).toEqual({
-      dateFrom: "2026-05-21T00:00:00.000Z",
-      dateTo: "2026-08-18T23:59:59.999Z",
+      dateFrom: "2026-05-20T17:00:00.000Z",
+      dateTo: "2026-08-18T16:59:59.999Z",
     });
   });
 
-  it("starts the year on 1 January", () => {
+  it("starts the year on 1 January Jakarta time", () => {
     expect(reportPeriodRange("thisYear", NOW).dateFrom).toBe(
-      "2026-01-01T00:00:00.000Z",
+      "2025-12-31T17:00:00.000Z",
     );
   });
 

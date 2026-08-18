@@ -402,18 +402,29 @@ def test_list_recent_forwards_aggregate_type_and_limit() -> None:
 
 def test_complaint_kpis_unrestricted_counts() -> None:
     provider, *_ = _provider()
-    provider._count_complaints = MagicMock(side_effect=[16, 8, 6, 4, 3, 1, 2])
+    provider._count_complaints = MagicMock(side_effect=[16, 10, 6, 4, 3, 1, 2, 0])
 
     kpis = provider.complaint_kpis(branch_id=None)
 
     assert kpis.total == 16
-    assert kpis.open == 8
+    assert kpis.open == 10
     assert kpis.closed == 6
     assert kpis.escalate_pending == 4
     assert kpis.waiting_assignment == 3
     assert kpis.escalate_approved == 1
-    assert kpis.in_progress == 2
-    assert provider._count_complaints.call_count == 7
+    assert kpis.escalate_scheduled == 2
+    assert kpis.in_progress == 0
+    # Slices partition the set: 3 + 4 + 1 + 2 + 0 + 6 = 16
+    assert (
+        kpis.waiting_assignment
+        + kpis.escalate_pending
+        + kpis.escalate_approved
+        + kpis.escalate_scheduled
+        + kpis.in_progress
+        + kpis.closed
+        == kpis.total
+    )
+    assert provider._count_complaints.call_count == 8
     # First call is unrestricted (owning_unit_id=None)
     assert provider._count_complaints.call_args_list[0].args[0] is None
 
@@ -429,6 +440,7 @@ def test_complaint_kpis_branch_with_unknown_unit_is_zero() -> None:
     assert kpis.open == 0
     assert kpis.closed == 0
     assert kpis.escalate_pending == 0
+    assert kpis.escalate_scheduled == 0
     provider._count_complaints.assert_not_called()
 
 

@@ -24,9 +24,15 @@ describe("buildReportCsv", () => {
 });
 
 describe("reportCsvFilename", () => {
-  it("stamps the period and the export date", () => {
+  it("stamps the period and the Jakarta calendar date", () => {
     expect(
       reportCsvFilename("thisMonth", new Date("2026-08-18T10:00:00.000Z")),
     ).toBe("laporan-pengaduan-thisMonth-2026-08-18.csv");
+  });
+
+  it("does not use the UTC date after 17:00Z (midnight WIB next day)", () => {
+    expect(
+      reportCsvFilename("thisMonth", new Date("2026-08-18T17:00:00.000Z")),
+    ).toBe("laporan-pengaduan-thisMonth-2026-08-19.csv");
   });
 });
