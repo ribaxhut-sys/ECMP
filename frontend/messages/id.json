@@ -2617,7 +2617,6 @@
     "breakLabel": "Istirahat",
     "slotRatio": "{scheduled}/{capacity} slot",
     "proposeDateLabel": "Tanggal usulan kedatangan (opsional)",
-    "proposeDatePlaceholder": "Pilih tanggal",
     "proposeTimeLabel": "Jam usulan kedatangan",
     "proposeTimePlaceholder": "Pilih slot",
     "proposedArrivalLabel": "Usulan Anda",

@@ -1,21 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   fetchHqScheduleAvailability,
   type HqScheduleDayAvailability,
 } from "@/lib/api/hqSchedule";
-import { Alert, Select } from "@/shared/ui";
+import { Alert, Input, Select } from "@/shared/ui";
+import { toLocalDateKey } from "@/shared/utils/datetime";
+
+const MAX_LEAD_DAYS = 60;
 
 const weekdayFormatter = new Intl.DateTimeFormat("id-ID", { weekday: "long" });
 
-/** "2026-08-18" -> "18-08-2026 (Selasa)" for display; API params stay ISO. */
-function formatDateOption(isoDate: string): string {
+/** "2026-08-18" -> "Selasa, 18-08-2026" for display; API params stay ISO. */
+function formatDateLabel(isoDate: string): string {
   const [year, month, day] = isoDate.split("-");
   if (!year || !month || !day) return isoDate;
   const weekday = weekdayFormatter.format(new Date(`${isoDate}T00:00:00`));
-  return `${day}-${month}-${year} (${weekday})`;
+  return `${weekday}, ${day}-${month}-${year}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
 }
 
 export interface HqArrivalSlotValue {
@@ -31,7 +40,9 @@ export interface HqArrivalSlotPickerProps {
 
 /**
  * Branch-facing slot picker shown inline on escalation — advisory proposal
- * only, Pusat still decides the final HQ arrival date/time.
+ * only, Pusat still decides the final HQ arrival date/time. The date input
+ * is free-pick (not limited to "this week") so a taxpayer asking for a slot
+ * weeks out can still be proposed one; only that single day is fetched.
  */
 export function HqArrivalSlotPicker({
   value,
@@ -39,62 +50,43 @@ export function HqArrivalSlotPicker({
   disabled,
 }: HqArrivalSlotPickerProps) {
   const t = useTranslations("hqSchedule");
-  const [days, setDays] = useState<HqScheduleDayAvailability[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
+  const [day, setDay] = useState<HqScheduleDayAvailability | null>(null);
+  const [dayLoading, setDayLoading] = useState(false);
+  const [dayFailed, setDayFailed] = useState(false);
+
+  const minDate = useMemo(() => toLocalDateKey(addDays(new Date(), 1)), []);
+  const maxDate = useMemo(
+    () => toLocalDateKey(addDays(new Date(), MAX_LEAD_DAYS)),
+    [],
+  );
+
+  const selectedDate = value?.date ?? "";
 
   useEffect(() => {
+    if (!selectedDate) {
+      setDay(null);
+      setDayFailed(false);
+      return;
+    }
     let cancelled = false;
-    fetchHqScheduleAvailability()
+    setDayLoading(true);
+    setDayFailed(false);
+    fetchHqScheduleAvailability(selectedDate, selectedDate)
       .then((res) => {
-        if (!cancelled) setDays(res.data.days);
+        if (!cancelled) setDay(res.data.days[0] ?? null);
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) setDayFailed(true);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setDayLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedDate]);
 
-  if (loading) {
-    return (
-      <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-        {t("proposeLoading")}
-      </p>
-    );
-  }
-
-  if (failed) {
-    return (
-      <Alert
-        tone="warning"
-        title={t("loadError")}
-        description={t("proposeUnavailableHint")}
-      />
-    );
-  }
-
-  const openDays = days.filter((day) => !day.closed && day.slots.length > 0);
-  if (openDays.length === 0) {
-    return (
-      <Alert
-        tone="info"
-        title={t("proposeNoSlotsTitle")}
-        description={t("proposeNoSlotsHint")}
-      />
-    );
-  }
-
-  const dateOptions = openDays.map((day) => ({
-    value: day.date,
-    label: formatDateOption(day.date),
-  }));
-  const selectedDay = openDays.find((day) => day.date === value?.date) ?? null;
-  const slotOptions = (selectedDay?.slots ?? [])
+  const slotOptions = (day?.slots ?? [])
     .filter((slot) => !slot.isBreak)
     .map((slot) => ({
       value: slot.startTime,
@@ -106,36 +98,59 @@ export function HqArrivalSlotPicker({
 
   return (
     <div className="grid gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
-      <Select
-        name="proposedArrivalDate"
-        id="proposedArrivalDate"
-        label={t("proposeDateLabel")}
-        placeholder={t("proposeDatePlaceholder")}
-        options={dateOptions}
-        value={value?.date ?? ""}
-        disabled={disabled}
-        onChange={(e) => {
-          const date = e.target.value;
-          if (!date) {
-            onChange(null);
-            return;
-          }
-          onChange({ date, time: "" });
-        }}
-      />
-      <Select
-        name="proposedArrivalTime"
-        id="proposedArrivalTime"
-        label={t("proposeTimeLabel")}
-        placeholder={t("proposeTimePlaceholder")}
-        options={slotOptions}
-        value={value?.time ?? ""}
-        disabled={disabled || !value?.date}
-        onChange={(e) => {
-          if (!value?.date) return;
-          onChange({ date: value.date, time: e.target.value });
-        }}
-      />
+      <div>
+        <Input
+          type="date"
+          name="proposedArrivalDate"
+          id="proposedArrivalDate"
+          label={t("proposeDateLabel")}
+          min={minDate}
+          max={maxDate}
+          value={selectedDate}
+          disabled={disabled}
+          onChange={(e) => {
+            const date = e.target.value;
+            onChange(date ? { date, time: "" } : null);
+          }}
+        />
+        {selectedDate && (
+          <p className="mt-1 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+            {formatDateLabel(selectedDate)}
+          </p>
+        )}
+      </div>
+
+      {!selectedDate ? null : dayLoading ? (
+        <p className="self-end text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+          {t("proposeLoading")}
+        </p>
+      ) : dayFailed ? (
+        <Alert
+          tone="warning"
+          title={t("loadError")}
+          description={t("proposeUnavailableHint")}
+        />
+      ) : !day || day.closed || slotOptions.length === 0 ? (
+        <Alert
+          tone="info"
+          title={t("proposeNoSlotsTitle")}
+          description={t("proposeNoSlotsHint")}
+        />
+      ) : (
+        <Select
+          name="proposedArrivalTime"
+          id="proposedArrivalTime"
+          label={t("proposeTimeLabel")}
+          placeholder={t("proposeTimePlaceholder")}
+          options={slotOptions}
+          value={value?.time ?? ""}
+          disabled={disabled}
+          onChange={(e) => {
+            if (!selectedDate) return;
+            onChange({ date: selectedDate, time: e.target.value });
+          }}
+        />
+      )}
     </div>
   );
 }
