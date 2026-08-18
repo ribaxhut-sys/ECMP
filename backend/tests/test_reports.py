@@ -8,36 +8,37 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.enums import ComplaintStatus
 from app.core.errors import ValidationAppError
 from app.modules.reports.repository import ReportRepository
+from app.modules.reports.schemas import AggregateComplaintStatus
 from app.modules.reports.service import ReportService
 
 
-def test_summary_uses_complaint_status_enum() -> None:
+def test_summary_uses_aggregate_status_enum() -> None:
     repo = MagicMock()
     repo.count_total.return_value = 5
-    repo.count_by_status.return_value = [("NEW", 3), ("CLOSED", 2)]
+    repo.count_by_status.return_value = [("REGISTERED", 3), ("CLOSED", 2)]
 
     result = ReportService(repo).summary()
 
     assert result.total == 5
-    assert len(result.by_status) == len(ComplaintStatus)
+    assert len(result.by_status) == len(AggregateComplaintStatus)
     by_status = {item.status: item.count for item in result.by_status}
-    assert by_status[ComplaintStatus.NEW] == 3
-    assert by_status[ComplaintStatus.CLOSED] == 2
-    assert by_status[ComplaintStatus.ASSIGNED] == 0
+    assert by_status[AggregateComplaintStatus.REGISTERED] == 3
+    assert by_status[AggregateComplaintStatus.CLOSED] == 2
+    assert by_status[AggregateComplaintStatus.IN_PROGRESS] == 0
 
 
 def test_by_status_fills_missing_statuses() -> None:
     repo = MagicMock()
-    repo.count_by_status.return_value = [("ASSIGNED", 4)]
+    repo.count_by_status.return_value = [("REGISTERED", 4)]
 
     result = ReportService(repo).by_status()
 
-    assert [item.status for item in result] == list(ComplaintStatus)
-    assert result[1].status == ComplaintStatus.ASSIGNED
-    assert result[1].count == 4
+    assert [item.status for item in result] == list(AggregateComplaintStatus)
+    assert result[0].status == AggregateComplaintStatus.REGISTERED
+    assert result[0].count == 4
+    assert result[1].count == 0
 
 
 def test_by_branch_sorts_by_case_completion_percent() -> None:

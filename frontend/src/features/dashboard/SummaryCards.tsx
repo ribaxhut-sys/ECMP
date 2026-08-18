@@ -146,8 +146,8 @@ export function SummaryCards({
     );
   }
 
-  const waitingAssignment = countByStatus(byStatus, "NEW") ?? 0;
-  const escalated = countByStatus(byStatus, "ESCALATED") ?? 0;
+  const waitingAssignment = countByStatus(byStatus, "waitingAssignment") ?? 0;
+  const escalated = countByStatus(byStatus, "escalatePending") ?? 0;
   const slaSignal = t("slaDeferredBatch1");
   const slaTone: OpsTone = "neutral";
   const rate = resolutionRatePct(header);

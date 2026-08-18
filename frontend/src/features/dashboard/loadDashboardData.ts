@@ -57,26 +57,26 @@ export function buildAggregateKpis(input: {
         escalateScheduled -
         inProgress,
     );
-  // Mutually exclusive slices. Open-and-not-escalated is "Terbuka", not "Baru".
-  // PENDING is the HQ_SCHEDULED slice (still ESCALATION_ACTIVE), not "waiting".
+  // Mutually exclusive slices. Keys are Aggregate statuses or operational
+  // slice ids — never Foundation NEW / ASSIGNED / PENDING / ESCALATED.
   const byStatus: StatusCount[] = [
     {
-      status: "NEW",
+      status: "waitingAssignment",
       count: waitingAssignment,
       labelKey: "openUnescalated",
     },
     {
-      status: "ESCALATED",
+      status: "escalatePending",
       count: input.escalatePending,
       labelKey: "waitingEscalationApproval",
     },
     {
-      status: "ASSIGNED",
+      status: "escalateApproved",
       count: escalateApproved,
       labelKey: "escalationApproved",
     },
     {
-      status: "PENDING",
+      status: "escalateScheduled",
       count: escalateScheduled,
       labelKey: "escalationScheduled",
     },

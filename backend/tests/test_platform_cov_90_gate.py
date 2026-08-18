@@ -15,7 +15,6 @@ import pytest
 
 from app.core.auth import Principal
 from app.core.config import Settings
-from app.core.enums import ComplaintStatus
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.modules.appointments import router as appointments_router_mod
 from app.modules.cm_batch1.antivirus import AntivirusResult
@@ -42,7 +41,12 @@ from app.modules.escalations.schemas import (
     EscalationReviewRequest,
 )
 from app.modules.reports import router as reports_router_mod
-from app.modules.reports.schemas import BranchCount, ReportSummaryData, StatusCount
+from app.modules.reports.schemas import (
+    AggregateComplaintStatus,
+    BranchCount,
+    ReportSummaryData,
+    StatusCount,
+)
 from app.modules.resolutions import router as resolutions_router_mod
 from app.modules.resolutions.schemas import (
     FinalResolutionRequest,
@@ -255,10 +259,10 @@ def test_appointments_and_reports_routers() -> None:
     report_service = MagicMock()
     report_service.summary.return_value = ReportSummaryData(
         total=1,
-        byStatus=[StatusCount(status=ComplaintStatus.NEW, count=1)],
+        byStatus=[StatusCount(status=AggregateComplaintStatus.REGISTERED, count=1)],
     )
     report_service.by_status.return_value = [
-        StatusCount(status=ComplaintStatus.NEW, count=1)
+        StatusCount(status=AggregateComplaintStatus.REGISTERED, count=1)
     ]
     report_service.by_branch.return_value = [
         BranchCount(branchId=uuid.uuid4(), branchName="B1", total=1)

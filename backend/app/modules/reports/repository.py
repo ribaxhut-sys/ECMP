@@ -63,14 +63,12 @@ class ReportRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> list[tuple[str, int]]:
-        """Map CM statuses onto the existing report enum labels (donut-compatible).
+        """Group by Aggregate lifecycle (DEC-025 §3.3).
 
-        The wire contract still speaks the Foundation ``ComplaintStatus`` labels;
-        migrating it to the CM vocabulary is a separate decision. What changes
-        here is the mapping itself: ``status`` is the Aggregate SoT and decides
-        first, ``intake_disposition`` only refines a still-REGISTERED row, and
-        ESCALATED uses the one canonical active-escalation predicate. CM has no
-        ASSIGNED state, so that label is no longer emitted.
+        ``REGISTERED | IN_PROGRESS | CLOSED`` only. Intake dispositions such as
+        ``HQ_SCHEDULED`` stay on ``GET /dashboard/aggregate-kpis`` slices — they
+        are not remapped onto Foundation labels (NEW / ESCALATED / PENDING).
+        Unknown stored values remain visible as REGISTERED (still open).
         """
         filters = self._base_filters(
             branch_id=branch_id, date_from=date_from, date_to=date_to
@@ -86,11 +84,7 @@ class ReportRepository:
                 CmBatch1ComplaintORM.status == "IN_PROGRESS",
                 "IN_PROGRESS",
             ),
-            (
-                CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_ACTIVE),
-                "ESCALATED",
-            ),
-            else_="NEW",
+            else_="REGISTERED",
         )
         stmt = select(mapped.label("status"), func.count())
         if filters:

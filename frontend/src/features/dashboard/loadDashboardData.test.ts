@@ -15,10 +15,10 @@ describe("buildAggregateKpis", () => {
       closedComplaints: 2,
     });
     expect(kpis.byStatus).toEqual([
-      { status: "NEW", count: 1, labelKey: "openUnescalated" },
-      { status: "ESCALATED", count: 0, labelKey: "waitingEscalationApproval" },
-      { status: "ASSIGNED", count: 0, labelKey: "escalationApproved" },
-      { status: "PENDING", count: 0, labelKey: "escalationScheduled" },
+      { status: "waitingAssignment", count: 1, labelKey: "openUnescalated" },
+      { status: "escalatePending", count: 0, labelKey: "waitingEscalationApproval" },
+      { status: "escalateApproved", count: 0, labelKey: "escalationApproved" },
+      { status: "escalateScheduled", count: 0, labelKey: "escalationScheduled" },
       { status: "IN_PROGRESS", count: 0, labelKey: "queueInProgress" },
       { status: "CLOSED", count: 2, labelKey: "closedComplaints" },
     ]);
@@ -36,10 +36,10 @@ describe("buildAggregateKpis", () => {
       escalatePending: 1,
     });
     expect(kpis.byStatus).toEqual([
-      { status: "NEW", count: 0, labelKey: "openUnescalated" },
-      { status: "ESCALATED", count: 1, labelKey: "waitingEscalationApproval" },
-      { status: "ASSIGNED", count: 0, labelKey: "escalationApproved" },
-      { status: "PENDING", count: 0, labelKey: "escalationScheduled" },
+      { status: "waitingAssignment", count: 0, labelKey: "openUnescalated" },
+      { status: "escalatePending", count: 1, labelKey: "waitingEscalationApproval" },
+      { status: "escalateApproved", count: 0, labelKey: "escalationApproved" },
+      { status: "escalateScheduled", count: 0, labelKey: "escalationScheduled" },
       { status: "IN_PROGRESS", count: 0, labelKey: "queueInProgress" },
       { status: "CLOSED", count: 2, labelKey: "closedComplaints" },
     ]);
@@ -58,10 +58,10 @@ describe("buildAggregateKpis", () => {
       inProgress: 2,
     });
     expect(kpis.byStatus).toEqual([
-      { status: "NEW", count: 3, labelKey: "openUnescalated" },
-      { status: "ESCALATED", count: 4, labelKey: "waitingEscalationApproval" },
-      { status: "ASSIGNED", count: 1, labelKey: "escalationApproved" },
-      { status: "PENDING", count: 0, labelKey: "escalationScheduled" },
+      { status: "waitingAssignment", count: 3, labelKey: "openUnescalated" },
+      { status: "escalatePending", count: 4, labelKey: "waitingEscalationApproval" },
+      { status: "escalateApproved", count: 1, labelKey: "escalationApproved" },
+      { status: "escalateScheduled", count: 0, labelKey: "escalationScheduled" },
       { status: "IN_PROGRESS", count: 2, labelKey: "queueInProgress" },
       { status: "CLOSED", count: 6, labelKey: "closedComplaints" },
     ]);

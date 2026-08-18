@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import type { ComplaintStatus, StatusCount } from "@/lib/api/types";
+import type { StatusCount, StatusCountStatus } from "@/lib/api/types";
 import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import {
@@ -16,8 +16,8 @@ import {
 import { STATUS_CHART_COLORS, STATUS_CHART_FALLBACK } from "./statusPalette";
 
 function buildConicGradient(
-  slices: { status: ComplaintStatus; count: number; pct: number }[],
-  highlight: ComplaintStatus | null,
+  slices: { status: StatusCountStatus; count: number; pct: number }[],
+  highlight: StatusCountStatus | null,
 ): string {
   if (slices.length === 0) return STATUS_CHART_FALLBACK;
   let cursor = 0;
@@ -54,7 +54,7 @@ export function ComplaintByStatus({
     hasPermission("complaints:read") || hasPermission("*");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
-  const [highlight, setHighlight] = useState<ComplaintStatus | null>(null);
+  const [highlight, setHighlight] = useState<StatusCountStatus | null>(null);
 
   const slices = useMemo(() => {
     const visible = (rows ?? []).filter((row) => row.count > 0);

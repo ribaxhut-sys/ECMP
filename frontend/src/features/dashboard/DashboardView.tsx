@@ -84,8 +84,8 @@ export function DashboardView() {
       */}
       <LiveStatusBar
         sla={data?.sla ?? null}
-        waitingAssignment={countByStatus(data?.byStatus, "NEW") ?? 0}
-        escalatePending={countByStatus(data?.byStatus, "ESCALATED") ?? 0}
+        waitingAssignment={countByStatus(data?.byStatus, "waitingAssignment") ?? 0}
+        escalatePending={countByStatus(data?.byStatus, "escalatePending") ?? 0}
         loading={firstLoad || isFetching}
         error={state.status === "error"}
         updatedAt={updatedAt}

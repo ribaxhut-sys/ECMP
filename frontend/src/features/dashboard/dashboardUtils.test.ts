@@ -150,10 +150,10 @@ describe("sortBranchesHeadOfficeFirst", () => {
 
 describe("buildQueueHealthRows", () => {
   const byStatus = [
-    { status: "NEW" as const, count: 4 },
-    { status: "ESCALATED" as const, count: 4 },
+    { status: "waitingAssignment" as const, count: 4 },
+    { status: "escalatePending" as const, count: 4 },
     { status: "CLOSED" as const, count: 6 },
-    { status: "PENDING" as const, count: 0 },
+    { status: "escalateScheduled" as const, count: 0 },
     { status: "IN_PROGRESS" as const, count: 0 },
   ];
 

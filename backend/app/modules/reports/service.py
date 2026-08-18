@@ -5,12 +5,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from app.core.enums import ComplaintStatus
 from app.core.errors import ValidationAppError
 from app.core.user_messages import m
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
 from app.modules.reports.repository import ReportRepository
 from app.modules.reports.schemas import (
+    AggregateComplaintStatus,
     BranchCount,
     CycleTimeBucket,
     CycleTimeData,
@@ -51,7 +51,7 @@ def _status_counts(raw: list[tuple[str, int]]) -> list[StatusCount]:
     counted = {status: count for status, count in raw}
     return [
         StatusCount(status=status, count=counted.get(status.value, 0))
-        for status in ComplaintStatus
+        for status in AggregateComplaintStatus
     ]
 
 

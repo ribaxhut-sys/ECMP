@@ -3,12 +3,12 @@ import { formatDateTime24 } from "@/shared/utils/datetime";
 import { nameInitials } from "@/shared/utils/initials";
 import type {
   BranchCount,
-  ComplaintStatus,
   DashboardHeader,
   DashboardRecentActivityItem,
   DashboardSlaStage,
   DashboardSlaSummary,
   StatusCount,
+  StatusCountStatus,
 } from "@/lib/api/types";
 
 export type SlaHealthLevel =
@@ -55,8 +55,8 @@ export function buildQueueHealthRows(input: {
   waitingAssignmentHref: string | null;
   escalationHref: string | null;
 }): QueueHealthRowSpec[] {
-  const waitingAssignment = countByStatus(input.byStatus, "NEW") ?? 0;
-  const escalated = countByStatus(input.byStatus, "ESCALATED") ?? 0;
+  const waitingAssignment = countByStatus(input.byStatus, "waitingAssignment") ?? 0;
+  const escalated = countByStatus(input.byStatus, "escalatePending") ?? 0;
   return [
     {
       id: "waiting-assignment",
@@ -150,7 +150,7 @@ export function visibleAlertSlice<T>(
 
 export function countByStatus(
   rows: StatusCount[] | null | undefined,
-  status: ComplaintStatus,
+  status: StatusCountStatus,
 ): number | null {
   if (!rows) return null;
   const match = rows.find((row) => row.status === status);

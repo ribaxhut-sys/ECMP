@@ -3542,9 +3542,11 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        Aggregate complaint totals with counts for every `ComplaintStatus`.
-        Soft-deleted complaints are excluded. Date filters apply to `reportedAt`.
-        Requires permission `reports:read`.
+        Aggregate complaint totals with counts for every Aggregate lifecycle
+        status (`REGISTERED | IN_PROGRESS | CLOSED`, DEC-025 §3.3).
+        Intake path (HQ scheduled, escalate-pending, …) is not collapsed into
+        Foundation labels here — use `GET /api/v1/dashboard/aggregate-kpis`.
+        Date filters apply to complaint `createdAt`. Requires `reports:read`.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
         - $ref: "#/components/parameters/ReportDateFrom"
@@ -3573,8 +3575,9 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        SQL `COUNT` + `GROUP BY status`. Returns one row per `ComplaintStatus`
-        (zero when absent). Soft-deleted complaints are excluded.
+        SQL `COUNT` grouped onto Aggregate lifecycle
+        (`REGISTERED | IN_PROGRESS | CLOSED`). One row per status (zero when
+        absent). Date filters apply to complaint `createdAt`.
         Requires permission `reports:read`.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
@@ -4234,6 +4237,13 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    AggregateComplaintStatus:
+      type: string
+      enum: [REGISTERED, IN_PROGRESS, CLOSED]
+      description: |
+        CM Aggregate complaint lifecycle (DEC-025 §3.3). API-210 and API-211
+        emit only these values. Foundation `ComplaintStatus` (NEW, ASSIGNED,
+        PENDING, ESCALATED, RESOLVED) is not used on the report wire.
     Priority:
       type: string
       enum: [LOW, MEDIUM, HIGH, CRITICAL]
@@ -5908,7 +5918,7 @@ components:
       type: object
       required: [status, count]
       properties:
-        status: { $ref: "#/components/schemas/ComplaintStatus" }
+        status: { $ref: "#/components/schemas/AggregateComplaintStatus" }
         count: { type: integer, minimum: 0 }
     BranchCount:
       type: object
@@ -5927,7 +5937,7 @@ components:
         escalated:
           type: integer
           minimum: 0
-          description: Complaints with an active escalation (ESCALATE_PENDING_APPROVAL / ESCALATE_APPROVED)
+          description: Complaints on the active escalation path (pending approval, approved, or HQ scheduled)
         caseTotal: { type: integer, minimum: 0, description: CM case total }
         caseOpen: { type: integer, minimum: 0, description: Cases not CLOSED }
         caseClosed: { type: integer, minimum: 0, description: Cases CLOSED }

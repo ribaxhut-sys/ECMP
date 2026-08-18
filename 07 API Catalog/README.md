@@ -266,8 +266,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > **2026-07-29 (S0 / FRD-CM-001):** Planned Batch 1 Aggregate contracts published. RTM-CM-B1-001 LOCKED. Events `EVT-CM-*` Planned in Event Catalog. TC-CM-* authored (38). Implementation starts S1 (FR-002 → FR-001).
 
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (includes SLA `sla.*.completed` / `sla.*.breached` SYSTEM events) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
-| API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
-| API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-210 | GET /api/v1/reports/summary | Report summary (COUNT per `REGISTERED\|IN_PROGRESS\|CLOSED`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-211 | GET /api/v1/reports/by-status | Counts by Aggregate status (`REGISTERED\|IN_PROGRESS\|CLOSED`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-212 | GET /api/v1/reports/by-branch | Counts by branch (pengaduan + case; urut % selesai; semua unit) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-545 | GET /api/v1/reports/cycle-time | Umur penyelesaian kasus tertutup (rata-rata/median/p90 + sebaran; window pada `closedAt`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-213 | POST /api/v1/users | Create user (unique username/email/initials; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
@@ -285,6 +285,12 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-413 | POST /api/v1/users/{id}/reset-password | Admin/supervisor reset + force change | bearerAuth, permission `users:reset_password` | 🟢 Implemented |
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+
+> **2026-08-18 (Laporan kosakata Aggregate):** API-210/211 `byStatus.status`
+> memakai `REGISTERED | IN_PROGRESS | CLOSED` (DEC-025 §3.3). Label Foundation
+> `NEW` / `ASSIGNED` / `PENDING` / `ESCALATED` / `RESOLVED` tidak lagi di kawat
+> laporan. Irisan operasional (menunggu, eskalasi, jadwal Pusat) tetap di
+> `GET /api/v1/dashboard/aggregate-kpis`.
 
 > **2026-08-18 (Laporan periode + umur penyelesaian):** complaint-service —
 > API-545 `GET /api/v1/reports/cycle-time` (rata-rata/median/p90 + sebaran umur

@@ -13,15 +13,14 @@ describe("reportHeadlineCounts", () => {
     expect(reportHeadlineCounts(undefined)).toBeNull();
   });
 
-  it("splits open vs resolved/closed", () => {
+  it("splits open vs closed on Aggregate statuses", () => {
     expect(
       reportHeadlineCounts({
         total: 10,
         byStatus: [
-          { status: "NEW", count: 2 },
+          { status: "REGISTERED", count: 2 },
           { status: "IN_PROGRESS", count: 3 },
-          { status: "RESOLVED", count: 4 },
-          { status: "CLOSED", count: 1 },
+          { status: "CLOSED", count: 5 },
         ],
       }),
     ).toEqual({ total: 10, open: 5, closed: 5 });
@@ -47,16 +46,15 @@ describe("resolutionBuckets", () => {
     expect(resolutionBuckets([])).toBeNull();
   });
 
-  it("groups waiting, escalated, and resolved into mutually exclusive slices", () => {
+  it("groups waiting, escalated, and closed into mutually exclusive slices", () => {
     expect(
       resolutionBuckets([
-        { status: "NEW", count: 1 },
-        { status: "ASSIGNED", count: 2 },
-        { status: "PENDING", count: 1 },
+        { status: "waitingAssignment", count: 1 },
+        { status: "escalateApproved", count: 2 },
+        { status: "escalateScheduled", count: 1 },
         { status: "IN_PROGRESS", count: 3 },
-        { status: "ESCALATED", count: 4 },
-        { status: "RESOLVED", count: 5 },
-        { status: "CLOSED", count: 2 },
+        { status: "escalatePending", count: 4 },
+        { status: "CLOSED", count: 7 },
       ]),
     ).toEqual({
       resolved: 7,

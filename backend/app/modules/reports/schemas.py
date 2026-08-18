@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import ComplaintStatus
+
+class AggregateComplaintStatus(StrEnum):
+    """CM Aggregate lifecycle on report wires (DEC-025 §3.3)."""
+
+    REGISTERED = "REGISTERED"
+    IN_PROGRESS = "IN_PROGRESS"
+    CLOSED = "CLOSED"
 
 
 class ReportFilters(BaseModel):
@@ -23,7 +30,7 @@ class ReportFilters(BaseModel):
 class StatusCount(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    status: ComplaintStatus
+    status: AggregateComplaintStatus
     count: int = Field(ge=0)
 
 

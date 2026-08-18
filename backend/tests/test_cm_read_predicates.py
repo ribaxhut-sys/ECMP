@@ -234,12 +234,11 @@ def test_list_open_filter_keeps_out_of_set_status(seeded: Session) -> None:
 
 
 @_PG
-def test_report_donut_maps_status_first_and_never_emits_assigned(
+def test_report_by_status_emits_aggregate_lifecycle_not_foundation_labels(
     seeded: Session,
 ) -> None:
     repo = ReportRepository(seeded)
     counts = dict(repo.count_by_status())
-    # Seeded contribution, measured by removing the seed and re-reading.
     seeded.execute(
         delete(CmBatch1ComplaintORM).where(CmBatch1ComplaintORM.created_by == _ACTOR)
     )
@@ -247,12 +246,12 @@ def test_report_donut_maps_status_first_and_never_emits_assigned(
     baseline = dict(repo.count_by_status())
     delta = _delta(baseline, counts)
     assert delta["CLOSED"] == 1
-    # Status decides first, so IN_PROGRESS+HQ_SCHEDULED lands here.
+    # Status decides: IN_PROGRESS stays IN_PROGRESS even when HQ_SCHEDULED.
     assert delta["IN_PROGRESS"] == 2
-    # PENDING_APPROVAL + HQ_SCHEDULED — the rejected row is no longer escalated.
-    assert delta["ESCALATED"] == 2
-    # REGISTERED+REJECTED, REGISTERED+None, and the out-of-set status row.
-    assert delta["NEW"] == 3
+    # REGISTERED + unknown open values; dispositions are not remapped to ESCALATED/NEW.
+    assert delta["REGISTERED"] == 5
+    assert delta.get("NEW", 0) == 0
+    assert delta.get("ESCALATED", 0) == 0
     assert delta.get("ASSIGNED", 0) == 0
 
 

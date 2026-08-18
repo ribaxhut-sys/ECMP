@@ -57,7 +57,7 @@ export function CriticalAlerts({
     breached: 0,
     assignmentBreached: 0,
     resolutionBreached: 0,
-    escalated: countByStatus(byStatus, "ESCALATED") ?? 0,
+    escalated: countByStatus(byStatus, "escalatePending") ?? 0,
     escalationHref,
   });
   const visible = visibleAlertSlice(alerts, expanded);

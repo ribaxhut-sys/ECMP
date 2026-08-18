@@ -9,6 +9,27 @@ export type ComplaintStatus =
   | "RESOLVED"
   | "CLOSED";
 
+/** CM Aggregate lifecycle on API-210 / API-211 (DEC-025 §3.3). */
+export type AggregateComplaintStatus =
+  | "REGISTERED"
+  | "IN_PROGRESS"
+  | "CLOSED";
+
+/**
+ * Donut / report-card slices from aggregate-kpis.
+ * IN_PROGRESS and CLOSED are real Aggregate statuses; the others are
+ * operational slices (not Foundation NEW/ASSIGNED/PENDING/ESCALATED).
+ */
+export type OperationalKpiSlice =
+  | "waitingAssignment"
+  | "escalatePending"
+  | "escalateApproved"
+  | "escalateScheduled"
+  | "IN_PROGRESS"
+  | "CLOSED";
+
+export type StatusCountStatus = AggregateComplaintStatus | OperationalKpiSlice;
+
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export type ResolutionCategory =
@@ -48,9 +69,9 @@ export interface ListResponse<T> {
 }
 
 export interface StatusCount {
-  status: ComplaintStatus;
+  status: StatusCountStatus;
   count: number;
-  /** Dashboard i18n key — Aggregate donut must not use status.NEW = "Baru". */
+  /** Dashboard i18n key — do not fall back to Foundation status.NEW = "Baru". */
   labelKey?: string;
 }
 
@@ -79,7 +100,7 @@ export interface BranchCount {
   total: number;
   open: number;
   closed: number;
-  /** Complaints with an active escalation (ESCALATE_PENDING_APPROVAL / ESCALATE_APPROVED). */
+  /** Complaints on the active escalation path, including HQ_SCHEDULED. */
   escalated: number;
   caseTotal: number;
   caseOpen: number;
