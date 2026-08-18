@@ -15,12 +15,14 @@ import { usePendingWithdrawRequestCount } from "@/features/internal-complaints/u
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
+  IconAdjustments,
   IconAssignments,
   IconBell,
   IconChevronDown,
   IconComplaints,
   IconDashboard,
   IconFile,
+  IconMegaphone,
   IconPaperclip,
   IconQueue,
   IconReports,
@@ -88,8 +90,10 @@ const iconMap = {
   reports: IconReports,
   users: IconUsers,
   settings: IconSettings,
+  adjustments: IconAdjustments,
   attachments: IconPaperclip,
   announcements: IconBell,
+  megaphone: IconMegaphone,
   knowledge: IconFile,
 } as const;
 

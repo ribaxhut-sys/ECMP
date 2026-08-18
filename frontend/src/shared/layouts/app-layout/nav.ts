@@ -12,8 +12,10 @@ export interface NavItem {
     | "reports"
     | "users"
     | "settings"
+    | "adjustments"
     | "attachments"
     | "announcements"
+    | "megaphone"
     | "knowledge";
   /** Optional notification badge (presentation only). */
   badge?: number | string;
@@ -183,7 +185,7 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     id: "announcementsManage",
     labelKey: "announcementsManage",
     href: "/announcements/manage",
-    icon: "announcements",
+    icon: "megaphone",
     // Coarse permission gate; Sidebar also requires Pusat unit via
     // mayManageAnnouncements (role codes SUPERVISOR/MANAGER are shared with Cabang).
     requiredPermissions: ["announcement:manage"],
@@ -203,7 +205,7 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
   },
   { id: "reports", labelKey: "reports", href: "/reports", icon: "reports" },
   { id: "users", labelKey: "users", href: "/users", icon: "users" },
-  { id: "settings", labelKey: "settings", href: "/settings", icon: "settings" },
+  { id: "settings", labelKey: "settings", href: "/settings", icon: "adjustments" },
   /**
    * Pengaduan Internal — Mode A (Cabang ↔ Pusat).
    * Sidebar visibility and `/internal` layout gated by

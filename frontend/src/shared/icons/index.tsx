@@ -168,6 +168,27 @@ export function IconSettings(props: IconProps) {
   );
 }
 
+export function IconAdjustments(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h2M10 18h10" />
+      <circle cx="12" cy="6" r="2" />
+      <circle cx="16" cy="12" r="2" />
+      <circle cx="8" cy="18" r="2" />
+    </IconBase>
+  );
+}
+
+export function IconMegaphone(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M11 5L6 9H2v6h4l5 4V5z" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </IconBase>
+  );
+}
+
 export function IconTheme(props: IconProps) {
   return (
     <IconBase {...props}>
