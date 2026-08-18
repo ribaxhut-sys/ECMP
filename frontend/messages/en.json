@@ -2617,7 +2617,7 @@
     "weekClosed": "No working slots this week.",
     "breakLabel": "Break",
     "slotRatio": "{scheduled}/{capacity} slot",
-    "proposeDateLabel": "Arrival date (optional)",
+    "proposeDateLabel": "Arrival date",
     "proposeTimeLabel": "Arrival time",
     "proposeTimePlaceholder": "Choose a slot",
     "proposedArrivalLabel": "Your proposed slot",

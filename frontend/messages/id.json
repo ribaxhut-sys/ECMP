@@ -2617,7 +2617,7 @@
     "weekClosed": "Tidak ada slot kerja pada minggu ini.",
     "breakLabel": "Istirahat",
     "slotRatio": "{scheduled}/{capacity} slot",
-    "proposeDateLabel": "Tanggal kedatangan (opsional)",
+    "proposeDateLabel": "Tanggal kedatangan",
     "proposeTimeLabel": "Jam kedatangan",
     "proposeTimePlaceholder": "Pilih slot",
     "proposedArrivalLabel": "Usulan Anda",
