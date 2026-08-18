@@ -13,6 +13,9 @@ export type { TextareaProps } from "./textarea";
 export { Select } from "./select";
 export type { SelectProps, SelectOption } from "./select";
 
+export { DatePicker, formatDateDDMMYYYY } from "./date-picker";
+export type { DatePickerProps } from "./date-picker";
+
 export { Checkbox } from "./checkbox";
 export type { CheckboxProps } from "./checkbox";
 

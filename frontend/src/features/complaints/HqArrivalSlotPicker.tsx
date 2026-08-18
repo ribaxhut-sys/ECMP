@@ -6,20 +6,10 @@ import {
   fetchHqScheduleAvailability,
   type HqScheduleDayAvailability,
 } from "@/lib/api/hqSchedule";
-import { Alert, Input, Select } from "@/shared/ui";
+import { Alert, DatePicker, Select } from "@/shared/ui";
 import { toLocalDateKey } from "@/shared/utils/datetime";
 
 const MAX_LEAD_DAYS = 60;
-
-const weekdayFormatter = new Intl.DateTimeFormat("id-ID", { weekday: "long" });
-
-/** "2026-08-18" -> "Selasa, 18-08-2026" for display; API params stay ISO. */
-function formatDateLabel(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  if (!year || !month || !day) return isoDate;
-  const weekday = weekdayFormatter.format(new Date(`${isoDate}T00:00:00`));
-  return `${weekday}, ${day}-${month}-${year}`;
-}
 
 function addDays(date: Date, days: number): Date {
   const copy = new Date(date);
@@ -98,27 +88,16 @@ export function HqArrivalSlotPicker({
 
   return (
     <div className="grid gap-[var(--ecmp-form-gap)] sm:grid-cols-2">
-      <div>
-        <Input
-          type="date"
-          name="proposedArrivalDate"
-          id="proposedArrivalDate"
-          label={t("proposeDateLabel")}
-          min={minDate}
-          max={maxDate}
-          value={selectedDate}
-          disabled={disabled}
-          onChange={(e) => {
-            const date = e.target.value;
-            onChange(date ? { date, time: "" } : null);
-          }}
-        />
-        {selectedDate && (
-          <p className="mt-1 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-            {formatDateLabel(selectedDate)}
-          </p>
-        )}
-      </div>
+      <DatePicker
+        name="proposedArrivalDate"
+        id="proposedArrivalDate"
+        label={t("proposeDateLabel")}
+        min={minDate}
+        max={maxDate}
+        value={selectedDate}
+        disabled={disabled}
+        onChange={(date) => onChange(date ? { date, time: "" } : null)}
+      />
 
       {!selectedDate ? null : dayLoading ? (
         <p className="self-end text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
