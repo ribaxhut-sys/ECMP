@@ -200,6 +200,27 @@ describe("HqScheduleView", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides the ratio badge once a slot is full, but shows it while there's room", async () => {
+    const grid = gridWithCases();
+    grid.days[0]!.slots.push({
+      startTime: "10:00",
+      endTime: "11:00",
+      capacity: 2,
+      isBreak: false,
+      scheduledCount: 0,
+      proposedCount: 0,
+      availableCount: 2,
+      pendingProposals: [],
+      scheduledCases: [],
+    });
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    await screen.findAllByText("CASE-2026-000001");
+    expect(screen.queryByText("2/2 slot")).not.toBeInTheDocument();
+    expect(screen.getByText("0/2 slot")).toBeInTheDocument();
+  });
+
   it("tags a break slot instead of showing case data", async () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);

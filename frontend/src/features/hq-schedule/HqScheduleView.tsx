@@ -188,9 +188,11 @@ function ScheduleSlotCell({
             branchNameByCode={branchNameByCode}
           />
         ))}
-        <Badge tone={tone} variant="solid">
-          {slotRatioLabel}
-        </Badge>
+        {slot.availableCount > 0 && (
+          <Badge tone={tone} variant="solid">
+            {slotRatioLabel}
+          </Badge>
+        )}
       </div>
     </td>
   );
