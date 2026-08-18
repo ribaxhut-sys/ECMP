@@ -27,7 +27,7 @@
 | TRC-L-010 | ECMF | BP-001 | BR-007 | FR-005 | API-005 | — | TC-006 | Sprint-03B | Approved |
 | TRC-L-011 | ECMF | BP-001 | BR-004 | FR-CM-B2-001 | API-530 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-012 | ECMF | BP-001 | BR-004 | FR-CM-B2-002 | API-531 | — | — | Mode-A-CAP-008 | Approved |
-| TRC-L-013 | ECMF | BP-001 | BR-017 | FR-CM-B2-003 | API-532 | — | — | Mode-A-CAP-008 | Approved |
+| TRC-L-013 | ECMF | BP-001 | BR-017 | FR-CM-B2-003 | API-532, API-537 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-014 | ECMF | BP-001 | BR-001 | FR-CM-B2-004 | API-533 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-015 | ECMF | BP-001 | BR-008 | FR-CM-B2-005 | API-534 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-016 | ECMF | BP-001 | BR-008 | FR-CM-B2-006 | API-535 | — | — | Mode-A-CAP-008 | Approved |
@@ -91,6 +91,8 @@
 - `API-533`: PATCH /api/v1/cm/cases/{caseId}/status (CAP-008 Mode A)
 - `API-534`: POST /api/v1/cm/cases/{caseId}/resolve (CAP-008 Mode A)
 - `API-535`: POST /api/v1/cm/cases/{caseId}/close (CAP-008 Mode A)
+- `API-536`: GET /api/v1/cm/cases (CAP-008 Mode A list)
+- `API-537`: GET /api/v1/cm/cases/{caseId}/history (CAP-008 Mode A Case Timeline)
 - `API-540`: GET /api/v1/hq-schedule/availability (HQ arrival advisory, Mode A lab)
 - `API-541`: GET /api/v1/hq-schedule/availability/detail (Pusat pending proposals)
 - `API-542`: GET /api/v1/hq-schedule/holidays

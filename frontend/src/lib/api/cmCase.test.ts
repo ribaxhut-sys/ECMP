@@ -20,6 +20,8 @@ describe("cmCasePaths", () => {
     expect(paths.resolve("id")).toBe("/api/v1/cm/cases/id/resolve");
     expect(paths.acceptance("id")).toBe("/api/v1/cm/cases/id/acceptance");
     expect(paths.close("id")).toBe("/api/v1/cm/cases/id/close");
+    expect(paths.history("id")).toBe("/api/v1/cm/cases/id/history");
+    expect(paths.history("c/1")).toBe("/api/v1/cm/cases/c%2F1/history");
   });
 
   it("does not use foundation complaints base for create case", () => {

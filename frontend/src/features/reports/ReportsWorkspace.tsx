@@ -2,8 +2,9 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import {
   Button,
   Empty,
@@ -41,6 +42,7 @@ export function ReportsWorkspace() {
   const { hasPermission } = useAuth();
   const t = useTranslations("reports");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
   const canRead = hasPermission("reports:read") || hasPermission("*");
   const { state, reload, period, setPeriod } = useReportsData();
   const loading = state.status === "loading" || state.status === "idle";
@@ -58,7 +60,9 @@ export function ReportsWorkspace() {
     const rate = resolutionRatePercent(headlines);
     const rows: (string | number)[][] = [
       [t("title"), t(REPORT_PERIOD_LABEL_KEY[period])],
-      [t("csvGeneratedAt"), new Date().toISOString()],
+      // Operator-facing stamp: WIB like every other date on the page,
+      // never the raw UTC instant.
+      [t("csvGeneratedAt"), formatDateTime24(new Date().toISOString(), locale)],
       [],
       [t("csvMetric"), t("csvCount")],
       [t("totalComplaints"), headlines?.total ?? 0],

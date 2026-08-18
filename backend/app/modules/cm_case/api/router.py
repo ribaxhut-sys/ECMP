@@ -28,6 +28,7 @@ from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.api.schemas import (
     AddCaseRequest,
     CaseAcceptanceResponse,
+    CaseHistoryEntry,
     CaseResolutionResponse,
     CaseResponse,
     CaseSummaryResponse,
@@ -46,11 +47,13 @@ from app.modules.cm_case.application.dto import (
     ResolveCaseCommand,
     UpdateStatusCommand,
 )
+from app.modules.cm_case.application.history import CaseHistoryService
 from app.modules.cm_case.application.services import (
     AuditTimelineSideEffects,
     CaseApplicationService,
 )
 from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseRepository
+from app.modules.timeline.repository import TimelineRepository
 
 router = APIRouter(tags=["CM-Case-ModeA"])
 
@@ -61,6 +64,31 @@ def get_case_service(
     return CaseApplicationService(
         SqlAlchemyCaseRepository(session),
         side_effects=AuditTimelineSideEffects(session),
+    )
+
+
+def get_case_history_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> CaseHistoryService:
+    return CaseHistoryService(
+        TimelineRepository(session),
+        user_directory=LocalUserDirectory(session),
+    )
+
+
+def _history_list_response(
+    items: list[CaseHistoryEntry],
+) -> ListResponse[CaseHistoryEntry]:
+    """API-537 envelope: one page, ``pageSize`` capped at PageMeta maximum 100."""
+    total = len(items)
+    page_items = items[:100]
+    return ListResponse(
+        data=page_items,
+        meta=PageMeta(
+            page=1,
+            pageSize=max(1, len(page_items)),
+            totalItems=total,
+        ),
     )
 
 
@@ -314,6 +342,28 @@ def get_case(
     )
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
     return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.get("/api/v1/cm/cases/{case_id}/history")
+def get_case_history(
+    case_id: str,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    history: Annotated[CaseHistoryService, Depends(get_case_history_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
+) -> ListResponse[CaseHistoryEntry]:
+    """API-537 / UC-CAP02-07 — this Case, plus parent HQ-path events."""
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    enforce_org_scope_any(
+        principal,
+        (units.handling_unit_id, units.owner_unit_id),
+        settings,
+    )
+    dto = service.get_case(case_id, complaint_id_context=complaint_id)
+    items = history.list_for_case(dto)
+    return _history_list_response(items)
 
 
 @router.patch("/api/v1/cm/cases/{case_id}/status")

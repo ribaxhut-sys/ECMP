@@ -5,8 +5,8 @@ import { FollowUpListView } from "@/features/complaints";
 import { PageFallback } from "@/shared/ui";
 
 /**
- * Tindak lanjut — union work list (Case + Complaint rows), FE composition
- * over API-514 / API-536. See followUpRows.ts for merge/filter/sort rules.
+ * Tindak lanjut — Case-only work list, FE composition over API-514 /
+ * API-536. See followUpRows.ts for filter/sort rules.
  */
 export default function TindakLanjutPage() {
   return (

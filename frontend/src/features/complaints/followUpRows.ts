@@ -1,43 +1,47 @@
 /**
- * Tindak lanjut — presentation-only union of Case (Penanganan) and Complaint
- * (Pengaduan) rows. No new API surface; consumes API-514 / API-536 responses
- * as already shaped by fetchCmBatch1Complaints / fetchCmCases.
+ * Tindak lanjut — Case-only work list. Presentation composition over
+ * API-514 / API-536. Identity is caseNumber; parent complaint stays in
+ * its own column. Status/sort inherit the parent complaint's HQ phase
+ * when the complaint is on the HQ path.
  */
 import type { CmBatch1ComplaintResponse } from "@/lib/api";
 import type { CmCaseSummary } from "@/lib/api/cmCase";
-import { isHqIntakeDisposition } from "./penangananGroups";
+import { officerDisplayName } from "./officerDisplayName";
+import { resolveHqPathPhase } from "./penangananGroups";
 
-export type FollowUpRowKind = "case" | "complaint";
-
-/** Sort bucket, lowest first (BR: Menunggu persetujuan → Pusat → dikembalikan → dikerjakan → belum ada penanganan). */
+/** Sort bucket, lowest first (approval → HQ accept → unscheduled → scheduled → returned → branch). */
 export type FollowUpStatusKey =
   | "awaitingApproval"
-  | "hqPath"
+  | "hqAwaitingAccept"
+  | "hqAcceptedUnscheduled"
+  | "hqScheduled"
   | "returnedToBranch"
   | "caseWorking"
-  | "caseNew"
-  | "noHandling";
+  | "caseNew";
 
 const STATUS_RANK: Record<FollowUpStatusKey, number> = {
   awaitingApproval: 0,
-  hqPath: 1,
-  returnedToBranch: 2,
-  caseWorking: 3,
-  caseNew: 3,
-  noHandling: 4,
+  hqAwaitingAccept: 1,
+  hqAcceptedUnscheduled: 2,
+  hqScheduled: 3,
+  returnedToBranch: 4,
+  caseWorking: 5,
+  caseNew: 5,
 };
 
 export interface FollowUpRow {
   key: string;
-  kind: FollowUpRowKind;
-  /** caseNumber for Case rows, complaintNumber for Complaint rows. */
+  /** Always the Case number. */
   number: string;
   complaintId: string;
-  caseId?: string;
-  parentComplaintId: string | null;
+  caseId: string;
+  parentComplaintId: string;
   parentComplaintNumber: string | null;
   statusKey: FollowUpStatusKey;
   createdAt: string | null;
+  hqArrivalDate: string | null;
+  hqArrivalTime: string | null;
+  handlerName: string | null;
 }
 
 const CASE_TERMINAL_STATUSES = new Set(["CLOSED", "RESOLVED", "CANCELLED"]);
@@ -45,9 +49,38 @@ const CASE_TERMINAL_STATUSES = new Set(["CLOSED", "RESOLVED", "CANCELLED"]);
 /** Statuses reported as "at/toward Pusat" beyond the Mode A PATCH subset. */
 const CASE_HQ_STATUSES = new Set(["ESCALATED", "PENDING"]);
 
-function caseStatusKey(status: string | null | undefined): FollowUpStatusKey {
+function complaintDispositionStatusKey(
+  parent: CmBatch1ComplaintResponse | undefined,
+): FollowUpStatusKey | null {
+  const phase = resolveHqPathPhase({
+    intakeDisposition: parent?.intakeDisposition,
+    hqAcceptedAt: parent?.hqAcceptedAt,
+  });
+  switch (phase) {
+    case "pending_approval":
+      return "awaitingApproval";
+    case "awaiting_accept":
+      return "hqAwaitingAccept";
+    case "accepted_unscheduled":
+      return "hqAcceptedUnscheduled";
+    case "scheduled":
+      return "hqScheduled";
+    default:
+      break;
+  }
+  const d = (parent?.intakeDisposition || "").trim().toUpperCase();
+  if (d === "RETURNED_TO_BRANCH") return "returnedToBranch";
+  return null;
+}
+
+function caseStatusKey(
+  status: string | null | undefined,
+  parent: CmBatch1ComplaintResponse | undefined,
+): FollowUpStatusKey {
+  const fromComplaint = complaintDispositionStatusKey(parent);
+  if (fromComplaint) return fromComplaint;
   const s = (status || "").trim().toUpperCase();
-  if (CASE_HQ_STATUSES.has(s)) return "hqPath";
+  if (CASE_HQ_STATUSES.has(s)) return "hqAwaitingAccept";
   if (s === "CREATED") return "caseNew";
   return "caseWorking";
 }
@@ -58,102 +91,54 @@ export function isActiveCaseStatus(status: string | null | undefined): boolean {
   return s.length > 0 && !CASE_TERMINAL_STATUSES.has(s);
 }
 
-function complaintDispositionStatusKey(
-  disposition: string | null | undefined,
-): FollowUpStatusKey | null {
-  const d = (disposition || "").trim().toUpperCase();
-  if (d === "ESCALATE_PENDING_APPROVAL") return "awaitingApproval";
-  if (isHqIntakeDisposition(d)) return "hqPath";
-  if (d === "RETURNED_TO_BRANCH") return "returnedToBranch";
-  return null;
-}
-
-/**
- * Complaint row eligible for Tindak lanjut iff: not CLOSED, not BRANCH_CLOSED,
- * and (no visible Case for it OR an active intake disposition).
- */
-export function isFollowUpComplaint(
-  complaint: Pick<CmBatch1ComplaintResponse, "status" | "intakeDisposition">,
-  hasVisibleCase: boolean,
-): boolean {
-  if (complaint.status === "CLOSED") return false;
-  if ((complaint.intakeDisposition || "").trim().toUpperCase() === "BRANCH_CLOSED") {
-    return false;
-  }
-  const dispositionKey = complaintDispositionStatusKey(complaint.intakeDisposition);
-  return dispositionKey !== null || !hasVisibleCase;
-}
-
 function caseRow(
   c: CmCaseSummary,
-  complaintNumberById: ReadonlyMap<string, string>,
+  complaintById: ReadonlyMap<string, CmBatch1ComplaintResponse>,
 ): FollowUpRow {
+  const parent = complaintById.get(c.complaintId);
+  const parentNumber =
+    parent?.complaintNumber?.trim() || c.complaintNumber?.trim() || null;
+  const arrivalDate = parent?.hqArrivalDate?.trim() || null;
+  const arrivalTime = parent?.hqArrivalTime?.trim() || null;
   return {
     key: `case:${c.caseId}`,
-    kind: "case",
     number: c.caseNumber,
     complaintId: c.complaintId,
     caseId: c.caseId,
     parentComplaintId: c.complaintId,
-    parentComplaintNumber: complaintNumberById.get(c.complaintId) ?? null,
-    statusKey: caseStatusKey(c.status),
+    parentComplaintNumber: parentNumber,
+    statusKey: caseStatusKey(c.status, parent),
     createdAt: c.createdAt ?? null,
-  };
-}
-
-function complaintRow(c: CmBatch1ComplaintResponse): FollowUpRow {
-  return {
-    key: `complaint:${c.complaintId}`,
-    kind: "complaint",
-    number: c.complaintNumber,
-    complaintId: c.complaintId,
-    parentComplaintId: null,
-    parentComplaintNumber: null,
-    statusKey: complaintDispositionStatusKey(c.intakeDisposition) ?? "noHandling",
-    createdAt: c.createdAt ?? null,
+    hqArrivalDate: arrivalDate,
+    hqArrivalTime: arrivalTime,
+    handlerName: officerDisplayName(c.handlingClaimedByName),
   };
 }
 
 /**
- * Build the union Tindak lanjut row set from already-fetched Aggregate
- * responses. `allCases` should be the unfiltered Case list (any status) so
- * "no visible Case" can be determined correctly for complaint eligibility.
+ * Build the Tindak lanjut row set from already-fetched Aggregate responses.
+ * Complaints without a visible Case are omitted (not invented).
  */
 export function buildFollowUpRows(input: {
   complaints: readonly CmBatch1ComplaintResponse[];
   allCases: readonly CmCaseSummary[];
 }): FollowUpRow[] {
-  const complaintNumberById = new Map<string, string>();
+  const complaintById = new Map<string, CmBatch1ComplaintResponse>();
   for (const c of input.complaints) {
-    complaintNumberById.set(c.complaintId, c.complaintNumber);
+    complaintById.set(c.complaintId, c);
   }
-  const complaintIdsWithCase = new Set(input.allCases.map((c) => c.complaintId));
 
   const rows: FollowUpRow[] = [];
   for (const c of input.allCases) {
     if (!isActiveCaseStatus(c.status)) continue;
-    rows.push(caseRow(c, complaintNumberById));
-  }
-  for (const c of input.complaints) {
-    if (!isFollowUpComplaint(c, complaintIdsWithCase.has(c.complaintId))) continue;
-    rows.push(complaintRow(c));
+    rows.push(caseRow(c, complaintById));
   }
   return sortFollowUpRows(rows);
 }
 
-/** DEC-025 — Tindak lanjut opens CM Case / Aggregate detail, not Foundation. */
-export function followUpRowHref(
-  row: Pick<FollowUpRow, "kind" | "caseId" | "complaintId" | "statusKey">,
-): string {
-  if (row.kind === "case" && row.caseId) {
-    return `/complaints/cm/cases/${encodeURIComponent(row.caseId)}`;
-  }
-  const params = new URLSearchParams();
-  params.set("focus", "penanganan");
-  if (row.statusKey === "returnedToBranch") {
-    params.set("action", "escalate");
-  }
-  return `/complaints/cm/${encodeURIComponent(row.complaintId)}?${params.toString()}`;
+/** DEC-025 — Tindak lanjut opens CM Case detail, not Foundation. */
+export function followUpRowHref(row: Pick<FollowUpRow, "caseId">): string {
+  return `/complaints/cm/cases/${encodeURIComponent(row.caseId)}`;
 }
 
 export function sortFollowUpRows(rows: readonly FollowUpRow[]): FollowUpRow[] {

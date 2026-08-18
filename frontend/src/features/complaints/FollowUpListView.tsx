@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { ApiError, fetchCmBatch1Complaints, fetchCmCases } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { formatHqArrivalSlot } from "@/shared/utils/datetime";
 import {
   Badge,
   Button,
@@ -37,7 +38,11 @@ function statusTone(statusKey: FollowUpStatusKey): BadgeTone {
   switch (statusKey) {
     case "awaitingApproval":
       return "warning";
-    case "hqPath":
+    case "hqAwaitingAccept":
+      return "info";
+    case "hqAcceptedUnscheduled":
+      return "info";
+    case "hqScheduled":
       return "info";
     case "returnedToBranch":
       return "warning";
@@ -45,23 +50,22 @@ function statusTone(statusKey: FollowUpStatusKey): BadgeTone {
       return "primary";
     case "caseNew":
       return "neutral";
-    case "noHandling":
-      return "neutral";
     default:
       return "neutral";
   }
 }
 
 /**
- * Tindak lanjut — union work list of Case (Penanganan) and Complaint
- * (Pengaduan) rows. Presentation-only composition over API-514 / API-536;
- * no new API surface. See followUpRows.ts for the merge/filter/sort rules.
+ * Tindak lanjut — Case-only work list. Presentation composition over
+ * API-514 / API-536; no new API surface. See followUpRows.ts.
  */
 export function FollowUpListView() {
   const router = useRouter();
   const t = useTranslations("followUp");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const tComplaints = useTranslations("complaints");
+  const locale = useLocale();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
 
@@ -107,21 +111,29 @@ export function FollowUpListView() {
     switch (row.statusKey) {
       case "awaitingApproval":
         return t("statusAwaitingApproval");
-      case "hqPath":
-        return row.kind === "case"
-          ? t("statusCaseHqPath")
-          : t("statusHqPath");
+      case "hqAwaitingAccept":
+        return t("statusHqAwaitingAccept");
+      case "hqAcceptedUnscheduled":
+        return t("statusHqAcceptedUnscheduled");
+      case "hqScheduled":
+        return t("statusHqScheduled");
       case "returnedToBranch":
         return t("statusReturnedToBranch");
       case "caseWorking":
         return t("statusCaseWorking");
       case "caseNew":
         return t("statusCaseNew");
-      case "noHandling":
-        return t("statusNoHandling");
       default:
         return row.statusKey;
     }
+  }
+
+  function scheduleLabel(row: FollowUpRow): string {
+    if (!row.hqArrivalDate?.trim() || !row.hqArrivalTime?.trim()) {
+      return tCommon("emDash");
+    }
+    const parts = formatHqArrivalSlot(row.hqArrivalDate, row.hqArrivalTime, locale);
+    return parts ? tComplaints("hqArrivalSlotLabel", parts) : tCommon("emDash");
   }
 
   function openRow(row: FollowUpRow): void {
@@ -166,31 +178,33 @@ export function FollowUpListView() {
     {
       key: "parent",
       header: t("columnParent"),
-      cell: (row) =>
-        row.parentComplaintId ? (
-          <Link
-            href={`/complaints/cm/${encodeURIComponent(row.parentComplaintId)}`}
-            className="cursor-pointer font-medium text-ecmp-primary underline-offset-2 hover:underline"
-          >
-            {row.parentComplaintNumber ?? row.parentComplaintId}
-          </Link>
-        ) : (
-          <span className="text-ecmp-text-secondary">{tCommon("emDash")}</span>
-        ),
-    },
-    {
-      key: "kind",
-      header: t("columnKind"),
       cell: (row) => (
-        <Badge tone={row.kind === "case" ? "primary" : "neutral"}>
-          {row.kind === "case" ? t("kindCase") : t("kindComplaint")}
-        </Badge>
+        <Link
+          href={`/complaints/cm/${encodeURIComponent(row.parentComplaintId)}`}
+          className="cursor-pointer font-medium text-ecmp-primary underline-offset-2 hover:underline"
+        >
+          {row.parentComplaintNumber ?? row.parentComplaintId}
+        </Link>
       ),
     },
     {
       key: "status",
       header: t("columnStatus"),
       cell: (row) => <Badge tone={statusTone(row.statusKey)}>{statusLabel(row)}</Badge>,
+    },
+    {
+      key: "schedule",
+      header: t("columnSchedule"),
+      cell: (row) => (
+        <span className={row.statusKey === "hqScheduled" ? "text-ecmp-text-primary" : "text-ecmp-text-secondary"}>
+          {scheduleLabel(row)}
+        </span>
+      ),
+    },
+    {
+      key: "handler",
+      header: t("columnHandler"),
+      cell: (row) => row.handlerName || tCommon("emDash"),
     },
     {
       key: "actions",

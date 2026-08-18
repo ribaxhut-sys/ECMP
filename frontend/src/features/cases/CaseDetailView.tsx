@@ -14,7 +14,7 @@ import {
   type CmCase,
   type CmCaseStatus,
 } from "@/lib/api";
-import { formatDateTime24 } from "@/shared/utils/datetime";
+import { formatDateTime24, formatHqArrivalSlot, resolveHqArrivalDisplay } from "@/shared/utils/datetime";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { cn } from "@/shared/utils";
 import { formatCmBatch1CustomerLabel } from "@/features/complaints/cmBatch1RegistrationLabels";
@@ -40,6 +40,7 @@ import {
   PENANGANAN_FOCUS_QUERY,
 } from "@/features/complaints/ComplaintPenangananSection";
 import { CaseStatusBadge } from "./CaseStatusBadge";
+import { CaseHistoryPanel } from "./CaseHistoryPanel";
 import { ResolveCaseDialog } from "./ResolveCaseDialog";
 import {
   getCaseHandleDecision,
@@ -48,6 +49,10 @@ import {
   rememberCaseId,
   shouldAskHandleClaim,
 } from "./caseSessionRegistry";
+import {
+  hideCaseBranchWorkActions,
+  resolveCaseHqPath,
+} from "./caseHqPath";
 import {
   canClose,
   canOfferResolve,
@@ -114,8 +119,17 @@ function nextStepKey(
     canUpdate: boolean;
     showResolve: boolean;
     showClose: boolean;
+    onHqPath: boolean;
   },
 ): string {
+  if (
+    opts.onHqPath &&
+    status !== "RESOLVED" &&
+    status !== "CLOSED" &&
+    status !== "CANCELLED"
+  ) {
+    return "nextStepHqPath";
+  }
   if (!opts.canUpdate) return "nextStepReadOnly";
   if (opts.showClose || status === "RESOLVED") return "nextStepClose";
   if (opts.showResolve || canOfferResolve(status)) {
@@ -127,7 +141,7 @@ function nextStepKey(
 
 /**
  * Mode A Case detail — work surface with clear hierarchy.
- * Order: hero → next-step actions → description → resolution → attachments → technical.
+ * Order: hero → description → resolution → attachments → history → actions.
  */
 export function CaseDetailView({ caseId }: { caseId: string }) {
   const t = useTranslations("cases");
@@ -161,6 +175,21 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     null,
   );
   const [complaintCreatedByName, setComplaintCreatedByName] = useState<
+    string | null
+  >(null);
+  const [complaintIntakeDisposition, setComplaintIntakeDisposition] = useState<
+    string | null
+  >(null);
+  const [complaintHqAcceptedAt, setComplaintHqAcceptedAt] = useState<
+    string | null
+  >(null);
+  const [complaintHqArrivalDate, setComplaintHqArrivalDate] = useState<
+    string | null
+  >(null);
+  const [complaintHqArrivalTime, setComplaintHqArrivalTime] = useState<
+    string | null
+  >(null);
+  const [complaintHqArrivalNote, setComplaintHqArrivalNote] = useState<
     string | null
   >(null);
   const [handlePromptOpen, setHandlePromptOpen] = useState(false);
@@ -199,6 +228,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setComplaintStatus(complaint?.status ?? null);
       setComplaintCreatedBy(complaint?.createdBy?.trim() || null);
       setComplaintCreatedByName(complaint?.createdByName?.trim() || null);
+      setComplaintIntakeDisposition(complaint?.intakeDisposition ?? null);
+      setComplaintHqAcceptedAt(complaint?.hqAcceptedAt ?? null);
+      setComplaintHqArrivalDate(complaint?.hqArrivalDate ?? null);
+      setComplaintHqArrivalTime(complaint?.hqArrivalTime ?? null);
+      setComplaintHqArrivalNote(complaint?.hqArrivalNote ?? null);
 
       const fromComplaint = complaint?.customerDisplayName?.trim() || null;
       const from360 = profileText(
@@ -268,6 +302,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setComplaintStatus(null);
       setComplaintCreatedBy(null);
       setComplaintCreatedByName(null);
+      setComplaintIntakeDisposition(null);
+      setComplaintHqAcceptedAt(null);
+      setComplaintHqArrivalDate(null);
+      setComplaintHqArrivalTime(null);
+      setComplaintHqArrivalNote(null);
       setError(
         err instanceof ApiError
           ? resolveApiErrorMessage(err, tErrors, tCommon)
@@ -282,18 +321,25 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     void reload();
   }, [reload]);
 
+  const hqPath = resolveCaseHqPath({
+    intakeDisposition: complaintIntakeDisposition,
+    hqAcceptedAt: complaintHqAcceptedAt,
+  });
+  const hideBranchActions = hideCaseBranchWorkActions(hqPath.onHqPath, data?.status);
+
   useEffect(() => {
     if (loading || !data) return;
     setHandlePromptOpen(
-      shouldAskHandleClaim({
-        status: data.status,
-        canAct,
-        decision: getCaseHandleDecision(data.caseId),
-        handlingClaimedBy: data.handlingClaimedBy,
-        userId: user?.id,
-      }),
+      !hideBranchActions &&
+        shouldAskHandleClaim({
+          status: data.status,
+          canAct,
+          decision: getCaseHandleDecision(data.caseId),
+          handlingClaimedBy: data.handlingClaimedBy,
+          userId: user?.id,
+        }),
     );
-  }, [loading, data, canAct, user?.id]);
+  }, [loading, data, canAct, user?.id, hideBranchActions]);
 
   function showSuccess(message: string) {
     setToastTone("success");
@@ -366,6 +412,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       canUpdate &&
       claimedBySomeone &&
       isCurrentHandler &&
+      !hideBranchActions &&
       canOfferResolve(data.status),
   );
   const showClose = Boolean(
@@ -380,7 +427,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const parentComplaintClosed = (complaintStatus || "").toUpperCase() === "CLOSED";
   const attachmentsLocked = caseFinished || parentComplaintClosed;
   const showParentContinueLabel = Boolean(
-    data && (caseFinished || data.status === "RESOLVED" || showClose),
+    data &&
+      (caseFinished ||
+        data.status === "RESOLVED" ||
+        showClose ||
+        hideBranchActions),
   );
   const handleConfirmIsCreator = Boolean(
     user?.id?.trim() &&
@@ -512,32 +563,68 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       : priority;
   }
 
+  const scheduledSlotParts =
+    hqPath.phase === "scheduled" &&
+    complaintHqArrivalDate?.trim() &&
+    complaintHqArrivalTime?.trim()
+      ? formatHqArrivalSlot(
+          complaintHqArrivalDate,
+          complaintHqArrivalTime,
+          locale,
+        )
+      : null;
+  const scheduledSlotLabel = scheduledSlotParts
+    ? tComplaints("hqArrivalSlotLabel", scheduledSlotParts)
+    : null;
+  const scheduledWpNote =
+    resolveHqArrivalDisplay({
+      arrivalDate: complaintHqArrivalDate,
+      arrivalTime: complaintHqArrivalTime,
+      note: complaintHqArrivalNote,
+    })?.wpNote || "";
+  const hqPageTitle = hqPath.copy
+    ? tComplaints(hqPath.copy.pageTitle as "hqPathScheduledPageTitle")
+    : null;
+  const hqPageDescription = hqPath.copy
+    ? tComplaints(
+        hqPath.copy.pageDescription as "hqPathScheduledPageDescription",
+      )
+    : null;
+
   const pageTitle = !data
     ? t("detail")
     : caseFinished
       ? t("pageTitleClosed")
       : data.status === "RESOLVED"
         ? t("pageTitleResolved")
-        : handlerDisplay
-          ? t("pageTitleInProgress", { name: handlerDisplay })
-          : t("pageTitleOpen");
+        : hqPageTitle
+          ? hqPageTitle
+          : handlerDisplay
+            ? t("pageTitleInProgress", { name: handlerDisplay })
+            : t("pageTitleOpen");
 
   const pageDescription = !data
     ? undefined
     : caseFinished
       ? t("pageDescriptionClosed")
-      : t(
-          nextStepKey(data.status, {
-            canUpdate,
-            showResolve,
-            showClose,
-          }) as
-            | "nextStepStart"
-            | "nextStepResolveOrEscalate"
-            | "nextStepClose"
-            | "nextStepDone"
-            | "nextStepReadOnly",
-        );
+      : hqPath.phase === "scheduled" && scheduledSlotLabel
+        ? scheduledSlotLabel
+        : hqPageDescription
+          ? hqPageDescription
+          : t(
+              nextStepKey(data.status, {
+                canUpdate,
+                showResolve,
+                showClose,
+                onHqPath: hqPath.onHqPath,
+              }) as
+                | "nextStepStart"
+                | "nextStepResolveOrEscalate"
+                | "nextStepClose"
+                | "nextStepDone"
+                | "nextStepReadOnly"
+                | "nextStepHqPath",
+            );
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -615,6 +702,38 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
               </CardBody>
             </Card>
           </section>
+
+          {hqPath.phase === "scheduled" ? (
+            <section>
+              <Card
+                data-testid="case-hq-schedule-card"
+                data-tone="info"
+                className="border-ecmp-info-border bg-ecmp-info-bg shadow-none border-l-4 border-l-ecmp-info"
+              >
+                <CardBody className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="info">{tComplaints("tagHqScheduled")}</Badge>
+                    <h2 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] leading-[var(--ecmp-font-card-title-line)] tracking-tight text-ecmp-info-text">
+                      {tComplaints("hqPathScheduledPageTitle")}
+                    </h2>
+                  </div>
+                  {scheduledSlotLabel ? (
+                    <p className="text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
+                      {scheduledSlotLabel}
+                    </p>
+                  ) : null}
+                  {scheduledWpNote ? (
+                    <p className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      {scheduledWpNote}
+                    </p>
+                  ) : null}
+                  <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-info-text">
+                    {t("nextStepHqPath")}
+                  </p>
+                </CardBody>
+              </Card>
+            </section>
+          ) : null}
 
           {data.subject || data.description || data.resolution ? (
             <section className="space-y-[var(--ecmp-panel-gap)]">
@@ -700,6 +819,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             allowVoid={!attachmentsLocked}
           />
 
+          <CaseHistoryPanel
+            caseId={data.caseId}
+            refreshKey={data.updatedAt ?? data.status}
+          />
+
           <div
             className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end"
             data-testid="case-detail-actions"
@@ -713,7 +837,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 ? t("continueToParentComplaint")
                 : t("backToComplaint")}
             </Button>
-            {canReassign && claimedBySomeone && !caseFinished ? (
+            {canReassign && claimedBySomeone && !caseFinished && !hideBranchActions ? (
               <Button
                 type="button"
                 variant="outline"

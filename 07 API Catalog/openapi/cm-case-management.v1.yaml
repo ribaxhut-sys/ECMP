@@ -68,6 +68,8 @@ tags:
     description: FR-002 Add Case to Existing Complaint
   - name: CM-Case-View
     description: FR-003 View Case
+  - name: CM-Case-History
+    description: FR-003 / UC-CAP02-07 Case Timeline (this Case + parent HQ path)
   - name: CM-Case-Status
     description: FR-004 Update Case Status (Mode A Delivery Transition Subset)
   - name: CM-Case-Resolve
@@ -358,9 +360,10 @@ paths:
         priority/type when present (AC-06). Membership checks apply when
         `complaintId` query context is supplied (AC-07).
 
-        Timeline projection endpoint is NOT SPECIFIED as a separate Mode A path
-        in this contract set; Timeline read semantics remain in FRD UC-CAP02-07.
-        Sensitive-read Audit on every View: NOT SPECIFIED beyond BR-016 general.
+        Case-scoped Timeline is GET `/api/v1/cm/cases/{caseId}/history` (API-537 /
+        UC-CAP02-07). Complaint intake history remains API-517. Not interchangeable
+        with Sprint API-006. Sensitive-read Audit on every View: NOT SPECIFIED
+        beyond BR-016 general.
 
         Coexistence: path also listed as API-525 (FRD-CM-002 visibility). Mode A
         response does not require DEC-F4 `resultVisibility`.
@@ -427,6 +430,93 @@ paths:
                     status: 409
                     code: CASE_COMPLAINT_MEMBERSHIP_MISMATCH
                     detail: CaseId is not a member of the supplied Complaint context.
+
+  /api/v1/cm/cases/{caseId}/history:
+    get:
+      summary: View Case history (this Case, plus parent HQ path)
+      description: |
+        Chronological projection of Timeline events that belong to **this Case**
+        (BR-017 / UC-CAP02-07 / AC-08).
+
+        Source stream is the parent Complaint Timeline (append-only). Filter is
+        `metadata.caseId` (fallback `metadata.caseNumber`). Events of sibling
+        Cases and Complaint-level intake (REGISTERED, BRANCH_CLOSED, …) are
+        excluded.
+
+        Exception: complaint-scoped HQ-path events without `caseId`
+        (`HqAccepted`, `HqArrivalScheduled`, `HqReturned`) **are** included —
+        they bind every open Case of this parent (same grouping as Penanganan
+        HQ path). `HQ_ARRIVAL_SCHEDULED` carries `arrivalDate` / `arrivalTime`
+        (taxpayer-visit slot, not `occurredAt`).
+
+        Unlike API-517, operational Case events that are hidden on the complaint
+        narrative (work started, unit/owner accept-reject) **are** returned here.
+        Append-only: clients MUST NOT reorder entries.
+
+        Not interchangeable with Sprint `GET /v1/cases/{caseId}/timeline` (API-006).
+      operationId: cmB2GetCaseHistory
+      x-ear-id: API-537
+      x-ecmp-logical-id: API-CM-B2-009
+      x-ecmp-fr: FR-003
+      x-ecmp-br:
+        - BR-017
+        - BR-016
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-07
+      x-ecmp-dec:
+        - DEC-BQ001
+        - DEC-020
+        - DEC-MODEA-B2-001
+      tags: [CM-Case-History]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: complaintId
+          in: query
+          required: false
+          description: Optional Complaint context for Aggregate membership validation (AC-07).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chronological Case history (oldest first)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CaseHistoryEntry"
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                notFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    code: CASE_NOT_FOUND
+                    detail: Case does not exist.
+        "409":
+          description: Membership mismatch with complaintId context
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
 
   /api/v1/cm/cases/{caseId}/status:
     patch:
@@ -1003,6 +1093,65 @@ components:
         - PROPOSE
         - ACCEPT
         - REJECT
+
+    CaseHistoryEntry:
+      type: object
+      description: |
+        One chronological Case Timeline event (API-537). Labels are client-side
+        via eventCode. Distinct from API-517 IntakeHistoryEntry except for
+        optional HQ-arrival fields on parent HQ-path rows.
+      required: [entryId, eventCode, eventType, occurredAt]
+      properties:
+        entryId:
+          type: string
+        eventCode:
+          type: string
+          description: >
+            Stable UI code (CASE_CREATED, CASE_WORK_STARTED, CASE_ASSIGNED,
+            CASE_STATUS_CHANGED, CASE_RESOLVED, CASE_CLOSED, CASE_CANCELLED,
+            HANDLING_CONTINUED, HANDLING_TAKEN_OVER, CASE_HANDLING_UNIT_ACCEPTED,
+            CASE_OWNER_ACCEPTED, CASE_HANDLING_UNIT_REJECTED, CASE_OWNER_REJECTED,
+            RESOLUTION_UPDATED, ATTACHMENT_BOUND, HQ_ACCEPTED,
+            HQ_ARRIVAL_SCHEDULED, HQ_RETURNED, …).
+        eventType:
+          type: string
+          description: Raw timeline event type, for codes the client does not know yet
+        occurredAt:
+          type: string
+          format: date-time
+        actorId:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+          description: Resolved via user directory — identity is not ECMP SoR
+        actorUnitId:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          nullable: true
+        caseNumber:
+          type: string
+          nullable: true
+        caseStatus:
+          type: string
+          nullable: true
+          description: Case status snapshot stored on the timeline row, when present
+        arrivalDate:
+          type: string
+          nullable: true
+          description: >
+            HQ taxpayer-visit calendar date (YYYY-MM-DD, Asia/Jakarta) when
+            eventCode is HQ_ARRIVAL_SCHEDULED; not occurredAt.
+        arrivalTime:
+          type: string
+          nullable: true
+          description: HQ taxpayer-visit clock time (HH:MM, 24h Asia/Jakarta)
 
     CaseSummary:
       type: object

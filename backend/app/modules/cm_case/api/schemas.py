@@ -170,6 +170,37 @@ class CloseCaseRequest(BaseModel):
     note: str | None = None
 
 
+class CaseHistoryEntry(BaseModel):
+    """API-537 — chronological Case Timeline row (this Case + parent HQ path)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    entry_id: str = Field(alias="entryId")
+    event_code: str = Field(alias="eventCode")
+    event_type: str = Field(alias="eventType")
+    occurred_at: datetime = Field(alias="occurredAt")
+    actor_id: str | None = Field(default=None, alias="actorId")
+    actor_name: str | None = Field(default=None, alias="actorName")
+    actor_unit_id: str | None = Field(default=None, alias="actorUnitId")
+    note: str | None = None
+    priority: str | None = None
+    case_number: str | None = Field(default=None, alias="caseNumber")
+    case_status: str | None = Field(default=None, alias="caseStatus")
+    arrival_date: str | None = Field(
+        default=None,
+        alias="arrivalDate",
+        description=(
+            "HQ taxpayer-visit calendar date (YYYY-MM-DD) when eventCode is "
+            "HQ_ARRIVAL_SCHEDULED; not occurredAt"
+        ),
+    )
+    arrival_time: str | None = Field(
+        default=None,
+        alias="arrivalTime",
+        description="HQ taxpayer-visit clock time (HH:MM, 24h Asia/Jakarta)",
+    )
+
+
 class RecordAcceptanceRequest(BaseModel):
     """F4 closure rule — Handling Unit / Owner accept or reject a resolution."""
 

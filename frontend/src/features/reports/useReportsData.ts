@@ -20,23 +20,24 @@ type LoadState =
 export function useReportsData() {
   const [state, setState] = useState<LoadState>({ status: "idle" });
   const [period, setPeriod] = useState<ReportPeriodKey>(DEFAULT_REPORT_PERIOD);
-  const inFlight = useRef(false);
+  /** Only the newest request may write state — an older one landing late
+   * would show numbers from a period the user no longer has selected. */
+  const requestId = useRef(0);
   const tErrors = useTranslations("errors");
   const tCommon = useTranslations("common");
 
   const reload = useCallback(async (selected: ReportPeriodKey) => {
-    if (inFlight.current) return;
-    inFlight.current = true;
+    const id = ++requestId.current;
     setState({ status: "loading" });
     try {
       const data = await loadReportsData(reportPeriodRange(selected));
+      if (id !== requestId.current) return;
       setState({ status: "success", data });
     } catch (err) {
+      if (id !== requestId.current) return;
       const message = resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError");
       const code = err instanceof ApiError ? err.code : undefined;
       setState({ status: "error", error: message, code });
-    } finally {
-      inFlight.current = false;
     }
   }, [tCommon, tErrors]);
 

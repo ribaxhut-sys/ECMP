@@ -1,5 +1,5 @@
 /**
- * CAP-008 Case Management Mode A API client — FRD-CM-B2-001 / API-530…536.
+ * CAP-008 Case Management Mode A API client — FRD-CM-B2-001 / API-530…537.
  *
  * Dual SoT Aggregate `/api/v1/cm/cases`. Not interchangeable with foundation
  * complaints or Sprint case-service.
@@ -164,6 +164,23 @@ export interface CloseCmCaseRequest {
   note?: string | null;
 }
 
+/** API-537 — chronological Case Timeline row (this Case + parent HQ path). */
+export interface CmCaseHistoryEntry {
+  entryId: string;
+  eventCode: string;
+  eventType: string;
+  occurredAt: string;
+  actorId?: string | null;
+  actorName?: string | null;
+  actorUnitId?: string | null;
+  note?: string | null;
+  priority?: string | null;
+  caseNumber?: string | null;
+  caseStatus?: string | null;
+  arrivalDate?: string | null;
+  arrivalTime?: string | null;
+}
+
 export interface RecordCmCaseAcceptanceRequest {
   party: CmCaseAcceptanceParty;
   decision: CmCaseAcceptanceDecision;
@@ -292,4 +309,11 @@ export function closeCmCase(
       headers: buildCmCaseMutateHeaders(options),
     }),
   );
+}
+
+/** API-537 — GET /api/v1/cm/cases/{caseId}/history (this Case only). */
+export function fetchCmCaseHistory(
+  caseId: string,
+): Promise<ListResponse<CmCaseHistoryEntry>> {
+  return apiRequest(cmCasePaths().history(caseId));
 }

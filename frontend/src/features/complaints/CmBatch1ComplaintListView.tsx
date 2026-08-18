@@ -312,47 +312,21 @@ export function CmBatch1ComplaintListView() {
       key: "status",
       header: t("status"),
       cell: (row) => (
-        <div className="flex flex-col items-start gap-1">
-          <Badge
-            tone={
-              row.status === "CLOSED"
-                ? "success"
-                : row.status === "IN_PROGRESS"
-                  ? "warning"
-                  : "info"
-            }
-          >
-            {row.status === "CLOSED"
-              ? t("statusClosed")
+        <Badge
+          tone={
+            row.status === "CLOSED"
+              ? "success"
               : row.status === "IN_PROGRESS"
-                ? t("statusInProgress")
-                : t("statusOpen")}
-          </Badge>
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "ESCALATE_PENDING_APPROVAL" ? (
-            <Badge tone="warning">{t("awaitingApproval")}</Badge>
-          ) : null}
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "ESCALATE_APPROVED" ? (
-            <Badge tone="info">{t("escalationApproved")}</Badge>
-          ) : null}
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "ESCALATE_REJECTED" ? (
-            <Badge tone="neutral">{t("escalationRejected")}</Badge>
-          ) : null}
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "ESCALATE_CANCELLED" ? (
-            <Badge tone="neutral">{t("escalationCancelled")}</Badge>
-          ) : null}
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "RETURNED_TO_BRANCH" ? (
-            <Badge tone="warning">{t("returnedToBranch")}</Badge>
-          ) : null}
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "HQ_SCHEDULED" ? (
-            <Badge tone="warning">{t("hqScheduled")}</Badge>
-          ) : null}
-        </div>
+                ? "warning"
+                : "info"
+          }
+        >
+          {row.status === "CLOSED"
+            ? t("statusClosed")
+            : row.status === "IN_PROGRESS"
+              ? t("statusInProgress")
+              : t("statusOpen")}
+        </Badge>
       ),
     },
     {

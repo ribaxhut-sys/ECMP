@@ -17,11 +17,11 @@
 |---|---|---|---|
 | `case-actions.v1.yaml` | ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED) | 1.0.0 | 0 |
 | `case-service.v1.yaml` | ECMP Case Service API | 1.7.0 | 12 |
-| `cm-case-management.v1.yaml` | ECMP Case Management Batch-2 Mode A API | 1.0.0 | 8 |
+| `cm-case-management.v1.yaml` | ECMP Case Management Batch-2 Mode A API | 1.0.0 | 9 |
 | `complaint-domain-service.v1.yaml` | ECMP Complaint Domain Service API | 1.4.0 | 23 |
 | `complaint-management-batch1.v1.yaml` | ECMP Complaint Management Batch 1 API | 1.0.0-planned | 22 |
 | `complaint-management-esc-res.v1.yaml` | ECMP Complaint Management Escalation & Resolution API (DEC-F4) | 1.0.0-planned | 7 |
-| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 103 |
+| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 104 |
 | `dashboard-queues.v1.yaml` | ECMP Dashboard Queues API | 1.0.0 | 1 |
 | `hq-schedule.v1.yaml` | ECMP HQ Arrival Schedule API | 1.0.0-lab | 5 |
 | `internal-complaints.v1.yaml` | ECMP Pengaduan Internal API | 1.0.0 | 16 |
@@ -57,6 +57,7 @@
 | API-530 | `POST /api/v1/cm/cases` | Create Case |
 | API-531 | `POST /api/v1/cm/complaints/{complaintId}/cases` | Add Case to Existing Complaint |
 | API-532 | `GET /api/v1/cm/cases/{caseId}` | View Case |
+| API-537 | `GET /api/v1/cm/cases/{caseId}/history` | View Case history (this Case, plus parent HQ path) |
 | API-533 | `PATCH /api/v1/cm/cases/{caseId}/status` | Update Case Status |
 | API-534 | `POST /api/v1/cm/cases/{caseId}/resolve` | Resolve Case |
 | — | `POST /api/v1/cm/cases/{caseId}/acceptance` | Record Handling Unit / Owner closure acceptance |
@@ -223,6 +224,7 @@
 | API-210 | `GET /api/v1/reports/summary` | Complaint report summary |
 | API-211 | `GET /api/v1/reports/by-status` | Complaint counts by status |
 | API-212 | `GET /api/v1/reports/by-branch` | Complaint and case counts by branch |
+| API-545 | `GET /api/v1/reports/cycle-time` | Cycle time of closed cases |
 | API-222 | `GET /api/v1/customers` | List customer references |
 | API-222 | `PATCH /api/v1/customers/{customerId}` | Update local customer reference phone (Mode A cache) |
 | API-223 | `GET /api/v1/branches` | List branch references |

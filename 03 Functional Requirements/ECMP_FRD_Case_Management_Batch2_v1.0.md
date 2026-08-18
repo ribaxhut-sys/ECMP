@@ -577,7 +577,7 @@ DEC-BQ001 O3 (Aggregate Case vocabulary on display); DEC-020 (do not confuse wit
 | BR | BR-017; BR-004; BR-012 (read) |
 | DEC/BQ | DEC-BQ001 O3; DEC-020 |
 | AC | AC-06, AC-07, AC-08 |
-| API | API-532 (Mode A CAP-008). Do **not** equate to API-525/526 Planned (FRD-CM-002) |
+| API | API-532 View Case; **API-537** Case history (Mode A CAP-008). Do **not** equate to API-525/526 Planned (FRD-CM-002) or Sprint API-006 |
 | EVT | **NOT SPECIFIED** |
 | TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
 
@@ -1036,7 +1036,7 @@ Catalog from CAP-008 BCS §9 + Mode A locks (cross-FR).
 |---|---|---|---|---|
 | FR-001 Create Case | FR-CM-B2-001 | API-530 | **NOT SPECIFIED** | `backend/tests/test_cm_case_mode_a.py` (REL-RC-001) |
 | FR-002 Add Case | FR-CM-B2-002 | API-531 | **NOT SPECIFIED** | same lab suite |
-| FR-003 View Case | FR-CM-B2-003 | API-532 | **NOT SPECIFIED** | same lab suite |
+| FR-003 View Case | FR-CM-B2-003 | API-532, API-537 | **NOT SPECIFIED** | same lab suite |
 | FR-004 Update Case Status | FR-CM-B2-004 | API-533 | **NOT SPECIFIED** | same lab suite |
 | FR-005 Resolve Case | FR-CM-B2-005 | API-534 | **NOT SPECIFIED** | same lab suite |
 | FR-006 Close Case | FR-CM-B2-006 | API-535 | **NOT SPECIFIED** | same lab suite |

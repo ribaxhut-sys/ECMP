@@ -277,9 +277,9 @@ def test_aggregate_kpi_slices_partition_and_count_hq_scheduled(
     assert after.escalate_pending - before.escalate_pending == 1
     # The plain IN_PROGRESS row only; the HQ-scheduled one moved to its slice.
     assert after.in_progress - before.in_progress == 1
-    # REGISTERED+REJECTED and REGISTERED+None. LEGACY_UNKNOWN is open
-    # (DEC-025) but is not REGISTERED, so it has no donut slice.
-    assert after.waiting_assignment - before.waiting_assignment == 2
+    # REGISTERED+REJECTED, REGISTERED+None, and the out-of-set status row —
+    # exposed as REGISTERED by the aggregate, so it needs a slice too.
+    assert after.waiting_assignment - before.waiting_assignment == 3
     seed_total = after.total - before.total
     seed_sliced = (
         (after.waiting_assignment - before.waiting_assignment)
@@ -290,4 +290,15 @@ def test_aggregate_kpi_slices_partition_and_count_hq_scheduled(
         + (after.closed - before.closed)
     )
     assert seed_total == len(_SEED)
-    assert seed_sliced == seed_total - 1
+    # No row falls out of the donut, whatever the stored status.
+    assert seed_sliced == seed_total
+    for kpis in (after, before):
+        assert (
+            kpis.waiting_assignment
+            + kpis.escalate_pending
+            + kpis.escalate_approved
+            + kpis.escalate_scheduled
+            + kpis.in_progress
+            + kpis.closed
+            == kpis.total
+        )

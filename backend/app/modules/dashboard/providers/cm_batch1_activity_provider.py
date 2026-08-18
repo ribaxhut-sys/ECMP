@@ -268,19 +268,25 @@ class CmBatch1ActivityDashboardProvider:
         closed = self._count_complaints(
             owning_unit, CmBatch1ComplaintORM.status == CLOSED_STATUS, *window
         )
-        # Donut slices are mutually exclusive and sum to total: REGISTERED
-        # unescalated / pending / approved + HQ-scheduled + IN_PROGRESS + CLOSED.
+        # Donut slices are mutually exclusive and sum to total, with no row
+        # left out: closed / HQ-scheduled / in-progress / escalation pending /
+        # escalation approved / waiting. "Registered" is every non-closed,
+        # non-in-progress row — an out-of-set stored status is exposed as
+        # REGISTERED by cm_batch1/service.py and must land here too.
+        registered = (
+            CmBatch1ComplaintORM.status.notin_((CLOSED_STATUS, "IN_PROGRESS")),
+        )
         escalate_pending = self._count_complaints(
             owning_unit,
-            CmBatch1ComplaintORM.status == "REGISTERED",
+            *registered,
             CmBatch1ComplaintORM.intake_disposition == "ESCALATE_PENDING_APPROVAL",
             *window,
         )
-        # REGISTERED but not held in an escalation path — the whole
+        # Registered but not held in an escalation path — the whole
         # ESCALATION_ACTIVE set has its own slice, HQ_SCHEDULED included.
         waiting_assignment = self._count_complaints(
             owning_unit,
-            CmBatch1ComplaintORM.status == "REGISTERED",
+            *registered,
             or_(
                 CmBatch1ComplaintORM.intake_disposition.is_(None),
                 CmBatch1ComplaintORM.intake_disposition.notin_(ESCALATION_ACTIVE),
@@ -289,7 +295,7 @@ class CmBatch1ActivityDashboardProvider:
         )
         escalate_approved = self._count_complaints(
             owning_unit,
-            CmBatch1ComplaintORM.status == "REGISTERED",
+            *registered,
             CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
             *window,
         )

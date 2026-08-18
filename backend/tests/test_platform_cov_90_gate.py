@@ -5,7 +5,9 @@ Unit-level MagicMock / direct-call coverage only — no business-logic changes.
 
 from __future__ import annotations
 
+import json
 import time
+import urllib.error
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -15,8 +17,11 @@ import pytest
 
 from app.core.auth import Principal
 from app.core.config import Settings
+from app.core.enums import ComplaintStatus
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.schemas import DataResponse
 from app.modules.appointments import router as appointments_router_mod
+from app.modules.assignments.repository import AssignmentRepository
 from app.modules.cm_batch1.antivirus import AntivirusResult
 from app.modules.cm_batch1.attachment_config import (
     AttachmentConfig,
@@ -26,6 +31,14 @@ from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
 from app.modules.cm_batch1.entities import ATTACHMENT_STATUS_STAGED
 from app.modules.cm_batch1.enumeration import EnumerationGuard
 from app.modules.cm_batch1.master_customer import MasterCustomerStub, mask_identity, now
+from app.modules.complaints import router as complaints_router_mod
+from app.modules.complaints.schemas import (
+    CloseComplaintRequest,
+    ComplaintCreateRequest,
+    ComplaintResponse,
+    ComplaintStatusChangeRequest,
+    ComplaintUpdateRequest,
+)
 from app.modules.email import (
     EmailService,
     LoggingEmailService,
@@ -52,6 +65,16 @@ from app.modules.resolutions.schemas import (
     FinalResolutionRequest,
     ResolveComplaintRequest,
 )
+from app.modules.search.domain.enums import ComplaintSortField, SortOrder
+from app.modules.search.domain.filters import ComplaintSearchFilters
+from app.modules.search.router import get_search_service, search_complaints
+from app.modules.search.schemas import (
+    ComplaintSearchResponse,
+    SearchPagination,
+    SearchSort,
+)
+from app.modules.search.service import SearchService
+from app.modules.timelines import router as timelines_router_mod
 from app.modules.workflow.models import (
     WorkflowDefinition,
     WorkflowInstance,
@@ -632,3 +655,300 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
     assert count == 1
     repo.close_staging.assert_called()
     repo.commit.assert_called()
+
+
+def test_unmounted_search_and_timelines_routers() -> None:
+    """DEC-026: HTTP unmounted; keep importable handlers on the 90% gate."""
+    from app.modules.search.permissions import COMPLAINTS_READ
+
+    assert COMPLAINTS_READ == "complaints:read"
+    svc = MagicMock()
+    now = datetime.now(UTC)
+    item = ComplaintResponse(
+        id=uuid.uuid4(),
+        complaintNumber="CMP-1",
+        customerId=None,
+        branchId=None,
+        sourceType="CUSTOMER",
+        sourceId=uuid.uuid4(),
+        targetType="BRANCH",
+        targetId=None,
+        subject="S",
+        description="D",
+        status="NEW",
+        priority="HIGH",
+        reportedAt=now,
+        createdAt=now,
+        updatedAt=now,
+    )
+    svc.search_complaints.return_value = ComplaintSearchResponse(
+        items=[item],
+        pagination=SearchPagination.from_total(page=1, page_size=20, total_items=1),
+        filtersApplied={"priority": "HIGH"},
+        sort=SearchSort(field=ComplaintSortField.CREATED_AT, order=SortOrder.DESC),
+    )
+    result = search_complaints(
+        service=svc,
+        principal=_principal(),
+        keyword="  bill ",
+        status_filter=None,
+        priority="HIGH",
+        category=" Billing ",
+        branch_id=None,
+        assigned_to=None,
+        created_by=None,
+        created_from=None,
+        created_to=None,
+        sla_status=None,
+        escalated=True,
+        page=1,
+        page_size=20,
+        sort=ComplaintSortField.CREATED_AT,
+        order=SortOrder.DESC,
+    )
+    assert result.pagination.total_items == 1
+    called: ComplaintSearchFilters = svc.search_complaints.call_args.args[0]
+    assert called.keyword == "bill"
+    assert called.category == "Billing"
+    assert isinstance(get_search_service(MagicMock()), SearchService)
+
+    timeline_svc = MagicMock()
+    timeline_svc.list_timeline.return_value = []
+    cid = uuid.uuid4()
+    envelope = timelines_router_mod.get_complaint_timeline(
+        cid, timeline_svc, _principal()
+    )
+    assert isinstance(envelope, DataResponse)
+    assert envelope.data == []
+    timeline_svc.list_timeline.assert_called_once_with(cid)
+    assert isinstance(
+        timelines_router_mod.get_timeline_service(MagicMock()),
+        timelines_router_mod.TimelineService,
+    )
+
+
+def test_unmounted_complaints_router_create_list_and_retired_lookup() -> None:
+    service = MagicMock()
+    service.create.return_value = MagicMock()
+    service.list.return_value = ([], 0)
+    payload = ComplaintCreateRequest(
+        customerId=uuid.uuid4(),
+        subject="Subj",
+        description="Desc",
+        priority="LOW",
+    )
+    created = complaints_router_mod.create_complaint(payload, service, _principal())
+    assert created.data is service.create.return_value
+    listed = complaints_router_mod.list_complaints(service, _principal())
+    assert listed.meta.total_items == 0
+
+    cid = uuid.uuid4()
+    session, settings = _org_scope_bypass()
+    update = ComplaintUpdateRequest(subject="U")
+    status_payload = ComplaintStatusChangeRequest(status=ComplaintStatus.IN_PROGRESS)
+    close_payload = CloseComplaintRequest(notes="done")
+    with pytest.raises(NotFoundError):
+        complaints_router_mod.get_complaint(cid, service, _principal(), session, settings)
+    with pytest.raises(NotFoundError):
+        complaints_router_mod.update_complaint(
+            cid, update, service, _principal(), session, settings
+        )
+    with pytest.raises(NotFoundError):
+        complaints_router_mod.change_complaint_status(
+            cid, status_payload, service, _principal(), session, settings
+        )
+    with pytest.raises(NotFoundError):
+        complaints_router_mod.close_complaint(
+            cid, close_payload, service, _principal(), session, settings
+        )
+    with patch(
+        "app.modules.complaints.router.get_event_dispatcher",
+        return_value=MagicMock(),
+    ):
+        assert isinstance(
+            complaints_router_mod.get_complaint_service(MagicMock()),
+            complaints_router_mod.ComplaintService,
+        )
+
+
+def test_assignment_repository_session_paths() -> None:
+    session = MagicMock()
+    repo = AssignmentRepository(session)
+    assert repo.session is session
+    cid = uuid.uuid4()
+    uid = uuid.uuid4()
+    row = MagicMock()
+    session.scalar.side_effect = [row, uid, "Nama", row]
+    assert repo.get_complaint(cid) is row
+    assert repo.user_exists(uid) is True
+    assert repo.get_user_full_name(uid) == "Nama"
+    assert repo.get_current_assignment(cid) is row
+    session.scalars.return_value.unique.return_value.all.return_value = []
+    assert repo.list_assignments(cid) == []
+    assignment = MagicMock()
+    assert repo.add_assignment(assignment) is assignment
+    now = datetime.now(UTC)
+    repo.close_assignment(assignment, unassigned_at=now, actor_user_id=uid)
+    assert assignment.is_current is False
+    assert assignment.unassigned_at == now
+    with patch("app.modules.assignments.repository.ComplaintTimeline") as timeline_cls:
+        timeline_cls.return_value = MagicMock()
+        repo.add_timeline(
+            complaint_id=cid,
+            actor_user_id=uid,
+            event_type="ASSIGNED",
+            event_at=now,
+            from_status="NEW",
+            to_status="ASSIGNED",
+            summary="assigned",
+            metadata={"k": "v"},
+        )
+        timeline_cls.assert_called_once()
+    naive = datetime(2026, 8, 18, 3, 0)
+    with patch("app.modules.assignments.repository.ComplaintTimeline") as timeline_cls:
+        timeline_cls.return_value = MagicMock()
+        repo.add_timeline(
+            complaint_id=cid,
+            actor_user_id=uid,
+            event_type="ASSIGNED",
+            event_at=naive,
+            from_status=None,
+            to_status=None,
+            summary="naive",
+        )
+    repo.commit()
+    session.commit.assert_called()
+    repo.refresh(SimpleNamespace())
+    session.refresh.assert_called()
+    from app.models import ComplaintAssignment
+
+    assignment_row = MagicMock(spec=ComplaintAssignment)
+    assignment_row.assignee_id = uid
+    assignment_row.__dict__["assignee"] = None
+    session.get.return_value = SimpleNamespace(full_name="X")
+    repo.refresh(assignment_row)
+    assert assignment_row.assignee is session.get.return_value
+    session.get.return_value = None
+    assignment_row.__dict__["assignee"] = None
+    repo.refresh(assignment_row)
+    assignment_row.__dict__["assignee"] = object()
+    repo.refresh(assignment_row)
+
+
+def test_default_fetch_jwks_success_and_failures() -> None:
+    from app.core.authorization.jwks_cache import _default_fetch_jwks
+
+    ok = MagicMock()
+    ok.read.return_value = json.dumps({"keys": [{"kty": "RSA"}]}).encode()
+    ok.__enter__.return_value = ok
+    ok.__exit__.return_value = False
+    with patch(
+        "app.core.authorization.jwks_cache.urllib.request.urlopen", return_value=ok
+    ):
+        assert _default_fetch_jwks("http://jwks.test/certs")["keys"]
+
+    with patch(
+        "app.core.authorization.jwks_cache.urllib.request.urlopen",
+        side_effect=urllib.error.URLError("down"),
+    ):
+        with pytest.raises(ValueError, match="JWKS fetch failed"):
+            _default_fetch_jwks("http://jwks.test/certs")
+
+    with patch(
+        "app.core.authorization.jwks_cache.urllib.request.urlopen",
+        side_effect=TimeoutError("slow"),
+    ):
+        with pytest.raises(ValueError, match="JWKS fetch failed"):
+            _default_fetch_jwks("http://jwks.test/certs")
+
+    bad_json = MagicMock()
+    bad_json.read.return_value = b"not-json"
+    bad_json.__enter__.return_value = bad_json
+    bad_json.__exit__.return_value = False
+    with patch(
+        "app.core.authorization.jwks_cache.urllib.request.urlopen",
+        return_value=bad_json,
+    ):
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _default_fetch_jwks("http://jwks.test/certs")
+
+    missing = MagicMock()
+    missing.read.return_value = b"{}"
+    missing.__enter__.return_value = missing
+    missing.__exit__.return_value = False
+    with patch(
+        "app.core.authorization.jwks_cache.urllib.request.urlopen",
+        return_value=missing,
+    ):
+        with pytest.raises(ValueError, match="missing keys"):
+            _default_fetch_jwks("http://jwks.test/certs")
+
+
+def test_jwks_cache_refresh_skips_unusable_entries() -> None:
+    from app.core.authorization.jwks_cache import JwksCache
+
+    with pytest.raises(ValueError, match="ttl_seconds"):
+        JwksCache("http://jwks.test/certs", ttl_seconds=0)
+
+    empty = JwksCache("http://jwks.test/certs", fetcher=lambda _url: {"keys": []})
+    with pytest.raises(ValueError, match="missing kid"):
+        empty.get_key("")
+    with pytest.raises(ValueError, match="no usable RSA"):
+        empty.get_key("k1")
+    empty.clear()
+
+    not_list = JwksCache(
+        "http://jwks.test/certs", fetcher=lambda _url: {"keys": "nope"}
+    )
+    with pytest.raises(ValueError, match="must be a list"):
+        not_list.get_key("k1")
+
+    mixed = JwksCache(
+        "http://jwks.test/certs",
+        fetcher=lambda _url: {
+            "keys": [
+                "skip-me",
+                {"kid": None, "kty": "RSA"},
+                {"kid": "oct-1", "kty": "oct"},
+                {"kid": "bad-rsa", "kty": "RSA", "n": "nope"},
+            ]
+        },
+    )
+    with pytest.raises(ValueError, match="no usable RSA"):
+        mixed.get_key("k1")
+
+
+def test_unmounted_complaints_router_reaches_service_after_org_scope() -> None:
+    service = MagicMock()
+    service.get.return_value = MagicMock()
+    service.update.return_value = MagicMock()
+    service.change_status.return_value = MagicMock()
+    service.close.return_value = MagicMock()
+    cid = uuid.uuid4()
+    session, settings = _org_scope_bypass()
+    principal = _principal()
+    update = ComplaintUpdateRequest(subject="U")
+    status_payload = ComplaintStatusChangeRequest(status=ComplaintStatus.IN_PROGRESS)
+    close_payload = CloseComplaintRequest(notes="done")
+    with (
+        patch("app.modules.complaints.router.OrgUnitResolver") as resolver_cls,
+        patch("app.modules.complaints.router.enforce_org_scope"),
+    ):
+        resolver_cls.return_value.resolve_complaint.return_value = "PUSAT"
+        complaints_router_mod.get_complaint(
+            cid, service, principal, session, settings
+        )
+        complaints_router_mod.update_complaint(
+            cid, update, service, principal, session, settings
+        )
+        complaints_router_mod.change_complaint_status(
+            cid, status_payload, service, principal, session, settings
+        )
+        complaints_router_mod.close_complaint(
+            cid, close_payload, service, principal, session, settings
+        )
+    service.get.assert_called_once_with(cid)
+    service.update.assert_called_once()
+    service.change_status.assert_called_once()
+    service.close.assert_called_once()
+

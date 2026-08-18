@@ -5,7 +5,6 @@ import {
   buildFollowUpRows,
   followUpRowHref,
   isActiveCaseStatus,
-  isFollowUpComplaint,
 } from "./followUpRows";
 
 function complaint(
@@ -16,7 +15,7 @@ function complaint(
     complaintNumber: "TAB-0001",
     status: "REGISTERED",
     customerId: "cust-1",
-    caseCreated: false,
+    caseCreated: true,
     replayed: false,
     createdAt: "2026-08-01T00:00:00Z",
     ...overrides,
@@ -55,112 +54,87 @@ describe("isActiveCaseStatus", () => {
   });
 });
 
-describe("isFollowUpComplaint", () => {
-  it("excludes CLOSED complaints", () => {
-    expect(
-      isFollowUpComplaint(complaint({ status: "CLOSED" }), false),
-    ).toBe(false);
-  });
-
-  it("excludes BRANCH_CLOSED disposition", () => {
-    expect(
-      isFollowUpComplaint(
-        complaint({ intakeDisposition: "BRANCH_CLOSED" }),
-        false,
-      ),
-    ).toBe(false);
-  });
-
-  it("includes REGISTERED with no visible case and no disposition", () => {
-    expect(isFollowUpComplaint(complaint(), false)).toBe(true);
-  });
-
-  it("includes IN_PROGRESS with no visible case (DEC-025)", () => {
-    expect(
-      isFollowUpComplaint(complaint({ status: "IN_PROGRESS" }), false),
-    ).toBe(true);
-  });
-
-  it("excludes REGISTERED when a case is already visible and no active disposition", () => {
-    expect(isFollowUpComplaint(complaint(), true)).toBe(false);
-  });
-
-  it("includes REGISTERED with an active HQ intake disposition even if a case exists", () => {
-    expect(
-      isFollowUpComplaint(
-        complaint({ intakeDisposition: "ESCALATE_PENDING_APPROVAL" }),
-        true,
-      ),
-    ).toBe(true);
-    expect(
-      isFollowUpComplaint(
-        complaint({ intakeDisposition: "ESCALATE_APPROVED" }),
-        false,
-      ),
-    ).toBe(true);
-    expect(
-      isFollowUpComplaint(
-        complaint({ intakeDisposition: "HQ_SCHEDULED" }),
-        false,
-      ),
-    ).toBe(true);
-    expect(
-      isFollowUpComplaint(
-        complaint({ intakeDisposition: "RETURNED_TO_BRANCH" }),
-        false,
-      ),
-    ).toBe(true);
-  });
-
-  it("excludes rejected/cancelled escalation dispositions with a visible case", () => {
-    expect(
-      isFollowUpComplaint(
-        complaint({ intakeDisposition: "ESCALATE_REJECTED" }),
-        true,
-      ),
-    ).toBe(false);
-  });
-});
-
 describe("buildFollowUpRows", () => {
-  it("always gives Case rows their own caseNumber and a separate parent complaint column", () => {
+  it("shows caseNumber as the row identity and keeps the parent complaint column", () => {
     const rows = buildFollowUpRows({
       complaints: [complaint()],
       allCases: [caseSummary()],
     });
-    const caseRow = rows.find((r) => r.kind === "case")!;
-    expect(caseRow.number).toBe("CASE-2026-000001");
-    expect(caseRow.parentComplaintId).toBe("cx-1");
-    expect(caseRow.parentComplaintNumber).toBe("TAB-0001");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].number).toBe("CASE-2026-000001");
+    expect(rows[0].parentComplaintId).toBe("cx-1");
+    expect(rows[0].parentComplaintNumber).toBe("TAB-0001");
   });
 
-  it("omits a complaint row when an active case already exists and no active disposition", () => {
+  it("omits complaints that have no visible Case", () => {
     const rows = buildFollowUpRows({
-      complaints: [complaint()],
-      allCases: [caseSummary()],
-    });
-    expect(rows.some((r) => r.kind === "complaint")).toBe(false);
-  });
-
-  it("keeps the complaint row when no case is visible yet", () => {
-    const rows = buildFollowUpRows({
-      complaints: [complaint()],
+      complaints: [complaint({ caseCreated: false })],
       allCases: [],
-    });
-    const complaintRow = rows.find((r) => r.kind === "complaint")!;
-    expect(complaintRow.number).toBe("TAB-0001");
-    expect(complaintRow.parentComplaintId).toBeNull();
-  });
-
-  it("drops terminal-status cases from the default view", () => {
-    const rows = buildFollowUpRows({
-      complaints: [],
-      allCases: [caseSummary({ status: "CLOSED" }), caseSummary({ status: "CANCELLED", caseId: "case-2" })],
     });
     expect(rows).toHaveLength(0);
   });
 
-  it("sorts by the fixed bucket order: awaiting approval, HQ path, returned, case working/new, no handling", () => {
+  it("does not emit a second complaint row when HQ has accepted the escalation", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "ESCALATE_APPROVED",
+          hqAcceptedAt: "2026-08-17T10:00:00Z",
+        }),
+      ],
+      allCases: [caseSummary({ status: "CREATED" })],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].number).toBe("CASE-2026-000001");
+    expect(rows[0].statusKey).toBe("hqAcceptedUnscheduled");
+  });
+
+  it("labels HQ_SCHEDULED as taxpayer arrival and copies the slot + handler", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "HQ_SCHEDULED",
+          hqArrivalDate: "2026-08-20",
+          hqArrivalTime: "09:30",
+        }),
+      ],
+      allCases: [
+        caseSummary({
+          status: "CREATED",
+          handlingClaimedByName: "Dewi Hidayat",
+        }),
+      ],
+    });
+    expect(rows[0].statusKey).toBe("hqScheduled");
+    expect(rows[0].hqArrivalDate).toBe("2026-08-20");
+    expect(rows[0].hqArrivalTime).toBe("09:30");
+    expect(rows[0].handlerName).toBe("Dewi Hidayat");
+  });
+
+  it("keeps one row per Case when a complaint has several Cases", () => {
+    const rows = buildFollowUpRows({
+      complaints: [complaint()],
+      allCases: [
+        caseSummary({ caseId: "case-a", caseNumber: "CASE-A", status: "IN_PROGRESS" }),
+        caseSummary({ caseId: "case-b", caseNumber: "CASE-B", status: "CREATED" }),
+      ],
+    });
+    expect(rows.map((r) => r.number).sort()).toEqual(["CASE-A", "CASE-B"]);
+    expect(rows.every((r) => r.parentComplaintNumber === "TAB-0001")).toBe(true);
+  });
+
+  it("drops terminal-status cases from the default view", () => {
+    const rows = buildFollowUpRows({
+      complaints: [complaint()],
+      allCases: [
+        caseSummary({ status: "CLOSED" }),
+        caseSummary({ status: "CANCELLED", caseId: "case-2" }),
+      ],
+    });
+    expect(rows).toHaveLength(0);
+  });
+
+  it("sorts by inherited complaint buckets then newest Case first", () => {
     const rows = buildFollowUpRows({
       complaints: [
         complaint({
@@ -169,27 +143,48 @@ describe("buildFollowUpRows", () => {
           intakeDisposition: "ESCALATE_PENDING_APPROVAL",
         }),
         complaint({
+          complaintId: "cx-hq",
+          complaintNumber: "TAB-H",
+          intakeDisposition: "ESCALATE_APPROVED",
+        }),
+        complaint({
           complaintId: "cx-returned",
           complaintNumber: "TAB-R",
           intakeDisposition: "RETURNED_TO_BRANCH",
         }),
         complaint({
-          complaintId: "cx-none",
-          complaintNumber: "TAB-N",
+          complaintId: "cx-w",
+          complaintNumber: "TAB-W",
         }),
       ],
       allCases: [
-        caseSummary({ caseId: "case-hq", complaintId: "cx-hq", status: "ESCALATED" }),
-        caseSummary({ caseId: "case-working", complaintId: "cx-w", status: "IN_PROGRESS" }),
+        caseSummary({
+          caseId: "case-approval",
+          complaintId: "cx-approval",
+          status: "CREATED",
+        }),
+        caseSummary({
+          caseId: "case-hq",
+          complaintId: "cx-hq",
+          status: "IN_PROGRESS",
+        }),
+        caseSummary({
+          caseId: "case-returned",
+          complaintId: "cx-returned",
+          status: "ASSIGNED",
+        }),
+        caseSummary({
+          caseId: "case-working",
+          complaintId: "cx-w",
+          status: "IN_PROGRESS",
+        }),
       ],
     });
-    const kinds = rows.map((r) => `${r.kind}:${r.statusKey}`);
-    expect(kinds).toEqual([
-      "complaint:awaitingApproval",
-      "case:hqPath",
-      "complaint:returnedToBranch",
-      "case:caseWorking",
-      "complaint:noHandling",
+    expect(rows.map((r) => `${r.caseId}:${r.statusKey}`)).toEqual([
+      "case-approval:awaitingApproval",
+      "case-hq:hqAwaitingAccept",
+      "case-returned:returnedToBranch",
+      "case-working:caseWorking",
     ]);
   });
 
@@ -197,8 +192,16 @@ describe("buildFollowUpRows", () => {
     const rows = buildFollowUpRows({
       complaints: [],
       allCases: [
-        caseSummary({ caseId: "older", status: "CREATED", createdAt: "2026-08-01T00:00:00Z" }),
-        caseSummary({ caseId: "newer", status: "ASSIGNED", createdAt: "2026-08-05T00:00:00Z" }),
+        caseSummary({
+          caseId: "older",
+          status: "CREATED",
+          createdAt: "2026-08-01T00:00:00Z",
+        }),
+        caseSummary({
+          caseId: "newer",
+          status: "ASSIGNED",
+          createdAt: "2026-08-05T00:00:00Z",
+        }),
       ],
     });
     expect(rows.map((r) => r.caseId)).toEqual(["newer", "older"]);
@@ -207,33 +210,6 @@ describe("buildFollowUpRows", () => {
 
 describe("followUpRowHref (DEC-025 CM door)", () => {
   it("opens Case work on the Case detail route", () => {
-    expect(
-      followUpRowHref({
-        kind: "case",
-        caseId: "case-1",
-        complaintId: "cx-1",
-        statusKey: "caseWorking",
-      }),
-    ).toBe("/complaints/cm/cases/case-1");
-  });
-
-  it("opens complaint rows on Aggregate detail with penanganan focus", () => {
-    expect(
-      followUpRowHref({
-        kind: "complaint",
-        complaintId: "cx-1",
-        statusKey: "awaitingApproval",
-      }),
-    ).toBe("/complaints/cm/cx-1?focus=penanganan");
-  });
-
-  it("adds escalate action when the complaint was returned to branch", () => {
-    expect(
-      followUpRowHref({
-        kind: "complaint",
-        complaintId: "cx-2",
-        statusKey: "returnedToBranch",
-      }),
-    ).toBe("/complaints/cm/cx-2?focus=penanganan&action=escalate");
+    expect(followUpRowHref({ caseId: "case-1" })).toBe("/complaints/cm/cases/case-1");
   });
 });
