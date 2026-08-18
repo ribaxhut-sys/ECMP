@@ -87,8 +87,8 @@ export function HqArrivalSlotPicker({
     }));
 
   return (
-    <div className="flex flex-wrap justify-end gap-[var(--ecmp-form-gap)]">
-      <div className="w-full sm:w-56">
+    <div className="flex flex-wrap gap-[var(--ecmp-form-gap)]">
+      <div className="w-full sm:w-[180px]">
         <DatePicker
           name="proposedArrivalDate"
           id="proposedArrivalDate"
@@ -103,7 +103,7 @@ export function HqArrivalSlotPicker({
       </div>
 
       {!selectedDate ? null : (
-        <div className="w-full sm:w-56">
+        <div className="w-full sm:w-[150px]">
           {dayLoading ? (
             <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
               {t("proposeLoading")}

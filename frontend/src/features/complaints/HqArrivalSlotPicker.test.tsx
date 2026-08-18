@@ -95,7 +95,7 @@ describe("HqArrivalSlotPicker", () => {
         onChange={() => {}}
       />,
     );
-    const timeSelect = await screen.findByLabelText(/Proposed arrival time/i);
+    const timeSelect = await screen.findByLabelText(/^Arrival time$/i);
     const optionValues = Array.from(timeSelect.querySelectorAll("option")).map(
       (opt) => opt.getAttribute("value"),
     );
