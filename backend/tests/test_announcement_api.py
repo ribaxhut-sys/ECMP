@@ -570,12 +570,12 @@ def test_reader_cannot_see_scheduled_until_start_at(
     history = client.get(
         "/api/v1/announcements/history", headers=agent_header
     ).json()["data"]
-    assert "Terjadwal rahasia cabang" not in [a["title"] for a in history]
+    assert created["id"] not in [a["id"] for a in history]
 
     active = client.get(
         "/api/v1/announcements/active", headers=agent_header
     ).json()["data"]
-    assert "Terjadwal rahasia cabang" not in [a["title"] for a in active]
+    assert created["id"] not in [a["id"] for a in active]
 
     detail = client.get(
         f"/api/v1/announcements/{created['id']}", headers=agent_header
@@ -834,7 +834,7 @@ def test_publish_with_future_start_at_is_scheduled_not_active(
     active = client.get(
         "/api/v1/announcements/active", headers=admin_header
     ).json()["data"]
-    assert "Terjadwal nanti" not in [a["title"] for a in active]
+    assert created["id"] not in [a["id"] for a in active]
 
 
 def test_scheduled_becomes_active_when_start_at_elapsed(
