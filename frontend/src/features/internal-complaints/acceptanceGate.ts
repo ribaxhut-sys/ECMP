@@ -82,6 +82,34 @@ export function mayRecordInternalAcceptance(input: {
   return Boolean(required) && actorUnit === required;
 }
 
+/**
+ * True when the only reason no accept/reject action is offered is the
+ * creator-SoD rule (mirrors backend `case.acceptance_creator_conflict`) —
+ * i.e. role/status would otherwise allow it, but the actor authored the
+ * complaint themselves. Used to surface an explanatory hint instead of
+ * silently showing no actions at all.
+ */
+export function isBlockedBySelfApproval(input: {
+  status: string;
+  hasUpdatePermission: boolean;
+  actorUnitReady: boolean;
+  roles: readonly string[];
+  actorUserId: string;
+  creatorUserId: string | null;
+}): boolean {
+  if (
+    !input.hasUpdatePermission ||
+    !input.actorUnitReady ||
+    input.status !== "RESOLVED"
+  ) {
+    return false;
+  }
+  const roles = roleSet(input.roles);
+  const isApprover = hasAny(roles, APPROVER_ROLES);
+  if (!isApprover) return false;
+  return idsEqual(input.actorUserId, input.creatorUserId);
+}
+
 export function allowedInternalAcceptanceParties(input: {
   roles: readonly string[];
   actorUnitCode: string | null;

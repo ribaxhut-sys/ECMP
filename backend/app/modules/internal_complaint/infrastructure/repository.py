@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
@@ -19,6 +19,21 @@ from app.modules.internal_complaint.infrastructure.orm import (
     InternalComplaintResolutionORM,
     InternalComplaintUnitCounterORM,
 )
+
+
+def _pusat_inbox_clause(pusat_unit_codes: frozenset[str]):
+    """Pusat inbox: live tickets at Pusat; WITHDRAWN only after Pusat handled."""
+    codes = {c.upper() for c in pusat_unit_codes}
+    pusat_owner = func.upper(InternalComplaintORM.owner_unit_id).in_(sorted(codes))
+    pusat_handling = func.upper(InternalComplaintORM.handling_unit_id).in_(
+        sorted(codes)
+    )
+    withdrawn = InternalComplaintORM.status == "WITHDRAWN"
+    handled = InternalComplaintORM.pusat_handled_at.isnot(None)
+    return or_(
+        and_(withdrawn, or_(pusat_owner, handled)),
+        and_(~withdrawn, or_(pusat_owner, pusat_handling)),
+    )
 
 
 class SqlAlchemyInternalComplaintRepository:
@@ -177,16 +192,16 @@ class SqlAlchemyInternalComplaintRepository:
             unit = (org_unit_id or "").strip()
             if not unit:
                 return [], 0
-            stmt = stmt.where(
-                (InternalComplaintORM.handling_unit_id == unit)
-                | (InternalComplaintORM.owner_unit_id == unit)
-            )
-        elif vis == "PUSAT":
             codes = {c.upper() for c in pusat_unit_codes}
-            stmt = stmt.where(
-                func.upper(InternalComplaintORM.handling_unit_id).in_(sorted(codes))
-                | func.upper(InternalComplaintORM.owner_unit_id).in_(sorted(codes))
-            )
+            if unit.upper() in codes:
+                stmt = stmt.where(_pusat_inbox_clause(pusat_unit_codes))
+            else:
+                stmt = stmt.where(
+                    (InternalComplaintORM.handling_unit_id == unit)
+                    | (InternalComplaintORM.owner_unit_id == unit)
+                )
+        elif vis == "PUSAT":
+            stmt = stmt.where(_pusat_inbox_clause(pusat_unit_codes))
         else:
             return [], 0
 

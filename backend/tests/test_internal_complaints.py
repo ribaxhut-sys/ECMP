@@ -15,7 +15,7 @@ from app.core.authorization.authentication import get_current_principal
 from app.core.authorization.case_acceptance import assert_case_acceptance_authorized
 from app.core.authorization.principal import Principal
 from app.core.config import Settings, get_settings
-from app.core.errors import PermissionDeniedError
+from app.core.errors import ApiError, PermissionDeniedError
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
@@ -142,22 +142,24 @@ def _create(
     return dto.complaint_id
 
 
-def _to_resolved(
+def _to_in_progress(
     service: InternalComplaintApplicationService,
     complaint_id: str,
     *,
     actor_id: str = "handler-sv",
     unit: str = "PUSAT",
 ) -> None:
-    service.transfer(
-        TransferCommand(
-            complaint_id=complaint_id,
-            destination_unit_id=unit,
-            actor_id=actor_id,
-            actor_unit_id="UPPPD-GAMBIR",
-            reason="escalate",
+    current = service.get(complaint_id)
+    if current.handling_unit_id != unit:
+        service.transfer(
+            TransferCommand(
+                complaint_id=complaint_id,
+                destination_unit_id=unit,
+                actor_id=actor_id,
+                actor_unit_id=current.owner_unit_id,
+                reason="escalate",
+            )
         )
-    )
     service.start_handling(
         StartHandlingCommand(
             complaint_id=complaint_id,
@@ -165,15 +167,53 @@ def _to_resolved(
             actor_unit_id=unit,
         )
     )
+
+
+def _propose_resolution(
+    service: InternalComplaintApplicationService,
+    complaint_id: str,
+    *,
+    actor_id: str,
+    unit: str,
+    comment: str = "Done",
+    summary: str = "Fixed",
+    resolution_code: str | None = "IC_DONE",
+) -> None:
+    service.resolve(
+        ResolveCommand(
+            complaint_id=complaint_id,
+            action="PROPOSE",
+            comment=comment,
+            resolution_code=resolution_code,
+            summary=summary,
+            actor_id=actor_id,
+            actor_unit_id=unit,
+        )
+    )
+
+
+def _to_resolved(
+    service: InternalComplaintApplicationService,
+    complaint_id: str,
+    *,
+    actor_id: str = "handler-sv",
+    unit: str = "PUSAT",
+    owner_id: str = "owner-sv",
+) -> None:
+    current = service.get(complaint_id)
+    owner_unit = current.owner_unit_id
+    _to_in_progress(service, complaint_id, actor_id=actor_id, unit=unit)
+    _propose_resolution(
+        service, complaint_id, actor_id=actor_id, unit=unit
+    )
     service.resolve(
         ResolveCommand(
             complaint_id=complaint_id,
             action="ACCEPT",
-            comment="Done",
-            resolution_code="IC_DONE",
+            comment="Usulan diterima",
             summary="Fixed",
-            actor_id=actor_id,
-            actor_unit_id=unit,
+            actor_id=owner_id,
+            actor_unit_id=owner_unit,
         )
     )
 
@@ -341,17 +381,27 @@ def test_resolve_omitted_code_persists_ic_done(
     dto = service.resolve(
         ResolveCommand(
             complaint_id=cid,
-            action="ACCEPT",
+            action="PROPOSE",
             comment="Done",
             summary="Tindakan diambil",
             actor_id="a",
             actor_unit_id="UPPPD-GAMBIR",
         )
     )
-    assert dto.status == "RESOLVED"
-    assert dto.resolution is not None
-    assert dto.resolution.resolution_code == "IC_DONE"
-    assert dto.resolution.summary == "Tindakan diambil"
+    assert dto.status == "IN_PROGRESS"
+    accepted = service.resolve(
+        ResolveCommand(
+            complaint_id=cid,
+            action="ACCEPT",
+            comment="Usulan diterima",
+            actor_id="owner-sv",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert accepted.status == "RESOLVED"
+    assert accepted.resolution is not None
+    assert accepted.resolution.resolution_code == "IC_DONE"
+    assert accepted.resolution.summary == "Tindakan diambil"
 
 
 def test_resolve_explicit_legacy_code_still_accepted(
@@ -363,14 +413,23 @@ def test_resolve_explicit_legacy_code_still_accepted(
             complaint_id=cid, actor_id="a", actor_unit_id="UPPPD-GAMBIR"
         )
     )
-    dto = service.resolve(
+    service.resolve(
         ResolveCommand(
             complaint_id=cid,
-            action="ACCEPT",
+            action="PROPOSE",
             comment="Done",
             resolution_code="IC-OK",
             summary="Legacy",
             actor_id="a",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    dto = service.resolve(
+        ResolveCommand(
+            complaint_id=cid,
+            action="ACCEPT",
+            comment="Usulan diterima",
+            actor_id="owner-sv",
             actor_unit_id="UPPPD-GAMBIR",
         )
     )
@@ -410,6 +469,114 @@ def test_owner_acceptance_alone_not_closed(
     )
     # Still IN_PROGRESS — not RESOLVED without ACCEPT
     assert service.get(cid).status == "IN_PROGRESS"
+
+
+def test_accept_without_proposal_rejected(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service)
+    service.start_handling(
+        StartHandlingCommand(
+            complaint_id=cid, actor_id="a", actor_unit_id="UPPPD-GAMBIR"
+        )
+    )
+    with pytest.raises(ApiError) as exc:
+        service.resolve(
+            ResolveCommand(
+                complaint_id=cid,
+                action="ACCEPT",
+                comment="shortcut",
+                summary="Fixed",
+                actor_id="owner-sv",
+                actor_unit_id="UPPPD-GAMBIR",
+            )
+        )
+    assert exc.value.code == "RESOLUTION_PROPOSAL_REQUIRED"
+
+
+def test_proposer_cannot_accept_own_proposal(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service)
+    _to_in_progress(service, cid, actor_id="handler-sv", unit="PUSAT")
+    _propose_resolution(service, cid, actor_id="handler-sv", unit="PUSAT")
+    with pytest.raises(ApiError) as exc:
+        service.resolve(
+            ResolveCommand(
+                complaint_id=cid,
+                action="ACCEPT",
+                comment="self",
+                actor_id="handler-sv",
+                actor_unit_id="UPPPD-GAMBIR",
+            )
+        )
+    assert exc.value.code == "RESOLUTION_SELF_DECISION_NOT_ALLOWED"
+
+
+def test_handling_unit_cannot_accept_transferred_proposal(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service)
+    _to_in_progress(service, cid, actor_id="handler-sv", unit="PUSAT")
+    _propose_resolution(service, cid, actor_id="handler-sv", unit="PUSAT")
+    with pytest.raises(ApiError) as exc:
+        service.resolve(
+            ResolveCommand(
+                complaint_id=cid,
+                action="ACCEPT",
+                comment="same unit",
+                actor_id="other-pusat",
+                actor_unit_id="PUSAT",
+            )
+        )
+    assert exc.value.code == "RESOLUTION_OWNER_UNIT_REQUIRED"
+
+
+def test_owner_accepts_pending_proposal(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service)
+    _to_in_progress(service, cid, actor_id="handler-sv", unit="PUSAT")
+    _propose_resolution(
+        service, cid, actor_id="handler-sv", unit="PUSAT", summary="Selesai di Pusat"
+    )
+    dto = service.resolve(
+        ResolveCommand(
+            complaint_id=cid,
+            action="ACCEPT",
+            comment="",
+            actor_id="owner-sv",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert dto.status == "RESOLVED"
+    assert dto.resolution is not None
+    assert dto.resolution.status == "ACCEPTED"
+    assert dto.resolution.summary == "Selesai di Pusat"
+    assert dto.handling_unit_acceptance is not None
+    assert dto.handling_unit_acceptance.actor_id == "handler-sv"
+    assert dto.owner_acceptance is None
+
+
+def test_owner_rejects_pending_proposal(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service)
+    _to_in_progress(service, cid, actor_id="handler-sv", unit="PUSAT")
+    _propose_resolution(service, cid, actor_id="handler-sv", unit="PUSAT")
+    dto = service.resolve(
+        ResolveCommand(
+            complaint_id=cid,
+            action="REJECT",
+            comment="Belum lengkap",
+            rejection_reason="Belum lengkap",
+            actor_id="owner-sv",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert dto.status == "IN_PROGRESS"
+    assert dto.resolution is not None
+    assert dto.resolution.status == "REJECTED"
 
 
 def test_both_acceptances_close(
@@ -498,15 +665,22 @@ def test_history_append_only_across_cycles(
         )
     )
     before = len(service.get(cid).history)
+    _propose_resolution(
+        service,
+        cid,
+        actor_id="handler-sv",
+        unit="PUSAT",
+        comment="Done2",
+        summary="Fixed2",
+        resolution_code="IC-OK2",
+    )
     service.resolve(
         ResolveCommand(
             complaint_id=cid,
             action="ACCEPT",
-            comment="Done2",
-            resolution_code="IC-OK2",
-            summary="Fixed2",
-            actor_id="handler-sv",
-            actor_unit_id="PUSAT",
+            comment="Usulan diterima",
+            actor_id="owner-sv",
+            actor_unit_id="UPPPD-GAMBIR",
         )
     )
     after = service.get(cid)
@@ -1125,15 +1299,22 @@ def test_http_full_flow_to_closed(
             complaint_id=cid, actor_id="pusat-sv", actor_unit_id="PUSAT"
         )
     )
+    _propose_resolution(
+        service,
+        cid,
+        actor_id="pusat-sv",
+        unit="PUSAT",
+        comment="ok",
+        summary="done",
+        resolution_code="IC-1",
+    )
     service.resolve(
         ResolveCommand(
             complaint_id=cid,
             action="ACCEPT",
-            comment="ok",
-            resolution_code="IC-1",
-            summary="done",
-            actor_id="pusat-sv",
-            actor_unit_id="PUSAT",
+            comment="Usulan diterima",
+            actor_id="owner-sv",
+            actor_unit_id="UPPPD-GAMBIR",
         )
     )
     # Owner acceptance must not be the creator
@@ -1414,6 +1595,115 @@ def test_withdraw_before_receive_blocks_start_handling(
         )
 
 
+def test_unilateral_withdraw_hidden_from_pusat_list(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            reason="to pusat",
+        )
+    )
+    service.withdraw(
+        WithdrawCommand(
+            complaint_id=cid,
+            actor_id="creator-1",
+            reason="Salah buat",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    branch = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
+    pusat = _principal(roles=("SUPERVISOR",), org_unit_id="PUSAT")
+    items_b, _ = service.list_complaints(branch, org_unit_id="UPPPD-GAMBIR")
+    assert any(i.complaint_id == cid for i in items_b)
+    items_p, _ = service.list_complaints(pusat, org_unit_id="PUSAT")
+    assert not any(i.complaint_id == cid for i in items_p)
+    # Lab JWT Mode A often omits orgUnitId; membership still resolves to PUSAT.
+    pusat_agent = _principal(roles=("AGENT",), org_unit_id=None)
+    items_lab, _ = service.list_complaints(pusat_agent, org_unit_id="PUSAT")
+    assert not any(i.complaint_id == cid for i in items_lab)
+
+
+def test_approved_withdraw_remains_visible_to_pusat(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            reason="to pusat",
+        )
+    )
+    service.start_handling(
+        StartHandlingCommand(
+            complaint_id=cid, actor_id="pusat-sv", actor_unit_id="PUSAT"
+        )
+    )
+    service.request_withdraw(
+        RequestWithdrawCommand(
+            complaint_id=cid,
+            actor_id="creator-1",
+            reason="Sudah selesai di cabang",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    service.decide_withdraw_request(
+        DecideWithdrawRequestCommand(
+            complaint_id=cid,
+            decision="APPROVE",
+            actor_id="pusat-sv",
+            actor_unit_id="PUSAT",
+        )
+    )
+    pusat = _principal(roles=("SUPERVISOR",), org_unit_id="PUSAT")
+    items_p, _ = service.list_complaints(pusat, org_unit_id="PUSAT")
+    assert any(i.complaint_id == cid for i in items_p)
+
+
+def test_withdraw_after_return_for_completion_visible_to_pusat(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            reason="to pusat",
+        )
+    )
+    service.return_for_completion(
+        ReturnForCompletionCommand(
+            complaint_id=cid,
+            actor_id="pusat-sv",
+            actor_unit_id="PUSAT",
+            reason="Scan tidak terbaca",
+        )
+    )
+    service.withdraw(
+        WithdrawCommand(
+            complaint_id=cid,
+            actor_id="creator-1",
+            reason="Cabang batal setelah diminta kelengkapan",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    dto = service.get(cid)
+    assert dto.status == "WITHDRAWN"
+    assert dto.pusat_handled_at is not None
+    pusat = _principal(roles=("SUPERVISOR",), org_unit_id="PUSAT")
+    items_p, _ = service.list_complaints(pusat, org_unit_id="PUSAT")
+    assert any(i.complaint_id == cid for i in items_p)
+
+
 def test_request_withdraw_approve_and_reject(
     service: InternalComplaintApplicationService,
 ):
@@ -1527,7 +1817,12 @@ def test_http_branch_withdraw_before_receive(
         receive = client.post(
             f"/api/v1/internal/complaints/{cid}/receive", json={}
         )
-        assert receive.status_code in (400, 409)
+        assert receive.status_code in (400, 409, 404)
+        listed = client.get("/api/v1/internal/complaints")
+        ids = [row["complaintId"] for row in listed.json()["data"]]
+        assert cid not in ids
+        hidden = client.get(f"/api/v1/internal/complaints/{cid}")
+        assert hidden.status_code == 404
 
 
 def test_http_withdraw_request_then_pusat_decides(
@@ -1632,6 +1927,7 @@ def test_return_for_completion_before_and_after_receive(
     )
     assert resent.handling_unit_id == "PUSAT"
     assert resent.completion_request_status is None
+    assert resent.completion_return_reason == "Lampiran KTP belum ada"
     notes = [e.note for e in resent.history if e.event_type == "RESENT_TO_PUSAT"]
     assert "KTP sudah dilampirkan" in notes
     received = service.start_handling(

@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | ECMP-MODEA-INT-001 |
-| Version | 0.2 |
+| Version | 0.4 |
 | Owner | Product Owner / Domain PO |
 | Reviewer | Solution Architect |
 | Approver | Business Owner (Mode A lab) |
-| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas (2026-08-19) |
+| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19) |
 | Date | 2026-08-19 |
 | Type | Mode A lab contract (non-ADR, non-DEC) |
 | Related | DEC-025 §14.1 D (`/internal/*` bukan Dual-SoT WP); OpenAPI `internal-complaints.v1.yaml` |
@@ -54,9 +54,9 @@ Setelah Terima: `IN_PROGRESS` + permintaan PENDING; Setujui → `WITHDRAWN`; Tol
 | Cabang minta batal | `IN_PROGRESS` (owner cabang, handling Pusat) | tetap `IN_PROGRESS` + PENDING | Alasan wajib; satu PENDING; tiket tetap dikerjakan |
 | Pusat setujui batal | `IN_PROGRESS` + PENDING | `WITHDRAWN` | Supervisor/Admin unit penanganan (Pusat) |
 | Pusat tolak batal | `IN_PROGRESS` + PENDING | `IN_PROGRESS` | Alasan wajib; cabang boleh minta lagi |
-| Usulkan penyelesaian | `IN_PROGRESS` | tetap `IN_PROGRESS` | `PROPOSE` (komentar + ringkasan; kode mesin `IC_DONE`, tidak ditampilkan) |
-| Terima penyelesaian | `IN_PROGRESS` | `RESOLVED` | `ACCEPT` → cap otomatis unit penanganan sudah setuju; kode mesin `IC_DONE` bila klien tidak mengirim kode |
-| Tolak usulan | `IN_PROGRESS` | `IN_PROGRESS` | Alasan wajib |
+| Usulkan penyelesaian | `IN_PROGRESS` | tetap `IN_PROGRESS` | Hanya **unit penanganan**. `PROPOSE` (komentar + ringkasan; kode mesin `IC_DONE`, tidak ditampilkan). Mengganti usulan PENDING sebelumnya |
+| Terima usulan | `IN_PROGRESS` | `RESOLVED` | Hanya **unit pemilik**; wajib ada usulan `PENDING_APPROVAL`; pengusul **tidak** boleh menerima sendiri. Tidak ada pintasan ACCEPT tanpa usulan. Cap otomatis unit penanganan memakai pengusul; kode mesin `IC_DONE` bila klien tidak mengirim kode |
+| Tolak usulan | `IN_PROGRESS` | `IN_PROGRESS` | Hanya **unit pemilik**; alasan wajib; pengusul tidak boleh menolak sendiri |
 | Setuju penutup | `RESOLVED` | `CLOSED` | Kedua pihak setuju (lihat §4) |
 | Tolak penutup | `RESOLVED` | `IN_PROGRESS` | Catatan wajib; cap setuju direset |
 
@@ -83,6 +83,12 @@ Setelah syarat terpenuhi, status menjadi **Ditutup** otomatis. Endpoint close ti
 
 Assignments / Follow-up / Verification / Reports adalah **filter daftar tiket Internal**, bukan workspace Case WP. Copy halaman memakai bahasa Pengaduan Internal.
 
+### Visibilitas `WITHDRAWN` (daftar + GET + lampiran)
+
+Cabang pemilik selalu melihat tiketnya yang dibatalkan.
+
+Pusat melihat `WITHDRAWN` **hanya jika Pusat sudah menangani**: pernah Terima, pernah Kembalikan ke cabang, atau Pusat yang menyetujui permintaan batal. Batal sepihak sebelum ada penanganan Pusat **tidak** tampil di daftar/GET Pusat (handling masih PUSAT tidak cukup). Admin (visibilitas ALL) tetap melihat semua. Filter di API, bukan di UI.
+
 ## 6. Dilarang di slice ini
 
 Menyalin alur WP (Case, intake HQ, BQ-007). Izin `internal:*` penuh. Laporan/KPI sungguhan. `CANCELLED` katalog WP. Mode B / SSO. Katalog resolusi bisnis (selain sentinel `IC_DONE`). Notifikasi ke Pusat saat cabang batal sepihak sebelum Terima.
@@ -91,5 +97,5 @@ Menyalin alur WP (Case, intake HQ, BQ-007). Izin `internal:*` penuh. Laporan/KPI
 
 - Binding UI Mode A: `frontend/src/features/internal-complaints/` + `frontend/messages/{id,en}.json`
 - Kode penyelesaian tidak ditampilkan ke petugas; UI mengirim `IC_DONE`. Tiket lama `IC-OK` tetap valid.
-- Domain/API tidak diubah oleh Accept kontrak ini (kecuali default sentinel kosong → `IC_DONE`)
+- Domain/API: ACCEPT tanpa usulan PENDING ditolak; Terima/Tolak usulan hanya unit pemilik (v0.4)
 - Lampiran Internal: CAP-011 `aggregateType=InternalComplaint` (bukan `cm_batch1_attachments`). Gambar + ZIP; ZIP tidak diekstrak.

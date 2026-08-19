@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 from app.core.authorization.principal import Principal
-from app.core.authorization.visibility import (
-    DEFAULT_PUSAT_UNIT_CODES,
-    VisibilityClass,
-    is_pusat_unit,
-)
+from app.core.authorization.visibility import DEFAULT_PUSAT_UNIT_CODES
 from app.modules.internal_complaint.application.dto import (
     AcceptanceDTO,
     CloseCommand,
@@ -28,6 +24,9 @@ from app.modules.internal_complaint.application.dto import (
     TransferCommand,
     UpdateStatusCommand,
     WithdrawCommand,
+)
+from app.modules.internal_complaint.application.visibility import (
+    resolve_internal_visibility,
 )
 from app.modules.internal_complaint.domain import errors as err
 from app.modules.internal_complaint.domain.aggregate import (
@@ -161,36 +160,8 @@ def to_dto(c: InternalComplaintAggregate) -> InternalComplaintDTO:
         completion_return_reason=c.completion_return_reason,
         completion_returned_by=c.completion_returned_by,
         completion_returned_at=c.completion_returned_at,
+        pusat_handled_at=c.pusat_handled_at,
     )
-
-
-_ADMIN_ROLES = frozenset({"ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"})
-_UNIT_ROLES = frozenset(
-    {
-        "SUPERVISOR",
-        "BRANCH_SUPERVISOR",
-        "MANAGER",
-        "AGENT",
-        "CS_AGENT",
-        "HANDLER",
-        "BRANCH_OFFICER",
-    }
-)
-
-
-def resolve_internal_visibility(principal: Principal) -> VisibilityClass:
-    """Pengaduan Internal: Owner/Handling unit visibility for Agent too.
-
-    F4 Case uses SELF for branch Agents; Internal Complaints require unit
-    members (including Agent) to see complaints owned or handled by their unit.
-    """
-    if principal.has_any_role(*_ADMIN_ROLES):
-        return VisibilityClass.ALL
-    if principal.has_any_role(*_UNIT_ROLES):
-        if is_pusat_unit(principal.org_unit_id):
-            return VisibilityClass.PUSAT
-        return VisibilityClass.UNIT
-    return VisibilityClass.SELF
 
 
 class InternalComplaintApplicationService:
@@ -232,7 +203,7 @@ class InternalComplaintApplicationService:
         pending_transfer_request: bool | None = None,
         pending_withdraw_request: bool | None = None,
     ) -> tuple[list[InternalComplaintSummaryDTO], int]:
-        visibility = resolve_internal_visibility(principal)
+        visibility = resolve_internal_visibility(principal, org_unit_id=org_unit_id)
         rows, total = self._repo.list_summaries(
             visibility=visibility.value,
             actor_id=str(principal.user_id),
@@ -382,6 +353,7 @@ class InternalComplaintApplicationService:
             detail=cmd.detail,
             rejection_reason=cmd.rejection_reason,
             actor_unit_id=cmd.actor_unit_id,
+            actor_is_admin=cmd.actor_is_admin,
         )
         self._repo.save(complaint)
         self._repo.commit()

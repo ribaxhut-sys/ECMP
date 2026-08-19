@@ -225,6 +225,7 @@ def complaint_from_orm(
         completion_return_reason=row.completion_return_reason,
         completion_returned_by=row.completion_returned_by,
         completion_returned_at=row.completion_returned_at,
+        pusat_handled_at=row.pusat_handled_at,
     )
 
 
@@ -290,3 +291,4 @@ def apply_complaint_to_orm(
     row.completion_return_reason = complaint.completion_return_reason
     row.completion_returned_by = complaint.completion_returned_by
     row.completion_returned_at = complaint.completion_returned_at
+    row.pusat_handled_at = complaint.pusat_handled_at

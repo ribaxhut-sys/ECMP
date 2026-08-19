@@ -54,6 +54,8 @@
     "showingItems": "Showing {from}–{to} of {total}",
     "rowsPerPage": "Rows per page",
     "language": "Language",
+    "localeId": "Indonesian",
+    "localeEn": "English",
     "required": "Required",
     "optional": "Optional",
     "active": "Active",
@@ -948,10 +950,10 @@
     "slaBreached": "SLA Breached",
     "resolutionRate": "Resolution Rate",
     "recentComplaints": "Recent complaints",
-    "systemHealthy": "All systems healthy",
+    "systemHealthy": "Complaint queue clear",
     "systemAttention": "Needs attention",
     "systemSyncing": "Syncing",
-    "systemDegraded": "Degraded",
+    "systemDegraded": "Failed to load data",
     "liveStatusBar": "Live status",
     "envProduction": "Production",
     "envLab": "LAB",
@@ -2484,6 +2486,7 @@
     "categoryNotification": "Notification",
     "categoryStorage": "Storage",
     "categoryHqSchedule": "HQ schedule",
+    "categoryInternalComplaint": "Internal complaints",
     "settingKey": {
       "company_name": {
         "label": "Company name",
@@ -2564,6 +2567,30 @@
       "notification_max_retry": {
         "label": "Notification retry limit",
         "description": "Maximum delivery retries if sending a notification fails."
+      },
+      "internal_complaint_cancel_reason_presets": {
+        "label": "Quick cancel reasons",
+        "description": "Quick-fill reasons for the internal complaint cancel dialog."
+      },
+      "internal_complaint_completion_return_reason_presets": {
+        "label": "Return-to-branch reasons",
+        "description": "Quick-fill reasons when HQ returns a complaint for missing documents."
+      },
+      "internal_complaint_resend_to_pusat_note_presets": {
+        "label": "Resend-to-HQ notes",
+        "description": "Quick-fill notes when a branch resends a complaint to HQ."
+      },
+      "internal_complaint_request_transfer_reason_presets": {
+        "label": "Transfer request reasons",
+        "description": "Quick-fill reasons when requesting an internal complaint transfer."
+      },
+      "internal_complaint_transfer_decision_reason_presets": {
+        "label": "Transfer decision reasons",
+        "description": "Quick-fill reasons when approving or rejecting a transfer request."
+      },
+      "internal_complaint_transfer_reason_presets": {
+        "label": "Transfer reasons",
+        "description": "Quick-fill reasons in the internal complaint transfer dialog."
       }
     },
     "visibilityPublic": "Public",
@@ -3439,10 +3466,15 @@
     "reviewStarted": "Review started.",
     "assignmentsTitle": "To receive",
     "assignmentsDescription": "Internal complaints not yet in handling (Created / Assigned).",
-    "assignmentsEmpty": "No cases waiting for assignment.",
-    "assignmentsEmptyDescription": "Every received case already has an assignee.",
-    "followUpEmptyDescription": "No cases are currently Assigned or In Follow-up.",
-    "verificationEmptyDescription": "No cases are currently waiting on a verification decision.",
+    "assignmentsEmpty": "No complaints waiting to be received.",
+    "assignmentsEmptyDescription": "Created or Assigned complaints stay here until the handling unit clicks Receive.",
+    "followUpEmptyDescription": "Complaints appear here when status is Assigned or In handling.",
+    "followUpEmptyWaitingReceive": "{count} new complaint(s) are still in the receive queue and have not been assigned yet.",
+    "followUpEmptyWaitingVerification": "Nothing is in handling. {count} complaint(s) are waiting for closure approval.",
+    "openReceiveQueue": "Open receive queue",
+    "openVerificationQueue": "Open closure approval",
+    "verificationEmpty": "No complaints waiting for closure approval.",
+    "verificationEmptyDescription": "Resolved complaints appear here until the owner unit approves closure.",
     "followUpListTitle": "Internal Complaint Follow-up",
     "followUpListDescription": "Cases that have been received and need handling.",
     "followUpListEmpty": "No cases currently need follow-up.",
@@ -3526,10 +3558,20 @@
     "destinationUnit": "Destination unit",
     "reason": "Reason",
     "resolve": "Propose resolution",
-    "resolveAccept": "Accept resolution",
+    "reviewProposal": "Review proposal",
+    "resolveAccept": "Accept proposal",
     "propose": "Propose",
+    "proposeAgain": "Replace proposal",
     "proposeOk": "Resolution proposal saved",
-    "resolveOk": "Resolution accepted",
+    "resolveOk": "Proposal accepted",
+    "rejectProposal": "Reject proposal",
+    "rejectProposalOk": "Proposal rejected",
+    "rejectProposalReason": "Rejection reason",
+    "rejectProposalReasonHint": "Required when rejecting the proposal.",
+    "rejectProposalReasonRequiredError": "A rejection reason is required.",
+    "proposalWaiting": "The proposal is waiting for the owner unit. Accept is not available to the proposer.",
+    "proposalPendingHint": "The handling unit proposed a resolution. The owner unit must accept or reject it.",
+    "proposalBy": "Proposed by",
     "resolutionCode": "Resolution code",
     "resolutionSummary": "Resolution summary",
     "resolutionSummaryRequiredError": "Resolution summary is required.",
@@ -3557,6 +3599,7 @@
     "acceptanceRejected": "Rejected",
     "closureHintLocal": "The officer completed the work. The owner-unit supervisor must approve before it can close.",
     "closureHintTransferred": "The handling unit completed the work. The owner unit must approve before it can close.",
+    "closureHintSelfApprovalBlocked": "You created this complaint, so you cannot approve or reject its closure yourself (segregation of duties). Ask another Supervisor/Manager in the owner unit to give the approval.",
     "activityTransferred": "Handling unit transferred",
     "activityResolutionRecorded": "Resolution recorded",
     "activityHandlingAccepted": "Handling unit accepted",
@@ -3569,7 +3612,7 @@
     "kpiResolved": "Awaiting approval",
     "kpiClosed": "Closed",
     "followUpTitle": "In handling",
-    "followUpDescription": "Internal complaints currently being handled.",
+    "followUpDescription": "Internal complaints that are Assigned or In handling. Receive Assigned tickets from the detail page or the receive queue.",
     "verificationTitle": "Closure approval",
     "verificationDescription": "Resolved internal complaints waiting for closure approval.",
     "transferDirectionHint": "Transfer is Branch ↔ HQ only (not branch ↔ branch).",
@@ -3636,6 +3679,7 @@
     "awaitingCompletionHint": "HQ asked for missing documents. Complete the attachments, then resend to HQ.",
     "awaitingCompletionViewerHint": "HQ asked the branch to complete documents. Waiting for resend.",
     "completionReturnReason": "Completion request",
+    "resendNoteLabel": "Resend note",
     "activityRETURNED_FOR_COMPLETION": "Returned to branch (incomplete documents)",
     "activityRESENT_TO_PUSAT": "Resent to HQ"
   },

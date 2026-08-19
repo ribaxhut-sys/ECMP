@@ -28,6 +28,8 @@ import {
 } from "@/lib/api/internalComplaints";
 import { uploadAttachment } from "@/lib/api/attachments";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
+import { fetchPublicSettings } from "@/lib/api/settings";
+import { ReasonPresetTags } from "./components/ReasonPresetTags";
 import {
   defaultInternalComplaintForm,
   isInternalComplaintFormValid,
@@ -89,11 +91,35 @@ export function CreateInternalComplaintView() {
     uploadFail?: string;
   } | null>(null);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [requestReasonPresets, setRequestReasonPresets] = useState<string[]>([]);
 
   useEffect(() => {
     fetchBranches(100)
       .then((res) => setBranches(res.data ?? []))
       .catch(() => setBranches([]));
+  }, []);
+
+  useEffect(() => {
+    fetchPublicSettings()
+      .then((res) => {
+        const raw = res.data?.find(
+          (setting) =>
+            setting.key === "internal_complaint.request_transfer_reason_presets",
+        )?.value;
+        if (!raw) return;
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          if (
+            Array.isArray(parsed) &&
+            parsed.every((item) => typeof item === "string" && item.trim() !== "")
+          ) {
+            setRequestReasonPresets(parsed);
+          }
+        } catch {
+          // ignore malformed setting value, fall back to defaults
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -448,17 +474,23 @@ export function CreateInternalComplaintView() {
                 />
               )}
               {!canAssign && fromPusat && values.destinationUnitId ? (
-                <KnowledgeMentionTextarea
-                  id="internal-request-reason"
-                  label={t("requestReason")}
-                  value={values.requestReason}
-                  onChange={(next) => setField("requestReason", next)}
-                  error={
-                    errors.requestReason ? t(errors.requestReason) : undefined
-                  }
-                  hint={t("requestReasonHint")}
-                  required
-                />
+                <>
+                  <ReasonPresetTags
+                    presets={requestReasonPresets}
+                    onSelect={(preset) => setField("requestReason", preset)}
+                  />
+                  <KnowledgeMentionTextarea
+                    id="internal-request-reason"
+                    label={t("requestReason")}
+                    value={values.requestReason}
+                    onChange={(next) => setField("requestReason", next)}
+                    error={
+                      errors.requestReason ? t(errors.requestReason) : undefined
+                    }
+                    hint={t("requestReasonHint")}
+                    required
+                  />
+                </>
               ) : null}
 
               <SectionHeader title={t("sectionNarrative")} />

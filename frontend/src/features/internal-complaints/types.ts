@@ -61,6 +61,10 @@ export interface InternalComplaint {
   closedByName: string | null;
   closedAt: string | null;
   resolutionSummary: string | null;
+  resolutionStatus: string | null;
+  resolutionComment: string | null;
+  resolutionProposedBy: string | null;
+  resolutionProposedByName: string | null;
   handlingUnitAcceptance: string | null;
   ownerAcceptance: string | null;
   history: InternalHistoryEvent[];
@@ -215,6 +219,10 @@ export function mapSummaryToRow(
     closedByName: null,
     closedAt: null,
     resolutionSummary: null,
+    resolutionStatus: null,
+    resolutionComment: null,
+    resolutionProposedBy: null,
+    resolutionProposedByName: null,
     handlingUnitAcceptance: null,
     ownerAcceptance: null,
     history: [],
@@ -273,6 +281,10 @@ export function mapDetailToRow(dto: ApiInternalComplaint): InternalComplaint {
     closedByName: dto.closedByName ?? null,
     closedAt: dto.closedAt ?? null,
     resolutionSummary: dto.resolution?.summary ?? null,
+    resolutionStatus: dto.resolution?.status ?? null,
+    resolutionComment: dto.resolution?.comment ?? null,
+    resolutionProposedBy: dto.resolution?.proposedBy ?? null,
+    resolutionProposedByName: dto.resolution?.proposedByName ?? null,
     handlingUnitAcceptance: dto.handlingUnitAcceptance?.decision ?? null,
     ownerAcceptance: dto.ownerAcceptance?.decision ?? null,
     history: dto.history ?? [],

@@ -24,6 +24,20 @@ class SettingsKey(StrEnum):
     HQ_SCHEDULE_WORKDAYS = "hq.schedule.workdays"
     HQ_SCHEDULE_BREAK_START = "hq.schedule.break_start"
     HQ_SCHEDULE_BREAK_END = "hq.schedule.break_end"
+    INTERNAL_COMPLAINT_CANCEL_REASON_PRESETS = "internal_complaint.cancel_reason_presets"
+    INTERNAL_COMPLAINT_TRANSFER_REASON_PRESETS = "internal_complaint.transfer_reason_presets"
+    INTERNAL_COMPLAINT_REQUEST_TRANSFER_REASON_PRESETS = (
+        "internal_complaint.request_transfer_reason_presets"
+    )
+    INTERNAL_COMPLAINT_TRANSFER_DECISION_REASON_PRESETS = (
+        "internal_complaint.transfer_decision_reason_presets"
+    )
+    INTERNAL_COMPLAINT_COMPLETION_RETURN_REASON_PRESETS = (
+        "internal_complaint.completion_return_reason_presets"
+    )
+    INTERNAL_COMPLAINT_RESEND_TO_PUSAT_NOTE_PRESETS = (
+        "internal_complaint.resend_to_pusat_note_presets"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,5 +154,62 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         category="hq_schedule",
         visibility=SettingVisibility.PROTECTED,
         description="HQ arrival schedule lunch break end (HH:MM)",
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_CANCEL_REASON_PRESETS,
+        value='["Duplikat","Input salah","Pembatalan wajib pajak"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill reason presets shown in the internal complaint cancel dialog",
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_TRANSFER_REASON_PRESETS,
+        value='["Salah unit","Perlu keahlian khusus","Beban kerja unit tujuan lebih sesuai"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill reason presets shown in the internal complaint transfer dialog",
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_REQUEST_TRANSFER_REASON_PRESETS,
+        value='["Di luar kewenangan unit","Perlu koordinasi lintas unit"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill reason presets for requesting an internal complaint transfer"
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_TRANSFER_DECISION_REASON_PRESETS,
+        value='["Alasan tidak jelas","Dokumen pendukung kurang"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill reason presets for approving/rejecting an internal complaint "
+            "transfer request"
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_COMPLETION_RETURN_REASON_PRESETS,
+        value='["Dokumen kurang","Perlu verifikasi ulang","Data tidak sesuai"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill reason presets for returning an internal complaint for completion"
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_RESEND_TO_PUSAT_NOTE_PRESETS,
+        value='["Dokumen sudah dilengkapi","Sudah diverifikasi ulang","Data sudah disesuaikan"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill note presets shown when a branch resends an internal complaint to HQ"
+        ),
     ),
 )

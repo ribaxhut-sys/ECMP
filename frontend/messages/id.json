@@ -54,6 +54,8 @@
     "showingItems": "Menampilkan {from}–{to} dari {total}",
     "rowsPerPage": "Baris per halaman",
     "language": "Bahasa",
+    "localeId": "Bahasa Indonesia",
+    "localeEn": "Inggris",
     "required": "Wajib",
     "optional": "Opsional",
     "active": "Aktif",
@@ -948,10 +950,10 @@
     "slaBreached": "SLA Terlampaui",
     "resolutionRate": "Tingkat Resolusi",
     "recentComplaints": "Pengaduan terbaru",
-    "systemHealthy": "Semua sistem sehat",
+    "systemHealthy": "Antrean komplain terkendali",
     "systemAttention": "Perlu perhatian",
     "systemSyncing": "Menyinkronkan",
-    "systemDegraded": "Terganggu",
+    "systemDegraded": "Gagal memuat data",
     "liveStatusBar": "Status langsung",
     "envProduction": "Produksi",
     "envLab": "LAB",
@@ -2484,6 +2486,7 @@
     "categoryNotification": "Notifikasi",
     "categoryStorage": "Penyimpanan",
     "categoryHqSchedule": "Jadwal HQ",
+    "categoryInternalComplaint": "Pengaduan Internal",
     "settingKey": {
       "company_name": {
         "label": "Nama perusahaan",
@@ -2564,6 +2567,30 @@
       "notification_max_retry": {
         "label": "Batas coba kirim ulang",
         "description": "Jumlah maksimum percobaan kirim ulang jika notifikasi gagal terkirim."
+      },
+      "internal_complaint_cancel_reason_presets": {
+        "label": "Alasan batal cepat",
+        "description": "Pilihan alasan cepat untuk dialog batal pengaduan internal."
+      },
+      "internal_complaint_completion_return_reason_presets": {
+        "label": "Alasan kembalikan ke cabang",
+        "description": "Pilihan alasan cepat saat Pusat mengembalikan pengaduan karena berkas kurang."
+      },
+      "internal_complaint_resend_to_pusat_note_presets": {
+        "label": "Catatan kirim ulang ke Pusat",
+        "description": "Pilihan catatan cepat saat cabang mengirim ulang pengaduan ke Pusat."
+      },
+      "internal_complaint_request_transfer_reason_presets": {
+        "label": "Alasan ajukan pindah",
+        "description": "Pilihan alasan cepat saat mengajukan pemindahan pengaduan internal."
+      },
+      "internal_complaint_transfer_decision_reason_presets": {
+        "label": "Alasan putusan pindah",
+        "description": "Pilihan alasan cepat saat menyetujui atau menolak pengajuan pindah."
+      },
+      "internal_complaint_transfer_reason_presets": {
+        "label": "Alasan pindah penanganan",
+        "description": "Pilihan alasan cepat pada dialog pindah pengaduan internal."
       }
     },
     "visibilityPublic": "Publik",
@@ -3439,10 +3466,15 @@
     "reviewStarted": "Tinjauan dimulai.",
     "assignmentsTitle": "Antrian terima",
     "assignmentsDescription": "Pengaduan Internal yang belum mulai ditangani (Dibuat / Ditugaskan).",
-    "assignmentsEmpty": "Tidak ada kasus yang menunggu penugasan.",
-    "assignmentsEmptyDescription": "Semua kasus yang diterima sudah memiliki penanggung jawab.",
-    "followUpEmptyDescription": "Tidak ada kasus dengan status Ditugaskan atau Ditindaklanjuti saat ini.",
-    "verificationEmptyDescription": "Tidak ada kasus yang sedang menunggu keputusan verifikasi.",
+    "assignmentsEmpty": "Tidak ada pengaduan menunggu diterima.",
+    "assignmentsEmptyDescription": "Pengaduan berstatus Dibuat atau Ditugaskan tampil di sini sampai unit penanganan menekan Terima.",
+    "followUpEmptyDescription": "Pengaduan tampil di sini saat status Ditugaskan atau Dalam Penanganan.",
+    "followUpEmptyWaitingReceive": "Ada {count} pengaduan baru di Antrian terima yang belum ditugaskan.",
+    "followUpEmptyWaitingVerification": "Tidak ada yang sedang dikerjakan. Ada {count} pengaduan menunggu persetujuan penutup.",
+    "openReceiveQueue": "Buka antrian terima",
+    "openVerificationQueue": "Buka persetujuan penutup",
+    "verificationEmpty": "Tidak ada pengaduan menunggu persetujuan penutup.",
+    "verificationEmptyDescription": "Pengaduan terselesaikan tampil di sini sampai unit pemilik menyetujui penutupan.",
     "followUpListTitle": "Tindak Lanjut Pengaduan Internal",
     "followUpListDescription": "Kasus yang sudah diterima dan perlu penanganan.",
     "followUpListEmpty": "Tidak ada kasus yang perlu tindak lanjut saat ini.",
@@ -3526,10 +3558,20 @@
     "destinationUnit": "Unit tujuan",
     "reason": "Alasan",
     "resolve": "Ajukan penyelesaian",
-    "resolveAccept": "Terima penyelesaian",
+    "reviewProposal": "Tinjau usulan",
+    "resolveAccept": "Terima usulan",
     "propose": "Usulkan",
+    "proposeAgain": "Ganti usulan",
     "proposeOk": "Usulan penyelesaian tersimpan",
-    "resolveOk": "Penyelesaian diterima",
+    "resolveOk": "Usulan diterima",
+    "rejectProposal": "Tolak usulan",
+    "rejectProposalOk": "Usulan ditolak",
+    "rejectProposalReason": "Alasan tolak usulan",
+    "rejectProposalReasonHint": "Wajib jika menolak usulan.",
+    "rejectProposalReasonRequiredError": "Alasan tolak usulan wajib diisi.",
+    "proposalWaiting": "Usulan menunggu unit pemilik. Tombol Terima tidak tersedia untuk pengusul.",
+    "proposalPendingHint": "Unit penanganan mengusulkan penyelesaian. Unit pemilik harus menerima atau menolak.",
+    "proposalBy": "Diusulkan oleh",
     "resolutionCode": "Kode penyelesaian",
     "resolutionSummary": "Ringkasan penyelesaian",
     "resolutionSummaryRequiredError": "Ringkasan penyelesaian wajib diisi.",
@@ -3557,6 +3599,7 @@
     "acceptanceRejected": "Ditolak",
     "closureHintLocal": "Petugas menyelesaikan. Supervisor unit pemilik harus menyetujui sebelum ditutup.",
     "closureHintTransferred": "Unit penanganan menyelesaikan. Unit pemilik harus menyetujui sebelum ditutup.",
+    "closureHintSelfApprovalBlocked": "Anda pembuat pengaduan ini, sehingga tidak bisa menyetujui/menolak penutupannya sendiri (pemisahan tugas). Minta Supervisor/Manager lain di unit pemilik untuk memberi persetujuan.",
     "activityTransferred": "Unit penanganan dipindah",
     "activityResolutionRecorded": "Penyelesaian dicatat",
     "activityHandlingAccepted": "Unit penanganan menyetujui",
@@ -3569,7 +3612,7 @@
     "kpiResolved": "Menunggu persetujuan",
     "kpiClosed": "Ditutup",
     "followUpTitle": "Sedang ditangani",
-    "followUpDescription": "Pengaduan Internal yang sedang dikerjakan.",
+    "followUpDescription": "Pengaduan Internal yang Ditugaskan atau sedang Dalam Penanganan. Terima tiket Ditugaskan di detail atau Antrian terima.",
     "verificationTitle": "Persetujuan penutup",
     "verificationDescription": "Pengaduan Internal terselesaikan, menunggu persetujuan penutup.",
     "transferDirectionHint": "Transfer hanya Cabang ↔ Pusat (bukan Cabang ↔ Cabang).",
@@ -3636,6 +3679,7 @@
     "awaitingCompletionHint": "Pusat meminta kelengkapan. Lengkapi lampiran, lalu kirim ulang ke Pusat.",
     "awaitingCompletionViewerHint": "Pusat meminta cabang melengkapi berkas. Menunggu kirim ulang.",
     "completionReturnReason": "Permintaan kelengkapan",
+    "resendNoteLabel": "Catatan kirim ulang",
     "activityRETURNED_FOR_COMPLETION": "Dikembalikan ke cabang (berkas kurang)",
     "activityRESENT_TO_PUSAT": "Dikirim ulang ke Pusat"
   },

@@ -72,6 +72,18 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def _unit_ids_equal(left: str | None, right: str | None) -> bool:
+    a = (left or "").strip().upper()
+    b = (right or "").strip().upper()
+    return bool(a) and bool(b) and a == b
+
+
+def _actor_ids_equal(left: str | None, right: str | None) -> bool:
+    a = (left or "").strip()
+    b = (right or "").strip()
+    return bool(a) and bool(b) and a == b
+
+
 @dataclass
 class ResolutionRecord:
     resolution_id: str
@@ -165,6 +177,7 @@ class InternalComplaintAggregate:
     completion_return_reason: str | None = None
     completion_returned_by: str | None = None
     completion_returned_at: datetime | None = None
+    pusat_handled_at: datetime | None = None
 
     def _append_history(
         self,
@@ -190,6 +203,11 @@ class InternalComplaintAggregate:
                 payload=dict(payload or {}),
             )
         )
+
+    def _mark_pusat_handled(self) -> None:
+        """Sticky — first Pusat action (receive / return / approve withdraw)."""
+        if self.pusat_handled_at is None:
+            self.pusat_handled_at = _utcnow()
 
     @classmethod
     def create(
@@ -251,7 +269,7 @@ class InternalComplaintAggregate:
             event_type=HistoryEventType.CREATED,
             actor_id=created_by,
             actor_unit_id=actor_unit_id or owner,
-            note="Internal complaint created",
+            note="Pengaduan internal dibuat",
             source_unit_id=owner,
             target_unit_id=owner,
         )
@@ -480,11 +498,13 @@ class InternalComplaintAggregate:
             )
         self.status = InternalStatus.IN_PROGRESS
         self.updated_at = _utcnow()
+        if is_pusat_unit(self.handling_unit_id):
+            self._mark_pusat_handled()
         self._append_history(
             event_type=HistoryEventType.RECEIVED,
             actor_id=actor_id,
             actor_unit_id=actor_unit_id,
-            note=note or "Received for handling",
+            note=note or "Diterima untuk ditangani",
             source_unit_id=self.handling_unit_id,
             target_unit_id=self.handling_unit_id,
         )
@@ -492,7 +512,7 @@ class InternalComplaintAggregate:
             event_type=HistoryEventType.REVIEW,
             actor_id=actor_id,
             actor_unit_id=actor_unit_id,
-            note="Review started",
+            note="Peninjauan dimulai",
             source_unit_id=self.handling_unit_id,
             target_unit_id=self.handling_unit_id,
         )
@@ -550,6 +570,7 @@ class InternalComplaintAggregate:
         self.completion_return_reason = reason_text
         self.completion_returned_by = actor_id
         self.completion_returned_at = now
+        self._mark_pusat_handled()
         self.updated_at = now
         self._append_history(
             event_type=HistoryEventType.RETURNED_FOR_COMPLETION,
@@ -595,9 +616,6 @@ class InternalComplaintAggregate:
         self.handling_unit_id = _CANONICAL_PUSAT_UNIT
         self.status = InternalStatus.ASSIGNED
         self.completion_request_status = None
-        self.completion_return_reason = None
-        self.completion_returned_by = None
-        self.completion_returned_at = None
         self.updated_at = now
         self._append_history(
             event_type=HistoryEventType.RESENT_TO_PUSAT,
@@ -736,6 +754,7 @@ class InternalComplaintAggregate:
         self.withdrawn_by = actor_id
         self.withdrawn_at = now
         self.withdraw_reason = reason_text
+        self._mark_pusat_handled()
         self.updated_at = now
         self._append_history(
             event_type=HistoryEventType.WITHDRAW_REQUEST_APPROVED,
@@ -798,6 +817,52 @@ class InternalComplaintAggregate:
         self.status = target
         self.updated_at = _utcnow()
 
+    def _pending_resolution(self) -> ResolutionRecord | None:
+        pending = self.resolution
+        if pending and pending.status == ResolutionProposalStatus.PENDING_APPROVAL:
+            return pending
+        return None
+
+    def _assert_propose_unit(
+        self, *, actor_unit_id: str | None, actor_is_admin: bool
+    ) -> None:
+        if actor_is_admin:
+            return
+        if not _unit_ids_equal(actor_unit_id, self.handling_unit_id):
+            raise err.conflict(
+                "RESOLUTION_HANDLING_UNIT_REQUIRED",
+                "Only the handling unit may propose a resolution.",
+                details={
+                    "actorUnitId": actor_unit_id,
+                    "handlingUnitId": self.handling_unit_id,
+                },
+            )
+
+    def _assert_owner_decision_unit(
+        self, *, actor_unit_id: str | None, actor_is_admin: bool
+    ) -> None:
+        if actor_is_admin:
+            return
+        if not _unit_ids_equal(actor_unit_id, self.owner_unit_id):
+            raise err.conflict(
+                "RESOLUTION_OWNER_UNIT_REQUIRED",
+                "Only the owner unit may accept or reject a resolution proposal.",
+                details={
+                    "actorUnitId": actor_unit_id,
+                    "ownerUnitId": self.owner_unit_id,
+                },
+            )
+
+    def _assert_not_self_proposal_decision(
+        self, *, actor_id: str, pending: ResolutionRecord
+    ) -> None:
+        if _actor_ids_equal(pending.proposed_by, actor_id):
+            raise err.conflict(
+                "RESOLUTION_SELF_DECISION_NOT_ALLOWED",
+                "The proposer cannot accept or reject their own proposal.",
+                details={"proposedBy": pending.proposed_by, "actorId": actor_id},
+            )
+
     def resolve(
         self,
         *,
@@ -809,6 +874,7 @@ class InternalComplaintAggregate:
         detail: str | None = None,
         rejection_reason: str | None = None,
         actor_unit_id: str | None = None,
+        actor_is_admin: bool = False,
     ) -> None:
         if self.status != InternalStatus.IN_PROGRESS:
             raise err.invalid_state(
@@ -816,11 +882,13 @@ class InternalComplaintAggregate:
                 details={"status": self.status.value},
             )
         comment_text = (comment or "").strip()
-        if not comment_text:
-            raise err.conflict("COMMENT_REQUIRED", "Resolve requires comment.")
-
         now = _utcnow()
         if action == ResolveAction.PROPOSE:
+            if not comment_text:
+                raise err.conflict("COMMENT_REQUIRED", "Resolve requires comment.")
+            self._assert_propose_unit(
+                actor_unit_id=actor_unit_id, actor_is_admin=actor_is_admin
+            )
             code = (resolution_code or "").strip() or RESOLUTION_SENTINEL
             summ = (summary or "").strip()
             if not summ:
@@ -845,17 +913,26 @@ class InternalComplaintAggregate:
                 event_type=HistoryEventType.RESOLUTION,
                 actor_id=actor_id,
                 actor_unit_id=actor_unit_id,
-                note=f"Resolution proposed: {summ}",
+                note=f"Penyelesaian diusulkan: {summ}",
                 payload={"action": "PROPOSE", "resolutionCode": code},
             )
         elif action == ResolveAction.ACCEPT:
-            code = (resolution_code or "").strip()
-            summ = (summary or "").strip()
-            pending = self.resolution
-            if pending and pending.status == ResolutionProposalStatus.PENDING_APPROVAL:
-                code = code or pending.resolution_code
-                summ = summ or pending.summary
-                detail = detail if detail is not None else pending.detail
+            pending = self._pending_resolution()
+            if pending is None:
+                raise err.conflict(
+                    "RESOLUTION_PROPOSAL_REQUIRED",
+                    "Accept requires a pending resolution proposal.",
+                )
+            self._assert_owner_decision_unit(
+                actor_unit_id=actor_unit_id, actor_is_admin=actor_is_admin
+            )
+            self._assert_not_self_proposal_decision(actor_id=actor_id, pending=pending)
+            code = (resolution_code or "").strip() or pending.resolution_code
+            summ = (summary or "").strip() or pending.summary
+            detail = detail if detail is not None else pending.detail
+            comment_text = comment_text or pending.comment
+            if not comment_text:
+                raise err.conflict("COMMENT_REQUIRED", "Resolve requires comment.")
             code = code or RESOLUTION_SENTINEL
             if not summ:
                 raise err.validation(
@@ -869,8 +946,8 @@ class InternalComplaintAggregate:
                 status=ResolutionProposalStatus.ACCEPTED,
                 comment=comment_text,
                 detail=detail,
-                proposed_by=(pending.proposed_by if pending else actor_id),
-                proposed_at=(pending.proposed_at if pending else now),
+                proposed_by=pending.proposed_by,
+                proposed_at=pending.proposed_at,
                 decided_by=actor_id,
                 decided_at=now,
             )
@@ -878,12 +955,13 @@ class InternalComplaintAggregate:
             self.resolution = record
             self.status = InternalStatus.RESOLVED
             self.supervisor_approved_after_resolved = True
+            # Proposing already records handling-unit agreement; stamp uses the proposer.
             acceptance = AcceptanceRecord(
                 acceptance_id=str(uuid4()),
                 party=AcceptanceParty.HANDLING_UNIT,
                 decision=AcceptanceDecision.ACCEPT,
-                actor_id=actor_id,
-                actor_unit_id=actor_unit_id,
+                actor_id=pending.proposed_by or actor_id,
+                actor_unit_id=self.handling_unit_id,
                 decided_at=now,
                 note=None,
             )
@@ -894,32 +972,42 @@ class InternalComplaintAggregate:
                 event_type=HistoryEventType.RESOLUTION,
                 actor_id=actor_id,
                 actor_unit_id=actor_unit_id,
-                note=f"Resolution accepted: {summ}",
+                note=f"Penyelesaian disetujui: {summ}",
                 payload={"action": "ACCEPT", "resolutionCode": code},
             )
             self._append_history(
                 event_type=HistoryEventType.HANDLING_UNIT_ACCEPT,
-                actor_id=actor_id,
-                actor_unit_id=actor_unit_id,
-                note="Handling Unit acceptance stamped with resolve ACCEPT",
+                actor_id=pending.proposed_by or actor_id,
+                actor_unit_id=self.handling_unit_id,
+                note="Persetujuan unit penanganan tercatat otomatis saat penyelesaian diterima",
             )
         elif action == ResolveAction.REJECT:
+            pending = self._pending_resolution()
+            if pending is None:
+                raise err.conflict(
+                    "RESOLUTION_PROPOSAL_REQUIRED",
+                    "Reject requires a pending resolution proposal.",
+                )
+            self._assert_owner_decision_unit(
+                actor_unit_id=actor_unit_id, actor_is_admin=actor_is_admin
+            )
+            self._assert_not_self_proposal_decision(actor_id=actor_id, pending=pending)
             rej = (rejection_reason or "").strip()
             if not rej:
                 raise err.validation(
                     "rejectionReason is required when action=REJECT",
                     details={"field": "rejectionReason"},
                 )
-            pending = self.resolution
+            comment_text = comment_text or rej
             record = ResolutionRecord(
                 resolution_id=str(uuid4()),
-                resolution_code=(pending.resolution_code if pending else ""),
-                summary=(pending.summary if pending else ""),
+                resolution_code=pending.resolution_code,
+                summary=pending.summary,
                 status=ResolutionProposalStatus.REJECTED,
                 comment=comment_text,
-                detail=(pending.detail if pending else None),
-                proposed_by=(pending.proposed_by if pending else None),
-                proposed_at=(pending.proposed_at if pending else None),
+                detail=pending.detail,
+                proposed_by=pending.proposed_by,
+                proposed_at=pending.proposed_at,
                 decided_by=actor_id,
                 decided_at=now,
                 rejection_reason=rej,
@@ -930,7 +1018,7 @@ class InternalComplaintAggregate:
                 event_type=HistoryEventType.RESOLUTION,
                 actor_id=actor_id,
                 actor_unit_id=actor_unit_id,
-                note=f"Resolution proposal rejected: {rej}",
+                note=f"Usulan penyelesaian ditolak: {rej}",
                 payload={"action": "REJECT"},
             )
         else:
@@ -1052,7 +1140,7 @@ class InternalComplaintAggregate:
             event_type=HistoryEventType.CLOSED,
             actor_id=actor_id,
             actor_unit_id=actor_unit_id,
-            note=note or "Closed after dual acceptance",
+            note=note or "Ditutup setelah persetujuan kedua unit",
         )
 
     def to_snapshot(self) -> dict[str, Any]:

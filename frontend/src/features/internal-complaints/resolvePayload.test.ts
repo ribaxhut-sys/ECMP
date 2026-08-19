@@ -5,16 +5,16 @@ import {
 } from "./resolvePayload";
 
 describe("buildInternalResolveRequest", () => {
-  it("sends IC_DONE and never a free-text code", () => {
+  it("sends IC_DONE for PROPOSE with summary and comment", () => {
     const result = buildInternalResolveRequest({
-      action: "ACCEPT",
+      action: "PROPOSE",
       summary: "Tindakan sudah diambil",
       comment: "Selesai di unit",
     });
     expect(result).toEqual({
       ok: true,
       body: {
-        action: "ACCEPT",
+        action: "PROPOSE",
         summary: "Tindakan sudah diambil",
         comment: "Selesai di unit",
         resolutionCode: INTERNAL_RESOLUTION_SENTINEL,
@@ -23,7 +23,49 @@ describe("buildInternalResolveRequest", () => {
     expect(INTERNAL_RESOLUTION_SENTINEL).toBe("IC_DONE");
   });
 
-  it("requires summary and comment", () => {
+  it("ACCEPT does not require a new summary", () => {
+    expect(
+      buildInternalResolveRequest({
+        action: "ACCEPT",
+        summary: "",
+        comment: "",
+      }),
+    ).toEqual({
+      ok: true,
+      body: {
+        action: "ACCEPT",
+        comment: "Usulan diterima",
+        resolutionCode: INTERNAL_RESOLUTION_SENTINEL,
+      },
+    });
+  });
+
+  it("REJECT requires a reason", () => {
+    expect(
+      buildInternalResolveRequest({
+        action: "REJECT",
+        summary: "",
+        comment: "",
+      }),
+    ).toEqual({ ok: false, error: "rejectProposalReasonRequiredError" });
+    expect(
+      buildInternalResolveRequest({
+        action: "REJECT",
+        summary: "",
+        comment: "Belum lengkap",
+      }),
+    ).toEqual({
+      ok: true,
+      body: {
+        action: "REJECT",
+        comment: "Belum lengkap",
+        rejectionReason: "Belum lengkap",
+        resolutionCode: INTERNAL_RESOLUTION_SENTINEL,
+      },
+    });
+  });
+
+  it("requires summary and comment for PROPOSE", () => {
     expect(
       buildInternalResolveRequest({
         action: "PROPOSE",

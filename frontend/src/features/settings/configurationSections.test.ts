@@ -22,13 +22,13 @@ describe("humanizeSettingKey", () => {
 });
 
 describe("settingDisplayTitle", () => {
-  it("prefers short description", () => {
+  it("humanizes the key and does not use the English API description", () => {
     expect(
       settingDisplayTitle({
         key: "app.timezone",
         description: "Default timezone",
       }),
-    ).toBe("Default timezone");
+    ).toBe("Timezone");
   });
 
   it("falls back to humanized key", () => {
@@ -91,13 +91,13 @@ describe("localizedSettingTitle", () => {
     ).toBe("Kapasitas per slot");
   });
 
-  it("falls back to the English description when the catalog misses the key", () => {
+  it("falls back to the humanized key when the catalog misses the key", () => {
     expect(
       localizedSettingTitle(
         { key: "unknown.setting", description: "Fallback copy" },
         t,
       ),
-    ).toBe("Fallback copy");
+    ).toBe("Setting");
   });
 });
 

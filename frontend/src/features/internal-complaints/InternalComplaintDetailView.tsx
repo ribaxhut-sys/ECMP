@@ -6,6 +6,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   CardBody,
@@ -24,8 +25,10 @@ import {
   type TimelineItem,
 } from "@/shared/ui";
 import { fetchBranches, type Branch } from "@/lib/api/branches";
+import { fetchPublicSettings } from "@/lib/api/settings";
 import { ApiError } from "@/lib/api/client";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
 import {
@@ -43,16 +46,21 @@ import {
 } from "@/lib/api/internalComplaints";
 import { useInternalComplaint } from "./mock/useInternalComplaints";
 import { InternalComplaintAttachmentsPanel } from "./InternalComplaintAttachments";
-import { visibleInternalAcceptanceActions } from "./acceptanceGate";
+import { ReasonPresetTags } from "./components/ReasonPresetTags";
+import {
+  isBlockedBySelfApproval,
+  visibleInternalAcceptanceActions,
+} from "./acceptanceGate";
 import { buildInternalResolveRequest } from "./resolvePayload";
+import { visibleInternalResolutionActions } from "./resolutionGate";
 import {
   HISTORY_LABEL_KEY,
   canRequestTransfer,
-  canResolve,
   canTransfer,
   hasPendingTransferRequest,
 } from "./types";
 import {
+  InternalCategoryBadge,
   InternalPriorityBadge,
   InternalStatusBadge,
 } from "./components/InternalBadges";
@@ -73,25 +81,6 @@ import {
   mayReceiveInternal,
   mayRequestWithdraw,
 } from "./withdrawGate";
-
-function formatDateTime(
-  value: string | null | undefined,
-  locale: string,
-): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function displayPersonName(
   name: string | null | undefined,
@@ -153,8 +142,12 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const [resolveSummary, setResolveSummary] = useState("");
   const [resolveComment, setResolveComment] = useState("");
   const [resolveFieldError, setResolveFieldError] = useState<
-    "resolutionSummaryRequiredError" | "commentRequiredError" | null
+    | "resolutionSummaryRequiredError"
+    | "commentRequiredError"
+    | "rejectProposalReasonRequiredError"
+    | null
   >(null);
+  const [rejectProposalReason, setRejectProposalReason] = useState("");
   const [acceptParty, setAcceptParty] = useState<"OWNER" | "HANDLING_UNIT">(
     "OWNER",
   );
@@ -164,6 +157,18 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const [decisionReason, setDecisionReason] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [completionReason, setCompletionReason] = useState("");
+  const [cancelReasonPresets, setCancelReasonPresets] = useState<string[]>([]);
+  const [transferReasonPresets, setTransferReasonPresets] = useState<string[]>([]);
+  const [requestTransferReasonPresets, setRequestTransferReasonPresets] = useState<
+    string[]
+  >([]);
+  const [transferDecisionReasonPresets, setTransferDecisionReasonPresets] = useState<
+    string[]
+  >([]);
+  const [completionReturnReasonPresets, setCompletionReturnReasonPresets] = useState<
+    string[]
+  >([]);
+  const [resendToPusatNotePresets, setResendToPusatNotePresets] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -172,6 +177,39 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     fetchBranches(100)
       .then((res) => setBranches(res.data ?? []))
       .catch(() => setBranches([]));
+  }, []);
+
+  useEffect(() => {
+    const setters: Record<string, (presets: string[]) => void> = {
+      "internal_complaint.cancel_reason_presets": setCancelReasonPresets,
+      "internal_complaint.transfer_reason_presets": setTransferReasonPresets,
+      "internal_complaint.request_transfer_reason_presets":
+        setRequestTransferReasonPresets,
+      "internal_complaint.transfer_decision_reason_presets":
+        setTransferDecisionReasonPresets,
+      "internal_complaint.completion_return_reason_presets":
+        setCompletionReturnReasonPresets,
+      "internal_complaint.resend_to_pusat_note_presets": setResendToPusatNotePresets,
+    };
+    fetchPublicSettings()
+      .then((res) => {
+        for (const setting of res.data ?? []) {
+          const setPresets = setters[setting.key];
+          if (!setPresets) continue;
+          try {
+            const parsed: unknown = JSON.parse(setting.value);
+            if (
+              Array.isArray(parsed) &&
+              parsed.every((item) => typeof item === "string" && item.trim() !== "")
+            ) {
+              setPresets(parsed);
+            }
+          } catch {
+            // ignore malformed setting value, fall back to defaults
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const activityItems: TimelineItem[] = useMemo(() => {
@@ -191,22 +229,39 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           event.sourceUnitId !== event.targetUnitId
             ? `${event.sourceUnitId} → ${event.targetUnitId}`
             : null;
+        const showNote =
+          event.note &&
+          event.eventType !== "RETURNED_FOR_COMPLETION" &&
+          event.eventType !== "RESENT_TO_PUSAT";
         return {
           id: event.eventId,
           title: t(HISTORY_LABEL_KEY[event.eventType] ?? "activityCREATED"),
           description:
-            event.note || unitMove ? (
+            showNote || unitMove ? (
               <>
-                {event.note ? <KnowledgeReferenceText text={event.note} /> : null}
-                {event.note && unitMove ? " · " : null}
+                {showNote && event.note ? (
+                  <KnowledgeReferenceText text={event.note} />
+                ) : null}
+                {showNote && unitMove ? " · " : null}
                 {unitMove}
               </>
             ) : undefined,
-          time: formatDateTime(event.occurredAt, locale),
+          time: formatDateTime24(event.occurredAt, locale, "—"),
           actor: t("historyActor", { name: actorName }),
         };
       });
   }, [complaint, t, locale]);
+
+  const latestResendNote = useMemo(() => {
+    const events = complaint?.history ?? [];
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const event = events[i];
+      if (event.eventType === "RESENT_TO_PUSAT" && event.note) {
+        return event.note;
+      }
+    }
+    return null;
+  }, [complaint]);
 
   const actorIsAdmin = isAdminFamily(roles);
   const unitOptions: SelectOption[] = useMemo(() => {
@@ -274,21 +329,25 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
 
   const complaintId = complaint.id;
 
-  function submitResolve(action: "PROPOSE" | "ACCEPT") {
+  function submitResolve(action: "PROPOSE" | "ACCEPT" | "REJECT") {
     const payload = buildInternalResolveRequest({
       action,
       summary: resolveSummary,
       comment: resolveComment,
+      rejectionReason: rejectProposalReason,
     });
     if (!payload.ok) {
       setResolveFieldError(payload.error);
       return;
     }
     setResolveFieldError(null);
-    void run(
-      () => resolveInternalComplaint(complaintId, payload.body),
-      action === "PROPOSE" ? t("proposeOk") : t("resolveOk"),
-    );
+    const okMessage =
+      action === "PROPOSE"
+        ? t("proposeOk")
+        : action === "REJECT"
+          ? t("rejectProposalOk")
+          : t("resolveOk");
+    void run(() => resolveInternalComplaint(complaintId, payload.body), okMessage);
   }
 
   const canAssign = hasPermission("complaints:assign");
@@ -359,7 +418,18 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     canAssign &&
     unitOptions.length > 0 &&
     !awaitingCompletion;
-  const showResolve = canResolve(complaint.status) && hasPermission("complaints:update");
+  const resolutionActions = visibleInternalResolutionActions({
+    status: complaint.status,
+    actorUnitCode: actorUnitCode ?? null,
+    ownerUnitId: complaint.ownerUnitId,
+    handlingUnitId: complaint.handlingUnitId,
+    hasUpdatePermission: canUpdate,
+    roles,
+    actorUserId: userId ?? "",
+    proposedBy: complaint.resolutionProposedBy,
+    resolutionStatus: complaint.resolutionStatus,
+  });
+  const showResolve = resolutionActions.showToolbar;
   const acceptanceActions = visibleInternalAcceptanceActions({
     status: complaint.status,
     hasUpdatePermission: hasPermission("complaints:update"),
@@ -380,6 +450,18 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const rejectPartyLocked = rejectParties.length === 1;
   const localClosure = acceptanceActions.gate === "local";
   const showClosureHint = complaint.status === "RESOLVED";
+  const showSelfApprovalBlockedHint =
+    !showAcceptOwner &&
+    !showAcceptHandling &&
+    !showReject &&
+    isBlockedBySelfApproval({
+      status: complaint.status,
+      hasUpdatePermission: hasPermission("complaints:update"),
+      actorUnitReady: actorUnitCode !== undefined && Boolean(userId),
+      roles,
+      actorUserId: userId ?? "",
+      creatorUserId: complaint.createdBy,
+    });
   // Agent-family: request instead of direct transfer, and may re-apply after reject.
   const showRequestTransfer =
     !canAssign &&
@@ -570,10 +652,15 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                 disabled={busy}
                 onClick={() => {
                   setResolveFieldError(null);
+                  setResolveSummary("");
+                  setResolveComment("");
+                  setRejectProposalReason("");
                   setModal("resolve");
                 }}
               >
-                {t("resolve")}
+                {resolutionActions.mayDecide || resolutionActions.waiting
+                  ? t("reviewProposal")
+                  : t("resolve")}
               </Button>
             ) : null}
             {showAcceptHandling ? (
@@ -644,6 +731,9 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           }
         />
       ) : null}
+      {showSelfApprovalBlockedHint ? (
+        <Alert tone="warning" title={t("closureHintSelfApprovalBlocked")} />
+      ) : null}
 
       <div className="space-y-4">
         <Card>
@@ -653,10 +743,13 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           <CardBody className="space-y-4 text-sm">
             <dl className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
               <MetaItem label={t("status")}>
-                <div className="flex flex-wrap gap-2">
-                  <InternalStatusBadge status={complaint.status} />
-                  <InternalPriorityBadge priority={complaint.priority} />
-                </div>
+                <InternalStatusBadge status={complaint.status} />
+              </MetaItem>
+              <MetaItem label={t("priority")}>
+                <InternalPriorityBadge priority={complaint.priority} />
+              </MetaItem>
+              <MetaItem label={t("category")}>
+                <InternalCategoryBadge category={complaint.category} />
               </MetaItem>
               <MetaItem label={t("relatedComplaint")}>
                 {complaint.relatedComplaintNumber || tCommon("emDash")}
@@ -665,25 +758,25 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               <MetaItem label={t("handlingUnit")}>
                 {complaint.handlingUnitId}
               </MetaItem>
-              {awaitingCompletion ? (
-                <MetaItem label={t("completionReturnReason")}>
-                  {complaint.completionReturnReason || tCommon("emDash")}
-                </MetaItem>
+              {complaint.status === "RESOLVED" ||
+              complaint.status === "CLOSED" ? (
+                <>
+                  <MetaItem label={t("handlingAcceptance")}>
+                    {complaint.handlingUnitAcceptance === "ACCEPT"
+                      ? t("acceptanceAccepted")
+                      : complaint.handlingUnitAcceptance === "REJECT"
+                        ? t("acceptanceRejected")
+                        : tCommon("emDash")}
+                  </MetaItem>
+                  <MetaItem label={t("ownerAcceptance")}>
+                    {complaint.ownerAcceptance === "ACCEPT"
+                      ? t("acceptanceAccepted")
+                      : complaint.ownerAcceptance === "REJECT"
+                        ? t("acceptanceRejected")
+                        : tCommon("emDash")}
+                  </MetaItem>
+                </>
               ) : null}
-              <MetaItem label={t("handlingAcceptance")}>
-                {complaint.handlingUnitAcceptance === "ACCEPT"
-                  ? t("acceptanceAccepted")
-                  : complaint.handlingUnitAcceptance === "REJECT"
-                    ? t("acceptanceRejected")
-                    : tCommon("emDash")}
-              </MetaItem>
-              <MetaItem label={t("ownerAcceptance")}>
-                {complaint.ownerAcceptance === "ACCEPT"
-                  ? t("acceptanceAccepted")
-                  : complaint.ownerAcceptance === "REJECT"
-                    ? t("acceptanceRejected")
-                    : tCommon("emDash")}
-              </MetaItem>
               <MetaItem label={t("createdBy")}>
                 {displayPersonName(
                   complaint.createdByName,
@@ -692,7 +785,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                 )}
               </MetaItem>
               <MetaItem label={t("createdAt")}>
-                {formatDateTime(complaint.createdAt, locale)}
+                {formatDateTime24(complaint.createdAt, locale, "—")}
               </MetaItem>
             </dl>
             {complaint.closedAt ? (
@@ -705,7 +798,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                   )}
                 </MetaItem>
                 <MetaItem label={t("closedAt")}>
-                  {formatDateTime(complaint.closedAt, locale)}
+                  {formatDateTime24(complaint.closedAt, locale, "—")}
                 </MetaItem>
               </dl>
             ) : null}
@@ -826,14 +919,18 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           </CardHeader>
           <CardBody className="space-y-3 text-sm whitespace-pre-wrap">
             <div>
-              <div className="text-ecmp-text-secondary">{t("description")}</div>
+              <div className="font-bold text-ecmp-text-secondary">
+                {t("description")}
+              </div>
               <div>
                 <KnowledgeReferenceText text={complaint.description} />
               </div>
             </div>
             {complaint.chronology ? (
               <div>
-                <div className="text-ecmp-text-secondary">{t("chronology")}</div>
+                <div className="font-bold text-ecmp-text-secondary">
+                  {t("chronology")}
+                </div>
                 <div>
                   <KnowledgeReferenceText text={complaint.chronology} />
                 </div>
@@ -841,9 +938,35 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             ) : null}
             {complaint.impact ? (
               <div>
-                <div className="text-ecmp-text-secondary">{t("impact")}</div>
+                <div className="font-bold text-ecmp-text-secondary">
+                  {t("impact")}
+                </div>
                 <div>
                   <KnowledgeReferenceText text={complaint.impact} />
+                </div>
+              </div>
+            ) : null}
+            {complaint.completionReturnReason ? (
+              <div>
+                <div className="flex items-center gap-2 font-bold text-ecmp-text-secondary">
+                  <span>{t("completionReturnReason")}</span>
+                  <Badge tone="info">{tCommon("headOfficeUnit")}</Badge>
+                </div>
+                <div>
+                  <KnowledgeReferenceText
+                    text={complaint.completionReturnReason}
+                  />
+                </div>
+              </div>
+            ) : null}
+            {latestResendNote ? (
+              <div>
+                <div className="flex items-center gap-2 font-bold text-ecmp-text-secondary">
+                  <span>{t("resendNoteLabel")}</span>
+                  <Badge tone="neutral">{complaint.ownerUnitId}</Badge>
+                </div>
+                <div>
+                  <KnowledgeReferenceText text={latestResendNote} />
                 </div>
               </div>
             ) : null}
@@ -889,6 +1012,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             onChange={(e) => setDestinationUnitId(e.target.value)}
             hint={t("transferDirectionHint")}
           />
+          <ReasonPresetTags
+            presets={transferReasonPresets}
+            onSelect={setTransferReason}
+          />
           <KnowledgeMentionTextarea
             label={t("reason")}
             value={transferReason}
@@ -925,6 +1052,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             value={requestDestinationUnitId}
             onChange={(e) => setRequestDestinationUnitId(e.target.value)}
             hint={t("transferRequestHint")}
+          />
+          <ReasonPresetTags
+            presets={requestTransferReasonPresets}
+            onSelect={setRequestReasonText}
           />
           <KnowledgeMentionTextarea
             label={t("requestReason")}
@@ -970,6 +1101,12 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               reason: complaint.transferRequestReason ?? "—",
             })}
           </p>
+          {modal === "decideReject" ? (
+            <ReasonPresetTags
+              presets={transferDecisionReasonPresets}
+              onSelect={setDecisionReason}
+            />
+          ) : null}
           <KnowledgeMentionTextarea
             label={t("decisionReason")}
             value={decisionReason}
@@ -1013,6 +1150,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       >
         <ModalSection className="space-y-3">
           <p className="text-sm text-ecmp-text-secondary">{t("withdrawPrompt")}</p>
+          <ReasonPresetTags presets={cancelReasonPresets} onSelect={setCancelReason} />
           <KnowledgeMentionTextarea
             label={t("withdrawReason")}
             value={cancelReason}
@@ -1048,6 +1186,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           <p className="text-sm text-ecmp-text-secondary">
             {t("requestWithdrawPrompt")}
           </p>
+          <ReasonPresetTags presets={cancelReasonPresets} onSelect={setCancelReason} />
           <KnowledgeMentionTextarea
             label={t("withdrawReason")}
             value={cancelReason}
@@ -1131,56 +1270,166 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       <Modal
         open={modal === "resolve"}
         onClose={() => setModal(null)}
-        title={t("resolve")}
+        title={
+          resolutionActions.mayDecide || resolutionActions.waiting
+            ? t("reviewProposal")
+            : t("resolve")
+        }
       >
         <ModalSection className="space-y-3">
-          <Input
-            label={t("resolutionSummary")}
-            value={resolveSummary}
-            onChange={(e) => {
-              setResolveSummary(e.target.value);
-              if (resolveFieldError === "resolutionSummaryRequiredError") {
-                setResolveFieldError(null);
-              }
-            }}
-            error={
-              resolveFieldError === "resolutionSummaryRequiredError"
-                ? t(resolveFieldError)
-                : undefined
-            }
-          />
-          <KnowledgeMentionTextarea
-            label={t("comment")}
-            value={resolveComment}
-            onChange={(next) => {
-              setResolveComment(next);
-              if (resolveFieldError === "commentRequiredError") {
-                setResolveFieldError(null);
-              }
-            }}
-            error={
-              resolveFieldError === "commentRequiredError"
-                ? t(resolveFieldError)
-                : undefined
-            }
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={busy}
-              onClick={() => submitResolve("PROPOSE")}
-            >
-              {t("propose")}
-            </Button>
-            <Button
-              type="button"
-              disabled={busy}
-              onClick={() => submitResolve("ACCEPT")}
-            >
-              {t("resolveAccept")}
-            </Button>
-          </div>
+          {resolutionActions.mayDecide || resolutionActions.waiting ? (
+            <>
+              <p className="text-sm text-ecmp-text-primary">
+                {resolutionActions.waiting
+                  ? t("proposalWaiting")
+                  : t("proposalPendingHint")}
+              </p>
+              <div className="space-y-1">
+                <p className="text-sm text-ecmp-text-secondary">
+                  {t("proposalBy")}:{" "}
+                  <span className="text-ecmp-text-primary">
+                    {displayPersonName(
+                      complaint.resolutionProposedByName,
+                      complaint.resolutionProposedBy,
+                      t("unknownUser"),
+                    )}
+                  </span>
+                </p>
+                <p className="text-sm text-ecmp-text-secondary">
+                  {t("resolutionSummary")}:{" "}
+                  <span className="text-ecmp-text-primary">
+                    {complaint.resolutionSummary || "—"}
+                  </span>
+                </p>
+                {complaint.resolutionComment ? (
+                  <p className="text-sm text-ecmp-text-secondary">
+                    {t("comment")}:{" "}
+                    <span className="text-ecmp-text-primary">
+                      {complaint.resolutionComment}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+              {resolutionActions.mayDecide ? (
+                <>
+                  <KnowledgeMentionTextarea
+                    label={t("rejectProposalReason")}
+                    value={rejectProposalReason}
+                    onChange={(next) => {
+                      setRejectProposalReason(next);
+                      if (resolveFieldError === "rejectProposalReasonRequiredError") {
+                        setResolveFieldError(null);
+                      }
+                    }}
+                    hint={t("rejectProposalReasonHint")}
+                    error={
+                      resolveFieldError === "rejectProposalReasonRequiredError"
+                        ? t(resolveFieldError)
+                        : undefined
+                    }
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => submitResolve("ACCEPT")}
+                    >
+                      {t("resolveAccept")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      disabled={busy}
+                      onClick={() => submitResolve("REJECT")}
+                    >
+                      {t("rejectProposal")}
+                    </Button>
+                  </div>
+                </>
+              ) : resolutionActions.mayPropose ? (
+                <>
+                  <Input
+                    label={t("resolutionSummary")}
+                    value={resolveSummary}
+                    onChange={(e) => {
+                      setResolveSummary(e.target.value);
+                      if (resolveFieldError === "resolutionSummaryRequiredError") {
+                        setResolveFieldError(null);
+                      }
+                    }}
+                    error={
+                      resolveFieldError === "resolutionSummaryRequiredError"
+                        ? t(resolveFieldError)
+                        : undefined
+                    }
+                  />
+                  <KnowledgeMentionTextarea
+                    label={t("comment")}
+                    value={resolveComment}
+                    onChange={(next) => {
+                      setResolveComment(next);
+                      if (resolveFieldError === "commentRequiredError") {
+                        setResolveFieldError(null);
+                      }
+                    }}
+                    error={
+                      resolveFieldError === "commentRequiredError"
+                        ? t(resolveFieldError)
+                        : undefined
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => submitResolve("PROPOSE")}
+                  >
+                    {t("proposeAgain")}
+                  </Button>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Input
+                label={t("resolutionSummary")}
+                value={resolveSummary}
+                onChange={(e) => {
+                  setResolveSummary(e.target.value);
+                  if (resolveFieldError === "resolutionSummaryRequiredError") {
+                    setResolveFieldError(null);
+                  }
+                }}
+                error={
+                  resolveFieldError === "resolutionSummaryRequiredError"
+                    ? t(resolveFieldError)
+                    : undefined
+                }
+              />
+              <KnowledgeMentionTextarea
+                label={t("comment")}
+                value={resolveComment}
+                onChange={(next) => {
+                  setResolveComment(next);
+                  if (resolveFieldError === "commentRequiredError") {
+                    setResolveFieldError(null);
+                  }
+                }}
+                error={
+                  resolveFieldError === "commentRequiredError"
+                    ? t(resolveFieldError)
+                    : undefined
+                }
+              />
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => submitResolve("PROPOSE")}
+              >
+                {t("propose")}
+              </Button>
+            </>
+          )}
         </ModalSection>
       </Modal>
 
@@ -1250,6 +1499,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           <p className="text-sm text-ecmp-text-secondary">
             {t("returnForCompletionPrompt")}
           </p>
+          <ReasonPresetTags
+            presets={completionReturnReasonPresets}
+            onSelect={setCompletionReason}
+          />
           <KnowledgeMentionTextarea
             label={t("returnForCompletionReason")}
             value={completionReason}
@@ -1292,6 +1545,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               {complaint.completionReturnReason}
             </p>
           ) : null}
+          <ReasonPresetTags
+            presets={resendToPusatNotePresets}
+            onSelect={setCompletionReason}
+          />
           <KnowledgeMentionTextarea
             label={t("resendToPusatNote")}
             value={completionReason}

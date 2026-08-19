@@ -12,7 +12,8 @@ info:
     Agent Pusat yang memilih cabang tetap memakai permintaan (`requestReason`
     wajib), diputus oleh Supervisor/Manager/Admin via `/transfer-request/decision`.
     Cabang boleh membatalkan sebelum Pusat menerima (`WITHDRAWN`, tanpa
-    notifikasi ke Pusat); setelah Terima, cabang mengajukan pembatalan dan
+    notifikasi ke Pusat — tiket itu tidak tampil di daftar/GET Pusat kecuali
+    Pusat sudah pernah menangani); setelah Terima, cabang mengajukan pembatalan dan
     Pusat memutus via `/withdraw-request/decision`. Pusat boleh mengembalikan
     ke cabang jika berkas kurang (`/return-for-completion`, alasan wajib) —
     sebelum atau sesudah Terima; cabang mengirim ulang via `/resend-to-pusat`.
@@ -29,6 +30,11 @@ paths:
       operationId: listInternalComplaints
       tags: [Internal-Complaints]
       summary: List Pengaduan Internal (visibility-scoped)
+      description: >
+        UNIT sees owner or handling unit. PUSAT sees owner/handling Pusat,
+        except `WITHDRAWN` which is visible to Pusat only after Pusat has
+        handled (receive, return-for-completion, or approved withdraw).
+        Unilateral branch withdraw before any Pusat handling is owner-only.
       parameters:
         - name: page
           in: query
@@ -332,14 +338,29 @@ paths:
       operationId: resolveInternalComplaint
       tags: [Internal-Complaints]
       summary: Propose / accept / reject resolution
+      description: >
+        PROPOSE = handling unit only; ticket stays IN_PROGRESS with
+        PENDING_APPROVAL. ACCEPT/REJECT = owner unit only and require a pending
+        proposal; the proposer cannot decide their own proposal. ACCEPT without
+        a pending proposal is rejected (no resolve-now shortcut).
       parameters:
         - name: complaintId
           in: path
           required: true
           schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveInternalComplaintRequest"
       responses:
         "200":
           description: Resolved or proposal recorded
+        "409":
+          description: >
+            RESOLUTION_PROPOSAL_REQUIRED, RESOLUTION_SELF_DECISION_NOT_ALLOWED,
+            RESOLUTION_OWNER_UNIT_REQUIRED, or RESOLUTION_HANDLING_UNIT_REQUIRED
   /api/v1/internal/complaints/{complaintId}/acceptance:
     post:
       operationId: recordInternalAcceptance
@@ -495,3 +516,21 @@ components:
           type: string
           nullable: true
           description: Required when decision=REJECT
+    ResolveInternalComplaintRequest:
+      type: object
+      required: [action, comment]
+      properties:
+        action: { type: string, enum: [PROPOSE, ACCEPT, REJECT] }
+        comment:
+          type: string
+          description: Required for PROPOSE; ACCEPT may reuse the pending comment
+        summary:
+          type: string
+          nullable: true
+          description: Required for PROPOSE; ACCEPT copies the pending summary
+        resolutionCode: { type: string, nullable: true }
+        detail: { type: string, nullable: true }
+        rejectionReason:
+          type: string
+          nullable: true
+          description: Required when action=REJECT

@@ -19,6 +19,7 @@ import {
   type SelectOption,
   type TableColumn,
 } from "@/shared/ui";
+import { formatDate } from "@/i18n/formatting";
 import { useInternalComplaints } from "./mock/useInternalComplaints";
 import {
   defaultInternalListFilters,
@@ -41,17 +42,6 @@ import {
   InternalTransferRequestBadge,
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
-
-function formatDate(value: string | null, locale: string): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
-      new Date(value),
-    );
-  } catch {
-    return value;
-  }
-}
 
 export function InternalComplaintListView() {
   const router = useRouter();
@@ -111,7 +101,7 @@ export function InternalComplaintListView() {
       cell: (row) => (
         <button
           type="button"
-          className="text-left font-medium text-ecmp-primary underline-offset-2 hover:underline"
+          className="cursor-pointer text-left font-medium text-ecmp-primary underline-offset-2 hover:underline"
           onClick={() =>
             router.push(`/internal/complaints/${encodeURIComponent(row.id)}`)
           }
@@ -154,7 +144,7 @@ export function InternalComplaintListView() {
     {
       key: "created",
       header: t("createdAt"),
-      cell: (row) => formatDate(row.createdAt, locale),
+      cell: (row) => formatDate(row.createdAt, locale) || tCommon("emDash"),
     },
   ];
 

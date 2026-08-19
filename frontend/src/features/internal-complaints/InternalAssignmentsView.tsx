@@ -12,6 +12,15 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import { useInternalComplaints } from "./mock/useInternalComplaints";
+import { sortByMostRecent } from "./internalComplaintsFilters";
+import {
+  INTERNAL_ASSIGNMENT_STATUSES,
+  INTERNAL_FOLLOW_UP_STATUSES,
+  INTERNAL_VERIFICATION_STATUSES,
+  resolveQueueEmptyHint,
+  siblingQueueCounts,
+  type InternalQueueKind,
+} from "./internalQueues";
 import type { InternalComplaint } from "./types";
 import {
   InternalStatusBadge,
@@ -23,18 +32,25 @@ function FilteredList({
   title,
   description,
   statuses,
+  queue,
 }: {
   title: string;
   description: string;
   statuses: readonly string[];
+  queue: InternalQueueKind;
 }) {
   const router = useRouter();
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const { rows, loading, error } = useInternalComplaints();
   const filtered = useMemo(
-    () => rows.filter((r) => statuses.includes(String(r.status))),
+    () =>
+      sortByMostRecent(rows.filter((r) => statuses.includes(String(r.status)))),
     [rows, statuses],
+  );
+  const emptyHint = useMemo(
+    () => resolveQueueEmptyHint(queue, siblingQueueCounts(rows)),
+    [queue, rows],
   );
 
   const columns: TableColumn<InternalComplaint>[] = [
@@ -83,7 +99,26 @@ function FilteredList({
       {loading ? (
         <Empty title={tCommon("loading")} description="" />
       ) : filtered.length === 0 ? (
-        <Empty title={t("listEmpty")} description={t("listEmptyDescription")} />
+        <Empty
+          title={t(emptyHint.titleKey)}
+          description={t(emptyHint.descriptionKey, emptyHint.descriptionValues)}
+          primaryAction={
+            emptyHint.primaryHref && emptyHint.primaryLabelKey
+              ? {
+                  label: t(emptyHint.primaryLabelKey),
+                  onClick: () => router.push(emptyHint.primaryHref!),
+                }
+              : undefined
+          }
+          secondaryAction={
+            emptyHint.secondaryHref && emptyHint.secondaryLabelKey
+              ? {
+                  label: t(emptyHint.secondaryLabelKey),
+                  onClick: () => router.push(emptyHint.secondaryHref!),
+                }
+              : undefined
+          }
+        />
       ) : (
         <Table columns={columns} rows={filtered} getRowKey={(row) => row.id} />
       )}
@@ -97,7 +132,8 @@ export function InternalAssignmentsView() {
     <FilteredList
       title={t("assignmentsTitle")}
       description={t("assignmentsDescription")}
-      statuses={["ASSIGNED", "CREATED"]}
+      statuses={INTERNAL_ASSIGNMENT_STATUSES}
+      queue="assignments"
     />
   );
 }
@@ -108,7 +144,8 @@ export function InternalFollowUpListView() {
     <FilteredList
       title={t("followUpTitle")}
       description={t("followUpDescription")}
-      statuses={["IN_PROGRESS"]}
+      statuses={INTERNAL_FOLLOW_UP_STATUSES}
+      queue="followUp"
     />
   );
 }
@@ -119,7 +156,8 @@ export function InternalVerificationListView() {
     <FilteredList
       title={t("verificationTitle")}
       description={t("verificationDescription")}
-      statuses={["RESOLVED"]}
+      statuses={INTERNAL_VERIFICATION_STATUSES}
+      queue="verification"
     />
   );
 }
@@ -130,7 +168,15 @@ export function InternalReportsView() {
     <FilteredList
       title={t("reportsTitle")}
       description={t("reportsDescription")}
-      statuses={["CLOSED", "RESOLVED", "IN_PROGRESS", "ASSIGNED", "CREATED", "WITHDRAWN"]}
+      statuses={[
+        "CLOSED",
+        "RESOLVED",
+        "IN_PROGRESS",
+        "ASSIGNED",
+        "CREATED",
+        "WITHDRAWN",
+      ]}
+      queue="reports"
     />
   );
 }

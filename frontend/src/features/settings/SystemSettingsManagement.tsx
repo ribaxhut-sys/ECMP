@@ -102,6 +102,7 @@ export function SystemSettingsManagement({
         notification: t("categoryNotification"),
         storage: t("categoryStorage"),
         hq_schedule: t("categoryHqSchedule"),
+        internal_complaint: t("categoryInternalComplaint"),
       };
       return map[category] ?? category.replace(/\b\w/g, (c) => c.toUpperCase());
     },

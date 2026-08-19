@@ -199,6 +199,45 @@ describe("SystemSettingsManagement", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders Indonesian labels for internal complaint presets when the locale is id", async () => {
+    fetchSettings.mockResolvedValue({
+      data: [
+        setting({
+          id: "s-cancel",
+          key: "internal_complaint.cancel_reason_presets",
+          value: "[]",
+          valueType: "JSON",
+          category: "internal_complaint",
+          description:
+            "Quick-fill reason presets for the internal complaint cancel dialog",
+        }),
+      ],
+    });
+    render(
+      <NextIntlClientProvider
+        locale="id"
+        messages={idMessages}
+        timeZone="Asia/Jakarta"
+        now={new Date("2026-08-01T00:00:00Z")}
+      >
+        <ToastProvider>
+          <SystemSettingsManagement />
+        </ToastProvider>
+      </NextIntlClientProvider>,
+    );
+
+    const card = await screen.findByTestId(
+      "setting-key-internal_complaint.cancel_reason_presets",
+    );
+    expect(within(card).getByText("Alasan batal cepat")).toBeInTheDocument();
+    expect(screen.getByText("Pengaduan Internal")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Quick-fill reason presets for the internal complaint cancel dialog",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders allowed MIME types as chips and edits them in a textarea", async () => {
     const user = userEvent.setup();
     const mimeValue = JSON.stringify([

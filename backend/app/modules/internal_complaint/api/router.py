@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.core.auth import OrgUnitResolver, Principal, require_permissions
 from app.core.authorization.case_acceptance import (
     assert_case_acceptance_authorized,
-    assert_case_resolve_accept_authorized,
     principal_is_case_agent,
 )
 from app.core.authorization.org_unit_guard import (
@@ -67,6 +66,9 @@ from app.modules.internal_complaint.application.related_aggregate import (
 )
 from app.modules.internal_complaint.application.services import (
     InternalComplaintApplicationService,
+)
+from app.modules.internal_complaint.application.visibility import (
+    assert_internal_complaint_visible,
 )
 from app.modules.internal_complaint.infrastructure.repository import (
     SqlAlchemyInternalComplaintRepository,
@@ -156,8 +158,10 @@ def _display_names_for_dto(
         dto.withdraw_decided_by,
         dto.withdrawn_by,
         dto.completion_returned_by,
+        dto.resolution.proposed_by if dto.resolution else None,
         *(e.actor_id for e in dto.history),
         *(a.actor_id for a in dto.acceptance_history),
+        *(r.proposed_by for r in dto.resolution_history),
     }
     wanted = {i for i in ids if i}
     if not wanted:
@@ -188,6 +192,7 @@ def _to_response(
             comment=r.comment,
             detail=r.detail,
             proposedBy=r.proposed_by,
+            proposedByName=names.get(r.proposed_by) if r.proposed_by else None,
             proposedAt=r.proposed_at,
             decidedBy=r.decided_by,
             decidedAt=r.decided_at,
@@ -533,10 +538,11 @@ def get_internal_complaint(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
     dto = service.get(complaint_id)
-    enforce_org_scope_any(
+    assert_internal_complaint_visible(
         principal,
-        (dto.handling_unit_id, dto.owner_unit_id),
-        settings,
+        dto,
+        actor_unit_id=_actor_unit(principal, session),
+        settings=settings,
     )
     return DataResponse(data=_to_response(dto, session=session))
 
@@ -768,6 +774,17 @@ def update_internal_complaint_status(
     return DataResponse(data=_to_response(dto, session=session))
 
 
+def _may_resolve_action(principal: Principal) -> bool:
+    return principal_is_case_agent(principal) or principal.has_any_role(
+        "SUPERVISOR",
+        "BRANCH_SUPERVISOR",
+        "MANAGER",
+        "ADMIN",
+        "ADMINISTRATOR",
+        "SUPER_ADMIN",
+    )
+
+
 @router.post("/api/v1/internal/complaints/{complaint_id}/resolve")
 def resolve_internal_complaint(
     complaint_id: str,
@@ -781,25 +798,14 @@ def resolve_internal_complaint(
 ) -> DataResponse[InternalComplaintResponse]:
     current = service.get(complaint_id)
     actor_unit = _actor_unit(principal, session)
-    enforce_org_scope(principal, current.handling_unit_id, settings)
     action = (body.action or "").strip().upper()
-    if action == "ACCEPT":
-        assert_case_resolve_accept_authorized(
-            principal,
-            handling_unit_id=current.handling_unit_id,
-            actor_unit_id=actor_unit,
-            complaint_creator_id=current.created_by,
-        )
-    elif action == "PROPOSE" and not (
-        principal_is_case_agent(principal)
-        or principal.has_any_role(
-            "SUPERVISOR",
-            "BRANCH_SUPERVISOR",
-            "MANAGER",
-            "ADMIN",
-            "ADMINISTRATOR",
-        )
-    ):
+    if action == "PROPOSE":
+        _enforce_internal_org_scope(principal, current.handling_unit_id, settings)
+    elif action in {"ACCEPT", "REJECT"}:
+        _enforce_internal_org_scope(principal, current.owner_unit_id, settings)
+    else:
+        _enforce_internal_org_scope(principal, current.handling_unit_id, settings)
+    if not _may_resolve_action(principal):
         raise PermissionDeniedError(m("case.resolve_accept_role_denied"))
 
     dto = service.resolve(
@@ -813,6 +819,7 @@ def resolve_internal_complaint(
             rejection_reason=body.rejection_reason,
             actor_id=str(principal.user_id),
             actor_unit_id=actor_unit,
+            actor_is_admin=_actor_is_admin(principal),
         )
     )
     return DataResponse(data=_to_response(dto, session=session))

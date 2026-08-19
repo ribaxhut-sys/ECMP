@@ -93,6 +93,7 @@ class InternalComplaintDTO:
     completion_return_reason: str | None = None
     completion_returned_by: str | None = None
     completion_returned_at: datetime | None = None
+    pusat_handled_at: datetime | None = None
 
 
 @dataclass
@@ -192,6 +193,7 @@ class ResolveCommand:
     detail: str | None = None
     rejection_reason: str | None = None
     actor_unit_id: str | None = None
+    actor_is_admin: bool = False
 
 
 @dataclass

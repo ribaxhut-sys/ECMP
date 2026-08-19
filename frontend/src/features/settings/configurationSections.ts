@@ -35,8 +35,6 @@ export function settingDisplayTitle(input: {
   key: string;
   description: string | null;
 }): string {
-  const description = input.description?.trim();
-  if (description && description.length <= 80) return description;
   return humanizeSettingKey(input.key);
 }
 
@@ -87,8 +85,7 @@ export function localizedSettingDescription(
 ): string {
   const descKey = `settingKey.${settingI18nId(input.key)}.description`;
   if (t.has(descKey)) return t(descKey);
-  const raw = input.description?.trim();
-  return raw || fallback;
+  return fallback;
 }
 
 export function parseStringArraySetting(value: string): string[] | null {
@@ -122,6 +119,7 @@ const MIME_CHIP_LABEL: Record<string, string> = {
 export function mimeChipLabel(mime: string): string {
   const key = mime.trim().toLowerCase();
   if (MIME_CHIP_LABEL[key]) return MIME_CHIP_LABEL[key];
+  if (!key.includes("/")) return mime.trim();
   const subtype = key.split("/")[1] ?? key;
   const last = subtype.split(".").at(-1) ?? subtype;
   const compact = last.replace(/[^a-z0-9]+/gi, "").toUpperCase();

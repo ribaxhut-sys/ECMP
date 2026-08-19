@@ -49,6 +49,7 @@ class ResolutionResponse(BaseModel):
     comment: str
     detail: str | None = None
     proposed_by: str | None = Field(default=None, alias="proposedBy")
+    proposed_by_name: str | None = Field(default=None, alias="proposedByName")
     proposed_at: datetime | None = Field(default=None, alias="proposedAt")
     decided_by: str | None = Field(default=None, alias="decidedBy")
     decided_at: datetime | None = Field(default=None, alias="decidedAt")

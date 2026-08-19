@@ -35,6 +35,7 @@ export interface InternalResolution {
   comment: string;
   detail?: string | null;
   proposedBy?: string | null;
+  proposedByName?: string | null;
   proposedAt?: string | null;
   decidedBy?: string | null;
   decidedAt?: string | null;
