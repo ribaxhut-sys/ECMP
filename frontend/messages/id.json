@@ -3626,7 +3626,7 @@
     "returnForCompletion": "Kembalikan ke cabang",
     "returnForCompletionOk": "Pengaduan dikembalikan ke cabang untuk dilengkapi",
     "returnForCompletionPrompt": "Pengaduan tetap hidup. Cabang akan melengkapi berkas lalu mengirim ulang ke Pusat. Ini bukan pembatalan.",
-    "returnForCompletionReason": "Yang kurang",
+    "returnForCompletionReason": "Catatan",
     "returnForCompletionReasonHint": "Wajib. Jelaskan berkas atau data yang perlu dilengkapi.",
     "resendToPusat": "Kirim ulang ke Pusat",
     "resendToPusatOk": "Pengaduan dikirim ulang ke Pusat",

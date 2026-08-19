@@ -18,7 +18,6 @@ import {
   PageContainer,
   PageHeader,
   Select,
-  Textarea,
   Timeline,
   Toast,
   type SelectOption,
@@ -890,10 +889,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             onChange={(e) => setDestinationUnitId(e.target.value)}
             hint={t("transferDirectionHint")}
           />
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("reason")}
             value={transferReason}
-            onChange={(e) => setTransferReason(e.target.value)}
+            onChange={setTransferReason}
           />
           <Button
             type="button"
@@ -927,10 +926,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             onChange={(e) => setRequestDestinationUnitId(e.target.value)}
             hint={t("transferRequestHint")}
           />
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("requestReason")}
             value={requestReasonText}
-            onChange={(e) => setRequestReasonText(e.target.value)}
+            onChange={setRequestReasonText}
             hint={t("requestReasonHint")}
             required
           />
@@ -971,10 +970,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               reason: complaint.transferRequestReason ?? "—",
             })}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("decisionReason")}
             value={decisionReason}
-            onChange={(e) => setDecisionReason(e.target.value)}
+            onChange={setDecisionReason}
             hint={
               modal === "decideReject"
                 ? t("decisionReasonRequiredHint")
@@ -1014,10 +1013,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       >
         <ModalSection className="space-y-3">
           <p className="text-sm text-ecmp-text-secondary">{t("withdrawPrompt")}</p>
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("withdrawReason")}
             value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
+            onChange={setCancelReason}
             hint={t("withdrawReasonHint")}
             required
           />
@@ -1049,10 +1048,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           <p className="text-sm text-ecmp-text-secondary">
             {t("requestWithdrawPrompt")}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("withdrawReason")}
             value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
+            onChange={setCancelReason}
             hint={t("withdrawReasonHint")}
             required
           />
@@ -1091,10 +1090,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               reason: complaint.withdrawRequestReason ?? "—",
             })}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("decisionReason")}
             value={decisionReason}
-            onChange={(e) => setDecisionReason(e.target.value)}
+            onChange={setDecisionReason}
             hint={
               modal === "decideWithdrawReject"
                 ? t("decisionReasonRequiredHint")
@@ -1150,11 +1149,11 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                 : undefined
             }
           />
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("comment")}
             value={resolveComment}
-            onChange={(e) => {
-              setResolveComment(e.target.value);
+            onChange={(next) => {
+              setResolveComment(next);
               if (resolveFieldError === "commentRequiredError") {
                 setResolveFieldError(null);
               }
@@ -1216,10 +1215,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                   : t("partyOwner")}
             </p>
           )}
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("note")}
             value={acceptNote}
-            onChange={(e) => setAcceptNote(e.target.value)}
+            onChange={setAcceptNote}
           />
           <Button
             type="button"
@@ -1251,10 +1250,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           <p className="text-sm text-ecmp-text-secondary">
             {t("returnForCompletionPrompt")}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
             label={t("returnForCompletionReason")}
             value={completionReason}
-            onChange={(e) => setCompletionReason(e.target.value)}
+            onChange={setCompletionReason}
             hint={t("returnForCompletionReasonHint")}
             required
           />

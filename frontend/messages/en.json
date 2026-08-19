@@ -3626,7 +3626,7 @@
     "returnForCompletion": "Return to branch",
     "returnForCompletionOk": "Returned to the branch to complete documents",
     "returnForCompletionPrompt": "The ticket stays open. The branch will complete the files and resend to HQ. This is not a cancellation.",
-    "returnForCompletionReason": "What is missing",
+    "returnForCompletionReason": "Note",
     "returnForCompletionReasonHint": "Required. Describe the documents or data that must be completed.",
     "resendToPusat": "Resend to HQ",
     "resendToPusatOk": "Complaint resent to HQ",
