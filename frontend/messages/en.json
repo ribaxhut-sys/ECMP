@@ -2483,6 +2483,61 @@
     "categoryDashboard": "Dashboard",
     "categoryNotification": "Notification",
     "categoryStorage": "Storage",
+    "categoryHqSchedule": "HQ schedule",
+    "settingKey": {
+      "company_name": {
+        "label": "Company name",
+        "description": "Display name for the company or product."
+      },
+      "company_logo": {
+        "label": "Company logo",
+        "description": "Company logo URL. Leave empty until a logo is configured."
+      },
+      "app_language_default": {
+        "label": "Default language",
+        "description": "Default application language code (for example id or en)."
+      },
+      "app_timezone": {
+        "label": "Default timezone",
+        "description": "Default application timezone (IANA name, for example Asia/Jakarta)."
+      },
+      "dashboard_recent_limit": {
+        "label": "Dashboard recent items",
+        "description": "Maximum number of recent activity items on the dashboard summary."
+      },
+      "complaint_number_prefix": {
+        "label": "Complaint number prefix",
+        "description": "Prefix used when generating complaint numbers."
+      },
+      "hq_schedule_start": {
+        "label": "HQ schedule start",
+        "description": "Opening time for HQ arrival slots (HH:MM)."
+      },
+      "hq_schedule_end": {
+        "label": "HQ schedule end",
+        "description": "Closing time for HQ arrival slots (HH:MM)."
+      },
+      "hq_schedule_slot_minutes": {
+        "label": "Slot duration",
+        "description": "Length of each HQ arrival slot, in minutes."
+      },
+      "hq_schedule_capacity_per_slot": {
+        "label": "Arrivals per slot",
+        "description": "Maximum taxpayer arrivals allowed in one HQ schedule slot."
+      },
+      "hq_schedule_workdays": {
+        "label": "Working days",
+        "description": "ISO weekdays when HQ accepts arrivals (1=Mon … 7=Sun), comma-separated."
+      },
+      "hq_schedule_break_start": {
+        "label": "Break start",
+        "description": "Start of the HQ arrival lunch break (HH:MM)."
+      },
+      "hq_schedule_break_end": {
+        "label": "Break end",
+        "description": "End of the HQ arrival lunch break (HH:MM)."
+      }
+    },
     "visibilityPublic": "Public",
     "visibilityProtected": "Protected",
     "sectionGeneralTitle": "General",
@@ -2632,9 +2687,15 @@
     "pendingProposalsCount": "{count, plural, one {# proposal awaiting decision} other {# proposals awaiting decision}}",
     "timeColumnHeader": "Time",
     "todayLabel": "Today",
+    "boardSwipeHint": "Swipe for other days",
+    "boardRegionLabel": "Weekday arrival slots",
     "weekClosed": "No working slots this week.",
     "weeklyListTitle": "This week's escalations",
     "weeklyListEmpty": "No escalations scheduled this week.",
+    "weekArrivalsLabel": "Arrivals this week",
+    "todayArrivalsLabel": "Today",
+    "emptySlotsLabel": "Open slots",
+    "slotAvailable": "Slot available",
     "breakLabel": "Break",
     "slotRatio": "{scheduled}/{capacity} slot",
     "proposeDateLabel": "Arrival date",

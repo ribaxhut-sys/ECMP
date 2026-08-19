@@ -2483,6 +2483,61 @@
     "categoryDashboard": "Dasbor",
     "categoryNotification": "Notifikasi",
     "categoryStorage": "Penyimpanan",
+    "categoryHqSchedule": "Jadwal HQ",
+    "settingKey": {
+      "company_name": {
+        "label": "Nama perusahaan",
+        "description": "Nama tampilan untuk perusahaan atau produk."
+      },
+      "company_logo": {
+        "label": "Logo perusahaan",
+        "description": "URL logo perusahaan. Kosongkan jika belum dikonfigurasi."
+      },
+      "app_language_default": {
+        "label": "Bahasa bawaan",
+        "description": "Kode bahasa bawaan aplikasi (contoh: id atau en)."
+      },
+      "app_timezone": {
+        "label": "Zona waktu bawaan",
+        "description": "Zona waktu bawaan aplikasi (nama IANA, contoh: Asia/Jakarta)."
+      },
+      "dashboard_recent_limit": {
+        "label": "Item aktivitas dasbor",
+        "description": "Jumlah maksimum item aktivitas terbaru pada ringkasan dasbor."
+      },
+      "complaint_number_prefix": {
+        "label": "Prefiks nomor pengaduan",
+        "description": "Awalan yang dipakai saat membuat nomor pengaduan."
+      },
+      "hq_schedule_start": {
+        "label": "Jam buka jadwal HQ",
+        "description": "Waktu mulai slot kedatangan HQ (JJ:MM)."
+      },
+      "hq_schedule_end": {
+        "label": "Jam tutup jadwal HQ",
+        "description": "Waktu selesai slot kedatangan HQ (JJ:MM)."
+      },
+      "hq_schedule_slot_minutes": {
+        "label": "Durasi slot",
+        "description": "Panjang setiap slot kedatangan HQ, dalam menit."
+      },
+      "hq_schedule_capacity_per_slot": {
+        "label": "Kapasitas per slot",
+        "description": "Jumlah maksimum kedatangan wajib pajak per slot jadwal HQ."
+      },
+      "hq_schedule_workdays": {
+        "label": "Hari kerja",
+        "description": "Hari ISO saat HQ menerima kedatangan (1=Senin … 7=Minggu), dipisah koma."
+      },
+      "hq_schedule_break_start": {
+        "label": "Awal istirahat",
+        "description": "Waktu mulai istirahat siang jadwal HQ (JJ:MM)."
+      },
+      "hq_schedule_break_end": {
+        "label": "Akhir istirahat",
+        "description": "Waktu selesai istirahat siang jadwal HQ (JJ:MM)."
+      }
+    },
     "visibilityPublic": "Publik",
     "visibilityProtected": "Dilindungi",
     "sectionGeneralTitle": "Umum",
@@ -2632,9 +2687,15 @@
     "pendingProposalsCount": "{count, plural, one {# usulan menunggu keputusan} other {# usulan menunggu keputusan}}",
     "timeColumnHeader": "Jam",
     "todayLabel": "Hari ini",
+    "boardSwipeHint": "Geser untuk hari lain",
+    "boardRegionLabel": "Slot kedatangan per hari kerja",
     "weekClosed": "Tidak ada slot kerja pada minggu ini.",
     "weeklyListTitle": "Daftar eskalasi minggu ini",
     "weeklyListEmpty": "Tidak ada eskalasi terjadwal minggu ini.",
+    "weekArrivalsLabel": "Kedatangan minggu ini",
+    "todayArrivalsLabel": "Hari ini",
+    "emptySlotsLabel": "Slot masih kosong",
+    "slotAvailable": "Slot tersedia",
     "breakLabel": "Istirahat",
     "slotRatio": "{scheduled}/{capacity} slot",
     "proposeDateLabel": "Tanggal kedatangan",

@@ -29,8 +29,9 @@ import {
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useToast } from "@/shared/providers";
 import {
+  localizedSettingDescription,
+  localizedSettingTitle,
   matchesSearch,
-  settingDisplayTitle,
   settingStatus,
 } from "./configurationSections";
 
@@ -93,6 +94,7 @@ export function SystemSettingsManagement({
         dashboard: t("categoryDashboard"),
         notification: t("categoryNotification"),
         storage: t("categoryStorage"),
+        hq_schedule: t("categoryHqSchedule"),
       };
       return map[category] ?? category.replace(/\b\w/g, (c) => c.toUpperCase());
     },
@@ -117,17 +119,30 @@ export function SystemSettingsManagement({
     [t],
   );
 
+  const settingTitle = useCallback(
+    (row: Setting): string => localizedSettingTitle(row, t),
+    [t],
+  );
+
+  const settingDescription = useCallback(
+    (row: Setting): string =>
+      localizedSettingDescription(row, t, t("settingValueHelper")),
+    [t],
+  );
+
   const filteredSettings = useMemo(() => {
     return settings.filter((row) =>
       matchesSearch(
         searchQuery,
-        settingDisplayTitle(row),
+        settingTitle(row),
+        settingDescription(row),
+        row.key,
         row.description,
         categoryLabel(row.category),
         row.value,
       ),
     );
-  }, [categoryLabel, searchQuery, settings]);
+  }, [categoryLabel, searchQuery, settingDescription, settingTitle, settings]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Setting[]>();
@@ -170,7 +185,7 @@ export function SystemSettingsManagement({
       pushSuccess(
         t("saved"),
         t("updatedSettingMessage", {
-          name: settingDisplayTitle(res.data),
+          name: settingTitle(res.data),
         }),
       );
       cancelEdit();
@@ -273,7 +288,8 @@ export function SystemSettingsManagement({
               </CardHeader>
               <CardBody className="space-y-[var(--ecmp-panel-gap)]">
                 {rows.map((row) => {
-                  const title = settingDisplayTitle(row);
+                  const title = settingTitle(row);
+                  const description = settingDescription(row);
                   const status = settingStatus(row);
                   const editing = editingKey === row.key;
 
@@ -288,16 +304,9 @@ export function SystemSettingsManagement({
                           <h4 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
                             {title}
                           </h4>
-                          {row.description &&
-                          row.description.trim() !== title ? (
-                            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                              {row.description}
-                            </p>
-                          ) : (
-                            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                              {t("settingValueHelper")}
-                            </p>
-                          )}
+                          <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                            {description}
+                          </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge tone={status.tone}>{statusLabel(status.key)}</Badge>

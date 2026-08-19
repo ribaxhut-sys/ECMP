@@ -5,6 +5,7 @@ import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
+import { toLocalDateKey } from "@/shared/utils/datetime";
 import type { HqScheduleAvailabilityResponse } from "@/lib/api/hqSchedule";
 
 const fetchHqScheduleAvailability = vi.fn();
@@ -43,7 +44,7 @@ vi.mock("@/lib/api/hqSchedule", () => ({
   deleteHqScheduleHoliday: vi.fn(),
 }));
 
-import { HqScheduleView } from "./HqScheduleView";
+import { HqScheduleView, slotOccupancy, summarizeHqWeek } from "./HqScheduleView";
 
 const emptyGrid = {
   startTime: "08:00",
@@ -163,6 +164,8 @@ describe("HqScheduleView", () => {
     await waitFor(() => {
       expect(screen.getByTitle("Cabang Tanah Abang")).toBeInTheDocument();
     });
+    expect(screen.getByTitle("Cabang Tanah Abang")).toHaveTextContent("TAB");
+    expect(screen.queryByText("Cabang Tanah Abang")).not.toBeInTheDocument();
   });
 
   it("lets a Pusat reviewer open every case regardless of branch", async () => {
@@ -178,29 +181,57 @@ describe("HqScheduleView", () => {
     ).toBeInTheDocument();
   });
 
-  it("lists the week's escalations grouped by weekday and time below the table", async () => {
+  it("renders scheduled cases on the day board without a duplicate weekly list", async () => {
     mockOrgUnitCode = "PUSAT";
     fetchHqScheduleAvailabilityDetail.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
 
-    const heading = await screen.findByText("This week's escalations");
-    const section = heading.closest("section")!;
-    expect(within(section).getByText("Senin")).toBeInTheDocument();
-    expect(within(section).getByText("08:00")).toBeInTheDocument();
-    expect(within(section).getByText(/CASE-2026-000001/)).toBeInTheDocument();
-    expect(within(section).getByText(/CASE-2026-000002/)).toBeInTheDocument();
-    expect(within(section).getByText(/\(TAB\)/)).toBeInTheDocument();
-    expect(within(section).getByText(/\(GAM\)/)).toBeInTheDocument();
+    const board = await screen.findByTestId("hq-schedule-board");
+    expect(within(board).getByText("Senin")).toBeInTheDocument();
+    expect(within(board).getByTestId("hq-schedule-slot-2026-08-17-08:00")).toBeInTheDocument();
+    expect(within(board).getByRole("link", { name: "CASE-2026-000001" })).toBeInTheDocument();
+    expect(within(board).getByRole("link", { name: "CASE-2026-000002" })).toBeInTheDocument();
+    expect(within(board).getByText("GAM")).toBeInTheDocument();
+    expect(screen.queryByText("This week's escalations")).not.toBeInTheDocument();
   });
 
-  it("shows an empty state in the weekly list when nothing is scheduled", async () => {
+  it("keeps week controls named and snaps today's column into view", async () => {
+    const today = toLocalDateKey(new Date());
+    const grid = gridWithCases();
+    grid.days[0]!.date = today;
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scrollIntoView,
+    });
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
     renderWithProviders(<HqScheduleView />);
+
     expect(
-      await screen.findByText("No escalations scheduled this week."),
+      await screen.findByRole("button", { name: "Previous week" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "This week" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next week" })).toBeInTheDocument();
+    expect(screen.getByText("Swipe for other days")).toBeInTheDocument();
+
+    const board = await screen.findByTestId("hq-schedule-board");
+    expect(board).toHaveClass("snap-x");
+    expect(board).toHaveAttribute("aria-label", "Weekday arrival slots");
+    const todayCol = await screen.findByTestId(`hq-schedule-day-${today}`);
+    expect(todayCol).toHaveAttribute("data-today", "true");
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalled();
+    });
   });
 
-  it("hides the ratio badge once a slot is full, but shows it while there's room", async () => {
+  it("shows the closed-week message when there are no working slots", async () => {
+    renderWithProviders(<HqScheduleView />);
+    expect(await screen.findByText("No working slots this week.")).toBeInTheDocument();
+    expect(screen.queryByTestId("hq-schedule-board")).not.toBeInTheDocument();
+  });
+
+  it("shows capacity on both full and open slots", async () => {
     const grid = gridWithCases();
     grid.days[0]!.slots.push({
       startTime: "10:00",
@@ -217,15 +248,64 @@ describe("HqScheduleView", () => {
     renderWithProviders(<HqScheduleView />);
 
     await screen.findAllByText("CASE-2026-000001");
-    expect(screen.queryByText("2/2 slot")).not.toBeInTheDocument();
-    expect(screen.getByText("0/2 slot")).toBeInTheDocument();
+    expect(screen.getAllByText("2/2 slot").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0/2 slot").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Slot available")).not.toBeInTheDocument();
+  });
+
+  it("colors slots by occupancy: empty green, partial warning, full danger", async () => {
+    const grid = gridWithCases();
+    grid.days[0]!.slots.push(
+      {
+        startTime: "10:00",
+        endTime: "11:00",
+        capacity: 2,
+        isBreak: false,
+        scheduledCount: 0,
+        proposedCount: 0,
+        availableCount: 2,
+        pendingProposals: [],
+        scheduledCases: [],
+      },
+      {
+        startTime: "11:00",
+        endTime: "12:00",
+        capacity: 2,
+        isBreak: false,
+        scheduledCount: 1,
+        proposedCount: 0,
+        availableCount: 1,
+        pendingProposals: [],
+        scheduledCases: [
+          {
+            complaintId: "case-partial",
+            complaintNumber: "TAB-2608-0003",
+            owningUnitId: "UPPPD-A",
+            unitCode: "TAB",
+            caseNumbers: ["CASE-2026-000003"],
+          },
+        ],
+      },
+    );
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    const full = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
+    const empty = await screen.findByTestId("hq-schedule-slot-2026-08-17-10:00");
+    const partial = await screen.findByTestId("hq-schedule-slot-2026-08-17-11:00");
+    expect(full).toHaveAttribute("data-occupancy", "full");
+    expect(empty).toHaveAttribute("data-occupancy", "empty");
+    expect(partial).toHaveAttribute("data-occupancy", "partial");
+    expect(full).toHaveClass("border-l-ecmp-danger");
+    expect(empty).toHaveClass("border-l-ecmp-success");
+    expect(partial).toHaveClass("border-l-ecmp-warning");
   });
 
   it("tags a break slot instead of showing case data", async () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
 
-    expect(await screen.findByText("Break")).toBeInTheDocument();
+    expect(await screen.findByText(/Break/)).toBeInTheDocument();
   });
 
   it("hides weekend columns and merges the break row into one cell", async () => {
@@ -251,10 +331,10 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
     renderWithProviders(<HqScheduleView />);
 
-    await screen.findByText("Break");
-    expect(screen.queryByText("2026-08-22")).not.toBeInTheDocument();
-    expect(screen.queryByText("2026-08-23")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Break")).toHaveLength(1);
+    expect(await screen.findByText(/Break/)).toBeInTheDocument();
+    expect(screen.queryByText("22-08-2026")).not.toBeInTheDocument();
+    expect(screen.queryByText("23-08-2026")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Break/)).toHaveLength(1);
   });
 
   it("imports the fixed-date national holidays for the selected year", async () => {
@@ -264,6 +344,7 @@ describe("HqScheduleView", () => {
     const user = userEvent.setup();
     renderWithProviders(<HqScheduleView />);
 
+    await user.click(await screen.findByText("Holidays this week"));
     const importButton = await screen.findByRole("button", {
       name: /Import fixed-date holidays/i,
     });
@@ -279,5 +360,23 @@ describe("HqScheduleView", () => {
     expect(createHqScheduleHoliday).toHaveBeenCalledWith(
       expect.objectContaining({ holidayDate: `${currentYear}-08-17` }),
     );
+  });
+
+  it("summarizes scheduled, today, and empty slot counts from visible weekdays", () => {
+    expect(
+      summarizeHqWeek(gridWithCases().days, "2026-08-17"),
+    ).toEqual({ scheduled: 2, today: 2, empty: 0 });
+    expect(
+      summarizeHqWeek(gridWithCases().days, "2026-08-18"),
+    ).toEqual({ scheduled: 2, today: 0, empty: 0 });
+  });
+
+  it("maps occupancy from booked count, not leftover capacity", () => {
+    expect(slotOccupancy(0, 2)).toBe("empty");
+    expect(slotOccupancy(1, 2)).toBe("partial");
+    expect(slotOccupancy(2, 2)).toBe("full");
+    expect(slotOccupancy(1, 3)).toBe("partial");
+    expect(slotOccupancy(2, 3)).toBe("partial");
+    expect(slotOccupancy(3, 3)).toBe("full");
   });
 });

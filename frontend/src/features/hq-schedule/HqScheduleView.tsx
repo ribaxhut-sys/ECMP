@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
@@ -30,9 +30,10 @@ import {
   Loading,
   PageContainer,
   PageHeader,
-  SectionHeader,
   Select,
+  StatCard,
 } from "@/shared/ui";
+import { IconChevronRight } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 import { toLocalDateKey } from "@/shared/utils/datetime";
 import { cn } from "@/shared/utils";
@@ -80,52 +81,35 @@ function formatDateDMY(isoDate: string): string {
   return year && month && day ? `${day}-${month}-${year}` : isoDate;
 }
 
-function slotTone(availableCount: number): "success" | "warning" | "danger" {
-  if (availableCount <= 0) return "danger";
-  if (availableCount === 1) return "warning";
-  return "success";
+export type SlotOccupancy = "empty" | "partial" | "full";
+
+/** Occupancy from booked count — not leftover capacity — so capacity > 2 stays correct. */
+export function slotOccupancy(
+  scheduledCount: number,
+  capacity: number,
+): SlotOccupancy {
+  if (scheduledCount <= 0) return "empty";
+  if (scheduledCount >= capacity) return "full";
+  return "partial";
 }
 
-type BreakRowSegment =
-  | { closed: true; day: HqScheduleDayAvailability }
-  | { closed: false; span: number };
-
-/** Groups a break-time row into per-holiday cells plus one merged "break" cell per run of open days. */
-function breakRowSegments(days: HqScheduleDayAvailability[]): BreakRowSegment[] {
-  const segments: BreakRowSegment[] = [];
-  let openRun = 0;
+export function summarizeHqWeek(
+  days: HqScheduleDayAvailability[],
+  todayIso: string,
+): { scheduled: number; today: number; empty: number } {
+  let scheduled = 0;
+  let today = 0;
+  let empty = 0;
   for (const day of days) {
-    if (day.closed) {
-      if (openRun > 0) {
-        segments.push({ closed: false, span: openRun });
-        openRun = 0;
-      }
-      segments.push({ closed: true, day });
-    } else {
-      openRun += 1;
+    if (day.closed) continue;
+    for (const slot of day.slots) {
+      if (slot.isBreak) continue;
+      scheduled += slot.scheduledCount;
+      empty += slot.availableCount;
+      if (day.date === todayIso) today += slot.scheduledCount;
     }
   }
-  if (openRun > 0) segments.push({ closed: false, span: openRun });
-  return segments;
-}
-
-function CaseTag({
-  proposal,
-  branchNameByCode,
-}: {
-  proposal: HqScheduleProposalSummary;
-  branchNameByCode: Map<string, string>;
-}) {
-  const title = branchNameByCode.get(proposal.owningUnitId ?? "") || proposal.unitCode;
-  return (
-    <span
-      title={title}
-      className="cursor-help border-b border-dotted border-ecmp-text-secondary/60 text-ecmp-text-secondary"
-    >
-      {" "}
-      ({proposal.unitCode})
-    </span>
-  );
+  return { scheduled, today, empty };
 }
 
 /** Case number(s) tracking this complaint's escalation — always populated by the time HQ schedules an arrival. */
@@ -142,133 +126,172 @@ function CaseLine({
   canOpen: boolean;
   branchNameByCode: Map<string, string>;
 }) {
+  const unitInitial = proposal.unitCode;
+  const branchTitle =
+    branchNameByCode.get(proposal.owningUnitId ?? "") || unitInitial;
   return (
-    <div className="text-[length:var(--ecmp-font-caption-size)]">
+    <div className="flex min-w-0 items-baseline gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight">
       {canOpen ? (
         <Link
           href={`/complaints/cm/${encodeURIComponent(proposal.complaintId)}`}
-          className="font-medium text-ecmp-primary hover:underline"
+          className="min-w-0 truncate font-medium text-ecmp-primary hover:underline"
         >
           {caseNumbersLabel(proposal)}
         </Link>
       ) : (
-        <span className="text-ecmp-text-secondary">{caseNumbersLabel(proposal)}</span>
+        <span className="min-w-0 truncate text-ecmp-text-secondary">
+          {caseNumbersLabel(proposal)}
+        </span>
       )}
-      <CaseTag proposal={proposal} branchNameByCode={branchNameByCode} />
+      <span
+        title={branchTitle}
+        aria-label={branchTitle}
+        className="shrink-0 font-medium text-ecmp-text-secondary"
+      >
+        {unitInitial}
+      </span>
     </div>
   );
 }
 
-function ScheduleSlotCell({
+function SlotCard({
   slot,
+  date,
   canOpenCase,
   branchNameByCode,
   slotRatioLabel,
+  breakLabel,
 }: {
   slot: HqScheduleSlotAvailability;
+  date: string;
   canOpenCase: (owningUnitId: string | null | undefined) => boolean;
   branchNameByCode: Map<string, string>;
   slotRatioLabel: string;
+  breakLabel: string;
 }) {
-  const tone = slotTone(slot.availableCount);
+  if (slot.isBreak) {
+    return (
+      <div
+        data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
+        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2 py-1.5 text-center text-[length:var(--ecmp-font-helper-size)] font-medium leading-tight text-ecmp-text-secondary"
+      >
+        {slot.startTime} · {breakLabel}
+      </div>
+    );
+  }
+
+  const booked = slot.scheduledCount > 0;
+  const occupancy = slotOccupancy(slot.scheduledCount, slot.capacity);
   return (
-    <td
+    <article
+      data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
+      data-occupancy={occupancy}
       className={cn(
-        "border-b border-ecmp-border/70 p-2 align-top",
-        tone === "danger" && "bg-ecmp-danger-subtle",
-        tone === "warning" && "bg-ecmp-warning-subtle",
+        "rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 px-2 py-1.5",
+        "border-l-4",
+        occupancy === "empty" && "border-l-ecmp-success bg-ecmp-success-subtle/40",
+        occupancy === "partial" && "border-l-ecmp-warning bg-ecmp-warning-subtle/40",
+        occupancy === "full" && "border-l-ecmp-danger bg-ecmp-danger-subtle/40",
       )}
     >
-      <div className="flex flex-col items-center gap-1 text-center">
-        {slot.scheduledCases.map((proposal) => (
-          <CaseLine
-            key={proposal.complaintId}
-            proposal={proposal}
-            canOpen={canOpenCase(proposal.owningUnitId)}
-            branchNameByCode={branchNameByCode}
-          />
-        ))}
-        {slot.availableCount > 0 && (
-          <Badge tone={tone} variant="solid">
-            {slotRatioLabel}
-          </Badge>
-        )}
+      <div className="flex items-baseline justify-between gap-2 leading-tight">
+        <p className="text-[length:var(--ecmp-font-helper-size)] font-semibold text-ecmp-text-primary">
+          {slot.startTime}
+        </p>
+        <p className="text-[length:var(--ecmp-font-helper-size)] tabular-nums text-ecmp-text-secondary">
+          {slotRatioLabel}
+        </p>
       </div>
-    </td>
+      {booked ? (
+        <div className="mt-0.5 space-y-0.5">
+          {slot.scheduledCases.map((proposal) => (
+            <CaseLine
+              key={proposal.complaintId}
+              proposal={proposal}
+              canOpen={canOpenCase(proposal.owningUnitId)}
+              branchNameByCode={branchNameByCode}
+            />
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
-/**
- * Weekly escalation list, grouped by weekday then time slot — same
- * already-scoped data as the table above (Cabang: own unit only, Pusat:
- * every branch), just flattened into a list instead of a grid.
- */
-function WeeklyEscalationList({
-  days,
-  canSeeDetail,
-  weekdayFormatter,
-  title,
-  emptyLabel,
+function DayColumn({
+  day,
+  isToday,
+  weekdayLabel,
+  todayLabel,
+  canOpenCase,
+  branchNameByCode,
+  slotRatio,
+  breakLabel,
+  holidayLabel,
+  weekendLabel,
+  columnRef,
 }: {
-  days: HqScheduleDayAvailability[];
-  canSeeDetail: boolean;
-  weekdayFormatter: Intl.DateTimeFormat;
-  title: string;
-  emptyLabel: string;
+  day: HqScheduleDayAvailability;
+  isToday: boolean;
+  weekdayLabel: string;
+  todayLabel: string;
+  canOpenCase: (owningUnitId: string | null | undefined) => boolean;
+  branchNameByCode: Map<string, string>;
+  slotRatio: (slot: HqScheduleSlotAvailability) => string;
+  breakLabel: string;
+  holidayLabel: string;
+  weekendLabel: string;
+  columnRef?: Ref<HTMLElement>;
 }) {
-  const openDays = days.filter((day) => !day.closed);
-  const daysWithEscalations = openDays
-    .map((day) => ({
-      day,
-      slots: day.slots.filter(
-        (slot) => !slot.isBreak && slot.scheduledCases.length > 0,
-      ),
-    }))
-    .filter((entry) => entry.slots.length > 0);
-
+  const closedCopy =
+    day.closedReason === "HOLIDAY" ? day.holidayLabel || holidayLabel : weekendLabel;
   return (
-    <section className="space-y-[var(--ecmp-panel-gap)]">
-      <SectionHeader title={title} />
-      <Card>
-        <CardBody className="space-y-4">
-          {daysWithEscalations.length === 0 ? (
-            <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-              {emptyLabel}
-            </p>
-          ) : (
-            daysWithEscalations.map(({ day, slots }) => (
-              <div key={day.date} className="space-y-2">
-                <p className="text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
-                  {weekdayFormatter.format(new Date(`${day.date}T00:00:00`))}
-                </p>
-                {slots.map((slot) => (
-                  <div key={slot.startTime} className="pl-3">
-                    <p className="text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
-                      {slot.startTime}
-                    </p>
-                    <ol className="list-decimal space-y-0.5 pl-4">
-                      {slot.scheduledCases.map((proposal) => (
-                        <li
-                          key={proposal.complaintId}
-                          className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary"
-                        >
-                          {caseNumbersLabel(proposal)}
-                          {canSeeDetail && (
-                            <span className="text-ecmp-text-secondary">
-                              {" "}
-                              ({proposal.unitCode})
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                ))}
-              </div>
-            ))
+    <section
+      ref={columnRef}
+      data-testid={`hq-schedule-day-${day.date}`}
+      data-today={isToday ? "true" : undefined}
+      className={cn(
+        "flex min-w-[11.5rem] shrink-0 snap-start flex-1 flex-col gap-1.5 rounded-[var(--ecmp-radius-card)] border p-2.5",
+        isToday
+          ? "border-ecmp-primary bg-ecmp-primary-muted/40"
+          : "border-ecmp-border/70 bg-ecmp-surface",
+      )}
+    >
+      <header className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+        <h2 className="text-[length:var(--ecmp-font-helper-size)] font-semibold capitalize text-ecmp-text-primary">
+          {weekdayLabel}
+        </h2>
+        <p
+          className={cn(
+            "text-[length:var(--ecmp-font-helper-size)]",
+            isToday ? "text-ecmp-primary" : "text-ecmp-text-secondary",
           )}
-        </CardBody>
-      </Card>
+        >
+          {formatDateDMY(day.date)}
+        </p>
+        {isToday ? (
+          <Badge tone="info" variant="solid">
+            {todayLabel}
+          </Badge>
+        ) : null}
+      </header>
+      {day.closed ? (
+        <p className="rounded-[var(--ecmp-radius-md)] bg-ecmp-danger-subtle px-2 py-1.5 text-center text-[length:var(--ecmp-font-helper-size)] leading-tight text-ecmp-danger-text">
+          {closedCopy}
+        </p>
+      ) : (
+        day.slots.map((slot) => (
+          <SlotCard
+            key={`${day.date}-${slot.startTime}`}
+            slot={slot}
+            date={day.date}
+            canOpenCase={canOpenCase}
+            branchNameByCode={branchNameByCode}
+            slotRatioLabel={slotRatio(slot)}
+            breakLabel={breakLabel}
+          />
+        ))
+      )}
     </section>
   );
 }
@@ -303,6 +326,7 @@ export function HqScheduleView() {
   );
   const [importYear, setImportYear] = useState(() => String(new Date().getFullYear()));
   const [importing, setImporting] = useState(false);
+  const todayColumnRef = useRef<HTMLElement>(null);
 
   const rangeFrom = useMemo(() => toLocalDateKey(weekStart), [weekStart]);
   const rangeTo = useMemo(
@@ -376,6 +400,13 @@ export function HqScheduleView() {
     reloadHolidays();
   }, [reloadHolidays]);
 
+  useEffect(() => {
+    todayColumnRef.current?.scrollIntoView({
+      inline: "start",
+      block: "nearest",
+    });
+  }, [data, rangeFrom]);
+
   async function submitCreateHoliday(): Promise<void> {
     const date = holidayDate.trim();
     const label = holidayLabel.trim();
@@ -431,10 +462,6 @@ export function HqScheduleView() {
     () => new Intl.DateTimeFormat("id-ID", { weekday: "long" }),
     [],
   );
-  const weekdayFormatterShort = useMemo(
-    () => new Intl.DateTimeFormat("id-ID", { weekday: "short" }),
-    [],
-  );
 
   if (status === "authenticated" && !canRead) {
     return (
@@ -450,9 +477,11 @@ export function HqScheduleView() {
   const showLoading = status !== "authenticated" || !orgReady || loading;
   const visibleDays: HqScheduleDayAvailability[] =
     data?.days.filter((day) => day.closedReason !== "WEEKEND") ?? [];
-  const templateSlots: HqScheduleDayAvailability["slots"] =
-    visibleDays.find((day) => !day.closed)?.slots ?? [];
   const todayIso = toLocalDateKey(new Date());
+  const weekStats = summarizeHqWeek(visibleDays, todayIso);
+  const hasOpenSlots = visibleDays.some(
+    (day) => !day.closed && day.slots.length > 0,
+  );
 
   return (
     <PageContainer>
@@ -460,13 +489,18 @@ export function HqScheduleView() {
         title={t("title")}
         description={t("description")}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
+              className="min-w-[var(--ecmp-touch-min)] sm:min-w-0"
+              aria-label={t("previousWeek")}
+              leftIcon={
+                <IconChevronRight className="size-4 rotate-180 sm:hidden" aria-hidden />
+              }
               onClick={() => setWeekStart((prev) => addDays(prev, -7))}
             >
-              {t("previousWeek")}
+              <span className="hidden sm:inline">{t("previousWeek")}</span>
             </Button>
             <Button
               variant="secondary"
@@ -478,9 +512,14 @@ export function HqScheduleView() {
             <Button
               variant="secondary"
               size="sm"
+              className="min-w-[var(--ecmp-touch-min)] sm:min-w-0"
+              aria-label={t("nextWeek")}
+              rightIcon={
+                <IconChevronRight className="size-4 sm:hidden" aria-hidden />
+              }
               onClick={() => setWeekStart((prev) => addDays(prev, 7))}
             >
-              {t("nextWeek")}
+              <span className="hidden sm:inline">{t("nextWeek")}</span>
             </Button>
           </div>
         }
@@ -491,227 +530,170 @@ export function HqScheduleView() {
 
       {!showLoading && !error && data && (
         <div className="space-y-[var(--ecmp-panel-gap)]">
-          <div className="overflow-x-auto rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70">
-            <table className="w-full min-w-[640px] border-collapse">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 z-10 border-b border-r border-ecmp-border/70 bg-ecmp-surface-sunken p-2 text-center text-[length:var(--ecmp-font-caption-size)] font-medium text-ecmp-text-secondary">
-                    {t("timeColumnHeader")}
-                  </th>
-                  {visibleDays.map((day) => {
-                    const isToday = day.date === todayIso;
-                    return (
-                      <th
-                        key={day.date}
-                        className={cn(
-                          "border-b border-ecmp-border/70 p-2 text-center",
-                          isToday ? "bg-ecmp-primary-muted" : "bg-ecmp-surface-sunken",
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "text-[length:var(--ecmp-font-body-size)] font-semibold",
-                            isToday ? "text-ecmp-primary" : "text-ecmp-text-primary",
-                          )}
-                        >
-                          {formatDateDMY(day.date)}
-                        </div>
-                        <div
-                          className={cn(
-                            "text-[length:var(--ecmp-font-caption-size)] uppercase tracking-wide",
-                            isToday ? "text-ecmp-primary" : "text-ecmp-text-secondary",
-                          )}
-                        >
-                          <span className="hidden md:inline">
-                            {weekdayFormatterLong.format(new Date(`${day.date}T00:00:00`))}
-                          </span>
-                          <span className="md:hidden">
-                            {weekdayFormatterShort.format(new Date(`${day.date}T00:00:00`))}
-                          </span>
-                          {isToday ? ` · ${t("todayLabel")}` : ""}
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {templateSlots.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={visibleDays.length + 1}
-                      className="p-4 text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
-                    >
-                      {t("weekClosed")}
-                    </td>
-                  </tr>
-                ) : (
-                  templateSlots.map((templateSlot, index) => (
-                    <tr key={templateSlot.startTime}>
-                      <td className="sticky left-0 z-10 border-b border-r border-ecmp-border/70 bg-ecmp-surface p-2 text-center align-middle text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                        {templateSlot.startTime}
-                      </td>
-                      {templateSlot.isBreak
-                        ? breakRowSegments(visibleDays).map((segment, segmentIndex) =>
-                            segment.closed ? (
-                              <td
-                                key={segment.day.date}
-                                className="border-b border-ecmp-border/70 bg-ecmp-danger-subtle p-2 text-center align-middle text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger-text"
-                              >
-                                {segment.day.closedReason === "HOLIDAY"
-                                  ? segment.day.holidayLabel || t("holiday")
-                                  : t("weekend")}
-                              </td>
-                            ) : (
-                              <td
-                                key={`break-${segmentIndex}`}
-                                colSpan={segment.span}
-                                className="border-b border-ecmp-border/70 p-2 text-center align-middle text-[length:var(--ecmp-font-body-size)] font-bold text-ecmp-text-secondary"
-                              >
-                                {t("breakLabel")}
-                              </td>
-                            ),
-                          )
-                        : visibleDays.map((day) => {
-                            if (day.closed) {
-                              return (
-                                <td
-                                  key={day.date}
-                                  className="border-b border-ecmp-border/70 bg-ecmp-danger-subtle p-2 text-center align-middle text-[length:var(--ecmp-font-caption-size)] text-ecmp-danger-text"
-                                >
-                                  {day.closedReason === "HOLIDAY"
-                                    ? day.holidayLabel || t("holiday")
-                                    : t("weekend")}
-                                </td>
-                              );
-                            }
-                            const slot = day.slots[index];
-                            if (!slot) {
-                              return (
-                                <td key={day.date} className="border-b border-ecmp-border/70 p-2" />
-                              );
-                            }
-                            return (
-                              <ScheduleSlotCell
-                                key={day.date}
-                                slot={slot}
-                                canOpenCase={canOpenCase}
-                                branchNameByCode={branchNameByCode}
-                                slotRatioLabel={t("slotRatio", {
-                                  scheduled: slot.scheduledCount,
-                                  capacity: slot.capacity,
-                                })}
-                              />
-                            );
-                          })}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <StatCard
+              hierarchy="supporting"
+              accent="normal"
+              title={t("weekArrivalsLabel")}
+              value={<span className="tabular-nums">{weekStats.scheduled}</span>}
+              className="flex flex-row items-center justify-between gap-2 !p-2.5 md:!p-3 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
+            />
+            <StatCard
+              hierarchy="supporting"
+              accent={weekStats.today > 0 ? "attention" : "normal"}
+              title={t("todayArrivalsLabel")}
+              value={<span className="tabular-nums">{weekStats.today}</span>}
+              className="flex flex-row items-center justify-between gap-2 !p-2.5 md:!p-3 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
+            />
+            <StatCard
+              hierarchy="supporting"
+              accent="healthy"
+              title={t("emptySlotsLabel")}
+              value={<span className="tabular-nums">{weekStats.empty}</span>}
+              className="flex flex-row items-center justify-between gap-2 !p-2.5 md:!p-3 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
+            />
           </div>
 
-          <WeeklyEscalationList
-            days={data.days}
-            canSeeDetail={canSeeDetail}
-            weekdayFormatter={weekdayFormatterLong}
-            title={t("weeklyListTitle")}
-            emptyLabel={t("weeklyListEmpty")}
-          />
+          {!hasOpenSlots ? (
+            <p className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 bg-ecmp-surface p-3 text-center text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+              {t("weekClosed")}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary lg:hidden">
+                {t("boardSwipeHint")}
+              </p>
+              <div
+                data-testid="hq-schedule-board"
+                role="region"
+                aria-label={t("boardRegionLabel")}
+                className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1"
+              >
+                {visibleDays.map((day) => (
+                  <DayColumn
+                    key={day.date}
+                    day={day}
+                    isToday={day.date === todayIso}
+                    weekdayLabel={weekdayFormatterLong.format(
+                      new Date(`${day.date}T00:00:00`),
+                    )}
+                    todayLabel={t("todayLabel")}
+                    canOpenCase={canOpenCase}
+                    branchNameByCode={branchNameByCode}
+                    slotRatio={(slot) =>
+                      t("slotRatio", {
+                        scheduled: slot.scheduledCount,
+                        capacity: slot.capacity,
+                      })
+                    }
+                    breakLabel={t("breakLabel")}
+                    holidayLabel={t("holiday")}
+                    weekendLabel={t("weekend")}
+                    columnRef={day.date === todayIso ? todayColumnRef : undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {showHolidayPanel ? (
-          <section className="space-y-[var(--ecmp-panel-gap)]">
-            <SectionHeader title={t("holidayManageTitle")} />
-            <Card>
-              <CardBody className="space-y-[var(--ecmp-panel-gap)]">
-                {holidays.length === 0 ? (
-                  <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                    {t("holidayEmpty")}
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {holidays.map((holiday) => (
-                      <li
-                        key={holiday.holidayDate}
-                        className="flex items-center justify-between gap-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border px-3 py-2"
-                      >
-                        <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                          {formatDateDMY(holiday.holidayDate)} — {holiday.label}
-                        </span>
-                        {canManageHolidays ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            loading={holidayDeletingDate === holiday.holidayDate}
-                            disabled={holidayDeletingDate !== null}
-                            onClick={() =>
-                              void submitDeleteHoliday(holiday.holidayDate)
-                            }
-                          >
-                            {t("holidayDeleteButton")}
-                          </Button>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {canManageHolidays ? (
-                  <div className="space-y-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
-                    <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                      {t("holidayImportHint")}
+            <details
+              data-testid="hq-schedule-holiday-panel"
+              className="rounded-[var(--ecmp-radius-card)] border border-ecmp-border/80 bg-ecmp-surface shadow-ecmp-raised"
+            >
+              <summary className="cursor-pointer px-[var(--ecmp-card-padding)] py-2 text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
+                {t("holidayManageTitle")}
+              </summary>
+              <Card className="rounded-none border-0 shadow-none" padding={false}>
+                <CardBody className="space-y-[var(--ecmp-panel-gap)] border-t border-ecmp-border">
+                  {holidays.length === 0 ? (
+                    <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                      {t("holidayEmpty")}
                     </p>
-                    <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)]">
-                      <Select
-                        label={t("holidayImportYearLabel")}
-                        value={importYear}
-                        onChange={(e) => setImportYear(e.target.value)}
-                        options={importYearOptions(new Date().getFullYear())}
-                        disabled={importing}
+                  ) : (
+                    <ul className="space-y-2">
+                      {holidays.map((holiday) => (
+                        <li
+                          key={holiday.holidayDate}
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border px-3 py-2"
+                        >
+                          <span className="min-w-0 flex-1 break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                            {formatDateDMY(holiday.holidayDate)} — {holiday.label}
+                          </span>
+                          {canManageHolidays ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              loading={holidayDeletingDate === holiday.holidayDate}
+                              disabled={holidayDeletingDate !== null}
+                              onClick={() =>
+                                void submitDeleteHoliday(holiday.holidayDate)
+                              }
+                            >
+                              {t("holidayDeleteButton")}
+                            </Button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {canManageHolidays ? (
+                    <div className="space-y-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                      <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+                        {t("holidayImportHint")}
+                      </p>
+                      <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)]">
+                        <Select
+                          label={t("holidayImportYearLabel")}
+                          value={importYear}
+                          onChange={(e) => setImportYear(e.target.value)}
+                          options={importYearOptions(new Date().getFullYear())}
+                          disabled={importing}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          loading={importing}
+                          onClick={() => void submitImportHolidays()}
+                        >
+                          {t("holidayImportButton")}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {canManageHolidays ? (
+                    <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                      <Input
+                        type="date"
+                        label={t("holidayDateLabel")}
+                        value={holidayDate}
+                        onChange={(e) => setHolidayDate(e.target.value)}
+                        disabled={holidaySaving}
+                      />
+                      <Input
+                        label={t("holidayLabelLabel")}
+                        placeholder={t("holidayLabelPlaceholder")}
+                        value={holidayLabel}
+                        onChange={(e) => setHolidayLabel(e.target.value)}
+                        disabled={holidaySaving}
+                        maxLength={200}
                       />
                       <Button
                         type="button"
-                        variant="secondary"
-                        loading={importing}
-                        onClick={() => void submitImportHolidays()}
+                        loading={holidaySaving}
+                        disabled={!holidayDate.trim() || !holidayLabel.trim()}
+                        onClick={() => void submitCreateHoliday()}
                       >
-                        {t("holidayImportButton")}
+                        {t("holidayAddButton")}
                       </Button>
                     </div>
-                  </div>
-                ) : null}
-
-                {canManageHolidays ? (
-                  <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
-                    <Input
-                      type="date"
-                      label={t("holidayDateLabel")}
-                      value={holidayDate}
-                      onChange={(e) => setHolidayDate(e.target.value)}
-                      disabled={holidaySaving}
-                    />
-                    <Input
-                      label={t("holidayLabelLabel")}
-                      placeholder={t("holidayLabelPlaceholder")}
-                      value={holidayLabel}
-                      onChange={(e) => setHolidayLabel(e.target.value)}
-                      disabled={holidaySaving}
-                      maxLength={200}
-                    />
-                    <Button
-                      type="button"
-                      loading={holidaySaving}
-                      disabled={!holidayDate.trim() || !holidayLabel.trim()}
-                      onClick={() => void submitCreateHoliday()}
-                    >
-                      {t("holidayAddButton")}
-                    </Button>
-                  </div>
-                ) : null}
-              </CardBody>
-            </Card>
-          </section>
+                  ) : null}
+                </CardBody>
+              </Card>
+            </details>
           ) : null}
         </div>
       )}

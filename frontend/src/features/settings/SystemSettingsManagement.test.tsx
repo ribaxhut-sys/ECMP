@@ -1,10 +1,13 @@
 /**
  * System settings (Pengaturan → Lanjutan): Edit must not persist until Save.
  */
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextIntlClientProvider } from "next-intl";
 import { renderWithProviders } from "@/test/harness";
+import { ToastProvider } from "@/shared/providers";
+import idMessages from "../../../messages/id.json";
 import type { Setting } from "@/lib/api/types";
 
 const fetchSettings = vi.fn();
@@ -78,7 +81,7 @@ describe("SystemSettingsManagement", () => {
 
     expect(
       await within(card).findByRole("textbox", {
-        name: /Max taxpayer arrivals accommodated per HQ schedule slot/i,
+        name: /Arrivals per slot/i,
       }),
     ).toHaveValue("2");
     expect(within(card).getByRole("button", { name: "Save" })).toBeInTheDocument();
@@ -111,7 +114,7 @@ describe("SystemSettingsManagement", () => {
     );
     await user.click(within(card).getByRole("button", { name: "Edit" }));
     const input = await within(card).findByRole("textbox", {
-      name: /Max taxpayer arrivals accommodated per HQ schedule slot/i,
+      name: /Arrivals per slot/i,
     });
     await user.clear(input);
     await user.type(input, "4");
@@ -123,5 +126,36 @@ describe("SystemSettingsManagement", () => {
         { value: "4" },
       );
     });
+  });
+
+  it("renders Indonesian labels when the locale is id", async () => {
+    render(
+      <NextIntlClientProvider
+        locale="id"
+        messages={idMessages}
+        timeZone="Asia/Jakarta"
+        now={new Date("2026-08-01T00:00:00Z")}
+      >
+        <ToastProvider>
+          <SystemSettingsManagement />
+        </ToastProvider>
+      </NextIntlClientProvider>,
+    );
+
+    const card = await screen.findByTestId(
+      "setting-key-hq.schedule.capacity_per_slot",
+    );
+    expect(within(card).getByText("Kapasitas per slot")).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "Jumlah maksimum kedatangan wajib pajak per slot jadwal HQ.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Jadwal HQ")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Max taxpayer arrivals accommodated per HQ schedule slot",
+      ),
+    ).not.toBeInTheDocument();
   });
 });
