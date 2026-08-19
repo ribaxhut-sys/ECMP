@@ -118,7 +118,13 @@ export function KnowledgeFileManager({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canMutate = canManage && knowledge.status === "DRAFT";
-  const displayFile = pickKnowledgeDisplayFile(knowledge.files);
+  // Which document the big inline preview shows. Defaults to PRIMARY; the
+  // tab strip below lets a reader page through every attached file instead
+  // of only the primary one (a Knowledge record may carry several).
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const activeFile =
+    knowledge.files.find((file) => file.id === activeFileId) ??
+    pickKnowledgeDisplayFile(knowledge.files);
 
   async function onFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
@@ -169,8 +175,40 @@ export function KnowledgeFileManager({
     <div className="space-y-[var(--ecmp-form-gap)]">
       {error ? <Alert tone="danger" title={t("actionFailed")} description={error} /> : null}
 
-      {showInlinePreview && displayFile ? (
-        <KnowledgeInlineDocumentPreview file={displayFile} knowledgeId={knowledge.id} />
+      {showInlinePreview && activeFile ? (
+        <div className="space-y-2">
+          {knowledge.files.length > 1 ? (
+            <div
+              className="flex flex-wrap gap-2"
+              role="tablist"
+              aria-label={t("fileTabsLabel")}
+            >
+              {knowledge.files.map((file) => {
+                const selected = file.id === activeFile.id;
+                return (
+                  <button
+                    key={file.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => setActiveFileId(file.id)}
+                    className={[
+                      "flex min-w-0 max-w-full items-center gap-2 rounded-[var(--ecmp-radius-md)] border px-3 py-1.5",
+                      "text-[length:var(--ecmp-font-body-small-size)]",
+                      selected
+                        ? "border-ecmp-primary bg-ecmp-hover font-medium text-ecmp-text-primary"
+                        : "border-ecmp-border bg-ecmp-surface text-ecmp-text-secondary hover:bg-ecmp-hover",
+                    ].join(" ")}
+                  >
+                    <KnowledgeFileTypeIcon file={file} size="sm" />
+                    <span className="min-w-0 truncate">{file.fileName}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <KnowledgeInlineDocumentPreview file={activeFile} knowledgeId={knowledge.id} />
+        </div>
       ) : null}
 
       {knowledge.files.length === 0 ? (

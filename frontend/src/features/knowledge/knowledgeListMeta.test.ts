@@ -10,6 +10,7 @@ const labels = {
   effective: (date: string) => `berlaku ${date}`,
   uploaded: (date: string) => `unggah ${date}`,
   inactive: (date: string) => `nonaktif ${date}`,
+  files: (count: number) => `${count} berkas`,
   emDash: "—",
 };
 
@@ -66,5 +67,28 @@ describe("buildKnowledgeListMeta", () => {
     );
     expect(meta).toContain("PDF");
     expect(meta).toContain("SOP-001");
+    // One file — the count segment stays out of the way.
+    expect(meta).not.toContain("berkas");
+  });
+
+  it("counts the attached files when a record carries more than one", () => {
+    const meta = buildKnowledgeListMeta(
+      {
+        documentNumber: null,
+        versionLabel: null,
+        status: "ACTIVE",
+        effectiveFrom: "2026-08-11T00:00:00Z",
+        effectiveTo: null,
+        createdAt: "2026-08-11T00:00:00Z",
+        updatedAt: "2026-08-11T00:00:00Z",
+        files: [
+          file({ id: "1", fileName: "panduan-a.docx" }),
+          file({ id: "2", role: "SUPPORTING", fileName: "panduan-b.docx" }),
+        ],
+      },
+      labels,
+      () => "11/08/2026",
+    );
+    expect(meta).toContain("2 berkas");
   });
 });

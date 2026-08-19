@@ -59,11 +59,16 @@ export type KnowledgeListMetaLabels = {
   effective: (date: string) => string;
   uploaded: (date: string) => string;
   inactive: (date: string) => string;
+  /** Berapa berkas yang menempel — hanya dipakai saat lebih dari satu. */
+  files: (count: number) => string;
   emDash: string;
 };
 
 /**
- * Single-line meta segments: doc · version · status · berlaku · unggah · [type] · [nonaktif].
+ * Single-line meta segments: doc · version · status · berlaku · unggah · [type] ·
+ * [n berkas] · [nonaktif]. The file-count segment appears only when a record
+ * carries more than one document — a single file is already implied by the
+ * type label next to it.
  */
 export function buildKnowledgeListMeta(
   row: Pick<
@@ -97,6 +102,11 @@ export function buildKnowledgeListMeta(
   const displayFile = pickKnowledgeDisplayFile(row.files);
   if (displayFile) {
     parts.push(fileTypeLabel(displayFile.mimeType, null, displayFile.fileName));
+  }
+
+  const fileCount = row.files?.length ?? 0;
+  if (fileCount > 1) {
+    parts.push(labels.files(fileCount));
   }
 
   if (isKnowledgeListInactive(row, now)) {

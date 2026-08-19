@@ -290,6 +290,7 @@ export function KnowledgeListView() {
                   effective: (date) => t("listMetaEffective", { date }),
                   uploaded: (date) => t("listMetaUploaded", { date }),
                   inactive: (date) => t("listMetaInactive", { date }),
+                  files: (count) => t("listMetaFiles", { count }),
                   emDash: tCommon("emDash"),
                 },
                 (value) => formatDate(value, locale),

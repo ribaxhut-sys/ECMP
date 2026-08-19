@@ -2536,6 +2536,34 @@
       "hq_schedule_break_end": {
         "label": "Break end",
         "description": "End of the HQ arrival lunch break (HH:MM)."
+      },
+      "storage_provider": {
+        "label": "Storage provider",
+        "description": "Where attachment files are stored (for example local)."
+      },
+      "storage_root_path": {
+        "label": "Storage path",
+        "description": "Local folder used for attachment files."
+      },
+      "storage_max_upload_mb": {
+        "label": "Max upload size",
+        "description": "Maximum attachment size in megabytes."
+      },
+      "storage_allowed_mime": {
+        "label": "Allowed file types",
+        "description": "File types that can be uploaded as attachments."
+      },
+      "notification_enabled": {
+        "label": "Enable notifications",
+        "description": "Master switch for sending notifications."
+      },
+      "notification_default_channel": {
+        "label": "Default notification channel",
+        "description": "Default channel for notifications: EMAIL, WHATSAPP, or PUSH."
+      },
+      "notification_max_retry": {
+        "label": "Notification retry limit",
+        "description": "Maximum delivery retries if sending a notification fails."
       }
     },
     "visibilityPublic": "Public",
@@ -2598,6 +2626,7 @@
     "categorySettingsCount": "{count} settings",
     "categoryGroupDescription": "Configuration keys in the {category} category.",
     "settingValueHelper": "No description provided for this setting.",
+    "settingJsonArrayHelper": "Keep this as a JSON array of MIME types.",
     "unavailableTitle": "Not yet available",
     "unavailableDescription": "This configuration area is planned but not implemented yet.",
     "groupRegional": "Regional Format",
@@ -2674,6 +2703,7 @@
     "previousWeek": "Previous week",
     "thisWeek": "This week",
     "nextWeek": "Next week",
+    "weekNavigationLabel": "Week navigation",
     "loading": "Loading schedule...",
     "loadError": "Unable to load the HQ arrival schedule.",
     "accessRestrictedDescription": "You need the complaints:read permission to view the HQ arrival schedule.",
@@ -3739,6 +3769,8 @@
     "listMetaEffective": "effective {date}",
     "listMetaUploaded": "uploaded {date}",
     "listMetaInactive": "inactive {date}",
+    "listMetaFiles": "{count} files",
+    "fileTabsLabel": "Documents in this knowledge record",
     "createTitle": "Add Knowledge",
     "createHint": "A new Knowledge record starts as a draft — not visible to regular users until published.",
     "unableToSave": "Unable to save Knowledge.",

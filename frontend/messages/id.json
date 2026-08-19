@@ -2536,6 +2536,34 @@
       "hq_schedule_break_end": {
         "label": "Akhir istirahat",
         "description": "Waktu selesai istirahat siang jadwal HQ (JJ:MM)."
+      },
+      "storage_provider": {
+        "label": "Penyedia penyimpanan",
+        "description": "Tempat berkas lampiran disimpan (contoh: local)."
+      },
+      "storage_root_path": {
+        "label": "Jalur penyimpanan",
+        "description": "Folder lokal untuk berkas lampiran."
+      },
+      "storage_max_upload_mb": {
+        "label": "Ukuran unggah maksimum",
+        "description": "Ukuran maksimum lampiran dalam megabyte."
+      },
+      "storage_allowed_mime": {
+        "label": "Tipe berkas diizinkan",
+        "description": "Jenis berkas yang boleh diunggah sebagai lampiran."
+      },
+      "notification_enabled": {
+        "label": "Aktifkan notifikasi",
+        "description": "Saklar utama untuk mengirim notifikasi."
+      },
+      "notification_default_channel": {
+        "label": "Saluran notifikasi bawaan",
+        "description": "Saluran bawaan untuk notifikasi: EMAIL, WHATSAPP, atau PUSH."
+      },
+      "notification_max_retry": {
+        "label": "Batas coba kirim ulang",
+        "description": "Jumlah maksimum percobaan kirim ulang jika notifikasi gagal terkirim."
       }
     },
     "visibilityPublic": "Publik",
@@ -2598,6 +2626,7 @@
     "categorySettingsCount": "{count} pengaturan",
     "categoryGroupDescription": "Kunci konfigurasi dalam kategori {category}.",
     "settingValueHelper": "Tidak ada deskripsi untuk pengaturan ini.",
+    "settingJsonArrayHelper": "Tetap dalam bentuk array JSON berisi tipe MIME.",
     "unavailableTitle": "Belum tersedia",
     "unavailableDescription": "Area konfigurasi ini direncanakan tetapi belum diimplementasikan.",
     "groupRegional": "Format Regional",
@@ -2674,6 +2703,7 @@
     "previousWeek": "Minggu sebelumnya",
     "thisWeek": "Minggu ini",
     "nextWeek": "Minggu berikutnya",
+    "weekNavigationLabel": "Navigasi minggu",
     "loading": "Memuat jadwal...",
     "loadError": "Jadwal kedatangan Pusat gagal dimuat.",
     "accessRestrictedDescription": "Anda memerlukan izin complaints:read untuk melihat jadwal kedatangan Pusat.",
@@ -3739,6 +3769,8 @@
     "listMetaEffective": "berlaku {date}",
     "listMetaUploaded": "unggah {date}",
     "listMetaInactive": "nonaktif {date}",
+    "listMetaFiles": "{count} berkas",
+    "fileTabsLabel": "Dokumen pada pengetahuan ini",
     "createTitle": "Tambah Pengetahuan",
     "createHint": "Pengetahuan baru dimulai sebagai draft — belum terlihat oleh pengguna biasa sampai diterbitkan.",
     "unableToSave": "Tidak dapat menyimpan Pengetahuan.",
