@@ -150,8 +150,8 @@ describe("KnowledgeListView", () => {
       expect(within(list).getByText("Newer Knowledge")).toBeInTheDocument();
     });
     const titles = within(list)
-      .getAllByRole("button")
-      .map((btn) => btn.textContent ?? "");
+      .getAllByRole("listitem")
+      .map((item) => item.textContent ?? "");
     const newerIdx = titles.findIndex((text) => text.includes("Newer Knowledge"));
     const olderIdx = titles.findIndex((text) => text.includes("Older Knowledge"));
     expect(newerIdx).toBeGreaterThanOrEqual(0);
@@ -221,6 +221,89 @@ describe("KnowledgeListView", () => {
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith("/knowledge/new-knowledge-id");
     });
+  });
+
+  it("shows one row per file for a record with two files, repeating the title", async () => {
+    searchKnowledge.mockResolvedValue({
+      data: [
+        knowledge({
+          files: [
+            {
+              id: "f-primary",
+              fileName: "Panduan_Membuat_Pengaduan.docx",
+              mimeType:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              sizeBytes: 37984,
+              role: "PRIMARY",
+              createdAt: "2026-08-01T00:00:00Z",
+            },
+            {
+              id: "f-supporting",
+              fileName: "Panduan_Peran_Pengguna.docx",
+              mimeType:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              sizeBytes: 36662,
+              role: "SUPPORTING",
+              createdAt: "2026-08-01T00:00:00Z",
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderWithProviders(<KnowledgeListView />);
+    // Desktop table and the mobile stacked-card fallback both render at
+    // once in jsdom (only CSS breakpoints tell them apart) — scope to one
+    // tree, the same way the "orders rows" test above does, so counts stay
+    // exact instead of doubled.
+    const list = await screen.findByRole("list", { name: /knowledge list/i });
+
+    await waitFor(() => {
+      expect(within(list).getByText("Panduan_Membuat_Pengaduan.docx")).toBeInTheDocument();
+    });
+    expect(within(list).getByText("Panduan_Peran_Pengguna.docx")).toBeInTheDocument();
+    // Same record, same title — repeated once per file row.
+    expect(within(list).getAllByText("SOP Penanganan Pengaduan")).toHaveLength(2);
+  });
+
+  it("opens the file in a new tab from the Buka column without navigating to the detail page", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockReturnValue({} as Window);
+    searchKnowledge.mockResolvedValue({
+      data: [
+        knowledge({
+          files: [
+            {
+              id: "f-primary",
+              fileName: "sop.pdf",
+              mimeType: "application/pdf",
+              sizeBytes: 1024,
+              role: "PRIMARY",
+              createdAt: "2026-08-01T00:00:00Z",
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderWithProviders(<KnowledgeListView />);
+    const list = await screen.findByRole("list", { name: /knowledge list/i });
+    await waitFor(() => {
+      expect(within(list).getByText("sop.pdf")).toBeInTheDocument();
+    });
+
+    await user.click(within(list).getByRole("button", { name: /open in new tab/i }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "/attachments/f-primary/preview",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    // The row itself is also clickable (goes to the detail page) — clicking
+    // the Buka button must not also trigger that navigation.
+    expect(push).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
   });
 
   it("shows an empty state when there are no results", async () => {

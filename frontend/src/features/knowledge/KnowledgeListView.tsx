@@ -10,7 +10,6 @@ import { formatDate } from "@/i18n/formatting";
 import {
   Alert,
   Button,
-  Empty,
   ErrorState,
   Input,
   Modal,
@@ -18,10 +17,13 @@ import {
   PageHeader,
   Pagination,
   Select,
-  Skeleton,
+  Table,
+  type TableColumn,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useToast } from "@/shared/providers";
+import { IconExternalLink } from "@/shared/icons";
+import { attachmentPreviewPath } from "@/features/attachments/previewRoutes";
 import { knowledgeTypeKey, KnowledgeTypeBadge } from "./KnowledgeBadges";
 import { KnowledgeCreateFileStaging, type StagedKnowledgeFile } from "./KnowledgeCreateFileStaging";
 import { KnowledgeFileTypeIcon } from "./KnowledgeFileTypeIcon";
@@ -29,11 +31,12 @@ import { KnowledgeFormFields } from "./KnowledgeFormFields";
 import { mayManageKnowledge } from "./knowledgeManageGate";
 import {
   buildKnowledgeListMeta,
+  flattenKnowledgeFileRows,
   isKnowledgeListInactive,
   knowledgeStatusDotClass,
   knowledgeStatusLabelKey,
-  pickKnowledgeDisplayFile,
   sortKnowledgeByUploadedAtDesc,
+  type KnowledgeFileListRow,
 } from "./knowledgeListMeta";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
@@ -131,6 +134,116 @@ export function KnowledgeListView() {
   const pageRows = useMemo(
     () => rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
     [rows, page, pageSize],
+  );
+
+  // One table row per file — a record with two files shows two rows sharing
+  // the same Judul cell, so every uploaded document is directly visible and
+  // openable without going through the detail page first.
+  const fileRows = useMemo(() => flattenKnowledgeFileRows(pageRows), [pageRows]);
+
+  const openFileInNewTab = useCallback(
+    (fileId: string) => {
+      const opened = window.open(
+        attachmentPreviewPath(fileId),
+        "_blank",
+        "noopener,noreferrer",
+      );
+      if (!opened) {
+        pushToast({ title: tAttachments("popupBlocked"), tone: "warning" });
+      }
+    },
+    [pushToast, tAttachments],
+  );
+
+  const columns: TableColumn<KnowledgeFileListRow>[] = useMemo(
+    () => [
+      {
+        key: "file",
+        header: t("columnFile"),
+        cell: ({ file }) =>
+          file ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <KnowledgeFileTypeIcon file={file} size="sm" />
+              <span className="min-w-0 truncate">{file.fileName}</span>
+            </div>
+          ) : (
+            <span className="text-ecmp-text-secondary">{tCommon("emDash")}</span>
+          ),
+      },
+      {
+        key: "title",
+        header: t("columnTitle"),
+        cell: ({ knowledge }) => (
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className={[
+                "h-2 w-2 shrink-0 rounded-full",
+                knowledgeStatusDotClass(knowledge.status),
+              ].join(" ")}
+              aria-hidden
+            />
+            <KnowledgeTypeBadge type={knowledge.knowledgeType} />
+            <span className="min-w-0 truncate font-medium text-ecmp-text-primary">
+              {knowledge.title}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: "info",
+        header: t("columnInfo"),
+        hideOnMobile: true,
+        cell: ({ knowledge }) => {
+          const meta = buildKnowledgeListMeta(
+            knowledge,
+            {
+              status: t(knowledgeStatusLabelKey(knowledge.status)),
+              effective: (date) => t("listMetaEffective", { date }),
+              uploaded: (date) => t("listMetaUploaded", { date }),
+              inactive: (date) => t("listMetaInactive", { date }),
+              files: (count) => t("listMetaFiles", { count }),
+              emDash: tCommon("emDash"),
+            },
+            (value) => formatDate(value, locale),
+            undefined,
+            { includeFileInfo: false },
+          );
+          return (
+            <span
+              className="block max-w-[24rem] truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary"
+              title={meta}
+            >
+              {meta || tCommon("emDash")}
+            </span>
+          );
+        },
+      },
+      {
+        key: "open",
+        header: t("columnOpen"),
+        slot: "action",
+        cell: ({ file }) =>
+          file ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-label={tAttachments("openInNewTab")}
+              title={tAttachments("openInNewTab")}
+              className="!min-h-8 !min-w-8 !px-0"
+              onClick={(event) => {
+                event.stopPropagation();
+                openFileInNewTab(file.id);
+              }}
+            >
+              <IconExternalLink className="size-4" />
+            </Button>
+          ) : (
+            <span className="text-ecmp-text-secondary">{tCommon("emDash")}</span>
+          ),
+      },
+    ],
+    [t, tCommon, tAttachments, locale, openFileInNewTab],
   );
 
   const pageSizeOptions = useMemo(
@@ -269,97 +382,52 @@ export function KnowledgeListView() {
         </Button>
       </form>
 
-      {loading ? (
-        <Skeleton rows={6} />
-      ) : loadError ? (
+      {loadError ? (
         <ErrorState title={t("unableToLoad")} message={loadError} onRetry={() => void load()} />
-      ) : rows.length === 0 ? (
-        <Empty title={t("listEmpty")} description={t("listEmptyDescription")} />
       ) : (
         <div className="space-y-[var(--ecmp-panel-gap)]">
-          <ul
-            className="divide-y divide-ecmp-border overflow-hidden rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface"
-            aria-label={t("tableCaption")}
-            data-testid="knowledge-list"
-          >
-            {pageRows.map((row) => {
-              const meta = buildKnowledgeListMeta(
-                row,
-                {
-                  status: t(knowledgeStatusLabelKey(row.status)),
-                  effective: (date) => t("listMetaEffective", { date }),
-                  uploaded: (date) => t("listMetaUploaded", { date }),
-                  inactive: (date) => t("listMetaInactive", { date }),
-                  files: (count) => t("listMetaFiles", { count }),
-                  emDash: tCommon("emDash"),
-                },
-                (value) => formatDate(value, locale),
-              );
-              const muted = isKnowledgeListInactive(row);
-              const displayFile = pickKnowledgeDisplayFile(row.files);
-              return (
-                <li key={row.id}>
-                  <button
-                    type="button"
-                    className={[
-                      "flex w-full items-center gap-2 px-3 py-2 text-left",
-                      "hover:bg-ecmp-hover focus-visible:bg-ecmp-hover",
-                      muted ? "opacity-60" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    onClick={() => router.push(`/knowledge/${row.id}`)}
-                  >
-                    <span
-                      className={[
-                        "h-2 w-2 shrink-0 rounded-full",
-                        knowledgeStatusDotClass(row.status),
-                      ].join(" ")}
-                      aria-hidden
-                    />
-                    <KnowledgeFileTypeIcon file={displayFile} size="sm" />
-                    <KnowledgeTypeBadge type={row.knowledgeType} />
-                    <span className="min-w-0 flex-1 truncate text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                      {row.title}
-                    </span>
-                    <span
-                      className="hidden min-w-0 max-w-[55%] shrink-0 truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary sm:inline"
-                      title={meta}
-                    >
-                      {meta || tCommon("emDash")}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <Pagination
-            summary={tCommon("showingItems", {
-              from: (page - 1) * pageSize + 1,
-              to: Math.min(page * pageSize, totalItems),
-              total: totalItems,
-            })}
-            pageSizeSlot={
-              <div className="w-[9rem]">
-                <Select
-                  name="knowledgePageSize"
-                  aria-label={t("pageSizeLabel")}
-                  options={pageSizeOptions}
-                  value={String(pageSize)}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value) || DEFAULT_PAGE_SIZE);
-                    setPage(1);
-                  }}
-                />
-              </div>
+          <Table
+            columns={columns}
+            rows={fileRows}
+            getRowKey={(row) => `${row.knowledge.id}:${row.file?.id ?? "none"}`}
+            caption={t("tableCaption")}
+            loading={loading}
+            emptyTitle={t("listEmpty")}
+            emptyMessage={t("listEmptyDescription")}
+            onRowClick={(row) => router.push(`/knowledge/${row.knowledge.id}`)}
+            getRowClassName={(row) =>
+              isKnowledgeListInactive(row.knowledge) ? "opacity-60" : undefined
             }
-            previousLabel={tCommon("previous")}
-            nextLabel={tCommon("next")}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-            previousDisabled={page <= 1}
-            nextDisabled={page >= totalPages}
           />
+          {!loading && totalItems > 0 ? (
+            <Pagination
+              summary={tCommon("showingItems", {
+                from: (page - 1) * pageSize + 1,
+                to: Math.min(page * pageSize, totalItems),
+                total: totalItems,
+              })}
+              pageSizeSlot={
+                <div className="w-[9rem]">
+                  <Select
+                    name="knowledgePageSize"
+                    aria-label={t("pageSizeLabel")}
+                    options={pageSizeOptions}
+                    value={String(pageSize)}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value) || DEFAULT_PAGE_SIZE);
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              }
+              previousLabel={tCommon("previous")}
+              nextLabel={tCommon("next")}
+              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+              previousDisabled={page <= 1}
+              nextDisabled={page >= totalPages}
+            />
+          ) : null}
         </div>
       )}
 
