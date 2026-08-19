@@ -25,14 +25,21 @@ import {
   PanelHeader,
   SectionHeader,
   Skeleton,
+  Textarea,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useToast } from "@/shared/providers";
 import {
+  compactSettingValue,
+  formatSettingDraft,
   localizedSettingDescription,
   localizedSettingTitle,
   matchesSearch,
+  mimeChipLabel,
+  parseStringArraySetting,
   settingStatus,
+  settingValuesEquivalent,
+  usesMultilineSettingEditor,
 } from "./configurationSections";
 
 export function SystemSettingsManagement({
@@ -159,7 +166,7 @@ export function SystemSettingsManagement({
 
   function startEdit(row: Setting) {
     setEditingKey(row.key);
-    setDraftValue(row.value);
+    setDraftValue(formatSettingDraft(row.value));
     setActionError(null);
   }
 
@@ -171,14 +178,16 @@ export function SystemSettingsManagement({
   async function submitSave(): Promise<void> {
     if (!editingKey || !canUpdate || saving) return;
     const current = settings.find((item) => item.key === editingKey);
-    if (current && draftValue === current.value) {
+    if (current && settingValuesEquivalent(draftValue, current.value)) {
       cancelEdit();
       return;
     }
     setSaving(true);
     setActionError(null);
     try {
-      const res = await updateSetting(editingKey, { value: draftValue });
+      const res = await updateSetting(editingKey, {
+        value: compactSettingValue(draftValue),
+      });
       setSettings((prev) =>
         prev.map((item) => (item.key === editingKey ? res.data : item)),
       );
@@ -198,13 +207,13 @@ export function SystemSettingsManagement({
     }
   }
 
-  function onDraftKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+  function onDraftKeyDown(event: KeyboardEvent<HTMLElement>): void {
     if (event.key === "Escape") {
       event.preventDefault();
       if (!saving) cancelEdit();
       return;
     }
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && event.currentTarget instanceof HTMLInputElement) {
       event.preventDefault();
       void submitSave();
     }
@@ -292,12 +301,17 @@ export function SystemSettingsManagement({
                   const description = settingDescription(row);
                   const status = settingStatus(row);
                   const editing = editingKey === row.key;
+                  const arrayItems = parseStringArraySetting(row.value);
+                  const multilineEditor = usesMultilineSettingEditor(
+                    row.value,
+                    row.valueType,
+                  );
 
                   return (
                     <article
                       key={row.id}
                       data-testid={`setting-key-${row.key}`}
-                      className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-[var(--ecmp-panel-gap)]"
+                      className="min-w-0 overflow-hidden rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-[var(--ecmp-panel-gap)]"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 space-y-1">
@@ -318,20 +332,59 @@ export function SystemSettingsManagement({
                         </div>
                       </div>
 
-                      <div className="mt-3 space-y-3">
+                      <div className="mt-3 min-w-0 space-y-3">
                         {editing ? (
-                          <Input
-                            name={`setting-${row.key}`}
-                            value={draftValue}
-                            onChange={(e) => setDraftValue(e.target.value)}
-                            onKeyDown={onDraftKeyDown}
-                            label={t("valueColumn")}
-                            aria-label={t("valueAriaLabel", { key: title })}
-                            autoFocus
-                          />
-                        ) : (
+                          multilineEditor ? (
+                            <Textarea
+                              name={`setting-${row.key}`}
+                              value={draftValue}
+                              onChange={(e) => setDraftValue(e.target.value)}
+                              onKeyDown={onDraftKeyDown}
+                              label={t("valueColumn")}
+                              aria-label={t("valueAriaLabel", { key: title })}
+                              helper={
+                                arrayItems ? t("settingJsonArrayHelper") : undefined
+                              }
+                              rows={8}
+                              className="break-all font-mono text-[length:var(--ecmp-font-helper-size)]"
+                              autoFocus
+                            />
+                          ) : (
+                            <Input
+                              name={`setting-${row.key}`}
+                              value={draftValue}
+                              onChange={(e) => setDraftValue(e.target.value)}
+                              onKeyDown={onDraftKeyDown}
+                              label={t("valueColumn")}
+                              aria-label={t("valueAriaLabel", { key: title })}
+                              autoFocus
+                            />
+                          )
+                        ) : row.value === "" ? (
                           <p className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                            {row.value === "" ? tCommon("emDash") : row.value}
+                            {tCommon("emDash")}
+                          </p>
+                        ) : arrayItems ? (
+                          <ul
+                            data-testid={`setting-value-chips-${row.key}`}
+                            className="flex min-w-0 flex-wrap gap-1.5"
+                          >
+                            {arrayItems.map((item) => (
+                              <li key={item} className="min-w-0">
+                                <Badge
+                                  tone="neutral"
+                                  variant="outline"
+                                  title={item}
+                                  className="max-w-full truncate"
+                                >
+                                  {mimeChipLabel(item)}
+                                </Badge>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="overflow-hidden break-all rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                            {row.value}
                           </p>
                         )}
 

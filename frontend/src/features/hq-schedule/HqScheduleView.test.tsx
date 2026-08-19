@@ -211,8 +211,9 @@ describe("HqScheduleView", () => {
     expect(
       await screen.findByRole("button", { name: "Previous week" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "This week" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "This week" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next week" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Week navigation" })).toBeInTheDocument();
     expect(screen.getByText("Swipe for other days")).toBeInTheDocument();
 
     const board = await screen.findByTestId("hq-schedule-board");
@@ -223,6 +224,16 @@ describe("HqScheduleView", () => {
     await waitFor(() => {
       expect(scrollIntoView).toHaveBeenCalled();
     });
+  });
+
+  it("enables This week after navigating away from the current week", async () => {
+    const user = userEvent.setup();
+    fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    expect(await screen.findByRole("button", { name: "This week" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Next week" }));
+    expect(screen.getByRole("button", { name: "This week" })).toBeEnabled();
   });
 
   it("shows the closed-week message when there are no working slots", async () => {

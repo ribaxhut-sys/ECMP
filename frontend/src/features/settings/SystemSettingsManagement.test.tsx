@@ -158,4 +158,98 @@ describe("SystemSettingsManagement", () => {
       ),
     ).not.toBeInTheDocument();
   });
+
+  it("renders Indonesian labels for notification settings when the locale is id", async () => {
+    fetchSettings.mockResolvedValue({
+      data: [
+        setting({
+          id: "s-channel",
+          key: "notification.default.channel",
+          value: "EMAIL",
+          valueType: "STRING",
+          category: "notification",
+          description: "Default notification channel (EMAIL|WHATSAPP|PUSH)",
+        }),
+      ],
+    });
+    render(
+      <NextIntlClientProvider
+        locale="id"
+        messages={idMessages}
+        timeZone="Asia/Jakarta"
+        now={new Date("2026-08-01T00:00:00Z")}
+      >
+        <ToastProvider>
+          <SystemSettingsManagement />
+        </ToastProvider>
+      </NextIntlClientProvider>,
+    );
+
+    const card = await screen.findByTestId(
+      "setting-key-notification.default.channel",
+    );
+    expect(within(card).getByText("Saluran notifikasi bawaan")).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "Saluran bawaan untuk notifikasi: EMAIL, WHATSAPP, atau PUSH.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Default notification channel (EMAIL|WHATSAPP|PUSH)"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders allowed MIME types as chips and edits them in a textarea", async () => {
+    const user = userEvent.setup();
+    const mimeValue = JSON.stringify([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/zip",
+    ]);
+    fetchSettings.mockResolvedValue({
+      data: [
+        setting({
+          id: "s-mime",
+          key: "storage.allowed.mime",
+          value: mimeValue,
+          valueType: "JSON",
+          category: "storage",
+          description: "Allowed attachment MIME types (JSON array)",
+        }),
+      ],
+    });
+    updateSetting.mockImplementation(async (_key: string, body: { value: string }) => ({
+      data: setting({
+        id: "s-mime",
+        key: "storage.allowed.mime",
+        value: body.value,
+        valueType: "JSON",
+        category: "storage",
+      }),
+    }));
+
+    renderWithProviders(<SystemSettingsManagement />);
+
+    const card = await screen.findByTestId("setting-key-storage.allowed.mime");
+    const chips = within(card).getByTestId("setting-value-chips-storage.allowed.mime");
+    expect(within(chips).getByText("PDF")).toHaveAttribute("title", "application/pdf");
+    expect(within(chips).getByText("DOCX")).toBeInTheDocument();
+    expect(within(chips).getByText("ZIP")).toBeInTheDocument();
+    expect(within(card).queryByText(mimeValue)).not.toBeInTheDocument();
+
+    await user.click(within(card).getByRole("button", { name: "Edit" }));
+    const editor = await within(card).findByRole("textbox", {
+      name: /Allowed file types/i,
+    });
+    expect(editor.tagName).toBe("TEXTAREA");
+    await user.clear(editor);
+    await user.paste('["application/pdf"]');
+    await user.click(within(card).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(updateSetting).toHaveBeenCalledWith("storage.allowed.mime", {
+        value: '["application/pdf"]',
+      });
+    });
+  });
 });

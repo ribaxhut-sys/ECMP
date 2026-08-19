@@ -90,3 +90,64 @@ export function localizedSettingDescription(
   const raw = input.description?.trim();
   return raw || fallback;
 }
+
+export function parseStringArraySetting(value: string): string[] | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    if (!parsed.every((item) => typeof item === "string" && item.trim() !== "")) {
+      return null;
+    }
+    return parsed.map((item) => item.trim());
+  } catch {
+    return null;
+  }
+}
+
+const MIME_CHIP_LABEL: Record<string, string> = {
+  "application/pdf": "PDF",
+  "image/jpeg": "JPEG",
+  "image/png": "PNG",
+  "image/gif": "GIF",
+  "image/webp": "WEBP",
+  "text/plain": "TXT",
+  "application/msword": "DOC",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "DOCX",
+  "application/vnd.ms-excel": "XLS",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
+  "application/zip": "ZIP",
+};
+
+export function mimeChipLabel(mime: string): string {
+  const key = mime.trim().toLowerCase();
+  if (MIME_CHIP_LABEL[key]) return MIME_CHIP_LABEL[key];
+  const subtype = key.split("/")[1] ?? key;
+  const last = subtype.split(".").at(-1) ?? subtype;
+  const compact = last.replace(/[^a-z0-9]+/gi, "").toUpperCase();
+  return compact || mime;
+}
+
+export function formatSettingDraft(value: string): string {
+  const items = parseStringArraySetting(value);
+  return items ? JSON.stringify(items, null, 2) : value;
+}
+
+export function compactSettingValue(value: string): string {
+  const items = parseStringArraySetting(value);
+  return items ? JSON.stringify(items) : value;
+}
+
+export function settingValuesEquivalent(left: string, right: string): boolean {
+  if (left === right) return true;
+  const a = parseStringArraySetting(left);
+  const b = parseStringArraySetting(right);
+  if (a && b) return JSON.stringify(a) === JSON.stringify(b);
+  return left.trim() === right.trim();
+}
+
+export function usesMultilineSettingEditor(value: string, valueType?: string): boolean {
+  if ((valueType ?? "").toUpperCase() === "JSON") return true;
+  if (parseStringArraySetting(value)) return true;
+  return value.length > 80;
+}

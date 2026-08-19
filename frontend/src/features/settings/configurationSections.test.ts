@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  compactSettingValue,
+  formatSettingDraft,
   humanizeSettingKey,
   localizedSettingDescription,
   localizedSettingTitle,
   matchesSearch,
+  mimeChipLabel,
+  parseStringArraySetting,
   settingDisplayTitle,
   settingI18nId,
   settingStatus,
+  settingValuesEquivalent,
+  usesMultilineSettingEditor,
 } from "./configurationSections";
 
 describe("humanizeSettingKey", () => {
@@ -115,5 +121,45 @@ describe("localizedSettingDescription", () => {
         "No description",
       ),
     ).toBe("Jumlah maksimum kedatangan wajib pajak per slot jadwal HQ.");
+  });
+});
+
+describe("parseStringArraySetting", () => {
+  it("parses a JSON string array and rejects invalid payloads", () => {
+    expect(parseStringArraySetting('["application/pdf","image/png"]')).toEqual([
+      "application/pdf",
+      "image/png",
+    ]);
+    expect(parseStringArraySetting("not-json")).toBeNull();
+    expect(parseStringArraySetting("[]")).toBeNull();
+  });
+});
+
+describe("mimeChipLabel", () => {
+  it("maps known MIME types to short labels", () => {
+    expect(mimeChipLabel("application/pdf")).toBe("PDF");
+    expect(
+      mimeChipLabel(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ),
+    ).toBe("DOCX");
+    expect(mimeChipLabel("application/zip")).toBe("ZIP");
+  });
+});
+
+describe("setting JSON draft helpers", () => {
+  const compact = '["application/pdf","image/jpeg"]';
+
+  it("pretty-prints and compact-roundtrips an array setting", () => {
+    expect(formatSettingDraft(compact)).toContain("\n");
+    expect(compactSettingValue(formatSettingDraft(compact))).toBe(compact);
+    expect(settingValuesEquivalent(formatSettingDraft(compact), compact)).toBe(
+      true,
+    );
+  });
+
+  it("uses a multiline editor for JSON arrays", () => {
+    expect(usesMultilineSettingEditor(compact, "JSON")).toBe(true);
+    expect(usesMultilineSettingEditor("2", "INTEGER")).toBe(false);
   });
 });

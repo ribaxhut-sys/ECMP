@@ -173,7 +173,7 @@ function SlotCard({
     return (
       <div
         data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
-        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2 py-1.5 text-center text-[length:var(--ecmp-font-helper-size)] font-medium leading-tight text-ecmp-text-secondary"
+        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2.5 py-3 text-center text-[length:var(--ecmp-font-helper-size)] font-medium text-ecmp-text-secondary"
       >
         {slot.startTime} · {breakLabel}
       </div>
@@ -187,14 +187,14 @@ function SlotCard({
       data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
       data-occupancy={occupancy}
       className={cn(
-        "rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 px-2 py-1.5",
+        "rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 px-2.5 py-3 min-h-16",
         "border-l-4",
         occupancy === "empty" && "border-l-ecmp-success bg-ecmp-success-subtle/40",
         occupancy === "partial" && "border-l-ecmp-warning bg-ecmp-warning-subtle/40",
         occupancy === "full" && "border-l-ecmp-danger bg-ecmp-danger-subtle/40",
       )}
     >
-      <div className="flex items-baseline justify-between gap-2 leading-tight">
+      <div className="flex items-baseline justify-between gap-2">
         <p className="text-[length:var(--ecmp-font-helper-size)] font-semibold text-ecmp-text-primary">
           {slot.startTime}
         </p>
@@ -203,7 +203,7 @@ function SlotCard({
         </p>
       </div>
       {booked ? (
-        <div className="mt-0.5 space-y-0.5">
+        <div className="mt-1.5 space-y-1">
           {slot.scheduledCases.map((proposal) => (
             <CaseLine
               key={proposal.complaintId}
@@ -251,7 +251,7 @@ function DayColumn({
       data-testid={`hq-schedule-day-${day.date}`}
       data-today={isToday ? "true" : undefined}
       className={cn(
-        "flex min-w-[11.5rem] shrink-0 snap-start flex-1 flex-col gap-1.5 rounded-[var(--ecmp-radius-card)] border p-2.5",
+        "flex min-w-[11.5rem] shrink-0 snap-start flex-1 flex-col gap-2 rounded-[var(--ecmp-radius-card)] border p-3",
         isToday
           ? "border-ecmp-primary bg-ecmp-primary-muted/40"
           : "border-ecmp-border/70 bg-ecmp-surface",
@@ -276,7 +276,7 @@ function DayColumn({
         ) : null}
       </header>
       {day.closed ? (
-        <p className="rounded-[var(--ecmp-radius-md)] bg-ecmp-danger-subtle px-2 py-1.5 text-center text-[length:var(--ecmp-font-helper-size)] leading-tight text-ecmp-danger-text">
+        <p className="rounded-[var(--ecmp-radius-md)] bg-ecmp-danger-subtle px-2.5 py-3 text-center text-[length:var(--ecmp-font-helper-size)] text-ecmp-danger-text">
           {closedCopy}
         </p>
       ) : (
@@ -482,6 +482,10 @@ export function HqScheduleView() {
   const hasOpenSlots = visibleDays.some(
     (day) => !day.closed && day.slots.length > 0,
   );
+  const viewingThisWeek =
+    toLocalDateKey(weekStart) === toLocalDateKey(startOfWeek(new Date()));
+  const weekNavButtonClass =
+    "!rounded-none !border-0 !shadow-none min-w-[var(--ecmp-touch-min)] sm:min-w-0";
 
   return (
     <PageContainer>
@@ -489,34 +493,36 @@ export function HqScheduleView() {
         title={t("title")}
         description={t("description")}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div
+            role="group"
+            aria-label={t("weekNavigationLabel")}
+            className="inline-flex divide-x divide-ecmp-border overflow-hidden rounded-[var(--ecmp-radius-button)] border border-ecmp-border bg-ecmp-surface shadow-ecmp-surface"
+          >
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              className="min-w-[var(--ecmp-touch-min)] sm:min-w-0"
+              className={weekNavButtonClass}
               aria-label={t("previousWeek")}
-              leftIcon={
-                <IconChevronRight className="size-4 rotate-180 sm:hidden" aria-hidden />
-              }
+              leftIcon={<IconChevronRight className="size-4 rotate-180" aria-hidden />}
               onClick={() => setWeekStart((prev) => addDays(prev, -7))}
             >
               <span className="hidden sm:inline">{t("previousWeek")}</span>
             </Button>
             <Button
-              variant="secondary"
+              variant={viewingThisWeek ? "ghost" : "primary"}
               size="sm"
+              className={weekNavButtonClass}
+              disabled={viewingThisWeek}
               onClick={() => setWeekStart(startOfWeek(new Date()))}
             >
               {t("thisWeek")}
             </Button>
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              className="min-w-[var(--ecmp-touch-min)] sm:min-w-0"
+              className={weekNavButtonClass}
               aria-label={t("nextWeek")}
-              rightIcon={
-                <IconChevronRight className="size-4 sm:hidden" aria-hidden />
-              }
+              rightIcon={<IconChevronRight className="size-4" aria-hidden />}
               onClick={() => setWeekStart((prev) => addDays(prev, 7))}
             >
               <span className="hidden sm:inline">{t("nextWeek")}</span>
@@ -536,21 +542,21 @@ export function HqScheduleView() {
               accent="normal"
               title={t("weekArrivalsLabel")}
               value={<span className="tabular-nums">{weekStats.scheduled}</span>}
-              className="flex flex-row items-center justify-between gap-2 !p-2.5 md:!p-3 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
+              className="flex flex-row items-center justify-between gap-2 !p-3 md:!p-3.5 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
             />
             <StatCard
               hierarchy="supporting"
               accent={weekStats.today > 0 ? "attention" : "normal"}
               title={t("todayArrivalsLabel")}
               value={<span className="tabular-nums">{weekStats.today}</span>}
-              className="flex flex-row items-center justify-between gap-2 !p-2.5 md:!p-3 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
+              className="flex flex-row items-center justify-between gap-2 !p-3 md:!p-3.5 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
             />
             <StatCard
               hierarchy="supporting"
               accent="healthy"
               title={t("emptySlotsLabel")}
               value={<span className="tabular-nums">{weekStats.empty}</span>}
-              className="flex flex-row items-center justify-between gap-2 !p-2.5 md:!p-3 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
+              className="flex flex-row items-center justify-between gap-2 !p-3 md:!p-3.5 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
             />
           </div>
 
