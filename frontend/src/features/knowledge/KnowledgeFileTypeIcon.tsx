@@ -35,6 +35,11 @@ export function KnowledgeFileTypeIcon({
       <IconFile className={cn(box, "shrink-0 text-ecmp-danger", className)} aria-hidden />
     );
   }
+  if (kind === "docx") {
+    return (
+      <IconFile className={cn(box, "shrink-0 text-ecmp-info", className)} aria-hidden />
+    );
+  }
   return (
     <IconFile className={cn(box, "shrink-0 text-ecmp-text-secondary", className)} aria-hidden />
   );

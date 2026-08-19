@@ -11,7 +11,14 @@ const IMAGE_MIME = new Set([
 const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 const PDF_EXT = new Set([".pdf"]);
 
-export type PreviewKind = "image" | "pdf" | "unsupported";
+/**
+ * Only OOXML Word (.docx) can be rendered in-browser (docx-preview).
+ * Legacy binary .doc has no client-side renderer — stays download-only.
+ */
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const DOCX_EXT = new Set([".docx"]);
+
+export type PreviewKind = "image" | "pdf" | "docx" | "unsupported";
 
 /** Internal complaint create/detail — images + ZIP only. */
 export const INTERNAL_COMPLAINT_FILE_ACCEPT =
@@ -68,6 +75,9 @@ export function getPreviewKind(
   }
   if (IMAGE_MIME.has(mime) || IMAGE_EXT.has(ext)) {
     return "image";
+  }
+  if (mime === DOCX_MIME || DOCX_EXT.has(ext)) {
+    return "docx";
   }
   return "unsupported";
 }

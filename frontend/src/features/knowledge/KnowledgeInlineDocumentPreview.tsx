@@ -8,6 +8,7 @@ import {
   type Attachment,
 } from "@/lib/api";
 import type { KnowledgeFile } from "@/lib/api/types";
+import { DocxPreview } from "@/features/attachments/DocxPreview";
 import { getPreviewKind, type PreviewKind } from "@/features/attachments/fileTypes";
 import { Alert, Button } from "@/shared/ui";
 import { IconDownload, IconSpinner } from "@/shared/icons";
@@ -16,7 +17,7 @@ import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
 /**
  * Inline document preview for Knowledge detail (content-first).
- * PDF → iframe; image → img; other → download prompt.
+ * PDF → iframe; image → img; .docx → DocxPreview; other → download prompt.
  */
 export function KnowledgeInlineDocumentPreview({
   file,
@@ -37,6 +38,7 @@ export function KnowledgeInlineDocumentPreview({
   );
 
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [docxBlob, setDocxBlob] = useState<Blob | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const urlRef = useRef<string | null>(null);
@@ -47,6 +49,7 @@ export function KnowledgeInlineDocumentPreview({
       urlRef.current = null;
     }
     setObjectUrl(null);
+    setDocxBlob(null);
   }, []);
 
   useEffect(() => {
@@ -63,6 +66,10 @@ export function KnowledgeInlineDocumentPreview({
       try {
         const result = await downloadAttachment(attachment.id);
         if (cancelled) return;
+        if (kind === "docx") {
+          setDocxBlob(result.blob);
+          return;
+        }
         const url = URL.createObjectURL(result.blob);
         urlRef.current = url;
         setObjectUrl(url);
@@ -135,6 +142,11 @@ export function KnowledgeInlineDocumentPreview({
             src={objectUrl}
             className="h-[min(70vh,720px)] w-full border-0"
           />
+        ) : null}
+        {!loading && !error && kind === "docx" && docxBlob ? (
+          <div className="max-h-[min(70vh,720px)] overflow-auto p-4">
+            <DocxPreview blob={docxBlob} onDownload={() => void onDownload()} />
+          </div>
         ) : null}
         {!loading && !error && kind === "image" && objectUrl ? (
           <div className="flex max-h-[min(70vh,720px)] items-center justify-center overflow-auto p-4">

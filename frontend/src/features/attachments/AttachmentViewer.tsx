@@ -16,6 +16,7 @@ import {
   IconZoomOut,
 } from "@/shared/icons";
 import { Alert, Button } from "@/shared/ui";
+import { DocxPreview } from "./DocxPreview";
 import { getPreviewKind, type PreviewKind } from "./fileTypes";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 
@@ -42,7 +43,8 @@ export interface AttachmentViewerProps {
 
 /**
  * Lazy preview modal: downloads bytes only after open.
- * Images: zoom. PDF: browser iframe viewer. Unsupported: message + download.
+ * Images: zoom. PDF: browser iframe viewer. DOCX: DocxPreview (lazy chunk).
+ * Unsupported: message + download.
  */
 export function AttachmentViewer({
   attachment,
@@ -59,6 +61,7 @@ export function AttachmentViewer({
   );
 
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [docxBlob, setDocxBlob] = useState<Blob | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -70,6 +73,7 @@ export function AttachmentViewer({
       urlRef.current = null;
     }
     setObjectUrl(null);
+    setDocxBlob(null);
   }, []);
 
   const loadPreview = useCallback(async () => {
@@ -83,12 +87,18 @@ export function AttachmentViewer({
     try {
       const result = await downloadAttachment(attachment.id);
       revoke();
+      if (kind === "docx") {
+        // DocxPreview owns the render pass (and its own spinner) from here.
+        setDocxBlob(result.blob);
+        setLoading(false);
+        return;
+      }
       const url = URL.createObjectURL(result.blob);
       urlRef.current = url;
       setObjectUrl(url);
+      setLoading(false);
     } catch (err) {
       setError(mapLoadError(err, t, tErrors, tCommon));
-    } finally {
       setLoading(false);
     }
   }, [attachment.id, kind, revoke, t, tErrors, tCommon]);
@@ -282,6 +292,14 @@ export function AttachmentViewer({
               src={objectUrl}
               className="h-[70vh] w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface"
               data-testid="attachment-pdf-preview"
+            />
+          ) : null}
+
+          {!loading && !error && kind === "docx" && docxBlob ? (
+            <DocxPreview
+              blob={docxBlob}
+              onDownload={() => void handleDownload()}
+              className="w-full"
             />
           ) : null}
         </div>

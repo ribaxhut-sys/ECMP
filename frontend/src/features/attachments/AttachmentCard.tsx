@@ -36,6 +36,7 @@ function TypeIcon({
   const kind = getPreviewKind(mimeType, extension, filename);
   if (kind === "image") return <IconImage className="size-8 text-ecmp-primary" />;
   if (kind === "pdf") return <IconFile className="size-8 text-ecmp-danger" />;
+  if (kind === "docx") return <IconFile className="size-8 text-ecmp-info" />;
   return <IconFile className="size-8 text-ecmp-text-secondary" />;
 }
 

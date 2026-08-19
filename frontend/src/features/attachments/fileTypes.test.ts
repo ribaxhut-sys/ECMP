@@ -29,6 +29,23 @@ describe("getPreviewKind", () => {
       "unsupported",
     );
   });
+
+  it("classifies .docx by mime or extension but keeps legacy .doc unsupported", () => {
+    expect(
+      getPreviewKind(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        null,
+        "surat.bin",
+      ),
+    ).toBe("docx");
+    expect(getPreviewKind("application/octet-stream", ".docx", "surat.docx")).toBe(
+      "docx",
+    );
+    expect(getPreviewKind("", null, "Surat Keluhan.DOCX")).toBe("docx");
+    expect(getPreviewKind("application/msword", ".doc", "surat.doc")).toBe(
+      "unsupported",
+    );
+  });
 });
 
 describe("isAllowedInternalComplaintFile", () => {
