@@ -254,7 +254,27 @@ def test_handling_party_requires_current_handling_unit() -> None:
         )
 
 
-def test_creator_sod_blocks_sole_approval() -> None:
+def test_creator_sod_allows_own_unit_supervisor_self_close() -> None:
+    """2026-08-19: Supervisor/Manager closing a case they authored on their
+    own unit does not need a second Supervisor/Manager (mirrors the Agent
+    own-unit exemption)."""
+    creator = uuid.uuid4()
+    supervisor = _principal(
+        user_id=creator, roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
+    )
+    assert_case_acceptance_authorized(
+        supervisor,
+        party="OWNER",
+        owner_unit_id="UPPPD-GAMBIR",
+        handling_unit_id="UPPPD-GAMBIR",
+        actor_unit_id="UPPPD-GAMBIR",
+        complaint_creator_id=str(creator),
+    )
+
+
+def test_creator_sod_blocks_cross_unit_self_approval() -> None:
+    """Creator SoD still applies when the approver is not on the party's
+    own unit — the own-unit exemption does not extend cross-unit."""
     creator = uuid.uuid4()
     supervisor = _principal(
         user_id=creator, roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
@@ -262,6 +282,20 @@ def test_creator_sod_blocks_sole_approval() -> None:
     with pytest.raises(PermissionDeniedError):
         assert_case_acceptance_authorized(
             supervisor,
+            party="OWNER",
+            owner_unit_id="PUSAT",
+            handling_unit_id="PUSAT",
+            actor_unit_id="UPPPD-GAMBIR",
+            complaint_creator_id=str(creator),
+        )
+
+
+def test_creator_sod_blocks_admin_unconditionally() -> None:
+    creator = uuid.uuid4()
+    admin = _principal(user_id=creator, roles=("ADMIN",), org_unit_id="UPPPD-GAMBIR")
+    with pytest.raises(PermissionDeniedError):
+        assert_case_acceptance_authorized(
+            admin,
             party="OWNER",
             owner_unit_id="UPPPD-GAMBIR",
             handling_unit_id="UPPPD-GAMBIR",
@@ -545,15 +579,15 @@ def test_http_agent_can_resolve_accept_on_own_unit(db_session: Session) -> None:
         client.app.dependency_overrides.clear()
 
 
-def test_http_supervisor_creator_sod_blocks_owner_acceptance(
+def test_http_supervisor_creator_can_close_on_own_unit(
     db_session: Session,
 ) -> None:
+    """2026-08-19: creator Supervisor may close their own-unit case alone."""
     creator = uuid.uuid4()
-    other = uuid.uuid4()
     client, state = _http_client(
         db_session,
         principal=_principal(
-            user_id=other, roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
+            user_id=creator, roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
         ),
     )
     try:
@@ -565,16 +599,46 @@ def test_http_supervisor_creator_sod_blocks_owner_acceptance(
         case_id = _bring_to_resolved(
             client, complaint_id=complaint_id, unit="UPPPD-GAMBIR"
         )
-        # Creator Supervisor tries Owner acceptance → SoD deny.
-        state["principal"] = _principal(
-            user_id=creator, roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
+        allowed = client.post(
+            f"/api/v1/cm/cases/{case_id}/acceptance",
+            json={"party": "OWNER", "decision": "ACCEPT"},
         )
+        assert allowed.status_code == 200, allowed.text
+        assert allowed.json()["data"]["status"] == "CLOSED"
+    finally:
+        client.app.dependency_overrides.clear()
+
+
+def test_http_supervisor_creator_sod_blocks_cross_unit_owner_acceptance(
+    db_session: Session,
+) -> None:
+    """Creator SoD still applies when the Supervisor is acting cross-unit."""
+    creator = uuid.uuid4()
+    client, state = _http_client(
+        db_session,
+        principal=_principal(
+            user_id=creator, roles=("SUPERVISOR",), org_unit_id="PUSAT"
+        ),
+    )
+    try:
+        complaint_id = _seed_complaint(
+            db_session,
+            owning_unit_id="UPPPD-GAMBIR",
+            created_by=str(creator),
+        )
+        # Handling unit = Pusat (creator's own unit) so the resolve-ACCEPT
+        # step itself succeeds; Owner unit stays Gambir for the real test.
+        case_id = _bring_to_resolved(
+            client, complaint_id=complaint_id, unit="PUSAT"
+        )
+        # Creator Supervisor at Pusat, Owner unit is Gambir — SoD deny.
         denied = client.post(
             f"/api/v1/cm/cases/{case_id}/acceptance",
             json={"party": "OWNER", "decision": "ACCEPT"},
         )
         assert denied.status_code == 403
         # Different Supervisor on Owner unit may accept.
+        other = uuid.uuid4()
         state["principal"] = _principal(
             user_id=other, roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
         )
@@ -588,9 +652,11 @@ def test_http_supervisor_creator_sod_blocks_owner_acceptance(
         client.app.dependency_overrides.clear()
 
 
-def test_http_manager_creator_sod_blocks_handler_resolve_accept(
+def test_http_manager_creator_can_resolve_accept_on_own_unit(
     db_session: Session,
 ) -> None:
+    """2026-08-19: Manager may resolve-ACCEPT (own-unit Handling stamp) on a
+    case they created themselves without a second Supervisor/Manager."""
     creator = uuid.uuid4()
     client, _state = _http_client(
         db_session,
@@ -610,6 +676,53 @@ def test_http_manager_creator_sod_blocks_handler_resolve_accept(
                 "complaintId": complaint_id,
                 "caseType": "BILLING",
                 "subject": "Manager creator",
+                "description": "desc",
+                "priority": "MEDIUM",
+                "destinationUnitId": "UPPPD-GAMBIR",
+            },
+        )
+        case_id = create.json()["data"]["caseId"]
+        client.patch(
+            f"/api/v1/cm/cases/{case_id}/status",
+            json={"toStatus": "IN_PROGRESS"},
+        )
+        allowed = client.post(
+            f"/api/v1/cm/cases/{case_id}/resolve",
+            json={
+                "action": "ACCEPT",
+                "comment": "OK",
+                "resolutionCode": "FIXED",
+                "summary": "Done",
+            },
+        )
+        assert allowed.status_code == 200, allowed.text
+    finally:
+        client.app.dependency_overrides.clear()
+
+
+def test_http_manager_creator_sod_blocks_cross_unit_resolve_accept(
+    db_session: Session,
+) -> None:
+    """Creator SoD still applies for a Manager resolving cross-unit."""
+    creator = uuid.uuid4()
+    client, _state = _http_client(
+        db_session,
+        principal=_principal(
+            user_id=creator, roles=("MANAGER",), org_unit_id="PUSAT"
+        ),
+    )
+    try:
+        complaint_id = _seed_complaint(
+            db_session,
+            owning_unit_id="UPPPD-GAMBIR",
+            created_by=str(creator),
+        )
+        create = client.post(
+            "/api/v1/cm/cases",
+            json={
+                "complaintId": complaint_id,
+                "caseType": "BILLING",
+                "subject": "Manager creator cross-unit",
                 "description": "desc",
                 "priority": "MEDIUM",
                 "destinationUnitId": "UPPPD-GAMBIR",

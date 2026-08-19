@@ -2,7 +2,8 @@
  * Internal-complaint dual-acceptance UI gate (ECMP-MODEA-INT-001).
  * Mirrors backend `assert_case_acceptance_authorized` (Mode A):
  * Agent may accept only on own unit; Supervisor/Manager on matching unit;
- * Admin any party; creator SoD for approver roles.
+ * Admin any party; creator SoD unless acting on own unit (Agent, or
+ * Supervisor/Manager — 2026-08-19). Admin creators stay blocked.
  *
  * Local (owner = handling): remaining close gate is Supervisor of the owner
  * unit. Handling is already stamped on resolve ACCEPT.
@@ -69,17 +70,22 @@ export function mayRecordInternalAcceptance(input: {
   const isApprover = hasAny(roles, APPROVER_ROLES);
   const isAgent = !isApprover && hasAny(roles, AGENT_ROLES);
   if (!isAgent && !isApprover) return false;
-  if (isApprover && idsEqual(input.actorUserId, input.creatorUserId)) {
-    return false;
-  }
-  if (hasAny(roles, ADMIN_ROLES)) return true;
+
+  const isUnitApprover = hasAny(roles, UNIT_APPROVER_ROLES);
+  const isCreator = idsEqual(input.actorUserId, input.creatorUserId);
 
   const actorUnit = normalizeAcceptanceUnit(input.actorUnitCode);
   const required =
     input.party === "OWNER"
       ? normalizeAcceptanceUnit(input.ownerUnitId)
       : normalizeAcceptanceUnit(input.handlingUnitId);
-  return Boolean(required) && actorUnit === required;
+  const ownUnit = Boolean(required) && actorUnit === required;
+
+  if (isCreator && !(isAgent || (isUnitApprover && ownUnit))) {
+    return false;
+  }
+  if (hasAny(roles, ADMIN_ROLES)) return true;
+  return ownUnit;
 }
 
 /**

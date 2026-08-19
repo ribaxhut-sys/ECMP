@@ -66,11 +66,22 @@ describe("mayRecordInternalAcceptance", () => {
     ).toEqual(["HANDLING_UNIT", "OWNER"]);
   });
 
-  it("blocks supervisor who created the complaint", () => {
+  it("allows supervisor who created the complaint to act on their own unit", () => {
     expect(
       allowedInternalAcceptanceParties({
         roles: ["SUPERVISOR"],
         actorUnitCode: "UPPPD-TANAH-ABANG",
+        actorUserId: "user-3102",
+        ...ticket,
+      }),
+    ).toEqual(["OWNER"]);
+  });
+
+  it("blocks supervisor who created the complaint when acting cross-unit", () => {
+    expect(
+      allowedInternalAcceptanceParties({
+        roles: ["SUPERVISOR"],
+        actorUnitCode: "OTHER-UNIT",
         actorUserId: "user-3102",
         ...ticket,
       }),

@@ -6,9 +6,14 @@ creator (SoD) checks on top of that gate.
 
 Mode A product policy (2026-08-12): Agent-family may complete Handling Unit /
 Owner acceptance **on their own unit** (actor unit == party unit). Cross-unit
-ACCEPT remains Supervisor/Manager/Admin. Creator SoD still applies to
-approver roles; Agents on own-unit are exempt so intake officers can Tutup
-cases they registered.
+ACCEPT remains Supervisor/Manager/Admin.
+
+Mode A product policy (2026-08-19): Creator SoD is only enforced when the
+approver is acting on a unit other than their own. Agent-family (as before)
+and Supervisor/Manager acting on their own unit may accept/close a case they
+authored themselves — a second Supervisor/Manager is not required in that
+case. Admin creators remain blocked unconditionally (Admin has no home-unit
+scoping to anchor the exemption to).
 """
 
 from __future__ import annotations
@@ -68,8 +73,10 @@ def assert_case_acceptance_authorized(
     - role is Agent (own-unit only) or Supervisor / Manager / Admin;
     - actor unit matches the party unit (Owner → owner_unit_id,
       HANDLING_UNIT → current handling / owning_unit_id), unless Admin;
-    - creator SoD for approver roles: complaint creator cannot be the sole
-      approver (Agents on own-unit exempt for Mode A Tutup).
+    - creator SoD: complaint creator cannot be the sole approver, unless
+      acting on their own unit (Agent Mode A Tutup, or Supervisor/Manager
+      closing a case they authored within their own unit — 2026-08-19).
+      Admin creators are always blocked (no home-unit anchor).
     """
     party_key = (party or "").strip().upper()
     if party_key not in {"OWNER", "HANDLING_UNIT"}:
@@ -80,24 +87,26 @@ def assert_case_acceptance_authorized(
     if not is_agent and not is_approver:
         raise PermissionDeniedError(m("case.acceptance_role_denied"))
 
-    # Creator SoD — keep for Supervisor/Manager; Agents may Tutup own-unit cases
-    # they registered (Mode A branch path).
-    if is_approver and _ids_equal(str(principal.user_id), complaint_creator_id):
+    is_unit_approver = principal.has_any_role(*_UNIT_APPROVER_ROLES)
+    is_creator = _ids_equal(str(principal.user_id), complaint_creator_id)
+
+    actor_unit = OrgUnitResolver.normalize(actor_unit_id)
+    if party_key == "OWNER":
+        required = OrgUnitResolver.normalize(owner_unit_id)
+        mismatch_message = "case.acceptance_owner_unit_mismatch"
+    else:
+        required = OrgUnitResolver.normalize(handling_unit_id)
+        mismatch_message = "case.acceptance_handling_unit_mismatch"
+    own_unit = bool(required) and actor_unit == required
+
+    if is_creator and not (is_agent or (is_unit_approver and own_unit)):
         raise PermissionDeniedError(m("case.acceptance_creator_conflict"))
 
     if principal.has_any_role(*_ADMIN_ROLES):
         return
 
-    actor_unit = OrgUnitResolver.normalize(actor_unit_id)
-    if party_key == "OWNER":
-        required = OrgUnitResolver.normalize(owner_unit_id)
-        if not required or actor_unit != required:
-            raise PermissionDeniedError(m("case.acceptance_owner_unit_mismatch"))
-        return
-
-    required = OrgUnitResolver.normalize(handling_unit_id)
-    if not required or actor_unit != required:
-        raise PermissionDeniedError(m("case.acceptance_handling_unit_mismatch"))
+    if not own_unit:
+        raise PermissionDeniedError(m(mismatch_message))
 
 
 def assert_case_resolve_accept_authorized(

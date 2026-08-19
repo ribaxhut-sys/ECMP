@@ -748,10 +748,27 @@ def test_wrong_unit_acceptance_denied():
         )
 
 
-def test_creator_cannot_be_sole_approver():
+def test_creator_may_be_sole_approver_on_own_unit():
+    """2026-08-19: Supervisor/Manager closing their own-unit case they
+    authored no longer needs a second Supervisor/Manager."""
     creator_id = uuid.uuid4()
     sv = _principal(
         user_id=creator_id, roles=("SUPERVISOR",), org_unit_id="UPPPD-GAMBIR"
+    )
+    assert_case_acceptance_authorized(
+        sv,
+        party="OWNER",
+        owner_unit_id="UPPPD-GAMBIR",
+        handling_unit_id="PUSAT",
+        actor_unit_id="UPPPD-GAMBIR",
+        complaint_creator_id=str(creator_id),
+    )
+
+
+def test_creator_cannot_be_sole_approver_cross_unit():
+    creator_id = uuid.uuid4()
+    sv = _principal(
+        user_id=creator_id, roles=("SUPERVISOR",), org_unit_id="PUSAT"
     )
     with pytest.raises(PermissionDeniedError):
         assert_case_acceptance_authorized(
@@ -759,7 +776,7 @@ def test_creator_cannot_be_sole_approver():
             party="OWNER",
             owner_unit_id="UPPPD-GAMBIR",
             handling_unit_id="PUSAT",
-            actor_unit_id="UPPPD-GAMBIR",
+            actor_unit_id="PUSAT",
             complaint_creator_id=str(creator_id),
         )
 
