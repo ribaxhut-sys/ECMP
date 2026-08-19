@@ -14,6 +14,7 @@ from app.modules.internal_complaint.domain.value_objects import (
     RESOLUTION_SENTINEL,
     AcceptanceDecision,
     AcceptanceParty,
+    CompletionRequestStatus,
     HistoryEventType,
     InternalComplaintNumber,
     InternalStatus,
@@ -22,6 +23,8 @@ from app.modules.internal_complaint.domain.value_objects import (
     TransferRequestStatus,
     WithdrawRequestStatus,
 )
+
+_CANONICAL_PUSAT_UNIT = "PUSAT"
 
 
 def is_branch_pusat_transfer(source_unit_id: str, target_unit_id: str) -> bool:
@@ -158,6 +161,10 @@ class InternalComplaintAggregate:
     withdrawn_by: str | None = None
     withdrawn_at: datetime | None = None
     withdraw_reason: str | None = None
+    completion_request_status: CompletionRequestStatus | None = None
+    completion_return_reason: str | None = None
+    completion_returned_by: str | None = None
+    completion_returned_at: datetime | None = None
 
     def _append_history(
         self,
@@ -299,6 +306,11 @@ class InternalComplaintAggregate:
             )
         self.handling_unit_id = target
         self.status = InternalStatus.ASSIGNED
+        if is_pusat_unit(target):
+            self.completion_request_status = None
+            self.completion_return_reason = None
+            self.completion_returned_by = None
+            self.completion_returned_at = None
         self.updated_at = _utcnow()
         self._append_history(
             event_type=HistoryEventType.TRANSFER,
@@ -461,6 +473,11 @@ class InternalComplaintAggregate:
                 "Receive/handle requires CREATED or ASSIGNED.",
                 details={"status": self.status.value},
             )
+        if self.completion_request_status == CompletionRequestStatus.PENDING:
+            raise err.invalid_state(
+                "Complete documents and resend to Pusat before receive.",
+                details={"completionRequestStatus": "PENDING"},
+            )
         self.status = InternalStatus.IN_PROGRESS
         self.updated_at = _utcnow()
         self._append_history(
@@ -478,6 +495,117 @@ class InternalComplaintAggregate:
             note="Review started",
             source_unit_id=self.handling_unit_id,
             target_unit_id=self.handling_unit_id,
+        )
+
+    def _clear_pending_withdraw_request(self) -> None:
+        if self.withdraw_request_status != WithdrawRequestStatus.PENDING:
+            return
+        self.withdraw_request_status = None
+        self.withdraw_request_reason = None
+        self.withdraw_requested_by = None
+        self.withdraw_requested_at = None
+        self.withdraw_decided_by = None
+        self.withdraw_decided_at = None
+        self.withdraw_decision_reason = None
+
+    def return_for_completion(
+        self,
+        *,
+        actor_id: str,
+        reason: str,
+        actor_unit_id: str | None = None,
+    ) -> None:
+        """Pusat returns Handling to the owner branch — documents incomplete.
+
+        Not WITHDRAWN. Ticket stays alive at ASSIGNED on the owner unit.
+        """
+        if self.status not in (InternalStatus.ASSIGNED, InternalStatus.IN_PROGRESS):
+            raise err.invalid_state(
+                "Return for completion requires ASSIGNED or IN_PROGRESS.",
+                details={"status": self.status.value},
+            )
+        if is_pusat_unit(self.owner_unit_id) or not is_pusat_unit(
+            self.handling_unit_id
+        ):
+            raise err.invalid_state(
+                "Return for completion is only for branch-owned tickets at Pusat."
+            )
+        if self.completion_request_status == CompletionRequestStatus.PENDING:
+            raise err.conflict(
+                "COMPLETION_REQUEST_PENDING",
+                "Documents were already requested from the branch.",
+            )
+        reason_text = (reason or "").strip()
+        if not reason_text:
+            raise err.validation(
+                "reason is required to return for completion",
+                details={"field": "reason"},
+            )
+        now = _utcnow()
+        source = self.handling_unit_id
+        self._clear_pending_withdraw_request()
+        self.handling_unit_id = self.owner_unit_id
+        self.status = InternalStatus.ASSIGNED
+        self.completion_request_status = CompletionRequestStatus.PENDING
+        self.completion_return_reason = reason_text
+        self.completion_returned_by = actor_id
+        self.completion_returned_at = now
+        self.updated_at = now
+        self._append_history(
+            event_type=HistoryEventType.RETURNED_FOR_COMPLETION,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            note=reason_text,
+            source_unit_id=source,
+            target_unit_id=self.owner_unit_id,
+        )
+
+    def resend_to_pusat(
+        self,
+        *,
+        actor_id: str,
+        actor_unit_id: str | None = None,
+        note: str | None = None,
+    ) -> None:
+        """Branch resends to Pusat after completing documents."""
+        if self.completion_request_status != CompletionRequestStatus.PENDING:
+            raise err.conflict(
+                "NO_PENDING_COMPLETION_REQUEST",
+                "Ticket is not waiting for document completion.",
+            )
+        if self.status != InternalStatus.ASSIGNED:
+            raise err.invalid_state(
+                "Resend to Pusat requires status ASSIGNED.",
+                details={"status": self.status.value},
+            )
+        if self.handling_unit_id != self.owner_unit_id or is_pusat_unit(
+            self.owner_unit_id
+        ):
+            raise err.invalid_state(
+                "Resend to Pusat requires Handling back at the owner branch."
+            )
+        note_text = (note or "").strip()
+        if not note_text:
+            raise err.validation(
+                "note is required to resend to Pusat",
+                details={"field": "note"},
+            )
+        now = _utcnow()
+        source = self.handling_unit_id
+        self.handling_unit_id = _CANONICAL_PUSAT_UNIT
+        self.status = InternalStatus.ASSIGNED
+        self.completion_request_status = None
+        self.completion_return_reason = None
+        self.completion_returned_by = None
+        self.completion_returned_at = None
+        self.updated_at = now
+        self._append_history(
+            event_type=HistoryEventType.RESENT_TO_PUSAT,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            note=note_text,
+            source_unit_id=source,
+            target_unit_id=_CANONICAL_PUSAT_UNIT,
         )
 
     def withdraw(

@@ -11,6 +11,8 @@ export interface DocxPreviewProps {
   /** Optional download fallback offered when rendering fails. */
   onDownload?: () => void;
   className?: string;
+  /** Page scale factor (shared zoom controls); 1 = natural size. */
+  zoom?: number;
 }
 
 /**
@@ -20,7 +22,7 @@ export interface DocxPreviewProps {
  * Legacy binary .doc is NOT handled here — `getPreviewKind` keeps it
  * "unsupported" (download only).
  */
-export function DocxPreview({ blob, onDownload, className }: DocxPreviewProps) {
+export function DocxPreview({ blob, onDownload, className, zoom = 1 }: DocxPreviewProps) {
   const t = useTranslations("attachments");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -85,10 +87,17 @@ export function DocxPreview({ blob, onDownload, className }: DocxPreviewProps) {
         </div>
       ) : null}
 
-      {/* docx-preview writes into this node (and its scoped <style>). */}
+      {/* docx-preview writes into this node (and its scoped <style>). Scale
+          from the top so zooming in keeps the page you're reading in place
+          instead of re-centering the whole document. */}
       <div
         ref={containerRef}
-        className={rendering || failed ? "hidden" : "w-full overflow-x-auto"}
+        className={
+          rendering || failed
+            ? "hidden"
+            : "w-full origin-top overflow-x-auto transition-transform duration-[var(--ecmp-duration-fast)]"
+        }
+        style={{ transform: `scale(${zoom})` }}
       />
     </div>
   );

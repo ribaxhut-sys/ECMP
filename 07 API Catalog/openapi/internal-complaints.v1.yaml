@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.0.0
+  version: 1.1.0
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -13,7 +13,10 @@ info:
     wajib), diputus oleh Supervisor/Manager/Admin via `/transfer-request/decision`.
     Cabang boleh membatalkan sebelum Pusat menerima (`WITHDRAWN`, tanpa
     notifikasi ke Pusat); setelah Terima, cabang mengajukan pembatalan dan
-    Pusat memutus via `/withdraw-request/decision`. Lampiran memakai mesin
+    Pusat memutus via `/withdraw-request/decision`. Pusat boleh mengembalikan
+    ke cabang jika berkas kurang (`/return-for-completion`, alasan wajib) —
+    sebelum atau sesudah Terima; cabang mengirim ulang via `/resend-to-pusat`.
+    Bukan Tolak/`WITHDRAWN`. Lampiran memakai mesin
     bersama CAPABILITY-011 (`POST/GET /api/v1/attachments`) dengan
     `aggregateType=InternalComplaint` — bukan staging Batch-1 / FR-004.
     Tipe yang diizinkan untuk Internal: gambar (JPEG/PNG/GIF/WebP) dan ZIP
@@ -200,6 +203,60 @@ paths:
       responses:
         "200":
           description: Received
+  /api/v1/internal/complaints/{complaintId}/return-for-completion:
+    post:
+      operationId: returnInternalComplaintForCompletion
+      tags: [Internal-Complaints]
+      summary: Pusat returns ticket to branch — documents incomplete (not WITHDRAWN)
+      description: >
+        Handling Unit (Pusat) returns Handling to the owner branch because
+        attachments or information are incomplete. Allowed in ASSIGNED
+        (before receive) or IN_PROGRESS (after receive). Reason required.
+        Status stays ASSIGNED at the owner unit; completionRequestStatus
+        becomes PENDING. Ticket remains alive. Branch then uses
+        `/resend-to-pusat`.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnForCompletionRequest"
+      responses:
+        "200":
+          description: Returned to owner unit (ASSIGNED, PENDING completion)
+        "409":
+          description: Not a branch→Pusat ticket, or already awaiting completion
+  /api/v1/internal/complaints/{complaintId}/resend-to-pusat:
+    post:
+      operationId: resendInternalComplaintToPusat
+      tags: [Internal-Complaints]
+      summary: Branch resends to Pusat after completing documents
+      description: >
+        Owner-unit actor only, while completionRequestStatus is PENDING
+        and Handling is back at the owner. `note` is required (what was
+        completed). Moves Handling to Pusat (ASSIGNED) so Pusat can Receive
+        again.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendToPusatRequest"
+      responses:
+        "200":
+          description: Resent to Pusat (ASSIGNED)
+        "409":
+          description: Not awaiting completion
   /api/v1/internal/complaints/{complaintId}/withdraw:
     post:
       operationId: withdrawInternalComplaint
@@ -368,6 +425,11 @@ components:
           type: string
           nullable: true
           enum: [PENDING, APPROVED, REJECTED]
+        completionRequestStatus:
+          type: string
+          nullable: true
+          enum: [PENDING]
+          description: PENDING = Pusat asked the branch to complete documents
     InternalComplaint:
       type: object
       properties:
@@ -408,6 +470,22 @@ components:
       required: [reason]
       properties:
         reason: { type: string, minLength: 1 }
+    ReturnForCompletionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: What is missing (documents, data, attachments)
+    ResendToPusatRequest:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+          minLength: 1
+          description: Required — what the branch completed
     DecideWithdrawRequestRequest:
       type: object
       required: [decision]

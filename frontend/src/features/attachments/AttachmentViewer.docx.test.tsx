@@ -113,6 +113,22 @@ describe("AttachmentViewer — .docx", () => {
     vi.unstubAllGlobals();
   });
 
+  it("zooms the rendered document via the shared zoom controls", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <AttachmentViewer attachment={DOCX} open onClose={() => {}} />,
+    );
+    await waitFor(() => expect(renderAsync).toHaveBeenCalled());
+    const pages = await screen.findByText("Isi dokumen");
+    const scaledContainer = pages.parentElement as HTMLElement;
+    expect(scaledContainer.style.transform).toBe("scale(1)");
+
+    await user.click(screen.getByRole("button", { name: /zoom in/i }));
+
+    expect(screen.getByText("125%")).toBeInTheDocument();
+    expect(scaledContainer.style.transform).toBe("scale(1.25)");
+  });
+
   it("offers a download fallback when rendering fails", async () => {
     renderAsync.mockRejectedValue(new Error("corrupt zip"));
 

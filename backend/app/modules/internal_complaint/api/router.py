@@ -36,8 +36,10 @@ from app.modules.internal_complaint.api.schemas import (
     InternalComplaintSummaryResponse,
     RecordAcceptanceRequest,
     RequestTransferRequest,
+    ResendToPusatRequest,
     ResolutionResponse,
     ResolveRequest,
+    ReturnForCompletionRequest,
     StartHandlingRequest,
     TransferRequest,
     UpdateStatusRequest,
@@ -52,7 +54,9 @@ from app.modules.internal_complaint.application.dto import (
     RecordAcceptanceCommand,
     RequestTransferCommand,
     RequestWithdrawCommand,
+    ResendToPusatCommand,
     ResolveCommand,
+    ReturnForCompletionCommand,
     StartHandlingCommand,
     TransferCommand,
     UpdateStatusCommand,
@@ -151,6 +155,7 @@ def _display_names_for_dto(
         dto.withdraw_requested_by,
         dto.withdraw_decided_by,
         dto.withdrawn_by,
+        dto.completion_returned_by,
         *(e.actor_id for e in dto.history),
         *(a.actor_id for a in dto.acceptance_history),
     }
@@ -274,6 +279,15 @@ def _to_response(
         withdrawnByName=names.get(dto.withdrawn_by) if dto.withdrawn_by else None,
         withdrawnAt=dto.withdrawn_at,
         withdrawReason=dto.withdraw_reason,
+        completionRequestStatus=dto.completion_request_status,
+        completionReturnReason=dto.completion_return_reason,
+        completionReturnedBy=dto.completion_returned_by,
+        completionReturnedByName=(
+            names.get(dto.completion_returned_by)
+            if dto.completion_returned_by
+            else None
+        ),
+        completionReturnedAt=dto.completion_returned_at,
     )
 
 
@@ -327,6 +341,7 @@ def list_internal_complaints(
                 relatedComplaintNumber=i.related_complaint_number,
                 transferRequestStatus=i.transfer_request_status,
                 withdrawRequestStatus=i.withdraw_request_status,
+                completionRequestStatus=i.completion_request_status,
             )
             for i in items
         ],
@@ -576,6 +591,62 @@ def receive_internal_complaint(
             actor_id=str(principal.user_id),
             note=body.note,
             actor_unit_id=actor_unit,
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/internal/complaints/{complaint_id}/return-for-completion")
+def return_internal_complaint_for_completion(
+    complaint_id: str,
+    body: ReturnForCompletionRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[InternalComplaintResponse]:
+    """Pusat handling unit returns the ticket to the owner branch."""
+    current = service.get(complaint_id)
+    actor_unit = _actor_unit(principal, session)
+    enforce_org_scope(principal, current.handling_unit_id, settings)
+    if not _units_match(actor_unit, current.handling_unit_id):
+        raise PermissionDeniedError(m("internal.return_not_allowed"))
+    dto = service.return_for_completion(
+        ReturnForCompletionCommand(
+            complaint_id=complaint_id,
+            actor_id=str(principal.user_id),
+            reason=body.reason,
+            actor_unit_id=actor_unit,
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/internal/complaints/{complaint_id}/resend-to-pusat")
+def resend_internal_complaint_to_pusat(
+    complaint_id: str,
+    body: ResendToPusatRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[InternalComplaintResponse]:
+    """Owner unit resends to Pusat after completing documents."""
+    current = service.get(complaint_id)
+    actor_unit = _actor_unit(principal, session)
+    enforce_org_scope(principal, current.owner_unit_id, settings)
+    if not _units_match(actor_unit, current.owner_unit_id):
+        raise PermissionDeniedError(m("internal.resend_not_allowed"))
+    dto = service.resend_to_pusat(
+        ResendToPusatCommand(
+            complaint_id=complaint_id,
+            actor_id=str(principal.user_id),
+            actor_unit_id=actor_unit,
+            note=body.note,
         )
     )
     return DataResponse(data=_to_response(dto, session=session))

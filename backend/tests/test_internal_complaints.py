@@ -29,7 +29,9 @@ from app.modules.internal_complaint.application.dto import (
     RecordAcceptanceCommand,
     RequestTransferCommand,
     RequestWithdrawCommand,
+    ResendToPusatCommand,
     ResolveCommand,
+    ReturnForCompletionCommand,
     StartHandlingCommand,
     TransferCommand,
     WithdrawCommand,
@@ -1588,3 +1590,129 @@ def test_http_withdraw_request_then_pusat_decides(
         )
         assert decided.status_code == 200, decided.text
         assert decided.json()["data"]["status"] == "WITHDRAWN"
+
+
+def test_return_for_completion_before_and_after_receive(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-TANAH-ABANG")
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            actor_id="sv-tab",
+            actor_unit_id="UPPPD-TANAH-ABANG",
+            reason="to pusat",
+        )
+    )
+    returned = service.return_for_completion(
+        ReturnForCompletionCommand(
+            complaint_id=cid,
+            actor_id="pusat-agent",
+            actor_unit_id="PUSAT",
+            reason="Lampiran KTP belum ada",
+        )
+    )
+    assert returned.status == "ASSIGNED"
+    assert returned.handling_unit_id == "UPPPD-TANAH-ABANG"
+    assert returned.completion_request_status == "PENDING"
+    with pytest.raises(Exception):
+        service.start_handling(
+            StartHandlingCommand(
+                complaint_id=cid, actor_id="pusat-sv", actor_unit_id="PUSAT"
+            )
+        )
+    resent = service.resend_to_pusat(
+        ResendToPusatCommand(
+            complaint_id=cid,
+            actor_id="sv-tab",
+            actor_unit_id="UPPPD-TANAH-ABANG",
+            note="KTP sudah dilampirkan",
+        )
+    )
+    assert resent.handling_unit_id == "PUSAT"
+    assert resent.completion_request_status is None
+    notes = [e.note for e in resent.history if e.event_type == "RESENT_TO_PUSAT"]
+    assert "KTP sudah dilampirkan" in notes
+    received = service.start_handling(
+        StartHandlingCommand(
+            complaint_id=cid, actor_id="pusat-sv", actor_unit_id="PUSAT"
+        )
+    )
+    assert received.status == "IN_PROGRESS"
+    again = service.return_for_completion(
+        ReturnForCompletionCommand(
+            complaint_id=cid,
+            actor_id="pusat-sv",
+            actor_unit_id="PUSAT",
+            reason="Formulir halaman 2 kosong",
+        )
+    )
+    assert again.status == "ASSIGNED"
+    assert again.handling_unit_id == "UPPPD-TANAH-ABANG"
+    assert again.completion_request_status == "PENDING"
+    types = {e.event_type for e in again.history}
+    assert "RETURNED_FOR_COMPLETION" in types
+    assert "RESENT_TO_PUSAT" in types
+
+
+def test_http_pusat_returns_and_branch_resends(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    branch = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=frozenset(p for p in _PERMS if p != "complaints:assign"),
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, branch) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Berkas kurang",
+                "description": "uji kelengkapan",
+                "category": "OPERATIONAL",
+            },
+        )
+        assert created.status_code == 201, created.text
+        cid = created.json()["data"]["complaintId"]
+        denied = client.post(
+            f"/api/v1/internal/complaints/{cid}/return-for-completion",
+            json={"reason": "cabang tidak boleh"},
+        )
+        assert denied.status_code == 403
+
+    with _app_client(db_session, service, pusat) as client:
+        returned = client.post(
+            f"/api/v1/internal/complaints/{cid}/return-for-completion",
+            json={"reason": "Scan bukti bayar tidak terbaca"},
+        )
+        assert returned.status_code == 200, returned.text
+        data = returned.json()["data"]
+        assert data["status"] == "ASSIGNED"
+        assert data["handlingUnitId"] == "UPPPD-GAMBIR"
+        assert data["completionRequestStatus"] == "PENDING"
+
+    with _app_client(db_session, service, branch) as client:
+        empty = client.post(
+            f"/api/v1/internal/complaints/{cid}/resend-to-pusat",
+            json={"note": "  "},
+        )
+        # RequestValidationError di app ini dipetakan ke 400, bukan 422.
+        assert empty.status_code == 400, empty.text
+        resent = client.post(
+            f"/api/v1/internal/complaints/{cid}/resend-to-pusat",
+            json={"note": "Sudah diunggah ulang"},
+        )
+        assert resent.status_code == 200, resent.text
+        data = resent.json()["data"]
+        assert data["handlingUnitId"] == "PUSAT"
+        assert data["completionRequestStatus"] is None
+        assert data["status"] == "ASSIGNED"
+

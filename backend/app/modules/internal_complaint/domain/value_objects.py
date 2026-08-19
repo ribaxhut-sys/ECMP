@@ -58,6 +58,12 @@ class WithdrawRequestStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class CompletionRequestStatus(StrEnum):
+    """Pusat asked the branch to complete documents — ticket stays alive."""
+
+    PENDING = "PENDING"
+
+
 class HistoryEventType(StrEnum):
     CREATED = "CREATED"
     TRANSFER = "TRANSFER"
@@ -76,6 +82,8 @@ class HistoryEventType(StrEnum):
     WITHDRAW_REQUESTED = "WITHDRAW_REQUESTED"
     WITHDRAW_REQUEST_APPROVED = "WITHDRAW_REQUEST_APPROVED"
     WITHDRAW_REQUEST_REJECTED = "WITHDRAW_REQUEST_REJECTED"
+    RETURNED_FOR_COMPLETION = "RETURNED_FOR_COMPLETION"
+    RESENT_TO_PUSAT = "RESENT_TO_PUSAT"
 
 
 # Legacy lab format ``PI-YYYY-NNNNNN`` (global per-year counter — kept

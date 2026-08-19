@@ -42,6 +42,15 @@ describe("withdrawGate", () => {
         hasUpdatePermission: true,
       }),
     ).toBe(true);
+    expect(
+      mayReceiveInternal({
+        status: "ASSIGNED",
+        actorUnitCode: "PUSAT",
+        handlingUnitId: "PUSAT",
+        hasUpdatePermission: true,
+        completionRequestStatus: "PENDING",
+      }),
+    ).toBe(false);
   });
 
   it("allows creator or owner-unit supervisor to withdraw", () => {

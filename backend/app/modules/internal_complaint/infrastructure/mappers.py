@@ -13,6 +13,7 @@ from app.modules.internal_complaint.domain.aggregate import (
 from app.modules.internal_complaint.domain.value_objects import (
     AcceptanceDecision,
     AcceptanceParty,
+    CompletionRequestStatus,
     HistoryEventType,
     InternalComplaintNumber,
     InternalStatus,
@@ -216,6 +217,14 @@ def complaint_from_orm(
         withdrawn_by=row.withdrawn_by,
         withdrawn_at=row.withdrawn_at,
         withdraw_reason=row.withdraw_reason,
+        completion_request_status=(
+            CompletionRequestStatus(row.completion_request_status)
+            if row.completion_request_status
+            else None
+        ),
+        completion_return_reason=row.completion_return_reason,
+        completion_returned_by=row.completion_returned_by,
+        completion_returned_at=row.completion_returned_at,
     )
 
 
@@ -273,3 +282,11 @@ def apply_complaint_to_orm(
     row.withdrawn_by = complaint.withdrawn_by
     row.withdrawn_at = complaint.withdrawn_at
     row.withdraw_reason = complaint.withdraw_reason
+    row.completion_request_status = (
+        complaint.completion_request_status.value
+        if complaint.completion_request_status
+        else None
+    )
+    row.completion_return_reason = complaint.completion_return_reason
+    row.completion_returned_by = complaint.completion_returned_by
+    row.completion_returned_at = complaint.completion_returned_at

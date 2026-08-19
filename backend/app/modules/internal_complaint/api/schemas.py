@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class InternalComplaintSummaryResponse(BaseModel):
@@ -33,6 +33,9 @@ class InternalComplaintSummaryResponse(BaseModel):
     )
     withdraw_request_status: str | None = Field(
         default=None, alias="withdrawRequestStatus"
+    )
+    completion_request_status: str | None = Field(
+        default=None, alias="completionRequestStatus"
     )
 
 
@@ -179,6 +182,21 @@ class InternalComplaintResponse(BaseModel):
     withdrawn_by_name: str | None = Field(default=None, alias="withdrawnByName")
     withdrawn_at: datetime | None = Field(default=None, alias="withdrawnAt")
     withdraw_reason: str | None = Field(default=None, alias="withdrawReason")
+    completion_request_status: str | None = Field(
+        default=None, alias="completionRequestStatus"
+    )
+    completion_return_reason: str | None = Field(
+        default=None, alias="completionReturnReason"
+    )
+    completion_returned_by: str | None = Field(
+        default=None, alias="completionReturnedBy"
+    )
+    completion_returned_by_name: str | None = Field(
+        default=None, alias="completionReturnedByName"
+    )
+    completion_returned_at: datetime | None = Field(
+        default=None, alias="completionReturnedAt"
+    )
 
 
 class CreateInternalComplaintRequest(BaseModel):
@@ -274,6 +292,26 @@ class WithdrawRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     reason: str = Field(min_length=1)
+
+
+class ReturnForCompletionRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    reason: str = Field(min_length=1)
+
+
+class ResendToPusatRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    note: str = Field(min_length=1)
+
+    @field_validator("note")
+    @classmethod
+    def note_not_blank(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("note is required")
+        return cleaned
 
 
 class DecideWithdrawRequestRequest(BaseModel):

@@ -23,7 +23,7 @@ export interface AttachmentViewerProps {
 
 /**
  * Lazy preview modal: downloads bytes only after open.
- * Images: zoom. PDF: browser iframe viewer. DOCX: DocxPreview (lazy chunk).
+ * Images and DOCX: zoom. PDF: browser iframe viewer (has its own zoom).
  * Unsupported: message + download.
  */
 export function AttachmentViewer({
@@ -91,7 +91,7 @@ export function AttachmentViewer({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-            {kind === "image" ? (
+            {kind === "image" || kind === "docx" ? (
               <>
                 <Button
                   type="button"

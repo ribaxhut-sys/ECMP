@@ -135,7 +135,7 @@ export function AttachmentPreviewView({ id }: { id: string }) {
         }
         actions={
           <div className="flex flex-wrap items-center gap-1">
-            {kind === "image" ? (
+            {kind === "image" || kind === "docx" ? (
               <>
                 <Button
                   type="button"

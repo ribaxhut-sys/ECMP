@@ -87,6 +87,11 @@ export interface InternalComplaint {
   withdrawnByName: string | null;
   withdrawnAt: string | null;
   withdrawReason: string | null;
+  completionRequestStatus: string | null;
+  completionReturnReason: string | null;
+  completionReturnedBy: string | null;
+  completionReturnedByName: string | null;
+  completionReturnedAt: string | null;
 }
 
 /** Matches backend case_acceptance._AGENT_ROLES for related Aggregate filter. */
@@ -164,6 +169,8 @@ export const HISTORY_LABEL_KEY: Record<string, string> = {
   WITHDRAW_REQUESTED: "activityWITHDRAW_REQUESTED",
   WITHDRAW_REQUEST_APPROVED: "activityWITHDRAW_REQUEST_APPROVED",
   WITHDRAW_REQUEST_REJECTED: "activityWITHDRAW_REQUEST_REJECTED",
+  RETURNED_FOR_COMPLETION: "activityRETURNED_FOR_COMPLETION",
+  RESENT_TO_PUSAT: "activityRESENT_TO_PUSAT",
 };
 
 export const STATUS_TONE: Record<InternalStatus, BadgeTone> = {
@@ -234,6 +241,11 @@ export function mapSummaryToRow(
     withdrawnByName: null,
     withdrawnAt: null,
     withdrawReason: null,
+    completionRequestStatus: row.completionRequestStatus ?? null,
+    completionReturnReason: null,
+    completionReturnedBy: null,
+    completionReturnedByName: null,
+    completionReturnedAt: null,
   };
 }
 
@@ -287,6 +299,11 @@ export function mapDetailToRow(dto: ApiInternalComplaint): InternalComplaint {
     withdrawnByName: dto.withdrawnByName ?? null,
     withdrawnAt: dto.withdrawnAt ?? null,
     withdrawReason: dto.withdrawReason ?? null,
+    completionRequestStatus: dto.completionRequestStatus ?? null,
+    completionReturnReason: dto.completionReturnReason ?? null,
+    completionReturnedBy: dto.completionReturnedBy ?? null,
+    completionReturnedByName: dto.completionReturnedByName ?? null,
+    completionReturnedAt: dto.completionReturnedAt ?? null,
   };
 }
 

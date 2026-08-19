@@ -40,6 +40,10 @@ class InternalComplaintORM(Base):
             "ix_internal_complaints_withdraw_request_status",
             "withdraw_request_status",
         ),
+        Index(
+            "ix_internal_complaints_completion_request_status",
+            "completion_request_status",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -117,6 +121,18 @@ class InternalComplaintORM(Base):
         DateTime(timezone=True), nullable=True
     )
     withdraw_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completion_request_status: Mapped[str | None] = mapped_column(
+        String(16), nullable=True
+    )
+    completion_return_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    completion_returned_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    completion_returned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     closed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

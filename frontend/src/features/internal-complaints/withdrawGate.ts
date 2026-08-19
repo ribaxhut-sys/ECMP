@@ -66,8 +66,12 @@ export function mayReceiveInternal(input: {
   actorUnitCode: string | null;
   handlingUnitId: string;
   hasUpdatePermission: boolean;
+  completionRequestStatus?: string | null;
 }): boolean {
   if (!input.hasUpdatePermission) return false;
+  if ((input.completionRequestStatus || "").trim().toUpperCase() === "PENDING") {
+    return false;
+  }
   if (input.status !== "CREATED" && input.status !== "ASSIGNED") return false;
   return unitsEqual(input.actorUnitCode, input.handlingUnitId);
 }

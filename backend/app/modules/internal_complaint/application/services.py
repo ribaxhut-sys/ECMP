@@ -20,8 +20,10 @@ from app.modules.internal_complaint.application.dto import (
     RecordAcceptanceCommand,
     RequestTransferCommand,
     RequestWithdrawCommand,
+    ResendToPusatCommand,
     ResolutionDTO,
     ResolveCommand,
+    ReturnForCompletionCommand,
     StartHandlingCommand,
     TransferCommand,
     UpdateStatusCommand,
@@ -153,6 +155,12 @@ def to_dto(c: InternalComplaintAggregate) -> InternalComplaintDTO:
         withdrawn_by=c.withdrawn_by,
         withdrawn_at=c.withdrawn_at,
         withdraw_reason=c.withdraw_reason,
+        completion_request_status=(
+            c.completion_request_status.value if c.completion_request_status else None
+        ),
+        completion_return_reason=c.completion_return_reason,
+        completion_returned_by=c.completion_returned_by,
+        completion_returned_at=c.completion_returned_at,
     )
 
 
@@ -252,6 +260,7 @@ class InternalComplaintApplicationService:
                 related_complaint_number=r.related_complaint_number,
                 transfer_request_status=r.transfer_request_status,
                 withdraw_request_status=r.withdraw_request_status,
+                completion_request_status=r.completion_request_status,
             )
             for r in rows
         ]
@@ -454,6 +463,30 @@ class InternalComplaintApplicationService:
             actor_id=cmd.actor_id,
             actor_unit_id=cmd.actor_unit_id,
             reason=cmd.reason,
+        )
+        self._repo.save(complaint)
+        self._repo.commit()
+        return to_dto(complaint)
+
+    def return_for_completion(
+        self, cmd: ReturnForCompletionCommand
+    ) -> InternalComplaintDTO:
+        complaint = self._require(cmd.complaint_id)
+        complaint.return_for_completion(
+            actor_id=cmd.actor_id,
+            reason=cmd.reason,
+            actor_unit_id=cmd.actor_unit_id,
+        )
+        self._repo.save(complaint)
+        self._repo.commit()
+        return to_dto(complaint)
+
+    def resend_to_pusat(self, cmd: ResendToPusatCommand) -> InternalComplaintDTO:
+        complaint = self._require(cmd.complaint_id)
+        complaint.resend_to_pusat(
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            note=cmd.note,
         )
         self._repo.save(complaint)
         self._repo.commit()

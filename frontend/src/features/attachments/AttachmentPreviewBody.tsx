@@ -80,6 +80,7 @@ export function AttachmentPreviewBody({
           blob={docxBlob}
           onDownload={() => void download()}
           className="w-full"
+          zoom={zoom}
         />
       ) : null}
     </div>

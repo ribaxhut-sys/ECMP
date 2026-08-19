@@ -3622,7 +3622,22 @@
     "activityWITHDRAWN": "Complaint withdrawn",
     "activityWITHDRAW_REQUESTED": "Withdrawal requested",
     "activityWITHDRAW_REQUEST_APPROVED": "Withdrawal request approved",
-    "activityWITHDRAW_REQUEST_REJECTED": "Withdrawal request rejected"
+    "activityWITHDRAW_REQUEST_REJECTED": "Withdrawal request rejected",
+    "returnForCompletion": "Return to branch",
+    "returnForCompletionOk": "Returned to the branch to complete documents",
+    "returnForCompletionPrompt": "The ticket stays open. The branch will complete the files and resend to HQ. This is not a cancellation.",
+    "returnForCompletionReason": "What is missing",
+    "returnForCompletionReasonHint": "Required. Describe the documents or data that must be completed.",
+    "resendToPusat": "Resend to HQ",
+    "resendToPusatOk": "Complaint resent to HQ",
+    "resendToPusatPrompt": "Make sure attachments are complete, then resend to HQ.",
+    "resendToPusatNote": "Note",
+    "resendToPusatNoteHint": "Required. Describe what was completed.",
+    "awaitingCompletionHint": "HQ asked for missing documents. Complete the attachments, then resend to HQ.",
+    "awaitingCompletionViewerHint": "HQ asked the branch to complete documents. Waiting for resend.",
+    "completionReturnReason": "Completion request",
+    "activityRETURNED_FOR_COMPLETION": "Returned to branch (incomplete documents)",
+    "activityRESENT_TO_PUSAT": "Resent to HQ"
   },
   "landing": {
     "title": "Complaints",

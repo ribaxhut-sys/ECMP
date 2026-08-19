@@ -57,6 +57,11 @@ function row(
     withdrawnByName: null,
     withdrawnAt: null,
     withdrawReason: null,
+    completionRequestStatus: null,
+    completionReturnReason: null,
+    completionReturnedBy: null,
+    completionReturnedByName: null,
+    completionReturnedAt: null,
     ...partial,
   };
 }

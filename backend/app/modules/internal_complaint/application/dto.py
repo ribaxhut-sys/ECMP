@@ -89,6 +89,10 @@ class InternalComplaintDTO:
     withdrawn_by: str | None = None
     withdrawn_at: datetime | None = None
     withdraw_reason: str | None = None
+    completion_request_status: str | None = None
+    completion_return_reason: str | None = None
+    completion_returned_by: str | None = None
+    completion_returned_at: datetime | None = None
 
 
 @dataclass
@@ -107,6 +111,7 @@ class InternalComplaintSummaryDTO:
     related_complaint_number: str | None = None
     transfer_request_status: str | None = None
     withdraw_request_status: str | None = None
+    completion_request_status: str | None = None
 
 
 @dataclass
@@ -229,4 +234,20 @@ class DecideWithdrawRequestCommand:
     decision: str
     actor_id: str
     reason: str | None = None
+    actor_unit_id: str | None = None
+
+
+@dataclass
+class ReturnForCompletionCommand:
+    complaint_id: str
+    actor_id: str
+    reason: str
+    actor_unit_id: str | None = None
+
+
+@dataclass
+class ResendToPusatCommand:
+    complaint_id: str
+    actor_id: str
+    note: str
     actor_unit_id: str | None = None

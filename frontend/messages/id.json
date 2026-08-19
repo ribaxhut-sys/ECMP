@@ -3622,7 +3622,22 @@
     "activityWITHDRAWN": "Pengaduan dibatalkan",
     "activityWITHDRAW_REQUESTED": "Permintaan pembatalan diajukan",
     "activityWITHDRAW_REQUEST_APPROVED": "Permintaan pembatalan disetujui",
-    "activityWITHDRAW_REQUEST_REJECTED": "Permintaan pembatalan ditolak"
+    "activityWITHDRAW_REQUEST_REJECTED": "Permintaan pembatalan ditolak",
+    "returnForCompletion": "Kembalikan ke cabang",
+    "returnForCompletionOk": "Pengaduan dikembalikan ke cabang untuk dilengkapi",
+    "returnForCompletionPrompt": "Pengaduan tetap hidup. Cabang akan melengkapi berkas lalu mengirim ulang ke Pusat. Ini bukan pembatalan.",
+    "returnForCompletionReason": "Yang kurang",
+    "returnForCompletionReasonHint": "Wajib. Jelaskan berkas atau data yang perlu dilengkapi.",
+    "resendToPusat": "Kirim ulang ke Pusat",
+    "resendToPusatOk": "Pengaduan dikirim ulang ke Pusat",
+    "resendToPusatPrompt": "Pastikan lampiran sudah dilengkapi, lalu kirim ulang ke Pusat.",
+    "resendToPusatNote": "Catatan",
+    "resendToPusatNoteHint": "Wajib. Jelaskan apa yang sudah dilengkapi.",
+    "awaitingCompletionHint": "Pusat meminta kelengkapan. Lengkapi lampiran, lalu kirim ulang ke Pusat.",
+    "awaitingCompletionViewerHint": "Pusat meminta cabang melengkapi berkas. Menunggu kirim ulang.",
+    "completionReturnReason": "Permintaan kelengkapan",
+    "activityRETURNED_FOR_COMPLETION": "Dikembalikan ke cabang (berkas kurang)",
+    "activityRESENT_TO_PUSAT": "Dikirim ulang ke Pusat"
   },
   "landing": {
     "title": "Pengaduan",

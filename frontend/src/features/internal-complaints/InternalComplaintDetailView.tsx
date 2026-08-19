@@ -27,6 +27,7 @@ import {
 import { fetchBranches, type Branch } from "@/lib/api/branches";
 import { ApiError } from "@/lib/api/client";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
 import {
   decideInternalTransferRequest,
@@ -35,7 +36,9 @@ import {
   recordInternalAcceptance,
   requestInternalTransfer,
   requestInternalWithdraw,
+  resendInternalComplaintToPusat,
   resolveInternalComplaint,
+  returnInternalComplaintForCompletion,
   transferInternalComplaint,
   withdrawInternalComplaint,
 } from "@/lib/api/internalComplaints";
@@ -59,6 +62,11 @@ import {
   formatUnitOptionLabel,
   isAdminFamily,
 } from "./transferDirection";
+import {
+  isAwaitingCompletion,
+  mayResendToPusat,
+  mayReturnForCompletion,
+} from "./completionGate";
 import {
   isWaitingForPusatReceive,
   mayDecideWithdraw,
@@ -126,6 +134,8 @@ type ModalKind =
   | "requestWithdraw"
   | "decideWithdrawApprove"
   | "decideWithdrawReject"
+  | "returnForCompletion"
+  | "resendToPusat"
   | null;
 
 export function InternalComplaintDetailView({ id }: { id: string }) {
@@ -154,6 +164,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const [requestReasonText, setRequestReasonText] = useState("");
   const [decisionReason, setDecisionReason] = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  const [completionReason, setCompletionReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -185,7 +196,13 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           id: event.eventId,
           title: t(HISTORY_LABEL_KEY[event.eventType] ?? "activityCREATED"),
           description:
-            [event.note, unitMove].filter(Boolean).join(" · ") || undefined,
+            event.note || unitMove ? (
+              <>
+                {event.note ? <KnowledgeReferenceText text={event.note} /> : null}
+                {event.note && unitMove ? " · " : null}
+                {unitMove}
+              </>
+            ) : undefined,
           time: formatDateTime(event.occurredAt, locale),
           actor: t("historyActor", { name: actorName }),
         };
@@ -296,8 +313,29 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     actorUnitCode: actorUnitCode ?? null,
     handlingUnitId: complaint.handlingUnitId,
     hasUpdatePermission: canUpdate,
+    completionRequestStatus: complaint.completionRequestStatus,
   });
-  const showWithdraw = waitingForPusat && ownerMayWithdraw && canUpdate;
+  const awaitingCompletion = isAwaitingCompletion(
+    complaint.completionRequestStatus,
+  );
+  const showReturn = mayReturnForCompletion({
+    status: complaint.status,
+    actorUnitCode: actorUnitCode ?? null,
+    ownerUnitId: complaint.ownerUnitId,
+    handlingUnitId: complaint.handlingUnitId,
+    hasUpdatePermission: canUpdate,
+    completionRequestStatus: complaint.completionRequestStatus,
+  });
+  const showResend = mayResendToPusat({
+    status: complaint.status,
+    actorUnitCode: actorUnitCode ?? null,
+    ownerUnitId: complaint.ownerUnitId,
+    handlingUnitId: complaint.handlingUnitId,
+    hasUpdatePermission: canUpdate,
+    completionRequestStatus: complaint.completionRequestStatus,
+  });
+  const showWithdraw =
+    (waitingForPusat || awaitingCompletion) && ownerMayWithdraw && canUpdate;
   const showRequestWithdraw = mayRequestWithdraw({
     status: complaint.status,
     ownerUnitId: complaint.ownerUnitId,
@@ -318,7 +356,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     hasEscalateDecidePermission: canDecideTransferRequest,
   });
   const showTransfer =
-    canTransfer(complaint.status) && canAssign && unitOptions.length > 0;
+    canTransfer(complaint.status) &&
+    canAssign &&
+    unitOptions.length > 0 &&
+    !awaitingCompletion;
   const showResolve = canResolve(complaint.status) && hasPermission("complaints:update");
   const acceptanceActions = visibleInternalAcceptanceActions({
     status: complaint.status,
@@ -489,6 +530,31 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                 {t("receive")}
               </Button>
             ) : null}
+            {showReturn ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => {
+                  setCompletionReason("");
+                  setModal("returnForCompletion");
+                }}
+              >
+                {t("returnForCompletion")}
+              </Button>
+            ) : null}
+            {showResend ? (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setCompletionReason("");
+                  setModal("resendToPusat");
+                }}
+              >
+                {t("resendToPusat")}
+              </Button>
+            ) : null}
             {showTransfer ? (
               <Button
                 type="button"
@@ -556,8 +622,14 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       />
 
       {actionError ? <Alert tone="danger" title={actionError} /> : null}
-      {showWithdraw ? (
+      {waitingForPusat && showWithdraw ? (
         <Alert tone="info" title={t("waitingForPusatReceiveHint")} />
+      ) : null}
+      {awaitingCompletion && showResend ? (
+        <Alert tone="warning" title={t("awaitingCompletionHint")} />
+      ) : null}
+      {awaitingCompletion && !showResend ? (
+        <Alert tone="info" title={t("awaitingCompletionViewerHint")} />
       ) : null}
       {showDecideWithdraw ? (
         <Alert tone="warning" title={t("pendingWithdrawRequestHint")} />
@@ -594,6 +666,11 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               <MetaItem label={t("handlingUnit")}>
                 {complaint.handlingUnitId}
               </MetaItem>
+              {awaitingCompletion ? (
+                <MetaItem label={t("completionReturnReason")}>
+                  {complaint.completionReturnReason || tCommon("emDash")}
+                </MetaItem>
+              ) : null}
               <MetaItem label={t("handlingAcceptance")}>
                 {complaint.handlingUnitAcceptance === "ACCEPT"
                   ? t("acceptanceAccepted")
@@ -1161,6 +1238,82 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             }
           >
             {modal === "reject" ? t("rejectReturnToHandling") : t("confirmAccept")}
+          </Button>
+        </ModalSection>
+      </Modal>
+
+      <Modal
+        open={modal === "returnForCompletion"}
+        onClose={() => setModal(null)}
+        title={t("returnForCompletion")}
+      >
+        <ModalSection className="space-y-3">
+          <p className="text-sm text-ecmp-text-secondary">
+            {t("returnForCompletionPrompt")}
+          </p>
+          <Textarea
+            label={t("returnForCompletionReason")}
+            value={completionReason}
+            onChange={(e) => setCompletionReason(e.target.value)}
+            hint={t("returnForCompletionReasonHint")}
+            required
+          />
+          <Button
+            type="button"
+            disabled={busy || !completionReason.trim()}
+            onClick={() =>
+              run(
+                () =>
+                  returnInternalComplaintForCompletion(complaint.id, {
+                    reason: completionReason.trim(),
+                  }),
+                t("returnForCompletionOk"),
+              )
+            }
+          >
+            {t("returnForCompletion")}
+          </Button>
+        </ModalSection>
+      </Modal>
+
+      <Modal
+        open={modal === "resendToPusat"}
+        onClose={() => setModal(null)}
+        title={t("resendToPusat")}
+      >
+        <ModalSection className="space-y-3">
+          <p className="text-sm text-ecmp-text-secondary">
+            {t("resendToPusatPrompt")}
+          </p>
+          {complaint.completionReturnReason ? (
+            <p className="text-sm text-ecmp-text-primary">
+              <span className="text-ecmp-text-secondary">
+                {t("completionReturnReason")}:{" "}
+              </span>
+              {complaint.completionReturnReason}
+            </p>
+          ) : null}
+          <KnowledgeMentionTextarea
+            label={t("resendToPusatNote")}
+            value={completionReason}
+            onChange={setCompletionReason}
+            hint={t("resendToPusatNoteHint")}
+            required
+          />
+          <Button
+            type="button"
+            disabled={busy || !completionReason.trim()}
+            onClick={() =>
+              run(
+                () =>
+                  resendInternalComplaintToPusat(complaint.id, {
+                    note: completionReason.trim(),
+                  }),
+                t("resendToPusatOk"),
+              )
+            }
+          >
+            {t("resendToPusat")}
           </Button>
         </ModalSection>
       </Modal>

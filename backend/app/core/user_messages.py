@@ -223,6 +223,18 @@ MESSAGES: dict[str, str] = {
     "internal.withdraw_decide_denied": (
         "Hanya Pusat yang dapat memutuskan permintaan pembatalan."
     ),
+    "internal.return_reason_required": (
+        "Alasan wajib diisi saat mengembalikan pengaduan ke cabang."
+    ),
+    "internal.return_not_allowed": (
+        "Hanya unit penanganan Pusat yang dapat mengembalikan pengaduan ke cabang."
+    ),
+    "internal.resend_not_allowed": (
+        "Hanya unit pemilik yang dapat mengirim ulang pengaduan ke Pusat."
+    ),
+    "internal.resend_note_required": (
+        "Catatan wajib diisi saat mengirim ulang pengaduan ke Pusat."
+    ),
     # --- Escalation ---
     "escalation.already_closed": "Eskalasi sudah berstatus CLOSED.",
     "escalation.already_reviewed": "Eskalasi sudah ditinjau.",

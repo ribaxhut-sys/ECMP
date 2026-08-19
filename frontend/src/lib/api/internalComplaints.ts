@@ -24,6 +24,7 @@ export type InternalAcceptanceDecision = "ACCEPT" | "REJECT";
 export type InternalTransferRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type InternalTransferRequestDecision = "APPROVE" | "REJECT";
 export type InternalWithdrawRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type InternalCompletionRequestStatus = "PENDING";
 export type InternalWithdrawRequestDecision = "APPROVE" | "REJECT";
 
 export interface InternalResolution {
@@ -78,6 +79,7 @@ export interface InternalComplaintSummary {
   relatedComplaintNumber?: string | null;
   transferRequestStatus?: InternalTransferRequestStatus | string | null;
   withdrawRequestStatus?: InternalWithdrawRequestStatus | string | null;
+  completionRequestStatus?: InternalCompletionRequestStatus | string | null;
 }
 
 export interface InternalComplaint {
@@ -131,6 +133,11 @@ export interface InternalComplaint {
   withdrawnByName?: string | null;
   withdrawnAt?: string | null;
   withdrawReason?: string | null;
+  completionRequestStatus?: InternalCompletionRequestStatus | string | null;
+  completionReturnReason?: string | null;
+  completionReturnedBy?: string | null;
+  completionReturnedByName?: string | null;
+  completionReturnedAt?: string | null;
 }
 
 export interface CreateInternalComplaintRequest {
@@ -170,6 +177,14 @@ export interface DecideInternalTransferRequest {
 
 export interface WithdrawInternalComplaintRequest {
   reason: string;
+}
+
+export interface ReturnForCompletionRequest {
+  reason: string;
+}
+
+export interface ResendToPusatRequest {
+  note: string;
 }
 
 export interface DecideInternalWithdrawRequest {
@@ -256,6 +271,26 @@ export function receiveInternalComplaint(
   return apiRequest<DataResponse<InternalComplaint>>(
     internalComplaintPaths().receive(id),
     { method: "POST", body: JSON.stringify(body ?? {}) },
+  );
+}
+
+export function returnInternalComplaintForCompletion(
+  id: string,
+  body: ReturnForCompletionRequest,
+): Promise<DataResponse<InternalComplaint>> {
+  return apiRequest<DataResponse<InternalComplaint>>(
+    internalComplaintPaths().returnForCompletion(id),
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+export function resendInternalComplaintToPusat(
+  id: string,
+  body: ResendToPusatRequest,
+): Promise<DataResponse<InternalComplaint>> {
+  return apiRequest<DataResponse<InternalComplaint>>(
+    internalComplaintPaths().resendToPusat(id),
+    { method: "POST", body: JSON.stringify(body) },
   );
 }
 

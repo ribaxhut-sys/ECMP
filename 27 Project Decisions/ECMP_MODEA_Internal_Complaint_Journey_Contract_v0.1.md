@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | ECMP-MODEA-INT-001 |
-| Version | 0.1 |
+| Version | 0.2 |
 | Owner | Product Owner / Domain PO |
 | Reviewer | Solution Architect |
 | Approver | Business Owner (Mode A lab) |
-| Status | 🟢 Accepted for Mode A UI (2026-08-17) |
-| Date | 2026-08-17 |
+| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas (2026-08-19) |
+| Date | 2026-08-19 |
 | Type | Mode A lab contract (non-ADR, non-DEC) |
 | Related | DEC-025 §14.1 D (`/internal/*` bukan Dual-SoT WP); OpenAPI `internal-complaints.v1.yaml` |
 
@@ -29,7 +29,7 @@
 
 | Peran | Yang boleh |
 |---|---|
-| Petugas (Agent / CS / Handler / Branch Officer) | Buat; dari cabang langsung ke Pusat; batal sepihak sebelum Terima; minta batal setelah Terima; ajukan pindah (hanya tiket Pusat lokal, bukan pindah langsung); terima & kerjakan (hanya di unit penanganan); usulkan penyelesaian |
+| Petugas (Agent / CS / Handler / Branch Officer) | Buat; dari cabang langsung ke Pusat; batal sepihak sebelum Terima; minta batal setelah Terima; ajukan pindah (hanya tiket Pusat lokal, bukan pindah langsung); terima & kerjakan (hanya di unit penanganan); kembalikan ke cabang jika berkas kurang (sebelum atau sesudah Terima); kirim ulang ke Pusat setelah dilengkapi; usulkan penyelesaian |
 | Supervisor / Manager | Semua di atas + pindah Handling langsung; putuskan pengajuan pindah Agent; putuskan permintaan batal (unit penanganan); setujui/tolak gerbang tutup |
 | Admin | Putuskan pengajuan pindah lintas unit; putuskan permintaan batal; gerbang tutup tanpa terikat unit |
 
@@ -47,8 +47,10 @@ Setelah Terima: `IN_PROGRESS` + permintaan PENDING; Setujui → `WITHDRAWN`; Tol
 | Buat (Cabang) | — | `ASSIGNED` di Pusat | Semua peran cabang; Handling langsung Pusat; tanpa gerbang transfer-request |
 | Pindah Handling | `CREATED` / `ASSIGNED` / `IN_PROGRESS` | `ASSIGNED` | Hanya Cabang ↔ Pusat; bukan `RESOLVED`/`CLOSED`/`WITHDRAWN` |
 | Petugas Pusat ajukan pindah | `CREATED` (masih lokal Pusat) | tetap `CREATED` + permintaan PENDING | Alasan wajib; APPROVE = pindah ke cabang; REJECT = tetap lokal, boleh ajukan ulang |
-| Terima / mulai kerja | `CREATED` atau `ASSIGNED` | `IN_PROGRESS` | Aktor di **unit penanganan** (cabang pembuat tidak melihat Terima) |
-| Cabang batal sepihak | `ASSIGNED` (handling Pusat, belum Terima) | `WITHDRAWN` | Pembuat atau Supervisor unit pemilik; alasan wajib; **tanpa notifikasi ke Pusat**; tiket hilang dari antrean Terima |
+| Terima / mulai kerja | `CREATED` atau `ASSIGNED` | `IN_PROGRESS` | Aktor di **unit penanganan** (cabang pembuat tidak melihat Terima). Diblokir saat menunggu kelengkapan (`completionRequestStatus=PENDING`) |
+| Kembalikan ke cabang (berkas kurang) | `ASSIGNED` atau `IN_PROGRESS` | `ASSIGNED` di unit pemilik | Owner cabang, handling Pusat; aktor di unit penanganan; alasan wajib. **Bukan** Tolak/`WITHDRAWN`. Handling kembali ke cabang; tiket tetap hidup |
+| Cabang kirim ulang ke Pusat | `ASSIGNED` + PENDING kelengkapan | `ASSIGNED` di Pusat | Aktor di unit pemilik; **catatan wajib**; lampiran boleh ditambah dulu. Pusat **Terima** lagi |
+| Cabang batal sepihak | `ASSIGNED` (handling Pusat, belum Terima) **atau** menunggu kelengkapan | `WITHDRAWN` | Pembuat atau Supervisor unit pemilik; alasan wajib; **tanpa notifikasi ke Pusat**; tiket hilang dari antrean Terima |
 | Cabang minta batal | `IN_PROGRESS` (owner cabang, handling Pusat) | tetap `IN_PROGRESS` + PENDING | Alasan wajib; satu PENDING; tiket tetap dikerjakan |
 | Pusat setujui batal | `IN_PROGRESS` + PENDING | `WITHDRAWN` | Supervisor/Admin unit penanganan (Pusat) |
 | Pusat tolak batal | `IN_PROGRESS` + PENDING | `IN_PROGRESS` | Alasan wajib; cabang boleh minta lagi |
@@ -58,7 +60,9 @@ Setelah Terima: `IN_PROGRESS` + permintaan PENDING; Setujui → `WITHDRAWN`; Tol
 | Setuju penutup | `RESOLVED` | `CLOSED` | Kedua pihak setuju (lihat §4) |
 | Tolak penutup | `RESOLVED` | `IN_PROGRESS` | Catatan wajib; cap setuju direset |
 
-Tidak ada: `REGISTERED`, `CANCELLED` (katalog WP), `PENDING`, `ESCALATED` sebagai status tiket. Status terminal tipis **`WITHDRAWN`** (label UI: Dibatalkan) — bukan `CANCELLED`. `RESOLVED`/`CLOSED` tidak bisa dibatalkan.
+Tidak ada: `REGISTERED`, `CANCELLED` (katalog WP), `PENDING`, `ESCALATED`, `CLARIFICATION`, `REJECTED` sebagai status tiket. Status terminal tipis **`WITHDRAWN`** (label UI: Dibatalkan) — bukan `CANCELLED`. `RESOLVED`/`CLOSED` tidak bisa dibatalkan.
+
+**Kelengkapan berkas (v0.2):** label UI **Kembalikan ke cabang**, bukan Tolak. Permintaan kelengkapan memakai `completionRequestStatus=PENDING` (bukan status tiket baru). Riwayat: `RETURNED_FOR_COMPLETION`, `RESENT_TO_PUSAT`. Permintaan batal PENDING dihapus saat dikembalikan.
 
 ## 4. Gerbang tutup (UI)
 

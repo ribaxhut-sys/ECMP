@@ -28,6 +28,10 @@ export function internalComplaintPaths() {
     pendingTransferRequestCount: `${INTERNAL_COMPLAINTS_BASE}/transfer-requests/pending-count`,
     withdraw: (id: string) =>
       `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/withdraw`,
+    returnForCompletion: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/return-for-completion`,
+    resendToPusat: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/resend-to-pusat`,
     withdrawRequest: (id: string) =>
       `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/withdraw-request`,
     withdrawRequestDecision: (id: string) =>

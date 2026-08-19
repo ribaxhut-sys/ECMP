@@ -209,7 +209,9 @@ export {
   recordInternalAcceptance,
   requestInternalTransfer,
   requestInternalWithdraw,
+  resendInternalComplaintToPusat,
   resolveInternalComplaint,
+  returnInternalComplaintForCompletion,
   transferInternalComplaint,
   withdrawInternalComplaint,
 } from "./internalComplaints";
@@ -232,6 +234,8 @@ export type {
   RecordInternalAcceptanceRequest,
   RequestInternalTransferRequest,
   ResolveInternalComplaintRequest,
+  ReturnForCompletionRequest,
+  ResendToPusatRequest,
   TransferInternalComplaintRequest,
   WithdrawInternalComplaintRequest,
 } from "./internalComplaints";
