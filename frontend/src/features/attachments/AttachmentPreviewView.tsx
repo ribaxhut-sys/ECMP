@@ -58,6 +58,20 @@ export function AttachmentPreviewView({ id }: { id: string }) {
     void loadMeta();
   }, [loadMeta]);
 
+  // Every route in this app shares one static browser-tab title (root
+  // layout metadata) — fine for in-app navigation, but this page is opened
+  // as its own tab (often several at once), so it needs the file name to
+  // be tellable apart in the tab strip. Restore the app name on unmount so
+  // a tab that later navigates elsewhere doesn't keep a stale file title.
+  useEffect(() => {
+    if (!attachment) return;
+    const previousTitle = document.title;
+    document.title = attachment.originalName;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [attachment]);
+
   const state = useAttachmentPreview(attachment, attachment !== null);
   const { kind, download } = state;
 

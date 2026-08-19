@@ -391,6 +391,7 @@ export function KnowledgeListView() {
             rows={fileRows}
             getRowKey={(row) => `${row.knowledge.id}:${row.file?.id ?? "none"}`}
             caption={t("tableCaption")}
+            density="compact"
             loading={loading}
             emptyTitle={t("listEmpty")}
             emptyMessage={t("listEmptyDescription")}

@@ -75,6 +75,16 @@ describe("AttachmentPreviewView", () => {
     expect(downloadAttachment).toHaveBeenCalledWith("att-docx");
   });
 
+  it("sets the browser tab title to the file name, and restores it on unmount", async () => {
+    const originalTitle = document.title;
+    const { unmount } = renderWithProviders(<AttachmentPreviewView id="att-docx" />);
+
+    await waitFor(() => expect(document.title).toBe("Surat Keluhan.docx"));
+
+    unmount();
+    expect(document.title).toBe(originalTitle);
+  });
+
   it("shows a retryable error when the metadata call is rejected", async () => {
     fetchAttachment.mockRejectedValue(new ApiError(403, "FORBIDDEN", "no"));
 
