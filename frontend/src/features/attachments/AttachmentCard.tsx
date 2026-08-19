@@ -17,6 +17,7 @@ import {
 import { Alert, Badge, Button, Card, CardBody } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { AttachmentViewer } from "./AttachmentViewer";
+import { attachmentPreviewPath } from "./previewRoutes";
 import {
   fileTypeLabel,
   formatFileSize,
@@ -88,25 +89,17 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
     }
   }, [attachment.originalName, attachment.id, mapError]);
 
-  const handleOpenTab = useCallback(async () => {
-    setBusy(true);
+  // In-app preview route, not a blob: URL — Word files render instead of
+  // downloading, and the tab can be refreshed or shared.
+  const handleOpenTab = useCallback(() => {
     setActionError(null);
-    try {
-      const result = await downloadAttachment(attachment.id);
-      const url = URL.createObjectURL(result.blob);
-      const opened = window.open(url, "_blank", "noopener,noreferrer");
-      if (!opened) {
-        URL.revokeObjectURL(url);
-        setActionError(t("popupBlocked"));
-        return;
-      }
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      setActionError(mapError(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [attachment.id, mapError, t]);
+    const opened = window.open(
+      attachmentPreviewPath(attachment.id),
+      "_blank",
+      "noopener,noreferrer",
+    );
+    if (!opened) setActionError(t("popupBlocked"));
+  }, [attachment.id, t]);
 
   return (
     <>
@@ -201,7 +194,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
               size="sm"
               leftIcon={<IconExternalLink />}
               disabled={busy}
-              onClick={() => void handleOpenTab()}
+              onClick={handleOpenTab}
             >{t("openInNewTab")}            </Button>
           </div>
         </CardBody>

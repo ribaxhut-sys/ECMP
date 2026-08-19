@@ -4,6 +4,7 @@
  * library is a browser-only chunk).
  */
 import { cleanup, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import type { Attachment } from "@/lib/api";
@@ -86,6 +87,30 @@ describe("AttachmentViewer — .docx", () => {
     expect(options.renderAltChunks).toBe(false);
     expect(options.renderChanges).toBe(false);
     expect(options.renderComments).toBe(false);
+  });
+
+  it("opens the in-app preview route in a new tab instead of a blob URL", async () => {
+    const user = userEvent.setup();
+    const open = vi.fn(() => ({}) as Window);
+    vi.stubGlobal("open", open);
+
+    renderWithProviders(
+      <AttachmentViewer attachment={DOCX} open onClose={() => {}} />,
+    );
+    await waitFor(() => expect(renderAsync).toHaveBeenCalled());
+    downloadAttachment.mockClear();
+
+    await user.click(screen.getByRole("button", { name: /new tab/i }));
+
+    expect(open).toHaveBeenCalledWith(
+      "/attachments/att-docx/preview",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    // No second fetch, and nothing handed to the tab as a blob.
+    expect(downloadAttachment).not.toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it("offers a download fallback when rendering fails", async () => {

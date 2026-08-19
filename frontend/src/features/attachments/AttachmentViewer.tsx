@@ -1,39 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import {
-  ApiError,
-  downloadAttachment,
-  type Attachment,
-} from "@/lib/api";
+import type { Attachment } from "@/lib/api";
 import {
   IconClose,
   IconDownload,
   IconExternalLink,
-  IconSpinner,
   IconZoomIn,
   IconZoomOut,
 } from "@/shared/icons";
-import { Alert, Button } from "@/shared/ui";
-import { DocxPreview } from "./DocxPreview";
-import { getPreviewKind, type PreviewKind } from "./fileTypes";
-import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-
-function mapLoadError(
-  error: unknown,
-  t: (key: string) => string,
-  tErrors: ReturnType<typeof useTranslations>,
-  tCommon: ReturnType<typeof useTranslations>,
-): string {
-  if (error instanceof ApiError) {
-    if (error.status === 404) return t("notFound404");
-    if (error.status === 403) return t("noPermissionToViewFile403");
-    if (error.status === 500) return t("serverErrorLoadingFile500");
-    return resolveApiErrorMessage(error, tErrors, tCommon, "unexpectedError") || t("failedToLoadFile");
-  }
-  return t("failedToLoadFile");
-}
+import { Button } from "@/shared/ui";
+import { AttachmentPreviewBody } from "./AttachmentPreviewBody";
+import { attachmentPreviewPath } from "./previewRoutes";
+import { useAttachmentPreview } from "./useAttachmentPreview";
 
 export interface AttachmentViewerProps {
   attachment: Attachment;
@@ -52,70 +32,13 @@ export function AttachmentViewer({
   onClose,
 }: AttachmentViewerProps) {
   const t = useTranslations("attachments");
-  const tErrors = useTranslations("errors");
-  const tCommon = useTranslations("common");
-  const kind: PreviewKind = getPreviewKind(
-    attachment.mimeType,
-    attachment.extension,
-    attachment.originalName,
-  );
-
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [docxBlob, setDocxBlob] = useState<Blob | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const state = useAttachmentPreview(attachment, open);
+  const { kind, download } = state;
   const [zoom, setZoom] = useState(1);
-  const urlRef = useRef<string | null>(null);
-
-  const revoke = useCallback(() => {
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current);
-      urlRef.current = null;
-    }
-    setObjectUrl(null);
-    setDocxBlob(null);
-  }, []);
-
-  const loadPreview = useCallback(async () => {
-    if (kind === "unsupported") {
-      setError(t("previewNotSupportedDescription"));
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await downloadAttachment(attachment.id);
-      revoke();
-      if (kind === "docx") {
-        // DocxPreview owns the render pass (and its own spinner) from here.
-        setDocxBlob(result.blob);
-        setLoading(false);
-        return;
-      }
-      const url = URL.createObjectURL(result.blob);
-      urlRef.current = url;
-      setObjectUrl(url);
-      setLoading(false);
-    } catch (err) {
-      setError(mapLoadError(err, t, tErrors, tCommon));
-      setLoading(false);
-    }
-  }, [attachment.id, kind, revoke, t, tErrors, tCommon]);
 
   useEffect(() => {
-    if (!open) {
-      revoke();
-      setError(null);
-      setLoading(false);
-      setZoom(1);
-      return;
-    }
-    void loadPreview();
-    return () => {
-      revoke();
-    };
-  }, [open, loadPreview, revoke]);
+    if (!open) setZoom(1);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -131,38 +54,15 @@ export function AttachmentViewer({
     };
   }, [open, onClose]);
 
-  const handleDownload = useCallback(async () => {
-    try {
-      const result = await downloadAttachment(attachment.id);
-      const url = URL.createObjectURL(result.blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = result.filename || attachment.originalName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(mapLoadError(err, t, tErrors, tCommon));
-    }
-  }, [attachment.originalName, attachment.id, t, tErrors, tCommon]);
-
-  const handleOpenTab = useCallback(async () => {
-    try {
-      const result = await downloadAttachment(attachment.id);
-      const url = URL.createObjectURL(result.blob);
-      const opened = window.open(url, "_blank", "noopener,noreferrer");
-      if (!opened) {
-        URL.revokeObjectURL(url);
-        setError(t("popupBlocked"));
-        return;
-      }
-      // Revoke after the new tab has a chance to load.
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      setError(mapLoadError(err, t, tErrors, tCommon));
-    }
-  }, [attachment.id, t, tErrors, tCommon]);
+  // Opens the in-app preview route, not a blob: URL — synchronous, so popup
+  // blockers see a direct user gesture, and the tab can be refreshed/shared.
+  const handleOpenTab = useCallback(() => {
+    window.open(
+      attachmentPreviewPath(attachment.id),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }, [attachment.id]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -222,7 +122,7 @@ export function AttachmentViewer({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => void handleOpenTab()}
+              onClick={handleOpenTab}
               leftIcon={<IconExternalLink />}
             >
               <span className="hidden sm:inline">{t("newTab")}</span>
@@ -231,7 +131,7 @@ export function AttachmentViewer({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => void handleDownload()}
+              onClick={() => void download()}
               leftIcon={<IconDownload />}
             >
               <span className="hidden sm:inline">{t("download")}</span>
@@ -249,60 +149,12 @@ export function AttachmentViewer({
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-ecmp-secondary-muted/40 p-3 sm:p-5">
-          {loading ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-[var(--ecmp-form-gap)] py-16 text-ecmp-text-secondary">
-              <IconSpinner className="size-8" />
-              <p>{t("loadingPreview")}</p>
-            </div>
-          ) : null}
-
-          {!loading && error ? (
-            <div className="mx-auto w-full max-w-lg space-y-[var(--ecmp-panel-gap)] py-8">
-              <Alert
-                tone={kind === "unsupported" ? "warning" : "danger"}
-                title={
-                  kind === "unsupported"
-                    ? t("previewNotSupported")
-                    : t("previewFailed")
-                }
-                description={error}
-                actionLabel={t("downloadFile")}
-                onAction={() => void handleDownload()}
-              />
-            </div>
-          ) : null}
-
-          {!loading && !error && kind === "image" && objectUrl ? (
-            <div className="flex min-h-[50vh] items-center justify-center overflow-auto">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={objectUrl}
-                alt={attachment.originalName}
-                className="max-h-none origin-center transition-transform duration-[var(--ecmp-duration-fast)]"
-                style={{ transform: `scale(${zoom})` }}
-                data-testid="attachment-image-preview"
-              />
-            </div>
-          ) : null}
-
-          {!loading && !error && kind === "pdf" && objectUrl ? (
-            <iframe
-              title={t("pdfPreviewTitle", { name: attachment.originalName })}
-              src={objectUrl}
-              className="h-[70vh] w-full rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface"
-              data-testid="attachment-pdf-preview"
-            />
-          ) : null}
-
-          {!loading && !error && kind === "docx" && docxBlob ? (
-            <DocxPreview
-              blob={docxBlob}
-              onDownload={() => void handleDownload()}
-              className="w-full"
-            />
-          ) : null}
-        </div>
+        <AttachmentPreviewBody
+          attachment={attachment}
+          state={state}
+          zoom={zoom}
+          className="flex min-h-0 flex-1 flex-col overflow-auto bg-ecmp-secondary-muted/40 p-3 sm:p-5"
+        />
       </div>
     </div>
   );
