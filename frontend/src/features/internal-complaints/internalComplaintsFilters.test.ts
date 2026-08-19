@@ -3,7 +3,9 @@ import {
   defaultInternalListFilters,
   filterInternalComplaints,
   hasActiveInternalFilters,
+  needsAttention,
   sortByMostRecent,
+  sortForDashboardAction,
 } from "./internalComplaintsFilters";
 import type { InternalComplaint } from "./types";
 
@@ -140,5 +142,59 @@ describe("internalComplaintsFilters", () => {
       row({ id: "2", number: "b", createdAt: "2026-02-01T00:00:00Z" }),
     ];
     expect(sortByMostRecent(rows).map((r) => r.id)).toEqual(["2", "1"]);
+  });
+
+  it("flags RESOLVED and pending-request rows as needing attention", () => {
+    expect(needsAttention(row({ id: "1", number: "a", status: "RESOLVED" }))).toBe(
+      true,
+    );
+    expect(
+      needsAttention(
+        row({ id: "2", number: "b", transferRequestStatus: "PENDING" }),
+      ),
+    ).toBe(true);
+    expect(
+      needsAttention(
+        row({ id: "3", number: "c", withdrawRequestStatus: "PENDING" }),
+      ),
+    ).toBe(true);
+    expect(needsAttention(row({ id: "4", number: "d", status: "CREATED" }))).toBe(
+      false,
+    );
+  });
+
+  it("sorts rows needing attention before the rest, newest first within each group", () => {
+    const rows = [
+      row({
+        id: "old-normal",
+        number: "a",
+        status: "CREATED",
+        createdAt: "2026-01-01T00:00:00Z",
+      }),
+      row({
+        id: "new-urgent",
+        number: "b",
+        status: "RESOLVED",
+        createdAt: "2026-03-01T00:00:00Z",
+      }),
+      row({
+        id: "new-normal",
+        number: "c",
+        status: "CREATED",
+        createdAt: "2026-02-01T00:00:00Z",
+      }),
+      row({
+        id: "old-urgent",
+        number: "d",
+        withdrawRequestStatus: "PENDING",
+        createdAt: "2026-01-15T00:00:00Z",
+      }),
+    ];
+    expect(sortForDashboardAction(rows).map((r) => r.id)).toEqual([
+      "new-urgent",
+      "old-urgent",
+      "new-normal",
+      "old-normal",
+    ]);
   });
 });

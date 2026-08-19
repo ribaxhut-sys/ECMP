@@ -161,22 +161,3 @@ export function InternalVerificationListView() {
     />
   );
 }
-
-export function InternalReportsView() {
-  const t = useTranslations("internalComplaints");
-  return (
-    <FilteredList
-      title={t("reportsTitle")}
-      description={t("reportsDescription")}
-      statuses={[
-        "CLOSED",
-        "RESOLVED",
-        "IN_PROGRESS",
-        "ASSIGNED",
-        "CREATED",
-        "WITHDRAWN",
-      ]}
-      queue="reports"
-    />
-  );
-}

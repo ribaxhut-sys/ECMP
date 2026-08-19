@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -11,56 +11,57 @@ import {
   Empty,
   PageContainer,
   PageHeader,
-  Table,
-  type TableColumn,
+  StatCard,
+  type StatAccent,
 } from "@/shared/ui";
+import { IconAssignments, IconCheck, IconComplaints, IconQueue } from "@/shared/icons";
 import { useInternalComplaints } from "./mock/useInternalComplaints";
-import { sortByMostRecent } from "./internalComplaintsFilters";
-import type { InternalComplaint } from "./types";
+import { sortForDashboardAction } from "./internalComplaintsFilters";
+import { usePendingTransferRequestCount } from "./usePendingTransferRequestCount";
+import { usePendingWithdrawRequestCount } from "./usePendingWithdrawRequestCount";
 import {
   InternalPriorityBadge,
   InternalStatusBadge,
+  InternalTransferRequestBadge,
+  InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
+
+function ClickableStat({
+  href,
+  ...statProps
+}: { href: string } & Omit<ComponentProps<typeof StatCard>, "className">) {
+  const router = useRouter();
+  return (
+    <button
+      type="button"
+      className="block w-full rounded-[var(--ecmp-radius-card)] text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-primary"
+      onClick={() => router.push(href)}
+    >
+      <StatCard {...statProps} className="hover:shadow-ecmp-hover" />
+    </button>
+  );
+}
 
 export function InternalDashboardView() {
   const router = useRouter();
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const { rows, loading, error } = useInternalComplaints();
-  const recent = useMemo(() => sortByMostRecent(rows).slice(0, 8), [rows]);
+  const pendingTransfer = usePendingTransferRequestCount();
+  const pendingWithdraw = usePendingWithdrawRequestCount();
+
+  const actionable = useMemo(
+    () => sortForDashboardAction(rows).slice(0, 6),
+    [rows],
+  );
 
   const openCount = rows.filter((r) => r.status !== "CLOSED").length;
   const resolvedCount = rows.filter((r) => r.status === "RESOLVED").length;
   const closedCount = rows.filter((r) => r.status === "CLOSED").length;
+  const pendingRequests = pendingTransfer + pendingWithdraw;
 
-  const columns: TableColumn<InternalComplaint>[] = [
-    {
-      key: "number",
-      header: t("number"),
-      cell: (row) => (
-        <button
-          type="button"
-          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
-          onClick={() =>
-            router.push(`/internal/complaints/${encodeURIComponent(row.id)}`)
-          }
-        >
-          {row.number}
-        </button>
-      ),
-    },
-    { key: "title", header: t("titleField"), cell: (row) => row.title },
-    {
-      key: "status",
-      header: t("status"),
-      cell: (row) => <InternalStatusBadge status={row.status} />,
-    },
-    {
-      key: "priority",
-      header: t("priority"),
-      cell: (row) => <InternalPriorityBadge priority={row.priority} />,
-    },
-  ];
+  const resolvedAccent: StatAccent = resolvedCount > 0 ? "attention" : "healthy";
+  const pendingAccent: StatAccent = pendingRequests > 0 ? "attention" : "healthy";
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -78,36 +79,107 @@ export function InternalDashboardView() {
         }
       />
       {error ? <Alert tone="danger" title={error} /> : null}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardBody>
-            <div className="text-sm text-ecmp-text-secondary">{t("kpiOpen")}</div>
-            <div className="text-2xl font-semibold">{openCount}</div>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <div className="text-sm text-ecmp-text-secondary">{t("kpiResolved")}</div>
-            <div className="text-2xl font-semibold">{resolvedCount}</div>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <div className="text-sm text-ecmp-text-secondary">{t("kpiClosed")}</div>
-            <div className="text-2xl font-semibold">{closedCount}</div>
-          </CardBody>
-        </Card>
+
+      <div className="grid gap-[var(--ecmp-card-gap)] sm:grid-cols-2 xl:grid-cols-4">
+        <ClickableStat
+          href="/internal/complaints"
+          accent="normal"
+          icon={<IconQueue className="size-4" aria-hidden />}
+          title={t("kpiOpen")}
+          value={<span className="tabular-nums">{openCount}</span>}
+          subtitle={t("kpiOpenHint")}
+          loading={loading}
+        />
+        <ClickableStat
+          href="/internal/verification"
+          accent={resolvedAccent}
+          icon={<IconCheck className="size-4" aria-hidden />}
+          title={t("kpiResolved")}
+          value={<span className="tabular-nums">{resolvedCount}</span>}
+          subtitle={t("kpiResolvedHint")}
+          loading={loading}
+        />
+        <ClickableStat
+          href="/internal/complaints"
+          accent={pendingAccent}
+          icon={<IconAssignments className="size-4" aria-hidden />}
+          title={t("kpiPendingRequests")}
+          value={<span className="tabular-nums">{pendingRequests}</span>}
+          subtitle={t("kpiPendingRequestsHint")}
+        />
+        <ClickableStat
+          href="/internal/complaints"
+          accent="archived"
+          icon={<IconComplaints className="size-4" aria-hidden />}
+          title={t("kpiClosed")}
+          value={<span className="tabular-nums">{closedCount}</span>}
+          subtitle={t("kpiClosedHint")}
+          loading={loading}
+        />
       </div>
-      <Card>
-        <CardBody>
-          {loading ? (
+
+      <Card padding={false}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ecmp-border p-[var(--ecmp-card-padding)]">
+          <div>
+            <h2 className="text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
+              {t("actionNeededTitle")}
+            </h2>
+            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+              {t("actionNeededDescription")}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="text-[length:var(--ecmp-font-helper-size)] font-semibold text-ecmp-primary hover:underline"
+            onClick={() => router.push("/internal/complaints")}
+          >
+            {t("seeAllComplaints")}
+          </button>
+        </div>
+        {loading ? (
+          <CardBody className="p-[var(--ecmp-card-padding)]">
             <Empty title={tCommon("loading")} description="" />
-          ) : recent.length === 0 ? (
+          </CardBody>
+        ) : actionable.length === 0 ? (
+          <CardBody className="p-[var(--ecmp-card-padding)]">
             <Empty title={t("listEmpty")} description={t("listEmptyDescription")} />
-          ) : (
-            <Table columns={columns} rows={recent} getRowKey={(row) => row.id} />
-          )}
-        </CardBody>
+          </CardBody>
+        ) : (
+          <ul>
+            {actionable.map((row) => (
+              <li
+                key={row.id}
+                className="border-b border-ecmp-border last:border-b-0"
+              >
+                <button
+                  type="button"
+                  className="flex w-full flex-wrap items-center gap-3 px-[var(--ecmp-card-padding)] py-3 text-left hover:bg-ecmp-secondary-muted/60"
+                  onClick={() =>
+                    router.push(`/internal/complaints/${encodeURIComponent(row.id)}`)
+                  }
+                >
+                  <div className="min-w-[220px] flex-1">
+                    <div className="text-[length:var(--ecmp-font-caption-size)] font-semibold tabular-nums text-ecmp-text-secondary">
+                      {row.number}
+                    </div>
+                    <div className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
+                      {row.title}
+                    </div>
+                    <div className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+                      {row.handlingUnitId}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <InternalStatusBadge status={row.status} />
+                    <InternalPriorityBadge priority={row.priority} />
+                    <InternalTransferRequestBadge status={row.transferRequestStatus} />
+                    <InternalWithdrawRequestBadge status={row.withdrawRequestStatus} />
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </PageContainer>
   );

@@ -55,3 +55,27 @@ export function sortByMostRecent(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 }
+
+/** True when a row has something the current owner/handling unit should act on. */
+export function needsAttention(row: InternalComplaint): boolean {
+  return (
+    row.status === "RESOLVED" ||
+    row.transferRequestStatus === "PENDING" ||
+    row.withdrawRequestStatus === "PENDING"
+  );
+}
+
+/**
+ * Dashboard "Perlu tindakan Anda" ordering: rows needing action first (most
+ * recent first within that group), then everything else most-recent-first.
+ */
+export function sortForDashboardAction(
+  rows: readonly InternalComplaint[],
+): InternalComplaint[] {
+  return sortByMostRecent(rows).sort((a, b) => {
+    const aUrgent = needsAttention(a);
+    const bUrgent = needsAttention(b);
+    if (aUrgent === bUrgent) return 0;
+    return aUrgent ? -1 : 1;
+  });
+}
