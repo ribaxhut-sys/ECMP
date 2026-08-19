@@ -1,11 +1,28 @@
 "use client";
 
 import { IconFile, IconImage } from "@/shared/icons";
-import { getPreviewKind } from "@/features/attachments/fileTypes";
+import { Badge, type BadgeTone } from "@/shared/ui";
+import { fileTypeLabel, getPreviewKind } from "@/features/attachments/fileTypes";
 import type { KnowledgeFile } from "@/lib/api/types";
 import { cn } from "@/shared/utils";
 
-/** Compact file-type cue for Knowledge list / file rows (PDF, image, other). */
+/** Extension label (from ``fileTypeLabel``) → badge color, so the same
+ * extension always reads the same at a glance across the Knowledge catalog,
+ * file manager, and upload staging list. Anything not listed here (and any
+ * future accepted extension) falls back to a neutral badge. */
+const EXTENSION_TONE: Record<string, BadgeTone> = {
+  PDF: "danger",
+  DOC: "info",
+  DOCX: "info",
+  XLS: "success",
+  XLSX: "success",
+  ZIP: "warning",
+};
+
+/** Per-extension file-type cue for Knowledge list / file rows. Images get a
+ * picture glyph; every other accepted type (PDF, Word, Excel, ZIP, text, …)
+ * gets a small colored badge with its extension, so the type is legible
+ * without relying on color alone. */
 export function KnowledgeFileTypeIcon({
   file,
   className,
@@ -30,17 +47,20 @@ export function KnowledgeFileTypeIcon({
       <IconImage className={cn(box, "shrink-0 text-ecmp-primary", className)} aria-hidden />
     );
   }
-  if (kind === "pdf") {
-    return (
-      <IconFile className={cn(box, "shrink-0 text-ecmp-danger", className)} aria-hidden />
-    );
-  }
-  if (kind === "docx") {
-    return (
-      <IconFile className={cn(box, "shrink-0 text-ecmp-info", className)} aria-hidden />
-    );
-  }
+  const label = fileTypeLabel(file.mimeType, null, file.fileName);
+  const tone = EXTENSION_TONE[label] ?? "neutral";
   return (
-    <IconFile className={cn(box, "shrink-0 text-ecmp-text-secondary", className)} aria-hidden />
+    <Badge
+      tone={tone}
+      aria-hidden
+      className={cn(
+        "shrink-0 !px-1.5 !py-0 font-semibold",
+        size === "sm" &&
+          "!text-[length:var(--ecmp-font-overline-size)] leading-4",
+        className,
+      )}
+    >
+      {label}
+    </Badge>
   );
 }
