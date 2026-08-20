@@ -41,6 +41,7 @@ import {
   matchesDirectoryBranch,
   matchesDirectoryFilter,
   matchesDirectorySearch,
+  canonicalUserFormRoleLabels,
   userFormRoleLabel,
   type DirectoryFilter,
 } from "./directoryHelpers";
@@ -373,6 +374,15 @@ export function UserManagement() {
           matchesDirectoryFilter(row, "officer"),
         ).length,
       },
+      {
+        id: "viewer",
+        label: t("filterViewers"),
+        active: directoryFilter === "viewer",
+        tone: "default" as const,
+        count: unitScopedRows.filter((row) =>
+          matchesDirectoryFilter(row, "viewer"),
+        ).length,
+      },
     ],
     [directoryFilter, unitScopedRows, t],
   );
@@ -540,12 +550,7 @@ export function UserManagement() {
                 value: role.id,
                 label: userFormRoleLabel(
                   role.code,
-                  {
-                    AGENT: t("roleAgent"),
-                    SUPERVISOR: t("roleSupervisor"),
-                    MANAGER: t("roleManager"),
-                    ADMIN: t("roleAdmin"),
-                  },
+                  canonicalUserFormRoleLabels(t),
                   role.name,
                 ),
               })),

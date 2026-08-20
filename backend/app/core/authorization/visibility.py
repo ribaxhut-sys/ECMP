@@ -29,6 +29,8 @@ _UNIT_ROLES: frozenset[str] = frozenset(
 _AGENT_ROLES: frozenset[str] = frozenset(
     {"AGENT", "CS_AGENT", "HANDLER", "BRANCH_OFFICER"}
 )
+# DEC-027: Viewer is read-only across units (no mutations — permission gate).
+_VIEWER_ROLES: frozenset[str] = frozenset({"VIEWER"})
 # Head-office operational roles (not admin). Visibility = PUSAT class
 # (owning unit Pusat and/or escalated work — caller applies domain predicate).
 _PUSAT_HANDLER_ROLES: frozenset[str] = frozenset(
@@ -63,6 +65,9 @@ def is_pusat_unit(org_unit_id: str | None) -> bool:
 def resolve_row_visibility(principal: Principal) -> VisibilityClass:
     """Map principal roles + org to a visibility class (DEC-024 + HO handlers)."""
     if principal.has_any_role(*_ADMIN_ROLES):
+        return VisibilityClass.ALL
+
+    if principal.has_any_role(*_VIEWER_ROLES):
         return VisibilityClass.ALL
 
     if principal.has_any_role(*_PUSAT_HANDLER_ROLES):

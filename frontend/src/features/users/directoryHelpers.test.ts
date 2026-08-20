@@ -50,6 +50,11 @@ describe("directoryRoleFamily", () => {
       "supervisor",
     );
     expect(directoryRoleFamily(user({ roleCode: "AGENT" }))).toBe("officer");
+    expect(directoryRoleFamily(user({ roleName: "CRO" }))).toBe("officer");
+    expect(directoryRoleFamily(user({ roleName: "Staff KaSatPel" }))).toBe(
+      "supervisor",
+    );
+    expect(directoryRoleFamily(user({ roleName: "KaSatPel" }))).toBe("manager");
     expect(directoryRoleFamily(user({ roleCode: "VIEWER" }))).toBe("viewer");
     expect(directoryRoleFamily(user({ roleCode: "MANAGER" }))).toBe(
       "manager",
@@ -102,6 +107,9 @@ describe("matchesDirectoryFilter", () => {
     expect(matchesDirectoryFilter(inactive, "active")).toBe(false);
     expect(matchesDirectoryFilter(inactive, "inactive")).toBe(true);
     expect(matchesDirectoryFilter(inactive, "officer")).toBe(true);
+    expect(
+      matchesDirectoryFilter(user({ roleCode: "VIEWER" }), "viewer"),
+    ).toBe(true);
   });
 });
 
@@ -174,6 +182,7 @@ describe("filterRolesForUserForm", () => {
       "SUPERVISOR",
       "MANAGER",
       "ADMIN",
+      "VIEWER",
     ]);
   });
 });

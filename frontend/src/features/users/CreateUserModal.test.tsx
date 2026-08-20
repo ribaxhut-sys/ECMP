@@ -196,11 +196,11 @@ describe("CreateUserModal — Enterprise User membership", () => {
     await selectCandidate(user);
 
     const roleField = screen.getByLabelText(/Role/i);
-    expect(within(roleField).getByRole("option", { name: /^Officer$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^CRO$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Staff KaSatPel$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^KaSatPel$/ })).toBeInTheDocument();
     expect(within(roleField).queryByRole("option", { name: /^Admin$/ })).toBeNull();
-    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
+    expect(within(roleField).getByRole("option", { name: /^Viewer$/ })).toBeInTheDocument();
     expect(within(roleField).queryByRole("option", { name: /Branch Supervisor/i })).toBeNull();
   });
 
@@ -218,10 +218,10 @@ describe("CreateUserModal — Enterprise User membership", () => {
 
     const roleField = screen.getByLabelText(/Role/i);
     expect(within(roleField).getByRole("option", { name: /^Admin$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Officer$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
-    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
+    expect(within(roleField).getByRole("option", { name: /^CRO$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Staff KaSatPel$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^KaSatPel$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Viewer$/ })).toBeInTheDocument();
     expect(screen.getByLabelText(/^Unit/i)).toHaveValue("PUSAT — Pusat");
   });
 

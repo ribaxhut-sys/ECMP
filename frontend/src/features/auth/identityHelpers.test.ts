@@ -75,12 +75,15 @@ describe("isOwnModuleActivity", () => {
 });
 
 describe("primaryRoleLabel", () => {
-  it("maps AGENT to Petugas when labels are provided", () => {
+  it("maps AGENT and VIEWER when labels are provided", () => {
     const labels = moduleRoleDisplayLabels((key) =>
-      key === "roleAgent" ? "Petugas" : key,
+      key === "roleAgent" ? "CRO" : key,
     );
     expect(primaryRoleLabel({ roles: ["AGENT"] }, "Pengguna", labels)).toBe(
-      "Petugas",
+      "CRO",
+    );
+    expect(primaryRoleLabel({ roles: ["VIEWER"] }, "Pengguna", labels)).toBe(
+      "roleViewer",
     );
   });
 

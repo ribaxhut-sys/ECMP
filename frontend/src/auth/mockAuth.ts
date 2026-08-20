@@ -68,8 +68,8 @@ export const MOCK_ACCOUNTS: readonly MockAccount[] = [
     user: buildUser(
       "mock-officer",
       "officer",
-      "Demo Complaint Officer",
-      "Complaint Officer",
+      "Demo CRO",
+      "CRO",
       [
         SHELL_PERMISSIONS.workspaceIntake,
         SHELL_PERMISSIONS.queueAssigned,
@@ -83,8 +83,8 @@ export const MOCK_ACCOUNTS: readonly MockAccount[] = [
     user: buildUser(
       "mock-supervisor",
       "supervisor",
-      "Demo Supervisor",
-      "Supervisor",
+      "Demo Staff KaSatPel",
+      "Staff KaSatPel",
       [SHELL_PERMISSIONS.queueSupervisor],
     ),
   },
@@ -95,8 +95,8 @@ export const MOCK_ACCOUNTS: readonly MockAccount[] = [
     user: buildUser(
       "mock-manager",
       "manager",
-      "Demo Manager",
-      "Manager",
+      "Demo KaSatPel",
+      "KaSatPel",
       [],
     ),
   },

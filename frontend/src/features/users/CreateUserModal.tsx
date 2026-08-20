@@ -23,6 +23,7 @@ import {
   filterRolesForHomeUnit,
   filterRolesForUserForm,
   HEAD_OFFICE_SCOPED_ROLE_CODES,
+  canonicalUserFormRoleLabels,
   userFormRoleLabel,
 } from "./directoryHelpers";
 import {
@@ -433,12 +434,7 @@ export function CreateUserModal({
               value: row.id,
               label: userFormRoleLabel(
                 row.code,
-                {
-                  AGENT: t("roleAgent"),
-                  SUPERVISOR: t("roleSupervisor"),
-                  MANAGER: t("roleManager"),
-                  ADMIN: t("roleAdmin"),
-                },
+                canonicalUserFormRoleLabels(t),
                 row.name,
               ),
             })),

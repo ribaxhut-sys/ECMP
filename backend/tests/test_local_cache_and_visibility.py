@@ -20,6 +20,9 @@ from app.modules.cm_case.application.visibility import (
     is_pusat_unit,
     resolve_case_visibility,
 )
+from app.modules.internal_complaint.application.visibility import (
+    resolve_internal_visibility,
+)
 
 
 @pytest.fixture()
@@ -162,7 +165,8 @@ def test_case_visibility_classes() -> None:
         roles=("VIEWER",),
         permissions=frozenset({"complaints:read"}),
     )
-    assert resolve_case_visibility(viewer) == CaseVisibilityClass.SELF
+    assert resolve_case_visibility(viewer) == CaseVisibilityClass.ALL
+    assert resolve_internal_visibility(viewer) == CaseVisibilityClass.ALL
 
     ho_scheduler = Principal(
         user_id=uuid.uuid4(),

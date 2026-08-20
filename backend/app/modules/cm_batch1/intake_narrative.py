@@ -161,7 +161,7 @@ def append_hq_completion_note(raw: str, note: str) -> str:
 
 
 _RE_ESCALATE_REQUEST_NOTE = (
-    "Menunggu persetujuan Supervisor/Manager cabang untuk eskalasi ke Pusat "
+    "Menunggu persetujuan Staff KaSatPel/KaSatPel cabang untuk eskalasi ke Pusat "
     "(ajuan ulang). Riwayat batalkan/tolak sebelumnya tetap tersimpan."
 )
 

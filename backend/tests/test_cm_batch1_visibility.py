@@ -52,6 +52,16 @@ def test_resolve_agent_on_pusat_unit_is_pusat() -> None:
     assert resolve_row_visibility(principal) == VisibilityClass.PUSAT
 
 
+def test_resolve_viewer_is_all() -> None:
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("VIEWER",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id="UPPPD-A",
+    )
+    assert resolve_row_visibility(principal) == VisibilityClass.ALL
+
+
 def test_resolve_branch_agent_remains_self() -> None:
     principal = Principal(
         user_id=uuid.uuid4(),
@@ -243,3 +253,13 @@ def test_list_visibility_self_unit_pusat() -> None:
         ),
     )
     assert admin_total == 4
+
+    _viewer_items, viewer_total = service.list_complaints(
+        principal=Principal(
+            user_id=uuid.uuid4(),
+            roles=("VIEWER",),
+            permissions=frozenset({"complaints:read"}),
+            org_unit_id="UPPPD-A",
+        ),
+    )
+    assert viewer_total == 4

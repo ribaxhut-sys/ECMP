@@ -20,6 +20,7 @@ from app.core.user_messages import m
 from app.modules.internal_complaint.application.dto import InternalComplaintDTO
 
 _ADMIN_ROLES = frozenset({"ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"})
+_VIEWER_ROLES = frozenset({"VIEWER"})
 _UNIT_ROLES = frozenset(
     {
         "SUPERVISOR",
@@ -44,7 +45,9 @@ def resolve_internal_visibility(
     ``org_unit_id`` is the resolved membership (``_actor_unit``). Lab JWTs
     often omit ``orgUnitId``; class must follow membership, not the claim.
     """
-    if principal.has_any_role(*_ADMIN_ROLES):
+    if principal.has_any_role(*_ADMIN_ROLES) or principal.has_any_role(
+        *_VIEWER_ROLES
+    ):
         return VisibilityClass.ALL
     if principal.has_any_role(*_UNIT_ROLES):
         unit = org_unit_id or principal.org_unit_id

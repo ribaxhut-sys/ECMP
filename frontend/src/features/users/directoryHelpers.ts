@@ -10,7 +10,8 @@ export type DirectoryFilter =
   | "administrator"
   | "manager"
   | "supervisor"
-  | "officer";
+  | "officer"
+  | "viewer";
 
 export type DirectoryRoleFamily =
   | "administrator"
@@ -30,13 +31,14 @@ export const CANONICAL_USER_FORM_ROLE_CODES = [
   "SUPERVISOR",
   "MANAGER",
   "ADMIN",
+  "VIEWER",
 ] as const;
 
 const CANONICAL_USER_FORM_ROLE_ORDER = new Map<string, number>(
   CANONICAL_USER_FORM_ROLE_CODES.map((code, index) => [code, index]),
 );
 
-/** Keep only canonical roles, sorted Petugas → Supervisor → Manager → Admin. */
+/** Keep only canonical roles, sorted CRO → Staff KaSatPel → KaSatPel → Admin → Viewer. */
 export function filterRolesForUserForm(roles: RoleRef[]): RoleRef[] {
   return roles
     .filter((row) => CANONICAL_USER_FORM_ROLE_ORDER.has(row.code))
@@ -59,6 +61,18 @@ export function userFormRoleLabel(
     return labels[code as CanonicalUserFormRoleCode];
   }
   return fallback;
+}
+
+export function canonicalUserFormRoleLabels(
+  t: (key: string) => string,
+): Record<CanonicalUserFormRoleCode, string> {
+  return {
+    AGENT: t("roleAgent"),
+    SUPERVISOR: t("roleSupervisor"),
+    MANAGER: t("roleManager"),
+    ADMIN: t("roleAdmin"),
+    VIEWER: t("roleViewer"),
+  };
 }
 
 /** Mirrors backend BRANCH_SCOPED_ROLE_CODES. */
@@ -129,10 +143,10 @@ export function directoryRoleFamily(
   const hay = roleHaystack(user);
   if (!hay.trim()) return "other";
   if (/(admin|administrator|sysadmin)/.test(hay)) return "administrator";
-  if (/\bmanager\b/.test(hay)) return "manager";
-  if (/(supervisor|supervisory)/.test(hay)) return "supervisor";
-  if (/(agent|officer|handler)/.test(hay)) return "officer";
-  if (/(viewer|read[_-]?only|readonly)/.test(hay)) return "viewer";
+  if (/(staff\s*kasatpel|supervisor|supervisory)/.test(hay)) return "supervisor";
+  if (/\bmanager\b/.test(hay) || /\bkasatpel\b/.test(hay)) return "manager";
+  if (/(agent|officer|handler|\bcro\b)/.test(hay)) return "officer";
+  if (/(viewer|peninjau|read[_-]?only|readonly)/.test(hay)) return "viewer";
   return "other";
 }
 
@@ -182,6 +196,8 @@ export function matchesDirectoryFilter(
       return directoryRoleFamily(user) === "supervisor";
     case "officer":
       return directoryRoleFamily(user) === "officer";
+    case "viewer":
+      return directoryRoleFamily(user) === "viewer";
     default:
       return true;
   }

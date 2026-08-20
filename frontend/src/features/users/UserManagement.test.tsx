@@ -137,7 +137,7 @@ describe("UserManagement — credential surface removed", () => {
       within(preview).queryByRole("button", { name: /reset password/i }),
     ).toBeNull();
     // Role and Status remain visible — membership data, not credentials.
-    expect(within(preview).getByText(/Officer/i)).toBeInTheDocument();
+    expect(within(preview).getByText(/CRO/i)).toBeInTheDocument();
     expect(within(preview).queryByText("member@example.com")).toBeNull();
   });
 
@@ -246,10 +246,10 @@ describe("UserManagement — credential surface removed", () => {
 
     const dialog = screen.getByRole("dialog");
     const roleField = within(dialog).getByLabelText("New role");
-    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Staff KaSatPel$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^KaSatPel$/ })).toBeInTheDocument();
     expect(within(roleField).queryByRole("option", { name: /^Admin$/ })).toBeNull();
-    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
+    expect(within(roleField).getByRole("option", { name: /^Viewer$/ })).toBeInTheDocument();
   });
 
   it("offers operational roles when changing role for a Pusat member", async () => {
@@ -273,10 +273,10 @@ describe("UserManagement — credential surface removed", () => {
     const dialog = screen.getByRole("dialog");
     const roleField = within(dialog).getByLabelText("New role");
     // Pusat keeps operational personas; current ADMIN is excluded from the list.
-    expect(within(roleField).getByRole("option", { name: /^Officer$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Supervisor$/ })).toBeInTheDocument();
-    expect(within(roleField).getByRole("option", { name: /^Manager$/ })).toBeInTheDocument();
-    expect(within(roleField).queryByRole("option", { name: /Viewer/i })).toBeNull();
+    expect(within(roleField).getByRole("option", { name: /^CRO$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Staff KaSatPel$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^KaSatPel$/ })).toBeInTheDocument();
+    expect(within(roleField).getByRole("option", { name: /^Viewer$/ })).toBeInTheDocument();
   });
 
   it("does not render density or hide-email controls", async () => {

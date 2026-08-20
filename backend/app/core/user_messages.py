@@ -163,13 +163,13 @@ MESSAGES: dict[str, str] = {
     ),
     "complaint.not_found": "Pengaduan tidak ditemukan.",
     "complaint.only_supervisor_admin_close": (
-        "Hanya Supervisor, Manager, atau Head Office Admin yang dapat menutup pengaduan."
+        "Hanya Staff KaSatPel, KaSatPel, atau Head Office Admin yang dapat menutup pengaduan."
     ),
     "complaint.only_supervisor_assign": (
-        "Hanya Supervisor atau Manager yang dapat menugaskan pengaduan."
+        "Hanya Staff KaSatPel atau KaSatPel yang dapat menugaskan pengaduan."
     ),
     "complaint.only_supervisor_escalate": (
-        "Hanya Supervisor atau Manager yang dapat mengeskalasi pengaduan."
+        "Hanya Staff KaSatPel atau KaSatPel yang dapat mengeskalasi pengaduan."
     ),
     "complaint.submitter_not_found": "Pengirim pengaduan tidak ditemukan atau tidak aktif.",
     "complaint.unsupported_source_type": "Pengaduan memiliki sourceType yang tidak didukung.",
@@ -177,15 +177,15 @@ MESSAGES: dict[str, str] = {
     "complaint.unsupported_target_type": "Pengaduan memiliki targetType yang tidak didukung.",
     # --- CAP-008 Case F4 acceptance ---
     "case.acceptance_role_denied": (
-        "Hanya Supervisor atau Manager yang berwenang yang dapat memberikan "
+        "Hanya Staff KaSatPel atau KaSatPel yang berwenang yang dapat memberikan "
         "persetujuan penutupan Case."
     ),
     "case.acceptance_owner_unit_mismatch": (
-        "Persetujuan Owner hanya boleh dilakukan oleh Supervisor/Manager "
+        "Persetujuan Owner hanya boleh dilakukan oleh Staff KaSatPel/KaSatPel "
         "pada unit Owner Case."
     ),
     "case.acceptance_handling_unit_mismatch": (
-        "Persetujuan Handling Unit hanya boleh dilakukan oleh Supervisor/Manager "
+        "Persetujuan Handling Unit hanya boleh dilakukan oleh Staff KaSatPel/KaSatPel "
         "pada unit penanganan Case saat ini."
     ),
     "case.acceptance_creator_conflict": (

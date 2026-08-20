@@ -69,12 +69,15 @@ export function moduleRoleDisplayLabels(tUsers: (key: string) => string): Record
   return {
     AGENT: tUsers("roleAgent"),
     CS_AGENT: tUsers("roleAgent"),
+    HANDLER: tUsers("roleAgent"),
+    BRANCH_OFFICER: tUsers("roleAgent"),
     SUPERVISOR: tUsers("roleSupervisor"),
-    BRANCH_SUPERVISOR: tUsers("roleBranchManager"),
+    BRANCH_SUPERVISOR: tUsers("roleSupervisor"),
     MANAGER: tUsers("roleManager"),
     ADMIN: tUsers("roleAdmin"),
     ADMINISTRATOR: tUsers("roleAdmin"),
     SUPER_ADMIN: tUsers("roleAdmin"),
+    VIEWER: tUsers("roleViewer"),
   };
 }
 

@@ -46,6 +46,20 @@ def test_unknown_role_empty() -> None:
     assert permissions_for_role(None) == []
 
 
+def test_viewer_is_read_only_for_complaint_mutations() -> None:
+    """DEC-027: Viewer may read complaints but must not mutate them."""
+    perms = permissions_for_role("VIEWER")
+    assert "complaints:read" in perms
+    for code in (
+        "complaints:create",
+        "complaints:update",
+        "complaints:assign",
+        "complaints:escalate",
+        "complaints:close",
+    ):
+        assert code not in perms
+
+
 def test_ho_engineer_can_complete_appointments() -> None:
     perms = permissions_for_role("HO_ENGINEER")
     assert "appointments:complete" in perms

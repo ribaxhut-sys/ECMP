@@ -353,7 +353,7 @@ export function composeCmBatch1Description(
   }
   if (options?.escalate) {
     parts.push(
-      `---\n${INTAKE_SECTION_ESCALATION_REQUEST}:\nMenunggu persetujuan Supervisor/Manager cabang untuk eskalasi ke Pusat. Deskripsi dan alasan eskalasi tersimpan sebagai riwayat untuk Pusat.`,
+      `---\n${INTAKE_SECTION_ESCALATION_REQUEST}:\nMenunggu persetujuan Staff KaSatPel/KaSatPel cabang untuk eskalasi ke Pusat. Deskripsi dan alasan eskalasi tersimpan sebagai riwayat untuk Pusat.`,
     );
   }
   return parts.filter(Boolean).join("\n\n");
