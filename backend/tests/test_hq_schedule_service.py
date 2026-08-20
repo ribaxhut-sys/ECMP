@@ -291,6 +291,47 @@ def test_invalid_workdays_setting_falls_back_to_weekdays() -> None:
     assert not resp.days[0].closed
 
 
+def test_completed_visit_stays_listed_without_occupying_capacity() -> None:
+    monday = _next_monday(date.today())
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="CMP-1",
+            owning_unit_id="PUSAT",
+            hq_arrival_date=monday,
+            hq_arrival_time="08:30",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            case_numbers=("CASE-1",),
+            completed=True,
+        ),
+        ArrivalRow(
+            complaint_id="c2",
+            complaint_number="CMP-2",
+            owning_unit_id="PUSAT",
+            hq_arrival_date=monday,
+            hq_arrival_time="08:45",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            case_numbers=("CASE-2",),
+            completed=False,
+        ),
+    ]
+    slot = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals), _settings_service()
+    ).get_availability(date_from=monday, date_to=monday, detail=True).days[0].slots[0]
+    assert slot.scheduled_count == 1
+    assert slot.available_count == 1
+    assert len(slot.scheduled_cases) == 2
+    by_id = {case.complaint_id: case for case in slot.scheduled_cases}
+    assert by_id["c1"].completed is True
+    assert by_id["c2"].completed is False
+
+
 def test_malformed_arrival_times_are_ignored() -> None:
     monday = _next_monday(date.today())
     arrivals = [

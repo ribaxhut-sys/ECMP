@@ -228,8 +228,9 @@ class HqScheduleService:
                 return lo <= _minutes(t) < hi
 
             scheduled = [a for a in scheduled_for_day if in_slot(a.hq_arrival_time)]
+            live_scheduled = [a for a in scheduled if not a.completed]
             proposed = [a for a in proposed_for_day if in_slot(a.proposed_arrival_time)]
-            scheduled_count = len(scheduled)
+            scheduled_count = len(live_scheduled)
             proposed_count = len(proposed)
             available = max(0, config.capacity_per_slot - scheduled_count)
             pending: list[ProposalSummary] = []
@@ -268,6 +269,7 @@ class HqScheduleService:
                     owningUnitId=a.owning_unit_id,
                     unitCode=resolve_unit_code(a.owning_unit_id),
                     caseNumbers=list(a.case_numbers),
+                    completed=a.completed,
                 )
                 for a in visible_scheduled
             ]

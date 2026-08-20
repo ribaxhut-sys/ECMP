@@ -46,6 +46,7 @@ from app.modules.cm_batch1.intake_narrative import (
     append_cancellation_note,
     append_hq_acceptance_note,
     append_hq_arrival_note,
+    append_hq_completion_note,
     append_hq_return_note,
     append_re_escalation_reason,
     append_rejection_note,
@@ -70,6 +71,7 @@ from app.modules.cm_batch1.schemas import (
     DuplicateDecisionResponse,
     HqAcceptAndScheduleRequest,
     HqAcceptRequest,
+    HqCompleteRequest,
     HqReturnRequest,
     HqScheduleArrivalRequest,
     IntakeEscalationDecisionRequest,
@@ -265,6 +267,15 @@ class CmBatch1StoreProtocol(Protocol):
         arrival_time: str,
         description: str,
         intake_disposition: str = "HQ_SCHEDULED",
+    ) -> ComplaintAggregate | None: ...
+
+    def complete_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        description: str,
+        intake_disposition: str = "HQ_CLOSED",
+        closed_by: str | None = None,
     ) -> ComplaintAggregate | None: ...
 
 
@@ -1690,6 +1701,63 @@ class CmBatch1Service:
         self._store.commit()
         return self._to_complaint_response(updated, replayed=False)
 
+    def complete_at_hq(
+        self,
+        complaint_id: str,
+        body: HqCompleteRequest,
+        *,
+        actor_id: str | None,
+    ) -> ComplaintBatch1Response:
+        """Selesai di Pusat setelah WP dilayani → CLOSED + HQ_CLOSED.
+
+        Kunjungan tetap tampil di kalender hari itu (completed); kapasitas slot dibebaskan.
+        """
+        row = self._store.get(complaint_id)
+        if row is None:
+            raise NotFoundError(m("complaint.not_found"))
+        _require_open_complaint(row, "HQ complete")
+        if row.hq_accepted_at is None:
+            raise InvalidStateError(
+                "HQ complete only allowed after HQ accepted",
+                details={"hqAcceptedAt": None},
+            )
+        current = (row.intake_disposition or "").strip().upper()
+        if current not in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
+            raise InvalidStateError(
+                "HQ complete only allowed when ESCALATE_APPROVED or HQ_SCHEDULED",
+                details={"intakeDisposition": row.intake_disposition},
+            )
+        note = (body.note or "").strip()
+        if len(note) < 10:
+            raise ValidationAppError(
+                "HQ complete note must be at least 10 characters",
+                details={"field": "note", "minLength": 10},
+            )
+        next_description = append_hq_completion_note(row.description or "", note)
+        updated = self._store.complete_at_hq(
+            complaint_id,
+            description=next_description,
+            intake_disposition="HQ_CLOSED",
+            closed_by=actor_id,
+        )
+        if updated is None:
+            raise NotFoundError(m("complaint.not_found"))
+        arrival_date = (
+            updated.hq_arrival_date.isoformat() if updated.hq_arrival_date else None
+        )
+        self._side_effects.record(
+            events.hq_completed(
+                complaint_id=updated.complaint_id,
+                complaint_number=updated.complaint_number,
+                actor_id=actor_id,
+                note=note,
+                arrival_date=arrival_date,
+                arrival_time=updated.hq_arrival_time,
+            )
+        )
+        self._store.commit()
+        return self._to_complaint_response(updated, replayed=False)
+
     def list_complaints(
         self,
         *,
@@ -1839,6 +1907,7 @@ class CmBatch1Service:
             hqAcceptanceNote=parsed.hq_acceptance_note,
             hqArrivalNote=parsed.hq_arrival_note,
             hqReturnNote=parsed.hq_return_note,
+            hqCompletionNote=parsed.hq_completion_note,
             proposedArrivalDate=row.proposed_arrival_date,
             proposedArrivalTime=row.proposed_arrival_time,
             proposedBy=row.proposed_by,

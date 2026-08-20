@@ -36,6 +36,8 @@ export function cmBatch1Paths() {
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-return`,
     hqScheduleArrival: (complaintId: string) =>
       `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-schedule-arrival`,
+    hqComplete: (complaintId: string) =>
+      `${CM_BATCH1_BASE}/complaints/${encodeURIComponent(complaintId)}/hq-complete`,
     userWorkStats: (userId: string) =>
       `${CM_BATCH1_BASE}/complaints/work-stats/${encodeURIComponent(userId)}`,
     duplicatesCheck: `${CM_BATCH1_BASE}/duplicates/check`,

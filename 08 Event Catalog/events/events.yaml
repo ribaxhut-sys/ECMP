@@ -763,3 +763,24 @@ events:
     consumers:
       - Core Platform
     idempotency: idempotent by caseId + actorId + deniedAt
+
+  # --- Mode A Batch-1 HQ visit complete (lab; not DEC-F4 Case resolve) ---
+  - id: EVT-CM-045
+    name: HqCompleted
+    status: Implemented
+    producer: ECMF
+    description: HQ completed taxpayer visit and closed the Aggregate (HQ_CLOSED); visit stays listed that day; live occupancy is freed
+    fr: FR-001
+    api: API-CM-B1-025
+    payload:
+      complaintId: string
+      complaintNumber: string
+      actorId: string
+      nextDisposition: string
+      arrivalDate: string
+      arrivalTime: string
+    consumers:
+      - Dashboard
+      - Core Platform
+      - KPI
+    idempotency: idempotent by complaintId + occurredAt

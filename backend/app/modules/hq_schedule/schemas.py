@@ -39,6 +39,10 @@ class ProposalSummary(BaseModel):
     case_numbers: list[str] = Field(default_factory=list, alias="caseNumbers")
     proposed_by: str | None = Field(default=None, alias="proposedBy")
     proposed_at: datetime | None = Field(default=None, alias="proposedAt")
+    completed: bool = Field(
+        default=False,
+        description="HQ visit completed (HQ_CLOSED) — listed that day, does not consume capacity",
+    )
 
 
 class SlotAvailability(BaseModel):

@@ -47,6 +47,7 @@ from app.modules.cm_batch1.schemas import (
     DuplicateDecisionResponse,
     HqAcceptAndScheduleRequest,
     HqAcceptRequest,
+    HqCompleteRequest,
     HqReturnRequest,
     HqScheduleArrivalRequest,
     IntakeEscalationDecisionRequest,
@@ -202,6 +203,7 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
         "ESCALATE_CANCELLED",
         "RETURNED_TO_BRANCH",
         "HQ_SCHEDULED",
+        "HQ_CLOSED",
         # Pseudo-value: any escalate-family state (Users directory drill-down).
         "ESCALATED",
         # Pseudo-value: not in the escalate family (dashboard waiting-assignment).
@@ -661,6 +663,37 @@ def hq_schedule_arrival(
     )
     return DataResponse(
         data=service.schedule_hq_arrival(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-complete",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ complete visit and close complaint (lab)",
+)
+def hq_complete_visit(
+    complaint_id: str,
+    body: HqCompleteRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """Selesai di Pusat dengan catatan; status CLOSED. Kunjungan tetap di kalender hari itu."""
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    return DataResponse(
+        data=service.complete_at_hq(
             complaint_id,
             body,
             actor_id=_principal_key(principal),

@@ -530,6 +530,49 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-complete:
+    post:
+      summary: HQ complete visit and close complaint (lab)
+      operationId: cmB1HqCompleteVisit
+      x-ecmp-logical-id: API-CM-B1-025
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 lab: after HQ accepted the escalation (typically
+        HQ_SCHEDULED taxpayer visit), Pusat records the visit outcome and
+        closes the Aggregate. Sets status=CLOSED and intakeDisposition=HQ_CLOSED.
+        Open Cases under the complaint become CLOSED. The HQ arrival calendar
+        keeps the visit on that day's slot with completed=true; occupancy
+        (scheduledCount) is live HQ_SCHEDULED only so another WP can book.
+        Same HQ gate as API-516. Mandatory note (≥10). Arrival date/time stay
+        on the record for history.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqCompleteRequest"
+      responses:
+        "200":
+          description: Completed at HQ (CLOSED / HQ_CLOSED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /api/v1/cm/customers/search:
     post:
       summary: Search Customer by exactly one key type
@@ -1071,6 +1114,11 @@ components:
           description: |
             Pengembalian Pusat note (reason code + free text) when HQ returned
             escalation to branch (API-519).
+        hqCompletionNote:
+          type: string
+          nullable: true
+          description: |
+            Penyelesaian Pusat note when HQ completed the visit (API-CM-B1-025).
         hqAcceptedAt:
           type: string
           format: date-time
@@ -1240,6 +1288,15 @@ components:
         note:
           type: string
           maxLength: 2000
+    HqCompleteRequest:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Mandatory completion note (min 10 after trim) — Penyelesaian Pusat
     CustomerSearchRequest:
       type: object
       description: Supply exactly one key

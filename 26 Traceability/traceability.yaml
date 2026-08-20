@@ -34,6 +34,8 @@ id: TRC-DATA-001
 # for hqArrivalDate/Time. Formal TC-catalog IDs deferred — lab pytest cited.
 # 2026-08-18 (CAP-008 Case Timeline lab): API-537 added to TRC-L-013
 # (GET /api/v1/cm/cases/{caseId}/history — this Case only; UC-CAP02-07).
+# 2026-08-20 (HQ complete visit lab): TRC-L-018 added for API-CM-B1-025 /
+# EVT-CM-045 (POST /api/v1/cm/complaints/{id}/hq-complete → HQ_CLOSED).
 links:
   - id: TRC-L-009
     domain: Core Platform
@@ -255,6 +257,24 @@ links:
       (Pusat SoT remains accept-and-schedule / schedule). Lab evidence:
       tests/test_hq_schedule_api.py, test_hq_schedule_service.py,
       test_hq_schedule_repository.py, test_cm_batch1_proposed_arrival.py.
+  - id: TRC-L-018
+    domain: ECMF
+    bp: BP-001
+    br: BR-001
+    fr: FR-001
+    api: [API-CM-B1-025]
+    events: [EVT-CM-045]
+    tests: []
+    sprint: Mode-A-CM-B1
+    status: Approved
+    description: >-
+      HQ complete visit and close Aggregate (lab). Logical API-CM-B1-025
+      POST /api/v1/cm/complaints/{complaintId}/hq-complete. Sets
+      status=CLOSED and intakeDisposition=HQ_CLOSED; visit stays listed
+      that day (completed); live occupancy freed. Not DEC-F4 Case resolve.
+      Lab evidence: tests/test_cm_batch1.py::test_hq_complete_closes_complaint_and_keeps_arrival,
+      test_hq_schedule_repository.py::test_completed_hq_visit_stays_listed_on_schedule,
+      test_hq_schedule_service.py::test_completed_visit_stays_listed_without_occupying_capacity.
 
 artifacts:
   bp:
@@ -318,6 +338,7 @@ artifacts:
     API-542: GET /api/v1/hq-schedule/holidays
     API-543: POST /api/v1/hq-schedule/holidays
     API-544: DELETE /api/v1/hq-schedule/holidays/{holidayDate}
+    API-CM-B1-025: POST /api/v1/cm/complaints/{complaintId}/hq-complete (HQ visit complete → HQ_CLOSED, Mode A lab)
   events:
     EVT-001: CaseCreated
     EVT-002: CaseAssigned
@@ -326,6 +347,7 @@ artifacts:
     EVT-005: CaseClosed
     EVT-006: ConfigChanged
     EVT-007: CaseReopened (Proposed)
+    EVT-CM-045: HqCompleted (HQ visit complete → HQ_CLOSED, Mode A lab)
   tests:
     TC-001: Create complaint with valid customer succeeds
     TC-002: Get case by id returns case

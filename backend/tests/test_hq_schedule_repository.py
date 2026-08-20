@@ -25,6 +25,8 @@ from app.modules.cm_batch1.models import (
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import (
     CreateComplaintBatch1Request,
+    HqAcceptAndScheduleRequest,
+    HqCompleteRequest,
     HqReturnRequest,
     IntakeEscalationDecisionRequest,
 )
@@ -236,3 +238,51 @@ def test_holiday_crud_round_trip(db_session: Session) -> None:
     assert repo.delete_holiday(_TOMORROW) is True
     assert repo.get_holiday(_TOMORROW) is None
     repo.commit()
+
+
+def test_completed_hq_visit_stays_listed_on_schedule(
+    service: CmBatch1Service, db_session: Session
+) -> None:
+    resp = confirmed_create(
+        service,
+        _escalate_body(),
+        request_id="hq-repo-complete-1",
+    )
+    service.decide_intake_escalation(
+        resp.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui supervisor cabang untuk eskalasi ke Pusat.",
+            priority="MEDIUM",
+        ),
+        actor_id="supervisor-1",
+    )
+    service.accept_and_schedule_at_hq(
+        resp.complaint_id,
+        HqAcceptAndScheduleRequest(
+            arrivalDate=_TOMORROW,
+            arrivalTime="09:00",
+            note="Bawa KTP asli dan dokumen pendukung.",
+        ),
+        actor_id="hq-scheduler-1",
+    )
+    hq_repo = HqScheduleRepository(db_session)
+    before = hq_repo.list_arrivals_in_range(date_from=_TOMORROW, date_to=_TOMORROW)
+    assert len(before) == 1
+    assert before[0].hq_arrival_date == _TOMORROW
+
+    completed = service.complete_at_hq(
+        resp.complaint_id,
+        HqCompleteRequest(
+            note="Wajib pajak datang dan pengaduan diselesaikan di Pusat."
+        ),
+        actor_id="hq-scheduler-1",
+    )
+    assert completed.status == "CLOSED"
+    assert completed.intake_disposition == "HQ_CLOSED"
+
+    after = hq_repo.list_arrivals_in_range(date_from=_TOMORROW, date_to=_TOMORROW)
+    assert len(after) == 1
+    assert after[0].completed is True
+    assert after[0].hq_arrival_date == _TOMORROW
+    assert after[0].hq_arrival_time == "09:00"

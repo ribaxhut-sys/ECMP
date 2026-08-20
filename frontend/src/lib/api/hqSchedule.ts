@@ -16,6 +16,8 @@ export interface HqScheduleProposalSummary {
   caseNumbers: string[];
   proposedBy?: string | null;
   proposedAt?: string | null;
+  /** HQ visit completed (HQ_CLOSED) — still listed that day; does not consume capacity. */
+  completed?: boolean;
 }
 
 export interface HqScheduleSlotAvailability {

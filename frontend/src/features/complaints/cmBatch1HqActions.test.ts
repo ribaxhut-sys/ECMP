@@ -85,6 +85,7 @@ describe("resolveCmBatch1HqActionVisibility", () => {
     expect(v.showHqAcceptAndSchedule).toBe(true);
     expect(v.showHqReturn).toBe(true);
     expect(v.showHqReschedule).toBe(false);
+    expect(v.showHqComplete).toBe(false);
     expect(v.showBranchNotifyBanner).toBe(false);
   });
 
@@ -108,6 +109,7 @@ describe("resolveCmBatch1HqActionVisibility", () => {
     const v = resolveCmBatch1HqActionVisibility(approved, false);
     expect(v.showHqAcceptAndSchedule).toBe(false);
     expect(v.showHqReturn).toBe(false);
+    expect(v.showHqComplete).toBe(false);
   });
 
   it("shows reschedule after HQ_SCHEDULED + accepted", () => {
@@ -124,6 +126,7 @@ describe("resolveCmBatch1HqActionVisibility", () => {
     expect(v.hqScheduled).toBe(true);
     expect(v.showHqAcceptAndSchedule).toBe(false);
     expect(v.showHqReschedule).toBe(true);
+    expect(v.showHqComplete).toBe(true);
   });
 
   it("does not duplicate a branch notify banner after the visit slot is scheduled", () => {
@@ -139,6 +142,7 @@ describe("resolveCmBatch1HqActionVisibility", () => {
     );
     expect(v.showBranchNotifyBanner).toBe(false);
     expect(v.showHqReschedule).toBe(false);
+    expect(v.showHqComplete).toBe(false);
   });
 });
 
@@ -270,6 +274,23 @@ describe("cmBatch1BlobEventCodes", () => {
       cmBatch1BlobEventCodes({ ...base, intakeClosed: true }),
     ).toEqual(["REGISTERED", "BRANCH_CLOSED"]);
   });
+
+  it("emits HQ_COMPLETED when disposition is HQ_CLOSED", () => {
+    expect(
+      cmBatch1BlobEventCodes({
+        ...base,
+        intakeDisposition: "HQ_CLOSED",
+        hqAcceptedAt: "2026-08-01T02:00:00Z",
+        hqArrivalDate: "2026-08-10",
+        hqArrivalTime: "09:00",
+      }),
+    ).toEqual([
+      "REGISTERED",
+      "HQ_ACCEPTED",
+      "HQ_ARRIVAL_SCHEDULED",
+      "HQ_COMPLETED",
+    ]);
+  });
 });
 
 describe("intakeHistoryShowsPriority", () => {
@@ -301,6 +322,7 @@ describe("intakeHistoryIsCloseEvent", () => {
   it("marks branch close and case close as closer rows", () => {
     expect(intakeHistoryIsCloseEvent("BRANCH_CLOSED")).toBe(true);
     expect(intakeHistoryIsCloseEvent("CASE_CLOSED")).toBe(true);
+    expect(intakeHistoryIsCloseEvent("HQ_COMPLETED")).toBe(true);
     expect(intakeHistoryIsCloseEvent("REGISTERED")).toBe(false);
   });
 });

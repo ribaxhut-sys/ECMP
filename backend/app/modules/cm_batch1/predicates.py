@@ -27,6 +27,9 @@ CLOSED_STATUS = "CLOSED"
 #: Escalation approved and an HQ visit is on the calendar.
 HQ_SCHEDULED = "HQ_SCHEDULED"
 
+#: HQ visit handled; Aggregate CLOSED. Not on the live escalation path.
+HQ_CLOSED = "HQ_CLOSED"
+
 #: Still travelling the escalation path — the KPI/dashboard "escalated" count.
 ESCALATION_ACTIVE: tuple[str, ...] = (
     "ESCALATE_PENDING_APPROVAL",

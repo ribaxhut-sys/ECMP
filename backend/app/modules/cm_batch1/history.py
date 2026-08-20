@@ -53,6 +53,7 @@ _EVENT_TYPE_CODES = {
     "HqAccepted": "HQ_ACCEPTED",
     "HqReturned": "HQ_RETURNED",
     "HqArrivalScheduled": "HQ_ARRIVAL_SCHEDULED",
+    "HqCompleted": "HQ_COMPLETED",
     "AttachmentUploaded": "ATTACHMENT_UPLOADED",
     "AttachmentBound": "ATTACHMENT_BOUND",
     "AttachmentSuperseded": "ATTACHMENT_SUPERSEDED",

@@ -530,6 +530,24 @@ class Batch1Store:
             self._clear_proposed(row)
             return row
 
+    def complete_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        description: str,
+        intake_disposition: str = "HQ_CLOSED",
+        closed_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.description = description
+            row.intake_disposition = intake_disposition
+            row.status = "CLOSED"
+            _ = closed_by
+            return row
+
     @staticmethod
     def _clear_proposed(row: ComplaintAggregate) -> None:
         row.proposed_arrival_date = None

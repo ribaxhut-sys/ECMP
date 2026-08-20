@@ -312,6 +312,41 @@ describe("HqScheduleView", () => {
     expect(partial).toHaveClass("border-l-ecmp-warning");
   });
 
+  it("keeps a completed visit listed with a checklist tag and empty occupancy", async () => {
+    const grid = gridWithCases();
+    grid.days[0]!.slots.push({
+      startTime: "10:00",
+      endTime: "11:00",
+      capacity: 2,
+      isBreak: false,
+      scheduledCount: 0,
+      proposedCount: 0,
+      availableCount: 2,
+      pendingProposals: [],
+      scheduledCases: [
+        {
+          complaintId: "case-done",
+          complaintNumber: "TAB-2608-0009",
+          owningUnitId: "UPPPD-A",
+          unitCode: "TAB",
+          caseNumbers: ["CASE-2026-000009"],
+          completed: true,
+        },
+      ],
+    });
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-10:00");
+    expect(slot).toHaveAttribute("data-occupancy", "empty");
+    expect(within(slot).getByText("CASE-2026-000009")).toBeInTheDocument();
+    expect(within(slot).getByText("Done")).toBeInTheDocument();
+    expect(within(slot).getByText("CASE-2026-000009").closest("[data-completed]")).toHaveAttribute(
+      "data-completed",
+      "true",
+    );
+  });
+
   it("tags a break slot instead of showing case data", async () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
@@ -380,6 +415,43 @@ describe("HqScheduleView", () => {
     expect(
       summarizeHqWeek(gridWithCases().days, "2026-08-18"),
     ).toEqual({ scheduled: 2, today: 0, empty: 0 });
+  });
+
+  it("counts completed visits in week totals while occupancy stays empty", () => {
+    expect(
+      summarizeHqWeek(
+        [
+          {
+            date: "2026-08-17",
+            weekday: 1,
+            closed: false,
+            slots: [
+              {
+                startTime: "08:00",
+                endTime: "09:00",
+                capacity: 2,
+                isBreak: false,
+                scheduledCount: 0,
+                proposedCount: 0,
+                availableCount: 2,
+                pendingProposals: [],
+                scheduledCases: [
+                  {
+                    complaintId: "done",
+                    complaintNumber: "TAB-2608-0009",
+                    owningUnitId: "UPPPD-A",
+                    unitCode: "TAB",
+                    caseNumbers: ["CASE-2026-000009"],
+                    completed: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        "2026-08-17",
+      ),
+    ).toEqual({ scheduled: 1, today: 1, empty: 2 });
   });
 
   it("maps occupancy from booked count, not leftover capacity", () => {

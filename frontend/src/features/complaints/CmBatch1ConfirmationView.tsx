@@ -7,6 +7,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   acceptAndScheduleCmBatch1HqEscalation,
+  completeCmBatch1HqVisit,
   decideCmBatch1IntakeEscalation,
   fetchBranches,
   fetchCmBatch1Complaint,
@@ -111,6 +112,7 @@ const HISTORY_TONES: Record<string, BadgeTone> = {
   HQ_ACCEPTED: "info",
   HQ_RETURNED: "warning",
   HQ_ARRIVAL_SCHEDULED: "info",
+  HQ_COMPLETED: "success",
   CASE_CREATED: "primary",
   CASE_WORK_STARTED: "info",
   CASE_ASSIGNED: "primary",
@@ -134,6 +136,7 @@ const HISTORY_LABEL_KEYS: Record<string, string> = {
   HQ_ACCEPTED: "tagHqAccepted",
   HQ_RETURNED: "tagHqReturned",
   HQ_ARRIVAL_SCHEDULED: "tagHqScheduled",
+  HQ_COMPLETED: "tagHqCompleted",
   CASE_CREATED: "tagCaseCreated",
   CASE_WORK_STARTED: "tagCaseWorkStarted",
   CASE_ASSIGNED: "tagCaseAssigned",
@@ -272,6 +275,8 @@ export function CmBatch1ConfirmationView({
   const [hqAcceptOpen, setHqAcceptOpen] = useState(false);
   const [hqReturnOpen, setHqReturnOpen] = useState(false);
   const [hqScheduleOpen, setHqScheduleOpen] = useState(false);
+  const [hqCompleteOpen, setHqCompleteOpen] = useState(false);
+  const [hqCompleteNote, setHqCompleteNote] = useState("");
   const [approveNote, setApproveNote] = useState("");
   const [approvePriority, setApprovePriority] = useState("");
   const [rejectNote, setRejectNote] = useState("");
@@ -616,6 +621,28 @@ export function CmBatch1ConfirmationView({
     }
   }
 
+  async function submitHqComplete(): Promise<void> {
+    if (!data) return;
+    const note = hqCompleteNote.trim();
+    if (!isCmBatch1HqNoteReady(note)) return;
+    setDeciding(true);
+    try {
+      const res = await completeCmBatch1HqVisit(data.complaintId, { note });
+      setData(res.data);
+      void reloadHistory();
+      setHqCompleteOpen(false);
+      setHqCompleteNote("");
+      pushSuccess(
+        t("hqCompletedToast"),
+        t("hqCompletedToastDescription", { number: res.data.complaintNumber }),
+      );
+    } catch (err) {
+      pushError(err, t("hqCompleteFailed"));
+    } finally {
+      setDeciding(false);
+    }
+  }
+
   const onPenangananSnapshot = useCallback(
     (snapshot: {
       loading: boolean;
@@ -686,6 +713,7 @@ export function CmBatch1ConfirmationView({
     showHqAcceptAndSchedule,
     showHqReturn,
     showHqReschedule,
+    showHqComplete,
   } = hqActions;
   const {
     pendingEscalation,
@@ -716,6 +744,7 @@ export function CmBatch1ConfirmationView({
   );
 
   const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
+  const hqCompleteNoteOk = isCmBatch1HqNoteReady(hqCompleteNote);
   const hqAcceptScheduleReady = isCmBatch1HqAcceptScheduleReady({
     arrivalDate,
     arrivalTime,
@@ -852,6 +881,8 @@ export function CmBatch1ConfirmationView({
         return data?.hqAcceptanceNote?.trim() || null;
       case "HQ_RETURNED":
         return data?.hqReturnNote?.trim() || null;
+      case "HQ_COMPLETED":
+        return data?.hqCompletionNote?.trim() || null;
       default:
         return null;
     }
@@ -1555,6 +1586,18 @@ export function CmBatch1ConfirmationView({
                   : t("hqScheduleArrival")}
               </Button>
             ) : null}
+            {showHqComplete ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setHqCompleteNote("");
+                  setHqCompleteOpen(true);
+                }}
+                disabled={deciding}
+              >
+                {t("hqComplete")}
+              </Button>
+            ) : null}
             {intakeEscalate && pendingEscalation && !showSupervisorActions ? (
               <Button
                 type="button"
@@ -2057,6 +2100,49 @@ export function CmBatch1ConfirmationView({
             rows={3}
             maxLength={2000}
             disabled={deciding}
+          />
+        </div>
+      </Modal>
+      <Modal
+        open={hqCompleteOpen}
+        onClose={() => (!deciding ? setHqCompleteOpen(false) : undefined)}
+        title={t("hqCompleteTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqCompleteOpen(false)}
+              disabled={deciding}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={deciding}
+              disabled={!hqCompleteNoteOk || deciding}
+              onClick={() => void submitHqComplete()}
+            >
+              {t("hqCompleteAction")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("hqCompleteBody", { number: data?.complaintNumber ?? "" })}
+          </p>
+          <Textarea
+            label={t("hqCompleteNoteLabel")}
+            hint={t("hqCompleteNoteHint")}
+            value={hqCompleteNote}
+            onChange={(e) => setHqCompleteNote(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={deciding}
+            required
+            aria-required="true"
           />
         </div>
       </Modal>

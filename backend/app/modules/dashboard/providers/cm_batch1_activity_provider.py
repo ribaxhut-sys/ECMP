@@ -48,6 +48,7 @@ _EVENT_TYPE_MAP: dict[str, str] = {
     "HqAccepted": "complaint.hq_accepted",
     "HqReturned": "complaint.hq_returned",
     "HqArrivalScheduled": "complaint.hq_arrival_scheduled",
+    "HqCompleted": "complaint.closed",
     "HandlingContinued": "complaint.handling_continued",
     "HandlingTakenOver": "complaint.handling_taken_over",
     "CaseCreated": "complaint.case_created",
@@ -71,6 +72,7 @@ _DECISION_EVENT_TYPE_MAP: dict[str, str] = {
 _DISPOSITION_EVENT_TYPE_MAP: dict[str, str] = {
     "ESCALATE_PENDING_APPROVAL": "complaint.escalation_requested",
     "BRANCH_CLOSED": "complaint.closed",
+    "HQ_CLOSED": "complaint.closed",
 }
 
 
@@ -110,12 +112,12 @@ _CLOSE_PATH_PRECURSOR_EVENT_TYPES = frozenset(
 
 
 def _is_case_closed_event(entry: Any) -> bool:
-    if entry.event_type == "CaseClosed":
+    if entry.event_type in {"CaseClosed", "HqCompleted"}:
         return True
     if entry.event_type != "IntakeDispositionRecorded":
         return False
     disposition = str((entry.metadata or {}).get("intakeDisposition") or "").upper()
-    return disposition == "BRANCH_CLOSED"
+    return disposition in {"BRANCH_CLOSED", "HQ_CLOSED"}
 
 
 def _omit_close_path_precursors(entries: list[Any]) -> list[Any]:

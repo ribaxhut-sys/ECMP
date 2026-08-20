@@ -7,8 +7,12 @@ info:
     Management Batch 1 escalation flow. Pusat remains the sole source of truth
     for `hqArrivalDate` / `hqArrivalTime` (set via
     `/api/v1/cm/complaints/{complaintId}/hq-accept-and-schedule` and
-    `/hq-schedule`, catalogued in complaint-management-batch1.v1.yaml). This
-    module only answers "what does the grid look like" — a read-mostly
+    `/hq-schedule-arrival`, and `/hq-complete`, catalogued in
+    complaint-management-batch1.v1.yaml). Completing a visit (`HQ_CLOSED`)
+    keeps the row visible that day (`scheduledCases[].completed=true`);
+    occupancy (`scheduledCount` / `availableCount`) counts live
+    `HQ_SCHEDULED` arrivals only. This module only answers "what does the
+    grid look like" — a read-mostly
     capacity/proposal view plus a minimal holiday calendar CRUD for Pusat.
     Branch-proposed slots (`proposedArrivalDate` / `proposedArrivalTime` on
     ComplaintBatch1Response) are advisory only and never reduce
@@ -237,8 +241,8 @@ components:
   schemas:
     ProposalSummary:
       type: object
-      description: One branch-proposed slot awaiting Pusat decision (Pusat detail view only).
-      required: [complaintId, complaintNumber]
+      description: One scheduled or branch-proposed slot occupant (Pusat detail; branch aggregate only sees own unit).
+      required: [complaintId, complaintNumber, unitCode]
       properties:
         complaintId:
           type: string
@@ -247,6 +251,13 @@ components:
         owningUnitId:
           type: string
           nullable: true
+        unitCode:
+          type: string
+        caseNumbers:
+          type: array
+          items:
+            type: string
+          description: Case(s) tracking this complaint's escalation — empty for pending proposals.
         proposedBy:
           type: string
           nullable: true
@@ -254,6 +265,12 @@ components:
           type: string
           format: date-time
           nullable: true
+        completed:
+          type: boolean
+          default: false
+          description: >
+            HQ visit completed (HQ_CLOSED). Still listed on that day's slot;
+            does not consume capacity / scheduledCount.
     SlotAvailability:
       type: object
       required:
@@ -274,16 +291,25 @@ components:
           type: integer
         scheduledCount:
           type: integer
-          description: Pusat-scheduled arrivals in this slot — reduces availableCount.
+          description: >
+            Live Pusat-scheduled arrivals (HQ_SCHEDULED) in this slot —
+            reduces availableCount. Completed visits are excluded.
         proposedCount:
           type: integer
           description: Branch-proposed (awaiting decision) arrivals in this slot — advisory only.
         availableCount:
           type: integer
-          description: capacity - scheduledCount (floored at 0). Never reduced by proposals.
+          description: capacity - scheduledCount (floored at 0). Never reduced by proposals or completed visits.
         pendingProposals:
           type: array
           description: Pusat detail only — always empty on the branch-facing aggregate view.
+          items:
+            $ref: "#/components/schemas/ProposalSummary"
+        scheduledCases:
+          type: array
+          description: >
+            Visits in this slot including completed (HQ_CLOSED) rows.
+            Branch aggregate only includes the caller's own unit.
           items:
             $ref: "#/components/schemas/ProposalSummary"
     DayAvailability:

@@ -154,6 +154,7 @@ export interface CmBatch1ComplaintResponse {
   hqAcceptanceNote?: string | null;
   hqArrivalNote?: string | null;
   hqReturnNote?: string | null;
+  hqCompletionNote?: string | null;
   /** Branch-proposed HQ arrival slot, still awaiting Pusat decision. */
   proposedArrivalDate?: string | null;
   proposedArrivalTime?: string | null;
@@ -177,6 +178,7 @@ export type CmBatch1HistoryEventCode =
   | "HQ_ACCEPTED"
   | "HQ_RETURNED"
   | "HQ_ARRIVAL_SCHEDULED"
+  | "HQ_COMPLETED"
   | (string & {});
 
 export interface CmBatch1IntakeHistoryEntry {
@@ -534,6 +536,21 @@ export function scheduleCmBatch1HqArrival(
   body: CmBatch1HqScheduleArrivalRequest,
 ): Promise<DataResponse<CmBatch1ComplaintResponse>> {
   return apiRequest(cmBatch1Paths().hqScheduleArrival(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface CmBatch1HqCompleteRequest {
+  note: string;
+}
+
+/** Lab — Selesai di Pusat setelah kunjungan WP → CLOSED / HQ_CLOSED. */
+export function completeCmBatch1HqVisit(
+  complaintId: string,
+  body: CmBatch1HqCompleteRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqComplete(complaintId), {
     method: "POST",
     body: JSON.stringify(body),
   });

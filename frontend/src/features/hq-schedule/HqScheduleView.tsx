@@ -33,7 +33,7 @@ import {
   Select,
   StatCard,
 } from "@/shared/ui";
-import { IconChevronRight } from "@/shared/icons";
+import { IconCheck, IconChevronRight } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 import { toLocalDateKey } from "@/shared/utils/datetime";
 import { cn } from "@/shared/utils";
@@ -104,9 +104,13 @@ export function summarizeHqWeek(
     if (day.closed) continue;
     for (const slot of day.slots) {
       if (slot.isBreak) continue;
-      scheduled += slot.scheduledCount;
+      const listed =
+        slot.scheduledCases.length > 0
+          ? slot.scheduledCases.length
+          : slot.scheduledCount;
+      scheduled += listed;
       empty += slot.availableCount;
-      if (day.date === todayIso) today += slot.scheduledCount;
+      if (day.date === todayIso) today += listed;
     }
   }
   return { scheduled, today, empty };
@@ -126,11 +130,15 @@ function CaseLine({
   canOpen: boolean;
   branchNameByCode: Map<string, string>;
 }) {
+  const t = useTranslations("hqSchedule");
   const unitInitial = proposal.unitCode;
   const branchTitle =
     branchNameByCode.get(proposal.owningUnitId ?? "") || unitInitial;
   return (
-    <div className="flex min-w-0 items-baseline gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight">
+    <div
+      data-completed={proposal.completed ? "true" : "false"}
+      className="flex min-w-0 items-center gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight"
+    >
       {canOpen ? (
         <Link
           href={`/complaints/cm/${encodeURIComponent(proposal.complaintId)}`}
@@ -150,6 +158,16 @@ function CaseLine({
       >
         {unitInitial}
       </span>
+      {proposal.completed ? (
+        <Badge
+          tone="success"
+          variant="outline"
+          className="shrink-0 gap-0.5 px-1.5 py-0"
+        >
+          <IconCheck className="size-3" aria-hidden />
+          {t("visitCompleted")}
+        </Badge>
+      ) : null}
     </div>
   );
 }
@@ -180,7 +198,7 @@ function SlotCard({
     );
   }
 
-  const booked = slot.scheduledCount > 0;
+  const listed = slot.scheduledCases.length > 0;
   const occupancy = slotOccupancy(slot.scheduledCount, slot.capacity);
   return (
     <article
@@ -202,7 +220,7 @@ function SlotCard({
           {slotRatioLabel}
         </p>
       </div>
-      {booked ? (
+      {listed ? (
         <div className="mt-1.5 space-y-1">
           {slot.scheduledCases.map((proposal) => (
             <CaseLine

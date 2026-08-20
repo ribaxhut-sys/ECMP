@@ -41,6 +41,9 @@ describe("cmBatch1Paths", () => {
     expect(paths.hqScheduleArrival("c/1")).toBe(
       "/api/v1/cm/complaints/c%2F1/hq-schedule-arrival",
     );
+    expect(paths.hqComplete("c/1")).toBe(
+      "/api/v1/cm/complaints/c%2F1/hq-complete",
+    );
     expect(paths.customer360("cust 1")).toBe(
       "/api/v1/cm/customers/cust%201/batch1-360",
     );

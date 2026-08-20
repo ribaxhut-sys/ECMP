@@ -47,6 +47,7 @@ const HISTORY_TONES: Record<string, BadgeTone> = {
   ATTACHMENT_UPLOADED: "neutral",
   HQ_ACCEPTED: "success",
   HQ_ARRIVAL_SCHEDULED: "info",
+  HQ_COMPLETED: "success",
   HQ_RETURNED: "warning",
   OTHER: "neutral",
 };
@@ -70,6 +71,7 @@ const HISTORY_LABEL_KEYS: Record<string, string> = {
   ATTACHMENT_UPLOADED: "eventAttachmentUploaded",
   HQ_ACCEPTED: "eventHqAccepted",
   HQ_ARRIVAL_SCHEDULED: "eventHqScheduled",
+  HQ_COMPLETED: "eventHqCompleted",
   HQ_RETURNED: "eventHqReturned",
   OTHER: "eventOther",
 };

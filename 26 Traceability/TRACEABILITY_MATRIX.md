@@ -32,6 +32,7 @@
 | TRC-L-015 | ECMF | BP-001 | BR-008 | FR-CM-B2-005 | API-534 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-016 | ECMF | BP-001 | BR-008 | FR-CM-B2-006 | API-535 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-017 | ECMF | BP-001 | BR-001 | FR-001 | API-540, API-541, API-542, API-543, API-544 | — | — | Mode-A-CM-B1 | Approved |
+| TRC-L-018 | ECMF | BP-001 | BR-001 | FR-001 | API-CM-B1-025 | EVT-CM-045 | — | Mode-A-CM-B1 | Approved |
 
 ## Artifact Dictionary
 
@@ -98,6 +99,7 @@
 - `API-542`: GET /api/v1/hq-schedule/holidays
 - `API-543`: POST /api/v1/hq-schedule/holidays
 - `API-544`: DELETE /api/v1/hq-schedule/holidays/{holidayDate}
+- `API-CM-B1-025`: POST /api/v1/cm/complaints/{complaintId}/hq-complete (HQ visit complete → HQ_CLOSED, Mode A lab)
 
 ### EVENTS
 - `EVT-001`: CaseCreated
@@ -107,6 +109,7 @@
 - `EVT-005`: CaseClosed
 - `EVT-006`: ConfigChanged
 - `EVT-007`: CaseReopened (Proposed)
+- `EVT-CM-045`: HqCompleted (HQ visit complete → HQ_CLOSED, Mode A lab)
 
 ### TESTS
 - `TC-001`: Create complaint with valid customer succeeds

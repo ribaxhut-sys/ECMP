@@ -215,6 +215,11 @@ class ComplaintBatch1Response(BaseModel):
         alias="hqReturnNote",
         description="Pengembalian Pusat history section (HQ return to branch)",
     )
+    hq_completion_note: str | None = Field(
+        default=None,
+        alias="hqCompletionNote",
+        description="Penyelesaian Pusat history section (HQ complete after visit)",
+    )
     owning_unit_id: str | None = Field(
         default=None,
         alias="owningUnitId",
@@ -353,6 +358,22 @@ class HqScheduleArrivalRequest(BaseModel):
         description="HH:MM (24h)",
     )
     note: str | None = Field(default=None, max_length=2000)
+
+
+class HqCompleteRequest(BaseModel):
+    """Pusat completes the visit and closes the Aggregate (lab).
+
+    Sets status=CLOSED and intakeDisposition=HQ_CLOSED. The visit stays listed
+    on that day's HQ calendar with completed=true; live occupancy excludes it.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    note: str = Field(
+        min_length=1,
+        max_length=2000,
+        description="Mandatory completion note (min 10 after trim) — Penyelesaian Pusat",
+    )
 
 
 class DuplicateCheckRequest(BaseModel):

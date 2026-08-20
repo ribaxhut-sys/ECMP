@@ -804,3 +804,42 @@ def hq_arrival_scheduled(
         outbox_event_id=None,
         occurred_at=now,
     )
+
+
+def hq_completed(
+    *,
+    complaint_id: str,
+    complaint_number: str,
+    actor_id: str | None,
+    note: str | None = None,
+    arrival_date: str | None = None,
+    arrival_time: str | None = None,
+) -> DomainEvent:
+    now = datetime.now(UTC)
+    payload = {
+        "complaintId": complaint_id,
+        "complaintNumber": complaint_number,
+        "actorId": actor_id,
+        "nextDisposition": "HQ_CLOSED",
+        "arrivalDate": arrival_date,
+        "arrivalTime": arrival_time,
+    }
+    return DomainEvent(
+        name="HqCompleted",
+        aggregate_type="Complaint",
+        aggregate_id=complaint_id,
+        actor_id=actor_id,
+        payload=payload,
+        idempotency_key=f"HqCompleted:{complaint_id}:{now.isoformat()}",
+        audit_operation="HqCompleted",
+        audit_action="UPDATE",
+        after=payload,
+        timeline_event_type="HqCompleted",
+        timeline_title="HQ Completed Visit",
+        timeline_description=(
+            f"Complaint {complaint_number} completed at Head Office"
+        ),
+        timeline_metadata={**payload, "note": clip_note(note)},
+        outbox_event_id=None,
+        occurred_at=now,
+    )

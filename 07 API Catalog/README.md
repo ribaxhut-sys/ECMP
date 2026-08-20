@@ -211,6 +211,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-511 | API-CM-B1-012 | GET /api/v1/attachments/{id}/download (align API-325) | FR-004 | 🟢 Implemented (lab; shared) |
 | API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟢 Implemented (lab; shared void semantics) |
 | API-513 | API-CM-B1-014 | GET /api/v1/cm/supervisor/queue | FR-001 | 🟢 Implemented (lab; later-review + no-Case aging visibility) |
+| — | API-CM-B1-025 | POST /api/v1/cm/complaints/{complaintId}/hq-complete | FR-001 | 🟢 Implemented (lab; HQ visit complete → CLOSED / HQ_CLOSED; visit stays listed that day with completed tag; live occupancy freed) |
 
 ### hq-schedule v1 — [`openapi/hq-schedule.v1.yaml`](./openapi/hq-schedule.v1.yaml) **1.0.0-lab** — Advisory HQ arrival slot availability + holiday calendar
 

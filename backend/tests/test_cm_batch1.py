@@ -2167,6 +2167,86 @@ def test_api_516_hq_accept_and_517_schedule(
         )
 
 
+def test_hq_complete_closes_complaint_and_keeps_arrival(
+    service: CmBatch1Service, store: Batch1Store
+) -> None:
+    created = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="HQ complete after visit",
+            description="Keluhan\n\n---\nAlasan eskalasi:\nButuh pusat",
+            intakeDisposition="ESCALATE_PENDING_APPROVAL",
+            duplicateOverrideJustification="Lab override for HQ complete visit test.",
+        ),
+        request_id="esc-hq-complete-1",
+        actor_id="agent-1",
+    )
+    service.decide_intake_escalation(
+        created.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui agar Pusat menerima wajib pajak di kantor pusat.",
+            priority="MEDIUM",
+        ),
+        actor_id="supervisor-1",
+    )
+
+    from datetime import date
+
+    from app.modules.cm_batch1.schemas import (
+        HqAcceptAndScheduleRequest,
+        HqCompleteRequest,
+    )
+
+    with pytest.raises(InvalidStateError):
+        service.complete_at_hq(
+            created.complaint_id,
+            HqCompleteRequest(note="Belum diterima Pusat, tidak boleh selesai."),
+            actor_id="hq-1",
+        )
+
+    scheduled = service.accept_and_schedule_at_hq(
+        created.complaint_id,
+        HqAcceptAndScheduleRequest(
+            arrivalDate=date(2026, 8, 20),
+            arrivalTime="09:30",
+            note="Bawa KTP asli dan bukti pembayaran terakhir.",
+        ),
+        actor_id="hq-1",
+    )
+    assert scheduled.intake_disposition == "HQ_SCHEDULED"
+
+    with pytest.raises(ValidationAppError):
+        service.complete_at_hq(
+            created.complaint_id,
+            HqCompleteRequest(note="pendek"),
+            actor_id="hq-1",
+        )
+
+    completed = service.complete_at_hq(
+        created.complaint_id,
+        HqCompleteRequest(
+            note="Wajib pajak datang, dokumen lengkap, pengaduan diselesaikan."
+        ),
+        actor_id="hq-1",
+    )
+    assert completed.status == "CLOSED"
+    assert completed.intake_disposition == "HQ_CLOSED"
+    assert completed.hq_arrival_date == date(2026, 8, 20)
+    assert "Penyelesaian Pusat:" in (completed.description or "")
+    assert completed.hq_completion_note is not None
+
+    with pytest.raises(InvalidStateError):
+        service.complete_at_hq(
+            created.complaint_id,
+            HqCompleteRequest(note="Tidak boleh selesai dua kali di Pusat."),
+            actor_id="hq-1",
+        )
+
+
 def test_api_519_hq_return_to_branch(
     service: CmBatch1Service, store: Batch1Store
 ) -> None:

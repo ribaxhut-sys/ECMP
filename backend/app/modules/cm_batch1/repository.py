@@ -45,6 +45,7 @@ from app.modules.cm_batch1.predicates import (
     CLOSED_STATUS,
     ESCALATION_FAMILY,
 )
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
 
 def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
@@ -835,6 +836,42 @@ class CmBatch1Repository:
         row.intake_disposition = intake_disposition
         _clear_proposed(row)
         row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def complete_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        description: str,
+        intake_disposition: str = "HQ_CLOSED",
+        closed_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        """Close Aggregate after HQ visit; terminalize open Cases; free HQ slot."""
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        now = datetime.now(UTC)
+        complaint_key = str(uid)
+        cases = self._session.scalars(
+            select(CmCaseORM).where(CmCaseORM.complaint_id == complaint_key)
+        ).all()
+        for case in cases:
+            status = (case.status or "").strip().upper()
+            if status in {"CLOSED", "CANCELLED"}:
+                continue
+            case.status = "CLOSED"
+            case.closed_by = closed_by
+            case.closed_at = now
+            case.updated_at = now
+        row.description = description
+        row.intake_disposition = intake_disposition
+        row.status = "CLOSED"
+        row.updated_at = now
         self._session.flush()
         return _to_entity(row)
 

@@ -9,12 +9,17 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+const authState = {
+  permissions: ["complaints:read", "complaints:create"],
+  user: { id: "officer-1", branchId: null as string | null },
+  roles: [] as string[],
+};
+
 vi.mock("@/auth/AuthProvider", () => ({
   useAuth: () => ({
-    hasPermission: (p: string) =>
-      p === "complaints:read" || p === "complaints:create",
-    user: { id: "officer-1", branchId: null },
-    roles: [],
+    hasPermission: (p: string) => authState.permissions.includes(p),
+    user: authState.user,
+    roles: authState.roles,
   }),
 }));
 
@@ -133,6 +138,7 @@ const messages = {
     tagHqAccepted: "Diterima Pusat",
     tagHqReturned: "Dikembalikan Pusat",
     tagHqScheduled: "Kedatangan dijadwalkan",
+    tagHqCompleted: "Selesai di Pusat",
     tagCaseCreated: "Case dibuat",
     submitRegisterCase: "Daftarkan Case ini",
     submitCloseCase: "Selesaikan Case ini",
@@ -186,6 +192,12 @@ const messages = {
     hqReturn: "Kembalikan",
     hqRescheduleArrival: "Jadwal ulang",
     hqScheduleArrival: "Jadwalkan kedatangan",
+    hqComplete: "Selesai dengan catatan",
+    hqCompleteTitle: "x",
+    hqCompleteBody: "x",
+    hqCompleteNoteLabel: "x",
+    hqCompleteNoteHint: "x",
+    hqCompleteAction: "x",
     approveEscalationTitle: "x",
     approveEscalationBody: "x",
     approveEscalationNoteLabel: "x",
@@ -266,6 +278,9 @@ function baseComplaint(
 }
 
 beforeEach(() => {
+  authState.permissions = ["complaints:read", "complaints:create"];
+  authState.user = { id: "officer-1", branchId: null };
+  authState.roles = [];
   fetchCmBatch1Complaint.mockReset();
   fetchCmBatch1ComplaintHistory.mockReset();
   fetchBranches.mockReset();
@@ -369,6 +384,34 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
     expect(screen.queryByText("Menunggu persetujuan.")).not.toBeInTheDocument();
     expect(lastPenangananProps?.hqArrivalDate).toBe("2026-08-20");
     expect(lastPenangananProps?.hqArrivalTime).toBe("09:30");
+    expect(
+      screen.queryByRole("button", { name: "Selesai dengan catatan" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows complete-with-notes for an HQ reviewer after the visit is scheduled", async () => {
+    authState.permissions = [
+      "complaints:read",
+      "complaints:create",
+      "escalations:review",
+    ];
+    authState.roles = ["HO_SCHEDULER"];
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "HQ_SCHEDULED",
+        caseCreated: true,
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+        hqArrivalDate: "2026-08-20",
+        hqArrivalTime: "09:30",
+      }),
+    });
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Selesai dengan catatan" }),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("keeps the HQ-approved title and hides cabang escalate CTAs while a Case is still bound", async () => {

@@ -106,6 +106,7 @@
 | — | `POST /api/v1/cm/complaints/{complaintId}/hq-accept-and-schedule` | HQ accept and schedule arrival (branch notify) |
 | API-519 | `POST /api/v1/cm/complaints/{complaintId}/hq-return` | HQ return approved escalation to branch |
 | — | `POST /api/v1/cm/complaints/{complaintId}/hq-schedule-arrival` | Schedule customer arrival at HQ (lab) |
+| — | `POST /api/v1/cm/complaints/{complaintId}/hq-complete` | HQ complete visit and close complaint (lab) |
 | API-502 | `POST /api/v1/cm/customers/search` | Search Customer by exactly one key type |
 | API-503 | `POST /api/v1/cm/customers/confirm` | Confirm / lock CustomerId in session context |
 | API-504 | `GET /api/v1/cm/customers/{customerId}/batch1-360` | Batch 1 Customer 360 minimum |

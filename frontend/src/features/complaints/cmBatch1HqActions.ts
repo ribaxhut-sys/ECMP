@@ -78,6 +78,7 @@ export interface CmBatch1HqActionVisibility {
   showHqAcceptAndSchedule: boolean;
   showHqReturn: boolean;
   showHqReschedule: boolean;
+  showHqComplete: boolean;
   showBranchNotifyBanner: boolean;
 }
 
@@ -97,13 +98,15 @@ export function resolveCmBatch1HqActionVisibility(
   const approvedEscalation =
     isHqOpenStatus(status) && disposition === "ESCALATE_APPROVED";
   const hqScheduled = isHqOpenStatus(status) && disposition === "HQ_SCHEDULED";
+  const showHqReschedule =
+    canHqReview && hqAccepted && (approvedEscalation || hqScheduled);
   return {
     approvedEscalation,
     hqScheduled,
     showHqAcceptAndSchedule: approvedEscalation && canHqReview && !hqAccepted,
     showHqReturn: approvedEscalation && canHqReview && !hqAccepted,
-    showHqReschedule:
-      canHqReview && hqAccepted && (approvedEscalation || hqScheduled),
+    showHqReschedule,
+    showHqComplete: showHqReschedule,
     // Slot copy lives on PageHeader + Penanganan card — do not repeat a banner.
     showBranchNotifyBanner: false,
   };
@@ -226,6 +229,9 @@ export function cmBatch1BlobEventCodes(
   if (input.hqArrivalDate && input.hqArrivalTime) {
     codes.push("HQ_ARRIVAL_SCHEDULED");
   }
+  if (disposition === "HQ_CLOSED") {
+    codes.push("HQ_COMPLETED");
+  }
   return codes;
 }
 
@@ -253,6 +259,7 @@ const CLOSE_EVENT_CODES = new Set([
   "BRANCH_CLOSED",
   "CASE_CLOSED",
   "CASE_RESOLVED",
+  "HQ_COMPLETED",
 ]);
 
 export function intakeHistoryIsCloseEvent(eventCode: string): boolean {

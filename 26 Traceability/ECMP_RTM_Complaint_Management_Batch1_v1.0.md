@@ -229,6 +229,18 @@ Business Rule
 | API-543 | API-CM-HQ-004 | `POST /api/v1/hq-schedule/holidays` | FR-001 | Implemented (lab; upsert 200) |
 | API-544 | API-CM-HQ-005 | `DELETE /api/v1/hq-schedule/holidays/{holidayDate}` | FR-001 | Implemented (lab) |
 
+### 7.3 Lab addendum (2026-08-20) — HQ complete visit (Penyelesaian Pusat)
+
+> Not a change to the locked Batch-1 FRD matrix above. Documents Mode A lab
+> close-after-visit: `POST /api/v1/cm/complaints/{complaintId}/hq-complete`
+> (`API-CM-B1-025`) emits `EVT-CM-045` `HqCompleted`. Aggregate becomes
+> `CLOSED` / `HQ_CLOSED`; the HQ calendar keeps the visit listed that day
+> with `completed=true` and frees live occupancy. Trace link: `TRC-L-018`.
+
+| API ID | Logical ID | Path | FR | Event | Status |
+|---|---|---|---|---|---|
+| — | API-CM-B1-025 | `POST /api/v1/cm/complaints/{complaintId}/hq-complete` | FR-001 | EVT-CM-045 | Implemented (lab) |
+
 ---
 
 ## 8. Domain Model ↔ FR ↔ DB Entity Matrix
@@ -290,6 +302,7 @@ Business Rule
 | EVT-CM-032 | AttachmentVoided | FR-004 | Void-with-reason | Planned |
 | EVT-CM-033 | AttachmentTransferred | FR-004 | Staged → surviving Complaint (D-06) | Planned; OQ-014 |
 | EVT-CM-034 | AttachmentAccess | FR-004 | Sensitive download/access | Planned |
+| EVT-CM-045 | HqCompleted | FR-001 | HQ visit complete → CLOSED / HQ_CLOSED (lab; not DEC-F4 Case resolve) | Implemented (lab) |
 
 **Removed from Batch 1:** `ResolvedAsCaseOnExisting` (CTO D-02).
 

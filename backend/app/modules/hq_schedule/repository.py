@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
@@ -26,6 +26,8 @@ class ArrivalRow:
     proposed_at: datetime | None
     # Case(s) tracking this complaint's escalation — empty if none created yet.
     case_numbers: tuple[str, ...] = ()
+    # True when the HQ visit was completed (HQ_CLOSED) — still listed that day.
+    completed: bool = False
 
 
 class HqScheduleRepository:
@@ -77,15 +79,34 @@ class HqScheduleRepository:
     def list_arrivals_in_range(
         self, *, date_from: date, date_to: date
     ) -> list[ArrivalRow]:
-        """Open complaints with a scheduled or proposed slot in [date_from, date_to]."""
+        """Live HQ_SCHEDULED visits plus completed HQ_CLOSED visits that day.
+
+        Completed rows stay visible on the calendar (same arrival slot). They
+        do not consume capacity — occupancy uses live HQ_SCHEDULED only.
+        """
         stmt = (
             select(CmBatch1ComplaintORM)
-            .where(CmBatch1ComplaintORM.status != "CLOSED")
             .where(
                 or_(
-                    CmBatch1ComplaintORM.hq_arrival_date.between(date_from, date_to),
-                    CmBatch1ComplaintORM.proposed_arrival_date.between(
-                        date_from, date_to
+                    and_(
+                        CmBatch1ComplaintORM.status != "CLOSED",
+                        CmBatch1ComplaintORM.intake_disposition == "HQ_SCHEDULED",
+                        CmBatch1ComplaintORM.hq_arrival_date.between(
+                            date_from, date_to
+                        ),
+                    ),
+                    and_(
+                        CmBatch1ComplaintORM.status == "CLOSED",
+                        CmBatch1ComplaintORM.intake_disposition == "HQ_CLOSED",
+                        CmBatch1ComplaintORM.hq_arrival_date.between(
+                            date_from, date_to
+                        ),
+                    ),
+                    and_(
+                        CmBatch1ComplaintORM.status != "CLOSED",
+                        CmBatch1ComplaintORM.proposed_arrival_date.between(
+                            date_from, date_to
+                        ),
                     ),
                 )
             )
@@ -114,6 +135,10 @@ class HqScheduleRepository:
                 proposed_by=r.proposed_by,
                 proposed_at=r.proposed_at,
                 case_numbers=tuple(case_numbers_by_complaint.get(str(r.id), ())),
+                completed=(
+                    (r.status or "").strip().upper() == "CLOSED"
+                    and (r.intake_disposition or "").strip().upper() == "HQ_CLOSED"
+                ),
             )
             for r in rows
         ]

@@ -104,6 +104,7 @@ def test_hq_routes_depend_on_require_hq_intake_action() -> None:
         "/hq-accept-and-schedule",
         "/hq-return",
         "/hq-schedule-arrival",
+        "/hq-complete",
     )
     routes = [
         r
@@ -111,7 +112,7 @@ def test_hq_routes_depend_on_require_hq_intake_action() -> None:
         if isinstance(r, APIRoute)
         and any(r.path.endswith(suffix) for suffix in hq_suffixes)
     ]
-    assert len(routes) == 4
+    assert len(routes) == 5
     for route in routes:
         calls = _dependant_calls(route.dependant)
         assert require_hq_intake_action in calls, route.path
