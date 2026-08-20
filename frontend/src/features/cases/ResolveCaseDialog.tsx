@@ -16,7 +16,6 @@ import {
   Modal,
   ModalSection,
   Select,
-  Textarea,
 } from "@/shared/ui";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
@@ -217,11 +216,11 @@ export function ResolveCaseDialog({
           />
         ) : null}
         {values.intent === "REJECT" ? (
-          <Textarea
+          <KnowledgeMentionTextarea
             name="rejectionReason"
             label={t("rejectionReason")}
             value={values.rejectionReason}
-            onChange={(e) => setField("rejectionReason", e.target.value)}
+            onChange={(next) => setField("rejectionReason", next)}
             error={
               fieldErrors.rejectionReason
                 ? tValidation(fieldErrors.rejectionReason)

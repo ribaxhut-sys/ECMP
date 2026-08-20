@@ -24,12 +24,12 @@ import {
   PageHeader,
   SectionHeader,
   Select,
-  Textarea,
   RadioGroup,
 } from "@/shared/ui";
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { ActiveComplaintsBanner } from "./ActiveComplaintsBanner";
 import { HqArrivalSlotPicker, type HqArrivalSlotValue } from "./HqArrivalSlotPicker";
+import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   newCmBatch1IdempotencyKey,
@@ -620,7 +620,7 @@ export function EscalateIntakeView() {
                     disabled={!canCreate || submitting || duplicateBusy}
                   />
                 </div>
-                <Textarea
+                <KnowledgeMentionTextarea
                   name={`case-note-${row.id}`}
                   id={`case-note-${row.id}`}
                   label={t("intakeNoteLabel")}
@@ -628,16 +628,15 @@ export function EscalateIntakeView() {
                   maxLength={5000}
                   value={row.note}
                   required
-                  aria-required="true"
                   disabled={!canCreate || submitting || duplicateBusy}
                   error={
                     escalationReasonMissing && !row.note.trim()
                       ? tValidation("intakeNoteRequired")
                       : undefined
                   }
-                  onChange={(e) => {
-                    patchRow(row.id, { note: e.target.value });
-                    if (e.target.value.trim()) setEscalationReasonMissing(false);
+                  onChange={(next) => {
+                    patchRow(row.id, { note: next });
+                    if (next.trim()) setEscalationReasonMissing(false);
                   }}
                   hint={t("intakeCaseNoteHint")}
                 />

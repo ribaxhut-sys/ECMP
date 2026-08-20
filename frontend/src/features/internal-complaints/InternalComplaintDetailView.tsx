@@ -842,12 +842,14 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                       )}
                     </p>
                     {complaint.withdrawDecisionReason ? (
-                      <p>
+                      <div>
                         <span className="text-ecmp-text-secondary">
                           {t("decisionReason")}:{" "}
                         </span>
-                        {complaint.withdrawDecisionReason}
-                      </p>
+                        <KnowledgeReferenceText
+                          text={complaint.withdrawDecisionReason}
+                        />
+                      </div>
                     ) : null}
                   </>
                 ) : null}
@@ -856,7 +858,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             {complaint.status === "WITHDRAWN" && complaint.withdrawReason ? (
               <dl>
                 <MetaItem label={t("withdrawReason")}>
-                  {complaint.withdrawReason}
+                  <KnowledgeReferenceText text={complaint.withdrawReason} />
                 </MetaItem>
               </dl>
             ) : null}
@@ -899,12 +901,14 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                       )}
                     </p>
                     {complaint.transferDecisionReason ? (
-                      <p>
+                      <div>
                         <span className="text-ecmp-text-secondary">
                           {t("decisionReason")}:{" "}
                         </span>
-                        {complaint.transferDecisionReason}
-                      </p>
+                        <KnowledgeReferenceText
+                          text={complaint.transferDecisionReason}
+                        />
+                      </div>
                     ) : null}
                   </>
                 ) : null}
@@ -1302,12 +1306,14 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                   </span>
                 </p>
                 {complaint.resolutionComment ? (
-                  <p className="text-sm text-ecmp-text-secondary">
+                  <div className="text-sm text-ecmp-text-secondary">
                     {t("comment")}:{" "}
                     <span className="text-ecmp-text-primary">
-                      {complaint.resolutionComment}
+                      <KnowledgeReferenceText
+                        text={complaint.resolutionComment}
+                      />
                     </span>
-                  </p>
+                  </div>
                 ) : null}
               </div>
               {resolutionActions.mayDecide ? (
@@ -1538,12 +1544,14 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             {t("resendToPusatPrompt")}
           </p>
           {complaint.completionReturnReason ? (
-            <p className="text-sm text-ecmp-text-primary">
+            <div className="text-sm text-ecmp-text-primary">
               <span className="text-ecmp-text-secondary">
                 {t("completionReturnReason")}:{" "}
               </span>
-              {complaint.completionReturnReason}
-            </p>
+              <KnowledgeReferenceText
+                text={complaint.completionReturnReason}
+              />
+            </div>
           ) : null}
           <ReasonPresetTags
             presets={resendToPusatNotePresets}

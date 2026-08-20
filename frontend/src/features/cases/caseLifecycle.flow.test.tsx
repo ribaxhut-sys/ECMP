@@ -126,7 +126,11 @@ describe("CAP-008 case lifecycle flow", () => {
 
     setFieldValue(/case type/i, "SERVICE");
     setFieldValue(/^subject/i, "Flow subject");
-    setFieldValue(/description/i, "Flow description");
+    const descriptionEditor = document.getElementById(
+      "description",
+    ) as HTMLElement;
+    await user.click(descriptionEditor);
+    await user.keyboard("Flow description");
     await user.click(screen.getByRole("button", { name: /^start branch work$/i }));
 
     await waitFor(() => expect(createCmCase).toHaveBeenCalled());

@@ -35,6 +35,7 @@ import {
   isHandlingReassignRole,
   sameUserId,
 } from "@/features/cases/handlingClaim";
+import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import { officerDisplayName } from "./officerDisplayName";
 import { useToast } from "@/shared/providers";
 import { formatHqArrivalSlot } from "@/shared/utils/datetime";
@@ -667,9 +668,9 @@ export function ComplaintPenangananSection({
             </p>
           ) : null}
           {scheduledWpNote ? (
-            <p className="mt-2 whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-              {scheduledWpNote}
-            </p>
+            <div className="mt-2 whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+              <KnowledgeReferenceText text={scheduledWpNote} />
+            </div>
           ) : null}
           <p className="mt-2 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
             {t(

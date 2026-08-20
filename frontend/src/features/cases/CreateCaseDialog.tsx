@@ -11,8 +11,8 @@ import {
   Modal,
   ModalSection,
   Select,
-  Textarea,
 } from "@/shared/ui";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
   CASE_PRIORITY_OPTIONS,
   emptyCreateCaseForm,
@@ -161,11 +161,11 @@ export function CreateCaseDialog({
           error={fieldErrors.subject ? tValidation(fieldErrors.subject) : undefined}
           required
         />
-        <Textarea
+        <KnowledgeMentionTextarea
           name="description"
           label={t("description")}
           value={values.description}
-          onChange={(e) => setField("description", e.target.value)}
+          onChange={(next) => setField("description", next)}
           error={
             fieldErrors.description
               ? tValidation(fieldErrors.description)

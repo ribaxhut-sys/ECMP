@@ -36,7 +36,6 @@ import {
   SectionHeader,
   Select,
   Skeleton,
-  Textarea,
   Pagination,
   WorkspaceToolbar,
 } from "@/shared/ui";
@@ -52,6 +51,7 @@ import {
   scrollToPenangananSection,
 } from "./ComplaintPenangananSection";
 import { CM_BATCH1_ESCALATION_PENDING_HREF } from "./cmBatch1ListFilters";
+import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   HqArrivalSlotPicker,
@@ -1707,16 +1707,16 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="approveEscalationNote"
             label={t("approveEscalationNoteLabel")}
             hint={t("approveEscalationNoteHint")}
             value={approveNote}
-            onChange={(e) => setApproveNote(e.target.value)}
+            onChange={setApproveNote}
             rows={4}
             maxLength={2000}
             disabled={deciding}
             required
-            aria-required="true"
           />
           <Select
             name="approvePriority"
@@ -1777,11 +1777,12 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="rejectEscalationNote"
             label={t("rejectEscalationNoteLabel")}
             hint={t("rejectEscalationNoteHint")}
             value={rejectNote}
-            onChange={(e) => setRejectNote(e.target.value)}
+            onChange={setRejectNote}
             rows={4}
             maxLength={2000}
             disabled={deciding}
@@ -1822,16 +1823,16 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="cancelEscalationNote"
             label={t("cancelEscalationNoteLabel")}
             hint={t("cancelEscalationNoteHint")}
             value={cancelNote}
-            onChange={(e) => setCancelNote(e.target.value)}
+            onChange={setCancelNote}
             rows={4}
             maxLength={2000}
             disabled={deciding}
             required
-            aria-required="true"
           />
         </div>
       </Modal>
@@ -1868,16 +1869,16 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="reRequestEscalationReason"
             label={t("reRequestEscalationReasonLabel")}
             hint={t("reRequestEscalationReasonHint")}
             value={reRequestReason}
-            onChange={(e) => setReRequestReason(e.target.value)}
+            onChange={setReRequestReason}
             rows={4}
             maxLength={2000}
             disabled={deciding}
             required
-            aria-required="true"
           />
           <Select
             name="reRequestPriority"
@@ -1968,16 +1969,16 @@ export function CmBatch1ConfirmationView({
             disabled={deciding}
             required
           />
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="hqAcceptScheduleNote"
             label={t("hqAcceptScheduleNoteLabel")}
             hint={t("hqAcceptScheduleNoteHint")}
             value={arrivalNote}
-            onChange={(e) => setArrivalNote(e.target.value)}
+            onChange={setArrivalNote}
             rows={4}
             maxLength={2000}
             disabled={deciding}
             required
-            aria-required="true"
           />
         </div>
       </Modal>
@@ -2026,16 +2027,16 @@ export function CmBatch1ConfirmationView({
             disabled={deciding}
             required
           />
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="hqReturnNote"
             label={t("hqReturnNoteLabel")}
             hint={t("hqReturnNoteHint")}
             value={hqReturnNote}
-            onChange={(e) => setHqReturnNote(e.target.value)}
+            onChange={setHqReturnNote}
             rows={4}
             maxLength={2000}
             disabled={deciding}
             required
-            aria-required="true"
           />
         </div>
       </Modal>
@@ -2092,11 +2093,12 @@ export function CmBatch1ConfirmationView({
             aria-required="true"
             disabled={deciding}
           />
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="hqArrivalNote"
             label={t("hqArrivalNoteLabel")}
             hint={t("hqArrivalNoteHint")}
             value={arrivalNote}
-            onChange={(e) => setArrivalNote(e.target.value)}
+            onChange={setArrivalNote}
             rows={3}
             maxLength={2000}
             disabled={deciding}
@@ -2133,16 +2135,16 @@ export function CmBatch1ConfirmationView({
           <p className="text-ecmp-text-primary">
             {t("hqCompleteBody", { number: data?.complaintNumber ?? "" })}
           </p>
-          <Textarea
+          <KnowledgeMentionTextarea
+            name="hqCompleteNote"
             label={t("hqCompleteNoteLabel")}
             hint={t("hqCompleteNoteHint")}
             value={hqCompleteNote}
-            onChange={(e) => setHqCompleteNote(e.target.value)}
+            onChange={setHqCompleteNote}
             rows={4}
             maxLength={2000}
             disabled={deciding}
             required
-            aria-required="true"
           />
         </div>
       </Modal>

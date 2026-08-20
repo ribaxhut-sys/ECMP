@@ -723,9 +723,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                     </p>
                   ) : null}
                   {scheduledWpNote ? (
-                    <p className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                      {scheduledWpNote}
-                    </p>
+                    <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      <KnowledgeReferenceText text={scheduledWpNote} />
+                    </div>
                   ) : null}
                   <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-info-text">
                     {t("nextStepHqPath")}

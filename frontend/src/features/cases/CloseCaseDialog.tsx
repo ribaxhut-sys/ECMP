@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, closeCmCase, type CmCase } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { Alert, Button, Modal, ModalSection, Textarea } from "@/shared/ui";
+import { Alert, Button, Modal, ModalSection } from "@/shared/ui";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import { emptyCloseCaseForm, toCloseCaseRequest } from "./caseForms";
 
 export function CloseCaseDialog({
@@ -74,11 +75,11 @@ export function CloseCaseDialog({
         <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
           {t("closeChecklist")}
         </p>
-        <Textarea
+        <KnowledgeMentionTextarea
           name="note"
           label={t("noteOptional")}
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={setNote}
           hint={t("closeHint")}
         />
       </ModalSection>

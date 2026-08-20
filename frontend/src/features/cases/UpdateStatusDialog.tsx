@@ -16,8 +16,8 @@ import {
   Modal,
   ModalSection,
   Select,
-  Textarea,
 } from "@/shared/ui";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
   CANCEL_REASON_OPTIONS,
   emptyUpdateStatusForm,
@@ -172,11 +172,11 @@ export function UpdateStatusDialog({
                   options={CANCEL_REASON_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
                   error={fieldErrors.cancelReason ? tValidation(fieldErrors.cancelReason) : undefined}
                 />
-                <Textarea
+                <KnowledgeMentionTextarea
                   name="reason"
                   label={t("reason")}
                   value={values.reason}
-                  onChange={(e) => setField("reason", e.target.value)}
+                  onChange={(next) => setField("reason", next)}
                   error={fieldErrors.reason ? tValidation(fieldErrors.reason) : undefined}
                 />
               </>
