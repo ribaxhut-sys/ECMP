@@ -35,6 +35,8 @@ export type { CardProps } from "./card";
 export { Badge } from "./badge";
 export type { BadgeProps, BadgeTone, BadgeVariant } from "./badge";
 
+export { ReasonPresetTags } from "./reason-preset-tags";
+
 export { Alert } from "./alert";
 export type { AlertProps, AlertTone } from "./alert";
 

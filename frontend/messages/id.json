@@ -2602,6 +2602,22 @@
       "internal_complaint_transfer_reason_presets": {
         "label": "Alasan pindah penanganan",
         "description": "Pilihan alasan cepat pada dialog pindah pengaduan internal."
+      },
+      "internal_complaint_withdraw_decision_reason_presets": {
+        "label": "Alasan putusan penarikan",
+        "description": "Pilihan alasan cepat saat menyetujui atau menolak pengajuan penarikan."
+      },
+      "internal_complaint_reject_proposal_reason_presets": {
+        "label": "Alasan tolak usulan penyelesaian",
+        "description": "Pilihan alasan cepat saat menolak usulan penyelesaian pengaduan internal."
+      },
+      "internal_complaint_resolution_comment_presets": {
+        "label": "Komentar penyelesaian",
+        "description": "Pilihan komentar cepat pada dialog penyelesaian pengaduan internal."
+      },
+      "internal_complaint_acceptance_note_presets": {
+        "label": "Catatan terima atau tolak penanganan",
+        "description": "Pilihan catatan cepat saat menerima atau mengembalikan penanganan pengaduan internal."
       }
     },
     "visibilityPublic": "Publik",

@@ -38,6 +38,18 @@ class SettingsKey(StrEnum):
     INTERNAL_COMPLAINT_RESEND_TO_PUSAT_NOTE_PRESETS = (
         "internal_complaint.resend_to_pusat_note_presets"
     )
+    INTERNAL_COMPLAINT_WITHDRAW_DECISION_REASON_PRESETS = (
+        "internal_complaint.withdraw_decision_reason_presets"
+    )
+    INTERNAL_COMPLAINT_REJECT_PROPOSAL_REASON_PRESETS = (
+        "internal_complaint.reject_proposal_reason_presets"
+    )
+    INTERNAL_COMPLAINT_RESOLUTION_COMMENT_PRESETS = (
+        "internal_complaint.resolution_comment_presets"
+    )
+    INTERNAL_COMPLAINT_ACCEPTANCE_NOTE_PRESETS = (
+        "internal_complaint.acceptance_note_presets"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +222,53 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         visibility=SettingVisibility.PUBLIC,
         description=(
             "Quick-fill note presets shown when a branch resends an internal complaint to HQ"
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_WITHDRAW_DECISION_REASON_PRESETS,
+        value='["Alasan penarikan tidak jelas","Pengaduan masih perlu ditindaklanjuti"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill reason presets for approving/rejecting an internal complaint "
+            "withdraw request"
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_REJECT_PROPOSAL_REASON_PRESETS,
+        value='["Penyelesaian belum sesuai","Bukti pendukung kurang","Perlu penjelasan tambahan"]',
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill reason presets for rejecting an internal complaint resolution proposal"
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_RESOLUTION_COMMENT_PRESETS,
+        value=(
+            '["Sudah ditindaklanjuti sesuai SOP","Sudah dikoordinasikan dengan unit terkait",'
+            '"Selesai, tidak ada tindak lanjut tambahan"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill comment presets for the internal complaint resolution dialog"
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.INTERNAL_COMPLAINT_ACCEPTANCE_NOTE_PRESETS,
+        value=(
+            '["Diterima untuk ditindaklanjuti","Bukan kewenangan unit ini",'
+            '"Perlu dilengkapi terlebih dahulu"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="internal_complaint",
+        visibility=SettingVisibility.PUBLIC,
+        description=(
+            "Quick-fill note presets for accepting or returning an internal complaint"
         ),
     ),
 )

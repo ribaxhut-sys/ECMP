@@ -18,14 +18,15 @@ import {
   ModalSection,
   PageContainer,
   PageHeader,
+  ReasonPresetTags,
   Select,
   Timeline,
   Toast,
   type SelectOption,
   type TimelineItem,
 } from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
 import { fetchBranches, type Branch } from "@/lib/api/branches";
-import { fetchPublicSettings } from "@/lib/api/settings";
 import { ApiError } from "@/lib/api/client";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { formatDateTime24 } from "@/shared/utils/datetime";
@@ -46,7 +47,6 @@ import {
 } from "@/lib/api/internalComplaints";
 import { useInternalComplaint } from "./mock/useInternalComplaints";
 import { InternalComplaintAttachmentsPanel } from "./InternalComplaintAttachments";
-import { ReasonPresetTags } from "./components/ReasonPresetTags";
 import {
   isBlockedBySelfApproval,
   visibleInternalAcceptanceActions,
@@ -81,6 +81,22 @@ import {
   mayReceiveInternal,
   mayRequestWithdraw,
 } from "./withdrawGate";
+
+/** Quick-fill preset settings consumed by this view (PUBLIC settings, JSON arrays). */
+const PRESET_KEY = {
+  cancel: "internal_complaint.cancel_reason_presets",
+  transfer: "internal_complaint.transfer_reason_presets",
+  requestTransfer: "internal_complaint.request_transfer_reason_presets",
+  transferDecision: "internal_complaint.transfer_decision_reason_presets",
+  completionReturn: "internal_complaint.completion_return_reason_presets",
+  resendToPusat: "internal_complaint.resend_to_pusat_note_presets",
+  withdrawDecision: "internal_complaint.withdraw_decision_reason_presets",
+  rejectProposal: "internal_complaint.reject_proposal_reason_presets",
+  resolutionComment: "internal_complaint.resolution_comment_presets",
+  acceptanceNote: "internal_complaint.acceptance_note_presets",
+} as const;
+
+const PRESET_KEYS = Object.values(PRESET_KEY);
 
 function displayPersonName(
   name: string | null | undefined,
@@ -157,18 +173,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const [decisionReason, setDecisionReason] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [completionReason, setCompletionReason] = useState("");
-  const [cancelReasonPresets, setCancelReasonPresets] = useState<string[]>([]);
-  const [transferReasonPresets, setTransferReasonPresets] = useState<string[]>([]);
-  const [requestTransferReasonPresets, setRequestTransferReasonPresets] = useState<
-    string[]
-  >([]);
-  const [transferDecisionReasonPresets, setTransferDecisionReasonPresets] = useState<
-    string[]
-  >([]);
-  const [completionReturnReasonPresets, setCompletionReturnReasonPresets] = useState<
-    string[]
-  >([]);
-  const [resendToPusatNotePresets, setResendToPusatNotePresets] = useState<string[]>([]);
+  const presets = useReasonPresets(PRESET_KEYS);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -177,39 +182,6 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     fetchBranches(100)
       .then((res) => setBranches(res.data ?? []))
       .catch(() => setBranches([]));
-  }, []);
-
-  useEffect(() => {
-    const setters: Record<string, (presets: string[]) => void> = {
-      "internal_complaint.cancel_reason_presets": setCancelReasonPresets,
-      "internal_complaint.transfer_reason_presets": setTransferReasonPresets,
-      "internal_complaint.request_transfer_reason_presets":
-        setRequestTransferReasonPresets,
-      "internal_complaint.transfer_decision_reason_presets":
-        setTransferDecisionReasonPresets,
-      "internal_complaint.completion_return_reason_presets":
-        setCompletionReturnReasonPresets,
-      "internal_complaint.resend_to_pusat_note_presets": setResendToPusatNotePresets,
-    };
-    fetchPublicSettings()
-      .then((res) => {
-        for (const setting of res.data ?? []) {
-          const setPresets = setters[setting.key];
-          if (!setPresets) continue;
-          try {
-            const parsed: unknown = JSON.parse(setting.value);
-            if (
-              Array.isArray(parsed) &&
-              parsed.every((item) => typeof item === "string" && item.trim() !== "")
-            ) {
-              setPresets(parsed);
-            }
-          } catch {
-            // ignore malformed setting value, fall back to defaults
-          }
-        }
-      })
-      .catch(() => {});
   }, []);
 
   const activityItems: TimelineItem[] = useMemo(() => {
@@ -1017,7 +989,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             hint={t("transferDirectionHint")}
           />
           <ReasonPresetTags
-            presets={transferReasonPresets}
+            presets={presets[PRESET_KEY.transfer] ?? []}
             onSelect={setTransferReason}
           />
           <KnowledgeMentionTextarea
@@ -1058,7 +1030,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             hint={t("transferRequestHint")}
           />
           <ReasonPresetTags
-            presets={requestTransferReasonPresets}
+            presets={presets[PRESET_KEY.requestTransfer] ?? []}
             onSelect={setRequestReasonText}
           />
           <KnowledgeMentionTextarea
@@ -1107,7 +1079,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           </p>
           {modal === "decideReject" ? (
             <ReasonPresetTags
-              presets={transferDecisionReasonPresets}
+              presets={presets[PRESET_KEY.transferDecision] ?? []}
               onSelect={setDecisionReason}
             />
           ) : null}
@@ -1154,7 +1126,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       >
         <ModalSection className="space-y-3">
           <p className="text-sm text-ecmp-text-secondary">{t("withdrawPrompt")}</p>
-          <ReasonPresetTags presets={cancelReasonPresets} onSelect={setCancelReason} />
+          <ReasonPresetTags
+            presets={presets[PRESET_KEY.cancel] ?? []}
+            onSelect={setCancelReason}
+          />
           <KnowledgeMentionTextarea
             label={t("withdrawReason")}
             value={cancelReason}
@@ -1190,7 +1165,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           <p className="text-sm text-ecmp-text-secondary">
             {t("requestWithdrawPrompt")}
           </p>
-          <ReasonPresetTags presets={cancelReasonPresets} onSelect={setCancelReason} />
+          <ReasonPresetTags
+            presets={presets[PRESET_KEY.cancel] ?? []}
+            onSelect={setCancelReason}
+          />
           <KnowledgeMentionTextarea
             label={t("withdrawReason")}
             value={cancelReason}
@@ -1233,6 +1211,12 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               reason: complaint.withdrawRequestReason ?? "—",
             })}
           </p>
+          {modal === "decideWithdrawReject" ? (
+            <ReasonPresetTags
+              presets={presets[PRESET_KEY.withdrawDecision] ?? []}
+              onSelect={setDecisionReason}
+            />
+          ) : null}
           <KnowledgeMentionTextarea
             label={t("decisionReason")}
             value={decisionReason}
@@ -1318,6 +1302,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               </div>
               {resolutionActions.mayDecide ? (
                 <>
+                  <ReasonPresetTags
+                    presets={presets[PRESET_KEY.rejectProposal] ?? []}
+                    onSelect={setRejectProposalReason}
+                  />
                   <KnowledgeMentionTextarea
                     label={t("rejectProposalReason")}
                     value={rejectProposalReason}
@@ -1369,6 +1357,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                         : undefined
                     }
                   />
+                  <ReasonPresetTags
+                    presets={presets[PRESET_KEY.resolutionComment] ?? []}
+                    onSelect={setResolveComment}
+                  />
                   <KnowledgeMentionTextarea
                     label={t("comment")}
                     value={resolveComment}
@@ -1411,6 +1403,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                     ? t(resolveFieldError)
                     : undefined
                 }
+              />
+              <ReasonPresetTags
+                presets={presets[PRESET_KEY.resolutionComment] ?? []}
+                onSelect={setResolveComment}
               />
               <KnowledgeMentionTextarea
                 label={t("comment")}
@@ -1470,6 +1466,10 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                   : t("partyOwner")}
             </p>
           )}
+          <ReasonPresetTags
+            presets={presets[PRESET_KEY.acceptanceNote] ?? []}
+            onSelect={setAcceptNote}
+          />
           <KnowledgeMentionTextarea
             label={t("note")}
             value={acceptNote}
@@ -1506,7 +1506,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             {t("returnForCompletionPrompt")}
           </p>
           <ReasonPresetTags
-            presets={completionReturnReasonPresets}
+            presets={presets[PRESET_KEY.completionReturn] ?? []}
             onSelect={setCompletionReason}
           />
           <KnowledgeMentionTextarea
@@ -1554,7 +1554,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
             </div>
           ) : null}
           <ReasonPresetTags
-            presets={resendToPusatNotePresets}
+            presets={presets[PRESET_KEY.resendToPusat] ?? []}
             onSelect={setCompletionReason}
           />
           <KnowledgeMentionTextarea

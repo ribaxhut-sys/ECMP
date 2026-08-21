@@ -15,10 +15,12 @@ import {
   ModalSection,
   PageContainer,
   PageHeader,
+  ReasonPresetTags,
   Select,
   SectionHeader,
   type SelectOption,
 } from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
 import { ApiError } from "@/lib/api/client";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { fetchBranches, type Branch } from "@/lib/api/branches";
@@ -28,8 +30,6 @@ import {
 } from "@/lib/api/internalComplaints";
 import { uploadAttachment } from "@/lib/api/attachments";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
-import { fetchPublicSettings } from "@/lib/api/settings";
-import { ReasonPresetTags } from "./components/ReasonPresetTags";
 import {
   defaultInternalComplaintForm,
   isInternalComplaintFormValid,
@@ -62,6 +62,11 @@ import { InternalComplaintFileStaging } from "./InternalComplaintAttachments";
 
 const RELATED_DATALIST_ID = "internal-related-complaint-numbers";
 
+/** Quick-fill presets for the transfer-request reason (PUBLIC setting, JSON array). */
+const REQUEST_TRANSFER_PRESET_KEY =
+  "internal_complaint.request_transfer_reason_presets";
+const PRESET_KEYS = [REQUEST_TRANSFER_PRESET_KEY];
+
 export function CreateInternalComplaintView() {
   const router = useRouter();
   const t = useTranslations("internalComplaints");
@@ -91,35 +96,12 @@ export function CreateInternalComplaintView() {
     uploadFail?: string;
   } | null>(null);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
-  const [requestReasonPresets, setRequestReasonPresets] = useState<string[]>([]);
+  const presets = useReasonPresets(PRESET_KEYS);
 
   useEffect(() => {
     fetchBranches(100)
       .then((res) => setBranches(res.data ?? []))
       .catch(() => setBranches([]));
-  }, []);
-
-  useEffect(() => {
-    fetchPublicSettings()
-      .then((res) => {
-        const raw = res.data?.find(
-          (setting) =>
-            setting.key === "internal_complaint.request_transfer_reason_presets",
-        )?.value;
-        if (!raw) return;
-        try {
-          const parsed: unknown = JSON.parse(raw);
-          if (
-            Array.isArray(parsed) &&
-            parsed.every((item) => typeof item === "string" && item.trim() !== "")
-          ) {
-            setRequestReasonPresets(parsed);
-          }
-        } catch {
-          // ignore malformed setting value, fall back to defaults
-        }
-      })
-      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -476,7 +458,7 @@ export function CreateInternalComplaintView() {
               {!canAssign && fromPusat && values.destinationUnitId ? (
                 <>
                   <ReasonPresetTags
-                    presets={requestReasonPresets}
+                    presets={presets[REQUEST_TRANSFER_PRESET_KEY] ?? []}
                     onSelect={(preset) => setField("requestReason", preset)}
                   />
                   <KnowledgeMentionTextarea

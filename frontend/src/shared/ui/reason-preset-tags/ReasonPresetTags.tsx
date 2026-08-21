@@ -1,5 +1,10 @@
-import { Badge } from "@/shared/ui";
+import { Badge } from "@/shared/ui/badge";
 
+/**
+ * Quick-fill chips for a free-text field. Clicking a chip replaces the field
+ * value with the preset; the presets themselves come from PUBLIC settings
+ * (`*_presets`, JSON string array) via `useReasonPresets`.
+ */
 export function ReasonPresetTags({
   presets,
   onSelect,

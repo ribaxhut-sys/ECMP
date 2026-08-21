@@ -2602,6 +2602,22 @@
       "internal_complaint_transfer_reason_presets": {
         "label": "Transfer reasons",
         "description": "Quick-fill reasons in the internal complaint transfer dialog."
+      },
+      "internal_complaint_withdraw_decision_reason_presets": {
+        "label": "Withdraw decision reasons",
+        "description": "Quick-fill reasons when approving or rejecting a withdraw request."
+      },
+      "internal_complaint_reject_proposal_reason_presets": {
+        "label": "Reject proposal reasons",
+        "description": "Quick-fill reasons when rejecting an internal complaint resolution proposal."
+      },
+      "internal_complaint_resolution_comment_presets": {
+        "label": "Resolution comments",
+        "description": "Quick-fill comments in the internal complaint resolution dialog."
+      },
+      "internal_complaint_acceptance_note_presets": {
+        "label": "Acceptance notes",
+        "description": "Quick-fill notes when accepting or returning an internal complaint."
       }
     },
     "visibilityPublic": "Public",
