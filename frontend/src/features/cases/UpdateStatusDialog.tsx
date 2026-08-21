@@ -15,8 +15,10 @@ import {
   Input,
   Modal,
   ModalSection,
+  ReasonPresetTags,
   Select,
 } from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
   CANCEL_REASON_OPTIONS,
@@ -26,6 +28,10 @@ import {
   type UpdateStatusFormValues,
 } from "./caseForms";
 import { allowedStatusTargets } from "./caseStatus";
+
+/** Quick-fill reason presets for cancelling a case (PUBLIC setting, JSON array). */
+const CANCEL_REASON_PRESET_KEY = "case.cancel_reason_presets";
+const PRESET_KEYS = [CANCEL_REASON_PRESET_KEY];
 
 export function UpdateStatusDialog({
   open,
@@ -43,6 +49,7 @@ export function UpdateStatusDialog({
   const tErrors = useTranslations("errors");
   const tCommon = useTranslations("common");
   const targets = allowedStatusTargets(caseData.status);
+  const presets = useReasonPresets(PRESET_KEYS);
   const [values, setValues] = useState(
     emptyUpdateStatusForm({
       destinationUnitId: caseData.owningUnitId ?? "",
@@ -171,6 +178,10 @@ export function UpdateStatusDialog({
                   }
                   options={CANCEL_REASON_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
                   error={fieldErrors.cancelReason ? tValidation(fieldErrors.cancelReason) : undefined}
+                />
+                <ReasonPresetTags
+                  presets={presets[CANCEL_REASON_PRESET_KEY] ?? []}
+                  onSelect={(preset) => setField("reason", preset)}
                 />
                 <KnowledgeMentionTextarea
                   name="reason"

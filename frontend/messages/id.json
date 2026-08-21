@@ -2618,6 +2618,22 @@
       "internal_complaint_acceptance_note_presets": {
         "label": "Catatan terima atau tolak penanganan",
         "description": "Pilihan catatan cepat saat menerima atau mengembalikan penanganan pengaduan internal."
+      },
+      "case_close_note_presets": {
+        "label": "Catatan tutup kasus",
+        "description": "Pilihan catatan cepat pada dialog penutupan kasus."
+      },
+      "case_cancel_reason_presets": {
+        "label": "Alasan batal kasus",
+        "description": "Pilihan alasan cepat saat kasus dibatalkan."
+      },
+      "case_resolution_comment_presets": {
+        "label": "Komentar penyelesaian kasus",
+        "description": "Pilihan komentar cepat pada dialog penyelesaian kasus."
+      },
+      "case_rejection_reason_presets": {
+        "label": "Alasan tolak penyelesaian kasus",
+        "description": "Pilihan alasan cepat saat penyelesaian kasus ditolak."
       }
     },
     "visibilityPublic": "Publik",
@@ -2716,7 +2732,8 @@
     "helpPreferencesDescription": "Preferensi tampilan yang berlaku hanya untuk akun Anda.",
     "helpStatusPersonal": "Tersimpan per pengguna",
     "helpPreferencesImpact": "Hanya memengaruhi cara menu ditampilkan pada perangkat ini. Menu yang tampil tetap ditentukan oleh izin akses.",
-    "helpPreferencesBestPractice": "Pilih Otomatis bila Anda sering berpindah domain pengaduan; pilih Tampilkan semua bila layar Anda cukup tinggi."
+    "helpPreferencesBestPractice": "Pilih Otomatis bila Anda sering berpindah domain pengaduan; pilih Tampilkan semua bila layar Anda cukup tinggi.",
+    "categoryCase": "Kasus"
   },
   "kpi": {
     "title": "Ringkasan KPI",

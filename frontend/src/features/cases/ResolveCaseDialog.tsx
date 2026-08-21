@@ -15,8 +15,10 @@ import {
   Button,
   Modal,
   ModalSection,
+  ReasonPresetTags,
   Select,
 } from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
   emptyResolveCaseForm,
@@ -24,6 +26,14 @@ import {
   validateResolveCaseForm,
   type ResolveCaseFormValues,
 } from "./caseForms";
+
+/** Quick-fill presets for the resolve dialog (PUBLIC settings, JSON arrays). */
+const RESOLUTION_COMMENT_PRESET_KEY = "case.resolution_comment_presets";
+const REJECTION_REASON_PRESET_KEY = "case.rejection_reason_presets";
+const PRESET_KEYS = [
+  RESOLUTION_COMMENT_PRESET_KEY,
+  REJECTION_REASON_PRESET_KEY,
+];
 
 const INTENT_OPTIONS: {
   value: ResolveCaseFormValues["intent"];
@@ -58,6 +68,7 @@ export function ResolveCaseDialog({
   const tErrors = useTranslations("errors");
   const tCommon = useTranslations("common");
   const [values, setValues] = useState(emptyResolveCaseForm());
+  const presets = useReasonPresets(PRESET_KEYS);
   const [fieldErrors, setFieldErrors] = useState<
     ReturnType<typeof validateResolveCaseForm>
   >({});
@@ -204,30 +215,44 @@ export function ResolveCaseDialog({
           />
         ) : null}
         {values.intent !== "ESCALATE" ? (
-          <KnowledgeMentionTextarea
-            name="comment"
-            label={t("commentRequired")}
-            value={values.comment}
-            onChange={(next) => setField("comment", next)}
-            error={
-              fieldErrors.comment ? tValidation(fieldErrors.comment) : undefined
-            }
-            required
-          />
+          <>
+            <ReasonPresetTags
+              presets={presets[RESOLUTION_COMMENT_PRESET_KEY] ?? []}
+              onSelect={(preset) => setField("comment", preset)}
+            />
+            <KnowledgeMentionTextarea
+              name="comment"
+              label={t("commentRequired")}
+              value={values.comment}
+              onChange={(next) => setField("comment", next)}
+              error={
+                fieldErrors.comment
+                  ? tValidation(fieldErrors.comment)
+                  : undefined
+              }
+              required
+            />
+          </>
         ) : null}
         {values.intent === "REJECT" ? (
-          <KnowledgeMentionTextarea
-            name="rejectionReason"
-            label={t("rejectionReason")}
-            value={values.rejectionReason}
-            onChange={(next) => setField("rejectionReason", next)}
-            error={
-              fieldErrors.rejectionReason
-                ? tValidation(fieldErrors.rejectionReason)
-                : undefined
-            }
-            required
-          />
+          <>
+            <ReasonPresetTags
+              presets={presets[REJECTION_REASON_PRESET_KEY] ?? []}
+              onSelect={(preset) => setField("rejectionReason", preset)}
+            />
+            <KnowledgeMentionTextarea
+              name="rejectionReason"
+              label={t("rejectionReason")}
+              value={values.rejectionReason}
+              onChange={(next) => setField("rejectionReason", next)}
+              error={
+                fieldErrors.rejectionReason
+                  ? tValidation(fieldErrors.rejectionReason)
+                  : undefined
+              }
+              required
+            />
+          </>
         ) : null}
       </ModalSection>
     </Modal>

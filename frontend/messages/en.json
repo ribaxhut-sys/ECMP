@@ -2618,6 +2618,22 @@
       "internal_complaint_acceptance_note_presets": {
         "label": "Acceptance notes",
         "description": "Quick-fill notes when accepting or returning an internal complaint."
+      },
+      "case_close_note_presets": {
+        "label": "Case close notes",
+        "description": "Quick-fill notes in the case close dialog."
+      },
+      "case_cancel_reason_presets": {
+        "label": "Case cancel reasons",
+        "description": "Quick-fill reasons when a case is cancelled."
+      },
+      "case_resolution_comment_presets": {
+        "label": "Case resolution comments",
+        "description": "Quick-fill comments in the case resolve dialog."
+      },
+      "case_rejection_reason_presets": {
+        "label": "Case rejection reasons",
+        "description": "Quick-fill reasons when a case resolution is rejected."
       }
     },
     "visibilityPublic": "Public",
@@ -2716,7 +2732,8 @@
     "helpPreferencesDescription": "Display preferences that apply to your account only.",
     "helpStatusPersonal": "Stored per user",
     "helpPreferencesImpact": "Affects only how menus are displayed on this device. Which menus appear is still decided by your permissions.",
-    "helpPreferencesBestPractice": "Choose Automatic if you switch complaint domains often; choose Show all if your screen is tall enough."
+    "helpPreferencesBestPractice": "Choose Automatic if you switch complaint domains often; choose Show all if your screen is tall enough.",
+    "categoryCase": "Cases"
   },
   "kpi": {
     "title": "KPI summary",

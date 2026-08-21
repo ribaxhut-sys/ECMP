@@ -50,6 +50,10 @@ class SettingsKey(StrEnum):
     INTERNAL_COMPLAINT_ACCEPTANCE_NOTE_PRESETS = (
         "internal_complaint.acceptance_note_presets"
     )
+    CASE_CLOSE_NOTE_PRESETS = "case.close_note_presets"
+    CASE_CANCEL_REASON_PRESETS = "case.cancel_reason_presets"
+    CASE_RESOLUTION_COMMENT_PRESETS = "case.resolution_comment_presets"
+    CASE_REJECTION_REASON_PRESETS = "case.rejection_reason_presets"
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,5 +274,46 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         description=(
             "Quick-fill note presets for accepting or returning an internal complaint"
         ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.CASE_CLOSE_NOTE_PRESETS,
+        value=(
+            '["Kasus selesai ditangani","Ditutup atas persetujuan pelapor",'
+            '"Ditutup, tidak ada tindak lanjut tambahan"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="case",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets shown in the case close dialog",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CASE_CANCEL_REASON_PRESETS,
+        value='["Duplikat","Input salah","Permintaan dibatalkan pelapor"]',
+        value_type=SettingValueType.JSON,
+        category="case",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill reason presets shown when a case is cancelled",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CASE_RESOLUTION_COMMENT_PRESETS,
+        value=(
+            '["Sudah ditindaklanjuti sesuai SOP","Sudah dikoordinasikan dengan unit terkait",'
+            '"Selesai, pelapor sudah diinformasikan"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="case",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill comment presets shown in the case resolve dialog",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CASE_REJECTION_REASON_PRESETS,
+        value=(
+            '["Penyelesaian belum sesuai","Bukti pendukung kurang",'
+            '"Perlu penjelasan tambahan"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="case",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill reason presets shown when a case resolution is rejected",
     ),
 )
