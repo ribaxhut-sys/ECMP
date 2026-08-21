@@ -37,8 +37,10 @@ import {
   Select,
   Skeleton,
   Pagination,
+  ReasonPresetTags,
   WorkspaceToolbar,
 } from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
 import { useToast } from "@/shared/providers";
 import { formatDateTime24, formatHqArrivalSlot, resolveHqArrivalDisplay, toLocalDateKey } from "@/shared/utils/datetime";
 import { cn } from "@/shared/utils";
@@ -90,6 +92,18 @@ const CONFIRMATION_HIDDEN_HISTORY_CODES = new Set([
 
 const REJECT_NOTE_MIN = 20;
 const LOG_PAGE_SIZE = 10;
+
+/** Quick-fill preset settings for the escalation + HQ visit dialogs (JSON arrays). */
+const PRESET_KEYS = [
+  "cm_batch1.approve_escalation_note_presets",
+  "cm_batch1.reject_escalation_note_presets",
+  "cm_batch1.cancel_escalation_note_presets",
+  "cm_batch1.rerequest_escalation_reason_presets",
+  "cm_batch1.hq_accept_schedule_note_presets",
+  "cm_batch1.hq_return_note_presets",
+  "cm_batch1.hq_arrival_note_presets",
+  "cm_batch1.hq_complete_note_presets",
+];
 const APPROVE_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 const HQ_RETURN_REASON_CODES: CmBatch1HqReturnReasonCode[] = [
   "MISSING_ATTACHMENT",
@@ -206,6 +220,7 @@ export function CmBatch1ConfirmationView({
     searchParams.get("action") === CASE_ESCALATE_ACTION_QUERY;
   const { hasPermission, user, roles } = useAuth();
   const { pushSuccess, pushError } = useToast();
+  const presets = useReasonPresets(PRESET_KEYS);
   const canRead =
     hasPermission("complaints:read") || hasPermission("complaints:create");
   const canDecideEscalation = hasPermission("complaints:escalate");
@@ -1707,6 +1722,10 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
+          <ReasonPresetTags
+            presets={presets["cm_batch1.approve_escalation_note_presets"] ?? []}
+            onSelect={setApproveNote}
+          />
           <KnowledgeMentionTextarea
             name="approveEscalationNote"
             label={t("approveEscalationNoteLabel")}
@@ -1777,6 +1796,10 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
+          <ReasonPresetTags
+            presets={presets["cm_batch1.reject_escalation_note_presets"] ?? []}
+            onSelect={setRejectNote}
+          />
           <KnowledgeMentionTextarea
             name="rejectEscalationNote"
             label={t("rejectEscalationNoteLabel")}
@@ -1823,6 +1846,10 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
+          <ReasonPresetTags
+            presets={presets["cm_batch1.cancel_escalation_note_presets"] ?? []}
+            onSelect={setCancelNote}
+          />
           <KnowledgeMentionTextarea
             name="cancelEscalationNote"
             label={t("cancelEscalationNoteLabel")}
@@ -1869,6 +1896,10 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
+          <ReasonPresetTags
+            presets={presets["cm_batch1.rerequest_escalation_reason_presets"] ?? []}
+            onSelect={setReRequestReason}
+          />
           <KnowledgeMentionTextarea
             name="reRequestEscalationReason"
             label={t("reRequestEscalationReasonLabel")}
@@ -1969,6 +2000,10 @@ export function CmBatch1ConfirmationView({
             disabled={deciding}
             required
           />
+          <ReasonPresetTags
+            presets={presets["cm_batch1.hq_accept_schedule_note_presets"] ?? []}
+            onSelect={setArrivalNote}
+          />
           <KnowledgeMentionTextarea
             name="hqAcceptScheduleNote"
             label={t("hqAcceptScheduleNoteLabel")}
@@ -2026,6 +2061,10 @@ export function CmBatch1ConfirmationView({
             }
             disabled={deciding}
             required
+          />
+          <ReasonPresetTags
+            presets={presets["cm_batch1.hq_return_note_presets"] ?? []}
+            onSelect={setHqReturnNote}
           />
           <KnowledgeMentionTextarea
             name="hqReturnNote"
@@ -2093,6 +2132,10 @@ export function CmBatch1ConfirmationView({
             aria-required="true"
             disabled={deciding}
           />
+          <ReasonPresetTags
+            presets={presets["cm_batch1.hq_arrival_note_presets"] ?? []}
+            onSelect={setArrivalNote}
+          />
           <KnowledgeMentionTextarea
             name="hqArrivalNote"
             label={t("hqArrivalNoteLabel")}
@@ -2135,6 +2178,10 @@ export function CmBatch1ConfirmationView({
           <p className="text-ecmp-text-primary">
             {t("hqCompleteBody", { number: data?.complaintNumber ?? "" })}
           </p>
+          <ReasonPresetTags
+            presets={presets["cm_batch1.hq_complete_note_presets"] ?? []}
+            onSelect={setHqCompleteNote}
+          />
           <KnowledgeMentionTextarea
             name="hqCompleteNote"
             label={t("hqCompleteNoteLabel")}

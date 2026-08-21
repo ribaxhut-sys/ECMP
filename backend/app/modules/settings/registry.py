@@ -54,6 +54,17 @@ class SettingsKey(StrEnum):
     CASE_CANCEL_REASON_PRESETS = "case.cancel_reason_presets"
     CASE_RESOLUTION_COMMENT_PRESETS = "case.resolution_comment_presets"
     CASE_REJECTION_REASON_PRESETS = "case.rejection_reason_presets"
+    CM_B1_APPROVE_ESCALATION_NOTE_PRESETS = "cm_batch1.approve_escalation_note_presets"
+    CM_B1_REJECT_ESCALATION_NOTE_PRESETS = "cm_batch1.reject_escalation_note_presets"
+    CM_B1_CANCEL_ESCALATION_NOTE_PRESETS = "cm_batch1.cancel_escalation_note_presets"
+    CM_B1_RERUN_ESCALATION_REASON_PRESETS = (
+        "cm_batch1.rerequest_escalation_reason_presets"
+    )
+    CM_B1_HQ_ACCEPT_SCHEDULE_NOTE_PRESETS = "cm_batch1.hq_accept_schedule_note_presets"
+    CM_B1_HQ_RETURN_NOTE_PRESETS = "cm_batch1.hq_return_note_presets"
+    CM_B1_HQ_ARRIVAL_NOTE_PRESETS = "cm_batch1.hq_arrival_note_presets"
+    CM_B1_HQ_COMPLETE_NOTE_PRESETS = "cm_batch1.hq_complete_note_presets"
+    CM_B1_INTAKE_CASE_NOTE_PRESETS = "cm_batch1.intake_case_note_presets"
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,5 +326,92 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         category="case",
         visibility=SettingVisibility.PUBLIC,
         description="Quick-fill reason presets shown when a case resolution is rejected",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_APPROVE_ESCALATION_NOTE_PRESETS,
+        value=(
+            '["Sesuai kewenangan Pusat","Perlu penanganan Pusat",'
+            '"Eskalasi disetujui sesuai SOP"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets for approving an intake escalation",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_REJECT_ESCALATION_NOTE_PRESETS,
+        value=(
+            '["Masih dapat ditangani cabang",'
+            '"Alasan eskalasi kurang jelas","Dokumen pendukung belum lengkap"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets for rejecting an intake escalation",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_CANCEL_ESCALATION_NOTE_PRESETS,
+        value='["Diselesaikan di cabang","Eskalasi tidak jadi diperlukan","Diajukan keliru"]',
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets for cancelling an intake escalation",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_RERUN_ESCALATION_REASON_PRESETS,
+        value=(
+            '["Dokumen sudah dilengkapi","Ada informasi baru",'
+            '"Kondisi berubah, tetap perlu Pusat"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill reason presets for re-requesting an intake escalation",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_HQ_ACCEPT_SCHEDULE_NOTE_PRESETS,
+        value='["Dijadwalkan sesuai ketersediaan","Wajib pajak diminta hadir sesuai jadwal"]',
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets when HQ accepts and schedules a visit",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_HQ_RETURN_NOTE_PRESETS,
+        value='["Dokumen kurang","Perlu verifikasi ulang cabang","Bukan kewenangan Pusat"]',
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets when HQ returns a complaint to the branch",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_HQ_ARRIVAL_NOTE_PRESETS,
+        value='["Wajib pajak dijadwalkan hadir","Perubahan jadwal atas permintaan wajib pajak"]',
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets for the HQ arrival schedule note",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_HQ_COMPLETE_NOTE_PRESETS,
+        value=(
+            '["Kunjungan selesai, tidak ada tindak lanjut",'
+            '"Selesai, hasil sudah disampaikan","Selesai sesuai SOP"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets when HQ completes a visit",
+    ),
+    SettingDefinition(
+        key=SettingsKey.CM_B1_INTAKE_CASE_NOTE_PRESETS,
+        value=(
+            '["Perlu penanganan lanjutan unit","Sesuai kategori layanan",'
+            '"Dilanjutkan sesuai SOP"]'
+        ),
+        value_type=SettingValueType.JSON,
+        category="cm_batch1",
+        visibility=SettingVisibility.PUBLIC,
+        description="Quick-fill note presets for the per-case note on intake escalation",
     ),
 )

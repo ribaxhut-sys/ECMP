@@ -22,6 +22,7 @@ import {
   Modal,
   PageContainer,
   PageHeader,
+  ReasonPresetTags,
   SectionHeader,
   Select,
   RadioGroup,
@@ -29,6 +30,7 @@ import {
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { ActiveComplaintsBanner } from "./ActiveComplaintsBanner";
 import { HqArrivalSlotPicker, type HqArrivalSlotValue } from "./HqArrivalSlotPicker";
+import { useReasonPresets } from "@/shared/hooks";
 import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
@@ -54,6 +56,10 @@ import {
   type IntakeCaseDecisionRow,
 } from "./intakeCaseDrafts";
 
+/** Quick-fill presets for the per-case note (PUBLIC setting, JSON array). */
+const INTAKE_CASE_NOTE_PRESET_KEY = "cm_batch1.intake_case_note_presets";
+const PRESET_KEYS = [INTAKE_CASE_NOTE_PRESET_KEY];
+
 /**
  * After "Lanjut": per-Case priority, note, and one action
  * (register / close Case / request escalation).
@@ -67,6 +73,7 @@ export function EscalateIntakeView() {
   const tValidation = useTranslations("validation");
   const tErrors = useTranslations("errors");
   const { hasPermission } = useAuth();
+  const presets = useReasonPresets(PRESET_KEYS);
   const canCreate = hasPermission("complaints:create");
 
   const [draft, setDraft] = useState<EscalateIntakeDraft | null>(null);
@@ -620,6 +627,13 @@ export function EscalateIntakeView() {
                     disabled={!canCreate || submitting || duplicateBusy}
                   />
                 </div>
+                <ReasonPresetTags
+                  presets={presets[INTAKE_CASE_NOTE_PRESET_KEY] ?? []}
+                  onSelect={(preset) => {
+                    patchRow(row.id, { note: preset });
+                    setEscalationReasonMissing(false);
+                  }}
+                />
                 <KnowledgeMentionTextarea
                   name={`case-note-${row.id}`}
                   id={`case-note-${row.id}`}

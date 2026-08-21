@@ -104,6 +104,7 @@ export function SystemSettingsManagement({
         hq_schedule: t("categoryHqSchedule"),
         internal_complaint: t("categoryInternalComplaint"),
         case: t("categoryCase"),
+        cm_batch1: t("categoryCmBatch1"),
       };
       return map[category] ?? category.replace(/\b\w/g, (c) => c.toUpperCase());
     },

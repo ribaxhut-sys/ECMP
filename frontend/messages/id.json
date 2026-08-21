@@ -2634,6 +2634,42 @@
       "case_rejection_reason_presets": {
         "label": "Alasan tolak penyelesaian kasus",
         "description": "Pilihan alasan cepat saat penyelesaian kasus ditolak."
+      },
+      "cm_batch1_approve_escalation_note_presets": {
+        "label": "Catatan setujui eskalasi",
+        "description": "Pilihan catatan cepat saat eskalasi intake disetujui."
+      },
+      "cm_batch1_reject_escalation_note_presets": {
+        "label": "Catatan tolak eskalasi",
+        "description": "Pilihan catatan cepat saat eskalasi intake ditolak."
+      },
+      "cm_batch1_cancel_escalation_note_presets": {
+        "label": "Catatan batal eskalasi",
+        "description": "Pilihan catatan cepat saat pengajuan eskalasi dibatalkan."
+      },
+      "cm_batch1_rerequest_escalation_reason_presets": {
+        "label": "Alasan ajukan ulang eskalasi",
+        "description": "Pilihan alasan cepat saat eskalasi diajukan kembali."
+      },
+      "cm_batch1_hq_accept_schedule_note_presets": {
+        "label": "Catatan terima & jadwalkan Pusat",
+        "description": "Pilihan catatan cepat saat Pusat menerima dan menjadwalkan kunjungan."
+      },
+      "cm_batch1_hq_return_note_presets": {
+        "label": "Catatan kembalikan ke cabang",
+        "description": "Pilihan catatan cepat saat Pusat mengembalikan pengaduan ke cabang."
+      },
+      "cm_batch1_hq_arrival_note_presets": {
+        "label": "Catatan jadwal kunjungan",
+        "description": "Pilihan catatan cepat pada penjadwalan kunjungan Pusat."
+      },
+      "cm_batch1_hq_complete_note_presets": {
+        "label": "Catatan penyelesaian Pusat",
+        "description": "Pilihan catatan cepat saat Pusat menyelesaikan kunjungan."
+      },
+      "cm_batch1_intake_case_note_presets": {
+        "label": "Catatan kasus saat eskalasi",
+        "description": "Pilihan catatan cepat untuk catatan per kasus pada layar eskalasi intake."
       }
     },
     "visibilityPublic": "Publik",
@@ -2733,7 +2769,8 @@
     "helpStatusPersonal": "Tersimpan per pengguna",
     "helpPreferencesImpact": "Hanya memengaruhi cara menu ditampilkan pada perangkat ini. Menu yang tampil tetap ditentukan oleh izin akses.",
     "helpPreferencesBestPractice": "Pilih Otomatis bila Anda sering berpindah domain pengaduan; pilih Tampilkan semua bila layar Anda cukup tinggi.",
-    "categoryCase": "Kasus"
+    "categoryCase": "Kasus",
+    "categoryCmBatch1": "Eskalasi & Kunjungan Pusat"
   },
   "kpi": {
     "title": "Ringkasan KPI",

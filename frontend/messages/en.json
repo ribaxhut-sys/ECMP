@@ -2634,6 +2634,42 @@
       "case_rejection_reason_presets": {
         "label": "Case rejection reasons",
         "description": "Quick-fill reasons when a case resolution is rejected."
+      },
+      "cm_batch1_approve_escalation_note_presets": {
+        "label": "Approve escalation notes",
+        "description": "Quick-fill notes when an intake escalation is approved."
+      },
+      "cm_batch1_reject_escalation_note_presets": {
+        "label": "Reject escalation notes",
+        "description": "Quick-fill notes when an intake escalation is rejected."
+      },
+      "cm_batch1_cancel_escalation_note_presets": {
+        "label": "Cancel escalation notes",
+        "description": "Quick-fill notes when an escalation request is cancelled."
+      },
+      "cm_batch1_rerequest_escalation_reason_presets": {
+        "label": "Re-request escalation reasons",
+        "description": "Quick-fill reasons when an escalation is requested again."
+      },
+      "cm_batch1_hq_accept_schedule_note_presets": {
+        "label": "HQ accept & schedule notes",
+        "description": "Quick-fill notes when HQ accepts and schedules a visit."
+      },
+      "cm_batch1_hq_return_note_presets": {
+        "label": "HQ return notes",
+        "description": "Quick-fill notes when HQ returns a complaint to the branch."
+      },
+      "cm_batch1_hq_arrival_note_presets": {
+        "label": "HQ arrival notes",
+        "description": "Quick-fill notes for the HQ visit schedule."
+      },
+      "cm_batch1_hq_complete_note_presets": {
+        "label": "HQ completion notes",
+        "description": "Quick-fill notes when HQ completes a visit."
+      },
+      "cm_batch1_intake_case_note_presets": {
+        "label": "Intake case notes",
+        "description": "Quick-fill notes for the per-case note on the intake escalation screen."
       }
     },
     "visibilityPublic": "Public",
@@ -2733,7 +2769,8 @@
     "helpStatusPersonal": "Stored per user",
     "helpPreferencesImpact": "Affects only how menus are displayed on this device. Which menus appear is still decided by your permissions.",
     "helpPreferencesBestPractice": "Choose Automatic if you switch complaint domains often; choose Show all if your screen is tall enough.",
-    "categoryCase": "Cases"
+    "categoryCase": "Cases",
+    "categoryCmBatch1": "Escalation & HQ visits"
   },
   "kpi": {
     "title": "KPI summary",
