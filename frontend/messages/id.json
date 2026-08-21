@@ -2767,6 +2767,7 @@
     "breakLabel": "Istirahat",
     "slotRatio": "{scheduled}/{capacity} slot",
     "visitCompleted": "Selesai",
+    "visitOverdue": "Lewat jadwal — WP belum datang",
     "proposeDateLabel": "Tanggal kedatangan",
     "proposeTimeLabel": "Jam kedatangan",
     "proposeTimePlaceholder": "Pilih slot",

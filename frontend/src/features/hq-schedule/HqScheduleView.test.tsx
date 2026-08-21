@@ -44,7 +44,12 @@ vi.mock("@/lib/api/hqSchedule", () => ({
   deleteHqScheduleHoliday: vi.fn(),
 }));
 
-import { HqScheduleView, slotOccupancy, summarizeHqWeek } from "./HqScheduleView";
+import {
+  HqScheduleView,
+  isArrivalOverdue,
+  slotOccupancy,
+  summarizeHqWeek,
+} from "./HqScheduleView";
 
 const emptyGrid = {
   startTime: "08:00",
@@ -111,6 +116,7 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
 describe("HqScheduleView", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
@@ -340,11 +346,76 @@ describe("HqScheduleView", () => {
     const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-10:00");
     expect(slot).toHaveAttribute("data-occupancy", "empty");
     expect(within(slot).getByText("CASE-2026-000009")).toBeInTheDocument();
-    expect(within(slot).getByText("Done")).toBeInTheDocument();
+    expect(within(slot).getByLabelText("Done")).toBeInTheDocument();
+    expect(within(slot).queryByText("Done")).not.toBeInTheDocument();
     expect(within(slot).getByText("CASE-2026-000009").closest("[data-completed]")).toHaveAttribute(
       "data-completed",
       "true",
     );
+  });
+
+  it("tags a scheduled case as overdue once its slot end time has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-17T09:30:00"));
+    fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    // 08:00-09:00 slot, now 09:30 — past end time and not completed.
+    const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
+    expect(
+      within(slot).getByText("CASE-2026-000001").closest("[data-overdue]"),
+    ).toHaveAttribute("data-overdue", "true");
+    expect(within(slot).getAllByLabelText("Past slot — WP hasn't arrived")).toHaveLength(2);
+  });
+
+  it("does not tag a scheduled case as overdue while its slot is still current", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-17T08:30:00"));
+    fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
+    expect(
+      within(slot).getByText("CASE-2026-000001").closest("[data-overdue]"),
+    ).toHaveAttribute("data-overdue", "false");
+    expect(
+      within(slot).queryByLabelText("Past slot — WP hasn't arrived"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not tag a completed visit as overdue after the slot has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-17T12:00:00"));
+    const grid = gridWithCases();
+    grid.days[0]!.slots[0]!.scheduledCases = [
+      {
+        complaintId: "case-done",
+        complaintNumber: "TAB-2608-0009",
+        owningUnitId: "UPPPD-A",
+        unitCode: "TAB",
+        caseNumbers: ["CASE-2026-000009"],
+        completed: true,
+      },
+    ];
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
+    expect(
+      within(slot).getByText("CASE-2026-000009").closest("[data-overdue]"),
+    ).toHaveAttribute("data-overdue", "false");
+    expect(within(slot).getByLabelText("Done")).toBeInTheDocument();
+    expect(
+      within(slot).queryByLabelText("Past slot — WP hasn't arrived"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("treats a slot as overdue only after its end time", () => {
+    const now = new Date("2026-08-17T09:00:00").getTime();
+    expect(isArrivalOverdue("2026-08-17", "09:00", now)).toBe(false);
+    expect(isArrivalOverdue("2026-08-17", "09:00", now + 1)).toBe(true);
+    expect(isArrivalOverdue("2026-08-17", "08:00", now)).toBe(true);
+    expect(isArrivalOverdue("not-a-date", "09:00", now)).toBe(false);
   });
 
   it("tags a break slot instead of showing case data", async () => {

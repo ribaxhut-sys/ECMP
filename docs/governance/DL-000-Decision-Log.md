@@ -2997,7 +2997,7 @@ Daftar ini **bukan** keputusan. Isinya: butir yang berstatus Open/Proposed/Pendi
 |---|---|---|---|
 | M-11 | **Paket UX Foundation** (PDS-001 · PWDM-001 · IA-001) + turunannya (NAV-001, WF-000, WF-PLAN-001, WF-001-01) | **DRAFT — status §2 disinkronkan (DL-069)**; belum READY FOR APPROVAL; Review ulang pasca-merge masih wajib | DL-001 merge Approved; DL-069 menutup inkonsistensi status; **isi** turunan belum mengikat sampai paket Approved |
 | M-12 | **DEC-F4 countersign Architecture Board** | Berkas DEC-F4 🟡 *Proposed — awaiting formal DEC approval*; countersign pack 🟡 *Ready for countersign* | Keputusan bisnis F4…F4.5 sudah **Locked** oleh Business Owner; lingkup escalation Mode A dikunci DL-066; jalur countersign Board belum tertutup (lih. DL-012) |
-| M-13 | **Retirement DEC untuk dual SoT** | Belum ada; disyaratkan eksplisit oleh DL-044, DL-051, DL-052, dan Forbidden Behavior DL-046 | Tanpa ini, dua namespace `/api/v1/complaints` dan `/api/v1/cm` tetap hidup berdampingan tanpa batas waktu |
+| M-13 | **Retirement DEC untuk dual SoT** | **DEC-026 Accepted with Conditions** (2026-08-13); **M-026-1…3 executed** (FE redirect, unmount `/api/v1/complaints`, DROP `complaints*` H1). DEC-020 tubuh tidak di-rewrite. | **Tertutup untuk runtime Mode A.** Sisa: CA BC bukan objek retire; Mode B tetap CLOSED |
 | M-14 | **Resolution unlock Mode B** | Belum ada; disyaratkan C-B6-1 + C-B6-3 (prasyarat gap model organisasi) + kesiapan operasional | Seluruh rantai DL-039…DL-042 tetap desain sampai ada Resolution ini |
 
 ### 6.3 Ditunda secara sengaja (Deferred by decision) — perlu keputusan lanjutan bila diaktifkan

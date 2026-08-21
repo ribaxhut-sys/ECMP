@@ -7,7 +7,7 @@
 | Owner | Lead Software Engineer |
 | Reviewer | Solution Architect / Architecture Board |
 | Status | 🟡 Active — pending Architecture Board approvals between tasks |
-| Last Update | 2026-07-31 |
+| Last Update | 2026-08-21 |
 | Production Ready | **No** (backend-wide). CM Batch 1 **lab/synthetic** track: READY WITH CONDITIONS accepted |
 
 ## Purpose
@@ -39,10 +39,10 @@ Single execution roadmap for completing the ECMP **backend** to Production Ready
 
 | Epic ID | Name | Status | Progress |
 |---|---|---|---|
-| EPIC-CM-B1 | Complaint Management Batch 1 (FR-001…FR-004) | **READY (lab)** | Features COMPLETE; Mode A lab COMPLETE evidence **GOV-MODEA-M3C-001** (2026-07-31); lab READY WITH CONDITIONS **accepted** (EX-20260729-01); dual SoT per **DEC-020**; API-500…513 |
+| EPIC-CM-B1 | Complaint Management Batch 1 (FR-001…FR-004) | **READY (lab)** | Features COMPLETE; Mode A lab COMPLETE evidence **GOV-MODEA-M3C-001** (2026-07-31); lab READY WITH CONDITIONS **accepted** (EX-20260729-01); canonical HTTP **DEC-026** `/api/v1/cm`; API-500…513 |
 | EPIC-CM-B1-OPS | Batch 1 release cutover (redeploy, config stance, exceptions) | **COMPLETE (lab)** | OPS-01/01b/02/03 + lab countersign done; Docker recreate optional follow-up |
 | EPIC-PLATFORM | Platform / CI / auth / observability (approved ADR track) | PARTIAL | Existing platform modules; not fully signed Production Ready |
-| EPIC-ECMF-LEGACY | Legacy case/complaint stack (pre–Batch 1) | PARTIAL | Remains for foundation lifecycle `/api/v1/complaints` under **DEC-020** coexistence; defect-driven only; do not force-merge with `cm_batch1` |
+| EPIC-ECMF-LEGACY | Legacy case/complaint stack (pre–Batch 1) | **RETIRED HTTP (Mode A)** | Foundation `/api/v1/complaints` **unmounted** + `complaints*` **DROP** (DEC-026 M-026-1…3 / Alembic `0072`); CA BC ticket-nested **tetap**; defect-driven only |
 | EPIC-CM-F4 | Escalation / Resolution (DEC-F4 / FRD-CM-002) | **NOT APPROVED FOR CODE** | Spec/OpenAPI/review packs exist; implementation blocked until Board unlock |
 
 ---
@@ -172,7 +172,9 @@ Phase 1 completion does **not** authorize:
 Preserve backward-compatible legacy modules; fix only verified defects.
 
 ### Remaining Work
-- Defect-driven only; no Batch 1 rewrite of legacy routes
+- HTTP Foundation **unmounted**; tabel `complaints*` **DROP** (H1 — tidak di-merge ke CM)
+- CA BC `complaint_cases*` + ticket-nested router **tetap** — bukan objek DEC-026
+- Defect-driven only pada sisa CA BC; jangan menghidupkan `/api/v1/complaints`
 
 ---
 

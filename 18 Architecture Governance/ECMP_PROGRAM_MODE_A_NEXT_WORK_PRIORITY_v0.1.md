@@ -67,8 +67,8 @@ Enterprise P1–P3 (org-gap plan, EP bilateral, O-06/O-07) run **in parallel** a
 | Rank | Status 2026-07-31 | Notes |
 |---:|---|---|
 | **M1** | **HARDENED** | FE guards + unit; BE gate endpoint/wiring; user create + update-password gated |
-| **M2** | **HYGIENE DONE** | DEC-020 mount coexistence test; OWNERSHIP/BMR/catalog/RTM metadata sync |
-| **M3** | **CLOSED (intake slice)** | Aggregate create/confirm/customer/duplicate/staging upload+void/confirmation bound attachments; dual-SoT coexistence; **no** foundation UI cutover / Retirement DEC |
+| **M2** | **HYGIENE DONE** | DEC-020 mount coexistence historically; **DEC-026 M-026-2** Foundation HTTP unmounted — tes coexistence diganti “unmounted” |
+| **M3** | **CLOSED (intake slice)** | Aggregate intake lengkap; Foundation UI **retired** via DEC-026 (bukan silent cutover) |
 | **M3 residual AC** | **HARDENED** | **TD-CM-001 / EX-D closed** — confirm lock enforced on API-500 create; FR-004 AC3 lab malware-reject proof added |
 | **M3b supervisor visibility** | **HARDENED (Mode A)** | API-513 round-trip + edge cases (empty/limit/threshold/unknown reason); FE contract helpers; read-only; no Case create |
 | **M3c lab COMPLETE evidence** | **DONE** | `ECMP_PROGRAM_MODE_A_M3C_Module_Lab_COMPLETE_Evidence_Pack_v1.0.md` (GOV-MODEA-M3C-001) — lab/synthetic claim only |
@@ -89,8 +89,8 @@ Mode B / Batch-2 / enterprise customer remain **CLOSED** (C-B6-1).
 | Item | Disposition |
 |---|---|
 | SCR-CM-001…006 Aggregate intake UI + FR-004 staging/void/confirm list | **Done** (Mode A) |
-| Dual-SoT foundation list/detail coexistence | **Retained** — not merged |
-| Silent foundation → Aggregate cutover | **Out** — needs Retirement DEC |
+| Dual-SoT foundation list/detail coexistence | **Retired (runtime)** — DEC-026 M-026-1…3; CA BC ticket-nested tetap |
+| Silent foundation → Aggregate cutover | **Out of this queue** — cutover = DEC-026 (executed); bukan silent |
 | Confirm lock on create (TD-CM-001 / EX-D) | **Done** — enforced on new API-500 creates |
 | Event catalog EVT-CM-030…034 production wiring beyond lab side-effects | **Not blocking**; track under observability/catalog when scheduled |
 | Shared cron for staging TTL | **Deferred** — deployment / cross-env need / Arch-DevOps standard only |
@@ -118,6 +118,7 @@ Mode B / Batch-2 / enterprise customer remain **CLOSED** (C-B6-1).
 | 0.1o | 2026-07-31 | **M3d DONE** — API-513 `complaintId` on later-review (EX-G); Alembic 0045; FE deep-link |
 | 0.1p | 2026-07-31 | **Keep-green PASS** — Batch-1 BE 85; FE Aggregate 37; M1 auth-routes + unit; M6 ops script `--help` |
 | 0.1q | 2026-08-01 | **CAP-008 Program CLOSED** — ARB pack GOV-CAP008-CLOSE-*; Roadmap Reset `ai/sprint/CAP008_ROADMAP_RESET_v1.0.md`. Batch-2 Mode A Case delivery no longer future work. Mode B remains CLOSED. |
+| 0.1r | 2026-08-21 | Hygiene: M2/M3/§7 aligned to **DEC-026 executed**; remaining Mode A = BO/Board (Tutup Pengaduan, OQ-IAM-001, F4) — bukan Dual-SoT |
 
 ---
 
@@ -130,6 +131,21 @@ Mode B / Batch-2 / enterprise customer remain **CLOSED** (C-B6-1).
 | Closure index | `ECMP_PROGRAM_CAP008_000_Program_Closure_Index_v1.0.md` |
 
 Mode B / enterprise customer remain **CLOSED** (C-B6-1).
+
+---
+
+## 9. Remaining Mode A after DEC-025/026/027 (2026-08-21)
+
+Bukan antrian fitur baru. Coding Mode A hanya bila regresi, atau setelah keputusan di kolom Pemilik.
+
+| Item | Status | Pemilik |
+|---|---|---|
+| Tutup Pengaduan / induk tetap buka jika semua Case `CANCELLED` | OOS DEC-025 §3.4 | Business Owner (DEC follow-up) |
+| OQ-IAM-001 sisa 19 gerbang baca `complaints:read`/`update` | Open | Architecture Board / BO |
+| DEC-F4 / FRD-CM-002 coding | Draft; **NOT APPROVED FOR CODE** | Architecture Board countersign |
+| HQ schedule overdue visual hint | Mode A FE — slice ini | Tech Lead (keep-green) |
+| Mode B / SSO / Identity Adapter | **CLOSED** (C-B6-1) | Board Unlock Resolution |
+| CAP-006 FR-030 engine | Stay Deferred (CAP006-BLK-001) | Time Source pattern |
 
 ---
 

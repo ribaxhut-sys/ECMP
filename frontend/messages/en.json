@@ -2767,6 +2767,7 @@
     "breakLabel": "Break",
     "slotRatio": "{scheduled}/{capacity} slot",
     "visitCompleted": "Done",
+    "visitOverdue": "Past slot — WP hasn't arrived",
     "proposeDateLabel": "Arrival date",
     "proposeTimeLabel": "Arrival time",
     "proposeTimePlaceholder": "Choose a slot",

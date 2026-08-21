@@ -33,7 +33,7 @@ import {
   Select,
   StatCard,
 } from "@/shared/ui";
-import { IconCheck, IconChevronRight } from "@/shared/icons";
+import { IconAlert, IconCheck, IconChevronRight } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 import { toLocalDateKey } from "@/shared/utils/datetime";
 import { cn } from "@/shared/utils";
@@ -121,22 +121,37 @@ function caseNumbersLabel(proposal: HqScheduleProposalSummary): string {
   return proposal.caseNumbers.join(", ");
 }
 
+/**
+ * Purely visual hint, derived from the clock — not a stored fact. A slot
+ * whose end time has already passed while the case is still HQ_SCHEDULED
+ * (not completed) reads as "past its slot, not yet closed by Pusat". This
+ * never changes case state and carries no record of who/when.
+ */
+export function isArrivalOverdue(date: string, endTime: string, nowMs: number): boolean {
+  const slotEnd = new Date(`${date}T${endTime}:00`).getTime();
+  return Number.isFinite(slotEnd) && slotEnd < nowMs;
+}
+
 function CaseLine({
   proposal,
   canOpen,
   branchNameByCode,
+  overdue,
 }: {
   proposal: HqScheduleProposalSummary;
   canOpen: boolean;
   branchNameByCode: Map<string, string>;
+  overdue: boolean;
 }) {
   const t = useTranslations("hqSchedule");
   const unitInitial = proposal.unitCode;
   const branchTitle =
     branchNameByCode.get(proposal.owningUnitId ?? "") || unitInitial;
+  const showOverdue = overdue && !proposal.completed;
   return (
     <div
       data-completed={proposal.completed ? "true" : "false"}
+      data-overdue={showOverdue ? "true" : "false"}
       className="flex min-w-0 items-center gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight"
     >
       {canOpen ? (
@@ -162,10 +177,22 @@ function CaseLine({
         <Badge
           tone="success"
           variant="outline"
-          className="shrink-0 gap-0.5 px-1.5 py-0"
+          className="shrink-0 px-1 py-0"
+          title={t("visitCompleted")}
+          aria-label={t("visitCompleted")}
         >
           <IconCheck className="size-3" aria-hidden />
-          {t("visitCompleted")}
+        </Badge>
+      ) : null}
+      {showOverdue ? (
+        <Badge
+          tone="warning"
+          variant="outline"
+          className="shrink-0 px-1 py-0"
+          title={t("visitOverdue")}
+          aria-label={t("visitOverdue")}
+        >
+          <IconAlert className="size-3" aria-hidden />
         </Badge>
       ) : null}
     </div>
@@ -179,6 +206,7 @@ function SlotCard({
   branchNameByCode,
   slotRatioLabel,
   breakLabel,
+  nowMs,
 }: {
   slot: HqScheduleSlotAvailability;
   date: string;
@@ -186,6 +214,7 @@ function SlotCard({
   branchNameByCode: Map<string, string>;
   slotRatioLabel: string;
   breakLabel: string;
+  nowMs: number;
 }) {
   if (slot.isBreak) {
     return (
@@ -228,6 +257,7 @@ function SlotCard({
               proposal={proposal}
               canOpen={canOpenCase(proposal.owningUnitId)}
               branchNameByCode={branchNameByCode}
+              overdue={isArrivalOverdue(date, slot.endTime, nowMs)}
             />
           ))}
         </div>
@@ -248,6 +278,7 @@ function DayColumn({
   holidayLabel,
   weekendLabel,
   columnRef,
+  nowMs,
 }: {
   day: HqScheduleDayAvailability;
   isToday: boolean;
@@ -260,6 +291,7 @@ function DayColumn({
   holidayLabel: string;
   weekendLabel: string;
   columnRef?: Ref<HTMLElement>;
+  nowMs: number;
 }) {
   const closedCopy =
     day.closedReason === "HOLIDAY" ? day.holidayLabel || holidayLabel : weekendLabel;
@@ -307,6 +339,7 @@ function DayColumn({
             branchNameByCode={branchNameByCode}
             slotRatioLabel={slotRatio(slot)}
             breakLabel={breakLabel}
+            nowMs={nowMs}
           />
         ))
       )}
@@ -345,6 +378,8 @@ export function HqScheduleView() {
   const [importYear, setImportYear] = useState(() => String(new Date().getFullYear()));
   const [importing, setImporting] = useState(false);
   const todayColumnRef = useRef<HTMLElement>(null);
+  // Drives the "overdue" tag only — ticks slowly since it's a visual hint, not a stored fact.
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const rangeFrom = useMemo(() => toLocalDateKey(weekStart), [weekStart]);
   const rangeTo = useMemo(
@@ -424,6 +459,11 @@ export function HqScheduleView() {
       block: "nearest",
     });
   }, [data, rangeFrom]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   async function submitCreateHoliday(): Promise<void> {
     const date = holidayDate.trim();
@@ -614,6 +654,7 @@ export function HqScheduleView() {
                     holidayLabel={t("holiday")}
                     weekendLabel={t("weekend")}
                     columnRef={day.date === todayIso ? todayColumnRef : undefined}
+                    nowMs={nowMs}
                   />
                 ))}
               </div>
