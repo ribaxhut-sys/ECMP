@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import Principal, require_permissions
 from app.core.authorization.gates import require_hq_intake_action
-from app.core.authorization.org_unit_resolver import OrgUnitResolver
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.modules.hq_schedule.repository import HqScheduleRepository
@@ -52,27 +51,20 @@ def _default_range(
 )
 def get_availability(
     service: Annotated[HqScheduleService, Depends(get_hq_schedule_service)],
-    session: Annotated[Session, Depends(get_db_session)],
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
 ) -> DataResponse[AvailabilityResponse]:
     """Cabang view — used inline in the escalation slot picker.
 
-    Carries no other branch's complaint detail: scheduled cases are scoped to
-    the caller's own org unit only (see HqScheduleService._slots_for_day).
-    Resolved via OrgUnitResolver, not principal.org_unit_id directly — that
-    claim is empty in Mode A dev auth (see OrgUnitResolver.resolve_principal).
+    Case numbers for every branch are visible (so the board reads correctly);
+    only the frontend gates the link to a complaint to the owning branch or
+    Pusat (see HqScheduleView.canOpenCase).
     """
+    _ = principal
     start, end = _default_range(date_from, date_to)
-    caller_unit_id = OrgUnitResolver(session).resolve_principal(principal)
     return DataResponse(
-        data=service.get_availability(
-            date_from=start,
-            date_to=end,
-            detail=False,
-            caller_unit_id=caller_unit_id,
-        )
+        data=service.get_availability(date_from=start, date_to=end, detail=False)
     )
 
 

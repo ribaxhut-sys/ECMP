@@ -157,12 +157,20 @@ function CaseLine({
       {canOpen ? (
         <Link
           href={`/complaints/cm/${encodeURIComponent(proposal.complaintId)}`}
-          className="min-w-0 truncate font-medium text-ecmp-primary hover:underline"
+          className={cn(
+            "min-w-0 truncate font-medium hover:underline",
+            showOverdue ? "text-ecmp-danger-text" : "text-ecmp-primary",
+          )}
         >
           {caseNumbersLabel(proposal)}
         </Link>
       ) : (
-        <span className="min-w-0 truncate text-ecmp-text-secondary">
+        <span
+          className={cn(
+            "min-w-0 truncate",
+            showOverdue ? "font-medium text-ecmp-danger-text" : "text-ecmp-text-secondary",
+          )}
+        >
           {caseNumbersLabel(proposal)}
         </span>
       )}
@@ -220,7 +228,7 @@ function SlotCard({
     return (
       <div
         data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
-        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2.5 py-3 text-center text-[length:var(--ecmp-font-helper-size)] font-medium text-ecmp-text-secondary"
+        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2.5 py-3 text-center text-[length:var(--ecmp-font-body-size)] font-bold italic text-ecmp-text-secondary"
       >
         {slot.startTime} · {breakLabel}
       </div>

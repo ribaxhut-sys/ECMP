@@ -188,7 +188,7 @@ def test_availability_detail_200_for_pusat_unit_agent() -> None:
     assert resp.status_code == 200, resp.text
 
 
-def test_availability_scopes_scheduled_cases_to_callers_own_unit() -> None:
+def test_availability_shows_scheduled_cases_from_every_branch() -> None:
     arrivals = [
         ArrivalRow(
             complaint_id="c1",
@@ -228,7 +228,7 @@ def test_availability_scopes_scheduled_cases_to_callers_own_unit() -> None:
     scheduled_numbers = {
         case["complaintNumber"] for slot in slots for case in slot["scheduledCases"]
     }
-    assert scheduled_numbers == {"TAB-2608-0001"}
+    assert scheduled_numbers == {"TAB-2608-0001", "GAM-2608-0001"}
 
 
 def test_get_hq_schedule_service_wires_dependencies() -> None:

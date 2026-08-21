@@ -44,7 +44,7 @@ export function HqArrivalSlotPicker({
   const [dayLoading, setDayLoading] = useState(false);
   const [dayFailed, setDayFailed] = useState(false);
 
-  const minDate = useMemo(() => toLocalDateKey(addDays(new Date(), 1)), []);
+  const minDate = useMemo(() => toLocalDateKey(new Date()), []);
   const maxDate = useMemo(
     () => toLocalDateKey(addDays(new Date(), MAX_LEAD_DAYS)),
     [],

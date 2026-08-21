@@ -183,7 +183,9 @@ def test_scheduled_and_proposed_counted_separately() -> None:
     assert pusat_slot.pending_proposals[0].complaint_number == "CMP-2"
 
 
-def test_scheduled_cases_scoped_to_caller_unit_on_aggregate_view() -> None:
+def test_scheduled_cases_visible_to_every_caller_on_aggregate_view() -> None:
+    """Case numbers are visible branch-wide; only the frontend gates the click
+    to a complaint (own unit or Pusat) via canOpenCase."""
     monday = _next_monday(date.today())
     arrivals = [
         ArrivalRow(
@@ -213,23 +215,18 @@ def test_scheduled_cases_scoped_to_caller_unit_on_aggregate_view() -> None:
     repo = _FakeHqScheduleRepository(arrivals=arrivals)
     service = HqScheduleService(repo, _settings_service())
 
-    own_view = service.get_availability(
-        date_from=monday,
-        date_to=monday,
-        detail=False,
-        caller_unit_id="UPPPD-TANAH-ABANG",
-    )
-    own_slot = own_view.days[0].slots[0]
-    assert [c.complaint_number for c in own_slot.scheduled_cases] == ["TAB-2608-0001"]
-    assert own_slot.scheduled_cases[0].case_numbers == [
-        "CASE-2026-000001",
-        "CASE-2026-000002",
-    ]
-
-    no_caller_view = service.get_availability(
+    branch_view = service.get_availability(
         date_from=monday, date_to=monday, detail=False
     )
-    assert no_caller_view.days[0].slots[0].scheduled_cases == []
+    branch_slot = branch_view.days[0].slots[0]
+    assert sorted(c.complaint_number for c in branch_slot.scheduled_cases) == [
+        "GAM-2608-0001",
+        "TAB-2608-0001",
+    ]
+    tab_case = next(
+        c for c in branch_slot.scheduled_cases if c.complaint_number == "TAB-2608-0001"
+    )
+    assert tab_case.case_numbers == ["CASE-2026-000001", "CASE-2026-000002"]
 
     pusat_view = service.get_availability(
         date_from=monday, date_to=monday, detail=True

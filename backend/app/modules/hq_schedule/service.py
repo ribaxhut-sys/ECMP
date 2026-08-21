@@ -127,7 +127,6 @@ class HqScheduleService:
         date_from: date,
         date_to: date,
         detail: bool,
-        caller_unit_id: str | None = None,
     ) -> AvailabilityResponse:
         if date_to < date_from:
             raise ValidationAppError(
@@ -164,7 +163,6 @@ class HqScheduleService:
                     arrivals,
                     config=config,
                     detail=detail,
-                    caller_unit_id=caller_unit_id,
                 )
             days.append(
                 DayAvailability(
@@ -194,7 +192,6 @@ class HqScheduleService:
         *,
         config: ScheduleConfig,
         detail: bool,
-        caller_unit_id: str | None,
     ) -> list[SlotAvailability]:
         scheduled_for_day = [
             a for a in arrivals if a.hq_arrival_date == day and a.hq_arrival_time
@@ -246,22 +243,9 @@ class HqScheduleService:
                     )
                     for a in proposed
                 ]
-            # Pusat (detail=True) sees every branch's scheduled cases; a Cabang
-            # caller only ever gets its own — never another branch's case
-            # identity, not even to filter client-side.
-            caller_code = (
-                None if caller_unit_id is None else resolve_unit_code(caller_unit_id)
-            )
-            visible_scheduled = (
-                scheduled
-                if detail
-                else [
-                    a
-                    for a in scheduled
-                    if caller_code is not None
-                    and resolve_unit_code(a.owning_unit_id) == caller_code
-                ]
-            )
+            # Case numbers are visible to every caller (Pusat and all Cabang) so the
+            # board reads correctly; only the frontend's canOpenCase gates the link
+            # to the complaint (own unit or Pusat) — see HqScheduleView.canOpenCase.
             scheduled_cases = [
                 ProposalSummary(
                     complaintId=a.complaint_id,
@@ -271,7 +255,7 @@ class HqScheduleService:
                     caseNumbers=list(a.case_numbers),
                     completed=a.completed,
                 )
-                for a in visible_scheduled
+                for a in scheduled
             ]
             result.append(
                 SlotAvailability(
