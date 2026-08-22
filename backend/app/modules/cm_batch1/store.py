@@ -494,6 +494,8 @@ class Batch1Store:
         arrival_time: str,
         description: str | None = None,
         intake_disposition: str | None = None,
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
     ) -> ComplaintAggregate | None:
         with self._lock:
             row = self._complaints.get(str(complaint_id).strip())
@@ -501,6 +503,10 @@ class Batch1Store:
                 return None
             row.hq_arrival_date = arrival_date
             row.hq_arrival_time = arrival_time
+            if destination_unit_id is not None:
+                row.hq_destination_unit_id = destination_unit_id
+                row.hq_destination_set_by = destination_set_by
+                row.hq_destination_set_at = datetime.now(UTC)
             if description is not None:
                 row.description = description
             if intake_disposition is not None:
@@ -517,6 +523,8 @@ class Batch1Store:
         arrival_time: str,
         description: str,
         intake_disposition: str = "HQ_SCHEDULED",
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
     ) -> ComplaintAggregate | None:
         with self._lock:
             row = self._complaints.get(str(complaint_id).strip())
@@ -525,6 +533,10 @@ class Batch1Store:
             row.hq_accepted_at = hq_accepted_at
             row.hq_arrival_date = arrival_date
             row.hq_arrival_time = arrival_time
+            if destination_unit_id is not None:
+                row.hq_destination_unit_id = destination_unit_id
+                row.hq_destination_set_by = destination_set_by
+                row.hq_destination_set_at = datetime.now(UTC)
             row.description = description
             row.intake_disposition = intake_disposition
             self._clear_proposed(row)

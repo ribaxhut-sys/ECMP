@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { canCmBatch1HqReview } from "@/features/complaints/cmBatch1HqActions";
-import { fetchBranches, type Branch } from "@/lib/api";
 import {
   createHqScheduleHoliday,
   deleteHqScheduleHoliday,
@@ -208,18 +207,13 @@ function todayAccent(
 function CaseLine({
   proposal,
   canOpen,
-  branchNameByCode,
   overdue,
 }: {
   proposal: HqScheduleProposalSummary;
   canOpen: boolean;
-  branchNameByCode: Map<string, string>;
   overdue: boolean;
 }) {
   const t = useTranslations("hqSchedule");
-  const unitInitial = proposal.unitCode;
-  const branchTitle =
-    branchNameByCode.get(proposal.owningUnitId ?? "") || unitInitial;
   const showOverdue = overdue && !proposal.completed;
   return (
     <div
@@ -247,13 +241,6 @@ function CaseLine({
           {caseNumbersLabel(proposal)}
         </span>
       )}
-      <span
-        title={branchTitle}
-        aria-label={branchTitle}
-        className="shrink-0 font-medium text-ecmp-text-secondary"
-      >
-        {unitInitial}
-      </span>
       {proposal.completed ? (
         <Badge
           tone="success"
@@ -284,7 +271,6 @@ function SlotCard({
   slot,
   date,
   canOpenCase,
-  branchNameByCode,
   slotRatioLabel,
   breakLabel,
   nowMs,
@@ -292,7 +278,6 @@ function SlotCard({
   slot: HqScheduleSlotAvailability;
   date: string;
   canOpenCase: (owningUnitId: string | null | undefined) => boolean;
-  branchNameByCode: Map<string, string>;
   slotRatioLabel: string;
   breakLabel: string;
   nowMs: number;
@@ -343,7 +328,6 @@ function SlotCard({
               key={proposal.complaintId}
               proposal={proposal}
               canOpen={canOpenCase(proposal.owningUnitId)}
-              branchNameByCode={branchNameByCode}
               overdue={isArrivalOverdue(date, slot.endTime, nowMs)}
             />
           ))}
@@ -361,7 +345,6 @@ function DayColumn({
   weekdayLabel,
   todayLabel,
   canOpenCase,
-  branchNameByCode,
   slotRatio,
   breakLabel,
   holidayLabel,
@@ -376,7 +359,6 @@ function DayColumn({
   weekdayLabel: string;
   todayLabel: string;
   canOpenCase: (owningUnitId: string | null | undefined) => boolean;
-  branchNameByCode: Map<string, string>;
   slotRatio: (slot: HqScheduleSlotAvailability) => string;
   breakLabel: string;
   holidayLabel: string;
@@ -434,7 +416,6 @@ function DayColumn({
             slot={slot}
             date={day.date}
             canOpenCase={canOpenCase}
-            branchNameByCode={branchNameByCode}
             slotRatioLabel={slotRatio(slot)}
             breakLabel={breakLabel}
             nowMs={nowMs}
@@ -465,7 +446,6 @@ export function HqScheduleView() {
   const [data, setData] = useState<HqScheduleAvailabilityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [holidays, setHolidays] = useState<HqScheduleHoliday[]>([]);
   const [holidayDate, setHolidayDate] = useState("");
   const [holidayLabel, setHolidayLabel] = useState("");
@@ -507,27 +487,6 @@ export function HqScheduleView() {
       cancelled = true;
     };
   }, [canRead, canSeeDetail, orgReady, rangeFrom, rangeTo, status]);
-
-  useEffect(() => {
-    if (status !== "authenticated" || !canRead) return;
-    let cancelled = false;
-    fetchBranches(100)
-      .then((res) => {
-        if (!cancelled) setBranches(res.data ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setBranches([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [canRead, status]);
-
-  const branchNameByCode = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const branch of branches) map.set(branch.code, branch.name);
-    return map;
-  }, [branches]);
 
   const canOpenCase = useCallback(
     (owningUnitId: string | null | undefined): boolean => {
@@ -783,7 +742,6 @@ export function HqScheduleView() {
                       )}
                       todayLabel={t("todayLabel")}
                       canOpenCase={canOpenCase}
-                      branchNameByCode={branchNameByCode}
                       slotRatio={(slot) => slotRatioText(day.date, slot, nowMs, t)}
                       breakLabel={t("breakLabel")}
                       holidayLabel={t("holiday")}

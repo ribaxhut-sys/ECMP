@@ -446,6 +446,54 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
     expect(
       screen.queryByText("Ditangani oleh Dewi Hidayat"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Batalkan eskalasi" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides parent Batalkan Eskalasi when a Case already exists", async () => {
+    authState.permissions = [
+      "complaints:read",
+      "complaints:create",
+      "complaints:escalate",
+    ];
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+        caseCreated: true,
+      }),
+    });
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Eskalasi disetujui" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Batalkan eskalasi" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps parent Batalkan Eskalasi when no Case exists yet", async () => {
+    authState.permissions = [
+      "complaints:read",
+      "complaints:create",
+      "complaints:escalate",
+    ];
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "REGISTERED",
+        intakeDisposition: "ESCALATE_APPROVED",
+        caseCreated: false,
+      }),
+    });
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Batalkan eskalasi" }),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("keeps a single page-level re-request CTA after cancel, not a duplicate in Penanganan", async () => {

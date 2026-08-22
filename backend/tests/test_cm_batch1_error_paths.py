@@ -401,6 +401,7 @@ def test_hq_accept_schedule_return_guards(
             HqAcceptAndScheduleRequest(
                 arrivalDate=date(2026, 8, 20),
                 arrivalTime="09:00",
+                destinationUnitId="PUSAT-CRO",
                 note="x" * 12,
             ),
             actor_id="hq",
@@ -429,6 +430,7 @@ def test_hq_accept_schedule_return_guards(
             HqAcceptAndScheduleRequest(
                 arrivalDate=date(2026, 8, 20),
                 arrivalTime="09:00",
+                destinationUnitId="PUSAT-CRO",
                 note="x" * 12,
             ),
             actor_id="hq",
@@ -453,6 +455,7 @@ def test_hq_accept_schedule_return_guards(
             HqAcceptAndScheduleRequest(
                 arrivalDate=date(2026, 8, 20),
                 arrivalTime="09:00",
+                destinationUnitId="PUSAT-CRO",
                 note="x" * 12,
             ),
             actor_id="hq",
@@ -483,6 +486,7 @@ def test_hq_accept_schedule_return_guards(
             HqAcceptAndScheduleRequest(
                 arrivalDate=date(2026, 8, 20),
                 arrivalTime="xx:yy",
+                destinationUnitId="PUSAT-CRO",
                 note="x" * 12,
             ),
             actor_id="hq",
@@ -514,6 +518,7 @@ def test_hq_accept_schedule_return_guards(
             HqAcceptAndScheduleRequest(
                 arrivalDate=date(2026, 8, 20),
                 arrivalTime="09:00",
+                destinationUnitId="PUSAT-CRO",
                 note="x" * 12,
             ),
             actor_id="hq",
@@ -707,6 +712,8 @@ def test_router_handlers_delegate_to_service(service: CmBatch1Service) -> None:
 
     with patch.object(cm_router, "OrgUnitResolver") as resolver:
         resolver.return_value.resolve_cm_complaint.return_value = "PUSAT"
+        # Destination unit is looked up in the org directory before it is stored.
+        resolver.return_value.resolve_active_unit_code.return_value = "PUSAT-CRO"
         with patch.object(cm_router, "_enforce_cm_org_or_pusat_hq"):
             assert cm_router.get_complaint(
                 cid, principal, service, session, settings
@@ -803,6 +810,7 @@ def test_router_handlers_delegate_to_service(service: CmBatch1Service) -> None:
                 HqAcceptAndScheduleRequest(
                     arrivalDate=date(2026, 8, 22),
                     arrivalTime="11:15",
+                    destinationUnitId="PUSAT-CRO",
                     note="Informasikan wajib pajak jadwal kedatangan.",
                 ),
                 principal,

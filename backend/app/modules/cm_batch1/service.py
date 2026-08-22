@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
+    is_pusat_unit,
     resolve_row_visibility,
 )
 from app.core.errors import (
@@ -256,6 +257,8 @@ class CmBatch1StoreProtocol(Protocol):
         arrival_time: str,
         description: str | None = None,
         intake_disposition: str | None = None,
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
     ) -> ComplaintAggregate | None: ...
 
     def accept_and_schedule_at_hq(
@@ -267,6 +270,8 @@ class CmBatch1StoreProtocol(Protocol):
         arrival_time: str,
         description: str,
         intake_disposition: str = "HQ_SCHEDULED",
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
     ) -> ComplaintAggregate | None: ...
 
     def complete_at_hq(
@@ -334,6 +339,61 @@ def _validate_proposed_arrival(
             "proposedArrivalDate cannot be in the past",
             details={"field": "proposedArrivalDate"},
         )
+
+
+def _validate_hq_destination_unit(value: str | None, *, required: bool) -> str | None:
+    """Destination must be a Pusat unit — CRO, Sekretariat or a Suban.
+
+    Existence/active checks belong to the org directory (router boundary via
+    ``OrgUnitResolver.resolve_active_unit_code``); this is the domain rule.
+    """
+    cleaned = (value or "").strip()
+    if not cleaned:
+        if required:
+            raise ValidationAppError(
+                "destinationUnitId is required",
+                details={"field": "destinationUnitId"},
+            )
+        return None
+    if not is_pusat_unit(cleaned):
+        raise ValidationAppError(
+            "destinationUnitId must be a Pusat unit",
+            details={"field": "destinationUnitId", "value": cleaned},
+        )
+    return cleaned
+
+
+def _arrival_history_body(
+    *,
+    row: ComplaintAggregate,
+    arrival_date: date,
+    arrival_time: str,
+    destination_unit_id: str | None,
+    note: str | None,
+) -> str:
+    """One history entry: when, where, why it moved off the branch proposal.
+
+    Pusat informs the taxpayer itself, so the branch only ever reads this —
+    and the branch still gets asked "why 13:00, we proposed 09:00?". The
+    proposal is cleared on decision, so if the shift is not written down here
+    it is gone.
+    """
+    lines = [f"{arrival_date.isoformat()} {arrival_time}"]
+    if destination_unit_id:
+        lines.append(f"Unit tujuan: {destination_unit_id}")
+    proposed_date = row.proposed_arrival_date
+    proposed_time = (row.proposed_arrival_time or "").strip()
+    shifted = proposed_date is not None and (
+        proposed_date != arrival_date or proposed_time != arrival_time
+    )
+    if shifted:
+        lines.append(
+            f"Usulan cabang {proposed_date.isoformat()} {proposed_time} "
+            f"digeser Pusat ke {arrival_date.isoformat()} {arrival_time}."
+        )
+    if note:
+        lines.append(note)
+    return "\n".join(lines)
 
 
 def _aggregate_status(raw: str | None) -> str:
@@ -1593,14 +1653,21 @@ class CmBatch1Service:
                 "HQ schedule info note must be at least 10 characters",
                 details={"field": "note", "minLength": 10},
             )
+        destination_unit = _validate_hq_destination_unit(
+            body.destination_unit_id, required=True
+        )
 
         accepted_at = datetime.now(UTC)
         accept_text = (
-            "Pengaduan diterima Pusat; jadwal kedatangan diset untuk "
-            "diinformasikan ke wajib pajak oleh cabang."
+            "Pengaduan diterima Pusat; jadwal kedatangan dan unit tujuan diset, "
+            "Pusat yang menginformasikan ke wajib pajak."
         )
-        schedule_body = (
-            f"{body.arrival_date.isoformat()} {arrival_time}\n{note}"
+        schedule_body = _arrival_history_body(
+            row=row,
+            arrival_date=body.arrival_date,
+            arrival_time=arrival_time,
+            destination_unit_id=destination_unit,
+            note=note,
         )
         next_description = append_hq_arrival_note(
             append_hq_acceptance_note(row.description or "", accept_text),
@@ -1613,6 +1680,8 @@ class CmBatch1Service:
             arrival_time=arrival_time,
             description=next_description,
             intake_disposition="HQ_SCHEDULED",
+            destination_unit_id=destination_unit,
+            destination_set_by=actor_id,
         )
         if updated is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -1635,6 +1704,13 @@ class CmBatch1Service:
                 arrival_time=arrival_time,
                 note=schedule_body,
                 next_disposition="HQ_SCHEDULED",
+                destination_unit_id=updated.hq_destination_unit_id,
+                proposed_arrival_date=(
+                    row.proposed_arrival_date.isoformat()
+                    if row.proposed_arrival_date
+                    else None
+                ),
+                proposed_arrival_time=row.proposed_arrival_time,
             )
         )
         self._store.commit()
@@ -1671,9 +1747,16 @@ class CmBatch1Service:
                 details={"field": "arrivalTime"},
             )
         note = (body.note or "").strip()
-        schedule_body = f"{body.arrival_date.isoformat()} {arrival_time}"
-        if note:
-            schedule_body = f"{schedule_body}\n{note}"
+        destination_unit = _validate_hq_destination_unit(
+            body.destination_unit_id, required=False
+        )
+        schedule_body = _arrival_history_body(
+            row=row,
+            arrival_date=body.arrival_date,
+            arrival_time=arrival_time,
+            destination_unit_id=destination_unit,
+            note=note or None,
+        )
         next_description = append_hq_arrival_note(
             row.description or "", schedule_body
         )
@@ -1683,6 +1766,8 @@ class CmBatch1Service:
             arrival_time=arrival_time,
             description=next_description,
             intake_disposition="HQ_SCHEDULED",
+            destination_unit_id=destination_unit,
+            destination_set_by=actor_id,
         )
         if updated is None:
             raise NotFoundError(m("complaint.not_found"))
@@ -1696,6 +1781,13 @@ class CmBatch1Service:
                 arrival_time=arrival_time,
                 note=schedule_body,
                 next_disposition="HQ_SCHEDULED",
+                destination_unit_id=updated.hq_destination_unit_id,
+                proposed_arrival_date=(
+                    row.proposed_arrival_date.isoformat()
+                    if row.proposed_arrival_date
+                    else None
+                ),
+                proposed_arrival_time=row.proposed_arrival_time,
             )
         )
         self._store.commit()
@@ -1904,6 +1996,9 @@ class CmBatch1Service:
             hqAcceptedAt=row.hq_accepted_at,
             hqArrivalDate=row.hq_arrival_date,
             hqArrivalTime=row.hq_arrival_time,
+            hqDestinationUnitId=row.hq_destination_unit_id,
+            hqDestinationSetBy=row.hq_destination_set_by,
+            hqDestinationSetAt=row.hq_destination_set_at,
             hqAcceptanceNote=parsed.hq_acceptance_note,
             hqArrivalNote=parsed.hq_arrival_note,
             hqReturnNote=parsed.hq_return_note,

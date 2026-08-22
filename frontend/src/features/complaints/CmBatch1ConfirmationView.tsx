@@ -306,6 +306,8 @@ export function CmBatch1ConfirmationView({
     useState<CmBatch1HqReturnReasonCode>("MISSING_ATTACHMENT");
   const [arrivalDate, setArrivalDate] = useState("");
   const [arrivalTime, setArrivalTime] = useState("");
+  /** Which Pusat unit the taxpayer reports to — Pusat decides, never the branch. */
+  const [arrivalUnit, setArrivalUnit] = useState("");
   const [arrivalNote, setArrivalNote] = useState("");
   const [deciding, setDeciding] = useState(false);
   const announcedIdRef = useRef<string | null>(null);
@@ -559,6 +561,7 @@ export function CmBatch1ConfirmationView({
         const res = await acceptAndScheduleCmBatch1HqEscalation(data.complaintId, {
         arrivalDate: arrivalDate.trim(),
         arrivalTime: arrivalTime.trim(),
+        destinationUnitId: arrivalUnit.trim(),
         note,
       });
       setData(res.data);
@@ -566,6 +569,7 @@ export function CmBatch1ConfirmationView({
       setHqAcceptOpen(false);
       setArrivalDate("");
       setArrivalTime("");
+      setArrivalUnit("");
       setArrivalNote("");
       pushSuccess(
         t("hqAcceptScheduledToast"),
@@ -746,6 +750,8 @@ export function CmBatch1ConfirmationView({
     isHqReviewer: canHqReview,
     isPusatUnitMember,
     intakeEscalateQuery: intakeEscalate,
+    hasBoundCase:
+      Boolean(data?.caseCreated) || penangananSnapshot.totalCount > 0,
   });
   /** Bottom CTA: buat penanganan pertama atau ambil alih yang sudah ada. */
   const showTanganiCta =
@@ -764,7 +770,12 @@ export function CmBatch1ConfirmationView({
     arrivalDate,
     arrivalTime,
     arrivalNote,
+    destinationUnitId: arrivalUnit,
   });
+  /** Pusat units available as an arrival destination (CRO / Sekretariat / Suban). */
+  const pusatUnitOptions = branches
+    .filter((b) => isCmBatch1PusatUnitCode(b.code))
+    .map((b) => ({ value: b.code, label: `${b.code} — ${b.name}` }));
   const hqScheduleReady = isCmBatch1HqRescheduleReady({
     arrivalDate,
     arrivalTime,
@@ -1496,6 +1507,7 @@ export function CmBatch1ConfirmationView({
               hqAcceptedAt={data.hqAcceptedAt}
               hqArrivalDate={data.hqArrivalDate}
               hqArrivalTime={data.hqArrivalTime}
+              hqDestinationUnitId={data.hqDestinationUnitId}
               hqArrivalNote={data.hqArrivalNote}
               allowStart={showManageCases}
               allowEscalate={false}
@@ -1567,6 +1579,7 @@ export function CmBatch1ConfirmationView({
                   setArrivalTime(
                     proposedStale ? "" : data?.proposedArrivalTime ?? "",
                   );
+                  setArrivalUnit(data?.hqDestinationUnitId ?? "");
                   setArrivalNote("");
                   setHqAcceptOpen(true);
                 }}
@@ -1999,6 +2012,17 @@ export function CmBatch1ConfirmationView({
             onChange={(e) => setArrivalTime(e.target.value)}
             disabled={deciding}
             required
+          />
+          <Select
+            name="hqDestinationUnitId"
+            label={t("hqDestinationUnitLabel")}
+            hint={t("hqDestinationUnitHint")}
+            placeholder={t("hqDestinationUnitPlaceholder")}
+            value={arrivalUnit}
+            onChange={(e) => setArrivalUnit(e.target.value)}
+            disabled={deciding}
+            required
+            options={pusatUnitOptions}
           />
           <ReasonPresetTags
             presets={presets["cm_batch1.hq_accept_schedule_note_presets"] ?? []}

@@ -1522,6 +1522,7 @@ def test_api_515_approve_and_hq_accept_with_bound_case(
         HqAcceptAndScheduleRequest(
             arrivalDate=date(2026, 8, 20),
             arrivalTime="09:30",
+            destinationUnitId="PUSAT-CRO",
             note="Bawa KTP asli dan bukti pembayaran terakhir.",
         ),
         actor_id="hq-1",
@@ -2126,6 +2127,7 @@ def test_api_516_hq_accept_and_517_schedule(
         HqAcceptAndScheduleRequest(
             arrivalDate=date(2026, 8, 10),
             arrivalTime="09:30",
+            destinationUnitId="PUSAT-CRO",
             note="Bawa KTP asli dan bukti pembayaran terakhir.",
         ),
         actor_id="hq-1",
@@ -2216,6 +2218,7 @@ def test_hq_complete_closes_complaint_and_keeps_arrival(
         HqAcceptAndScheduleRequest(
             arrivalDate=date(2026, 8, 20),
             arrivalTime="09:30",
+            destinationUnitId="PUSAT-CRO",
             note="Bawa KTP asli dan bukti pembayaran terakhir.",
         ),
         actor_id="hq-1",

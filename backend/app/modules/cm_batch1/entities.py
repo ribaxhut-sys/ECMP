@@ -21,6 +21,9 @@ class ComplaintAggregate:
     hq_accepted_at: datetime | None = None
     hq_arrival_date: date | None = None
     hq_arrival_time: str | None = None
+    hq_destination_unit_id: str | None = None
+    hq_destination_set_by: str | None = None
+    hq_destination_set_at: datetime | None = None
     proposed_arrival_date: date | None = None
     proposed_arrival_time: str | None = None
     proposed_by: str | None = None

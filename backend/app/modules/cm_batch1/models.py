@@ -42,6 +42,10 @@ class CmBatch1ComplaintORM(Base):
         Index("ix_cm_batch1_complaints_hq_accepted_at", "hq_accepted_at"),
         Index("ix_cm_batch1_complaints_decided_by", "decided_by"),
         Index("ix_cm_batch1_complaints_owning_unit_id", "owning_unit_id"),
+        Index(
+            "ix_cm_batch1_complaints_hq_destination_unit_id",
+            "hq_destination_unit_id",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -73,6 +77,19 @@ class CmBatch1ComplaintORM(Base):
     # Customer visit schedule at HQ (Batch-1 lab; not foundation Appointment).
     hq_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     hq_arrival_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Which Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE /
+    # PUSAT-SUBAN-…). Set by Pusat together with the final arrival time — never
+    # by the branch, and never written into owning_unit_id (that column is the
+    # visibility SoT and holds the originating branch).
+    hq_destination_unit_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    hq_destination_set_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    hq_destination_set_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Branch-proposed slot at escalation time — advisory only, cleared once
     # Pusat decides (accept/return). Not a reservation.
     proposed_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -190,7 +207,7 @@ class CmBatch1CustomerLockORM(Base):
 
 
 class CmBatch1NumberCounterORM(Base):
-    """Portable counter — key ``cn:UNIT:YYYYMM`` for format B ``UNIT-YYMM-NNNN``."""
+    """Portable counter — key ``cn:UNIT:YYYYMM`` for ``CM{UNIT}-YYMM-NNNN``."""
 
     __tablename__ = "cm_batch1_number_counters"
 

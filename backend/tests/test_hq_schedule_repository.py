@@ -262,6 +262,7 @@ def test_completed_hq_visit_stays_listed_on_schedule(
         HqAcceptAndScheduleRequest(
             arrivalDate=_TOMORROW,
             arrivalTime="09:00",
+            destinationUnitId="PUSAT-CRO",
             note="Bawa KTP asli dan dokumen pendukung.",
         ),
         actor_id="hq-scheduler-1",

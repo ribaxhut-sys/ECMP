@@ -770,6 +770,9 @@ def hq_arrival_scheduled(
     arrival_time: str,
     note: str | None = None,
     next_disposition: str | None = "HQ_SCHEDULED",
+    destination_unit_id: str | None = None,
+    proposed_arrival_date: str | None = None,
+    proposed_arrival_time: str | None = None,
 ) -> DomainEvent:
     now = datetime.now(UTC)
     payload = {
@@ -777,6 +780,11 @@ def hq_arrival_scheduled(
         "complaintNumber": complaint_number,
         "arrivalDate": arrival_date,
         "arrivalTime": arrival_time,
+        "destinationUnitId": destination_unit_id,
+        # What the branch asked for before Pusat decided — the proposal columns
+        # are cleared on decision, so this is the only surviving trace.
+        "proposedArrivalDate": proposed_arrival_date,
+        "proposedArrivalTime": proposed_arrival_time,
         "actorId": actor_id,
         "nextDisposition": next_disposition,
         "branchNotify": True,

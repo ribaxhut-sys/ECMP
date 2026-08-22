@@ -152,12 +152,22 @@ describe("HQ note / schedule readiness", () => {
     expect(isCmBatch1HqNoteReady("x".repeat(CM_BATCH1_HQ_NOTE_MIN))).toBe(true);
   });
 
-  it("requires date+time+note for accept-and-schedule", () => {
+  it("requires date+time+unit+note for accept-and-schedule", () => {
     expect(
       isCmBatch1HqAcceptScheduleReady({
         arrivalDate: "2026-08-10",
         arrivalTime: "09:00",
         arrivalNote: "short",
+        destinationUnitId: "PUSAT-CRO",
+      }),
+    ).toBe(false);
+    // Pusat is not one door — no destination unit, no schedule.
+    expect(
+      isCmBatch1HqAcceptScheduleReady({
+        arrivalDate: "2026-08-10",
+        arrivalTime: "09:00",
+        arrivalNote: "Jadwal kedatangan wajib pajak ke Pusat.",
+        destinationUnitId: "  ",
       }),
     ).toBe(false);
     expect(
@@ -165,8 +175,16 @@ describe("HQ note / schedule readiness", () => {
         arrivalDate: "2026-08-10",
         arrivalTime: "09:00",
         arrivalNote: "Jadwal kedatangan wajib pajak ke Pusat.",
+        destinationUnitId: "PUSAT-CRO",
       }),
     ).toBe(true);
+  });
+
+  it("treats Pusat sub-units as Pusat", () => {
+    expect(isCmBatch1PusatUnitCode("PUSAT-CRO")).toBe(true);
+    expect(isCmBatch1PusatUnitCode("pusat-suban-1")).toBe(true);
+    expect(isCmBatch1PusatUnitCode("PUSATAKA")).toBe(false);
+    expect(isCmBatch1PusatUnitCode("UPPPD-GAMBIR")).toBe(false);
   });
 
   it("allows empty note on reschedule but not short note", () => {
@@ -337,7 +355,7 @@ describe("resolveCmBatch1BranchEscalationCtas", () => {
     intakeEscalateQuery: false,
   };
 
-  it("shows Batalkan Eskalasi instead of Tangani when approved and HQ has not accepted", () => {
+  it("shows Batalkan Eskalasi on the parent only when no Case exists yet", () => {
     const v = resolveCmBatch1BranchEscalationCtas({
       ...branch,
       status: "IN_PROGRESS",
@@ -348,6 +366,17 @@ describe("resolveCmBatch1BranchEscalationCtas", () => {
     expect(v.showManageCases).toBe(false);
     expect(v.showSupervisorActions).toBe(false);
     expect(v.showReRequestEscalation).toBe(false);
+  });
+
+  it("hides parent Batalkan Eskalasi once a bound Case exists", () => {
+    const v = resolveCmBatch1BranchEscalationCtas({
+      ...branch,
+      status: "IN_PROGRESS",
+      intakeDisposition: "ESCALATE_APPROVED",
+      hqAcceptedAt: null,
+      hasBoundCase: true,
+    });
+    expect(v.showCancelEscalation).toBe(false);
   });
 
   it("hides Batalkan Eskalasi after HQ accepted", () => {

@@ -143,14 +143,47 @@ def test_hq_accept_and_schedule_clears_proposal(service: CmBatch1Service) -> Non
         HqAcceptAndScheduleRequest(
             arrivalDate=_TOMORROW.isoformat(),
             arrivalTime="10:00",
+            destinationUnitId="PUSAT-CRO",
             note="Jadwal digeser satu jam oleh Pusat.",
         ),
         actor_id="hq-scheduler-1",
     )
     assert scheduled.hq_arrival_date == _TOMORROW
     assert scheduled.hq_arrival_time == "10:00"
+    assert scheduled.hq_destination_unit_id == "PUSAT-CRO"
     assert scheduled.proposed_arrival_date is None
     assert scheduled.proposed_arrival_time is None
+    # The proposal is cleared, so the shift only survives in the history blob —
+    # the branch still gets asked "why 10:00, we proposed 09:00?".
+    assert "digeser Pusat ke" in (scheduled.description or "")
+    assert "09:00" in (scheduled.hq_arrival_note or "")
+
+
+def test_hq_accept_and_schedule_rejects_non_pusat_destination(
+    service: CmBatch1Service,
+) -> None:
+    """A taxpayer escalated to Pusat is never directed back to a branch desk."""
+    resp = confirmed_create(service, _escalate_body(), request_id="req-dest-1")
+    service.decide_intake_escalation(
+        resp.complaint_id,
+        IntakeEscalationDecisionRequest(
+            decision="APPROVE",
+            note="Disetujui supervisor cabang untuk eskalasi ke Pusat.",
+            priority="MEDIUM",
+        ),
+        actor_id="supervisor-1",
+    )
+    with pytest.raises(ValidationAppError):
+        service.accept_and_schedule_at_hq(
+            resp.complaint_id,
+            HqAcceptAndScheduleRequest(
+                arrivalDate=_TOMORROW.isoformat(),
+                arrivalTime="10:00",
+                destinationUnitId="UPPPD-GAMBIR",
+                note="Unit tujuan salah, harus ditolak.",
+            ),
+            actor_id="hq-scheduler-1",
+        )
 
 
 def test_reject_clears_proposal(service: CmBatch1Service) -> None:

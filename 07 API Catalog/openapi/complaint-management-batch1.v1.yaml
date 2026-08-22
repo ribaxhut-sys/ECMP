@@ -416,10 +416,13 @@ paths:
         - bearerAuth: []
       description: |
         Mode A Batch-1 lab happy path: Terima + jadwalkan sekaligus.
-        Sets hqAcceptedAt, arrival date/time, intakeDisposition=HQ_SCHEDULED
-        (distinct from RETURNED_TO_BRANCH). Originating branch agents see the
-        Aggregate in their unit list with a notify-customer signal.
-        Mandatory note (≥10) is info for the branch to relay to the customer.
+        Sets hqAcceptedAt, arrival date/time, destination unit, and
+        intakeDisposition=HQ_SCHEDULED (distinct from RETURNED_TO_BRANCH).
+        The branch only ever proposes a slot: Pusat may keep or override the
+        time, picks which of its units (CRO / Sekretariat / Suban) receives the
+        taxpayer, and informs the taxpayer itself. The originating branch reads
+        the schedule but no longer relays it.
+        Mandatory note (≥10) is what Pusat tells the taxpayer.
         Same HQ gate as API-516. Open REGISTERED or IN_PROGRESS; bound Case stays.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
@@ -1240,7 +1243,7 @@ components:
           description: Optional note (≥20 if provided) — Penerimaan Pusat history
     HqAcceptAndScheduleRequest:
       type: object
-      required: [arrivalDate, arrivalTime, note]
+      required: [arrivalDate, arrivalTime, destinationUnitId, note]
       properties:
         arrivalDate:
           type: string
@@ -1250,11 +1253,19 @@ components:
           minLength: 4
           maxLength: 5
           description: HH:MM (24h)
+        destinationUnitId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: >-
+            Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE /
+            PUSAT-SUBAN-…). Mandatory — Pusat is not one door. Must resolve to
+            an active organization unit under Pusat.
         note:
           type: string
           minLength: 1
           maxLength: 2000
-          description: Mandatory info for branch/customer (min 10 after trim)
+          description: Mandatory info for the taxpayer (min 10 after trim)
     HqReturnRequest:
       type: object
       required: [reasonCode, note]
@@ -1285,6 +1296,12 @@ components:
           minLength: 4
           maxLength: 5
           description: HH:MM (24h)
+        destinationUnitId:
+          type: string
+          maxLength: 128
+          description: >-
+            Redirect the taxpayer to another Pusat unit; omit to keep the
+            current destination.
         note:
           type: string
           maxLength: 2000

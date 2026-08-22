@@ -183,6 +183,20 @@ class ComplaintBatch1Response(BaseModel):
         alias="hqArrivalTime",
         description="Scheduled customer arrival time HH:MM at HQ (Batch-1 lab)",
     )
+    hq_destination_unit_id: str | None = Field(
+        default=None,
+        alias="hqDestinationUnitId",
+        description=(
+            "Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE / "
+            "PUSAT-SUBAN-…). Decided by Pusat, shown read-only to the branch."
+        ),
+    )
+    hq_destination_set_by: str | None = Field(
+        default=None, alias="hqDestinationSetBy"
+    )
+    hq_destination_set_at: datetime | None = Field(
+        default=None, alias="hqDestinationSetAt"
+    )
     hq_acceptance_note: str | None = Field(
         default=None,
         alias="hqAcceptanceNote",
@@ -299,10 +313,12 @@ class HqAcceptRequest(BaseModel):
 
 
 class HqAcceptAndScheduleRequest(BaseModel):
-    """Pusat accepts escalation and schedules arrival in one step (lab).
+    """Pusat accepts escalation, sets the final time **and** the unit (lab).
 
-    Sets intakeDisposition=HQ_SCHEDULED so originating branch can inform
-    the customer — distinct from RETURNED_TO_BRANCH (incomplete package).
+    Sets intakeDisposition=HQ_SCHEDULED — distinct from RETURNED_TO_BRANCH
+    (incomplete package). The branch only ever *proposes* a slot; Pusat may
+    keep or override it and then informs the taxpayer itself, so time and
+    destination unit must both be decided here.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -314,11 +330,20 @@ class HqAcceptAndScheduleRequest(BaseModel):
         max_length=5,
         description="HH:MM (24h)",
     )
+    destination_unit_id: str = Field(
+        alias="destinationUnitId",
+        min_length=1,
+        max_length=128,
+        description=(
+            "Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE / "
+            "PUSAT-SUBAN-…) — mandatory: Pusat is not one door"
+        ),
+    )
     note: str = Field(
         min_length=1,
         max_length=2000,
         description=(
-            "Mandatory info for branch/customer (min 10 after trim) — "
+            "Mandatory info for the taxpayer (min 10 after trim) — "
             "stored under Jadwal kedatangan / Penerimaan Pusat history"
         ),
     )
@@ -356,6 +381,15 @@ class HqScheduleArrivalRequest(BaseModel):
         min_length=4,
         max_length=5,
         description="HH:MM (24h)",
+    )
+    destination_unit_id: str | None = Field(
+        default=None,
+        alias="destinationUnitId",
+        max_length=128,
+        description=(
+            "Redirect the taxpayer to another Pusat unit; omit to keep the "
+            "current destination"
+        ),
     )
     note: str | None = Field(default=None, max_length=2000)
 

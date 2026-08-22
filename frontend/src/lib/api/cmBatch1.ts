@@ -151,6 +151,10 @@ export interface CmBatch1ComplaintResponse {
   hqArrivalDate?: string | null;
   /** Scheduled arrival time HH:MM. */
   hqArrivalTime?: string | null;
+  /** Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE / …). */
+  hqDestinationUnitId?: string | null;
+  hqDestinationSetBy?: string | null;
+  hqDestinationSetAt?: string | null;
   hqAcceptanceNote?: string | null;
   hqArrivalNote?: string | null;
   hqReturnNote?: string | null;
@@ -474,13 +478,17 @@ export interface CmBatch1HqAcceptRequest {
 export interface CmBatch1HqAcceptAndScheduleRequest {
   arrivalDate: string;
   arrivalTime: string;
-  /** Mandatory info for branch to relay to the taxpayer (min 10). */
+  /** Pusat unit the taxpayer is directed to — mandatory, Pusat is not one door. */
+  destinationUnitId: string;
+  /** Mandatory info Pusat relays to the taxpayer (min 10). */
   note: string;
 }
 
 export interface CmBatch1HqScheduleArrivalRequest {
   arrivalDate: string;
   arrivalTime: string;
+  /** Redirect to another Pusat unit; omit to keep the current destination. */
+  destinationUnitId?: string | null;
   note?: string | null;
 }
 
@@ -508,7 +516,7 @@ export function acceptCmBatch1HqEscalation(
   });
 }
 
-/** Lab — Terima + jadwalkan sekaligus → HQ_SCHEDULED (cabang kabari wajib pajak). */
+/** Lab — Terima + jam final + unit tujuan → HQ_SCHEDULED (Pusat kabari wajib pajak). */
 export function acceptAndScheduleCmBatch1HqEscalation(
   complaintId: string,
   body: CmBatch1HqAcceptAndScheduleRequest,

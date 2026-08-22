@@ -6,6 +6,8 @@
  * AuthZ rule. Not DEC-F4 Case APIs (API-520…).
  */
 
+import { PUSAT_UNIT_ROOT_CODES, isPusatUnitCode } from "@/shared/utils";
+
 import { isHqIntakeDisposition } from "./penangananGroups";
 
 /** Matches backend gates._ESCALATION_REVIEW_ROLES */
@@ -25,22 +27,14 @@ export const CM_BATCH1_PUSAT_AGENT_ROLES = [
   "BRANCH_OFFICER",
 ] as const;
 
-/** Matches backend visibility.DEFAULT_PUSAT_UNIT_CODES */
-export const CM_BATCH1_PUSAT_UNIT_CODES = [
-  "PUSAT",
-  "HO",
-  "HEAD_OFFICE",
-  "HEAD-OFFICE",
-] as const;
+/** Matches backend visibility.DEFAULT_PUSAT_UNIT_CODES (roots only). */
+export const CM_BATCH1_PUSAT_UNIT_CODES = PUSAT_UNIT_ROOT_CODES;
 
 const HQ_REVIEW_ROLE_SET = new Set<string>(CM_BATCH1_HQ_REVIEW_ROLES);
 const PUSAT_AGENT_ROLE_SET = new Set<string>(CM_BATCH1_PUSAT_AGENT_ROLES);
-const PUSAT_UNIT_SET = new Set<string>(CM_BATCH1_PUSAT_UNIT_CODES);
 
-export function isCmBatch1PusatUnitCode(code: string | null | undefined): boolean {
-  const normalized = (code || "").trim().toUpperCase();
-  return normalized.length > 0 && PUSAT_UNIT_SET.has(normalized);
-}
+/** Root or Pusat sub-unit (PUSAT-CRO, PUSAT-SUBAN-…) — see shared helper. */
+export const isCmBatch1PusatUnitCode = isPusatUnitCode;
 
 export function canCmBatch1HqReview(input: {
   roles: readonly string[];
@@ -122,6 +116,8 @@ export interface CmBatch1BranchEscalationCtaInput {
   isHqReviewer: boolean;
   isPusatUnitMember: boolean;
   intakeEscalateQuery: boolean;
+  /** Bound Case exists — confirmation hides cancel; Case detail keeps it. */
+  hasBoundCase?: boolean;
 }
 
 export interface CmBatch1BranchEscalationCtas {
@@ -133,8 +129,9 @@ export interface CmBatch1BranchEscalationCtas {
 }
 
 /**
- * Branch confirmation CTAs. Bound Case (IN_PROGRESS) does not hide Batalkan
- * Eskalasi; hqAcceptedAt does. Tangani pengaduan stays off the HQ path.
+ * Branch confirmation CTAs. Batalkan Eskalasi on this page only when no Case
+ * exists yet; Case detail is the CTA once a bound Case is present.
+ * hqAcceptedAt still blocks. Tangani pengaduan stays off the HQ path.
  */
 export function resolveCmBatch1BranchEscalationCtas(
   input: CmBatch1BranchEscalationCtaInput,
@@ -151,7 +148,8 @@ export function resolveCmBatch1BranchEscalationCtas(
     input.canDecideEscalation &&
     disposition === "ESCALATE_APPROVED" &&
     !hqAccepted &&
-    status !== "CLOSED";
+    status !== "CLOSED" &&
+    !input.hasBoundCase;
   const canReRequestDisposition =
     status !== "CLOSED" &&
     (disposition === "ESCALATE_CANCELLED" ||
@@ -277,10 +275,15 @@ export function isCmBatch1HqAcceptScheduleReady(input: {
   arrivalDate: string;
   arrivalTime: string;
   arrivalNote: string;
+  /** Pusat unit the taxpayer reports to — mandatory, Pusat is not one door. */
+  destinationUnitId: string;
 }): boolean {
   return (
-    Boolean(input.arrivalDate.trim() && input.arrivalTime.trim()) &&
-    isCmBatch1HqNoteReady(input.arrivalNote)
+    Boolean(
+      input.arrivalDate.trim() &&
+        input.arrivalTime.trim() &&
+        input.destinationUnitId.trim(),
+    ) && isCmBatch1HqNoteReady(input.arrivalNote)
   );
 }
 

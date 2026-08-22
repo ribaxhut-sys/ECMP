@@ -22,6 +22,7 @@ from app.core.authorization.gates import (
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.authorization.visibility import is_pusat_unit
 from app.core.config import Settings, get_settings
+from app.core.errors import ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.integrations.customer import build_customer_provider
@@ -237,6 +238,38 @@ def _enforce_cm_org_or_pusat_hq(
     ):
         return
     enforce_org_scope(principal, resource_org, settings)
+
+
+def _resolve_hq_destination_unit(
+    session: Session, declared: str | None, *, required: bool
+) -> str | None:
+    """Validate the Pusat unit the taxpayer is directed to (CRO/Sekretariat/Suban).
+
+    Two checks, deliberately at different layers: the service enforces the
+    domain rule (must be a Pusat unit), this one the directory fact (the unit
+    exists and is active). A taxpayer sent to a unit that no longer exists is
+    a wasted trip, so an unknown code is rejected rather than stored as text.
+    """
+    cleaned = (declared or "").strip()
+    if not cleaned:
+        if required:
+            raise ValidationAppError(
+                "destinationUnitId is required",
+                details={"field": "destinationUnitId"},
+            )
+        return None
+    resolved = OrgUnitResolver(session).resolve_active_unit_code(cleaned)
+    if resolved is None:
+        raise ValidationAppError(
+            "destinationUnitId is not a known active organization unit",
+            details={"field": "destinationUnitId", "value": cleaned},
+        )
+    if not is_pusat_unit(resolved):
+        raise ValidationAppError(
+            "destinationUnitId must be a Pusat unit",
+            details={"field": "destinationUnitId", "value": resolved},
+        )
+    return resolved
 
 
 @router.get(
@@ -593,7 +626,7 @@ def hq_accept_and_schedule(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintBatch1Response]:
-    """Terima + jadwal sekaligus; cabang melihat sinyal untuk informasikan customer."""
+    """Terima + tetapkan jam final dan unit tujuan; Pusat yang menginformasikan WP."""
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
     _enforce_cm_org_or_pusat_hq(
         principal=principal,
@@ -601,10 +634,13 @@ def hq_accept_and_schedule(
         session=session,
         settings=settings,
     )
+    destination = _resolve_hq_destination_unit(
+        session, body.destination_unit_id, required=True
+    )
     return DataResponse(
         data=service.accept_and_schedule_at_hq(
             complaint_id,
-            body,
+            body.model_copy(update={"destination_unit_id": destination}),
             actor_id=_principal_key(principal),
         )
     )
@@ -662,10 +698,13 @@ def hq_schedule_arrival(
         session=session,
         settings=settings,
     )
+    destination = _resolve_hq_destination_unit(
+        session, body.destination_unit_id, required=False
+    )
     return DataResponse(
         data=service.schedule_hq_arrival(
             complaint_id,
-            body,
+            body.model_copy(update={"destination_unit_id": destination}),
             actor_id=_principal_key(principal),
         )
     )

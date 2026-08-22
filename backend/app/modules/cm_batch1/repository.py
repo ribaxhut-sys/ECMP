@@ -15,7 +15,10 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
-from app.core.authorization.visibility import DEFAULT_PUSAT_UNIT_CODES
+from app.core.authorization.visibility import (
+    DEFAULT_PUSAT_UNIT_CODES,
+    pusat_unit_clause,
+)
 from app.modules.cm_batch1.complaint_number import (
     counter_name as complaint_counter_name,
 )
@@ -63,6 +66,9 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         hq_accepted_at=row.hq_accepted_at,
         hq_arrival_date=row.hq_arrival_date,
         hq_arrival_time=row.hq_arrival_time,
+        hq_destination_unit_id=row.hq_destination_unit_id,
+        hq_destination_set_by=row.hq_destination_set_by,
+        hq_destination_set_at=row.hq_destination_set_at,
         proposed_arrival_date=row.proposed_arrival_date,
         proposed_arrival_time=row.proposed_arrival_time,
         proposed_by=row.proposed_by,
@@ -329,7 +335,7 @@ class CmBatch1Repository:
         owning_unit_id: str | None = None,
         at: datetime | None = None,
     ) -> str:
-        """Allocate ``UNIT-YYMM-NNNN`` (format B); counter per unit+month."""
+        """Allocate ``CM{UNIT}-YYMM-NNNN``; counter per unit+month."""
         when = at or datetime.now(UTC)
         if when.tzinfo is None:
             when = when.replace(tzinfo=UTC)
@@ -793,6 +799,8 @@ class CmBatch1Repository:
         arrival_time: str,
         description: str | None = None,
         intake_disposition: str | None = None,
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
     ) -> ComplaintAggregate | None:
         try:
             uid = uuid.UUID(str(complaint_id).strip())
@@ -803,6 +811,12 @@ class CmBatch1Repository:
             return None
         row.hq_arrival_date = arrival_date
         row.hq_arrival_time = arrival_time
+        # None means "keep the current destination" — rescheduling a time must
+        # not silently unset where the taxpayer was told to go.
+        if destination_unit_id is not None:
+            row.hq_destination_unit_id = destination_unit_id
+            row.hq_destination_set_by = destination_set_by
+            row.hq_destination_set_at = datetime.now(UTC)
         if description is not None:
             row.description = description
         if intake_disposition is not None:
@@ -821,6 +835,8 @@ class CmBatch1Repository:
         arrival_time: str,
         description: str,
         intake_disposition: str = "HQ_SCHEDULED",
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
     ) -> ComplaintAggregate | None:
         try:
             uid = uuid.UUID(str(complaint_id).strip())
@@ -832,6 +848,10 @@ class CmBatch1Repository:
         row.hq_accepted_at = hq_accepted_at
         row.hq_arrival_date = arrival_date
         row.hq_arrival_time = arrival_time
+        if destination_unit_id is not None:
+            row.hq_destination_unit_id = destination_unit_id
+            row.hq_destination_set_by = destination_set_by
+            row.hq_destination_set_at = datetime.now(UTC)
         row.description = description
         row.intake_disposition = intake_disposition
         _clear_proposed(row)
@@ -951,9 +971,10 @@ class CmBatch1Repository:
             stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
         elif vis == "PUSAT":
-            upper_codes = sorted({c.upper() for c in codes})
             pusat_clause = or_(
-                func.upper(CmBatch1ComplaintORM.owning_unit_id).in_(upper_codes),
+                pusat_unit_clause(
+                    CmBatch1ComplaintORM.owning_unit_id, pusat_unit_codes=codes
+                ),
                 CmBatch1ComplaintORM.intake_disposition.in_(
                     ["ESCALATE_APPROVED", "HQ_SCHEDULED"]
                 ),

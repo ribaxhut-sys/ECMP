@@ -179,7 +179,7 @@ describe("HqScheduleView", () => {
     expect(fetchHqScheduleAvailability).not.toHaveBeenCalled();
   });
 
-  it("lets a Cabang agent open only its own case, with a tooltip on the branch tag", async () => {
+  it("lets a Cabang agent open only its own case", async () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
 
@@ -188,12 +188,6 @@ describe("HqScheduleView", () => {
 
     const otherCase = screen.getAllByText("CASE-2026-000002")[0];
     expect(otherCase.closest("a")).toBeNull();
-
-    await waitFor(() => {
-      expect(screen.getByTitle("Cabang Tanah Abang")).toBeInTheDocument();
-    });
-    expect(screen.getByTitle("Cabang Tanah Abang")).toHaveTextContent("TAB");
-    expect(screen.queryByText("Cabang Tanah Abang")).not.toBeInTheDocument();
   });
 
   it("lets a Pusat reviewer open every case regardless of branch", async () => {
@@ -219,7 +213,6 @@ describe("HqScheduleView", () => {
     expect(within(board).getByTestId("hq-schedule-slot-2026-08-17-08:00")).toBeInTheDocument();
     expect(within(board).getByRole("link", { name: "CASE-2026-000001" })).toBeInTheDocument();
     expect(within(board).getByRole("link", { name: "CASE-2026-000002" })).toBeInTheDocument();
-    expect(within(board).getByText("GAM")).toBeInTheDocument();
     expect(screen.queryByText("This week's escalations")).not.toBeInTheDocument();
   });
 

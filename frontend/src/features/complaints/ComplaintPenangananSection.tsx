@@ -236,6 +236,7 @@ export function ComplaintPenangananSection({
   intakeDisposition,
   hqAcceptedAt,
   hqArrivalDate,
+  hqDestinationUnitId,
   hqArrivalTime,
   hqArrivalNote,
   allowStart,
@@ -252,6 +253,8 @@ export function ComplaintPenangananSection({
   intakeDisposition?: string | null;
   hqAcceptedAt?: string | null;
   hqArrivalDate?: string | null;
+  /** Pusat unit the taxpayer reports to — shown with the slot, read-only. */
+  hqDestinationUnitId?: string | null;
   hqArrivalTime?: string | null;
   hqArrivalNote?: string | null;
   allowStart: boolean;
@@ -665,6 +668,11 @@ export function ComplaintPenangananSection({
           {scheduledSlotLabel ? (
             <p className="mt-2 text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
               {scheduledSlotLabel}
+            </p>
+          ) : null}
+          {hqDestinationUnitId?.trim() ? (
+            <p className="mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+              {t("hqDestinationUnitValue", { unit: hqDestinationUnitId.trim() })}
             </p>
           ) : null}
           {scheduledWpNote ? (
