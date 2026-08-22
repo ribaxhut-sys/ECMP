@@ -364,6 +364,42 @@ def test_owner_unit_sees_case_in_list_after_handling_transfer(
     assert rows[0].owner_unit_id == "UPPPD-GAMBIR"
 
 
+def test_pusat_queue_includes_cases_held_by_a_pusat_sub_unit(
+    db_session: Session,
+) -> None:
+    """Handling moved to a Pusat sub-unit (Suban) must stay in the Pusat queue."""
+    svc = _svc(db_session)
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Suban handling",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="agent-1",
+        )
+    )
+    svc.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="ASSIGNED",
+            actor_id="agent-1",
+            destination_unit_id="PUSAT-SUBAN-1",
+        )
+    )
+    repo = SqlAlchemyCaseRepository(db_session)
+    rows, total = repo.list_summaries(
+        visibility=VisibilityClass.PUSAT.value,
+        actor_id="hq-supervisor",
+        org_unit_id="PUSAT-CRO",
+        pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
+    )
+    assert total == 1
+    assert rows[0].owning_unit_id == "PUSAT-SUBAN-1"
+
+
 def test_pusat_owner_sees_case_after_handoff_to_branch(db_session: Session) -> None:
     svc = _svc(db_session)
     complaint_id = _seed_complaint(db_session, owning_unit_id="PUSAT")

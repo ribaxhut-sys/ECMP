@@ -1,18 +1,14 @@
 /** Cabang ↔ Pusat transfer helpers (mirror backend DEFAULT_PUSAT_UNIT_CODES). */
 
-export const PUSAT_UNIT_CODES = new Set([
-  "PUSAT",
-  "HO",
-  "HEAD_OFFICE",
-  "HEAD-OFFICE",
-]);
+import {
+  CANONICAL_PUSAT_UNIT_CODE,
+  PUSAT_UNIT_ROOT_CODES,
+  isPusatUnitCode,
+} from "@/shared/utils";
 
-export const CANONICAL_PUSAT_UNIT_CODE = "PUSAT";
+export const PUSAT_UNIT_CODES = new Set<string>(PUSAT_UNIT_ROOT_CODES);
 
-export function isPusatUnitCode(code: string | null | undefined): boolean {
-  const normalized = (code || "").trim().toUpperCase();
-  return Boolean(normalized) && PUSAT_UNIT_CODES.has(normalized);
-}
+export { CANONICAL_PUSAT_UNIT_CODE, isPusatUnitCode };
 
 /**
  * Source unit for create-form transfer rules.

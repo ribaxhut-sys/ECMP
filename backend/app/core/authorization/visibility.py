@@ -12,13 +12,26 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from sqlalchemy import ColumnElement, func, or_
+
 from app.core.authorization.org_unit_resolver import OrgUnitResolver
 from app.core.authorization.principal import Principal
 
-# Lab / Mode A Pusat unit codes (owning_unit_id). Canonical preference: "PUSAT".
+# Lab / Mode A Pusat **root** unit codes (owning_unit_id). Preference: "PUSAT".
 DEFAULT_PUSAT_UNIT_CODES: frozenset[str] = frozenset(
     {"PUSAT", "HO", "HEAD_OFFICE", "HEAD-OFFICE"}
 )
+
+# Pusat is not one door: a taxpayer escalated to Pusat may arrive at CRO, at
+# Sekretariat, or at a Suban. Those sub-units are coded as a root code plus a
+# separator plus their own suffix — "PUSAT-CRO", "PUSAT-SUBAN-1" — so every
+# read path recognizes them as Pusat without a database round-trip and pure
+# domain code keeps working unchanged. The write boundary (picking a
+# destination unit) additionally verifies the Branch row exists and is active.
+#
+# "_" is deliberately not a separator: it is a LIKE wildcard, so the SQL twin
+# below would silently match unrelated codes.
+_PUSAT_SUBUNIT_SEPARATORS: tuple[str, ...] = ("-", ".", "/")
 
 _ADMIN_ROLES: frozenset[str] = frozenset(
     {"ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"}
@@ -55,11 +68,46 @@ class VisibilityClass(StrEnum):
 CaseVisibilityClass = VisibilityClass
 
 
-def is_pusat_unit(org_unit_id: str | None) -> bool:
+def is_pusat_unit(
+    org_unit_id: str | None,
+    *,
+    pusat_unit_codes: frozenset[str] = DEFAULT_PUSAT_UNIT_CODES,
+) -> bool:
+    """True for a Pusat root code **or** any of its sub-units (PUSAT-CRO, …)."""
     normalized = OrgUnitResolver.normalize(org_unit_id)
     if not normalized:
         return False
-    return normalized.upper() in DEFAULT_PUSAT_UNIT_CODES
+    upper = normalized.upper()
+    for root in (code.upper() for code in pusat_unit_codes):
+        if upper == root:
+            return True
+        if any(
+            upper.startswith(f"{root}{sep}") for sep in _PUSAT_SUBUNIT_SEPARATORS
+        ):
+            return True
+    return False
+
+
+def pusat_unit_clause(
+    column: ColumnElement[str | None],
+    *,
+    pusat_unit_codes: frozenset[str] = DEFAULT_PUSAT_UNIT_CODES,
+) -> ColumnElement[bool]:
+    """SQL twin of :func:`is_pusat_unit` — keep both sides of the rule here.
+
+    List queries cannot call the Python predicate row by row, so the same
+    root-or-sub-unit rule is expressed once as a clause instead of being
+    re-derived (differently) in every repository.
+    """
+    upper = func.upper(column)
+    roots = sorted({code.upper() for code in pusat_unit_codes})
+    clauses: list[ColumnElement[bool]] = [upper.in_(roots)]
+    clauses.extend(
+        upper.like(f"{root}{sep}%")
+        for root in roots
+        for sep in _PUSAT_SUBUNIT_SEPARATORS
+    )
+    return or_(*clauses)
 
 
 def resolve_row_visibility(principal: Principal) -> VisibilityClass:
@@ -106,8 +154,7 @@ def complaint_visible_for_pusat(
     Visible when owned by Pusat **or** escalation approved **or** HQ accepted.
     Pending branch-internal escalations are not visible to Pusat handlers.
     """
-    unit = OrgUnitResolver.normalize(owning_unit_id)
-    if unit and unit.upper() in {c.upper() for c in pusat_unit_codes}:
+    if is_pusat_unit(owning_unit_id, pusat_unit_codes=pusat_unit_codes):
         return True
     disp = (intake_disposition or "").strip().upper()
     if disp in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:

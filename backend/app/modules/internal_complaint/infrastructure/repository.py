@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.authorization.visibility import is_pusat_unit, pusat_unit_clause
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
 from app.modules.internal_complaint.domain.aggregate import InternalComplaintAggregate
 from app.modules.internal_complaint.domain.value_objects import InternalComplaintNumber
@@ -23,10 +24,11 @@ from app.modules.internal_complaint.infrastructure.orm import (
 
 def _pusat_inbox_clause(pusat_unit_codes: frozenset[str]):
     """Pusat inbox: live tickets at Pusat; WITHDRAWN only after Pusat handled."""
-    codes = {c.upper() for c in pusat_unit_codes}
-    pusat_owner = func.upper(InternalComplaintORM.owner_unit_id).in_(sorted(codes))
-    pusat_handling = func.upper(InternalComplaintORM.handling_unit_id).in_(
-        sorted(codes)
+    pusat_owner = pusat_unit_clause(
+        InternalComplaintORM.owner_unit_id, pusat_unit_codes=pusat_unit_codes
+    )
+    pusat_handling = pusat_unit_clause(
+        InternalComplaintORM.handling_unit_id, pusat_unit_codes=pusat_unit_codes
     )
     withdrawn = InternalComplaintORM.status == "WITHDRAWN"
     handled = InternalComplaintORM.pusat_handled_at.isnot(None)
@@ -192,8 +194,7 @@ class SqlAlchemyInternalComplaintRepository:
             unit = (org_unit_id or "").strip()
             if not unit:
                 return [], 0
-            codes = {c.upper() for c in pusat_unit_codes}
-            if unit.upper() in codes:
+            if is_pusat_unit(unit, pusat_unit_codes=pusat_unit_codes):
                 stmt = stmt.where(_pusat_inbox_clause(pusat_unit_codes))
             else:
                 stmt = stmt.where(

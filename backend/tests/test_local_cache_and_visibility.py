@@ -125,6 +125,19 @@ def test_customer_search_key_edges() -> None:
     assert validate_customer_search_key("1234567").ok is False
 
 
+def test_pusat_sub_units_are_pusat() -> None:
+    """WP escalated to Pusat may arrive at CRO, Sekretariat or a Suban."""
+    assert is_pusat_unit("PUSAT-CRO") is True
+    assert is_pusat_unit("pusat-sekretariat") is True
+    assert is_pusat_unit("PUSAT-SUBAN-1") is True
+    assert is_pusat_unit("HO/CRO") is True
+    # A separator is required — a branch code merely starting with the same
+    # letters is still a branch.
+    assert is_pusat_unit("PUSATAKA") is False
+    assert is_pusat_unit("HOTEL-1") is False
+    assert is_pusat_unit("UPPPD-JAKPUS") is False
+
+
 def test_case_visibility_classes() -> None:
     assert is_pusat_unit(None) is False
     assert is_pusat_unit("PUSAT") is True

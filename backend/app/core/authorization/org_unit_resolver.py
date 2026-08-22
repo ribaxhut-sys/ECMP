@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
@@ -63,6 +63,35 @@ class OrgUnitResolver:
         branch = self._session.get(Branch, branch_uuid)
         if branch is None or branch.deleted_at is not None:
             return cleaned
+        return self.normalize(branch.code)
+
+    def resolve_active_unit_code(self, org_unit_id: str | None) -> str | None:
+        """Declared unit → canonical ``Branch.code``, or None when unknown.
+
+        Unlike :meth:`resolve_declared` (create path, fail-open on unknown
+        codes so historic rows keep working) this one is the strict form used
+        when an actor *picks* a unit — e.g. Pusat choosing which of its units
+        the taxpayer should report to. An unknown, inactive or soft-deleted
+        branch resolves to None so the caller can reject the choice.
+        """
+        cleaned = self.normalize(org_unit_id)
+        if not cleaned:
+            return None
+        try:
+            branch_uuid = uuid.UUID(cleaned)
+        except ValueError:
+            branch = self._session.scalar(
+                select(Branch).where(
+                    func.upper(Branch.code) == cleaned.upper(),
+                    Branch.deleted_at.is_(None),
+                )
+            )
+        else:
+            branch = self._session.get(Branch, branch_uuid)
+            if branch is not None and branch.deleted_at is not None:
+                branch = None
+        if branch is None or not branch.is_active:
+            return None
         return self.normalize(branch.code)
 
     def resolve_complaint(self, complaint_id: uuid.UUID) -> str | None:
