@@ -689,14 +689,16 @@ def test_fr004_cancel_mode_a(service: CaseApplicationService, db_session: Sessio
     assert cancelled.cancel_reason == "DUPLICATE"
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
-    # DEC-025: sole CANCELLED does not close the parent.
-    assert parent.status == "IN_PROGRESS"
-    assert parent.status != "CLOSED"
+    # BO 2026-08-22: satu-satunya Case dibatalkan → induk ditutup sebagai batal.
+    assert parent.status == "CLOSED"
+    assert parent.intake_disposition == "ALL_CASES_CANCELLED"
 
 
-def test_dec025_all_cancelled_parent_stays_open(
+def test_all_cancelled_parent_closes_as_cancelled(
     service: CaseApplicationService, db_session: Session
 ) -> None:
+    """BO 2026-08-22 (follow-up DEC-025 §3.4) — semua Case CANCELLED menutup induk,
+    ditandai ``ALL_CASES_CANCELLED`` agar terpisah dari penyelesaian kerja."""
     complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
     first = service.create_case(
         CreateCaseCommand(
@@ -732,7 +734,23 @@ def test_dec025_all_cancelled_parent_stays_open(
         )
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
-    assert parent.status == "IN_PROGRESS"
+    assert parent.status == "CLOSED"
+    assert parent.intake_disposition == "ALL_CASES_CANCELLED"
+
+    # Penutupan bersifat final: gerbang CLOSED yang sudah ada menolak Case baru.
+    # Salah batal → buat pengaduan baru, bukan menghidupkan yang lama.
+    with pytest.raises(ApiError):
+        service.create_case(
+            CreateCaseCommand(
+                complaint_id=complaint_id,
+                case_type="BILLING",
+                subject="Three",
+                description="d",
+                priority="LOW",
+                destination_unit_id="UPPPD-GAMBIR",
+                actor_id="handler-1",
+            )
+        )
 
 
 def test_dec025_closed_plus_cancelled_parent_closes(

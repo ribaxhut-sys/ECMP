@@ -240,9 +240,12 @@ class SqlAlchemyCaseRepository:
     def sync_complaint_status_from_cases(self, complaint_id: str) -> str | None:
         """DEC-025 §3.4 — BR-009 Mode A auto-close (bukan Close Case = Close Complaint).
 
-        Case ``CANCELLED`` diabaikan. Induk auto-close hanya jika tidak ada Case
-        yang masih dikerjakan dan ada minimal satu Case ``CLOSED``. Semua Case
-        ``CANCELLED`` (tanpa ``CLOSED``) → induk tetap terbuka (``IN_PROGRESS``).
+        Case ``CANCELLED`` diabaikan dalam hitungan "selesai". Induk auto-close
+        jika tidak ada Case yang masih dikerjakan dan ada minimal satu Case
+        ``CLOSED``. Semua Case ``CANCELLED`` (tanpa ``CLOSED``) juga menutup induk,
+        tetapi ditandai ``ALL_CASES_CANCELLED`` — bukan penyelesaian kerja, jadi
+        laporan bisa memisahkannya dari ``BRANCH_CLOSED``/``HQ_CLOSED``
+        (keputusan Business Owner 2026-08-22, follow-up DEC-025 §3.4).
         """
         try:
             uid = UUID(complaint_id)
@@ -268,16 +271,17 @@ class SqlAlchemyCaseRepository:
             if row.status in {"CLOSED", "REGISTERED"}:
                 row.status = "IN_PROGRESS"
             disp = (row.intake_disposition or "").strip().upper()
-            if disp == "BRANCH_CLOSED":
+            if disp in {"BRANCH_CLOSED", "ALL_CASES_CANCELLED"}:
                 row.intake_disposition = None
         elif has_closed:
             row.status = "CLOSED"
             disp = (row.intake_disposition or "").strip().upper()
-            if not disp or disp == "BRANCH_CLOSED":
+            if not disp or disp in {"BRANCH_CLOSED", "ALL_CASES_CANCELLED"}:
                 row.intake_disposition = "BRANCH_CLOSED"
         else:
-            # All CANCELLED — induk tetap buka (DEC-025 §3.4).
-            row.status = "IN_PROGRESS"
+            # Semua Case CANCELLED — induk ditutup sebagai batal, bukan selesai.
+            row.status = "CLOSED"
+            row.intake_disposition = "ALL_CASES_CANCELLED"
 
         self._session.flush()
         return row.status

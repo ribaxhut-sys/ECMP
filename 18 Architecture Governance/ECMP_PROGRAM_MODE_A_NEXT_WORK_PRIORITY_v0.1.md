@@ -119,6 +119,7 @@ Mode B / Batch-2 / enterprise customer remain **CLOSED** (C-B6-1).
 | 0.1p | 2026-07-31 | **Keep-green PASS** — Batch-1 BE 85; FE Aggregate 37; M1 auth-routes + unit; M6 ops script `--help` |
 | 0.1q | 2026-08-01 | **CAP-008 Program CLOSED** — ARB pack GOV-CAP008-CLOSE-*; Roadmap Reset `ai/sprint/CAP008_ROADMAP_RESET_v1.0.md`. Batch-2 Mode A Case delivery no longer future work. Mode B remains CLOSED. |
 | 0.1r | 2026-08-21 | Hygiene: M2/M3/§7 aligned to **DEC-026 executed**; remaining Mode A = BO/Board (Tutup Pengaduan, OQ-IAM-001, F4) — bukan Dual-SoT |
+| 0.1s | 2026-08-22 | **Tutup Pengaduan CLOSED** oleh BO — auto-close + `ALL_CASES_CANCELLED`; DEC-F4 sisa nyata dipersempit ke `result_visibility` saja (F4.1/F4.4/F4.5 sudah terimplementasi) |
 
 ---
 
@@ -140,7 +141,7 @@ Bukan antrian fitur baru. Coding Mode A hanya bila regresi, atau setelah keputus
 
 | Item | Status | Pemilik |
 |---|---|---|
-| Tutup Pengaduan / induk tetap buka jika semua Case `CANCELLED` | OOS DEC-025 §3.4 | Business Owner (DEC follow-up) |
+| Tutup Pengaduan / induk tetap buka jika semua Case `CANCELLED` | **CLOSED 2026-08-22** — BO memutuskan auto-close + penanda `ALL_CASES_CANCELLED` (DEC-025 §3.4 addendum); terimplementasi | Business Owner |
 | OQ-IAM-001 sisa 19 gerbang baca `complaints:read`/`update` | Open | Architecture Board / BO |
 | DEC-F4 / FRD-CM-002 coding | Draft; **NOT APPROVED FOR CODE** | Architecture Board countersign |
 | HQ schedule overdue visual hint | Mode A FE — slice ini | Tech Lead (keep-green) |

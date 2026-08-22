@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Iterator
 
 from fastapi.testclient import TestClient
@@ -188,13 +188,21 @@ def test_availability_detail_200_for_pusat_unit_agent() -> None:
     assert resp.status_code == 200, resp.text
 
 
+def _next_monday(start: date) -> date:
+    cursor = start
+    while cursor.isoweekday() != 1:
+        cursor += timedelta(days=1)
+    return cursor
+
+
 def test_availability_shows_scheduled_cases_from_every_branch() -> None:
+    monday = _next_monday(date.today())
     arrivals = [
         ArrivalRow(
             complaint_id="c1",
             complaint_number="TAB-2608-0001",
             owning_unit_id="UPPPD-TANAH-ABANG",
-            hq_arrival_date=date.today(),
+            hq_arrival_date=monday,
             hq_arrival_time="08:00",
             proposed_arrival_date=None,
             proposed_arrival_time=None,
@@ -205,7 +213,7 @@ def test_availability_shows_scheduled_cases_from_every_branch() -> None:
             complaint_id="c2",
             complaint_number="GAM-2608-0001",
             owning_unit_id="UPPPD-GAMBIR",
-            hq_arrival_date=date.today(),
+            hq_arrival_date=monday,
             hq_arrival_time="08:15",
             proposed_arrival_date=None,
             proposed_arrival_time=None,
@@ -221,7 +229,7 @@ def test_availability_shows_scheduled_cases_from_every_branch() -> None:
     with _client_for(principal, service=_service(arrivals=arrivals)) as client:
         resp = client.get(
             "/api/v1/hq-schedule/availability",
-            params={"from": date.today().isoformat(), "to": date.today().isoformat()},
+            params={"from": monday.isoformat(), "to": monday.isoformat()},
         )
     assert resp.status_code == 200, resp.text
     slots = resp.json()["data"]["days"][0]["slots"]

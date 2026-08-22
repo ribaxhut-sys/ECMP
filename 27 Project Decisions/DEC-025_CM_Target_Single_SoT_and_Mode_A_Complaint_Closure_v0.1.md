@@ -131,8 +131,28 @@ Induk **auto-close** (`CLOSED`) hanya jika **semua** syarat terpenuhi:
 
 **Semua Case `CANCELLED` (tidak ada yang `CLOSED`):**
 
-- Induk **tetap buka** (bukan auto-close).
+- ~~Induk **tetap buka** (bukan auto-close).~~ — digantikan addendum di bawah.
 - Alur “Tutup Pengaduan” / pengaduan batal = **out of scope** DEC ini (follow-up).
+
+**Addendum (2026-08-22) — follow-up ditutup oleh Business Owner:**
+
+Aturan "induk tetap buka" menciptakan pengaduan mati-suri: tidak ada Case yang bisa
+dikerjakan, dan tidak ada endpoint tutup manual (`cm_batch1/router.py` tidak punya route
+close/cancel untuk induk), sehingga baris itu menetap selamanya di daftar aktif.
+
+**Keputusan Business Owner:** semua Case `CANCELLED` (tanpa `CLOSED`) → induk
+**`CLOSED`**, dengan `intake_disposition = "ALL_CASES_CANCELLED"`.
+
+- Penanda terpisah dari `BRANCH_CLOSED` / `HQ_CLOSED` — **BQ-007 tetap dihormati**:
+  ini penutupan administratif karena batal, **bukan** penyelesaian kerja. Laporan
+  dan KPI dapat memisahkan keduanya lewat `intakeDisposition`.
+- Penutupan **final**: gerbang `COMPLAINT_CLOSED` yang sudah ada
+  (`cm_case/application/services.py`) menolak Case baru pada induk `CLOSED`.
+  Salah batal → buat pengaduan baru, bukan menghidupkan yang lama.
+- Bila induk sempat ditandai `ALL_CASES_CANCELLED` lalu Case aktif muncul kembali
+  (jalur replay/koreksi data), penanda dibersihkan dan induk kembali `IN_PROGRESS`.
+
+Implementasi: `cm_case/infrastructure/repository.py::sync_complaint_status_from_cases`.
 
 ### 3.5 Cancel Case (BQ-014 — tidak diubah)
 

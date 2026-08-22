@@ -204,6 +204,7 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
         "RETURNED_TO_BRANCH",
         "HQ_SCHEDULED",
         "HQ_CLOSED",
+        "ALL_CASES_CANCELLED",
         # Pseudo-value: any escalate-family state (Users directory drill-down).
         "ESCALATED",
         # Pseudo-value: not in the escalate family (dashboard waiting-assignment).

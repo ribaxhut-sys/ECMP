@@ -10,6 +10,8 @@ export type CmBatch1ListIntakeDisposition =
   | "RETURNED_TO_BRANCH"
   | "HQ_SCHEDULED"
   | "BRANCH_CLOSED"
+  /** Ditutup karena seluruh Case dibatalkan — bukan penyelesaian kerja. */
+  | "ALL_CASES_CANCELLED"
   /** Pseudo-value: any escalate-family state (Users directory drill-down). */
   | "ESCALATED"
   /** Pseudo-value: not in the escalate family (dashboard waiting-assignment). */
@@ -35,6 +37,7 @@ const INTAKE_DISPOSITIONS = new Set<string>([
   "RETURNED_TO_BRANCH",
   "HQ_SCHEDULED",
   "BRANCH_CLOSED",
+  "ALL_CASES_CANCELLED",
   "ESCALATED",
   "UNESCALATED",
 ]);
