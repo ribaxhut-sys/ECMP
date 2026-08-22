@@ -58,19 +58,27 @@ class AcceptanceDecision(StrEnum):
     REJECT = "REJECT"
 
 
-_CASE_NUMBER_RE = re.compile(r"^CASE-(\d{4})-(\d{6})$")
+_CASE_NUMBER_RE = re.compile(r"^CASE-(\d{4})-(\d{4,6})$")
 
 
 class CaseNumber:
-    """Case Number ``CASE-YYYY-NNNNNN`` (BQ-004) — independent of Complaint Number."""
+    """Case Number ``CASE-YYYY-NNNN`` (BQ-004) — independent of Complaint Number.
+
+    Sequence is four digits (e.g. ``CASE-2026-0002``). Six-digit legacy values
+    such as ``CASE-2026-000002`` are accepted and canonicalized on parse.
+    """
 
     __slots__ = ("_value",)
 
     def __init__(self, value: str) -> None:
         text = (value or "").strip()
-        if not _CASE_NUMBER_RE.match(text):
+        match = _CASE_NUMBER_RE.match(text)
+        if not match:
             raise ValueError(f"Invalid Case Number format: {value!r}")
-        self._value = text
+        seq = int(match.group(2))
+        if seq < 1 or seq > 9999:
+            raise ValueError("Case Number sequence out of range")
+        self._value = f"CASE-{match.group(1)}-{seq:04d}"
 
     @property
     def value(self) -> str:
@@ -78,9 +86,9 @@ class CaseNumber:
 
     @classmethod
     def format(cls, year: int, seq: int) -> CaseNumber:
-        if seq < 1 or seq > 999_999:
+        if seq < 1 or seq > 9999:
             raise ValueError("Case Number sequence out of range")
-        return cls(f"CASE-{year:04d}-{seq:06d}")
+        return cls(f"CASE-{year:04d}-{seq:04d}")
 
     def __str__(self) -> str:
         return self._value

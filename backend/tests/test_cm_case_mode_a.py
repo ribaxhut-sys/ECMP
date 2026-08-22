@@ -119,6 +119,15 @@ def test_fr001_create_case_created_status(service: CaseApplicationService, db_se
     assert dto.owning_unit_id is None
 
 
+def test_case_number_uses_four_digit_sequence() -> None:
+    assert CaseNumber.format(2026, 2).value == "CASE-2026-0002"
+    assert CaseNumber("CASE-2026-000002").value == "CASE-2026-0002"
+    with pytest.raises(ValueError, match="out of range"):
+        CaseNumber.format(2026, 10_000)
+    with pytest.raises(ValueError, match="Invalid Case Number"):
+        CaseNumber("CASE-2026-2")
+
+
 def test_create_and_handle_claim_timeline_events(db_session: Session) -> None:
     from unittest.mock import MagicMock
 

@@ -54,7 +54,7 @@ class CaseRepository(Protocol):
         ...
 
     def next_case_number(self, year: int) -> str:
-        """Allocate next ``CASE-YYYY-NNNNNN`` (BQ-004)."""
+        """Allocate next ``CASE-YYYY-NNNN`` (BQ-004)."""
 
     def save(self, case: CaseAggregate) -> CaseAggregate:
         ...
