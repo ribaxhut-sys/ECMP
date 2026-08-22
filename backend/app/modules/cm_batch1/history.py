@@ -74,6 +74,7 @@ _EVENT_TYPE_CODES = {
     "CaseResolved": "CASE_RESOLVED",
     "HandlingContinued": "HANDLING_CONTINUED",
     "HandlingTakenOver": "HANDLING_TAKEN_OVER",
+    "CaseEscalatedToPusat": "CASE_ESCALATED_TO_PUSAT",
 }
 
 

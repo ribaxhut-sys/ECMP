@@ -226,6 +226,7 @@ class SqlAlchemyCaseRepository:
                 | pusat_unit_clause(
                     CmCaseORM.owner_unit_id, pusat_unit_codes=pusat_unit_codes
                 )
+                | (CmCaseORM.escalated_to_pusat.is_(True))
             )
         else:
             return [], 0

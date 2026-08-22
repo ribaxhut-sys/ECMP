@@ -81,6 +81,9 @@ export interface CmCaseSummary {
   createdBy?: string | null;
   handlingClaimedBy?: string | null;
   handlingClaimedByName?: string | null;
+  escalatedToPusat?: boolean;
+  owningUnit?: "BRANCH" | "PUSAT" | string;
+  escalationReason?: string | null;
 }
 
 export interface CmCase {
@@ -113,6 +116,10 @@ export interface CmCase {
   handlingUnitAcceptance?: CmCaseAcceptance | null;
   ownerAcceptance?: CmCaseAcceptance | null;
   acceptanceHistory?: CmCaseAcceptance[];
+  escalatedToPusat?: boolean;
+  owningUnit?: "BRANCH" | "PUSAT" | string;
+  escalationReason?: string | null;
+  escalatedAt?: string | null;
 }
 
 export interface CreateCmCaseRequest {
@@ -162,6 +169,10 @@ export interface ResolveCmCaseRequest {
 
 export interface CloseCmCaseRequest {
   note?: string | null;
+}
+
+export interface EscalateCmCaseToPusatRequest {
+  reason: string;
 }
 
 /** API-537 — chronological Case Timeline row (this Case + parent HQ path). */
@@ -306,6 +317,21 @@ export function closeCmCase(
     apiRequest<DataResponse<CmCase>>(cmCasePaths().close(caseId), {
       method: "POST",
       body: JSON.stringify(body ?? {}),
+      headers: buildCmCaseMutateHeaders(options),
+    }),
+  );
+}
+
+/** DEC-029 / API-520 lab — POST /api/v1/cm/cases/{caseId}/escalate-to-pusat. */
+export function escalateCmCaseToPusat(
+  caseId: string,
+  body: EscalateCmCaseToPusatRequest,
+  options?: CmCaseMutateOptions,
+): Promise<DataResponse<CmCase>> {
+  return unwrap(
+    apiRequest<DataResponse<CmCase>>(cmCasePaths().escalateToPusat(caseId), {
+      method: "POST",
+      body: JSON.stringify(body),
       headers: buildCmCaseMutateHeaders(options),
     }),
   );

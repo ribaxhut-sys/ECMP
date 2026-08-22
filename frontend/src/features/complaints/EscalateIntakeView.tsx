@@ -22,16 +22,14 @@ import {
   Modal,
   PageContainer,
   PageHeader,
-  ReasonPresetTags,
   SectionHeader,
   Select,
   RadioGroup,
 } from "@/shared/ui";
 import { DuplicateWarningPanel } from "./DuplicateWarningPanel";
 import { ActiveComplaintsBanner } from "./ActiveComplaintsBanner";
-import { HqArrivalSlotPicker, type HqArrivalSlotValue } from "./HqArrivalSlotPicker";
 import { useReasonPresets } from "@/shared/hooks";
-import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
+import { PresetTextField } from "./PresetTextField";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   newCmBatch1IdempotencyKey,
@@ -46,7 +44,6 @@ import {
   type IntakePriorityDraftIntent,
 } from "./escalateIntakeDraft";
 import {
-  anyIntakeCaseEscalates,
   buildIntakeDecisionRows,
   extrasFromDecisionRows,
   parseIntakeCaseAction,
@@ -61,13 +58,12 @@ const INTAKE_CASE_NOTE_PRESET_KEY = "cm_batch1.intake_case_note_presets";
 const PRESET_KEYS = [INTAKE_CASE_NOTE_PRESET_KEY];
 
 /**
- * After "Lanjut": per-Case priority, note, and one action
- * (register / close Case / request escalation).
+ * After "Lanjut": per-Case priority, note, and one action (register / close Case).
+ * Eskalasi ke Pusat diajukan dari halaman Case (DEC-029), bukan dari form induk.
  */
 export function EscalateIntakeView() {
   const router = useRouter();
   const t = useTranslations("complaints");
-  const tHqSchedule = useTranslations("hqSchedule");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
   const tValidation = useTranslations("validation");
@@ -79,7 +75,6 @@ export function EscalateIntakeView() {
   const [draft, setDraft] = useState<EscalateIntakeDraft | null>(null);
   const [ready, setReady] = useState(false);
   const [rows, setRows] = useState<IntakeCaseDecisionRow[]>([]);
-  const [proposedSlot, setProposedSlot] = useState<HqArrivalSlotValue | null>(null);
   const [priorityError, setPriorityError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   /** True when submitError comes from link_existing (not create). */
@@ -214,17 +209,17 @@ export function EscalateIntakeView() {
     values: CreateComplaintFormValues,
     justification: string | null,
     stagingToken: string,
-    intent: IntakePriorityDraftIntent,
+    _intent: IntakePriorityDraftIntent,
   ): Promise<void> {
-    const escalate = anyIntakeCaseEscalates(rows) || intent === "escalate";
+    const escalate = false;
     const response = await createCmBatch1Complaint(
       toCmBatch1CreateRequest(withPriority(values), {
         duplicateOverrideJustification: justification,
         stagingToken: stagingToken.trim() || null,
         escalate,
         recordingUnitCode: draft?.recordingUnitCode ?? null,
-        proposedArrivalDate: escalate ? proposedSlot?.date ?? null : null,
-        proposedArrivalTime: escalate ? proposedSlot?.time ?? null : null,
+        proposedArrivalDate: null,
+        proposedArrivalTime: null,
       }),
       { idempotencyKey: newCmBatch1IdempotencyKey() },
     );
@@ -297,7 +292,7 @@ export function EscalateIntakeView() {
     setInfoMessage(null);
     if (!ensureCaseDecisions()) return;
 
-    setConfirmIntent(anyIntakeCaseEscalates(rows) ? "escalate" : "register");
+    setConfirmIntent("register");
     setConfirmOpen(true);
   }
 
@@ -472,10 +467,8 @@ export function EscalateIntakeView() {
   const values = draft.values;
   const showNote = Boolean(values.resolution.trim());
   const actionLabel = (action: IntakeCaseAction) =>
-    action === "close"
-      ? t("submitCloseCase")
-      : action === "escalate"
-        ? t("submitEscalate")
+      action === "close"
+        ? t("submitCloseCase")
         : t("submitRegisterCase");
   const confirmCopy = {
     title: t("confirmCaseDecisionsTitle"),
@@ -627,14 +620,8 @@ export function EscalateIntakeView() {
                     disabled={!canCreate || submitting || duplicateBusy}
                   />
                 </div>
-                <ReasonPresetTags
+                <PresetTextField
                   presets={presets[INTAKE_CASE_NOTE_PRESET_KEY] ?? []}
-                  onSelect={(preset) => {
-                    patchRow(row.id, { note: preset });
-                    setEscalationReasonMissing(false);
-                  }}
-                />
-                <KnowledgeMentionTextarea
                   name={`case-note-${row.id}`}
                   id={`case-note-${row.id}`}
                   label={t("intakeNoteLabel")}
@@ -668,7 +655,6 @@ export function EscalateIntakeView() {
                   }
                   options={[
                     { value: "register", label: t("submitRegisterCase") },
-                    { value: "escalate", label: t("submitEscalateCase") },
                     { value: "close", label: t("submitCloseCase") },
                   ]}
                 />
@@ -677,24 +663,6 @@ export function EscalateIntakeView() {
           ))}
         </div>
       </section>
-
-      {anyIntakeCaseEscalates(rows) && (
-        <section className="space-y-[var(--ecmp-panel-gap)]">
-          <SectionHeader
-            title={tHqSchedule("proposedArrivalLabel")}
-            description={tHqSchedule("description")}
-          />
-          <Card>
-            <CardBody>
-              <HqArrivalSlotPicker
-                value={proposedSlot}
-                onChange={setProposedSlot}
-                disabled={submitting || duplicateBusy}
-              />
-            </CardBody>
-          </Card>
-        </section>
-      )}
 
       <div className="flex flex-col-reverse gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)] sm:flex-row sm:flex-wrap sm:justify-end">
         <Button

@@ -18,6 +18,7 @@ from app.modules.cm_case.application.dto import (
     CaseSummaryDTO,
     CloseCaseCommand,
     CreateCaseCommand,
+    EscalateToPusatCommand,
     RecordAcceptanceCommand,
     ResolutionDTO,
     ResolveCaseCommand,
@@ -91,6 +92,15 @@ def _assert_current_handler(case: CaseAggregate, actor_id: str) -> None:
             "HANDLING_CLAIMER_ONLY",
             "Only the current handling officer can do this.",
             details={"handlingClaimedBy": claimed},
+        )
+
+
+def _assert_branch_work_allowed(case: CaseAggregate) -> None:
+    """DEC-029 — after API-520, branch resolve/close/reassign waits for Pusat."""
+    if case.escalated_to_pusat:
+        raise err.conflict(
+            "CASE_WITH_PUSAT",
+            "This Case is with Pusat; branch work is paused.",
         )
 
 
@@ -287,6 +297,10 @@ def to_case_dto(case: CaseAggregate) -> CaseDTO:
             _acceptance_dto(case.owner_acceptance) if case.owner_acceptance else None
         ),
         acceptance_history=[_acceptance_dto(a) for a in case.acceptance_history],
+        escalated_to_pusat=case.escalated_to_pusat,
+        owning_unit="PUSAT" if case.escalated_to_pusat else "BRANCH",
+        escalation_reason=case.escalation_reason,
+        escalated_at=case.escalated_at,
     )
 
 
@@ -481,6 +495,9 @@ class CaseApplicationService:
                 owner_unit_id=row.owner_unit_id,
                 customer_id=row.customer_id,
                 complaint_number=numbers.get(str(row.complaint_id)),
+                escalated_to_pusat=bool(row.escalated_to_pusat),
+                owning_unit="PUSAT" if row.escalated_to_pusat else "BRANCH",
+                escalation_reason=row.escalation_reason,
             )
             for row in rows
         ]
@@ -494,6 +511,7 @@ class CaseApplicationService:
         # sees the just-committed claimer once it acquires the lock.
         claims_handling = reason in (HANDLE_CLAIM_REASON, HANDLE_REASSIGN_REASON)
         case = self._require(cmd.case_id, for_update=claims_handling)
+        _assert_branch_work_allowed(case)
         if reason == HANDLE_REASSIGN_REASON:
             if not cmd.actor_can_reassign:
                 raise err.conflict(
@@ -585,6 +603,7 @@ class CaseApplicationService:
 
     def resolve(self, cmd: ResolveCaseCommand) -> CaseDTO:
         case = self._require(cmd.case_id)
+        _assert_branch_work_allowed(case)
         try:
             action = ResolveAction(cmd.action.strip().upper())
         except ValueError as exc:
@@ -633,6 +652,7 @@ class CaseApplicationService:
         dual-acceptance gate.
         """
         case = self._require(cmd.case_id)
+        _assert_branch_work_allowed(case)
         before = case.to_snapshot()
         try:
             party = AcceptanceParty(cmd.party.strip().upper())
@@ -694,6 +714,7 @@ class CaseApplicationService:
 
     def close(self, cmd: CloseCaseCommand) -> CaseDTO:
         case = self._require(cmd.case_id)
+        _assert_branch_work_allowed(case)
         before = case.to_snapshot()
         case.close(actor_id=cmd.actor_id)
         self._repo.save(case)
@@ -710,6 +731,27 @@ class CaseApplicationService:
         # Mode A product rule (2026-08-12): when every Case under the parent is
         # terminal, close the Aggregate. Supersedes BQ-007 "never close parent".
         self._repo.sync_complaint_status_from_cases(case.complaint_id)
+        self._repo.commit()
+        return to_case_dto(case)
+
+    def escalate_to_pusat(self, cmd: EscalateToPusatCommand) -> CaseDTO:
+        """DEC-029 / API-520 lab — this Case only; parent intakeDisposition unchanged."""
+        case = self._require(cmd.case_id)
+        before = case.to_snapshot()
+        origin_unit = case.owning_unit_id
+        case.escalate_to_pusat(reason=cmd.reason)
+        self._repo.save(case)
+        self._effects.record_case_event(
+            case=case,
+            event_name="CaseEscalatedToPusat",
+            title="Case escalated to Pusat",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=case.to_snapshot(),
+            note=case.escalation_reason,
+            extra_metadata={"originatingBranchId": origin_unit},
+        )
         self._repo.commit()
         return to_case_dto(case)
 

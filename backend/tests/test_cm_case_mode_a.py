@@ -22,6 +22,7 @@ from app.modules.cm_case.api.router import get_case_service
 from app.modules.cm_case.application.dto import (
     CloseCaseCommand,
     CreateCaseCommand,
+    EscalateToPusatCommand,
     RecordAcceptanceCommand,
     ResolveCaseCommand,
     UpdateStatusCommand,
@@ -1902,3 +1903,124 @@ def test_case_repo_get_for_update_and_invalid_id(
     locked = repo.get(created.case_id, for_update=True)
     assert locked is not None
     assert str(locked.case_id) == created.case_id
+
+
+def test_dec029_escalate_to_pusat_from_case_not_parent(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    sibling = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="SERVICE",
+            subject="Stay at branch",
+            description="Sibling stays",
+            priority="LOW",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    in_progress = service.update_status(
+        UpdateStatusCommand(
+            case_id=first.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    assert in_progress.status == "IN_PROGRESS"
+
+    with pytest.raises(ApiError) as short:
+        service.escalate_to_pusat(
+            EscalateToPusatCommand(
+                case_id=first.case_id,
+                reason="too short",
+                actor_id="officer-1",
+            )
+        )
+    assert short.value.status_code == 400
+
+    dto = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=first.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert dto.escalated_to_pusat is True
+    assert dto.owning_unit == "PUSAT"
+    assert dto.status == "IN_PROGRESS"
+    assert dto.owning_unit_id == "TAB"
+    assert dto.status != "ESCALATED"
+
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition is None
+
+    other = service.get_case(sibling.case_id)
+    assert other.escalated_to_pusat is False
+    assert other.owning_unit == "BRANCH"
+
+    with pytest.raises(ApiError) as again:
+        service.escalate_to_pusat(
+            EscalateToPusatCommand(
+                case_id=first.case_id,
+                reason="Case cabang tidak bisa diselesaikan di unit ini.",
+                actor_id="officer-1",
+            )
+        )
+    assert again.value.code == "CASE_ALREADY_ESCALATED_TO_PUSAT"
+
+    with pytest.raises(ApiError) as frozen:
+        service.resolve(
+            ResolveCaseCommand(
+                case_id=first.case_id,
+                action="ACCEPT",
+                comment="should be blocked",
+                actor_id="officer-1",
+            )
+        )
+    assert frozen.value.code == "CASE_WITH_PUSAT"
+
+
+def test_api_escalate_to_pusat(api_client: TestClient, db_session: Session) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UNIT-API")
+    create = api_client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "API escalate",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "UNIT-API",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    api_client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    resp = api_client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()["data"]
+    assert body["escalatedToPusat"] is True
+    assert body["owningUnit"] == "PUSAT"
+    assert body["status"] == "IN_PROGRESS"
+    assert "ESCALATED" not in body["status"]
+    assert body["owningUnitId"] == "UNIT-API"

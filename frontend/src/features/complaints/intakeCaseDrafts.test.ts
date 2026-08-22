@@ -58,10 +58,10 @@ describe("intakeCaseDrafts", () => {
           action: "close",
         },
       ],
-      "escalate",
+      "register",
     );
     expect(rows).toHaveLength(2);
-    expect(rows[0]?.action).toBe("escalate");
+    expect(rows[0]?.action).toBe("register");
     expect(rows[1]?.action).toBe("close");
     expect(rows[1]?.priority).toBe("HIGH");
   });

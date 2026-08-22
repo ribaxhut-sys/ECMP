@@ -23,10 +23,16 @@ export const CASE_SUMMARY_EVENT_CODES = new Set([
   "CASE_CLOSED",
   "CASE_RESOLVED",
   "CASE_CANCELLED",
+  "CASE_ESCALATED_TO_PUSAT",
 ]);
 
 export function isCaseWorkDetailEvent(eventCode: string): boolean {
   return CASE_WORK_DETAIL_EVENT_CODES.has(eventCode.trim().toUpperCase());
+}
+
+/** CASE_CREATED / CLOSED / RESOLVED / CANCELLED — one-line on complaint, note body on Case. */
+export function isCaseSummaryEvent(eventCode: string): boolean {
+  return CASE_SUMMARY_EVENT_CODES.has(eventCode.trim().toUpperCase());
 }
 
 export type CaseHistoryHint = {
@@ -58,6 +64,7 @@ export const CASE_LAST_EVENT_LABEL_KEYS: Record<string, string> = {
   CASE_STATUS_CHANGED: "eventCaseStatusChanged",
   CASE_CLOSED: "eventCaseClosed",
   CASE_RESOLVED: "eventCaseResolved",
+  CASE_ESCALATED_TO_PUSAT: "eventCaseEscalatedToPusat",
   HANDLING_CONTINUED: "eventHandlingContinued",
   HANDLING_TAKEN_OVER: "eventHandlingTakenOver",
   CASE_HANDLING_UNIT_ACCEPTED: "eventHandlingUnitAccepted",

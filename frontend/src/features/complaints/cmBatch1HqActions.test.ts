@@ -334,6 +334,14 @@ describe("intakeHistoryShowsNote", () => {
     expect(intakeHistoryShowsNote("BRANCH_CLOSED")).toBe(false);
     expect(intakeHistoryShowsNote("REGISTERED")).toBe(true);
   });
+
+  it("hides Case milestone notes — those belong on the Case page", () => {
+    expect(intakeHistoryShowsNote("CASE_CREATED")).toBe(false);
+    expect(intakeHistoryShowsNote("CASE_CLOSED")).toBe(false);
+    expect(intakeHistoryShowsNote("CASE_RESOLVED")).toBe(false);
+    expect(intakeHistoryShowsNote("CASE_CANCELLED")).toBe(false);
+    expect(intakeHistoryShowsNote("ESCALATION_APPROVED")).toBe(true);
+  });
 });
 
 describe("intakeHistoryIsCloseEvent", () => {
@@ -399,6 +407,6 @@ describe("resolveCmBatch1BranchEscalationCtas", () => {
     });
     expect(v.showCancelEscalation).toBe(false);
     expect(v.showManageCases).toBe(true);
-    expect(v.showReRequestEscalation).toBe(true);
+    expect(v.showReRequestEscalation).toBe(false);
   });
 });

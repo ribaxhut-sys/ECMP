@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   decideCmBatch1IntakeEscalation,
+  escalateCmCaseToPusat,
   fetchCmBatch1Complaint,
   fetchCmBatch1Customer360,
   fetchCmCase,
@@ -38,13 +39,18 @@ import {
   type BadgeTone,
 } from "@/shared/ui";
 import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
+import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
 import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
-import {
-  CASE_ESCALATE_ACTION_QUERY,
-  PENANGANAN_FOCUS_QUERY,
-} from "@/features/complaints/ComplaintPenangananSection";
+import { PENANGANAN_FOCUS_QUERY } from "@/features/complaints/ComplaintPenangananSection";
 import { CaseStatusBadge } from "./CaseStatusBadge";
 import { CaseHistoryPanel } from "./CaseHistoryPanel";
+import { CaseHandlingNotes } from "./CaseHandlingNotes";
+import {
+  caseDescriptionNarrative,
+  collectCaseHandlingNotes,
+  intakeNoteFromDescription,
+} from "./caseHandlingNotes";
+import { useCmCaseHistory } from "./useCmCaseHistory";
 import { ResolveCaseDialog } from "./ResolveCaseDialog";
 import {
   getCaseHandleDecision,
@@ -119,8 +125,12 @@ function MetaItem({
 }
 
 const CANCEL_NOTE_MIN = 20;
+const ESCALATE_REASON_MIN = 20;
 const CANCEL_ESCALATION_PRESET_KEYS = [
   "cm_batch1.cancel_escalation_note_presets",
+] as const;
+const ESCALATE_TO_PUSAT_PRESET_KEYS = [
+  "cm_batch1.rerequest_escalation_reason_presets",
 ] as const;
 
 function nextStepKey(
@@ -130,8 +140,10 @@ function nextStepKey(
     showResolve: boolean;
     showClose: boolean;
     onHqPath: boolean;
+    escalatedToPusat: boolean;
   },
 ): string {
+  if (opts.escalatedToPusat) return "nextStepPusat";
   if (
     opts.onHqPath &&
     status !== "RESOLVED" &&
@@ -169,6 +181,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const canAct = canUpdate || canCreate;
   const canDecideEscalation = hasPermission("complaints:escalate");
   const cancelPresets = useReasonPresets(CANCEL_ESCALATION_PRESET_KEYS);
+  const escalatePresets = useReasonPresets(ESCALATE_TO_PUSAT_PRESET_KEYS);
 
   const [data, setData] = useState<CmCase | null>(null);
   const [customerLabel, setCustomerLabel] = useState<string | null>(null);
@@ -204,6 +217,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [complaintHqArrivalNote, setComplaintHqArrivalNote] = useState<
     string | null
   >(null);
+  const [complaintIntakeNote, setComplaintIntakeNote] = useState<string | null>(
+    null,
+  );
   const [handlePromptOpen, setHandlePromptOpen] = useState(false);
   const [handleClaiming, setHandleClaiming] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -211,11 +227,28 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [resolveOpen, setResolveOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelNote, setCancelNote] = useState("");
+  const cancelNoteRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Bumped when a preset tag fills the note, to hand the caret back. */
+  const [cancelNoteCaretTick, setCancelNoteCaretTick] = useState(0);
   const [cancellingEscalation, setCancellingEscalation] = useState(false);
+  const [escalateOpen, setEscalateOpen] = useState(false);
+  const [escalateReason, setEscalateReason] = useState("");
+  const [escalating, setEscalating] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastTone, setToastTone] = useState<"success" | "danger">("success");
   const [resolvePreparing, setResolvePreparing] = useState(false);
+
+  const history = useCmCaseHistory(
+    canRead && data ? data.caseId : "",
+    data?.updatedAt ?? data?.status ?? null,
+  );
+  const descriptionNarrative = caseDescriptionNarrative(data?.description);
+  const handlingNotes = collectCaseHandlingNotes(
+    data?.description,
+    history.entries,
+    { parentIntakeNote: complaintIntakeNote },
+  );
 
   const reload = useCallback(async () => {
     if (!canRead || !caseId.trim()) {
@@ -248,6 +281,10 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setComplaintHqArrivalDate(complaint?.hqArrivalDate ?? null);
       setComplaintHqArrivalTime(complaint?.hqArrivalTime ?? null);
       setComplaintHqArrivalNote(complaint?.hqArrivalNote ?? null);
+      setComplaintIntakeNote(
+        complaint?.branchResolution?.trim() ||
+          intakeNoteFromDescription(complaint?.description),
+      );
 
       const fromComplaint = complaint?.customerDisplayName?.trim() || null;
       const from360 = profileText(
@@ -340,7 +377,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     intakeDisposition: complaintIntakeDisposition,
     hqAcceptedAt: complaintHqAcceptedAt,
   });
-  const hideBranchActions = hideCaseBranchWorkActions(hqPath.onHqPath, data?.status);
+  const hideBranchActions = hideCaseBranchWorkActions(
+    hqPath.onHqPath,
+    data?.status,
+    Boolean(data?.escalatedToPusat),
+  );
   const showCancelEscalation = showCaseCancelEscalation({
     canDecideEscalation,
     complaintStatus,
@@ -348,6 +389,16 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     hqAcceptedAt: complaintHqAcceptedAt,
   });
   const cancelNoteOk = cancelNote.trim().length >= CANCEL_NOTE_MIN;
+
+  // Plain textarea counterpart of PresetTextField: after a preset tag is
+  // clicked the caret goes back to the end of the note so typing can continue.
+  useEffect(() => {
+    if (cancelNoteCaretTick === 0) return;
+    const el = cancelNoteRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [cancelNoteCaretTick]);
 
   useEffect(() => {
     if (loading || !data) return;
@@ -455,6 +506,18 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         showClose ||
         hideBranchActions),
   );
+  const showEscalateToPusat = Boolean(
+    data &&
+      (canCreate || canDecideEscalation) &&
+      !data.escalatedToPusat &&
+      !hqPath.onHqPath &&
+      !caseFinished &&
+      data.status !== "RESOLVED" &&
+      (data.status === "CREATED" ||
+        data.status === "ASSIGNED" ||
+        data.status === "IN_PROGRESS"),
+  );
+  const escalateReasonOk = escalateReason.trim().length >= ESCALATE_REASON_MIN;
   const handleConfirmIsCreator = Boolean(
     user?.id?.trim() &&
       complaintCreatedBy?.trim() &&
@@ -518,13 +581,10 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     }
   }
 
-  function goToComplaintPenanganan(opts?: { escalate?: boolean }): void {
+  function goToComplaintPenanganan(): void {
     if (!data) return;
     const params = new URLSearchParams();
     params.set("focus", PENANGANAN_FOCUS_QUERY);
-    if (opts?.escalate) {
-      params.set("action", CASE_ESCALATE_ACTION_QUERY);
-    }
     router.push(
       `/complaints/cm/${encodeURIComponent(data.complaintId)}?${params.toString()}`,
     );
@@ -556,6 +616,29 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       );
     } finally {
       setCancellingEscalation(false);
+    }
+  }
+
+  async function submitEscalateToPusat(): Promise<void> {
+    if (!data || escalating || !escalateReasonOk) return;
+    setEscalating(true);
+    try {
+      const res = await escalateCmCaseToPusat(data.caseId, {
+        reason: escalateReason.trim(),
+      });
+      setData(res.data);
+      setEscalateOpen(false);
+      setEscalateReason("");
+      showSuccess(t("escalateToPusatSuccess"));
+      await reload();
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("escalateToPusatFailed"),
+      );
+    } finally {
+      setEscalating(false);
     }
   }
 
@@ -668,13 +751,15 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 showResolve,
                 showClose,
                 onHqPath: hqPath.onHqPath,
+                escalatedToPusat: Boolean(data.escalatedToPusat),
               }) as
                 | "nextStepStart"
                 | "nextStepResolveOrEscalate"
                 | "nextStepClose"
                 | "nextStepDone"
                 | "nextStepReadOnly"
-                | "nextStepHqPath",
+                | "nextStepHqPath"
+                | "nextStepPusat",
             );
 
   return (
@@ -699,6 +784,14 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           className="flex min-h-[50vh] flex-col gap-[var(--ecmp-section-gap)]"
           data-testid="case-detail-simple"
         >
+          {data.escalatedToPusat ? (
+            <p
+              className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
+              data-testid="case-with-pusat-note"
+            >
+              {t("escalatedToPusatNote")}
+            </p>
+          ) : null}
           <section className="space-y-[var(--ecmp-panel-gap)]">
             <Card>
               <CardBody>
@@ -786,7 +879,10 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             </section>
           ) : null}
 
-          {data.subject || data.description || data.resolution ? (
+          {data.subject ||
+          descriptionNarrative ||
+          handlingNotes.length > 0 ||
+          data.resolution ? (
             <section className="space-y-[var(--ecmp-panel-gap)]">
               <Card>
                 <CardBody className="space-y-[var(--ecmp-panel-gap)]">
@@ -798,20 +894,24 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                       </p>
                     </div>
                   ) : null}
-                  {data.description ? (
+                  {descriptionNarrative ? (
                     <div className="space-y-1">
                       <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                         {t("description")}
                       </p>
                       <p className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                        <KnowledgeReferenceText text={data.description} />
+                        <KnowledgeReferenceText text={descriptionNarrative} />
                       </p>
                     </div>
                   ) : null}
+                  <CaseHandlingNotes
+                    notes={handlingNotes}
+                    divided={Boolean(data.subject || descriptionNarrative)}
+                  />
                   <div
                     className={cn(
                       "space-y-1",
-                      Boolean(data.description?.trim()) &&
+                      Boolean(descriptionNarrative || handlingNotes.length > 0) &&
                         "border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]",
                     )}
                   >
@@ -871,8 +971,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           />
 
           <CaseHistoryPanel
-            caseId={data.caseId}
-            refreshKey={data.updatedAt ?? data.status}
+            entries={history.entries}
+            loading={history.loading}
+            error={history.error}
           />
 
           <div
@@ -897,6 +998,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 disabled={cancellingEscalation}
               >
                 {tComplaints("cancelEscalation")}
+              </Button>
+            ) : null}
+            {showEscalateToPusat ? (
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="case-escalate-to-pusat"
+                onClick={() => setEscalateOpen(true)}
+                disabled={escalating}
+              >
+                {t("escalateToPusat")}
               </Button>
             ) : null}
             {canReassign && claimedBySomeone && !caseFinished && !hideBranchActions ? (
@@ -929,7 +1041,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             open={resolveOpen}
             onClose={() => setResolveOpen(false)}
             caseId={data.caseId}
-            onEscalate={() => goToComplaintPenanganan({ escalate: true })}
             onResolved={(next) => {
               setData(next);
               showSuccess(
@@ -1032,6 +1143,58 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         </label>
       </Modal>
       <Modal
+        open={escalateOpen}
+        onClose={() => {
+          if (escalating) return;
+          setEscalateOpen(false);
+        }}
+        title={t("escalateToPusatTitle")}
+        size="md"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setEscalateOpen(false)}
+              disabled={escalating}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={escalating}
+              disabled={!escalateReasonOk}
+              onClick={() => void submitEscalateToPusat()}
+            >
+              {t("escalateToPusatSubmit")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">{t("escalateToPusatBody")}</p>
+          <ReasonPresetTags
+            presets={
+              escalatePresets["cm_batch1.rerequest_escalation_reason_presets"] ??
+              []
+            }
+            value={escalateReason}
+            onSelect={setEscalateReason}
+          />
+          <Textarea
+            name="escalateToPusatReason"
+            label={t("escalateToPusatReasonLabel")}
+            hint={t("escalateToPusatReasonHint")}
+            value={escalateReason}
+            onChange={(event) => setEscalateReason(event.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={escalating}
+            required
+          />
+        </div>
+      </Modal>
+      <Modal
         open={cancelOpen}
         onClose={() => (!cancellingEscalation ? setCancelOpen(false) : undefined)}
         title={tComplaints("cancelEscalationTitle")}
@@ -1068,9 +1231,14 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             presets={
               cancelPresets["cm_batch1.cancel_escalation_note_presets"] ?? []
             }
-            onSelect={setCancelNote}
+            value={cancelNote}
+            onSelect={(next) => {
+              setCancelNote(next);
+              setCancelNoteCaretTick((tick) => tick + 1);
+            }}
           />
           <Textarea
+            ref={cancelNoteRef}
             name="cancelEscalationNote"
             label={tComplaints("cancelEscalationNoteLabel")}
             hint={tComplaints("cancelEscalationNoteHint")}

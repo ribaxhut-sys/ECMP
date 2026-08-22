@@ -127,8 +127,8 @@ const messages = {
     intakeEventLogEmpty: "Belum ada kejadian tercatat.",
     intakeEventLogUnavailable: "Log kejadian tidak dapat dimuat",
     intakeEventLogUnavailableDescription: "Muat ulang halaman.",
-    intakeEventLogExpandAll: "Buka semua",
-    intakeEventLogCollapseAll: "Tutup semua",
+    intakeEventLogExpandAll: "Buka semua catatan",
+    intakeEventLogCollapseAll: "Tutup semua catatan",
     intakeEventLogShowNote: "Lihat catatan",
     intakeEventLogHideNote: "Sembunyikan catatan",
     intakeEventNoteEmpty: "Tidak ada catatan",
@@ -496,7 +496,7 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
     );
   });
 
-  it("keeps a single page-level re-request CTA after cancel, not a duplicate in Penanganan", async () => {
+  it("does not offer parent re-request after cancel (DEC-029)", async () => {
     fetchCmBatch1Complaint.mockResolvedValue({
       data: baseComplaint({
         status: "IN_PROGRESS",
@@ -505,11 +505,10 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
       }),
     });
     renderView();
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Ajukan ulang eskalasi" }),
-      ).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(lastPenangananProps).not.toBeNull());
+    expect(
+      screen.queryByRole("button", { name: "Ajukan ulang eskalasi" }),
+    ).not.toBeInTheDocument();
     expect(lastPenangananProps!.allowEscalate).toBe(false);
     expect(lastPenangananProps!.onRequestHqEscalation).toBeUndefined();
   });
@@ -580,6 +579,31 @@ describe("CmBatch1ConfirmationView — section layout", () => {
     expect(screen.queryByText("Catatan")).not.toBeInTheDocument();
   });
 
+  it("hides intake Catatan on the complaint card once a Case exists", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ caseCreated: true }),
+    });
+    renderView();
+    await waitFor(() => screen.getByText("Narasi keluhan"));
+    expect(
+      screen.queryByText("Sudah diinfokan ke wajib pajak"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Catatan")).not.toBeInTheDocument();
+  });
+
+  it("renders the Case table panel above the description panel", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
+    const { container } = renderView();
+    await waitFor(() => screen.getByText("PenangananSection"));
+    const html = container.innerHTML;
+    expect(html.indexOf("PenangananSection")).toBeLessThan(
+      html.indexOf("Narasi keluhan"),
+    );
+    expect(html.indexOf("PenangananSection")).toBeLessThan(
+      html.indexOf("Deskripsi"),
+    );
+  });
+
   it("renders the attachments card before the Riwayat Pengaduan section", async () => {
     fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
     const { container } = renderView();
@@ -596,6 +620,18 @@ describe("CmBatch1ConfirmationView — section layout", () => {
     await waitFor(() =>
       expect(screen.getByText("Riwayat Pengaduan")).toBeInTheDocument(),
     );
+  });
+
+  it("does not render an expand-all notes button on the history log", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
+    renderView();
+    await waitFor(() => screen.getByText("Riwayat Pengaduan"));
+    expect(
+      screen.queryByRole("button", { name: "Buka semua catatan" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Tutup semua catatan" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -654,6 +690,37 @@ describe("CmBatch1ConfirmationView — history event filter", () => {
     expect(
       screen.queryByText("Mengambil alih penanganan pengaduan"),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps Case close as a milestone without the work note body", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ caseCreated: true }),
+    });
+    fetchCmBatch1ComplaintHistory.mockResolvedValue({
+      data: [
+        {
+          entryId: "1",
+          eventCode: "REGISTERED",
+          eventType: "REGISTERED",
+          occurredAt: "2026-08-10T01:00:00Z",
+          actorName: "Ani",
+        },
+        {
+          entryId: "2",
+          eventCode: "CASE_CLOSED",
+          eventType: "CaseClosed",
+          occurredAt: "2026-08-11T01:00:00Z",
+          caseNumber: "TAB-2608-0001",
+          actorName: "Budi",
+          note: "Kasus selesai ditangani",
+        },
+      ] satisfies CmBatch1IntakeHistoryEntry[],
+    });
+    renderView();
+    await waitFor(() => screen.getByText("Pengaduan ditutup"));
+    expect(screen.getByText("TAB-2608-0001")).toBeInTheDocument();
+    expect(screen.queryByText("Kasus selesai ditangani")).not.toBeInTheDocument();
+    expect(screen.queryByText("Lihat catatan")).not.toBeInTheDocument();
   });
 
   it("shows the taxpayer visit slot on the HQ arrival history header, not the later complaint SoT", async () => {

@@ -31,12 +31,13 @@ export function resolveCaseHqPath(input: {
   };
 }
 
-/** Hide cabang resolve/reassign/claim while parent is on HQ path and Case work is still open. */
+/** Hide cabang resolve/reassign/claim while parent is on HQ path or this Case is with Pusat. */
 export function hideCaseBranchWorkActions(
   onHqPath: boolean,
   caseStatus: string | null | undefined,
+  escalatedToPusat = false,
 ): boolean {
-  if (!onHqPath) return false;
+  if (!onHqPath && !escalatedToPusat) return false;
   const status = (caseStatus || "").trim().toUpperCase();
   return status !== "RESOLVED" && status !== "CLOSED" && status !== "CANCELLED";
 }

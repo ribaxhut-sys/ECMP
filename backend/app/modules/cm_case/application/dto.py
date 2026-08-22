@@ -88,6 +88,16 @@ class RecordAcceptanceCommand:
     note: str | None = None
 
 
+@dataclass(frozen=True)
+class EscalateToPusatCommand:
+    """DEC-029 / API-520 lab — escalate this Case to Pusat (not parent intake)."""
+
+    case_id: str
+    reason: str
+    actor_id: str
+    actor_unit_id: str | None = None
+
+
 @dataclass
 class ResolutionDTO:
     resolution_id: str
@@ -133,6 +143,9 @@ class CaseSummaryDTO:
     owner_unit_id: str | None = None
     customer_id: str | None = None
     complaint_number: str | None = None
+    escalated_to_pusat: bool = False
+    owning_unit: str = "BRANCH"
+    escalation_reason: str | None = None
 
 
 @dataclass
@@ -165,3 +178,7 @@ class CaseDTO:
     handling_unit_acceptance: AcceptanceDTO | None = None
     owner_acceptance: AcceptanceDTO | None = None
     acceptance_history: list[AcceptanceDTO] = field(default_factory=list)
+    escalated_to_pusat: bool = False
+    owning_unit: str = "BRANCH"
+    escalation_reason: str | None = None
+    escalated_at: datetime | None = None

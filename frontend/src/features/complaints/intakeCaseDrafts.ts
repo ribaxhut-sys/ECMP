@@ -34,7 +34,8 @@ export interface IntakeCaseDecisionRow {
 }
 
 export function parseIntakeCaseAction(raw: unknown): IntakeCaseAction {
-  if (raw === "close" || raw === "escalate" || raw === "register") return raw;
+  if (raw === "close" || raw === "register") return raw;
+  // DEC-029: leftover "escalate" drafts register the Case (parent path retired).
   return "register";
 }
 

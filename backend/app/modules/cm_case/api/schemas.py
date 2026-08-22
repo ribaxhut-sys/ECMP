@@ -30,6 +30,9 @@ class CaseSummaryResponse(BaseModel):
     handling_claimed_by_name: str | None = Field(
         default=None, alias="handlingClaimedByName"
     )
+    escalated_to_pusat: bool = Field(default=False, alias="escalatedToPusat")
+    owning_unit: str = Field(default="BRANCH", alias="owningUnit")
+    escalation_reason: str | None = Field(default=None, alias="escalationReason")
 
 
 class CaseResolutionResponse(BaseModel):
@@ -109,6 +112,10 @@ class CaseResponse(BaseModel):
     acceptance_history: list[CaseAcceptanceResponse] = Field(
         default_factory=list, alias="acceptanceHistory"
     )
+    escalated_to_pusat: bool = Field(default=False, alias="escalatedToPusat")
+    owning_unit: str = Field(default="BRANCH", alias="owningUnit")
+    escalation_reason: str | None = Field(default=None, alias="escalationReason")
+    escalated_at: datetime | None = Field(default=None, alias="escalatedAt")
 
 
 class CreateCaseRequest(BaseModel):
@@ -168,6 +175,14 @@ class CloseCaseRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     note: str | None = None
+
+
+class EscalateToPusatRequest(BaseModel):
+    """DEC-029 / API-520 lab — reason min 20 after trim (domain)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    reason: str
 
 
 class CaseHistoryEntry(BaseModel):

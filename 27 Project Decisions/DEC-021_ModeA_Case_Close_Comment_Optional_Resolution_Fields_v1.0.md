@@ -15,7 +15,7 @@
    - `summary` = Comment text (trimmed)
 3. **`action=PROPOSE`:** same optionality (sentinel) for contract symmetry; primary cabang UX uses ACCEPT path labeled **Tutup**.
 4. **`action=REJECT`:** unchanged — `rejectionReason` (or comment-as-reason) required.
-5. **Eskalasi Pusat** is **not** a Case resolve action — UI navigates to parent Complaint penanganan (Aggregate).
+5. **Eskalasi Pusat** is **not** a Case resolve action. **Amended DEC-029 (2026-08-22):** ajuan dari halaman Case (`API-520` lab); bukan `ACCEPT`/`PROPOSE`, bukan navigasi ke pengaduan induk.
 6. Close Case still obeys checklist / F4 dual acceptance where enforced; UX **Tutup** may orchestrate ACCEPT → Owner ACCEPT (when required) → CLOSED without inventing acceptances when already satisfied.
 
 ## Conditions
@@ -29,4 +29,4 @@
 - OpenAPI `cm-case-management.v1.yaml` API-534  
 - Domain `CaseAggregate.resolve`  
 - FRD-CM-B2-001 AC-12 note (Mode A branch)  
-- FE Resolve dialog (Tutup / Eskalasi / Tolak)
+- FE Resolve dialog (Tutup / Tolak). CTA eskalasi: halaman Case (DEC-029).

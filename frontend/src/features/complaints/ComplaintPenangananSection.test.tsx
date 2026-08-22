@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import type { ComponentProps } from "react";
@@ -60,7 +60,7 @@ const messages = {
     penangananView: "Lihat",
     penangananHandler: "Petugas",
     penangananHandledBy: "Ditangani oleh {name}",
-    penangananReassign: "Alihkan penanganan",
+    penangananReassign: "Alihkan",
     penangananReassignTitle: "Alihkan ke petugas lain?",
     penangananReassignBody: "Pilih petugas.",
     penangananReassignPick: "Petugas baru",
@@ -193,6 +193,10 @@ describe("ComplaintPenangananSection", () => {
     });
     expect(screen.getByRole("heading", { name: "Belum selesai (cabang)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Selesai" })).toBeInTheDocument();
+    const openTable = screen.getByRole("table", { name: "Belum selesai (cabang)" });
+    expect(openTable).toHaveClass("table-fixed");
+    expect(within(openTable).getAllByRole("columnheader")).toHaveLength(5);
+    expect(within(openTable).queryByText("Petugas")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lanjutkan" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CASE-1" })).toHaveAttribute(
       "href",
@@ -234,6 +238,7 @@ describe("ComplaintPenangananSection", () => {
     await waitFor(() => {
       expect(screen.getByText("Terakhir")).toBeInTheDocument();
       expect(screen.getByText("Status Case diubah")).toBeInTheDocument();
+      expect(screen.queryByText(/21 Agustus|August/i)).not.toBeInTheDocument();
     });
   });
 
@@ -296,6 +301,7 @@ describe("ComplaintPenangananSection", () => {
             category: "BILLING",
             subject: "Tagihan",
             description: "Detail tagihan",
+            intakeNote: "Sudah diinfokan ke wajib pajak",
             priority: "HIGH",
           }}
         />
@@ -304,6 +310,10 @@ describe("ComplaintPenangananSection", () => {
 
     await waitFor(() => {
       expect(createCmCase).toHaveBeenCalled();
+    });
+    expect(createCmCase.mock.calls[0]?.[0]).toMatchObject({
+      note: "Sudah diinfokan ke wajib pajak",
+      description: "Detail tagihan",
     });
     expect(push).not.toHaveBeenCalled();
   });
@@ -438,7 +448,9 @@ describe("ComplaintPenangananSection", () => {
     expect(
       screen.queryByRole("button", { name: "Ajukan eskalasi ke Pusat" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Dewi Hidayat")).toBeInTheDocument();
+    expect(screen.queryByText("Dewi Hidayat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Petugas")).not.toBeInTheDocument();
+    expect(screen.queryByText("CRO")).not.toBeInTheDocument();
   });
 
   it("labels the HQ group as taxpayer arrival schedule once HQ_SCHEDULED", async () => {

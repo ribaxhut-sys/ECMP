@@ -28,6 +28,7 @@ _EXTRA_EVENT_CODES = {
     "CaseHandlingUnitRejected": "CASE_HANDLING_UNIT_REJECTED",
     "CaseOwnerRejected": "CASE_OWNER_REJECTED",
     "ResolutionUpdated": "RESOLUTION_UPDATED",
+    "CaseEscalatedToPusat": "CASE_ESCALATED_TO_PUSAT",
 }
 
 # Complaint-scoped HQ path — no caseId on the timeline row, but Penanganan

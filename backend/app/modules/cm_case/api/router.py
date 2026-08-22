@@ -13,6 +13,7 @@ from app.core.auth import (
     OrgUnitResolver,
     Principal,
     enforce_org_scope,
+    require_any_permission,
     require_permissions,
 )
 from app.core.authorization.case_acceptance import (
@@ -20,6 +21,7 @@ from app.core.authorization.case_acceptance import (
     assert_case_resolve_accept_authorized,
 )
 from app.core.authorization.org_unit_guard import enforce_org_scope_any
+from app.core.authorization.visibility import VisibilityClass, resolve_case_visibility
 from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
@@ -34,6 +36,7 @@ from app.modules.cm_case.api.schemas import (
     CaseSummaryResponse,
     CloseCaseRequest,
     CreateCaseRequest,
+    EscalateToPusatRequest,
     RecordAcceptanceRequest,
     ResolveCaseRequest,
     UpdateCaseStatusRequest,
@@ -43,6 +46,7 @@ from app.modules.cm_case.application.dto import (
     CaseDTO,
     CloseCaseCommand,
     CreateCaseCommand,
+    EscalateToPusatCommand,
     RecordAcceptanceCommand,
     ResolveCaseCommand,
     UpdateStatusCommand,
@@ -203,6 +207,10 @@ def _to_response(dto: CaseDTO, *, session: Session | None = None) -> CaseRespons
         handlingUnitAcceptance=acc(dto.handling_unit_acceptance),
         ownerAcceptance=acc(dto.owner_acceptance),
         acceptanceHistory=[acc(a) for a in dto.acceptance_history],
+        escalatedToPusat=dto.escalated_to_pusat,
+        owningUnit=dto.owning_unit,
+        escalationReason=dto.escalation_reason,
+        escalatedAt=dto.escalated_at,
     )
 
 
@@ -257,6 +265,9 @@ def list_cases(
                     if i.handling_claimed_by
                     else None
                 ),
+                escalatedToPusat=i.escalated_to_pusat,
+                owningUnit=i.owning_unit,
+                escalationReason=i.escalation_reason,
             )
             for i in items
         ],
@@ -321,6 +332,14 @@ def add_case(
     return DataResponse(data=_to_response(dto, session=session))
 
 
+def _pusat_may_read_escalated(principal: Principal, escalated: bool) -> bool:
+    """DEC-029: Pusat handlers read Cases flagged to Pusat without rewriting unit."""
+    if not escalated:
+        return False
+    vis = resolve_case_visibility(principal)
+    return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
+
+
 @router.get("/api/v1/cm/cases/{case_id}")
 def get_case(
     case_id: str,
@@ -333,14 +352,18 @@ def get_case(
     """SECMIG-P4 parity: org scope on approved read (after permission).
 
     F4: Owner unit retains visibility after Handling Unit transfer.
+    DEC-029: Pusat may read a Case flagged ``escalatedToPusat`` even though
+    originating ``owningUnitId`` stays the branch (DEC-028).
     """
     units = OrgUnitResolver(session).resolve_case_units(case_id)
-    enforce_org_scope_any(
-        principal,
-        (units.handling_unit_id, units.owner_unit_id),
-        settings,
-    )
+    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
+    if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
+        enforce_org_scope_any(
+            principal,
+            (units.handling_unit_id, units.owner_unit_id),
+            settings,
+        )
     return DataResponse(data=_to_response(dto, session=session))
 
 
@@ -356,12 +379,14 @@ def get_case_history(
 ) -> ListResponse[CaseHistoryEntry]:
     """API-537 / UC-CAP02-07 — this Case, plus parent HQ-path events."""
     units = OrgUnitResolver(session).resolve_case_units(case_id)
-    enforce_org_scope_any(
-        principal,
-        (units.handling_unit_id, units.owner_unit_id),
-        settings,
-    )
+    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
+    if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
+        enforce_org_scope_any(
+            principal,
+            (units.handling_unit_id, units.owner_unit_id),
+            settings,
+        )
     items = history.list_for_case(dto)
     return _history_list_response(items)
 
@@ -439,6 +464,38 @@ def resolve_case(
             attachment_ids=list(body.attachment_ids or []),
             rejection_reason=body.rejection_reason,
             actor_unit_id=actor_unit,
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/cm/cases/{case_id}/escalate-to-pusat")
+def escalate_case_to_pusat(
+    case_id: str,
+    body: EscalateToPusatRequest,
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission("complaints:create", "complaints:escalate")),
+    ],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> DataResponse[CaseResponse]:
+    """DEC-029 / API-520 lab — escalate this Case to Pusat (BQ-009: no ESCALATED)."""
+    _ = idempotency_key
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    enforce_org_scope_any(
+        principal,
+        (units.handling_unit_id, units.owner_unit_id),
+        settings,
+    )
+    dto = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=case_id,
+            reason=body.reason,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
         )
     )
     return DataResponse(data=_to_response(dto, session=session))

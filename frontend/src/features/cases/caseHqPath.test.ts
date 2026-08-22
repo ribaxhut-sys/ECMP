@@ -49,6 +49,11 @@ describe("hideCaseBranchWorkActions", () => {
   it("does not hide when parent is not on the HQ path", () => {
     expect(hideCaseBranchWorkActions(false, "IN_PROGRESS")).toBe(false);
   });
+
+  it("hides branch work when this Case is with Pusat (DEC-029)", () => {
+    expect(hideCaseBranchWorkActions(false, "IN_PROGRESS", true)).toBe(true);
+    expect(hideCaseBranchWorkActions(false, "RESOLVED", true)).toBe(false);
+  });
 });
 
 describe("showCaseCancelEscalation", () => {

@@ -5,7 +5,8 @@ decides which rows a principal may see.
 
 Used by CAP-008 Case list and CM Batch-1 Aggregate list. Pusat handler
 predicate for complaints (escalated / HQ-accepted) is applied by the caller —
-Case list still filters PUSAT by owning unit codes only until API-520.
+Case list still filters PUSAT by owning unit codes **or** ``escalated_to_pusat``
+(DEC-029 / API-520 lab). Originating ``owning_unit_id`` is not overwritten.
 """
 
 from __future__ import annotations

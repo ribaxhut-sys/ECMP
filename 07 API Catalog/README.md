@@ -246,7 +246,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
-| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟡 Planned |
+| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟢 Implemented (lab, DEC-029) — API-521…526 remain Planned |
 | API-521 | API-CM-F4-002 | POST /api/v1/cm/cases/{caseId}/return-escalation | FR-CM-011 | 🟡 Planned |
 | API-522 | API-CM-F4-003 | GET /api/v1/cm/pusat/escalated-queue | FR-CM-012 | 🟡 Planned |
 | API-523 | API-CM-F4-004 | POST /api/v1/cm/cases/{caseId}/resolve | FR-CM-013 | 🟡 Planned |

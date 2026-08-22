@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isCaseSummaryEvent,
   isCaseWorkDetailEvent,
   latestCaseHistoryEvent,
 } from "./complaintHistoryScope";
@@ -18,6 +19,15 @@ describe("isCaseWorkDetailEvent", () => {
     expect(isCaseWorkDetailEvent("CASE_CREATED")).toBe(false);
     expect(isCaseWorkDetailEvent("CASE_CLOSED")).toBe(false);
     expect(isCaseWorkDetailEvent("CASE_CANCELLED")).toBe(false);
+  });
+});
+
+describe("isCaseSummaryEvent", () => {
+  it("marks Case milestone rows whose note body belongs on the Case page", () => {
+    expect(isCaseSummaryEvent("CASE_CREATED")).toBe(true);
+    expect(isCaseSummaryEvent("CASE_CLOSED")).toBe(true);
+    expect(isCaseSummaryEvent("case_resolved")).toBe(true);
+    expect(isCaseSummaryEvent("REGISTERED")).toBe(false);
   });
 });
 

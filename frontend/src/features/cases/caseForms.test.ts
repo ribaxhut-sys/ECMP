@@ -127,13 +127,13 @@ describe("validateResolveCaseForm", () => {
     expect(errors.rejectionReason).toBeTruthy();
   });
 
-  it("skips field checks for ESCALATE intent", () => {
+  it("requires comment for CLOSE", () => {
     expect(
       validateResolveCaseForm({
         ...emptyResolveCaseForm(),
-        intent: "ESCALATE",
+        intent: "CLOSE",
       }),
-    ).toEqual({});
+    ).toEqual({ comment: "commentRequired" });
   });
 });
 

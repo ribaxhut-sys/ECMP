@@ -15,11 +15,10 @@ import {
   Button,
   Modal,
   ModalSection,
-  ReasonPresetTags,
   Select,
 } from "@/shared/ui";
 import { useReasonPresets } from "@/shared/hooks";
-import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import {
   emptyResolveCaseForm,
   toResolveCaseRequest,
@@ -40,28 +39,25 @@ const INTENT_OPTIONS: {
   label: string;
 }[] = [
   { value: "CLOSE", label: "actionClose" },
-  { value: "ESCALATE", label: "actionEscalate" },
   { value: "REJECT", label: "actionReject" },
 ];
 
 /**
  * DEC-021 Mode A resolve dialog:
  * - Tutup → ACCEPT (comment only) + Owner ACCEPT if needed + close when allowed
- * - Eskalasi → parent callback (Aggregate), no Case resolve API
  * - Tolak → REJECT + rejectionReason
+ * Eskalasi ke Pusat is a Case-page CTA (DEC-029), not a resolve action.
  */
 export function ResolveCaseDialog({
   open,
   onClose,
   caseId,
   onResolved,
-  onEscalate,
 }: {
   open: boolean;
   onClose: () => void;
   caseId: string;
   onResolved?: (caseData: CmCase) => void;
-  onEscalate?: () => void;
 }) {
   const t = useTranslations("cases");
   const tValidation = useTranslations("validation");
@@ -127,12 +123,6 @@ export function ResolveCaseDialog({
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    if (values.intent === "ESCALATE") {
-      handleClose();
-      onEscalate?.();
-      return;
-    }
-
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -170,9 +160,7 @@ export function ResolveCaseDialog({
             {t("back")}
           </Button>
           <Button onClick={() => void submit()} loading={submitting}>
-            {values.intent === "ESCALATE"
-              ? t("continueEscalate")
-              : t("submitResolution")}
+            {t("submitResolution")}
           </Button>
         </>
       }
@@ -200,13 +188,6 @@ export function ResolveCaseDialog({
             label: t(option.label),
           }))}
         />
-        {values.intent === "ESCALATE" ? (
-          <Alert
-            tone="info"
-            title={t("escalateViaParentTitle")}
-            description={t("escalateViaParentBody")}
-          />
-        ) : null}
         {values.intent === "CLOSE" ? (
           <Alert
             tone="info"
@@ -214,33 +195,23 @@ export function ResolveCaseDialog({
             description={t("closeCommentOnlyBody")}
           />
         ) : null}
-        {values.intent !== "ESCALATE" ? (
-          <>
-            <ReasonPresetTags
-              presets={presets[RESOLUTION_COMMENT_PRESET_KEY] ?? []}
-              onSelect={(preset) => setField("comment", preset)}
-            />
-            <KnowledgeMentionTextarea
-              name="comment"
-              label={t("commentRequired")}
-              value={values.comment}
-              onChange={(next) => setField("comment", next)}
-              error={
-                fieldErrors.comment
-                  ? tValidation(fieldErrors.comment)
-                  : undefined
-              }
-              required
-            />
-          </>
-        ) : null}
+        <PresetTextField
+          presets={presets[RESOLUTION_COMMENT_PRESET_KEY] ?? []}
+          name="comment"
+          label={t("commentRequired")}
+          value={values.comment}
+          onChange={(next) => setField("comment", next)}
+          error={
+            fieldErrors.comment
+              ? tValidation(fieldErrors.comment)
+              : undefined
+          }
+          required
+        />
         {values.intent === "REJECT" ? (
           <>
-            <ReasonPresetTags
+            <PresetTextField
               presets={presets[REJECTION_REASON_PRESET_KEY] ?? []}
-              onSelect={(preset) => setField("rejectionReason", preset)}
-            />
-            <KnowledgeMentionTextarea
               name="rejectionReason"
               label={t("rejectionReason")}
               value={values.rejectionReason}

@@ -9,6 +9,7 @@
 import { PUSAT_UNIT_ROOT_CODES, isPusatUnitCode } from "@/shared/utils";
 
 import { isHqIntakeDisposition } from "./penangananGroups";
+import { isCaseSummaryEvent } from "./complaintHistoryScope";
 
 /** Matches backend gates._ESCALATION_REVIEW_ROLES */
 export const CM_BATCH1_HQ_REVIEW_ROLES = [
@@ -150,19 +151,12 @@ export function resolveCmBatch1BranchEscalationCtas(
     !hqAccepted &&
     status !== "CLOSED" &&
     !input.hasBoundCase;
-  const canReRequestDisposition =
-    status !== "CLOSED" &&
-    (disposition === "ESCALATE_CANCELLED" ||
-      disposition === "ESCALATE_REJECTED" ||
-      disposition === "RETURNED_TO_BRANCH");
   return {
     pendingEscalation,
     showSupervisorActions: pendingEscalation && input.canDecideEscalation,
     showCancelEscalation,
-    showReRequestEscalation:
-      canReRequestDisposition &&
-      input.canRequestEscalation &&
-      !hqAccepted,
+    // DEC-029: re-request from the parent complaint is retired.
+    showReRequestEscalation: false,
     showManageCases:
       !closed &&
       !onHqPath &&
@@ -248,9 +242,16 @@ export function intakeHistoryShowsPriority(
   return true;
 }
 
-/** Catatan belongs on REGISTERED; branch-close is status-only. */
+/**
+ * Catatan on the complaint log: REGISTERED / HQ / eskalasi.
+ * BRANCH_CLOSED is status-only. Case milestone notes belong on the Case page
+ * (BR-017) — keep the one-line CASE_CREATED / CLOSED / RESOLVED / CANCELLED.
+ */
 export function intakeHistoryShowsNote(eventCode: string): boolean {
-  return eventCode.trim().toUpperCase() !== "BRANCH_CLOSED";
+  const code = eventCode.trim().toUpperCase();
+  if (code === "BRANCH_CLOSED") return false;
+  if (isCaseSummaryEvent(code)) return false;
+  return true;
 }
 
 const CLOSE_EVENT_CODES = new Set([

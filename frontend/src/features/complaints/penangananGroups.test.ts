@@ -24,6 +24,18 @@ describe("penangananGroups", () => {
     expect(penangananGroupForStatus("CANCELLED")).toBe("cancelled");
   });
 
+  it("moves only the flagged Case to pusat (DEC-029)", () => {
+    expect(
+      penangananGroupForStatus("IN_PROGRESS", { escalatedToPusat: true }),
+    ).toBe("pusat");
+    const parts = partitionPenanganan([
+      { status: "IN_PROGRESS", id: "a", escalatedToPusat: true },
+      { status: "IN_PROGRESS", id: "b" },
+    ]);
+    expect(parts.pusat.map((x) => x.id)).toEqual(["a"]);
+    expect(parts.open.map((x) => x.id)).toEqual(["b"]);
+  });
+
   it("moves open cases to pusat when complaint is on HQ intake path", () => {
     expect(
       penangananGroupForStatus("ASSIGNED", { complaintOnHqPath: true }),

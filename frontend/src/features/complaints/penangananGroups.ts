@@ -121,12 +121,13 @@ export function isComplaintHandlingClosed(input: {
  */
 export function penangananGroupForStatus(
   status: string | null | undefined,
-  options?: { complaintOnHqPath?: boolean },
+  options?: { complaintOnHqPath?: boolean; escalatedToPusat?: boolean },
 ): PenangananGroupId {
   const s = (status || "").trim().toUpperCase();
   if (s === "CANCELLED") return "cancelled";
   if (s === "RESOLVED" || s === "CLOSED") return "done";
   if (s === "ESCALATED") return "pusat";
+  if (options?.escalatedToPusat) return "pusat";
   if (options?.complaintOnHqPath && s !== "") return "pusat";
   return "open";
 }
@@ -138,7 +139,9 @@ export interface PenangananPartitions<T extends { status: string }> {
   cancelled: T[];
 }
 
-export function partitionPenanganan<T extends { status: string }>(
+export function partitionPenanganan<
+  T extends { status: string; escalatedToPusat?: boolean },
+>(
   items: readonly T[],
   options?: { complaintOnHqPath?: boolean },
 ): PenangananPartitions<T> {
@@ -147,7 +150,10 @@ export function partitionPenanganan<T extends { status: string }>(
   const done: T[] = [];
   const cancelled: T[] = [];
   for (const item of items) {
-    const group = penangananGroupForStatus(item.status, options);
+    const group = penangananGroupForStatus(item.status, {
+      ...options,
+      escalatedToPusat: item.escalatedToPusat,
+    });
     if (group === "open") open.push(item);
     else if (group === "pusat") pusat.push(item);
     else if (group === "done") done.push(item);

@@ -165,8 +165,8 @@ export function toUpdateStatusRequest(
 }
 
 export interface ResolveCaseFormValues {
-  /** UI intent — maps to API action (CLOSE→ACCEPT, REJECT→REJECT; ESCALATE is navigation). */
-  intent: "CLOSE" | "ESCALATE" | "REJECT";
+  /** UI intent — maps to API action (CLOSE→ACCEPT, REJECT→REJECT). Eskalasi = CTA Case (DEC-029). */
+  intent: "CLOSE" | "REJECT";
   comment: string;
   rejectionReason: string;
 }
@@ -187,7 +187,6 @@ export function validateResolveCaseForm(
   values: ResolveCaseFormValues,
 ): ResolveCaseFieldErrors {
   const errors: ResolveCaseFieldErrors = {};
-  if (values.intent === "ESCALATE") return errors;
   if (!values.comment.trim()) errors.comment = "commentRequired";
   if (values.intent === "REJECT" && !values.rejectionReason.trim()) {
     errors.rejectionReason = "rejectionReasonRequired";

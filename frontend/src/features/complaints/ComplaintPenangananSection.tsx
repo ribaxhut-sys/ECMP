@@ -38,7 +38,7 @@ import {
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import { officerDisplayName } from "./officerDisplayName";
 import { useToast } from "@/shared/providers";
-import { formatDateTime24, formatHqArrivalSlot } from "@/shared/utils/datetime";
+import { formatHqArrivalSlot } from "@/shared/utils/datetime";
 import {
   CASE_LAST_EVENT_LABEL_KEYS,
   latestCaseHistoryEvent,
@@ -66,30 +66,6 @@ export const PENANGANAN_FOCUS_QUERY = "penanganan";
 /** Query value for `?action=escalate` — open HQ escalate re-request when allowed. */
 export const CASE_ESCALATE_ACTION_QUERY = "escalate";
 
-function statusLabelKey(status: string): string {
-  const s = status.trim().toUpperCase();
-  switch (s) {
-    case "CREATED":
-      return "penangananStatusCreated";
-    case "ASSIGNED":
-      return "penangananStatusAssigned";
-    case "IN_PROGRESS":
-      return "penangananStatusInProgress";
-    case "PENDING":
-      return "penangananStatusPending";
-    case "ESCALATED":
-      return "penangananStatusEscalated";
-    case "RESOLVED":
-      return "penangananStatusResolved";
-    case "CLOSED":
-      return "penangananStatusClosed";
-    case "CANCELLED":
-      return "penangananStatusCancelled";
-    default:
-      return "penangananStatusUnknown";
-  }
-}
-
 function PenangananGroupBlock({
   title,
   items,
@@ -97,7 +73,6 @@ function PenangananGroupBlock({
   escalateEnabled,
   currentUserId,
   canReassign,
-  handlerNames,
   onContinue,
   onView,
   onEscalate,
@@ -110,7 +85,6 @@ function PenangananGroupBlock({
   escalateEnabled: boolean;
   currentUserId: string | null;
   canReassign: boolean;
-  handlerNames: Record<string, string>;
   onContinue: (item: CmCaseSummary) => void;
   onView: (item: CmCaseSummary) => void;
   onEscalate: (item: CmCaseSummary) => void;
@@ -120,7 +94,6 @@ function PenangananGroupBlock({
   const t = useTranslations("complaints");
   const tCases = useTranslations("cases");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
   if (items.length === 0) return null;
 
   return (
@@ -132,16 +105,22 @@ function PenangananGroupBlock({
         <Badge tone="neutral">{items.length}</Badge>
       </div>
       <div className="overflow-x-auto rounded-[var(--ecmp-radius-table)] border border-ecmp-border/80 bg-ecmp-surface">
-        <table className="min-w-full text-left text-[length:var(--ecmp-font-body-size)]">
+        <table className="w-full min-w-[52rem] table-fixed text-left text-[length:var(--ecmp-font-body-size)]">
           <caption className="sr-only">{title}</caption>
+          <colgroup>
+            <col className="w-[11rem]" />
+            <col />
+            <col className="w-[10rem]" />
+            <col className="w-[12rem]" />
+            <col className="w-[13.5rem]" />
+          </colgroup>
           <thead className="border-b border-ecmp-border/80 bg-ecmp-surface-sunken/90 text-ecmp-text-secondary">
             <tr>
-              <Th>{t("number")}</Th>
-              <Th>{t("subject")}</Th>
-              <Th>{t("status")}</Th>
-              <Th>{t("penangananLastEvent")}</Th>
-              <Th>{t("penangananHandler")}</Th>
-              <Th className="text-right">{tCommon("actions")}</Th>
+              <Th className="whitespace-nowrap py-3">{t("number")}</Th>
+              <Th className="py-3">{t("subject")}</Th>
+              <Th className="whitespace-nowrap py-3">{t("status")}</Th>
+              <Th className="whitespace-nowrap py-3">{t("penangananLastEvent")}</Th>
+              <Th className="py-3 text-right">{tCommon("actions")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -150,7 +129,7 @@ function PenangananGroupBlock({
                 key={item.caseId}
                 className="border-b border-ecmp-border/50 align-middle last:border-0"
               >
-                <Td>
+                <Td className="whitespace-nowrap py-3">
                   <Link
                     href={`/complaints/cm/cases/${encodeURIComponent(item.caseId)}`}
                     className="font-mono text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
@@ -158,18 +137,15 @@ function PenangananGroupBlock({
                     {item.caseNumber}
                   </Link>
                 </Td>
-                <Td className="max-w-[18rem] truncate">
-                  {item.subject?.trim() || t("penangananNoSubject")}
+                <Td className="min-w-0 py-3">
+                  <span className="block truncate">
+                    {item.subject?.trim() || t("penangananNoSubject")}
+                  </span>
                 </Td>
-                <Td>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CaseStatusBadge status={item.status} />
-                    <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                      {t(statusLabelKey(item.status), { status: item.status })}
-                    </span>
-                  </div>
+                <Td className="whitespace-nowrap py-3">
+                  <CaseStatusBadge status={item.status} />
                 </Td>
-                <Td>
+                <Td className="py-3">
                   {(() => {
                     const last = latestCaseHistoryEvent(
                       caseHistory,
@@ -181,32 +157,14 @@ function PenangananGroupBlock({
                         last.eventCode.trim().toUpperCase()
                       ];
                     return (
-                      <div className="space-y-0.5">
-                        <div>
-                          {labelKey ? tCases(labelKey) : last.eventCode}
-                        </div>
-                        <div className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                          {formatDateTime24(last.occurredAt, locale) ||
-                            tCommon("emDash")}
-                        </div>
-                      </div>
+                      <span className="block truncate">
+                        {labelKey ? tCases(labelKey) : last.eventCode}
+                      </span>
                     );
                   })()}
                 </Td>
-                <Td>
-                  {(() => {
-                    const claimed = item.handlingClaimedBy?.trim();
-                    if (!claimed) return tCommon("emDash");
-                    return (
-                      officerDisplayName(
-                        item.handlingClaimedByName,
-                        handlerNames[claimed.toLowerCase()],
-                      ) || tCommon("emDash")
-                    );
-                  })()}
-                </Td>
-                <Td className="text-right">
-                  <div className="flex flex-wrap justify-end gap-2">
+                <Td className="whitespace-nowrap py-3 text-right">
+                  <div className="flex flex-nowrap items-center justify-end gap-2">
                     {continueOnOpen &&
                     canClaimHandling({
                       handlingClaimedBy: item.handlingClaimedBy,
@@ -306,6 +264,8 @@ export function ComplaintPenangananSection({
     category?: string | null;
     subject?: string | null;
     description?: string | null;
+    /** Intake Catatan — stored on CaseCreated, not the complaint card. */
+    intakeNote?: string | null;
     priority?: string | null;
     destinationUnitId?: string | null;
   } | null;
@@ -544,7 +504,9 @@ export function ComplaintPenangananSection({
         destinationUnitId: seed?.destinationUnitId?.trim() || "",
       });
       const res = await createCmCase(
-        toCreateCaseRequest(complaintId, values),
+        toCreateCaseRequest(complaintId, values, {
+          note: seed?.intakeNote?.trim() || null,
+        }),
         {
           idempotencyKey:
             typeof crypto !== "undefined" && crypto.randomUUID
@@ -765,7 +727,6 @@ export function ComplaintPenangananSection({
             )}
             currentUserId={user?.id ?? null}
             canReassign={canReassign}
-            handlerNames={handlerNames}
             caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}
@@ -782,7 +743,6 @@ export function ComplaintPenangananSection({
             escalateEnabled={false}
             currentUserId={user?.id ?? null}
             canReassign={false}
-            handlerNames={handlerNames}
             caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}
@@ -796,7 +756,6 @@ export function ComplaintPenangananSection({
             escalateEnabled={false}
             currentUserId={user?.id ?? null}
             canReassign={false}
-            handlerNames={handlerNames}
             caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}
@@ -810,7 +769,6 @@ export function ComplaintPenangananSection({
             escalateEnabled={false}
             currentUserId={user?.id ?? null}
             canReassign={false}
-            handlerNames={handlerNames}
             caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}

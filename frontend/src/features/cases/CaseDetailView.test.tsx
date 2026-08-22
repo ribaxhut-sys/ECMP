@@ -8,7 +8,9 @@ const fetchCmCase = vi.fn();
 const fetchCmBatch1Complaint = vi.fn();
 const fetchCmBatch1Customer360 = vi.fn();
 const fetchUsers = vi.fn();
+const fetchCmCaseHistory = vi.fn();
 const decideCmBatch1IntakeEscalation = vi.fn();
+const escalateCmCaseToPusat = vi.fn();
 const hasPermission = vi.fn((code: string) =>
   code === "complaints:read" ||
   code === "complaints:update" ||
@@ -43,8 +45,11 @@ vi.mock("@/lib/api", async () => {
     fetchCmBatch1Customer360: (...args: unknown[]) =>
       fetchCmBatch1Customer360(...args),
     fetchUsers: (...args: unknown[]) => fetchUsers(...args),
+    fetchCmCaseHistory: (...args: unknown[]) => fetchCmCaseHistory(...args),
     decideCmBatch1IntakeEscalation: (...args: unknown[]) =>
       decideCmBatch1IntakeEscalation(...args),
+    escalateCmCaseToPusat: (...args: unknown[]) =>
+      escalateCmCaseToPusat(...args),
   };
 });
 
@@ -107,7 +112,9 @@ describe("CaseDetailView HQ path", () => {
     fetchCmBatch1Complaint.mockReset();
     fetchCmBatch1Customer360.mockReset();
     fetchUsers.mockReset();
+    fetchCmCaseHistory.mockReset();
     decideCmBatch1IntakeEscalation.mockReset();
+    escalateCmCaseToPusat.mockReset();
     hasPermission.mockImplementation(
       (code: string) =>
         code === "complaints:read" ||
@@ -120,6 +127,7 @@ describe("CaseDetailView HQ path", () => {
     fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
     fetchCmBatch1Customer360.mockResolvedValue({ data: { profile: {} } });
     fetchUsers.mockResolvedValue({ data: [] });
+    fetchCmCaseHistory.mockResolvedValue({ data: [] });
   });
 
   it("keeps resolve and handler title while the parent is still at the branch", async () => {
@@ -133,7 +141,10 @@ describe("CaseDetailView HQ path", () => {
     });
     expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Reassign handling" }),
+      screen.getByRole("button", { name: "Request escalation to HQ" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reassign" }),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("case-hq-schedule-card")).not.toBeInTheDocument();
   });
@@ -163,7 +174,7 @@ describe("CaseDetailView HQ path", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Reassign handling" }),
+      screen.queryByRole("button", { name: "Reassign" }),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("case-hq-schedule-card")).toHaveAttribute(
       "data-tone",
@@ -247,5 +258,107 @@ describe("CaseDetailView HQ path", () => {
     expect(
       screen.queryByRole("button", { name: "Cancel escalation" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("submits Case-level escalate to HQ without using parent complaint", async () => {
+    escalateCmCaseToPusat.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        escalationReason: "Case cabang tidak bisa diselesaikan di unit ini.",
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Request escalation to HQ" }),
+      ).toBeInTheDocument();
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Request escalation to HQ" }),
+    );
+    await userEvent.type(
+      screen.getByLabelText(/escalation reason/i),
+      "Case cabang tidak bisa diselesaikan di unit ini.",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send to HQ" }));
+    await waitFor(() => {
+      expect(escalateCmCaseToPusat).toHaveBeenCalledWith(CASE_ID, {
+        reason: "Case cabang tidak bisa diselesaikan di unit ini.",
+      });
+    });
+  });
+});
+
+describe("CaseDetailView handling notes", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  beforeEach(() => {
+    fetchCmCase.mockReset();
+    fetchCmBatch1Complaint.mockReset();
+    fetchCmBatch1Customer360.mockReset();
+    fetchUsers.mockReset();
+    fetchCmCaseHistory.mockReset();
+    hasPermission.mockImplementation(
+      (code: string) =>
+        code === "complaints:read" ||
+        code === "complaints:update" ||
+        code === "complaints:create",
+    );
+    authState.userId = "officer-dewi";
+    authState.roles = [];
+    fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
+    fetchCmBatch1Customer360.mockResolvedValue({ data: { profile: {} } });
+    fetchUsers.mockResolvedValue({ data: [] });
+  });
+
+  it("shows catatan under description and keeps timeline notes out of the history stub", async () => {
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        description: "Queue too long\n\n---\nCatatan:\nSudah dijelaskan",
+      }),
+    });
+    fetchCmCaseHistory.mockResolvedValue({
+      data: [
+        {
+          entryId: "3",
+          eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
+          eventType: "CaseHandlingUnitAccepted",
+          occurredAt: "2026-08-18T03:00:00Z",
+          actorName: "Budi",
+          note: "OK unit",
+        },
+      ],
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("case-handling-notes")).toHaveTextContent(
+        "OK unit",
+      );
+    });
+    expect(screen.getByText("Queue too long")).toBeInTheDocument();
+    expect(screen.queryByText(/---/)).not.toBeInTheDocument();
+    const notes = screen.getByTestId("case-handling-notes");
+    expect(notes).toHaveTextContent("Sudah dijelaskan");
+    expect(notes).toHaveTextContent("OK unit");
+    expect(notes).toHaveTextContent("Handling unit accepted");
+  });
+
+  it("shows parent intake Catatan when the Case description has none", async () => {
+    fetchCmCase.mockResolvedValue({ data: baseCase() });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        branchResolution: "Sudah diinfokan ke wajib pajak",
+      }),
+    });
+    fetchCmCaseHistory.mockResolvedValue({ data: [] });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("case-handling-notes")).toHaveTextContent(
+        "Sudah diinfokan ke wajib pajak",
+      );
+    });
   });
 });

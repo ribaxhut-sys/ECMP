@@ -105,6 +105,11 @@ class CaseAggregate:
     handling_unit_acceptance: AcceptanceRecord | None = None
     owner_acceptance: AcceptanceRecord | None = None
     acceptance_history: list[AcceptanceRecord] = field(default_factory=list)
+    # DEC-029 / API-520 lab — Pusat ownership without status ESCALATED (BQ-009)
+    # and without overwriting originating owning_unit_id (DEC-028).
+    escalated_to_pusat: bool = False
+    escalation_reason: str | None = None
+    escalated_at: datetime | None = None
 
     @classmethod
     def create(
@@ -478,6 +483,32 @@ class CaseAggregate:
         self.closed_at = now
         self.updated_at = now
 
+    def escalate_to_pusat(self, *, reason: str) -> None:
+        """Branch → Pusat on this Case only (DEC-029). Does not set ESCALATED."""
+        if self.status in (CaseStatus.CLOSED, CaseStatus.CANCELLED, CaseStatus.RESOLVED):
+            raise err.invalid_state(
+                "Only an open Case can be escalated to Pusat.",
+                details={"status": self.status.value},
+            )
+        if self.escalated_to_pusat:
+            raise err.conflict(
+                "CASE_ALREADY_ESCALATED_TO_PUSAT",
+                "This Case is already with Pusat.",
+            )
+        text = (reason or "").strip()
+        if len(text) < 20:
+            raise err.validation(
+                "escalation reason must be at least 20 characters",
+                details={"field": "reason", "minLength": 20},
+            )
+        if self.status in (CaseStatus.CREATED, CaseStatus.ASSIGNED):
+            self.status = CaseStatus.IN_PROGRESS
+        now = _utcnow()
+        self.escalated_to_pusat = True
+        self.escalation_reason = text
+        self.escalated_at = now
+        self.updated_at = now
+
     def claim_handling(self, user_id: str) -> None:
         uid = (user_id or "").strip()
         if not uid:
@@ -497,6 +528,8 @@ class CaseAggregate:
             "handlingClaimedBy": self.handling_claimed_by,
             "ownerUnitId": self.owner_unit_id,
             "owningUnitId": self.owning_unit_id,
+            "escalatedToPusat": self.escalated_to_pusat,
+            "owningUnit": "PUSAT" if self.escalated_to_pusat else "BRANCH",
             "handlingUnitAcceptance": (
                 self.handling_unit_acceptance.decision.value
                 if self.handling_unit_acceptance

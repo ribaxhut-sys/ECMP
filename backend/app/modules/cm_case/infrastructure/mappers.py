@@ -142,6 +142,9 @@ def case_from_orm(
         handling_unit_acceptance=handling_acceptance,
         owner_acceptance=owner_acceptance,
         acceptance_history=acceptance_history,
+        escalated_to_pusat=bool(row.escalated_to_pusat),
+        escalation_reason=row.escalation_reason,
+        escalated_at=row.escalated_at,
     )
 
 
@@ -168,6 +171,9 @@ def apply_case_to_orm(case: CaseAggregate, row: CmCaseORM) -> None:
     row.supervisor_approved_after_resolved = case.supervisor_approved_after_resolved
     row.created_by = case.created_by
     row.handling_claimed_by = case.handling_claimed_by
+    row.escalated_to_pusat = case.escalated_to_pusat
+    row.escalation_reason = case.escalation_reason
+    row.escalated_at = case.escalated_at
     row.created_at = case.created_at
     if case.updated_at is not None:
         row.updated_at = case.updated_at

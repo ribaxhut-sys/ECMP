@@ -37,8 +37,6 @@ import {
   Select,
   Skeleton,
   Pagination,
-  ReasonPresetTags,
-  WorkspaceToolbar,
 } from "@/shared/ui";
 import { useReasonPresets } from "@/shared/hooks";
 import { useToast } from "@/shared/providers";
@@ -47,13 +45,12 @@ import { cn } from "@/shared/utils";
 import { officerDisplayName } from "./officerDisplayName";
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
 import {
-  CASE_ESCALATE_ACTION_QUERY,
   ComplaintPenangananSection,
   PENANGANAN_FOCUS_QUERY,
   scrollToPenangananSection,
 } from "./ComplaintPenangananSection";
 import { CM_BATCH1_ESCALATION_PENDING_HREF } from "./cmBatch1ListFilters";
-import { KnowledgeMentionTextarea } from "./KnowledgeMentionTextarea";
+import { PresetTextField } from "./PresetTextField";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import {
   HqArrivalSlotPicker,
@@ -211,8 +208,6 @@ export function CmBatch1ConfirmationView({
   const intakeClosed = searchParams.get("intake") === "closed";
   const focusPenanganan =
     searchParams.get("focus") === PENANGANAN_FOCUS_QUERY;
-  const actionEscalate =
-    searchParams.get("action") === CASE_ESCALATE_ACTION_QUERY;
   const { hasPermission, user, roles } = useAuth();
   const { pushSuccess, pushError } = useToast();
   const presets = useReasonPresets(PRESET_KEYS);
@@ -389,39 +384,12 @@ export function CmBatch1ConfirmationView({
 
     scrollToPenangananSection();
 
-    const disposition = data.intakeDisposition;
-    const canOpenReRequest =
-      actionEscalate &&
-      canRequestEscalation &&
-      data.status === "REGISTERED" &&
-      (disposition === "ESCALATE_CANCELLED" ||
-        disposition === "ESCALATE_REJECTED" ||
-        disposition === "RETURNED_TO_BRANCH") &&
-      !data.hqAcceptedAt &&
-      !data.caseCreated;
-    if (canOpenReRequest) {
-      const current = (data.priority || "MEDIUM").toUpperCase();
-      setReRequestPriority(
-        (APPROVE_PRIORITIES as readonly string[]).includes(current)
-          ? current
-          : "MEDIUM",
-      );
-      setReRequestReason("");
-      setReRequestSlot(null);
-      setReRequestOpen(true);
-    }
+    // DEC-029: ajuan eskalasi tidak lagi dari induk / deep-link action=escalate.
 
     // Do not call router.replace / history.replaceState to strip ?focus=.
     // Soft-nav replace on this page left App Router transitions pending and
     // blocked Sidebar Link navigation (Dasbor / menu lain) until full reload.
-  }, [
-    actionEscalate,
-    canRequestEscalation,
-    data,
-    focusPenanganan,
-    intakeClosed,
-    loading,
-  ]);
+  }, [data, focusPenanganan, intakeClosed, loading]);
 
   async function submitDecision(
     decision: "APPROVE" | "REJECT" | "CANCEL",
@@ -729,6 +697,8 @@ export function CmBatch1ConfirmationView({
     showHqReschedule,
     showHqComplete,
   } = hqActions;
+  const hasBoundCase =
+    Boolean(data?.caseCreated) || penangananSnapshot.totalCount > 0;
   const {
     pendingEscalation,
     showSupervisorActions,
@@ -745,8 +715,7 @@ export function CmBatch1ConfirmationView({
     isHqReviewer: canHqReview,
     isPusatUnitMember,
     intakeEscalateQuery: intakeEscalate,
-    hasBoundCase:
-      Boolean(data?.caseCreated) || penangananSnapshot.totalCount > 0,
+    hasBoundCase,
   });
   /** Bottom CTA: buat penanganan pertama atau ambil alih yang sudah ada. */
   const showTanganiCta =
@@ -884,6 +853,11 @@ export function CmBatch1ConfirmationView({
     };
   })();
 
+  /** Intake Catatan is Case-page content once a Case exists (BR-017). */
+  const showIntakeNoteOnComplaint = Boolean(
+    intakeHistory.branchResolution?.trim() && !hasBoundCase,
+  );
+
   /** Note carried by the blob — the only source for events logged before API-517. */
   function blobNoteFor(code: string): string | null {
     switch (code) {
@@ -1002,26 +976,12 @@ export function CmBatch1ConfirmationView({
   const logFrom =
     logRows.length === 0 ? 0 : (safeLogPage - 1) * LOG_PAGE_SIZE + 1;
   const logTo = Math.min(safeLogPage * LOG_PAGE_SIZE, logRows.length);
-  const allOnPageOpen =
-    pagedLogRows.length > 0 &&
-    pagedLogRows.every((row) => openLogKeys.has(row.key));
 
   function toggleLogRow(key: string): void {
     setOpenLogKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      return next;
-    });
-  }
-
-  function toggleAllOnPage(): void {
-    setOpenLogKeys((prev) => {
-      const next = new Set(prev);
-      for (const row of pagedLogRows) {
-        if (allOnPageOpen) next.delete(row.key);
-        else next.add(row.key);
-      }
       return next;
     });
   }
@@ -1227,10 +1187,41 @@ export function CmBatch1ConfirmationView({
             </Card>
           </section>
 
+          {!intakeClosed && data.status !== "CLOSED" ? (
+            <ComplaintPenangananSection
+              complaintId={data.complaintId}
+              caseHistory={history}
+              complaintStatus={data.status}
+              intakeDisposition={data.intakeDisposition}
+              hqAcceptedAt={data.hqAcceptedAt}
+              hqArrivalDate={data.hqArrivalDate}
+              hqArrivalTime={data.hqArrivalTime}
+              hqDestinationUnitId={data.hqDestinationUnitId}
+              hqArrivalNote={data.hqArrivalNote}
+              allowStart={showManageCases}
+              allowEscalate={false}
+              manageRequestToken={manageRequestToken}
+              complaintCreatedBy={data.createdBy}
+              complaintCreatedByName={data.createdByName}
+              onPenangananSnapshot={onPenangananSnapshot}
+              seed={{
+                category: data.category,
+                subject: data.subject,
+                description:
+                  intakeHistory.narrative ||
+                  data.intakeNarrative ||
+                  data.description,
+                intakeNote: intakeHistory.branchResolution,
+                priority: data.priority,
+                destinationUnitId: data.owningUnitId || unitCode,
+              }}
+            />
+          ) : null}
+
           {data.subject ||
           intakeHistory.narrative.trim() ||
           intakeHistory.escalationReason?.trim() ||
-          intakeHistory.branchResolution?.trim() ? (
+          showIntakeNoteOnComplaint ? (
             <section className="space-y-[var(--ecmp-panel-gap)]">
               <Card>
                 <CardBody className="space-y-[var(--ecmp-panel-gap)]">
@@ -1272,7 +1263,7 @@ export function CmBatch1ConfirmationView({
                       </div>
                     </div>
                   ) : null}
-                  {intakeHistory.branchResolution?.trim() ? (
+                  {showIntakeNoteOnComplaint ? (
                     <div
                       className={cn(
                         "space-y-1",
@@ -1287,7 +1278,7 @@ export function CmBatch1ConfirmationView({
                       </p>
                       <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                         <KnowledgeReferenceText
-                          text={intakeHistory.branchResolution.trim()}
+                          text={intakeHistory.branchResolution?.trim() ?? ""}
                         />
                       </div>
                     </div>
@@ -1336,25 +1327,13 @@ export function CmBatch1ConfirmationView({
                   </p>
                 ) : (
                   <>
-                    <WorkspaceToolbar
-                      summary={tCommon("showingItems", {
+                    <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                      {tCommon("showingItems", {
                         from: logFrom,
                         to: logTo,
                         total: logRows.length,
                       })}
-                      actions={
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={toggleAllOnPage}
-                        >
-                          {allOnPageOpen
-                            ? t("intakeEventLogCollapseAll")
-                            : t("intakeEventLogExpandAll")}
-                        </Button>
-                      }
-                    />
+                    </p>
                     <ol className="space-y-[var(--ecmp-form-gap)]">
                       {pagedLogRows.map((row, index) => {
                         const number = (safeLogPage - 1) * LOG_PAGE_SIZE + index + 1;
@@ -1512,36 +1491,6 @@ export function CmBatch1ConfirmationView({
               </CardBody>
             </Card>
           </section>
-
-          {!intakeClosed && data.status !== "CLOSED" ? (
-            <ComplaintPenangananSection
-              complaintId={data.complaintId}
-              caseHistory={history}
-              complaintStatus={data.status}
-              intakeDisposition={data.intakeDisposition}
-              hqAcceptedAt={data.hqAcceptedAt}
-              hqArrivalDate={data.hqArrivalDate}
-              hqArrivalTime={data.hqArrivalTime}
-              hqDestinationUnitId={data.hqDestinationUnitId}
-              hqArrivalNote={data.hqArrivalNote}
-              allowStart={showManageCases}
-              allowEscalate={false}
-              manageRequestToken={manageRequestToken}
-              complaintCreatedBy={data.createdBy}
-              complaintCreatedByName={data.createdByName}
-              onPenangananSnapshot={onPenangananSnapshot}
-              seed={{
-                category: data.category,
-                subject: data.subject,
-                description:
-                  intakeHistory.narrative ||
-                  data.intakeNarrative ||
-                  data.description,
-                priority: data.priority,
-                destinationUnitId: data.owningUnitId || unitCode,
-              }}
-            />
-          ) : null}
 
           <div className="flex flex-wrap gap-[var(--ecmp-form-gap)]">
             {showSupervisorActions ? (
@@ -1750,11 +1699,8 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.approve_escalation_note_presets"] ?? []}
-            onSelect={setApproveNote}
-          />
-          <KnowledgeMentionTextarea
             name="approveEscalationNote"
             label={t("approveEscalationNoteLabel")}
             hint={t("approveEscalationNoteHint")}
@@ -1824,11 +1770,8 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.reject_escalation_note_presets"] ?? []}
-            onSelect={setRejectNote}
-          />
-          <KnowledgeMentionTextarea
             name="rejectEscalationNote"
             label={t("rejectEscalationNoteLabel")}
             hint={t("rejectEscalationNoteHint")}
@@ -1874,11 +1817,8 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.cancel_escalation_note_presets"] ?? []}
-            onSelect={setCancelNote}
-          />
-          <KnowledgeMentionTextarea
             name="cancelEscalationNote"
             label={t("cancelEscalationNoteLabel")}
             hint={t("cancelEscalationNoteHint")}
@@ -1924,11 +1864,8 @@ export function CmBatch1ConfirmationView({
               number: data?.complaintNumber ?? "",
             })}
           </p>
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.rerequest_escalation_reason_presets"] ?? []}
-            onSelect={setReRequestReason}
-          />
-          <KnowledgeMentionTextarea
             name="reRequestEscalationReason"
             label={t("reRequestEscalationReasonLabel")}
             hint={t("reRequestEscalationReasonHint")}
@@ -2039,11 +1976,8 @@ export function CmBatch1ConfirmationView({
             required
             options={pusatUnitOptions}
           />
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.hq_accept_schedule_note_presets"] ?? []}
-            onSelect={setArrivalNote}
-          />
-          <KnowledgeMentionTextarea
             name="hqAcceptScheduleNote"
             label={t("hqAcceptScheduleNoteLabel")}
             hint={t("hqAcceptScheduleNoteHint")}
@@ -2101,11 +2035,8 @@ export function CmBatch1ConfirmationView({
             disabled={deciding}
             required
           />
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.hq_return_note_presets"] ?? []}
-            onSelect={setHqReturnNote}
-          />
-          <KnowledgeMentionTextarea
             name="hqReturnNote"
             label={t("hqReturnNoteLabel")}
             hint={t("hqReturnNoteHint")}
@@ -2171,11 +2102,8 @@ export function CmBatch1ConfirmationView({
             aria-required="true"
             disabled={deciding}
           />
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.hq_arrival_note_presets"] ?? []}
-            onSelect={setArrivalNote}
-          />
-          <KnowledgeMentionTextarea
             name="hqArrivalNote"
             label={t("hqArrivalNoteLabel")}
             hint={t("hqArrivalNoteHint")}
@@ -2217,11 +2145,8 @@ export function CmBatch1ConfirmationView({
           <p className="text-ecmp-text-primary">
             {t("hqCompleteBody", { number: data?.complaintNumber ?? "" })}
           </p>
-          <ReasonPresetTags
+          <PresetTextField
             presets={presets["cm_batch1.hq_complete_note_presets"] ?? []}
-            onSelect={setHqCompleteNote}
-          />
-          <KnowledgeMentionTextarea
             name="hqCompleteNote"
             label={t("hqCompleteNoteLabel")}
             hint={t("hqCompleteNoteHint")}
