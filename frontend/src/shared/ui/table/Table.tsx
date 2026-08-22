@@ -112,7 +112,7 @@ export function Table<T>({
       {toolbar}
       {/* Desktop / tablet table */}
       <div className="hidden max-w-full overflow-x-auto rounded-[var(--ecmp-radius-table)] border border-ecmp-border/80 bg-ecmp-surface shadow-ecmp-raised md:block">
-        <table className="min-w-full text-left text-[length:var(--ecmp-font-body-size)]">
+        <table className="min-w-full text-left text-[length:var(--ecmp-font-table-size)]">
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <thead
             className={cn(
@@ -199,7 +199,7 @@ export function Table<T>({
                       <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                         {column.mobileLabel ?? column.header}
                       </dt>
-                      <dd className="mt-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                      <dd className="mt-1 text-[length:var(--ecmp-font-table-size)] text-ecmp-text-primary">
                         {column.cell(row)}
                       </dd>
                     </div>

@@ -37,7 +37,6 @@ import {
 } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { disambiguateInitials } from "@/shared/utils/initials";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
@@ -45,19 +44,16 @@ import {
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
 import {
-  handlerRefFromCases,
   hqPathCopyKeys,
   penangananCountsFromCases,
   resolveHqPathPhase,
   resolvePenangananContextKind,
-  type PenangananHandlerRef,
 } from "./penangananGroups";
 
 type PenangananListCounts = {
   open: number;
   pusat: number;
   done: number;
-  handler: PenangananHandlerRef | null;
 };
 
 function customerCellLabel(
@@ -184,7 +180,6 @@ export function CmBatch1ComplaintListView() {
                 open: counts.open,
                 pusat: counts.pusat,
                 done: counts.done,
-                handler: handlerRefFromCases(cases, row.intakeDisposition),
               } satisfies PenangananListCounts,
             ] as const;
           } catch {
@@ -222,22 +217,6 @@ export function CmBatch1ComplaintListView() {
     setDraft(next);
     applyFilters(next);
   }
-
-  /**
-   * Inisial PIC harus membedakan dua orang bernama sama pada halaman yang sama,
-   * jadi kodenya dihitung atas seluruh handler yang tampil — bukan per baris.
-   */
-  const handlerInitialsByKey = useMemo(
-    () =>
-      disambiguateInitials(
-        Object.values(penangananByComplaint).flatMap((summary) =>
-          summary === "loading" || summary === "error" || !summary.handler
-            ? []
-            : [summary.handler],
-        ),
-      ),
-    [penangananByComplaint],
-  );
 
   const statusFilterOptions = useMemo(
     () => [
@@ -289,11 +268,13 @@ export function CmBatch1ComplaintListView() {
     {
       key: "complaintNumber",
       header: t("complaintNumber"),
+      className: "whitespace-nowrap",
+      headerClassName: "whitespace-nowrap",
       cell: (row) => (
         <div className="min-w-0">
           <Link
             href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
-            className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+            className="whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
           >
             {row.complaintNumber}
           </Link>
@@ -398,10 +379,6 @@ export function CmBatch1ComplaintListView() {
           intakeDisposition: row.intakeDisposition,
           counts: summary,
         });
-        const initials = summary.handler
-          ? handlerInitialsByKey.get(summary.handler.key) ?? null
-          : null;
-
         if (kind === "closed") {
           return <Badge tone="success">{t("penangananListClosed")}</Badge>;
         }
@@ -415,11 +392,7 @@ export function CmBatch1ComplaintListView() {
             : hqPathCopyKeys("pending_approval");
           return (
             <Badge tone={phase === "scheduled" ? "info" : "warning"}>
-              {initials
-                ? t(copy.listWithOfficer as "penangananListHqWaitingWithOfficer", {
-                    initials,
-                  })
-                : t(copy.list as "penangananListHqWaiting")}
+              {t(copy.list as "penangananListHqWaiting")}
             </Badge>
           );
         }
@@ -428,13 +401,7 @@ export function CmBatch1ComplaintListView() {
             <Badge tone="warning">{t("penangananListNone")}</Badge>
           );
         }
-        return (
-          <Badge tone="info">
-            {initials
-              ? t("penangananInProgressWithOfficer", { initials })
-              : t("penangananInProgress")}
-          </Badge>
-        );
+        return <Badge tone="info">{t("penangananInProgress")}</Badge>;
       },
     },
   ];
@@ -620,7 +587,9 @@ export function CmBatch1ComplaintListView() {
                 columns={columns}
                 rows={rows}
                 getRowKey={(row) => row.complaintId}
+                density="compact"
                 stickyHeader
+                className="[--ecmp-font-table-size:0.9375rem]"
               />
               <Pagination
                 summary={tCommon("pageOf", {
