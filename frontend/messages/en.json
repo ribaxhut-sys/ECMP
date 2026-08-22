@@ -3036,6 +3036,8 @@
     "caseVsComplaintBody": "Resolve/Close Case only finishes this branch work item. The parent complaint stays open until closed on the complaint handling page.",
     "continueToParentComplaint": "Continue to parent complaint",
     "continueToParentHint": "From there you can review other handling, request escalation, or close the complaint per branch/Staff KaSatPel rules.",
+    "cancelEscalationCaseBody": "This cancels HQ escalation for parent complaint {number}, including every Case under it — not this Case alone. Allowed only if HQ has not accepted. A reason is required and stored in history.",
+    "cancelEscalationCaseToastDescription": "Complaint {number} is no longer ready for HQ. This applies to every Case under the parent, not this Case alone.",
     "workContentTitle": "Work content",
     "workContentDescription": "Description of the Case being handled.",
     "evidenceTitle": "Evidence / attachments",

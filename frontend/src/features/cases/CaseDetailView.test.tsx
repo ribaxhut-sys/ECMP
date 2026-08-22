@@ -1,4 +1,5 @@
 import { cleanup, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CmBatch1ComplaintResponse, CmCase } from "@/lib/api";
 import { renderWithProviders } from "@/test/harness";
@@ -7,6 +8,7 @@ const fetchCmCase = vi.fn();
 const fetchCmBatch1Complaint = vi.fn();
 const fetchCmBatch1Customer360 = vi.fn();
 const fetchUsers = vi.fn();
+const decideCmBatch1IntakeEscalation = vi.fn();
 const hasPermission = vi.fn((code: string) =>
   code === "complaints:read" ||
   code === "complaints:update" ||
@@ -41,6 +43,8 @@ vi.mock("@/lib/api", async () => {
     fetchCmBatch1Customer360: (...args: unknown[]) =>
       fetchCmBatch1Customer360(...args),
     fetchUsers: (...args: unknown[]) => fetchUsers(...args),
+    decideCmBatch1IntakeEscalation: (...args: unknown[]) =>
+      decideCmBatch1IntakeEscalation(...args),
   };
 });
 
@@ -103,6 +107,7 @@ describe("CaseDetailView HQ path", () => {
     fetchCmBatch1Complaint.mockReset();
     fetchCmBatch1Customer360.mockReset();
     fetchUsers.mockReset();
+    decideCmBatch1IntakeEscalation.mockReset();
     hasPermission.mockImplementation(
       (code: string) =>
         code === "complaints:read" ||
@@ -172,5 +177,75 @@ describe("CaseDetailView HQ path", () => {
     expect(
       screen.getByRole("button", { name: "Continue to parent complaint" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel escalation" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows parent-level Cancel escalation while HQ has not accepted", async () => {
+    hasPermission.mockImplementation(
+      (code: string) =>
+        code === "complaints:read" ||
+        code === "complaints:update" ||
+        code === "complaints:create" ||
+        code === "complaints:escalate",
+    );
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ intakeDisposition: "ESCALATE_APPROVED" }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Cancel escalation" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel escalation" }));
+    expect(
+      screen.getByText(
+        /cancels HQ escalation for parent complaint CMP-0001, including every Case under it/i,
+      ),
+    ).toBeInTheDocument();
+
+    decideCmBatch1IntakeEscalation.mockResolvedValue({
+      data: baseComplaint({
+        intakeDisposition: "ESCALATE_CANCELLED",
+        cancellationNote: "Wajib Pajak setuju ditangani di cabang.",
+      }),
+    });
+    await userEvent.type(
+      screen.getByLabelText(/cancellation reason/i),
+      "Wajib Pajak setuju ditangani di cabang.",
+    );
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Cancel escalation" })[1],
+    );
+    await waitFor(() => {
+      expect(decideCmBatch1IntakeEscalation).toHaveBeenCalledWith(COMPLAINT_ID, {
+        decision: "CANCEL",
+        note: "Wajib Pajak setuju ditangani di cabang.",
+      });
+    });
+    expect(
+      screen.getByText(
+        /applies to every Case under the parent, not this Case alone/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Cancel escalation for officers without complaints:escalate", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ intakeDisposition: "ESCALATE_APPROVED" }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Continue to parent complaint" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Cancel escalation" }),
+    ).not.toBeInTheDocument();
   });
 });

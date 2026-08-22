@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
+  decideCmBatch1IntakeEscalation,
   fetchCmBatch1Complaint,
   fetchCmBatch1Customer360,
   fetchCmCase,
@@ -14,6 +15,7 @@ import {
   type CmCase,
   type CmCaseStatus,
 } from "@/lib/api";
+import { useReasonPresets } from "@/shared/hooks";
 import { formatDateTime24, formatHqArrivalSlot, resolveHqArrivalDisplay } from "@/shared/utils/datetime";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { cn } from "@/shared/utils";
@@ -29,7 +31,9 @@ import {
   Modal,
   PageContainer,
   PageHeader,
+  ReasonPresetTags,
   Skeleton,
+  Textarea,
   Toast,
   type BadgeTone,
 } from "@/shared/ui";
@@ -52,6 +56,7 @@ import {
 import {
   hideCaseBranchWorkActions,
   resolveCaseHqPath,
+  showCaseCancelEscalation,
 } from "./caseHqPath";
 import {
   canClose,
@@ -113,6 +118,11 @@ function MetaItem({
   );
 }
 
+const CANCEL_NOTE_MIN = 20;
+const CANCEL_ESCALATION_PRESET_KEYS = [
+  "cm_batch1.cancel_escalation_note_presets",
+] as const;
+
 function nextStepKey(
   status: CmCaseStatus,
   opts: {
@@ -157,6 +167,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const canUpdate = hasPermission("complaints:update");
   const canCreate = hasPermission("complaints:create");
   const canAct = canUpdate || canCreate;
+  const canDecideEscalation = hasPermission("complaints:escalate");
+  const cancelPresets = useReasonPresets(CANCEL_ESCALATION_PRESET_KEYS);
 
   const [data, setData] = useState<CmCase | null>(null);
   const [customerLabel, setCustomerLabel] = useState<string | null>(null);
@@ -197,6 +209,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelNote, setCancelNote] = useState("");
+  const [cancellingEscalation, setCancellingEscalation] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastTone, setToastTone] = useState<"success" | "danger">("success");
@@ -326,6 +341,13 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     hqAcceptedAt: complaintHqAcceptedAt,
   });
   const hideBranchActions = hideCaseBranchWorkActions(hqPath.onHqPath, data?.status);
+  const showCancelEscalation = showCaseCancelEscalation({
+    canDecideEscalation,
+    complaintStatus,
+    intakeDisposition: complaintIntakeDisposition,
+    hqAcceptedAt: complaintHqAcceptedAt,
+  });
+  const cancelNoteOk = cancelNote.trim().length >= CANCEL_NOTE_MIN;
 
   useEffect(() => {
     if (loading || !data) return;
@@ -506,6 +528,35 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     router.push(
       `/complaints/cm/${encodeURIComponent(data.complaintId)}?${params.toString()}`,
     );
+  }
+
+  async function submitCancelEscalation(): Promise<void> {
+    if (!data || cancellingEscalation || !cancelNoteOk) return;
+    setCancellingEscalation(true);
+    try {
+      const res = await decideCmBatch1IntakeEscalation(data.complaintId, {
+        decision: "CANCEL",
+        note: cancelNote.trim(),
+      });
+      setComplaintStatus(res.data.status);
+      setComplaintIntakeDisposition(res.data.intakeDisposition ?? null);
+      setComplaintHqAcceptedAt(res.data.hqAcceptedAt ?? null);
+      setCancelOpen(false);
+      setCancelNote("");
+      showSuccess(
+        t("cancelEscalationCaseToastDescription", {
+          number: res.data.complaintNumber,
+        }),
+      );
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : tComplaints("escalationDecisionFailed"),
+      );
+    } finally {
+      setCancellingEscalation(false);
+    }
   }
 
   async function ensureInProgressForResolve(
@@ -837,6 +888,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 ? t("continueToParentComplaint")
                 : t("backToComplaint")}
             </Button>
+            {showCancelEscalation ? (
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="case-cancel-escalation"
+                onClick={() => setCancelOpen(true)}
+                disabled={cancellingEscalation}
+              >
+                {tComplaints("cancelEscalation")}
+              </Button>
+            ) : null}
             {canReassign && claimedBySomeone && !caseFinished && !hideBranchActions ? (
               <Button
                 type="button"
@@ -968,6 +1030,58 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             ))}
           </select>
         </label>
+      </Modal>
+      <Modal
+        open={cancelOpen}
+        onClose={() => (!cancellingEscalation ? setCancelOpen(false) : undefined)}
+        title={tComplaints("cancelEscalationTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setCancelOpen(false)}
+              disabled={cancellingEscalation}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={cancellingEscalation}
+              disabled={!cancelNoteOk}
+              onClick={() => void submitCancelEscalation()}
+            >
+              {tComplaints("cancelEscalation")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("cancelEscalationCaseBody", {
+              number: complaintNumber ?? tCommon("emDash"),
+            })}
+          </p>
+          <ReasonPresetTags
+            presets={
+              cancelPresets["cm_batch1.cancel_escalation_note_presets"] ?? []
+            }
+            onSelect={setCancelNote}
+          />
+          <Textarea
+            name="cancelEscalationNote"
+            label={tComplaints("cancelEscalationNoteLabel")}
+            hint={tComplaints("cancelEscalationNoteHint")}
+            value={cancelNote}
+            onChange={(event) => setCancelNote(event.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={cancellingEscalation}
+            required
+          />
+        </div>
       </Modal>
     </PageContainer>
   );

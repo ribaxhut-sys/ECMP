@@ -6,6 +6,7 @@ export { CaseDetailView } from "./CaseDetailView";
 export {
   hideCaseBranchWorkActions,
   resolveCaseHqPath,
+  showCaseCancelEscalation,
 } from "./caseHqPath";
 export { CaseHistoryPanel } from "./CaseHistoryPanel";
 export { CreateCaseDialog } from "./CreateCaseDialog";

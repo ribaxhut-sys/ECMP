@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { hideCaseBranchWorkActions, resolveCaseHqPath } from "./caseHqPath";
+import {
+  hideCaseBranchWorkActions,
+  resolveCaseHqPath,
+  showCaseCancelEscalation,
+} from "./caseHqPath";
 
 describe("resolveCaseHqPath", () => {
   it("is off the HQ path for branch-closed or unset disposition", () => {
@@ -44,5 +48,49 @@ describe("hideCaseBranchWorkActions", () => {
 
   it("does not hide when parent is not on the HQ path", () => {
     expect(hideCaseBranchWorkActions(false, "IN_PROGRESS")).toBe(false);
+  });
+});
+
+describe("showCaseCancelEscalation", () => {
+  const approved = {
+    canDecideEscalation: true,
+    complaintStatus: "IN_PROGRESS",
+    intakeDisposition: "ESCALATE_APPROVED",
+    hqAcceptedAt: null,
+  };
+
+  it("shows while parent is approved and HQ has not accepted", () => {
+    expect(showCaseCancelEscalation(approved)).toBe(true);
+  });
+
+  it("hides without complaints:escalate", () => {
+    expect(
+      showCaseCancelEscalation({ ...approved, canDecideEscalation: false }),
+    ).toBe(false);
+  });
+
+  it("hides after HQ accepted", () => {
+    expect(
+      showCaseCancelEscalation({
+        ...approved,
+        hqAcceptedAt: "2026-08-22T08:00:00Z",
+      }),
+    ).toBe(false);
+  });
+
+  it("hides when parent is already cancelled or scheduled", () => {
+    expect(
+      showCaseCancelEscalation({
+        ...approved,
+        intakeDisposition: "ESCALATE_CANCELLED",
+      }),
+    ).toBe(false);
+    expect(
+      showCaseCancelEscalation({
+        ...approved,
+        intakeDisposition: "HQ_SCHEDULED",
+        hqAcceptedAt: "2026-08-22T08:00:00Z",
+      }),
+    ).toBe(false);
   });
 });

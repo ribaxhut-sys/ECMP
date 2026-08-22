@@ -3036,6 +3036,8 @@
     "caseVsComplaintBody": "Tombol Selesaikan/Tutup Case hanya menutup pekerjaan cabang ini. Pengaduan induk tetap terbuka sampai ditutup di halaman penanganan pengaduan.",
     "continueToParentComplaint": "Lanjut ke pengaduan induk",
     "continueToParentHint": "Dari sana Anda dapat meninjau penanganan lain, mengajukan eskalasi, atau menutup pengaduan sesuai aturan cabang/atasan.",
+    "cancelEscalationCaseBody": "Ini membatalkan eskalasi pengaduan induk {number}, termasuk semua Case di bawahnya — bukan hanya Case ini. Hanya boleh jika Pusat belum menerima. Alasan wajib dan masuk riwayat.",
+    "cancelEscalationCaseToastDescription": "Pengaduan {number} tidak lagi siap ke Pusat. Berlaku untuk semua Case di bawah pengaduan induk, bukan hanya Case ini.",
     "workContentTitle": "Isi pekerjaan",
     "workContentDescription": "Uraian Case yang sedang ditangani.",
     "evidenceTitle": "Bukti / lampiran",

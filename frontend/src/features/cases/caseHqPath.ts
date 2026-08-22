@@ -3,6 +3,7 @@
  * Case status stays Mode A (no ESCALATED); grouping/copy is presentation only.
  */
 
+import { resolveCmBatch1BranchEscalationCtas } from "@/features/complaints/cmBatch1HqActions";
 import {
   hqPathCopyKeys,
   isHqIntakeDisposition,
@@ -38,4 +39,28 @@ export function hideCaseBranchWorkActions(
   if (!onHqPath) return false;
   const status = (caseStatus || "").trim().toUpperCase();
   return status !== "RESOLVED" && status !== "CLOSED" && status !== "CANCELLED";
+}
+
+/**
+ * Case-page entry for Batalkan Eskalasi — same API-515 gate as confirmation.
+ * Cancels the parent complaint HQ path, not this Case alone.
+ * Do not pass hasBoundCase: this page is the CTA once a Case exists.
+ */
+export function showCaseCancelEscalation(input: {
+  canDecideEscalation: boolean;
+  complaintStatus?: string | null;
+  intakeDisposition?: string | null;
+  hqAcceptedAt?: string | null;
+}): boolean {
+  return resolveCmBatch1BranchEscalationCtas({
+    status: input.complaintStatus,
+    intakeDisposition: input.intakeDisposition,
+    hqAcceptedAt: input.hqAcceptedAt,
+    canDecideEscalation: input.canDecideEscalation,
+    canRequestEscalation: false,
+    intakeClosed: false,
+    isHqReviewer: false,
+    isPusatUnitMember: false,
+    intakeEscalateQuery: false,
+  }).showCancelEscalation;
 }
