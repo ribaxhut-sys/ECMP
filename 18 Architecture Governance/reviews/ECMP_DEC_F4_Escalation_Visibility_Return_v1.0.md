@@ -35,8 +35,8 @@ FRD-CM-001 Batch 1 remains **LOCKED** and **unchanged** by this DEC (escalation/
 | **F4** | Visibility model **B**: Pusat handlers work only cases escalated/assigned to Pusat; analyst/viewer roles may have cross-branch KPI/monitoring without default detail access to non-escalated branch cases | Locked |
 | **F4.1** | **No Regional** on the complaint escalation path — path is **Cabang → Pusat** only | Locked |
 | **F4.2** | After Pusat **resolve**, the **originating branch always** may read the result | Locked |
-| **F4.3** | Pusat selects result audience: `ORIGIN_BRANCH` or `ALL_BRANCHES` | Locked |
-| **F4.3a** | `result_visibility` is set at **Resolve** and **may be changed later** (audit required) | Locked |
+| **F4.3** | Pusat selects result audience: `ORIGIN_BRANCH` or `ALL_BRANCHES` | ~~Locked~~ → **DROPPED** (BO 2026-08-22, §2a) |
+| **F4.3a** | `result_visibility` is set at **Resolve** and **may be changed later** (audit required) | ~~Locked~~ → **DROPPED** (ikut F4.3) |
 | **F4.4** | Pusat may **return** an escalation to the originating branch when information/package is incomplete | Locked |
 | **F4.5** | Return requires **mandatory reason code** + **mandatory free-text note** | Locked |
 | **F4-OQ-01** | `return_note` minimum length = **10** (trim then count) | Closed |
@@ -46,8 +46,32 @@ FRD-CM-001 Batch 1 remains **LOCKED** and **unchanged** by this DEC (escalation/
 
 | Parameter | Default |
 |---|---|
-| `result_visibility` at Resolve | `ORIGIN_BRANCH` |
+| `result_visibility` at Resolve | `ORIGIN_BRANCH` — **satu-satunya nilai** sejak §2a |
 | Return target | Originating branch only (`returned_to_branch_id` = escalate-from branch) |
+
+---
+
+## 2a. Keputusan Business Owner 2026-08-22 — F4.3 / F4.3a dibatalkan
+
+**Putusan:** hasil eskalasi yang diselesaikan Pusat **hanya boleh dilihat cabang asal**.
+Pusat **tidak** diberi pilihan membuka hasil ke seluruh cabang.
+
+Konsekuensi: `result_visibility` tidak menjadi kolom, tidak ada UI pemilih audiens, dan
+tidak ada audit perubahan audiens. Perilaku `ORIGIN_BRANCH` melekat, bukan default yang
+bisa diubah.
+
+**Status implementasi F4 setelah putusan ini (diverifikasi ke kode 2026-08-22):**
+
+| ID | Status |
+|---|---|
+| F4.1 Cabang → Pusat, tanpa Regional | **Terimplementasi** — jalur eskalasi intake CM Batch-1 |
+| F4.2 Cabang asal selalu boleh membaca hasil | **Terimplementasi** — unit pemilik tetap melihat Case setelah Handling pindah; tes `test_cm_case_f4_authz.py::test_owner_unit_sees_case_in_list_after_handling_transfer` |
+| F4.3 / F4.3a audiens hasil | **DROPPED** — putusan di atas; nol pekerjaan |
+| F4.4 / F4.5 Return + reason code + catatan wajib | **Terimplementasi** — `RETURNED_TO_BRANCH` (service, event_factory, predicates) |
+
+Artinya **tidak ada sisa coding DEC-F4**. Label "DEC-F4 / FRD-CM-002 — Draft, NOT
+APPROVED FOR CODE" pada daftar pekerjaan tersisa sudah tidak berlaku: bagian yang
+disetujui sudah jalan, bagian yang belum dikoding justru dibatalkan.
 
 ---
 
@@ -66,20 +90,24 @@ Regional is **out of scope** for this DEC’s escalation path. Enterprise Platfo
 | Actor | Non-escalated case at another branch | Case escalated to Pusat | After Resolve |
 |---|---|---|---|
 | Originating branch agent/supervisor | N/A (own branch: RW per role) | Read per policy while owned by Pusat | Read result (always) |
-| Other branch | No | No | Only if `result_visibility = ALL_BRANCHES` (read-only) |
+| Other branch | No | No | **No** (§2a — audiens hasil selalu cabang asal) |
 | Pusat handler | No (not in work queue) | RW + full Escalation Package history | Read |
 | Pusat analyst / viewer | KPI/monitoring only; detail of non-escalated cases only with explicit permission | Per permission | Per permission |
 
-### 3.3 `result_visibility`
+### 3.3 `result_visibility` — **superseded by §2a (BO 2026-08-22)**
+
+Hanya `ORIGIN_BRANCH` yang berlaku. Sub-bagian ini dipertahankan sebagai jejak
+rancangan; `ALL_BRANCHES` dan mekanisme pemilih audiens **dibatalkan**, tidak
+dikoding, dan tidak boleh dijadikan acuan implementasi.
 
 | Value | Meaning |
 |---|---|
 | `ORIGIN_BRANCH` | Originating branch + Pusat may read resolved result/history; other branches must not find the case in search/list/detail |
-| `ALL_BRANCHES` | All branches (authorized complaint roles) may **read-only** the resolved result and permitted history |
+| ~~`ALL_BRANCHES`~~ | ~~All branches (authorized complaint roles) may **read-only** the resolved result and permitted history~~ — **DROPPED §2a** |
 
-- Set **at Resolve** (UI should require explicit selection; system default if omitted = `ORIGIN_BRANCH`).
-- May be changed **after Resolve** by authorized Pusat actors.
-- Every change records audit: `from`, `to`, `changed_by`, `changed_at`, optional `change_note`.
+- ~~Set **at Resolve** (UI should require explicit selection; system default if omitted = `ORIGIN_BRANCH`).~~ — melekat, tidak dapat dipilih.
+- ~~May be changed **after Resolve** by authorized Pusat actors.~~ — **DROPPED §2a**.
+- ~~Every change records audit: `from`, `to`, `changed_by`, `changed_at`, optional `change_note`.~~ — tidak ada perubahan audiens untuk diaudit.
 - **Return must not** set or imply `result_visibility`.
 
 ---
@@ -126,8 +154,8 @@ Aligned with BR-007 A4 / E1; sharpened by this DEC:
 
 | Field | Required | Owner |
 |---|---|---|
-| `result_visibility` | Yes at Resolve (or default `ORIGIN_BRANCH`) | Actor (Pusat) |
-| Visibility change after Resolve | Allowed | Authorized Pusat + Audit |
+| `result_visibility` | **Tidak diisi aktor** — melekat `ORIGIN_BRANCH` (§2a) | Sistem |
+| Visibility change after Resolve | **Tidak ada** (§2a) | — |
 
 ---
 
@@ -138,11 +166,11 @@ Aligned with BR-007 A4 / E1; sharpened by this DEC:
 3. Pusat can **Return** with mandatory `return_reason_code` + `return_note`; missing either → reject.
 4. After Return, originating branch regains operational ownership; history intact.
 5. After Pusat Resolve, originating branch can always read the result.
-6. Resolve sets `result_visibility`; default `ORIGIN_BRANCH`.
-7. `ORIGIN_BRANCH`: other branches cannot access the case.
-8. `ALL_BRANCHES`: other branches have read-only access to resolved result/permitted history.
-9. Pusat may change `result_visibility` after Resolve; audit mandatory.
-10. Return does not set `result_visibility`.
+6. ~~Resolve sets `result_visibility`; default `ORIGIN_BRANCH`.~~ — **DROPPED §2a**; melekat, tidak dipilih aktor.
+7. Cabang lain tidak dapat mengakses case — berlaku selalu, bukan bergantung nilai.
+8. ~~`ALL_BRANCHES`: other branches have read-only access to resolved result/permitted history.~~ — **DROPPED §2a**.
+9. ~~Pusat may change `result_visibility` after Resolve; audit mandatory.~~ — **DROPPED §2a**.
+10. ~~Return does not set `result_visibility`.~~ — tidak relevan setelah §2a.
 
 ### UAT references
 

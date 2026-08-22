@@ -120,6 +120,7 @@ Mode B / Batch-2 / enterprise customer remain **CLOSED** (C-B6-1).
 | 0.1q | 2026-08-01 | **CAP-008 Program CLOSED** — ARB pack GOV-CAP008-CLOSE-*; Roadmap Reset `ai/sprint/CAP008_ROADMAP_RESET_v1.0.md`. Batch-2 Mode A Case delivery no longer future work. Mode B remains CLOSED. |
 | 0.1r | 2026-08-21 | Hygiene: M2/M3/§7 aligned to **DEC-026 executed**; remaining Mode A = BO/Board (Tutup Pengaduan, OQ-IAM-001, F4) — bukan Dual-SoT |
 | 0.1s | 2026-08-22 | **Tutup Pengaduan CLOSED** oleh BO — auto-close + `ALL_CASES_CANCELLED`; DEC-F4 sisa nyata dipersempit ke `result_visibility` saja (F4.1/F4.4/F4.5 sudah terimplementasi) |
+| 0.1t | 2026-08-22 | **OQ-IAM-001 dan DEC-F4 CLOSED** oleh BO — keduanya nol perubahan kode. Sisa §9 tinggal HQ overdue hint (Tech Lead) + dua item yang memang Deferred/Closed |
 
 ---
 
@@ -142,8 +143,8 @@ Bukan antrian fitur baru. Coding Mode A hanya bila regresi, atau setelah keputus
 | Item | Status | Pemilik |
 |---|---|---|
 | Tutup Pengaduan / induk tetap buka jika semua Case `CANCELLED` | **CLOSED 2026-08-22** — BO memutuskan auto-close + penanda `ALL_CASES_CANCELLED` (DEC-025 §3.4 addendum); terimplementasi | Business Owner |
-| OQ-IAM-001 sisa 19 gerbang baca `complaints:read`/`update` | Open | Architecture Board / BO |
-| DEC-F4 / FRD-CM-002 coding | Draft; **NOT APPROVED FOR CODE** | Architecture Board countersign |
+| OQ-IAM-001 sisa 19 gerbang baca `complaints:read`/`update` | **CLOSED 2026-08-22** — 18 gerbang milik modul antrean loket yang nol UI; telepon pelanggan diputus BO memang melekat pada wewenang ubah pengaduan. Nol perubahan kode | Business Owner |
+| DEC-F4 / FRD-CM-002 coding | **CLOSED 2026-08-22** — F4.1/F4.2/F4.4/F4.5 sudah terimplementasi; F4.3/F4.3a (`ALL_BRANCHES`) **dibatalkan** BO: hasil eskalasi hanya untuk cabang asal. Nol sisa coding | Business Owner |
 | HQ schedule overdue visual hint | Mode A FE — slice ini | Tech Lead (keep-green) |
 | Mode B / SSO / Identity Adapter | **CLOSED** (C-B6-1) | Board Unlock Resolution |
 | CAP-006 FR-030 engine | Stay Deferred (CAP006-BLK-001) | Time Source pattern |
