@@ -162,7 +162,9 @@ class CmCaseAcceptanceORM(Base):
 
 
 class CmCaseNumberCounterORM(Base):
+    """Independent Case sequence — key ``cs:UNIT:YYYYMM`` (BQ-004)."""
+
     __tablename__ = "cm_case_number_counters"
 
-    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
     last_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -9,7 +9,7 @@ info:
     **Capability:** CAP-008
     **FRD:** FRD-CM-B2-001 (`ECMP_FRD_Case_Management_Batch2_v1.0.md`) 🔒 LOCKED
     **BR SoT:** BR-CM-CAT-001 (LOCKED) — Case Aggregate Transition Matrix
-    **Decisions:** DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; CTO D-02 / BQ-011
+    **Decisions:** DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; DEC-028 (BQ-004 format); CTO D-02 / BQ-011
     **Implementation:** root `backend/app/modules/cm_case/` — Implemented (lab); REL-RC-001 PASS; tag `v1.2.0-rc.1`
     **SoT Closure:** `deploy/evidence/CAP-008_SoT_Closure_20260801.md` (2026-08-01)
 
@@ -156,7 +156,7 @@ paths:
       description: |
         Creates an operational Case under a parent Complaint (FR-001 / BR-004).
 
-        - Case Number format: `CASE-YYYY-NNNNNN` (BQ-004), independent of Complaint Number.
+        - Case Number format: `UNIT-YYMM-NNNN` (BQ-004 / DEC-028), independent of Complaint Number `CM{UNIT}-YYMM-NNNN`.
         - Initial status: `CREATED`, or `ASSIGNED` when `destinationUnitId` is supplied
           for Unit assignment in the same business action (BQ-006).
         - Assigned User MUST NOT be accepted (BQ-006) → `ASSIGNED_USER_NOT_ALLOWED_MODE_A`.
@@ -1166,16 +1166,16 @@ components:
           type: string
         caseNumber:
           type: string
-          description: Format CASE-YYYY-NNNNNN (BQ-004)
-          pattern: "^CASE-[0-9]{4}-[0-9]{6}$"
+          description: Format UNIT-YYMM-NNNN (BQ-004 / DEC-028)
+          pattern: "^[A-Z]{3}-[0-9]{4}-[0-9]{4,}$"
           examples:
-            - CASE-2026-000001
+            - TAB-2608-0001
         complaintId:
           type: string
         complaintNumber:
           type: string
           nullable: true
-          description: Parent Aggregate complaint number (human-readable).
+          description: Parent Aggregate complaint number `CM{UNIT}-YYMM-NNNN` (DEC-028).
         status:
           $ref: "#/components/schemas/CaseStatus"
         caseType:
@@ -1325,9 +1325,9 @@ components:
           type: string
         caseNumber:
           type: string
-          pattern: "^CASE-[0-9]{4}-[0-9]{6}$"
+          pattern: "^[A-Z]{3}-[0-9]{4}-[0-9]{4,}$"
           examples:
-            - CASE-2026-000001
+            - TAB-2608-0001
         complaintId:
           type: string
         customerId:

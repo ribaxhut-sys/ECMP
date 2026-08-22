@@ -5,17 +5,17 @@
 | Document ID | BCS-CAP-008-001 |
 | Capability ID | **CAP-008** (former working ID `CAP-02` — retired to avoid collision with `CAP-002`) |
 | Title | Case Management — Business Capability Specification |
-| Version | 1.2 |
+| Version | 1.3 |
 | Status | 🟢 BUSINESS LOCK READY · Residual BQ **ZERO** · FRD-CM-B2-001 🔒 **LOCKED** |
 | Batch | Batch-2 Mode A |
 | Owner | Product Owner / Business Analyst / Solution Architect (Product Team) |
 | Reviewer | Domain PO ECMF, Operations Lead, Compliance |
 | Approver | Business Owner / Architecture Board |
 | Module | Complaint Management Module only |
-| Last Review | 2026-08-01 |
+| Last Review | 2026-08-22 |
 | Related SoT | `02 Business Rules/ECMP_Business_Rules_Complaint_Management_Module_v1.0.md` (BR-CM-CAT-001 🔒 **Locked** — Case Aggregate Transition Matrix) |
 | Related Batch-1 | `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (FRD-CM-001 🔒 LOCKED; CTO D-02) |
-| Related DEC | DEC-020 (dual SoT); **DEC-BQ001** Option O3; **DEC-MODEA-B2-001** Mode A Delivery Baseline BQ Lock Pack (`18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`); CTO D-02 |
+| Related DEC | DEC-020 (dual SoT); **DEC-BQ001** Option O3; **DEC-MODEA-B2-001** Mode A Delivery Baseline BQ Lock Pack; **DEC-028** BQ-004 format + HQ destination (`27 Project Decisions/DEC-028_Case_Number_Unit_Month_and_HQ_Destination_v0.1.md`); CTO D-02 |
 | Explicitly excluded | Mode B · Identity redesign · Enterprise Platform · AI · SDK · Assignment Engine · SLA Engine · Notification Engine · Dashboard · Reporting |
 
 > **Kualitas dokumen:** Business only. Tidak ada spesifikasi implementasi, database, API/OpenAPI, UI, atau sequence diagram.
@@ -233,7 +233,7 @@ Semua BQ Mode A Delivery Baseline (**BQ-001 … BQ-014**) berstatus **LOCKED** p
 | BQ-CAP02-001 | Case state machine SoT Batch-2 Mode A | Update/Resolve/Close | **LOCKED** | DEC-BQ001 O3 — Aggregate = BR-CM-CAT Definition B; Sprint = DOM-ECMF-003 | Architecture Board / BO |
 | BQ-CAP02-002 | Mandatory Case after REGISTERED / aging | Wajib Case; KPI aging | **LOCKED** | Complaint MAY register without Case; MUST have ≥1 Case within **1 business day** after REGISTERED; Supervisor Queue MUST display exceedances | Product Owner |
 | BQ-CAP02-003 | Max Case per Complaint | Parallel Case | **LOCKED** | Default maximum **5** Cases per Complaint; future override **outside Mode A** | Product Owner |
-| BQ-CAP02-004 | Case Number format | Identity / search / audit | **LOCKED** | Independent of Complaint Number; format `CASE-YYYY-NNNN` (e.g. `CASE-2026-0002`) | Product Owner |
+| BQ-CAP02-004 | Case Number format | Identity / search / audit | **LOCKED** | Independent of Complaint Number (`CM{UNIT}-YYMM-NNNN`, e.g. `CMTAB-2608-0001`); format `UNIT-YYMM-NNNN` (e.g. `TAB-2608-0001`) | Product Owner |
 | BQ-CAP02-005 | SLA bind without SLA Engine | BR-004/006 consistency | **LOCKED** | Case SHALL bind SLA Policy Version; countdown **NOT** activated in Mode A | Product Owner |
 | BQ-CAP02-006 | Assignment without Assignment Engine | Update/Resolve preconditions | **LOCKED** | Assignment at **Unit level only**; Assigned User **outside Mode A** | Product Owner |
 | BQ-CAP02-007 | Close Case vs auto Complaint Closure | Aggregate vs Case | **LOCKED** | Close Case → Case `CLOSED` only; **MUST NOT** auto-close Complaint (BR-009 separate) | Product Owner |
@@ -257,7 +257,7 @@ Rules di bawah **direuse** dari BR-CM-CAT-001 / keputusan terkunci Batch-1. Tida
 | BR-CAP02-R02 (← FRD-CM-001 §3 #2) | Satu Complaint MAY memiliki satu atau banyak Case | Multi-Case locked | Must | UC-Add Case | Relasi 1:N terjaga | Locked principle |
 | BR-CAP02-R03 (← BR-001 / D-02) | Complaint Batch-1 lahir tanpa Case; CAP-02 menyediakan Create Case setelahnya | Intake vs work separation | Must | UC-Create Case | Tidak mengasumsikan Case pada create Complaint Batch-1 | Locked (Batch-1) |
 | BR-CAP02-R04 (← BR-004) | Assignment & SLA secara bisnis melekat Case, bukan Complaint — meskipun engine OOS di CAP-02 | Keputusan arsitektur bisnis | Must | All Case UCs | Tidak membuat Assignment/SLA di level Complaint | **LOCKED** — BQ-005/006 (DEC-MODEA-B2-001) |
-| BR-CAP02-R05 (← BR-004) | Create Case MUST menghasilkan Case Number unik (`CASE-YYYY-NNNN`, independen Complaint Number) + status awal Case + Timeline/Audit | Traceability / SoT identity | Must | UC-Create Case; UC-Add Case | Number unique; Timeline “Case Created”; Audit CaseCreated | **LOCKED** — BQ-004 |
+| BR-CAP02-R05 (← BR-004) | Create Case MUST menghasilkan Case Number unik (`UNIT-YYMM-NNNN`, independen Complaint Number `CM{UNIT}-YYMM-NNNN`) + status awal Case + Timeline/Audit | Traceability / SoT identity | Must | UC-Create Case; UC-Add Case | Number unique; Timeline “Case Created”; Audit CaseCreated | **LOCKED** — BQ-004 |
 | BR-CAP02-R06 (← BR-004) | Saat Case pertama dibuat pada Complaint `REGISTERED`, status Complaint menjadi `IN_PROGRESS` bila belum lebih lanjut | Sinkron Aggregate | Must | UC-Create Case | Transisi Complaint terdokumentasi + history | Locked in BR-004 narrative |
 | BR-CAP02-R07 (← BR-004 E1 / BR-015) | Create Case pada Complaint `CLOSED` MUST ditolak; arahkan Reopen (di luar scope CAP-02 kecuali diputuskan) | Integrity closure | Must | UC-Create Case; UC-Add Case | Reject + alasan bisnis | Locked principle |
 | BR-CAP02-R08 (← BR-004 E3) | Create Case MUST ditolak jika batas maksimum Case per Complaint tercapai | Kontrol operasional | Must | UC-Add Case | Compare count vs **max 5** (Mode A) | **LOCKED** — BQ-003 |
@@ -471,7 +471,7 @@ Kriteria bersifat terukur. Item bertanda **[LOCKED]** merujuk keputusan Mode A D
 
 | ID | Criterion |
 |---|---|
-| AC-01 | Given Complaint aktif non-`CLOSED` dan aktor berwenang, when Create Case dengan atribut wajib lengkap, then Case baru terbentuk dengan Case Number format `CASE-YYYY-NNNN` dan status awal sesuai BR-CM-CAT-001 serta entri Timeline “Case Created” + Audit ada. **[LOCKED BQ-004]** |
+| AC-01 | Given Complaint aktif non-`CLOSED` dan aktor berwenang, when Create Case dengan atribut wajib lengkap, then Case baru terbentuk dengan Case Number format `UNIT-YYMM-NNNN` dan status awal sesuai BR-CM-CAT-001 serta entri Timeline “Case Created” + Audit ada. **[LOCKED BQ-004]** |
 | AC-02 | Given Complaint Batch-1 `REGISTERED` tanpa Case, when Create Case sukses, then jumlah Case pada Complaint = 1 dan status Complaint = `IN_PROGRESS`. |
 | AC-03 | Given Complaint sudah punya N Case dan N < 5, when Add Case, then N menjadi N+1 tanpa Complaint baru; when N = 5, Add Case ditolak. **[LOCKED BQ-003]** |
 | AC-04 | Given Complaint `CLOSED`, when Create/Add Case, then ditolak dan Case tidak bertambah. |
@@ -539,6 +539,7 @@ Prinsip Aggregate Batch-1 yang sudah dikunci tetap **LOCKED**. Mode B tetap **CL
 | 1.0 | 2026-08-01 | ECMP Product Team (PO/BA/SA) | Initial BCS CAP-02 dari SoT BR-CM-CAT-001 + FRD-CM-001; koreksi istilah Add Case; daftar BQ blocking; status BUSINESS LOCK NOT READY |
 | 1.1 | 2026-08-01 | ECMP Product Owner | BU-03: sync setelah BU-01/02/04 — BQ-001 LOCKED (DEC-BQ001 O3); BQ-013 LOCKED (BR-CM-CAT Locked); §7 State Machine = SoT BR-CM-CAT; status **BUSINESS LOCK READY** |
 | 1.2 | 2026-08-01 | Repository Synchronization Coordinator | DEC-MODEA-B2-001: lock BQ-002…012,014 + countersign BQ-007/011; rename capability ID **CAP-008**; Residual BQ **ZERO**; FRD Batch-2 prerequisite **READY** |
+| 1.3 | 2026-08-22 | Product Owner | DEC-028: BQ-004 format string `UNIT-YYMM-NNNN` / `CM{UNIT}-YYMM-NNNN`; independensi tidak dibuka |
 
 ---
 

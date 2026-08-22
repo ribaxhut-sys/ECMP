@@ -95,7 +95,7 @@ export interface BranchCount {
   branchId: string | null;
   branchCode: string | null;
   branchName: string | null;
-  /** Stable 3-letter unit code, matches the complaint number prefix (e.g. "TAB"). */
+  /** Stable 3-letter unit code, embedded in the complaint number (e.g. "TAB" in CMTAB-2608-0001). */
   unitCode: string | null;
   total: number;
   open: number;

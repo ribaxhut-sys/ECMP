@@ -4,15 +4,15 @@
 |---|---|
 | Document ID | GOV-DEC-MODEA-B2-BQLOCK |
 | Decision ID | DEC-MODEA-B2-001 |
-| Version | 1.0 |
-| Date | 2026-08-01 |
+| Version | 1.1 |
+| Date | 2026-08-01 (amended 2026-08-22) |
 | Owner | Product Owner / Domain PO ECMF |
 | Reviewer | Architecture Board, Operations Lead, BA |
 | Approver | Business Owner / Product Owner |
 | Status | **APPROVED** |
 | Batch | Batch-2 Mode A |
 | Capability ID (final) | **CAP-008** (formerly working ID `CAP-02`) |
-| Related | DEC-BQ001 (O3); BR-CM-CAT-001 Locked; FRD-CM-001 Locked; BCS CAP-008 |
+| Related | DEC-BQ001 (O3); BR-CM-CAT-001 Locked; FRD-CM-001 Locked; BCS CAP-008; DEC-028 (BQ-004 format 2026-08-22) |
 
 ---
 
@@ -55,11 +55,13 @@ Closes **OQ-CM-B1-004**.
 - Future override policy is **outside Mode A**.
 
 ### BQ-004 — Case Number
-**LOCKED**
+**LOCKED** (format string amended 2026-08-22 — DEC-028 / DL-070)
 
-- Case Number is **independent** from Complaint Number.
-- Format: `CASE-YYYY-NNNNNN`
-- Example: `CASE-2026-000001`
+- Case Number is **independent** from Complaint Number. Independensi **tidak** dibuka.
+- Format Case: `UNIT-YYMM-NNNN` (e.g. `TAB-2608-0001`)
+- Format pengaduan (pasangan, agar tidak tabrakan visual): `CM{UNIT}-YYMM-NNNN` (e.g. `CMTAB-2608-0001`)
+- Counter Case: per unit per bulan (`cs:UNIT:YYYYMM`), bukan per tahun global
+- Format lama `CASE-YYYY-NNNNNN` / `CASE-YYYY-NNNN` **retired** for new issues
 
 ### BQ-005 — SLA Binding
 **LOCKED**
@@ -149,4 +151,10 @@ This pack does **not** itself publish FRD Batch-2 text. It unlocks FRD authoring
 - `26 Traceability/README.md`
 - `docs/product/README.md` (if present)
 
-**Out of scope for this sync:** OpenAPI, Event Catalog, application code, Mode B, Identity redesign, Transition Matrix rewrite.
+**Out of scope for this sync (v1.0):** OpenAPI, Event Catalog, application code, Mode B, Identity redesign, Transition Matrix rewrite.
+
+---
+
+## 7. Amendment 2026-08-22 (v1.1)
+
+Product Owner: BQ-004 **format string only** → opsi C (`UNIT-YYMM-NNNN` / `CM{UNIT}-YYMM-NNNN`). Independensi tidak berubah. Record: `27 Project Decisions/DEC-028_Case_Number_Unit_Month_and_HQ_Destination_v0.1.md`. OpenAPI `cm-case-management.v1.yaml` **ikut** diseragamkan pada amandemen ini.

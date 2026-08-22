@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 
+from app.modules.cm_batch1.complaint_number import format_case_number
+
 
 class CaseStatus(StrEnum):
     """Mode A Delivery exposed statuses (BQ-009). PENDING/ESCALATED not exposed."""
@@ -58,37 +60,50 @@ class AcceptanceDecision(StrEnum):
     REJECT = "REJECT"
 
 
-_CASE_NUMBER_RE = re.compile(r"^CASE-(\d{4})-(\d{4,6})$")
+_CASE_NUMBER_RE = re.compile(r"^([A-Z]{3})-(\d{4})-(\d{4,})$")
 
 
 class CaseNumber:
-    """Case Number ``CASE-YYYY-NNNN`` (BQ-004) — independent of Complaint Number.
+    """Case Number ``UNIT-YYMM-NNNN`` (BQ-004) — independent of Complaint Number.
 
-    Sequence is four digits (e.g. ``CASE-2026-0002``). Six-digit legacy values
-    such as ``CASE-2026-000002`` are accepted and canonicalized on parse.
+    Example: Tanah Abang Aug 2026 seq 1 → ``TAB-2608-0001``. Complaint numbers
+    use the same unit/month shape with a glued ``CM`` prefix (``CMTAB-…``)
+    and are rejected here.
     """
 
     __slots__ = ("_value",)
 
     def __init__(self, value: str) -> None:
-        text = (value or "").strip()
-        match = _CASE_NUMBER_RE.match(text)
+        text = (value or "").strip().upper()
+        match = _CASE_NUMBER_RE.fullmatch(text)
         if not match:
             raise ValueError(f"Invalid Case Number format: {value!r}")
-        seq = int(match.group(2))
-        if seq < 1 or seq > 9999:
-            raise ValueError("Case Number sequence out of range")
-        self._value = f"CASE-{match.group(1)}-{seq:04d}"
+        yymm = match.group(2)
+        month = int(yymm[2:])
+        if month < 1 or month > 12:
+            raise ValueError(f"Invalid Case Number format: {value!r}")
+        seq = int(match.group(3))
+        year = 2000 + int(yymm[:2])
+        self._value = format_case_number(
+            match.group(1), year=year, month=month, sequence=seq
+        )
 
     @property
     def value(self) -> str:
         return self._value
 
     @classmethod
-    def format(cls, year: int, seq: int) -> CaseNumber:
-        if seq < 1 or seq > 9999:
-            raise ValueError("Case Number sequence out of range")
-        return cls(f"CASE-{year:04d}-{seq:04d}")
+    def format(
+        cls,
+        unit_code: str,
+        *,
+        year: int,
+        month: int,
+        sequence: int,
+    ) -> CaseNumber:
+        return cls(
+            format_case_number(unit_code, year=year, month=month, sequence=sequence)
+        )
 
     def __str__(self) -> str:
         return self._value

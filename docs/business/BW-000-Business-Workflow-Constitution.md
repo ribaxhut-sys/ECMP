@@ -129,12 +129,12 @@ flowchart TD
 | **Stage ID** | WS-02 |
 | **Purpose** | Ensure every Complaint obtains Case work capacity under Mode A rules. |
 | **Entry Criteria** | Complaint exists; Case not yet meeting the mandatory minimum, or additional Case is required within the default maximum. |
-| **Exit Criteria** | At least one Case exists within **one working day** after Complaint `REGISTERED` (BC-5.4). Case Number is independent and uses `CASE-YYYY-NNNNNN` (BC-9.9). Each Case binds an SLA Policy Version (**bind-without-clock** in Mode A) (BC-9.10). Default maximum **five** Cases per Complaint (BC-9.4). |
+| **Exit Criteria** | At least one Case exists within **one working day** after Complaint `REGISTERED` (BC-5.4). Case Number is independent and uses `UNIT-YYMM-NNNN` (BC-9.9 / DL-070). Each Case binds an SLA Policy Version (**bind-without-clock** in Mode A) (BC-9.10). Default maximum **five** Cases per Complaint (BC-9.4). |
 | **Allowed Decisions** | Create Case; bind SLA Policy Version; surface threshold breaches to Supervisor Queue (BC-5.4). |
 | **Produced Events** | SLA binding / SLA-related changes SHALL be recorded as Timeline Event(s) (BC-5.3; BC-6.1). Write-audit on governed writes (BC-5.7). |
 | **Affected Principles** | BP-010; BP-006; BP-005; BP-014 |
 | **Referenced Constitution Clauses** | BC-5.4; BC-9.2; BC-9.4; BC-9.9; BC-9.10; BC-4.9 |
-| **Referenced Decisions** | DL-024; DL-067 |
+| **Referenced Decisions** | DL-024; DL-067; DL-070 |
 
 ---
 

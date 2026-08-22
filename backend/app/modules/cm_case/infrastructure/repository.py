@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.authorization.visibility import pusat_unit_clause
+from app.modules.cm_batch1.complaint_number import case_counter_name, resolve_unit_code
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.domain.aggregate import CaseAggregate
 from app.modules.cm_case.domain.repositories import ParentComplaintRef
@@ -65,15 +68,26 @@ class SqlAlchemyCaseRepository:
             or 0
         )
 
-    def next_case_number(self, year: int) -> str:
-        counter = self._session.get(CmCaseNumberCounterORM, year)
+    def next_case_number(
+        self, owning_unit_id: str | None, *, at: datetime | None = None
+    ) -> str:
+        when = at or datetime.now(UTC)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        unit = resolve_unit_code(owning_unit_id)
+        name = case_counter_name(unit, year=when.year, month=when.month)
+        counter = self._session.get(CmCaseNumberCounterORM, name)
         if counter is None:
-            counter = CmCaseNumberCounterORM(year=year, last_seq=0)
+            counter = CmCaseNumberCounterORM(name=name, last_seq=0)
             self._session.add(counter)
             self._session.flush()
+            counter = self._session.get(CmCaseNumberCounterORM, name)
+            assert counter is not None
         counter.last_seq += 1
         self._session.flush()
-        return CaseNumber.format(year, counter.last_seq).value
+        return CaseNumber.format(
+            unit, year=when.year, month=when.month, sequence=counter.last_seq
+        ).value
 
     def save(self, case: CaseAggregate) -> CaseAggregate:
         row = self._session.get(CmCaseORM, case.case_id)
@@ -202,11 +216,16 @@ class SqlAlchemyCaseRepository:
                 | (CmCaseORM.owner_unit_id == unit)
             )
         elif vis == "PUSAT":
-            codes = {c.upper() for c in pusat_unit_codes}
-            # SQLite/Postgres: compare upper(owning_unit_id / owner_unit_id)
+            # Root code or Pusat sub-unit (PUSAT-CRO, PUSAT-SUBAN-1, …) on
+            # either side — Handling Unit may move between Pusat sub-units
+            # while the Owner keeps its access.
             stmt = stmt.where(
-                func.upper(CmCaseORM.owning_unit_id).in_(sorted(codes))
-                | func.upper(CmCaseORM.owner_unit_id).in_(sorted(codes))
+                pusat_unit_clause(
+                    CmCaseORM.owning_unit_id, pusat_unit_codes=pusat_unit_codes
+                )
+                | pusat_unit_clause(
+                    CmCaseORM.owner_unit_id, pusat_unit_codes=pusat_unit_codes
+                )
             )
         else:
             return [], 0

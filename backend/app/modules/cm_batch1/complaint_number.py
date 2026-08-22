@@ -1,8 +1,12 @@
-"""Aggregate complaint numbers — format B: ``UNIT-YYMM-NNNN``.
+"""Human-readable complaint and case numbers.
 
-Example: Tanah Abang Aug 2026 seq 42 → ``TAB-2608-0042``.
+Complaint: ``CM{UNIT}-YYMM-NNNN`` (e.g. Tanah Abang Aug 2026 seq 1 →
+``CMTAB-2608-0001``).
+Case: ``UNIT-YYMM-NNNN`` (e.g. ``TAB-2608-0001``) — independent sequence
+(BQ-004), same unit/month shape, no ``CM`` prefix.
+
 Sequence width starts at 4 digits and grows automatically past 9999
-(``TAB-2608-10000``) so create never fails on overflow.
+(``CMTAB-2608-10000``) so create never fails on overflow.
 """
 
 from __future__ import annotations
@@ -78,8 +82,34 @@ def resolve_unit_code(owning_unit_id: str | None) -> str:
 
 
 def counter_name(unit_code: str, *, year: int, month: int) -> str:
-    """Portable counter key — one sequence per unit per calendar month."""
+    """Complaint counter key — one sequence per unit per calendar month."""
     return f"cn:{unit_code.upper()}:{year:04d}{month:02d}"
+
+
+def case_counter_name(unit_code: str, *, year: int, month: int) -> str:
+    """Case counter key — independent of the complaint sequence (BQ-004)."""
+    return f"cs:{unit_code.upper()}:{year:04d}{month:02d}"
+
+
+def format_unit_period_number(
+    unit_code: str,
+    *,
+    year: int,
+    month: int,
+    sequence: int,
+    prefix: str | None = None,
+) -> str:
+    """``[PREFIX]UNIT-YYMM-NNNN``; NNNN grows past 4 digits after 9999."""
+    if sequence < 1:
+        raise ValueError("sequence must be >= 1")
+    if not (1 <= month <= 12):
+        raise ValueError("month must be 1..12")
+    unit = resolve_unit_code(unit_code)
+    yymm = f"{year % 100:02d}{month:02d}"
+    width = 4 if sequence <= 9999 else len(str(sequence))
+    body = f"{unit}-{yymm}-{sequence:0{width}d}"
+    cleaned = (prefix or "").strip().upper()
+    return f"{cleaned}{body}" if cleaned else body
 
 
 def format_complaint_number(
@@ -89,15 +119,23 @@ def format_complaint_number(
     month: int,
     sequence: int,
 ) -> str:
-    """Format B: ``UNIT-YYMM-NNNN`` (NNNN grows past 4 digits after 9999)."""
-    if sequence < 1:
-        raise ValueError("sequence must be >= 1")
-    if not (1 <= month <= 12):
-        raise ValueError("month must be 1..12")
-    unit = resolve_unit_code(unit_code)
-    yymm = f"{year % 100:02d}{month:02d}"
-    width = 4 if sequence <= 9999 else len(str(sequence))
-    return f"{unit}-{yymm}-{sequence:0{width}d}"
+    """``CM{UNIT}-YYMM-NNNN`` (NNNN grows past 4 digits after 9999)."""
+    return format_unit_period_number(
+        unit_code, year=year, month=month, sequence=sequence, prefix="CM"
+    )
+
+
+def format_case_number(
+    unit_code: str,
+    *,
+    year: int,
+    month: int,
+    sequence: int,
+) -> str:
+    """``UNIT-YYMM-NNNN`` — Case identity, independent of Complaint Number."""
+    return format_unit_period_number(
+        unit_code, year=year, month=month, sequence=sequence
+    )
 
 
 def next_complaint_number(

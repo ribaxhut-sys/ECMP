@@ -5,7 +5,6 @@ No Notification / Assignment / SLA / Event engines. Audit + Complaint Timeline o
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -354,8 +353,8 @@ class CaseApplicationService:
                 "Maximum 5 Cases per Complaint reached (BQ-003).",
             )
 
-        year = datetime.now(UTC).year
-        number = CaseNumber(self._repo.next_case_number(year))
+        unit_for_number = (cmd.destination_unit_id or parent.owning_unit_id or "").strip() or None
+        number = CaseNumber(self._repo.next_case_number(unit_for_number))
         first_case = parent.case_count == 0 and parent.status == "REGISTERED"
         case = CaseAggregate.create(
             complaint_id=parent.complaint_id,

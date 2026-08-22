@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from app.modules.cm_case.domain.aggregate import CaseAggregate
@@ -53,8 +54,8 @@ class CaseRepository(Protocol):
     def count_cases(self, complaint_id: str) -> int:
         ...
 
-    def next_case_number(self, year: int) -> str:
-        """Allocate next ``CASE-YYYY-NNNN`` (BQ-004)."""
+    def next_case_number(self, owning_unit_id: str | None, *, at: datetime | None = None) -> str:
+        """Allocate next ``UNIT-YYMM-NNNN`` (BQ-004)."""
 
     def save(self, case: CaseAggregate) -> CaseAggregate:
         ...

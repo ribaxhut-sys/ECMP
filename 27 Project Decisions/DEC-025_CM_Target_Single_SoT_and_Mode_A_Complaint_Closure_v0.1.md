@@ -39,7 +39,7 @@ Cutover / retirement Foundation **hanya** via Retirement DEC terpisah. Alternati
 1. UI create/list utama sudah CM (`/complaints`, `/complaints/new`); handling masih Foundation (`/complaints/[id]`, `/queue`, `/assignments`, `/resolutions`).
 2. Search API-388 = Foundation only — intake Aggregate tidak masuk `/queue`.
 3. Dashboard punya dua sumber KPI (`/dashboard/summary` vs `/dashboard/aggregate-kpis`); FE `complaintKpiSource`.
-4. Tiga ruang identitas tanpa sync: `CMP-…` · `UNIT-YYMM-NNNN` · `CASE-YYYY-NNNNNN` (+ CA BC `complaint_cases*` terpisah).
+4. Tiga ruang identitas tanpa sync: `CMP-…` · `CM{UNIT}-YYMM-NNNN` · `UNIT-YYMM-NNNN` (Case; DEC-028) (+ CA BC `complaint_cases*` terpisah).
 5. Kata assign / escalate / close punya makna berbeda per stack.
 
 Business Owner menyatakan Dual-SoT **membingungkan** dan menginginkan **satu arah**: CM menjadi target Single Complaint SoT, tanpa cutover prematur.
@@ -441,8 +441,8 @@ Observed (bukan keputusan):
 | Stack | Nomor | Persistence |
 |---|---|---|
 | Foundation | `CMP-` + 10 hex (`complaints/service.py`) | tabel `complaints` (+ assignment/escalation/resolution/timeline/SLA) |
-| CM Aggregate | `UNIT-YYMM-NNNN` (`cm_batch1/complaint_number.py`) | `cm_batch1_*` |
-| CM Case | `CASE-YYYY-NNNNNN` | `cm_cases` (FK ke Aggregate, **bukan** ke `complaints`) |
+| CM Aggregate | `CM{UNIT}-YYMM-NNNN` (`cm_batch1/complaint_number.py`; DEC-028) | `cm_batch1_*` |
+| CM Case | `UNIT-YYMM-NNNN` (DEC-028; was `CASE-YYYY-NNNNNN`) | `cm_cases` (FK ke Aggregate, **bukan** ke `complaints`) |
 | CA BC | terpisah | `complaint_cases*` — bukan evolusi CM |
 
 Tidak ada FK / sync `cm_cases` → `complaints` (K6). Mapping ID **tidak ada**.

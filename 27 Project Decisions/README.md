@@ -48,6 +48,7 @@ Draft
 | **DEC-025** | CM Target Single SoT + Mode A Complaint Closure | 🟢 **Accepted** (2026-08-13) | Target CM Single SoT; BR-009 auto-close; M-025-1…6 executed; cutover = DEC-026 (executed) |
 | **DEC-026** | Foundation `/api/v1/complaints` namespace retirement | 🟢 **Accepted with Conditions** (2026-08-13) | **M-026-1…3 executed**: FE redirect, HTTP unmount, DROP `complaints*` (H1 / Alembic `0072`); CA BC bukan objek retire |
 | **DEC-027** | Label persona CRO / Staff KaSatPel / KaSatPel + Viewer ALL | 🟢 **Accepted (lab)** (2026-08-20) | Kode IAM tidak diganti; Viewer baca-semua; bukan Mode B |
+| **DEC-028** | Format nomor Case/pengaduan (BQ-004 opsi C) + unit tujuan eskalasi Pusat | 🟢 **Accepted (lab)** (2026-08-22) | Independensi BQ-004 tetap; format `TAB-2608-0001` / `CMTAB-2608-0001`; Pusat tetapkan jam+unit tujuan dan mengabari WP |
 | **DEC-MODEA-B2-001** | Mode A Delivery Baseline BQ Lock (CAP-008) | **Accepted** | BQ-002…014 LOCKED; Residual BQ ZERO; FRD Batch-2 prerequisite READY |
 | **ECMP-MODEA-INT-001** | Pengaduan Internal Journey Contract | **Accepted (Mode A UI)** | `/internal/*` copy + gerbang tutup; **bukan** Dual-SoT WP / bukan ADR |
 
@@ -58,6 +59,7 @@ Draft
 > **DEC-025** is **Accepted** (2026-08-13) — target CM Single SoT + BR-009 Mode A closure/status. Slices M-025-1…6 executed. Runtime SoT = `/api/v1/cm`. CAP-008 tetap CLOSED.
 > **DEC-026** is **Accepted with Conditions** (2026-08-13) — **M-026-1…3 executed** (FE redirect, unmount `/api/v1/complaints`, DROP `complaints*` H1). DEC-020 tubuh tidak di-rewrite. CA BC ticket-nested tetap. Mode B remains CLOSED.
 > **DEC-027** is **Accepted (lab)** (2026-08-20) — label persona + Viewer ALL; role code tidak diganti.
+> **DEC-028** is **Accepted (lab)** (2026-08-22) — BQ-004 format opsi C + HQ destination unit; independensi nomor Case tidak dibuka. Mode B remains CLOSED.
 > **ID collision (P0 governance):** two files share `DEC-020` and two share `DEC-021`. Do **not** renumber without Board/PMO decision. Register: `../deploy/evidence/DEC_ID_Collision_Register_20260801.md`.
 
 ## Structure (konvensi aktual — flat)

@@ -3,8 +3,8 @@
 | Field | Value |
 |---|---|
 | Document ID | DM-MODEA-B2-001 |
-| Version | 1.0 |
-| Date | 2026-08-01 |
+| Version | 1.1 |
+| Date | 2026-08-01 (BQ-004 format amended 2026-08-22) |
 | Status | **LOCKED** |
 | Governing DEC | DEC-MODEA-B2-001 |
 | Capability | CAP-008 |
@@ -14,7 +14,7 @@
 | BQ-001 | Case state machine SoT | DEC-BQ001 O3 — Aggregate = BR-CM-CAT Definition B | LOCKED |
 | BQ-002 | Mandatory Case / aging | MAY register without Case; MUST ≥1 Case within 1 business day after REGISTERED; Supervisor Queue shows exceedances | LOCKED |
 | BQ-003 | Max Case per Complaint | Default max **5**; override outside Mode A | LOCKED |
-| BQ-004 | Case Number | Independent; `CASE-YYYY-NNNNNN` | LOCKED |
+| BQ-004 | Case Number | Independent; Case `UNIT-YYMM-NNNN` / Complaint `CM{UNIT}-YYMM-NNNN` (DEC-028) | LOCKED |
 | BQ-005 | SLA binding | Bind SLA Policy Version; countdown NOT activated | LOCKED |
 | BQ-006 | Assignment | Unit level only; Assigned User outside Mode A | LOCKED |
 | BQ-007 | Close vs Complaint Closure | Close Case ≠ auto Close Complaint | LOCKED |

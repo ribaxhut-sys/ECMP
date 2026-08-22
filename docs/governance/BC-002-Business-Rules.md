@@ -327,7 +327,7 @@ Implementation
 | **Rule ID** | BR-CAS-001 |
 | **Title** | Case Number Independence |
 | **Classification** | Mandatory |
-| **Statement** | Case Number SHALL be independent of Complaint Number and SHALL use format `CASE-YYYY-NNNNNN`. |
+| **Statement** | Case Number SHALL be independent of Complaint Number and SHALL use format `UNIT-YYMM-NNNN` (e.g. `TAB-2608-0001`). Complaint Number SHALL use `CM{UNIT}-YYMM-NNNN` (e.g. `CMTAB-2608-0001`). |
 | **Business Context** | Identity clarity. |
 | **Trigger** | WS-02 Case establishment. |
 | **Preconditions** | Case being created. |
@@ -337,7 +337,7 @@ Implementation
 | **Referenced Glossary Terms** | BG-002 |
 | **Referenced Constitution Clause(s)** | BC-9.9 |
 | **Referenced Principle(s)** | BP-003 |
-| **Referenced Decision(s)** | DL-024 |
+| **Referenced Decision(s)** | DL-024; DL-070 |
 
 ### BR-CAS-002 — Maximum Cases Default
 

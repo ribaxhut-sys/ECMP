@@ -114,18 +114,33 @@ def test_fr001_create_case_created_status(service: CaseApplicationService, db_se
         )
     )
     assert dto.status == "CREATED"
-    assert dto.case_number.startswith("CASE-")
+    assert dto.case_number.startswith("UNK-")
+    unit, yymm, seq = dto.case_number.split("-")
+    assert len(unit) == 3 and unit.isalpha()
+    assert len(yymm) == 4 and yymm.isdigit()
+    assert seq == "0001"
     assert dto.sla_countdown_active is False
     assert dto.owning_unit_id is None
 
 
-def test_case_number_uses_four_digit_sequence() -> None:
-    assert CaseNumber.format(2026, 2).value == "CASE-2026-0002"
-    assert CaseNumber("CASE-2026-000002").value == "CASE-2026-0002"
-    with pytest.raises(ValueError, match="out of range"):
-        CaseNumber.format(2026, 10_000)
+def test_case_number_uses_unit_month_four_digits() -> None:
+    assert (
+        CaseNumber.format("TAB", year=2026, month=8, sequence=1).value
+        == "TAB-2608-0001"
+    )
+    assert CaseNumber("tab-2608-0001").value == "TAB-2608-0001"
+    assert (
+        CaseNumber.format("TAB", year=2026, month=8, sequence=10000).value
+        == "TAB-2608-10000"
+    )
     with pytest.raises(ValueError, match="Invalid Case Number"):
-        CaseNumber("CASE-2026-2")
+        CaseNumber("CMTAB-2608-0001")
+    with pytest.raises(ValueError, match="Invalid Case Number"):
+        CaseNumber("CM-TAB-2608-0001")
+    with pytest.raises(ValueError, match="Invalid Case Number"):
+        CaseNumber("CASE-2026-0002")
+    with pytest.raises(ValueError, match="sequence must be >= 1"):
+        CaseNumber.format("TAB", year=2026, month=8, sequence=0)
 
 
 def test_create_and_handle_claim_timeline_events(db_session: Session) -> None:
@@ -889,7 +904,10 @@ def test_api_create_get_resolve_close(api_client: TestClient, db_session: Sessio
     body = create.json()["data"]
     case_id = body["caseId"]
     assert body["status"] == "ASSIGNED"
-    assert body["caseNumber"].startswith("CASE-")
+    unit, yymm, seq = body["caseNumber"].split("-")
+    assert unit == "UNI"
+    assert len(yymm) == 4 and yymm.isdigit()
+    assert seq == "0001"
 
     viewed = api_client.get(f"/api/v1/cm/cases/{case_id}")
     assert viewed.status_code == 200
@@ -1011,7 +1029,7 @@ def test_audit_timeline_side_effects_records_audit_and_timeline() -> None:
     case = CaseAggregate.create(
         complaint_id=str(uuid.uuid4()),
         customer_id="CUST-1",
-        case_number=CaseNumber.format(2026, 1),
+        case_number=CaseNumber.format("TAB", year=2026, month=8, sequence=1),
         case_type="BILLING",
         subject="Side effect",
         description="desc",

@@ -43,6 +43,7 @@
 - **OQ-CM-B1-004 / BQ-002:** **CLOSED** — Complaint MAY register without Case; MUST have ≥1 Case within **1 business day** after REGISTERED; Supervisor Queue MUST display exceedances. Lihat `DEC-MODEA-B2-001`.
 - **BQ-001:** **CLOSED — Option O3 APPROVED** (DEC-BQ001). Sprint / case-centric Case SoT = DOM-ECMF-003; Aggregate Case SoT = BR-CM-CAT Definition B. Lihat `ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md`.
 - **BQ-002 … BQ-014 (Mode A Delivery Baseline):** **ALL LOCKED** — Product Owner Decision Session 2026-08-01. Capability ID final **CAP-008**. Residual BQ for Batch-2 Mode A Case Management = **ZERO**. Lihat `18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`.
+- **BQ-004 format string (2026-08-22):** Independensi **tetap**. Format diganti ke Case `UNIT-YYMM-NNNN` / pengaduan `CM{UNIT}-YYMM-NNNN` (DEC-028 / DL-070). Eskalasi ke Pusat: jam final + unit tujuan ditetapkan Pusat; Pusat mengabari WP.
 - **BQ-CAP006-01 … 15:** **CLOSED** (with explicit DEFERRED: pause/resume v1, Working Day activation, case-type target split) — DEC-CAP006-BQ-001. FRD-005 **LOCKED** B2-16. Lihat `deploy/evidence/B2-15_CAP-006_Business_Decision_Closure_20260801.md` dan `deploy/evidence/B2-16_CAP-006_FRD_Lock_Governance_Closure_20260801.md`.
 - **OQ-ORG-001:** Dilacak di **DEC-021** (Proposed) — interim: no descendant expansion; Recommend Option A exact-ref.
 - **OQ-ORG-002:** Dilacak di **DEC-022** (Proposed) — interim: retain historical refs + fail-closed for new scoped actions.

@@ -18,14 +18,14 @@
 | Related OpenAPI | `07 API Catalog/openapi/cm-case-management.v1.yaml` **1.0.0** (API-530…535) — Implemented (lab) |
 | Related RC | `deploy/evidence/REL_RC_001_CAP-008_Mode_A_Assessment_20260801.md` — PASS (lab) |
 | Related SoT Closure | `deploy/evidence/CAP-008_SoT_Closure_20260801.md` |
-| Related BCS | `docs/product/CAP-008_Case_Management_Business_Capability_Specification_v1.0.md` (v1.2) — LOCKED |
+| Related BCS | `docs/product/CAP-008_Case_Management_Business_Capability_Specification_v1.0.md` (v1.3) — LOCKED |
 | Related BR | `02 Business Rules/ECMP_Business_Rules_Complaint_Management_Module_v1.0.md` (BR-CM-CAT-001) — LOCKED |
 | Related Transition Matrix | BR-CM-CAT-001 Case Aggregate Transition Matrix — LOCKED |
 | Related Operational Specification | Embedded herein (Unit Ownership · Mode A Delivery Transition Subset · Close Case Checklist · FR-004 Rename) — LOCKED |
 | Related Batch-1 | `03 Functional Requirements/ECMP_FRD_Complaint_Management_Batch1_v1.1.md` (FRD-CM-001) — LOCKED |
 | Related Governance Baseline | `docs/governance/BC-000-Business-Constitution.md`; `docs/governance/BC-001-Business-Principles.md`; `docs/governance/BC-002-Business-Rules.md`; `docs/governance/BC-003-Business-Glossary.md`; `docs/business/BW-000-Business-Workflow-Constitution.md` |
 | Precedence | If this FRD conflicts with the approved Mode A governance baseline (BC-000…BC-003, BW-000), **the baseline prevails**. |
-| Related DEC | DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; CTO D-02 |
+| Related DEC | DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; DEC-028 (BQ-004 format); CTO D-02 |
 | Gate status | Business Lock READY · Board Unlock READY · Residual BQ **ZERO** |
 
 > **Authoring rules:** Repository is the only Source of Truth. Do not invent behavior. If the repository states **NOT SPECIFIED**, this FRD states **NOT SPECIFIED**.
@@ -149,7 +149,7 @@ Per BR-CM-CAT-001 and CAP-008:
 |---|---|
 | BQ-002 | MAY register without Case; MUST ≥1 Case within **1 working day** after `REGISTERED` (BC-5.4 timing threshold; **not** Working Day SLA calendar activation); Supervisor Queue shows exceedances |
 | BQ-003 | Max Cases per Complaint = **5** (Mode A) |
-| BQ-004 | Case Number independent; format **`CASE-YYYY-NNNNNN`** |
+| BQ-004 | Case Number independent; format **`UNIT-YYMM-NNNN`** (complaint **`CM{UNIT}-YYMM-NNNN`**) — DEC-028 |
 | BQ-005 | Bind SLA Policy Version; countdown **NOT** activated |
 | BQ-006 | Assignment **Unit level only**; Assigned User outside Mode A |
 | BQ-007 | Close Case ≠ auto Close Complaint |
@@ -179,7 +179,7 @@ Not interchangeable. Complaint `REGISTERED` ≠ Case `REGISTERED` (DOM-ECMF-003)
 | Complaint | Aggregate Root — customer complaint/request as one business whole |
 | Case | Operational work unit under Complaint |
 | CustomerId | Sole customer reference stored on Complaint |
-| Case Number | Independent Case identity; format `CASE-YYYY-NNNNNN` (BQ-004) |
+| Case Number | Independent Case identity; format `UNIT-YYMM-NNNN` (BQ-004 / DEC-028) |
 | Resolution | Formal Case outcome record (BR-008) |
 | Timeline | Human-readable chronological projection (BR-017) |
 | Audit Trail | Immutable significant-write record (BR-016) |
@@ -300,7 +300,7 @@ Actor selects **Create Case** on a Complaint that may receive a new Case; or Sys
 
 1. Actor selects parent Complaint.
 2. Actor enters Case type/category, subject, work description, priority, and **initial destination Unit** (Mode A).
-3. System generates unique Case Number `CASE-YYYY-NNNNNN` (BQ-004), independent of Complaint Number.
+3. System generates unique Case Number `UNIT-YYMM-NNNN` (BQ-004 / DEC-028), independent of Complaint Number (`CM{UNIT}-YYMM-NNNN`).
 4. System sets initial status:
    - `CREATED` if Unit assignment is not performed in the same business action; or
    - `ASSIGNED` if Create + **Unit assignment only** in one action (BR-004 A1; BQ-006).
@@ -339,7 +339,7 @@ Actor selects **Create Case** on a Complaint that may receive a new Case; or Sys
 | Priority | Valid configured value |
 | Destination Unit | Valid Organization unit |
 | Case count | N &lt; 5 |
-| Case Number | System-generated `CASE-YYYY-NNNNNN` |
+| Case Number | System-generated `UNIT-YYMM-NNNN` |
 | Assigned User | Forbidden in Mode A |
 | SLA | Policy Version bound; countdown not started |
 
@@ -364,7 +364,7 @@ Forbidden: orphan Case; DOM-ECMF-003 enums; Assigned User.
 
 #### Acceptance Criteria
 
-1. AC-01: Authorized Create with mandatory attributes → Case with `CASE-YYYY-NNNNNN`, initial status per BR-CM-CAT, Timeline “Case Created” + Audit. **[BQ-004]**
+1. AC-01: Authorized Create with mandatory attributes → Case with `UNIT-YYMM-NNNN`, initial status per BR-CM-CAT, Timeline “Case Created” + Audit. **[BQ-004 / DEC-028]**
 2. AC-02: First Case on Batch-1 `REGISTERED` → Case count = 1 and Complaint = `IN_PROGRESS`.
 3. AC-04: Complaint `CLOSED` → Create rejected.
 4. AC-05: Case without parent Complaint → rejected.
@@ -944,7 +944,7 @@ DEC-MODEA-B2-001 (BQ-007, BQ-008).
 | V-01 | Case MUST have a valid parent Complaint |
 | V-02 | One Complaint MAY have 1..N Cases; Mode A max N = **5** |
 | V-03 | Batch-1 Complaint MAY start without Case (D-02); MUST have ≥1 Case within 1 working day after `REGISTERED` (BQ-002; BC-5.4 timing) |
-| V-04 | Case Number = `CASE-YYYY-NNNNNN`, unique, independent of Complaint Number |
+| V-04 | Case Number = `UNIT-YYMM-NNNN`, unique, independent of Complaint Number |
 | V-05 | Mode A assignment = Unit only; Assigned User rejected |
 | V-06 | SLA Policy Version MUST bind; countdown MUST NOT activate in Mode A |
 | V-07 | Case status changes only via Appendix B / BR-CM-CAT; forbidden matrix applies fully |
@@ -971,7 +971,7 @@ Catalog from CAP-008 BCS §9 + Mode A locks (cross-FR).
 
 | ID | Criterion |
 |---|---|
-| AC-01 | Create success → `CASE-YYYY-NNNNNN` + initial status + Timeline/Audit **[BQ-004]** |
+| AC-01 | Create success → `UNIT-YYMM-NNNN` + initial status + Timeline/Audit **[BQ-004 / DEC-028]** |
 | AC-02 | First Case on `REGISTERED` → Complaint `IN_PROGRESS` |
 | AC-03 | Add Case N&lt;5 → N+1; N=5 → reject **[BQ-003]** |
 | AC-04 | Complaint `CLOSED` → Create/Add reject |
@@ -1151,3 +1151,4 @@ See FR-006 Preconditions. Normative minimum = #1–#4. Items #5–#8 = **NOT SPE
 | 1.0 | 2026-08-01 | ECMP Functional Specification Author | Draft v1.0 complete authoring from locked CAP-008, BR-CM-CAT, Transition Matrix, DEC-MODEA-B2-001, DEC-BQ001 O3, and locked Operational Specification (embedded). Status = Draft v1.0. NOT SPECIFIED copied without invention. BR/CAP/Matrix/DEC not modified. |
 | 1.0 LOCKED | 2026-08-01 | Architecture Review Board (SoT Closure) | Status → **LOCKED**. Sync API-530…535 + lab test suite refs to match RC-validated implementation. EVT IDs remain NOT SPECIFIED. No FR redesign; no BR/BCS/scope/Mode B change. Evidence: `deploy/evidence/CAP-008_SoT_Closure_20260801.md`. |
 | 1.0 LOCKED + BC/BW align | 2026-08-05 | Documentation Architect | Alignment P-03/P-06/P-07/P-08: BC/BW precedence; persona → Complaint Officer + Manager; BQ-002 working day wording; Regional OOS note. **No FR redesign.** |
+| 1.0 LOCKED + DEC-028 | 2026-08-22 | Product Owner | BQ-004 format string only: `UNIT-YYMM-NNNN` / `CM{UNIT}-YYMM-NNNN`. Independensi tidak dibuka. **No FR redesign.** |
