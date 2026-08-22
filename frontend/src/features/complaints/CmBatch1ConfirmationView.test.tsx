@@ -122,6 +122,7 @@ const messages = {
     intakeHistoryDescriptionLabel: "Deskripsi",
     intakeHistoryNoteLabel: "Catatan",
     intakeHistoryClosedNoteLabel: "Catatan ditutup",
+    escalationReasonLabel: "Alasan eskalasi ke Pusat",
     intakeEventLogDescription: "Urut waktu, satu baris per kejadian.",
     intakeEventLogEmpty: "Belum ada kejadian tercatat.",
     intakeEventLogUnavailable: "Log kejadian tidak dapat dimuat",
@@ -131,7 +132,6 @@ const messages = {
     intakeEventLogShowNote: "Lihat catatan",
     intakeEventLogHideNote: "Sembunyikan catatan",
     intakeEventNoteEmpty: "Tidak ada catatan",
-    registered_: "Terdaftar",
     registeredLabel: "Terdaftar",
     tagEscalationRequested: "Eskalasi diajukan",
     tagBranchClosed: "Ditutup di cabang",
@@ -555,6 +555,21 @@ describe("CmBatch1ConfirmationView — section layout", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the escalation reason after the description on an escalated complaint", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+        branchResolution: null,
+        escalationReason: "Perlu unit Suban",
+      }),
+    });
+    renderView();
+    await waitFor(() => screen.getByText("Narasi keluhan"));
+    expect(screen.getByText("Alasan eskalasi ke Pusat")).toBeInTheDocument();
+    expect(screen.getByText("Perlu unit Suban")).toBeInTheDocument();
+  });
+
   it("labels the note as 'Catatan ditutup' once the complaint is closed", async () => {
     fetchCmBatch1Complaint.mockResolvedValue({
       data: baseComplaint({ status: "CLOSED", intakeDisposition: "BRANCH_CLOSED" }),
@@ -585,7 +600,7 @@ describe("CmBatch1ConfirmationView — section layout", () => {
 });
 
 describe("CmBatch1ConfirmationView — history event filter", () => {
-  it("hides HANDLING_CONTINUED and HANDLING_TAKEN_OVER rows from this page's log", async () => {
+  it("keeps complaint and Case-milestone rows, hides Case work detail", async () => {
     fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
     const history: CmBatch1IntakeHistoryEntry[] = [
       {
@@ -597,13 +612,29 @@ describe("CmBatch1ConfirmationView — history event filter", () => {
       },
       {
         entryId: "2",
-        eventCode: "HANDLING_TAKEN_OVER",
-        eventType: "HANDLING_TAKEN_OVER",
-        occurredAt: "2026-08-11T01:00:00Z",
-        actorName: "Budi",
+        eventCode: "CASE_CREATED",
+        eventType: "CaseCreated",
+        occurredAt: "2026-08-10T01:05:00Z",
+        caseNumber: "TAB-2608-0001",
+        actorName: "Ani",
       },
       {
         entryId: "3",
+        eventCode: "CASE_STATUS_CHANGED",
+        eventType: "CaseStatusChanged",
+        occurredAt: "2026-08-11T01:00:00Z",
+        caseNumber: "TAB-2608-0001",
+        actorName: "Budi",
+      },
+      {
+        entryId: "4",
+        eventCode: "HANDLING_TAKEN_OVER",
+        eventType: "HANDLING_TAKEN_OVER",
+        occurredAt: "2026-08-11T02:00:00Z",
+        actorName: "Budi",
+      },
+      {
+        entryId: "5",
         eventCode: "HANDLING_CONTINUED",
         eventType: "HANDLING_CONTINUED",
         occurredAt: "2026-08-12T01:00:00Z",
@@ -613,7 +644,10 @@ describe("CmBatch1ConfirmationView — history event filter", () => {
     fetchCmBatch1ComplaintHistory.mockResolvedValue({ data: history });
     renderView();
     await waitFor(() => screen.getByText("Riwayat Pengaduan"));
-    expect(screen.getByText("1-1 dari 1")).toBeInTheDocument();
+    expect(screen.getByText("1-2 dari 2")).toBeInTheDocument();
+    expect(screen.getByText("Case dibuat")).toBeInTheDocument();
+    expect(screen.getByText("TAB-2608-0001")).toBeInTheDocument();
+    expect(screen.queryByText("Status case diubah")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Melanjutkan penanganan pengaduan"),
     ).not.toBeInTheDocument();

@@ -103,6 +103,7 @@ const messages = {
     number: "Nomor",
     subject: "Subjek",
     status: "Status",
+    penangananLastEvent: "Terakhir",
   },
   common: {
     success: "Sukses",
@@ -120,6 +121,8 @@ const messages = {
     unit: "Unit",
     customer: "Wajib Pajak",
     view: "Lihat",
+    eventCaseCreated: "Case dibuat",
+    eventCaseStatusChanged: "Status Case diubah",
   },
 };
 
@@ -199,6 +202,39 @@ describe("ComplaintPenangananSection", () => {
       "href",
       "/complaints/cm/cases/c2",
     );
+  });
+
+  it("shows the latest Case event as a one-line summary", async () => {
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "TAB-2608-0001",
+          complaintId: "cmp-1",
+          status: "ASSIGNED",
+          subject: "X",
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+    renderSection({
+      caseHistory: [
+        {
+          eventCode: "CASE_CREATED",
+          caseNumber: "TAB-2608-0001",
+          occurredAt: "2026-08-20T01:00:00Z",
+        },
+        {
+          eventCode: "CASE_STATUS_CHANGED",
+          caseNumber: "TAB-2608-0001",
+          occurredAt: "2026-08-21T04:00:00Z",
+        },
+      ],
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Terakhir")).toBeInTheDocument();
+      expect(screen.getByText("Status Case diubah")).toBeInTheDocument();
+    });
   });
 
   it("continues to case detail route", async () => {

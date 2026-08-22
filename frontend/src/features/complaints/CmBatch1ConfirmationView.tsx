@@ -83,12 +83,7 @@ import {
   hqPathCopyKeys,
   resolveHqPathPhase,
 } from "./penangananGroups";
-
-/** Case-handling events shown in ComplaintPenangananSection, not repeated in this page's log. */
-const CONFIRMATION_HIDDEN_HISTORY_CODES = new Set([
-  "HANDLING_CONTINUED",
-  "HANDLING_TAKEN_OVER",
-]);
+import { isCaseWorkDetailEvent } from "./complaintHistoryScope";
 
 const REJECT_NOTE_MIN = 20;
 const LOG_PAGE_SIZE = 10;
@@ -993,7 +988,7 @@ export function CmBatch1ConfirmationView({
           };
         })
       : blobOnlyRows()
-  ).filter((row) => !CONFIRMATION_HIDDEN_HISTORY_CODES.has(row.code));
+  ).filter((row) => !isCaseWorkDetailEvent(row.code));
 
   const logTotalPages = Math.max(
     1,
@@ -1234,6 +1229,7 @@ export function CmBatch1ConfirmationView({
 
           {data.subject ||
           intakeHistory.narrative.trim() ||
+          intakeHistory.escalationReason?.trim() ||
           intakeHistory.branchResolution?.trim() ? (
             <section className="space-y-[var(--ecmp-panel-gap)]">
               <Card>
@@ -1254,6 +1250,24 @@ export function CmBatch1ConfirmationView({
                       <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                         <KnowledgeReferenceText
                           text={intakeHistory.narrative.trim()}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                  {intakeHistory.escalationReason?.trim() ? (
+                    <div
+                      className={cn(
+                        "space-y-1",
+                        intakeHistory.narrative.trim() &&
+                          "border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]",
+                      )}
+                    >
+                      <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                        {t("escalationReasonLabel")}
+                      </p>
+                      <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                        <KnowledgeReferenceText
+                          text={intakeHistory.escalationReason.trim()}
                         />
                       </div>
                     </div>
@@ -1502,6 +1516,7 @@ export function CmBatch1ConfirmationView({
           {!intakeClosed && data.status !== "CLOSED" ? (
             <ComplaintPenangananSection
               complaintId={data.complaintId}
+              caseHistory={history}
               complaintStatus={data.status}
               intakeDisposition={data.intakeDisposition}
               hqAcceptedAt={data.hqAcceptedAt}

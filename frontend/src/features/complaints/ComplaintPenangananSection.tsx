@@ -38,7 +38,12 @@ import {
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
 import { officerDisplayName } from "./officerDisplayName";
 import { useToast } from "@/shared/providers";
-import { formatHqArrivalSlot } from "@/shared/utils/datetime";
+import { formatDateTime24, formatHqArrivalSlot } from "@/shared/utils/datetime";
+import {
+  CASE_LAST_EVENT_LABEL_KEYS,
+  latestCaseHistoryEvent,
+  type CaseHistoryHint,
+} from "./complaintHistoryScope";
 import {
   buildPenangananSummarySegments,
   hqPathCopyKeys,
@@ -97,6 +102,7 @@ function PenangananGroupBlock({
   onView,
   onEscalate,
   onReassign,
+  caseHistory,
 }: {
   title: string;
   items: CmCaseSummary[];
@@ -109,9 +115,12 @@ function PenangananGroupBlock({
   onView: (item: CmCaseSummary) => void;
   onEscalate: (item: CmCaseSummary) => void;
   onReassign: (item: CmCaseSummary) => void;
+  caseHistory: readonly CaseHistoryHint[];
 }) {
   const t = useTranslations("complaints");
+  const tCases = useTranslations("cases");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
   if (items.length === 0) return null;
 
   return (
@@ -130,6 +139,7 @@ function PenangananGroupBlock({
               <Th>{t("number")}</Th>
               <Th>{t("subject")}</Th>
               <Th>{t("status")}</Th>
+              <Th>{t("penangananLastEvent")}</Th>
               <Th>{t("penangananHandler")}</Th>
               <Th className="text-right">{tCommon("actions")}</Th>
             </tr>
@@ -158,6 +168,30 @@ function PenangananGroupBlock({
                       {t(statusLabelKey(item.status), { status: item.status })}
                     </span>
                   </div>
+                </Td>
+                <Td>
+                  {(() => {
+                    const last = latestCaseHistoryEvent(
+                      caseHistory,
+                      item.caseNumber,
+                    );
+                    if (!last) return tCommon("emDash");
+                    const labelKey =
+                      CASE_LAST_EVENT_LABEL_KEYS[
+                        last.eventCode.trim().toUpperCase()
+                      ];
+                    return (
+                      <div className="space-y-0.5">
+                        <div>
+                          {labelKey ? tCases(labelKey) : last.eventCode}
+                        </div>
+                        <div className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                          {formatDateTime24(last.occurredAt, locale) ||
+                            tCommon("emDash")}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </Td>
                 <Td>
                   {(() => {
@@ -247,6 +281,7 @@ export function ComplaintPenangananSection({
   complaintCreatedBy = null,
   complaintCreatedByName = null,
   onPenangananSnapshot,
+  caseHistory = [],
 }: {
   complaintId: string;
   complaintStatus?: string | null;
@@ -285,6 +320,8 @@ export function ComplaintPenangananSection({
     handlingClaimedBy: string | null;
     handlingClaimedByName: string | null;
   }) => void;
+  /** Parent complaint timeline — used only for the one-line last-event summary. */
+  caseHistory?: readonly CaseHistoryHint[];
 }) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
@@ -729,6 +766,7 @@ export function ComplaintPenangananSection({
             currentUserId={user?.id ?? null}
             canReassign={canReassign}
             handlerNames={handlerNames}
+            caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}
             onEscalate={handleEscalate}
@@ -745,6 +783,7 @@ export function ComplaintPenangananSection({
             currentUserId={user?.id ?? null}
             canReassign={false}
             handlerNames={handlerNames}
+            caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}
             onEscalate={handleEscalate}
@@ -758,6 +797,7 @@ export function ComplaintPenangananSection({
             currentUserId={user?.id ?? null}
             canReassign={false}
             handlerNames={handlerNames}
+            caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}
             onEscalate={handleEscalate}
@@ -771,6 +811,7 @@ export function ComplaintPenangananSection({
             currentUserId={user?.id ?? null}
             canReassign={false}
             handlerNames={handlerNames}
+            caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}
             onEscalate={handleEscalate}
