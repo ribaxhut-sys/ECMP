@@ -162,9 +162,11 @@ export function KnowledgeListView() {
         header: t("columnFile"),
         cell: ({ file }) =>
           file ? (
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 max-w-[20rem] items-start gap-2">
               <KnowledgeFileTypeIcon file={file} size="sm" />
-              <span className="min-w-0 truncate">{file.fileName}</span>
+              <span className="min-w-0 break-words" title={file.fileName}>
+                {file.fileName}
+              </span>
             </div>
           ) : (
             <span className="text-ecmp-text-secondary">{tCommon("emDash")}</span>
@@ -174,16 +176,19 @@ export function KnowledgeListView() {
         key: "title",
         header: t("columnTitle"),
         cell: ({ knowledge }) => (
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 max-w-[28rem] items-start gap-2">
             <span
               className={[
-                "h-2 w-2 shrink-0 rounded-full",
+                "mt-[0.4rem] h-2 w-2 shrink-0 rounded-full",
                 knowledgeStatusDotClass(knowledge.status),
               ].join(" ")}
               aria-hidden
             />
             <KnowledgeTypeBadge type={knowledge.knowledgeType} />
-            <span className="min-w-0 truncate font-medium text-ecmp-text-primary">
+            <span
+              className="min-w-0 break-words font-medium text-ecmp-text-primary"
+              title={knowledge.title}
+            >
               {knowledge.title}
             </span>
           </div>
@@ -210,7 +215,7 @@ export function KnowledgeListView() {
           );
           return (
             <span
-              className="block max-w-[24rem] truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary"
+              className="block max-w-[24rem] break-words text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary"
               title={meta}
             >
               {meta || tCommon("emDash")}
