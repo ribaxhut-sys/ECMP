@@ -288,7 +288,7 @@ def test_invalid_workdays_setting_falls_back_to_weekdays() -> None:
     assert not resp.days[0].closed
 
 
-def test_completed_visit_stays_listed_without_occupying_capacity() -> None:
+def test_completed_visit_still_counts_toward_scheduled_ratio() -> None:
     monday = _next_monday(date.today())
     arrivals = [
         ArrivalRow(
@@ -321,8 +321,9 @@ def test_completed_visit_stays_listed_without_occupying_capacity() -> None:
     slot = HqScheduleService(
         _FakeHqScheduleRepository(arrivals=arrivals), _settings_service()
     ).get_availability(date_from=monday, date_to=monday, detail=True).days[0].slots[0]
-    assert slot.scheduled_count == 1
-    assert slot.available_count == 1
+    assert slot.scheduled_count == 2
+    assert slot.completed_count == 1
+    assert slot.available_count == 0
     assert len(slot.scheduled_cases) == 2
     by_id = {case.complaint_id: case for case in slot.scheduled_cases}
     assert by_id["c1"].completed is True
@@ -352,6 +353,79 @@ def test_malformed_arrival_times_are_ignored() -> None:
     ).days[0].slots[0]
     assert slot.scheduled_count == 0
     assert slot.proposed_count == 0
+
+
+def test_past_day_slots_are_never_bookable() -> None:
+    # A week before the next Monday is always strictly in the past, whatever
+    # day the suite runs on.
+    past_monday = _next_monday(date.today()) - timedelta(days=7)
+    service = HqScheduleService(_FakeHqScheduleRepository(), _settings_service())
+    day = service.get_availability(
+        date_from=past_monday, date_to=past_monday, detail=False
+    ).days[0]
+    assert all(not s.bookable and s.bookable_count == 0 for s in day.slots)
+    # available_count stays the raw capacity figure — only bookable is time-gated.
+    assert day.slots[0].available_count == day.slots[0].capacity
+
+
+def test_future_day_open_slot_is_bookable() -> None:
+    # A week after the next Monday is always strictly in the future.
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    service = HqScheduleService(_FakeHqScheduleRepository(), _settings_service())
+    day = service.get_availability(
+        date_from=future_monday, date_to=future_monday, detail=False
+    ).days[0]
+    slot = day.slots[0]
+    assert slot.bookable is True
+    assert slot.bookable_count == slot.available_count == slot.capacity
+
+
+def test_full_future_slot_is_not_bookable() -> None:
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    arrivals = [
+        ArrivalRow(
+            complaint_id=f"c{i}",
+            complaint_number=f"CMP-{i}",
+            owning_unit_id="PUSAT",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:30",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+        )
+        for i in range(2)  # capacity_per_slot default is 2
+    ]
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals), _settings_service()
+    )
+    slot = service.get_availability(
+        date_from=future_monday, date_to=future_monday, detail=False
+    ).days[0].slots[0]
+    assert slot.available_count == 0
+    assert slot.bookable is False
+    assert slot.bookable_count == 0
+
+
+def test_break_slot_is_never_bookable() -> None:
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(),
+        _settings_service(
+            **{
+                SettingsKey.HQ_SCHEDULE_START.value: "08:00",
+                SettingsKey.HQ_SCHEDULE_END.value: "10:00",
+                SettingsKey.HQ_SCHEDULE_SLOT_MINUTES.value: "60",
+                SettingsKey.HQ_SCHEDULE_BREAK_START.value: "08:00",
+                SettingsKey.HQ_SCHEDULE_BREAK_END.value: "09:00",
+            }
+        ),
+    )
+    slot = service.get_availability(
+        date_from=future_monday, date_to=future_monday, detail=False
+    ).days[0].slots[0]
+    assert slot.is_break is True
+    assert slot.bookable is False
 
 
 def test_holiday_crud_relabels_creates_and_deletes() -> None:

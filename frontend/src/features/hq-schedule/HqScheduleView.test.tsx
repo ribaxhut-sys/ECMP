@@ -3,7 +3,7 @@
  */
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import { toLocalDateKey } from "@/shared/utils/datetime";
 import type { HqScheduleAvailabilityResponse } from "@/lib/api/hqSchedule";
@@ -47,6 +47,7 @@ vi.mock("@/lib/api/hqSchedule", () => ({
 import {
   HqScheduleView,
   isArrivalOverdue,
+  isSlotPast,
   slotOccupancy,
   summarizeHqWeek,
 } from "./HqScheduleView";
@@ -76,8 +77,11 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
             capacity: 2,
             isBreak: false,
             scheduledCount: 2,
+            completedCount: 0,
             proposedCount: 0,
             availableCount: 0,
+            bookable: false,
+            bookableCount: 0,
             pendingProposals: [],
             scheduledCases: [
               {
@@ -102,8 +106,11 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
             capacity: 2,
             isBreak: true,
             scheduledCount: 0,
+            completedCount: 0,
             proposedCount: 0,
             availableCount: 2,
+            bookable: false,
+            bookableCount: 0,
             pendingProposals: [],
             scheduledCases: [],
           },
@@ -114,12 +121,27 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
 }
 
 describe("HqScheduleView", () => {
+  beforeAll(() => {
+    // jsdom has no scrollIntoView; the pinned clock below now makes several
+    // fixtures' single day match "today", so the today-column effect runs.
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
   });
 
   beforeEach(() => {
+    // Pin "now" to before the 08:00 slot on the fixture's Monday so every
+    // gridWithCases() slot reads as current, not past — individual tests
+    // override with their own setSystemTime for overdue/past-slot scenarios.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-17T07:30:00"));
     fetchHqScheduleAvailability.mockReset();
     fetchHqScheduleAvailabilityDetail.mockReset();
     fetchHqScheduleHolidays.mockReset();
@@ -256,8 +278,11 @@ describe("HqScheduleView", () => {
       capacity: 2,
       isBreak: false,
       scheduledCount: 0,
+      completedCount: 0,
       proposedCount: 0,
       availableCount: 2,
+      bookable: true,
+      bookableCount: 2,
       pendingProposals: [],
       scheduledCases: [],
     });
@@ -279,8 +304,11 @@ describe("HqScheduleView", () => {
         capacity: 2,
         isBreak: false,
         scheduledCount: 0,
+        completedCount: 0,
         proposedCount: 0,
         availableCount: 2,
+        bookable: true,
+        bookableCount: 2,
         pendingProposals: [],
         scheduledCases: [],
       },
@@ -290,8 +318,11 @@ describe("HqScheduleView", () => {
         capacity: 2,
         isBreak: false,
         scheduledCount: 1,
+        completedCount: 0,
         proposedCount: 0,
         availableCount: 1,
+        bookable: true,
+        bookableCount: 1,
         pendingProposals: [],
         scheduledCases: [
           {
@@ -318,16 +349,19 @@ describe("HqScheduleView", () => {
     expect(partial).toHaveClass("border-l-ecmp-warning");
   });
 
-  it("keeps a completed visit listed with a checklist tag and empty occupancy", async () => {
+  it("keeps a completed visit listed with a checklist tag and still counts it toward occupancy", async () => {
     const grid = gridWithCases();
     grid.days[0]!.slots.push({
       startTime: "10:00",
       endTime: "11:00",
       capacity: 2,
       isBreak: false,
-      scheduledCount: 0,
+      scheduledCount: 1,
+      completedCount: 1,
       proposedCount: 0,
-      availableCount: 2,
+      availableCount: 1,
+      bookable: true,
+      bookableCount: 1,
       pendingProposals: [],
       scheduledCases: [
         {
@@ -344,7 +378,8 @@ describe("HqScheduleView", () => {
     renderWithProviders(<HqScheduleView />);
 
     const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-10:00");
-    expect(slot).toHaveAttribute("data-occupancy", "empty");
+    expect(slot).toHaveAttribute("data-occupancy", "partial");
+    expect(within(slot).getByText("1/2 slot")).toBeInTheDocument();
     expect(within(slot).getByText("CASE-2026-000009")).toBeInTheDocument();
     expect(within(slot).getByLabelText("Done")).toBeInTheDocument();
     expect(within(slot).queryByText("Done")).not.toBeInTheDocument();
@@ -418,6 +453,27 @@ describe("HqScheduleView", () => {
     expect(isArrivalOverdue("not-a-date", "09:00", now)).toBe(false);
   });
 
+  it("treats a slot as past only after its own end time, not its start time", () => {
+    const now = new Date("2026-08-17T08:30:00").getTime();
+    expect(isSlotPast("2026-08-17", "09:00", now)).toBe(false); // still in progress
+    expect(isSlotPast("2026-08-17", "08:00", now)).toBe(true); // ended already
+    expect(isSlotPast("not-a-date", "09:00", now)).toBe(false);
+  });
+
+  it("shows a completed/scheduled outcome instead of a capacity ratio once the slot has fully elapsed", async () => {
+    vi.setSystemTime(new Date("2026-08-17T09:30:00")); // 08:00-09:00 slot is over
+    const grid = gridWithCases();
+    grid.days[0]!.slots[0]!.completedCount = 1; // 2 scheduled, 1 closed, 1 still open
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
+    expect(within(slot).getByText("1/2 done")).toBeInTheDocument();
+    expect(within(slot).queryByText("2/2 slot")).not.toBeInTheDocument();
+    expect(slot).toHaveAttribute("data-past", "true");
+    expect(slot).not.toHaveClass("border-l-ecmp-danger");
+  });
+
   it("tags a break slot instead of showing case data", async () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
@@ -479,16 +535,24 @@ describe("HqScheduleView", () => {
     );
   });
 
-  it("summarizes scheduled, today, and empty slot counts from visible weekdays", () => {
-    expect(
-      summarizeHqWeek(gridWithCases().days, "2026-08-17"),
-    ).toEqual({ scheduled: 2, today: 2, empty: 0 });
-    expect(
-      summarizeHqWeek(gridWithCases().days, "2026-08-18"),
-    ).toEqual({ scheduled: 2, today: 0, empty: 0 });
+  it("summarizes scheduled, today, and bookable slot counts from visible weekdays", () => {
+    expect(summarizeHqWeek(gridWithCases().days, "2026-08-17")).toEqual({
+      scheduled: 2,
+      today: 2,
+      todayCompleted: 0,
+      bookable: 0,
+      weekCompleted: 0,
+    });
+    expect(summarizeHqWeek(gridWithCases().days, "2026-08-18")).toEqual({
+      scheduled: 2,
+      today: 0,
+      todayCompleted: 0,
+      bookable: 0,
+      weekCompleted: 0,
+    });
   });
 
-  it("counts completed visits in week totals while occupancy stays empty", () => {
+  it("counts a completed visit toward scheduled and week-completed totals", () => {
     expect(
       summarizeHqWeek(
         [
@@ -502,9 +566,12 @@ describe("HqScheduleView", () => {
                 endTime: "09:00",
                 capacity: 2,
                 isBreak: false,
-                scheduledCount: 0,
+                scheduledCount: 1,
+                completedCount: 1,
                 proposedCount: 0,
-                availableCount: 2,
+                availableCount: 1,
+                bookable: true,
+                bookableCount: 1,
                 pendingProposals: [],
                 scheduledCases: [
                   {
@@ -522,7 +589,7 @@ describe("HqScheduleView", () => {
         ],
         "2026-08-17",
       ),
-    ).toEqual({ scheduled: 1, today: 1, empty: 2 });
+    ).toEqual({ scheduled: 1, today: 1, todayCompleted: 1, bookable: 1, weekCompleted: 1 });
   });
 
   it("maps occupancy from booked count, not leftover capacity", () => {

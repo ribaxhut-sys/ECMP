@@ -35,8 +35,11 @@ function dayResponse(overrides: Partial<{ closed: boolean }> = {}) {
                 capacity: 2,
                 isBreak: false,
                 scheduledCount: 0,
+                completedCount: 0,
                 proposedCount: 0,
                 availableCount: 2,
+                bookable: true,
+                bookableCount: 2,
                 pendingProposals: [],
                 scheduledCases: [],
               },
@@ -46,8 +49,11 @@ function dayResponse(overrides: Partial<{ closed: boolean }> = {}) {
                 capacity: 2,
                 isBreak: true,
                 scheduledCount: 0,
+                completedCount: 0,
                 proposedCount: 0,
                 availableCount: 2,
+                bookable: false,
+                bookableCount: 0,
                 pendingProposals: [],
                 scheduledCases: [],
               },
@@ -101,6 +107,24 @@ describe("HqArrivalSlotPicker", () => {
     );
     expect(optionValues).toContain("08:00");
     expect(optionValues).not.toContain("12:00");
+  });
+
+  it("disables a slot the backend marks unbookable (past, full, or on break)", async () => {
+    fetchHqScheduleAvailability.mockResolvedValue({
+      data: dayResponse(),
+    });
+    renderWithProviders(
+      <HqArrivalSlotPicker
+        value={{ date: "2026-08-18", time: "" }}
+        onChange={() => {}}
+      />,
+    );
+    const timeSelect =
+      await screen.findByLabelText<HTMLSelectElement>(/^Arrival time$/i);
+    const bookableOption = Array.from(timeSelect.querySelectorAll("option")).find(
+      (opt) => opt.getAttribute("value") === "08:00",
+    );
+    expect(bookableOption).not.toBeDisabled();
   });
 
   it("shows a no-slots hint when the picked day is closed", async () => {

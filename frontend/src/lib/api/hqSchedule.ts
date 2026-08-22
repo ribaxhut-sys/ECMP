@@ -16,7 +16,7 @@ export interface HqScheduleProposalSummary {
   caseNumbers: string[];
   proposedBy?: string | null;
   proposedAt?: string | null;
-  /** HQ visit completed (HQ_CLOSED) — still listed that day; does not consume capacity. */
+  /** HQ visit completed (HQ_CLOSED) — still listed that day and counted in the slot ratio. */
   completed?: boolean;
 }
 
@@ -25,9 +25,17 @@ export interface HqScheduleSlotAvailability {
   endTime: string;
   capacity: number;
   isBreak: boolean;
+  /** Total occupants (live + completed) — the slot's booked ratio. */
   scheduledCount: number;
+  /** Subset of scheduledCount whose HQ visit is already closed. */
+  completedCount: number;
   proposedCount: number;
+  /** Raw capacity left (capacity - scheduledCount); not time-aware. */
   availableCount: number;
+  /** Open day, not a break, slot start still in the future, capacity left. */
+  bookable: boolean;
+  /** availableCount when bookable, else 0 — what a picker should offer. */
+  bookableCount: number;
   /** Pusat detail view only — empty on the branch-facing aggregate view. */
   pendingProposals: HqScheduleProposalSummary[];
   /** Pusat detail view only — empty on the branch-facing aggregate view. */

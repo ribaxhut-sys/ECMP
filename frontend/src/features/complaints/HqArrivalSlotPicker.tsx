@@ -81,9 +81,9 @@ export function HqArrivalSlotPicker({
     .map((slot) => ({
       value: slot.startTime,
       label: `${slot.startTime}–${slot.endTime} (${t("availableCount", {
-        count: slot.availableCount,
+        count: slot.bookableCount,
       })})`,
-      disabled: slot.availableCount <= 0,
+      disabled: !slot.bookable,
     }));
 
   return (

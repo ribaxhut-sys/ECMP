@@ -93,27 +93,42 @@ export function slotOccupancy(
   return "partial";
 }
 
+export interface HqWeekSummary {
+  /** Total occupants for the visible week (live + completed). */
+  scheduled: number;
+  /** Total occupants today (live + completed). */
+  today: number;
+  /** Subset of `today` whose HQ visit is already closed. */
+  todayCompleted: number;
+  /** Slots still open to book — future, not on break, capacity left. */
+  bookable: number;
+  /** Total completed visits across the visible week. */
+  weekCompleted: number;
+}
+
 export function summarizeHqWeek(
   days: HqScheduleDayAvailability[],
   todayIso: string,
-): { scheduled: number; today: number; empty: number } {
+): HqWeekSummary {
   let scheduled = 0;
   let today = 0;
-  let empty = 0;
+  let todayCompleted = 0;
+  let bookable = 0;
+  let weekCompleted = 0;
   for (const day of days) {
     if (day.closed) continue;
     for (const slot of day.slots) {
       if (slot.isBreak) continue;
-      const listed =
-        slot.scheduledCases.length > 0
-          ? slot.scheduledCases.length
-          : slot.scheduledCount;
-      scheduled += listed;
-      empty += slot.availableCount;
-      if (day.date === todayIso) today += listed;
+      scheduled += slot.scheduledCount;
+      weekCompleted += slot.completedCount;
+      bookable += slot.bookableCount;
+      if (day.date === todayIso) {
+        today += slot.scheduledCount;
+        todayCompleted += slot.completedCount;
+      }
     }
   }
-  return { scheduled, today, empty };
+  return { scheduled, today, todayCompleted, bookable, weekCompleted };
 }
 
 /** Case number(s) tracking this complaint's escalation — always populated by the time HQ schedules an arrival. */
@@ -130,6 +145,64 @@ function caseNumbersLabel(proposal: HqScheduleProposalSummary): string {
 export function isArrivalOverdue(date: string, endTime: string, nowMs: number): boolean {
   const slotEnd = new Date(`${date}T${endTime}:00`).getTime();
   return Number.isFinite(slotEnd) && slotEnd < nowMs;
+}
+
+/**
+ * A slot whose entire window has elapsed — same boundary as `isArrivalOverdue`
+ * (end time), but for the slot itself rather than one occupant. Drives the
+ * neutral "this is history now" styling and the outcome-instead-of-ratio
+ * label, regardless of whether anyone was ever booked into the slot. A slot
+ * still in progress (start passed, end not yet) reads as current, not past.
+ */
+export function isSlotPast(date: string, endTime: string, nowMs: number): boolean {
+  const slotEnd = new Date(`${date}T${endTime}:00`).getTime();
+  return Number.isFinite(slotEnd) && slotEnd < nowMs;
+}
+
+/** "2/6 slot" while still current; an outcome ("1/2 selesai" / past-empty) once the slot has ended. */
+function slotRatioText(
+  date: string,
+  slot: HqScheduleSlotAvailability,
+  nowMs: number,
+  t: ReturnType<typeof useTranslations>,
+): string {
+  if (isSlotPast(date, slot.endTime, nowMs)) {
+    if (slot.scheduledCount === 0) return t("slotPastEmpty");
+    return t("slotOutcomeLabel", {
+      completed: slot.completedCount,
+      scheduled: slot.scheduledCount,
+    });
+  }
+  return t("slotRatio", { scheduled: slot.scheduledCount, capacity: slot.capacity });
+}
+
+/** "healthy" once every occupant today is closed out; "critical" once one is overdue and still open. */
+function todayAccent(
+  days: HqScheduleDayAvailability[],
+  todayIso: string,
+  nowMs: number,
+): "normal" | "attention" | "critical" | "healthy" {
+  let scheduled = 0;
+  let completed = 0;
+  let overdue = false;
+  for (const day of days) {
+    if (day.date !== todayIso || day.closed) continue;
+    for (const slot of day.slots) {
+      if (slot.isBreak) continue;
+      scheduled += slot.scheduledCount;
+      completed += slot.completedCount;
+      if (
+        slot.completedCount < slot.scheduledCount &&
+        isArrivalOverdue(day.date, slot.endTime, nowMs)
+      ) {
+        overdue = true;
+      }
+    }
+  }
+  if (scheduled === 0) return "normal";
+  if (overdue) return "critical";
+  if (completed < scheduled) return "attention";
+  return "healthy";
 }
 
 function CaseLine({
@@ -237,16 +310,22 @@ function SlotCard({
 
   const listed = slot.scheduledCases.length > 0;
   const occupancy = slotOccupancy(slot.scheduledCount, slot.capacity);
+  const isPast = isSlotPast(date, slot.endTime, nowMs);
   return (
     <article
       data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
       data-occupancy={occupancy}
+      data-past={isPast ? "true" : undefined}
       className={cn(
         "rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 px-2.5 py-3 min-h-16",
         "border-l-4",
-        occupancy === "empty" && "border-l-ecmp-success bg-ecmp-success-subtle/40",
-        occupancy === "partial" && "border-l-ecmp-warning bg-ecmp-warning-subtle/40",
-        occupancy === "full" && "border-l-ecmp-danger bg-ecmp-danger-subtle/40",
+        isPast
+          ? "border-l-ecmp-border bg-ecmp-surface-sunken/60"
+          : cn(
+              occupancy === "empty" && "border-l-ecmp-success bg-ecmp-success-subtle/40",
+              occupancy === "partial" && "border-l-ecmp-warning bg-ecmp-warning-subtle/40",
+              occupancy === "full" && "border-l-ecmp-danger bg-ecmp-danger-subtle/40",
+            ),
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -277,6 +356,8 @@ function SlotCard({
 function DayColumn({
   day,
   isToday,
+  isPast,
+  summaryLabel,
   weekdayLabel,
   todayLabel,
   canOpenCase,
@@ -290,6 +371,8 @@ function DayColumn({
 }: {
   day: HqScheduleDayAvailability;
   isToday: boolean;
+  isPast: boolean;
+  summaryLabel: string | null;
   weekdayLabel: string;
   todayLabel: string;
   canOpenCase: (owningUnitId: string | null | undefined) => boolean;
@@ -308,11 +391,13 @@ function DayColumn({
       ref={columnRef}
       data-testid={`hq-schedule-day-${day.date}`}
       data-today={isToday ? "true" : undefined}
+      data-past={isPast ? "true" : undefined}
       className={cn(
         "flex min-w-[11.5rem] shrink-0 snap-start flex-1 flex-col gap-2 rounded-[var(--ecmp-radius-card)] border p-3",
         isToday
           ? "border-ecmp-primary bg-ecmp-primary-muted/40"
           : "border-ecmp-border/70 bg-ecmp-surface",
+        isPast && "opacity-70",
       )}
     >
       <header className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
@@ -331,6 +416,11 @@ function DayColumn({
           <Badge tone="info" variant="solid">
             {todayLabel}
           </Badge>
+        ) : null}
+        {summaryLabel ? (
+          <span className="w-full text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+            {summaryLabel}
+          </span>
         ) : null}
       </header>
       {day.closed ? (
@@ -550,6 +640,15 @@ export function HqScheduleView() {
   );
   const viewingThisWeek =
     toLocalDateKey(weekStart) === toLocalDateKey(startOfWeek(new Date()));
+  const isPastWeek = toLocalDateKey(addDays(weekStart, RANGE_DAYS)) < todayIso;
+  const todayPending = weekStats.today - weekStats.todayCompleted;
+  const todayBreakdown =
+    weekStats.today > 0
+      ? t("todayBreakdownLabel", {
+          completed: weekStats.todayCompleted,
+          pending: todayPending,
+        })
+      : null;
   const weekNavButtonClass =
     "!rounded-none !border-0 !shadow-none min-w-[var(--ecmp-touch-min)] sm:min-w-0";
 
@@ -612,16 +711,29 @@ export function HqScheduleView() {
             />
             <StatCard
               hierarchy="supporting"
-              accent={weekStats.today > 0 ? "attention" : "normal"}
+              accent={todayAccent(visibleDays, todayIso, nowMs)}
               title={t("todayArrivalsLabel")}
-              value={<span className="tabular-nums">{weekStats.today}</span>}
+              value={
+                <span className="flex flex-col items-end gap-0.5">
+                  <span className="tabular-nums">{weekStats.today}</span>
+                  {todayBreakdown ? (
+                    <span className="text-[length:var(--ecmp-font-caption-size)] font-normal text-ecmp-text-secondary">
+                      {todayBreakdown}
+                    </span>
+                  ) : null}
+                </span>
+              }
               className="flex flex-row items-center justify-between gap-2 !p-3 md:!p-3.5 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
             />
             <StatCard
               hierarchy="supporting"
               accent="healthy"
-              title={t("emptySlotsLabel")}
-              value={<span className="tabular-nums">{weekStats.empty}</span>}
+              title={isPastWeek ? t("weekCompletedLabel") : t("emptySlotsLabel")}
+              value={
+                <span className="tabular-nums">
+                  {isPastWeek ? weekStats.weekCompleted : weekStats.bookable}
+                </span>
+              }
               className="flex flex-row items-center justify-between gap-2 !p-3 md:!p-3.5 [&>p]:!mt-0 [&>div>p]:!text-[length:var(--ecmp-font-helper-size)] [&>p]:!text-[length:var(--ecmp-font-card-title-size)]"
             />
           </div>
@@ -641,30 +753,46 @@ export function HqScheduleView() {
                 aria-label={t("boardRegionLabel")}
                 className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1"
               >
-                {visibleDays.map((day) => (
-                  <DayColumn
-                    key={day.date}
-                    day={day}
-                    isToday={day.date === todayIso}
-                    weekdayLabel={weekdayFormatterLong.format(
-                      new Date(`${day.date}T00:00:00`),
-                    )}
-                    todayLabel={t("todayLabel")}
-                    canOpenCase={canOpenCase}
-                    branchNameByCode={branchNameByCode}
-                    slotRatio={(slot) =>
-                      t("slotRatio", {
-                        scheduled: slot.scheduledCount,
-                        capacity: slot.capacity,
-                      })
+                {visibleDays.map((day) => {
+                  const isPastDay = day.date < todayIso;
+                  let summaryLabel: string | null = null;
+                  if (isPastDay && !day.closed) {
+                    let daySlotsScheduled = 0;
+                    let daySlotsCompleted = 0;
+                    for (const slot of day.slots) {
+                      if (slot.isBreak) continue;
+                      daySlotsScheduled += slot.scheduledCount;
+                      daySlotsCompleted += slot.completedCount;
                     }
-                    breakLabel={t("breakLabel")}
-                    holidayLabel={t("holiday")}
-                    weekendLabel={t("weekend")}
-                    columnRef={day.date === todayIso ? todayColumnRef : undefined}
-                    nowMs={nowMs}
-                  />
-                ))}
+                    if (daySlotsScheduled > 0) {
+                      summaryLabel = t("daySummaryLabel", {
+                        scheduled: daySlotsScheduled,
+                        pending: daySlotsScheduled - daySlotsCompleted,
+                      });
+                    }
+                  }
+                  return (
+                    <DayColumn
+                      key={day.date}
+                      day={day}
+                      isToday={day.date === todayIso}
+                      isPast={isPastDay}
+                      summaryLabel={summaryLabel}
+                      weekdayLabel={weekdayFormatterLong.format(
+                        new Date(`${day.date}T00:00:00`),
+                      )}
+                      todayLabel={t("todayLabel")}
+                      canOpenCase={canOpenCase}
+                      branchNameByCode={branchNameByCode}
+                      slotRatio={(slot) => slotRatioText(day.date, slot, nowMs, t)}
+                      breakLabel={t("breakLabel")}
+                      holidayLabel={t("holiday")}
+                      weekendLabel={t("weekend")}
+                      columnRef={day.date === todayIso ? todayColumnRef : undefined}
+                      nowMs={nowMs}
+                    />
+                  );
+                })}
               </div>
             </div>
           )}

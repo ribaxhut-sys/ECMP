@@ -81,8 +81,9 @@ class HqScheduleRepository:
     ) -> list[ArrivalRow]:
         """Live HQ_SCHEDULED visits plus completed HQ_CLOSED visits that day.
 
-        Completed rows stay visible on the calendar (same arrival slot). They
-        do not consume capacity — occupancy uses live HQ_SCHEDULED only.
+        Completed rows stay visible on the calendar (same arrival slot) and
+        count toward the slot's occupied ratio — see
+        HqScheduleService._slots_for_day for scheduled_count/bookable.
         """
         stmt = (
             select(CmBatch1ComplaintORM)

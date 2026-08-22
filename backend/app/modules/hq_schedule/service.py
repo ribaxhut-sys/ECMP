@@ -9,7 +9,8 @@ complaint's schedule.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from app.core.errors import NotFoundError, ValidationAppError
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
@@ -26,6 +27,10 @@ from app.modules.settings.registry import SettingsKey
 from app.modules.settings.service import SettingsService
 
 _MAX_RANGE_DAYS = 62
+
+# Lab operators are WIB — see cm_batch1.service._operator_today for why UTC
+# must not be used for "is this slot in the past" checks.
+_OPERATOR_TZ = ZoneInfo("Asia/Jakarta")
 
 
 def _parse_hhmm(value: str) -> time:
@@ -148,6 +153,7 @@ class HqScheduleService:
         arrivals = self._repo.list_arrivals_in_range(
             date_from=date_from, date_to=date_to
         )
+        now = datetime.now(_OPERATOR_TZ)
 
         days: list[DayAvailability] = []
         cursor = date_from
@@ -163,6 +169,7 @@ class HqScheduleService:
                     arrivals,
                     config=config,
                     detail=detail,
+                    now=now,
                 )
             days.append(
                 DayAvailability(
@@ -192,6 +199,7 @@ class HqScheduleService:
         *,
         config: ScheduleConfig,
         detail: bool,
+        now: datetime,
     ) -> list[SlotAvailability]:
         scheduled_for_day = [
             a for a in arrivals if a.hq_arrival_date == day and a.hq_arrival_time
@@ -225,11 +233,16 @@ class HqScheduleService:
                 return lo <= _minutes(t) < hi
 
             scheduled = [a for a in scheduled_for_day if in_slot(a.hq_arrival_time)]
-            live_scheduled = [a for a in scheduled if not a.completed]
             proposed = [a for a in proposed_for_day if in_slot(a.proposed_arrival_time)]
-            scheduled_count = len(live_scheduled)
+            # Total occupants — completed visits still count toward the slot's
+            # booked ratio; only future bookability (below) cares about "live".
+            scheduled_count = len(scheduled)
+            completed_count = sum(1 for a in scheduled if a.completed)
             proposed_count = len(proposed)
             available = max(0, config.capacity_per_slot - scheduled_count)
+            slot_start_dt = datetime.combine(day, slot_start, tzinfo=_OPERATOR_TZ)
+            bookable = not is_break and slot_start_dt > now and available > 0
+            bookable_count = available if bookable else 0
             pending: list[ProposalSummary] = []
             if detail:
                 pending = [
@@ -264,8 +277,11 @@ class HqScheduleService:
                     capacity=config.capacity_per_slot,
                     isBreak=is_break,
                     scheduledCount=scheduled_count,
+                    completedCount=completed_count,
                     proposedCount=proposed_count,
                     availableCount=available,
+                    bookable=bookable,
+                    bookableCount=bookable_count,
                     pendingProposals=pending,
                     scheduledCases=scheduled_cases,
                 )

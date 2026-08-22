@@ -41,7 +41,7 @@ class ProposalSummary(BaseModel):
     proposed_at: datetime | None = Field(default=None, alias="proposedAt")
     completed: bool = Field(
         default=False,
-        description="HQ visit completed (HQ_CLOSED) — listed that day, does not consume capacity",
+        description="HQ visit completed (HQ_CLOSED) — still counted in the slot's occupied ratio",
     )
 
 
@@ -52,9 +52,29 @@ class SlotAvailability(BaseModel):
     end_time: str = Field(alias="endTime")
     capacity: int
     is_break: bool = Field(default=False, alias="isBreak")
-    scheduled_count: int = Field(alias="scheduledCount")
+    scheduled_count: int = Field(
+        alias="scheduledCount",
+        description="Total occupants (live + completed) — the slot's booked ratio.",
+    )
+    completed_count: int = Field(
+        default=0,
+        alias="completedCount",
+        description="Subset of scheduled_count whose HQ visit is already closed.",
+    )
     proposed_count: int = Field(alias="proposedCount")
-    available_count: int = Field(alias="availableCount")
+    available_count: int = Field(
+        alias="availableCount",
+        description="Raw capacity left (capacity - scheduled_count); not time-aware.",
+    )
+    bookable: bool = Field(
+        default=False,
+        description="Open day, not a break, slot start still in the future, capacity left.",
+    )
+    bookable_count: int = Field(
+        default=0,
+        alias="bookableCount",
+        description="available_count when bookable else 0 — what a picker should offer.",
+    )
     # Pusat detail only — empty for the branch-facing aggregate view.
     pending_proposals: list[ProposalSummary] = Field(
         default_factory=list, alias="pendingProposals"
