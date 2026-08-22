@@ -1,9 +1,8 @@
 /**
- * KnowledgeDetailView — Edit modal now embeds the Documents section so a
- * knowledge:manage holder can replace files without leaving the modal
- * (mirrors the Create modal's staged upload). Files stay DRAFT-only per
- * backend gate (KM §17/§23) — ACTIVE/ARCHIVED records show the list
- * read-only, same as the page-level Documents section.
+ * KnowledgeDetailView — Edit modal embeds Documents so a knowledge:manage
+ * holder can replace files without leaving the modal (DRAFT only, KM §17/§23).
+ * ACTIVE/ARCHIVED records stay identity-locked; correction goes through
+ * "Create replacement version" (new DRAFT with supersedesKnowledgeId).
  */
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -13,9 +12,12 @@ import type { Knowledge } from "@/lib/api/types";
 
 const fetchKnowledge = vi.fn();
 const fetchKnowledgeHistory = vi.fn();
+const createKnowledge = vi.fn();
+const uploadKnowledgeFile = vi.fn();
+const push = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ push, replace: vi.fn(), back: vi.fn() }),
 }));
 
 vi.mock("@/auth/AuthProvider", () => ({
@@ -37,6 +39,8 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     fetchKnowledge: (...args: unknown[]) => fetchKnowledge(...args),
     fetchKnowledgeHistory: (...args: unknown[]) => fetchKnowledgeHistory(...args),
+    createKnowledge: (...args: unknown[]) => createKnowledge(...args),
+    uploadKnowledgeFile: (...args: unknown[]) => uploadKnowledgeFile(...args),
   };
 });
 
@@ -71,6 +75,9 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
   beforeEach(() => {
     fetchKnowledge.mockReset();
     fetchKnowledgeHistory.mockReset();
+    createKnowledge.mockReset();
+    uploadKnowledgeFile.mockReset();
+    push.mockReset();
     fetchKnowledgeHistory.mockResolvedValue({ data: [] });
   });
 
@@ -91,6 +98,9 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
     expect(
       within(dialog).getByRole("button", { name: /upload file/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /create replacement version/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the Documents list read-only in the Edit modal once the record is ACTIVE", async () => {
@@ -126,6 +136,10 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
     expect(
       within(dialog).queryByRole("button", { name: /^add file$/i }),
     ).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/files cannot be replaced/i)).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: /create replacement version/i }),
+    ).toBeInTheDocument();
   });
 
   it("shows the History section on the detail page", async () => {
@@ -155,5 +169,90 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
     });
     expect(await screen.findByText("Created")).toBeInTheDocument();
     expect(screen.getByText(/Admin Pusat/)).toBeInTheDocument();
+  });
+});
+
+describe("KnowledgeDetailView — replacement version", () => {
+  beforeEach(() => {
+    fetchKnowledge.mockReset();
+    fetchKnowledgeHistory.mockReset();
+    createKnowledge.mockReset();
+    uploadKnowledgeFile.mockReset();
+    push.mockReset();
+    fetchKnowledgeHistory.mockResolvedValue({ data: [] });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("opens a replacement form prefilled from the ACTIVE record with unlocked identity fields", async () => {
+    const user = userEvent.setup();
+    fetchKnowledge.mockResolvedValue({ data: knowledge({ status: "ACTIVE" }) });
+
+    renderWithProviders(<KnowledgeDetailView id="f6666666-6666-6666-6666-666666666666" />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /create replacement version/i }),
+    );
+    const dialog = await screen.findByRole("dialog");
+
+    expect(within(dialog).getByText(/the new draft will supersede/i)).toBeInTheDocument();
+    const title = within(dialog).getByDisplayValue("SOP Penanganan Pengaduan");
+    expect(title).not.toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: /upload file/i })).toBeInTheDocument();
+  });
+
+  it("creates a draft that supersedes the current record", async () => {
+    const user = userEvent.setup();
+    fetchKnowledge.mockResolvedValue({ data: knowledge({ status: "ACTIVE" }) });
+    createKnowledge.mockResolvedValue({
+      data: knowledge({
+        id: "a1111111-1111-1111-1111-111111111111",
+        status: "DRAFT",
+        title: "SOP judul benar",
+        supersedesKnowledgeId: "f6666666-6666-6666-6666-666666666666",
+        supersedesTitle: "SOP Penanganan Pengaduan",
+      }),
+    });
+
+    renderWithProviders(<KnowledgeDetailView id="f6666666-6666-6666-6666-666666666666" />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /create replacement version/i }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByDisplayValue("SOP Penanganan Pengaduan");
+    await user.clear(title);
+    await user.type(title, "SOP judul benar");
+    await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(createKnowledge).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "SOP judul benar",
+          knowledgeType: "SOP",
+          supersedesKnowledgeId: "f6666666-6666-6666-6666-666666666666",
+        }),
+      );
+    });
+    expect(push).toHaveBeenCalledWith(
+      "/knowledge/a1111111-1111-1111-1111-111111111111",
+    );
+  });
+
+  it("shows a reminder banner on a replacement draft", async () => {
+    fetchKnowledge.mockResolvedValue({
+      data: knowledge({
+        status: "DRAFT",
+        supersedesKnowledgeId: "f6666666-6666-6666-6666-666666666666",
+        supersedesTitle: "SOP lama",
+      }),
+    });
+
+    renderWithProviders(<KnowledgeDetailView id="a1111111-1111-1111-1111-111111111111" />);
+
+    expect(await screen.findByText("Replacement version")).toBeInTheDocument();
+    expect(screen.getByText(/this draft supersedes "SOP lama"/i)).toBeInTheDocument();
   });
 });

@@ -7,11 +7,13 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
   archiveKnowledge,
+  createKnowledge,
   deleteKnowledge,
   fetchKnowledge,
   publishKnowledge,
   unarchiveKnowledge,
   updateKnowledge,
+  uploadKnowledgeFile,
 } from "@/lib/api";
 import type { Knowledge } from "@/lib/api/types";
 import { formatDateTime } from "@/i18n/formatting";
@@ -31,11 +33,13 @@ import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useToast } from "@/shared/providers";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { knowledgeTypeKey, KnowledgeStatusBadge, KnowledgeTypeBadge } from "./KnowledgeBadges";
+import { KnowledgeCreateFileStaging, type StagedKnowledgeFile } from "./KnowledgeCreateFileStaging";
 import { KnowledgeFileManager } from "./KnowledgeFileManager";
 import { KnowledgeHistorySection } from "./KnowledgeHistorySection";
 import { KnowledgeFormFields } from "./KnowledgeFormFields";
 import {
   knowledgeFormFromExisting,
+  toKnowledgeCreateRequest,
   toKnowledgeUpdateRequest,
   validateKnowledgeForm,
   type KnowledgeFieldErrors,
@@ -61,10 +65,11 @@ export function KnowledgeDetailView({ id }: { id: string }) {
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const tAttachments = useTranslations("attachments");
   const { hasPermission, roles } = useAuth();
   const orgUnitCode = useOrgUnitCode();
   const locale = useLocale();
-  const { pushSuccess } = useToast();
+  const { push: pushToast, pushSuccess } = useToast();
 
   const canManage =
     orgUnitCode !== undefined &&
@@ -80,6 +85,13 @@ export function KnowledgeDetailView({ id }: { id: string }) {
   const [editValues, setEditValues] = useState<KnowledgeFormValues | null>(null);
   const [editErrors, setEditErrors] = useState<KnowledgeFieldErrors>({});
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const [replacing, setReplacing] = useState(false);
+  const [replaceValues, setReplaceValues] = useState<KnowledgeFormValues | null>(null);
+  const [replaceErrors, setReplaceErrors] = useState<KnowledgeFieldErrors>({});
+  const [replaceError, setReplaceError] = useState<string | null>(null);
+  const [savingReplace, setSavingReplace] = useState(false);
+  const [stagedFiles, setStagedFiles] = useState<StagedKnowledgeFile[]>([]);
 
   const [showDelete, setShowDelete] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -110,6 +122,73 @@ export function KnowledgeDetailView({ id }: { id: string }) {
     setEditErrors({});
     setEditValues(knowledgeFormFromExisting(knowledge));
     setEditing(true);
+  }
+
+  function closeReplace() {
+    setReplacing(false);
+    setReplaceValues(null);
+    setReplaceErrors({});
+    setReplaceError(null);
+    setStagedFiles([]);
+  }
+
+  function openReplace() {
+    if (!knowledge) return;
+    setEditing(false);
+    setActionError(null);
+    setReplaceErrors({});
+    setReplaceError(null);
+    setReplaceValues(knowledgeFormFromExisting(knowledge));
+    setStagedFiles([]);
+    setReplacing(true);
+  }
+
+  async function submitReplace(event: FormEvent) {
+    event.preventDefault();
+    if (!knowledge || !replaceValues) return;
+    const errors = validateKnowledgeForm(replaceValues);
+    setReplaceErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setSavingReplace(true);
+    setReplaceError(null);
+    try {
+      const res = await createKnowledge(
+        toKnowledgeCreateRequest(replaceValues, {
+          supersedesKnowledgeId: knowledge.id,
+        }),
+      );
+      const created = res.data;
+
+      const failedFileNames: string[] = [];
+      for (let i = 0; i < stagedFiles.length; i++) {
+        const staged = stagedFiles[i];
+        try {
+          await uploadKnowledgeFile(
+            created.id,
+            staged.file,
+            i === 0 ? "PRIMARY" : "SUPPORTING",
+          );
+        } catch {
+          failedFileNames.push(staged.file.name);
+        }
+      }
+
+      closeReplace();
+      if (failedFileNames.length > 0) {
+        pushToast({
+          title: tAttachments("partialUploadFailed", { detail: failedFileNames.join(", ") }),
+          tone: "warning",
+        });
+      } else {
+        pushSuccess(tCommon("success"), t("createReplacementSuccess"));
+      }
+      router.push(`/knowledge/${created.id}`);
+    } catch (err) {
+      setReplaceError(resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToSave"));
+    } finally {
+      setSavingReplace(false);
+    }
   }
 
   async function submitEdit(event: FormEvent) {
@@ -144,7 +223,12 @@ export function KnowledgeDetailView({ id }: { id: string }) {
     try {
       const res = await publishKnowledge(knowledge.id);
       setKnowledge(res.data);
-      pushSuccess(tCommon("success"), t("publishedSuccess"));
+      pushSuccess(
+        tCommon("success"),
+        knowledge.supersedesKnowledgeId
+          ? t("publishedReplacementSuccess")
+          : t("publishedSuccess"),
+      );
     } catch (err) {
       setActionError(
         err instanceof ApiError
@@ -258,11 +342,24 @@ export function KnowledgeDetailView({ id }: { id: string }) {
         <Alert tone="danger" title={t("actionFailed")} description={actionError} />
       ) : null}
 
+      {knowledge.status === "DRAFT" && knowledge.supersedesTitle ? (
+        <Alert
+          tone="info"
+          title={t("replacementDraftBannerTitle")}
+          description={t("replacementDraftBanner", { title: knowledge.supersedesTitle })}
+        />
+      ) : null}
+
       {canManage ? (
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="secondary" onClick={openEdit}>
             {tCommon("edit")}
           </Button>
+          {knowledge.status !== "DRAFT" ? (
+            <Button type="button" size="sm" variant="outline" onClick={openReplace}>
+              {t("createReplacement")}
+            </Button>
+          ) : null}
           {knowledge.status === "DRAFT" ? (
             <Button
               type="button"
@@ -416,6 +513,13 @@ export function KnowledgeDetailView({ id }: { id: string }) {
                 setEditValues((prev) => (prev ? { ...prev, [key]: value } : prev))
               }
               identityLocked={knowledge.status !== "DRAFT"}
+              identityLockedAction={
+                knowledge.status !== "DRAFT" ? (
+                  <Button type="button" size="sm" variant="outline" onClick={openReplace}>
+                    {t("createReplacement")}
+                  </Button>
+                ) : null
+              }
             />
             <div className="space-y-[var(--ecmp-panel-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
               <SectionHeader title={t("documentsSectionTitle")} />
@@ -426,6 +530,62 @@ export function KnowledgeDetailView({ id }: { id: string }) {
                 onChanged={(next) => setKnowledge(next)}
               />
             </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={replacing}
+        onClose={() => {
+          if (!savingReplace) closeReplace();
+        }}
+        title={t("createReplacementTitle")}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={closeReplace}
+              disabled={savingReplace}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="submit"
+              form="knowledge-replace-form"
+              loading={savingReplace}
+              disabled={savingReplace}
+            >
+              {savingReplace ? tCommon("saving") : tCommon("save")}
+            </Button>
+          </>
+        }
+      >
+        {replaceValues ? (
+          <form
+            id="knowledge-replace-form"
+            className="space-y-[var(--ecmp-form-gap)]"
+            onSubmit={(e) => void submitReplace(e)}
+            noValidate
+          >
+            {replaceError ? (
+              <Alert tone="danger" title={t("actionFailed")} description={replaceError} />
+            ) : null}
+            <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+              {t("createReplacementHint", { title: knowledge.title })}
+            </p>
+            <KnowledgeFormFields
+              values={replaceValues}
+              fieldErrors={replaceErrors}
+              onChange={(key, value) =>
+                setReplaceValues((prev) => (prev ? { ...prev, [key]: value } : prev))
+              }
+            />
+            <KnowledgeCreateFileStaging
+              files={stagedFiles}
+              onChange={setStagedFiles}
+              disabled={savingReplace}
+            />
           </form>
         ) : null}
       </Modal>

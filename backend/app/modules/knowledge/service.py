@@ -320,6 +320,20 @@ class KnowledgeService:
             if join is not None:
                 self._files.set_primary(join, updated_by=actor_id)
 
+    def _archive_superseded_if_active(
+        self, row: KnowledgeORM, *, actor_id: uuid.UUID
+    ) -> None:
+        """Publishing a replacement retires the prior ACTIVE record so
+        readers see a single current document. Already-archived (or
+        missing) priors are left untouched — the supersedes link is
+        lineage, not a hard dependency."""
+        if row.supersedes_knowledge_id is None:
+            return
+        prior = self._repo.get(row.supersedes_knowledge_id)
+        if prior is None or prior.status != "ACTIVE":
+            return
+        self.archive(prior.id, actor_id=actor_id, commit=False)
+
     def publish(
         self,
         knowledge_id: uuid.UUID,
@@ -348,6 +362,7 @@ class KnowledgeService:
             old_values={"status": "DRAFT"},
             new_values={"status": "ACTIVE", "publishedAt": _iso(row.published_at)},
         )
+        self._archive_superseded_if_active(row, actor_id=actor_id)
         if commit:
             self._repo.commit()
             self._repo.refresh(row)

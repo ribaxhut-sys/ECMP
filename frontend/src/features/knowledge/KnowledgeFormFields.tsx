@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent } from "react";
+import { type ChangeEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Input, Select, Textarea } from "@/shared/ui";
 import type { KnowledgeType } from "@/lib/api/types";
@@ -21,6 +21,7 @@ export function KnowledgeFormFields({
   onChange,
   /** ACTIVE/ARCHIVED — title, jenis, and versi are locked server-side (KM §17). */
   identityLocked = false,
+  identityLockedAction = null,
 }: {
   values: KnowledgeFormValues;
   fieldErrors: KnowledgeFieldErrors;
@@ -29,6 +30,7 @@ export function KnowledgeFormFields({
     value: KnowledgeFormValues[K],
   ) => void;
   identityLocked?: boolean;
+  identityLockedAction?: ReactNode;
 }) {
   const t = useTranslations("knowledge");
   const tValidation = useTranslations("validation");
@@ -84,9 +86,12 @@ export function KnowledgeFormFields({
   return (
     <div className="space-y-[var(--ecmp-form-gap)]">
       {identityLocked ? (
-        <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-          {t("identityLockedHint")}
-        </p>
+        <div className="space-y-2">
+          <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+            {t("identityLockedHint")}
+          </p>
+          {identityLockedAction}
+        </div>
       ) : null}
       <Input
         label={t("fieldTitleLabel")}

@@ -211,6 +211,12 @@ export function KnowledgeFileManager({
         </div>
       ) : null}
 
+      {canManage && !canMutate ? (
+        <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+          {t("filesLockedHint")}
+        </p>
+      ) : null}
+
       {knowledge.files.length === 0 ? (
         <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
           {t("noFilesYet")}

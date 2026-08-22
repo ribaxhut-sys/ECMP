@@ -834,6 +834,55 @@ def test_supersedes_links_new_version_to_prior(
     )
     assert v2["supersedesKnowledgeId"] == v1["id"]
     assert v2["supersedesTitle"] == "SOP Versi Lama"
+    prior = client.get(f"/api/v1/knowledge/{v1['id']}", headers=admin_header)
+    assert prior.json()["data"]["status"] == "ACTIVE"
+
+
+def test_publishing_replacement_archives_prior_active(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    v1 = _create_draft(client, admin_header, title="SOP Versi Lama", versionLabel="1.0")
+    _upload_primary_file(client, admin_header, v1["id"])
+    client.put(f"/api/v1/knowledge/{v1['id']}/publish", headers=admin_header)
+
+    v2 = _create_draft(
+        client,
+        admin_header,
+        title="SOP Versi Baru",
+        versionLabel="2.0",
+        supersedesKnowledgeId=v1["id"],
+    )
+    _upload_primary_file(client, admin_header, v2["id"])
+    pub = client.put(f"/api/v1/knowledge/{v2['id']}/publish", headers=admin_header)
+    assert pub.status_code == 200, pub.text
+    assert pub.json()["data"]["status"] == "ACTIVE"
+
+    prior = client.get(f"/api/v1/knowledge/{v1['id']}", headers=admin_header)
+    assert prior.status_code == 200, prior.text
+    assert prior.json()["data"]["status"] == "ARCHIVED"
+
+
+def test_publishing_replacement_leaves_already_archived_prior(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    v1 = _create_draft(client, admin_header, title="Sudah diarsip", versionLabel="1.0")
+    _upload_primary_file(client, admin_header, v1["id"])
+    client.put(f"/api/v1/knowledge/{v1['id']}/publish", headers=admin_header)
+    client.put(f"/api/v1/knowledge/{v1['id']}/archive", headers=admin_header)
+
+    v2 = _create_draft(
+        client,
+        admin_header,
+        title="Pengganti dari arsip",
+        versionLabel="2.0",
+        supersedesKnowledgeId=v1["id"],
+    )
+    _upload_primary_file(client, admin_header, v2["id"])
+    pub = client.put(f"/api/v1/knowledge/{v2['id']}/publish", headers=admin_header)
+    assert pub.status_code == 200, pub.text
+    assert pub.json()["data"]["status"] == "ACTIVE"
+    prior = client.get(f"/api/v1/knowledge/{v1['id']}", headers=admin_header)
+    assert prior.json()["data"]["status"] == "ARCHIVED"
 
 
 # --- Validation --------------------------------------------------------
