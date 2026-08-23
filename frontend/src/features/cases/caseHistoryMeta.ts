@@ -23,6 +23,9 @@ export const CASE_HISTORY_TONES: Record<string, BadgeTone> = {
   HQ_ARRIVAL_SCHEDULED: "info",
   HQ_COMPLETED: "success",
   HQ_RETURNED: "warning",
+  CASE_ESCALATED_TO_PUSAT: "warning",
+  CASE_ESCALATION_TO_PUSAT_CANCELLED: "neutral",
+  CASE_ESCALATION_RETURNED: "warning",
   OTHER: "neutral",
 };
 
@@ -48,6 +51,9 @@ export const CASE_HISTORY_LABEL_KEYS: Record<string, string> = {
   HQ_ARRIVAL_SCHEDULED: "eventHqScheduled",
   HQ_COMPLETED: "eventHqCompleted",
   HQ_RETURNED: "eventHqReturned",
+  CASE_ESCALATED_TO_PUSAT: "eventCaseEscalatedToPusat",
+  CASE_ESCALATION_TO_PUSAT_CANCELLED: "eventCaseEscalationToPusatCancelled",
+  CASE_ESCALATION_RETURNED: "eventCaseEscalationReturned",
   OTHER: "eventOther",
 };
 

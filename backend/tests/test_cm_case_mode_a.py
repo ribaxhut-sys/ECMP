@@ -20,11 +20,13 @@ from app.main import create_app
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.api.router import get_case_service
 from app.modules.cm_case.application.dto import (
+    CancelEscalationToPusatCommand,
     CloseCaseCommand,
     CreateCaseCommand,
     EscalateToPusatCommand,
     RecordAcceptanceCommand,
     ResolveCaseCommand,
+    ReturnEscalationCommand,
     UpdateStatusCommand,
 )
 from app.modules.cm_case.application.services import (
@@ -1963,6 +1965,7 @@ def test_dec029_escalate_to_pusat_from_case_not_parent(
     assert dto.status == "IN_PROGRESS"
     assert dto.owning_unit_id == "TAB"
     assert dto.status != "ESCALATED"
+    assert not (dto.handling_claimed_by or "").strip()
 
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
@@ -2024,3 +2027,236 @@ def test_api_escalate_to_pusat(api_client: TestClient, db_session: Session) -> N
     assert body["status"] == "IN_PROGRESS"
     assert "ESCALATED" not in body["status"]
     assert body["owningUnitId"] == "UNIT-API"
+    assert not (body.get("handlingClaimedBy") or "").strip()
+
+
+def test_cancel_escalation_to_pusat_before_claim(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    escalated = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert escalated.escalated_to_pusat is True
+
+    cancelled = service.cancel_escalation_to_pusat(
+        CancelEscalationToPusatCommand(
+            case_id=created.case_id,
+            reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert cancelled.escalated_to_pusat is False
+    assert cancelled.owning_unit == "BRANCH"
+
+    with pytest.raises(ApiError) as missing:
+        service.cancel_escalation_to_pusat(
+            CancelEscalationToPusatCommand(
+                case_id=created.case_id,
+                reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+                actor_id="officer-1",
+            )
+        )
+    assert missing.value.code == "CASE_NOT_ESCALATED_TO_PUSAT"
+
+
+def test_pusat_claims_and_resolves_escalated_case(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    with pytest.raises(ApiError) as too_soon:
+        service.resolve(
+            ResolveCaseCommand(
+                case_id=created.case_id,
+                action="ACCEPT",
+                comment="Pusat resolve without claim",
+                actor_id="pusat-1",
+                actor_is_pusat=True,
+            )
+        )
+    assert too_soon.value.code == "HANDLING_CLAIM_REQUIRED"
+
+    claimed = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            reason="HANDLE_CLAIM",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    assert claimed.handling_claimed_by == "pusat-1"
+
+    with pytest.raises(ApiError) as blocked:
+        service.cancel_escalation_to_pusat(
+            CancelEscalationToPusatCommand(
+                case_id=created.case_id,
+                reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+                actor_id="officer-1",
+            )
+        )
+    assert blocked.value.code == "CASE_PUSAT_WORK_STARTED"
+
+    resolved = service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="ACCEPT",
+            comment="Pusat menyelesaikan Case cabang.",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    assert resolved.status == "RESOLVED"
+    assert resolved.escalated_to_pusat is True
+
+
+def test_pusat_returns_escalated_case_with_note(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    with pytest.raises(ApiError) as branch:
+        service.return_escalation(
+            ReturnEscalationCommand(
+                case_id=created.case_id,
+                return_note="Lampirkan bukti pembayaran asli.",
+                actor_id="officer-1",
+                actor_is_pusat=False,
+            )
+        )
+    assert branch.value.code == "CASE_BRANCH_CANNOT_RETURN_ESCALATION"
+
+    with pytest.raises(ApiError) as short:
+        service.return_escalation(
+            ReturnEscalationCommand(
+                case_id=created.case_id,
+                return_note="pendek",
+                actor_id="pusat-1",
+                actor_is_pusat=True,
+            )
+        )
+    assert short.value.status_code == 400
+
+    returned = service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=created.case_id,
+            return_note="Lampirkan bukti pembayaran asli.",
+            actor_id="pusat-1",
+            actor_unit_id="PUSAT",
+            actor_is_pusat=True,
+        )
+    )
+    assert returned.escalated_to_pusat is False
+    assert returned.owning_unit == "BRANCH"
+    assert not (returned.handling_claimed_by or "").strip()
+
+
+def test_api_cancel_escalation_to_pusat(
+    api_client: TestClient, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UNIT-API")
+    create = api_client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "API cancel escalate",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "UNIT-API",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    api_client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    escalated = api_client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert escalated.status_code == 200, escalated.text
+    cancelled = api_client.post(
+        f"/api/v1/cm/cases/{case_id}/cancel-escalation-to-pusat",
+        json={"reason": "Salah ajukan, masih bisa diselesaikan di cabang."},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    body = cancelled.json()["data"]
+    assert body["escalatedToPusat"] is False
+    assert body["owningUnit"] == "BRANCH"

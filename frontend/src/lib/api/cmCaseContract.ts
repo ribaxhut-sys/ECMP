@@ -27,6 +27,10 @@ export function cmCasePaths() {
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/close`,
     escalateToPusat: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/escalate-to-pusat`,
+    cancelEscalationToPusat: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/cancel-escalation-to-pusat`,
+    returnEscalation: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/return-escalation`,
     history: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/history`,
   } as const;

@@ -58,6 +58,7 @@
 | API-531 | `POST /api/v1/cm/complaints/{complaintId}/cases` | Add Case to Existing Complaint |
 | API-532 | `GET /api/v1/cm/cases/{caseId}` | View Case |
 | API-537 | `GET /api/v1/cm/cases/{caseId}/history` | View Case history (this Case, plus parent HQ path) |
+| API-538 | `POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat` | Cancel Case escalation to Pusat (before Pusat claims) |
 | API-533 | `PATCH /api/v1/cm/cases/{caseId}/status` | Update Case Status |
 | API-534 | `POST /api/v1/cm/cases/{caseId}/resolve` | Resolve Case |
 | — | `POST /api/v1/cm/cases/{caseId}/acceptance` | Record Handling Unit / Owner closure acceptance |

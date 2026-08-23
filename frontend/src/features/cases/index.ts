@@ -4,9 +4,12 @@ export { CaseListView } from "./CaseListView";
 export { CaseInboxListView } from "./CaseInboxListView";
 export { CaseDetailView } from "./CaseDetailView";
 export {
+  actorMayHandleEscalatedCase,
   hideCaseBranchWorkActions,
   resolveCaseHqPath,
   showCaseCancelEscalation,
+  showCaseLevelCancelEscalation,
+  showCaseReturnEscalation,
 } from "./caseHqPath";
 export { CaseHistoryPanel } from "./CaseHistoryPanel";
 export { CreateCaseDialog } from "./CreateCaseDialog";

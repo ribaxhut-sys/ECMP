@@ -23,12 +23,14 @@ from app.core.authorization.case_acceptance import (
 from app.core.authorization.org_unit_guard import enforce_org_scope_any
 from app.core.authorization.visibility import VisibilityClass, resolve_case_visibility
 from app.core.config import Settings, get_settings
+from app.core.errors import PermissionDeniedError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.integrations.directory.local_adapter import LocalUserDirectory
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.api.schemas import (
     AddCaseRequest,
+    CancelEscalationToPusatRequest,
     CaseAcceptanceResponse,
     CaseHistoryEntry,
     CaseResolutionResponse,
@@ -39,16 +41,19 @@ from app.modules.cm_case.api.schemas import (
     EscalateToPusatRequest,
     RecordAcceptanceRequest,
     ResolveCaseRequest,
+    ReturnEscalationRequest,
     UpdateCaseStatusRequest,
 )
 from app.modules.cm_case.application.dto import (
     AddCaseCommand,
+    CancelEscalationToPusatCommand,
     CaseDTO,
     CloseCaseCommand,
     CreateCaseCommand,
     EscalateToPusatCommand,
     RecordAcceptanceCommand,
     ResolveCaseCommand,
+    ReturnEscalationCommand,
     UpdateStatusCommand,
 )
 from app.modules.cm_case.application.history import CaseHistoryService
@@ -340,6 +345,36 @@ def _pusat_may_read_escalated(principal: Principal, escalated: bool) -> bool:
     return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
 
 
+def _actor_is_pusat(principal: Principal, session: Session) -> bool:
+    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
+    vis = resolve_case_visibility(vis_principal)
+    return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
+
+
+def _enforce_case_mutation_scope(
+    *,
+    principal: Principal,
+    session: Session,
+    settings: Settings,
+    service: CaseApplicationService,
+    case_id: str,
+    branch_org: str | None,
+    branch_orgs: tuple[str | None, ...] | None = None,
+) -> CaseDTO:
+    """Pusat may mutate an escalated Case; otherwise enforce branch org-scope."""
+    dto = service.get_case(case_id)
+    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
+    if dto.escalated_to_pusat and _pusat_may_read_escalated(
+        vis_principal, True
+    ):
+        return dto
+    if branch_orgs is not None:
+        enforce_org_scope_any(principal, branch_orgs, settings)
+    else:
+        enforce_org_scope(principal, branch_org, settings)
+    return dto
+
+
 @router.get("/api/v1/cm/cases/{case_id}")
 def get_case(
     case_id: str,
@@ -403,8 +438,17 @@ def update_case_status(
 ) -> DataResponse[CaseResponse]:
     """SECMIG-P4 parity: org scope after permission check, before mutation."""
     _ = idempotency_key
+    actor_unit = _actor_unit(principal, session)
+    actor_is_pusat = _actor_is_pusat(principal, session)
     resource_org = OrgUnitResolver(session).resolve_case(case_id)
-    enforce_org_scope(principal, resource_org, settings)
+    _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=resource_org,
+    )
     dto = service.update_status(
         UpdateStatusCommand(
             case_id=case_id,
@@ -414,11 +458,12 @@ def update_case_status(
             cancel_reason=body.cancel_reason,
             reason=body.reason,
             assigned_user_id=body.assigned_user_id,
-            actor_unit_id=_actor_unit(principal, session),
+            actor_unit_id=actor_unit,
             handling_claimed_by=body.handling_claimed_by,
             actor_can_reassign=principal.has_any_role(
                 "SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER"
             ),
+            actor_is_pusat=actor_is_pusat,
         )
     )
     return DataResponse(data=_to_response(dto, session=session))
@@ -442,12 +487,25 @@ def resolve_case(
     """
     _ = idempotency_key
     units = OrgUnitResolver(session).resolve_case_units(case_id)
-    enforce_org_scope(principal, units.handling_unit_id, settings)
     actor_unit = _actor_unit(principal, session)
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    dto = _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=units.handling_unit_id,
+    )
+    handling_for_accept = (
+        actor_unit
+        if dto.escalated_to_pusat and actor_is_pusat
+        else units.handling_unit_id
+    )
     if (body.action or "").strip().upper() == "ACCEPT":
         assert_case_resolve_accept_authorized(
             principal,
-            handling_unit_id=units.handling_unit_id,
+            handling_unit_id=handling_for_accept,
             actor_unit_id=actor_unit,
             complaint_creator_id=_complaint_creator_id(session, units.complaint_id),
         )
@@ -464,6 +522,7 @@ def resolve_case(
             attachment_ids=list(body.attachment_ids or []),
             rejection_reason=body.rejection_reason,
             actor_unit_id=actor_unit,
+            actor_is_pusat=actor_is_pusat,
         )
     )
     return DataResponse(data=_to_response(dto, session=session))
@@ -501,6 +560,68 @@ def escalate_case_to_pusat(
     return DataResponse(data=_to_response(dto, session=session))
 
 
+@router.post("/api/v1/cm/cases/{case_id}/cancel-escalation-to-pusat")
+def cancel_escalation_to_pusat(
+    case_id: str,
+    body: CancelEscalationToPusatRequest,
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission("complaints:create", "complaints:escalate")),
+    ],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> DataResponse[CaseResponse]:
+    """Mode A lab — branch cancels DEC-029 escalate before Pusat claims handling."""
+    _ = idempotency_key
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    enforce_org_scope_any(
+        principal,
+        (units.handling_unit_id, units.owner_unit_id),
+        settings,
+    )
+    dto = service.cancel_escalation_to_pusat(
+        CancelEscalationToPusatCommand(
+            case_id=case_id,
+            reason=body.reason,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
+            actor_is_pusat=_actor_is_pusat(principal, session),
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/cm/cases/{case_id}/return-escalation")
+def return_case_escalation(
+    case_id: str,
+    body: ReturnEscalationRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> DataResponse[CaseResponse]:
+    """API-521 lab — Pusat returns this Case to the originating branch."""
+    _ = idempotency_key
+    _ = settings
+    if not _actor_is_pusat(principal, session):
+        raise PermissionDeniedError(
+            "Only Pusat may return an escalated Case to the branch."
+        )
+    dto = service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=case_id,
+            return_note=body.return_note,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
+            actor_is_pusat=True,
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
 @router.post("/api/v1/cm/cases/{case_id}/acceptance")
 def record_case_acceptance(
     case_id: str,
@@ -519,17 +640,29 @@ def record_case_acceptance(
     _ = idempotency_key
     units = OrgUnitResolver(session).resolve_case_units(case_id)
     actor_unit = _actor_unit(principal, session)
+    actor_is_pusat = _actor_is_pusat(principal, session)
     party = (body.party or "").strip().upper()
-    # JWT org-scope against the party unit (Owner or current Handling Unit).
     party_org = (
         units.owner_unit_id if party == "OWNER" else units.handling_unit_id
     )
-    enforce_org_scope(principal, party_org, settings)
+    dto_case = _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=party_org,
+    )
+    handling_for_assert = (
+        actor_unit
+        if dto_case.escalated_to_pusat and actor_is_pusat and party == "HANDLING_UNIT"
+        else units.handling_unit_id
+    )
     assert_case_acceptance_authorized(
         principal,
         party=party,
         owner_unit_id=units.owner_unit_id,
-        handling_unit_id=units.handling_unit_id,
+        handling_unit_id=handling_for_assert,
         actor_unit_id=actor_unit,
         complaint_creator_id=_complaint_creator_id(session, units.complaint_id),
     )
@@ -541,6 +674,7 @@ def record_case_acceptance(
             actor_id=str(principal.user_id),
             actor_unit_id=actor_unit,
             note=body.note,
+            actor_is_pusat=actor_is_pusat,
         )
     )
     return DataResponse(data=_to_response(dto, session=session))
@@ -562,10 +696,14 @@ def close_case(
     """
     _ = idempotency_key
     units = OrgUnitResolver(session).resolve_case_units(case_id)
-    enforce_org_scope_any(
-        principal,
-        (units.handling_unit_id, units.owner_unit_id),
-        settings,
+    _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=None,
+        branch_orgs=(units.handling_unit_id, units.owner_unit_id),
     )
     note = body.note if body else None
     dto = service.close(
@@ -574,6 +712,7 @@ def close_case(
             actor_id=str(principal.user_id),
             note=note,
             actor_unit_id=_actor_unit(principal, session),
+            actor_is_pusat=_actor_is_pusat(principal, session),
         )
     )
     return DataResponse(data=_to_response(dto, session=session))

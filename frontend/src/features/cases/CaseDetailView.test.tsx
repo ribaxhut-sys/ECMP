@@ -11,6 +11,7 @@ const fetchUsers = vi.fn();
 const fetchCmCaseHistory = vi.fn();
 const decideCmBatch1IntakeEscalation = vi.fn();
 const escalateCmCaseToPusat = vi.fn();
+const cancelCmCaseEscalationToPusat = vi.fn();
 const hasPermission = vi.fn((code: string) =>
   code === "complaints:read" ||
   code === "complaints:update" ||
@@ -20,6 +21,7 @@ const authState = {
   userId: "officer-dewi",
   roles: [] as string[],
 };
+let orgUnitCode: string | null | undefined = "JKT-SELATAN";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -33,6 +35,10 @@ vi.mock("@/auth/AuthProvider", () => ({
     user: { id: authState.userId },
     roles: authState.roles,
   }),
+}));
+
+vi.mock("@/features/announcements/useOrgUnitCode", () => ({
+  useOrgUnitCode: () => orgUnitCode,
 }));
 
 vi.mock("@/lib/api", async () => {
@@ -50,6 +56,8 @@ vi.mock("@/lib/api", async () => {
       decideCmBatch1IntakeEscalation(...args),
     escalateCmCaseToPusat: (...args: unknown[]) =>
       escalateCmCaseToPusat(...args),
+    cancelCmCaseEscalationToPusat: (...args: unknown[]) =>
+      cancelCmCaseEscalationToPusat(...args),
   };
 });
 
@@ -115,6 +123,8 @@ describe("CaseDetailView HQ path", () => {
     fetchCmCaseHistory.mockReset();
     decideCmBatch1IntakeEscalation.mockReset();
     escalateCmCaseToPusat.mockReset();
+    cancelCmCaseEscalationToPusat.mockReset();
+    orgUnitCode = "JKT-SELATAN";
     hasPermission.mockImplementation(
       (code: string) =>
         code === "complaints:read" ||
@@ -287,6 +297,56 @@ describe("CaseDetailView HQ path", () => {
         reason: "Case cabang tidak bisa diselesaikan di unit ini.",
       });
     });
+  });
+
+  it("shows Cancel escalation for the branch before Pusat claims the Case", async () => {
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        handlingClaimedBy: null,
+        handlingClaimedByName: null,
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Cancel escalation" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request escalation to HQ" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets a Pusat officer claim an escalated Case instead of cancel", async () => {
+    orgUnitCode = "PUSAT";
+    authState.userId = "pusat-1";
+    authState.roles = ["AGENT"];
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        handlingClaimedBy: null,
+        handlingClaimedByName: null,
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("case-with-pusat-note")).toHaveTextContent(
+        /claim handling/i,
+      );
+    });
+    expect(
+      screen.queryByRole("button", { name: "Cancel escalation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /return to branch|kembalikan/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request escalation to HQ" }),
+    ).not.toBeInTheDocument();
   });
 });
 

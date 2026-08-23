@@ -175,6 +175,12 @@ export interface EscalateCmCaseToPusatRequest {
   reason: string;
 }
 
+export type CancelCmCaseEscalationToPusatRequest = EscalateCmCaseToPusatRequest;
+
+export interface ReturnCmCaseEscalationRequest {
+  returnNote: string;
+}
+
 /** API-537 — chronological Case Timeline row (this Case + parent HQ path). */
 export interface CmCaseHistoryEntry {
   entryId: string;
@@ -330,6 +336,39 @@ export function escalateCmCaseToPusat(
 ): Promise<DataResponse<CmCase>> {
   return unwrap(
     apiRequest<DataResponse<CmCase>>(cmCasePaths().escalateToPusat(caseId), {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: buildCmCaseMutateHeaders(options),
+    }),
+  );
+}
+
+/** API-538 — POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat. */
+export function cancelCmCaseEscalationToPusat(
+  caseId: string,
+  body: CancelCmCaseEscalationToPusatRequest,
+  options?: CmCaseMutateOptions,
+): Promise<DataResponse<CmCase>> {
+  return unwrap(
+    apiRequest<DataResponse<CmCase>>(
+      cmCasePaths().cancelEscalationToPusat(caseId),
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: buildCmCaseMutateHeaders(options),
+      },
+    ),
+  );
+}
+
+/** API-521 lab — POST /api/v1/cm/cases/{caseId}/return-escalation. */
+export function returnCmCaseEscalation(
+  caseId: string,
+  body: ReturnCmCaseEscalationRequest,
+  options?: CmCaseMutateOptions,
+): Promise<DataResponse<CmCase>> {
+  return unwrap(
+    apiRequest<DataResponse<CmCase>>(cmCasePaths().returnEscalation(caseId), {
       method: "POST",
       body: JSON.stringify(body),
       headers: buildCmCaseMutateHeaders(options),

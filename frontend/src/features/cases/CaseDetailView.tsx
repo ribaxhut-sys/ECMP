@@ -4,10 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
   ApiError,
+  cancelCmCaseEscalationToPusat,
   decideCmBatch1IntakeEscalation,
   escalateCmCaseToPusat,
+  returnCmCaseEscalation,
   fetchCmBatch1Complaint,
   fetchCmBatch1Customer360,
   fetchCmCase,
@@ -61,9 +64,12 @@ import {
   shouldAskHandleClaim,
 } from "./caseSessionRegistry";
 import {
+  actorMayHandleEscalatedCase,
   hideCaseBranchWorkActions,
   resolveCaseHqPath,
   showCaseCancelEscalation,
+  showCaseLevelCancelEscalation,
+  showCaseReturnEscalation,
 } from "./caseHqPath";
 import {
   canClose,
@@ -127,6 +133,7 @@ function MetaItem({
 
 const CANCEL_NOTE_MIN = 20;
 const ESCALATE_REASON_MIN = 20;
+const RETURN_NOTE_MIN = 10;
 const CANCEL_ESCALATION_PRESET_KEYS = [
   "cm_batch1.cancel_escalation_note_presets",
 ] as const;
@@ -142,9 +149,18 @@ function nextStepKey(
     showClose: boolean;
     onHqPath: boolean;
     escalatedToPusat: boolean;
+    actorIsPusat: boolean;
   },
 ): string {
-  if (opts.escalatedToPusat) return "nextStepPusat";
+  if (opts.escalatedToPusat && !opts.actorIsPusat) return "nextStepPusat";
+  if (
+    opts.escalatedToPusat &&
+    opts.actorIsPusat &&
+    !opts.showResolve &&
+    !opts.showClose
+  ) {
+    return "nextStepStart";
+  }
   if (
     opts.onHqPath &&
     status !== "RESOLVED" &&
@@ -176,6 +192,12 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const locale = useLocale();
   const router = useRouter();
   const { hasPermission, user, roles } = useAuth();
+  const unitCode = useOrgUnitCode();
+  const orgReady = unitCode !== undefined;
+  const actorIsPusat = Boolean(
+    orgReady &&
+      actorMayHandleEscalatedCase({ roles, hasPermission, unitCode }),
+  );
   const canRead = hasPermission("complaints:read");
   const canUpdate = hasPermission("complaints:update");
   const canCreate = hasPermission("complaints:create");
@@ -236,6 +258,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [escalateOpen, setEscalateOpen] = useState(false);
   const [escalateReason, setEscalateReason] = useState("");
   const [escalating, setEscalating] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnNote, setReturnNote] = useState("");
+  const [returning, setReturning] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastTone, setToastTone] = useState<"success" | "danger">("success");
@@ -385,14 +410,39 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     hqPath.onHqPath,
     data?.status,
     Boolean(data?.escalatedToPusat),
+    Boolean(orgReady && actorIsPusat),
   );
-  const showCancelEscalation = showCaseCancelEscalation({
+  const showParentCancelEscalation = showCaseCancelEscalation({
     canDecideEscalation,
     complaintStatus,
     intakeDisposition: complaintIntakeDisposition,
     hqAcceptedAt: complaintHqAcceptedAt,
   });
+  const showCaseLevelCancel = Boolean(
+    orgReady &&
+      data &&
+      showCaseLevelCancelEscalation({
+        escalatedToPusat: Boolean(data.escalatedToPusat),
+        handlingClaimedBy: data.handlingClaimedBy,
+        canCancel: canCreate || canDecideEscalation,
+        actorIsPusat,
+        caseStatus: data.status,
+      }),
+  );
+  const showCancelEscalation =
+    showParentCancelEscalation || showCaseLevelCancel;
+  const showReturnEscalation = Boolean(
+    orgReady &&
+      data &&
+      showCaseReturnEscalation({
+        escalatedToPusat: Boolean(data.escalatedToPusat),
+        actorIsPusat,
+        canUpdate,
+        caseStatus: data.status,
+      }),
+  );
   const cancelNoteOk = cancelNote.trim().length >= CANCEL_NOTE_MIN;
+  const returnNoteOk = returnNote.trim().length >= RETURN_NOTE_MIN;
 
   // Plain textarea counterpart of PresetTextField: after a preset tag is
   // clicked the caret goes back to the end of the note so typing can continue.
@@ -598,6 +648,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     if (!data || cancellingEscalation || !cancelNoteOk) return;
     setCancellingEscalation(true);
     try {
+      if (showCaseLevelCancel) {
+        const res = await cancelCmCaseEscalationToPusat(data.caseId, {
+          reason: cancelNote.trim(),
+        });
+        setData(res.data);
+        setCancelOpen(false);
+        setCancelNote("");
+        showSuccess(t("cancelEscalationToPusatSuccess"));
+        await reload();
+        return;
+      }
       const res = await decideCmBatch1IntakeEscalation(data.complaintId, {
         decision: "CANCEL",
         note: cancelNote.trim(),
@@ -643,6 +704,29 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       );
     } finally {
       setEscalating(false);
+    }
+  }
+
+  async function submitReturnEscalation(): Promise<void> {
+    if (!data || returning || !returnNoteOk) return;
+    setReturning(true);
+    try {
+      const res = await returnCmCaseEscalation(data.caseId, {
+        returnNote: returnNote.trim(),
+      });
+      setData(res.data);
+      setReturnOpen(false);
+      setReturnNote("");
+      showSuccess(t("returnEscalationSuccess"));
+      await reload();
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("returnEscalationFailed"),
+      );
+    } finally {
+      setReturning(false);
     }
   }
 
@@ -756,6 +840,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 showClose,
                 onHqPath: hqPath.onHqPath,
                 escalatedToPusat: Boolean(data.escalatedToPusat),
+                actorIsPusat,
               }) as
                 | "nextStepStart"
                 | "nextStepResolveOrEscalate"
@@ -793,7 +878,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
               className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
               data-testid="case-with-pusat-note"
             >
-              {t("escalatedToPusatNote")}
+              {t(
+                actorIsPusat
+                  ? "escalatedToPusatNotePusat"
+                  : "escalatedToPusatNote",
+              )}
             </p>
           ) : null}
           <section className="space-y-[var(--ecmp-panel-gap)]">
@@ -1004,6 +1093,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 disabled={cancellingEscalation}
               >
                 {tComplaints("cancelEscalation")}
+              </Button>
+            ) : null}
+            {showReturnEscalation ? (
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="case-return-escalation"
+                onClick={() => setReturnOpen(true)}
+                disabled={returning}
+              >
+                {tComplaints("hqReturn")}
               </Button>
             ) : null}
             {showEscalateToPusat ? (
@@ -1229,9 +1329,14 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       >
         <div className="space-y-3">
           <p className="text-ecmp-text-primary">
-            {t("cancelEscalationCaseBody", {
-              number: complaintNumber ?? tCommon("emDash"),
-            })}
+            {t(
+              showCaseLevelCancel
+                ? "cancelEscalationToPusatBody"
+                : "cancelEscalationCaseBody",
+              {
+                number: complaintNumber ?? tCommon("emDash"),
+              },
+            )}
           </p>
           <ReasonPresetTags
             presets={
@@ -1253,6 +1358,52 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             rows={4}
             maxLength={2000}
             disabled={cancellingEscalation}
+            required
+          />
+        </div>
+      </Modal>
+      <Modal
+        open={returnOpen}
+        onClose={() => (!returning ? setReturnOpen(false) : undefined)}
+        title={tComplaints("hqReturnTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setReturnOpen(false)}
+              disabled={returning}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={returning}
+              disabled={!returnNoteOk}
+              onClick={() => void submitReturnEscalation()}
+            >
+              {tComplaints("hqReturn")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {t("returnEscalationBody", {
+              number: data?.caseNumber ?? tCommon("emDash"),
+            })}
+          </p>
+          <Textarea
+            name="returnNote"
+            label={t("returnEscalationNoteLabel")}
+            hint={t("returnEscalationNoteHint")}
+            value={returnNote}
+            onChange={(event) => setReturnNote(event.target.value)}
+            rows={4}
+            maxLength={2000}
+            disabled={returning}
             required
           />
         </div>

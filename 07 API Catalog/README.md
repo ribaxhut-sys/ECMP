@@ -239,6 +239,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟢 Implemented (lab) |
 | API-536 | API-CM-B2-007 | GET /api/v1/cm/cases | DEC-024 Case list (visibility) | 🟢 Implemented (lab) |
 | API-537 | API-CM-B2-009 | GET /api/v1/cm/cases/{caseId}/history | FR-003 / UC-CAP02-07 Case Timeline (this Case + parent HQ path) | 🟢 Implemented (lab) |
+| API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 
@@ -246,8 +247,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
-| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟢 Implemented (lab, DEC-029) — API-521…526 remain Planned |
-| API-521 | API-CM-F4-002 | POST /api/v1/cm/cases/{caseId}/return-escalation | FR-CM-011 | 🟡 Planned |
+| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟢 Implemented (lab, DEC-029) — API-522…526 remain Planned |
+| API-521 | API-CM-F4-002 | POST /api/v1/cm/cases/{caseId}/return-escalation | FR-CM-011 | 🟢 Implemented (lab) — free-text note ≥10 |
 | API-522 | API-CM-F4-003 | GET /api/v1/cm/pusat/escalated-queue | FR-CM-012 | 🟡 Planned |
 | API-523 | API-CM-F4-004 | POST /api/v1/cm/cases/{caseId}/resolve | FR-CM-013 | 🟡 Planned |
 | API-524 | API-CM-F4-005 | PATCH /api/v1/cm/cases/{caseId}/result-visibility | FR-CM-014 | 🟡 Planned |

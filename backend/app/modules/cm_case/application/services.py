@@ -14,6 +14,7 @@ from app.modules.audit.service import AuditService
 from app.modules.cm_case.application.dto import (
     AcceptanceDTO,
     AddCaseCommand,
+    CancelEscalationToPusatCommand,
     CaseDTO,
     CaseSummaryDTO,
     CloseCaseCommand,
@@ -22,6 +23,7 @@ from app.modules.cm_case.application.dto import (
     RecordAcceptanceCommand,
     ResolutionDTO,
     ResolveCaseCommand,
+    ReturnEscalationCommand,
     UpdateStatusCommand,
 )
 from app.modules.cm_case.application.visibility import (
@@ -95,13 +97,31 @@ def _assert_current_handler(case: CaseAggregate, actor_id: str) -> None:
         )
 
 
-def _assert_branch_work_allowed(case: CaseAggregate) -> None:
-    """DEC-029 — after API-520, branch resolve/close/reassign waits for Pusat."""
-    if case.escalated_to_pusat:
-        raise err.conflict(
-            "CASE_WITH_PUSAT",
-            "This Case is with Pusat; branch work is paused.",
-        )
+def _assert_work_allowed(
+    case: CaseAggregate,
+    *,
+    actor_is_pusat: bool,
+    closure: bool = False,
+) -> None:
+    """DEC-029 — branch work pauses at Pusat; Pusat may claim/resolve.
+
+    After Pusat resolves, originating branch may complete F4 closure
+    (owner acceptance / close) while ``escalatedToPusat`` stays true.
+    """
+    if not case.escalated_to_pusat:
+        return
+    if actor_is_pusat:
+        return
+    if closure and case.status in (
+        CaseStatus.RESOLVED,
+        CaseStatus.CLOSED,
+        CaseStatus.CANCELLED,
+    ):
+        return
+    raise err.conflict(
+        "CASE_WITH_PUSAT",
+        "This Case is with Pusat; branch work is paused.",
+    )
 
 
 class SideEffects(Protocol):
@@ -511,7 +531,7 @@ class CaseApplicationService:
         # sees the just-committed claimer once it acquires the lock.
         claims_handling = reason in (HANDLE_CLAIM_REASON, HANDLE_REASSIGN_REASON)
         case = self._require(cmd.case_id, for_update=claims_handling)
-        _assert_branch_work_allowed(case)
+        _assert_work_allowed(case, actor_is_pusat=cmd.actor_is_pusat)
         if reason == HANDLE_REASSIGN_REASON:
             if not cmd.actor_can_reassign:
                 raise err.conflict(
@@ -603,7 +623,9 @@ class CaseApplicationService:
 
     def resolve(self, cmd: ResolveCaseCommand) -> CaseDTO:
         case = self._require(cmd.case_id)
-        _assert_branch_work_allowed(case)
+        _assert_work_allowed(case, actor_is_pusat=cmd.actor_is_pusat)
+        if case.escalated_to_pusat:
+            _assert_current_handler(case, cmd.actor_id)
         try:
             action = ResolveAction(cmd.action.strip().upper())
         except ValueError as exc:
@@ -652,7 +674,9 @@ class CaseApplicationService:
         dual-acceptance gate.
         """
         case = self._require(cmd.case_id)
-        _assert_branch_work_allowed(case)
+        _assert_work_allowed(
+            case, actor_is_pusat=cmd.actor_is_pusat, closure=True
+        )
         before = case.to_snapshot()
         try:
             party = AcceptanceParty(cmd.party.strip().upper())
@@ -714,7 +738,9 @@ class CaseApplicationService:
 
     def close(self, cmd: CloseCaseCommand) -> CaseDTO:
         case = self._require(cmd.case_id)
-        _assert_branch_work_allowed(case)
+        _assert_work_allowed(
+            case, actor_is_pusat=cmd.actor_is_pusat, closure=True
+        )
         before = case.to_snapshot()
         case.close(actor_id=cmd.actor_id)
         self._repo.save(case)
@@ -751,6 +777,59 @@ class CaseApplicationService:
             after=case.to_snapshot(),
             note=case.escalation_reason,
             extra_metadata={"originatingBranchId": origin_unit},
+        )
+        self._repo.commit()
+        return to_case_dto(case)
+
+    def cancel_escalation_to_pusat(
+        self, cmd: CancelEscalationToPusatCommand
+    ) -> CaseDTO:
+        """Branch recall of API-520 — blocked once Pusat has claimed handling."""
+        if cmd.actor_is_pusat:
+            raise err.conflict(
+                "CASE_PUSAT_CANNOT_CANCEL_ESCALATION",
+                "Pusat cannot cancel a branch escalation.",
+            )
+        case = self._require(cmd.case_id)
+        before = case.to_snapshot()
+        case.cancel_escalation_to_pusat(reason=cmd.reason)
+        self._repo.save(case)
+        self._effects.record_case_event(
+            case=case,
+            event_name="CaseEscalationToPusatCancelled",
+            title="Case escalation to Pusat cancelled",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=case.to_snapshot(),
+            note=(cmd.reason or "").strip() or None,
+        )
+        self._repo.commit()
+        return to_case_dto(case)
+
+    def return_escalation(self, cmd: ReturnEscalationCommand) -> CaseDTO:
+        """API-521 lab — Pusat returns Case to originating branch (FR-CM-011 slice)."""
+        if not cmd.actor_is_pusat:
+            raise err.conflict(
+                "CASE_BRANCH_CANNOT_RETURN_ESCALATION",
+                "Only Pusat may return an escalated Case to the branch.",
+            )
+        case = self._require(cmd.case_id)
+        before = case.to_snapshot()
+        origin_unit = case.owning_unit_id or case.owner_unit_id
+        case.return_escalation_from_pusat(note=cmd.return_note)
+        note = (cmd.return_note or "").strip()
+        self._repo.save(case)
+        self._effects.record_case_event(
+            case=case,
+            event_name="CaseEscalationReturned",
+            title="Case escalation returned to branch",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=case.to_snapshot(),
+            note=note or None,
+            extra_metadata={"returnedToBranchId": origin_unit},
         )
         self._repo.commit()
         return to_case_dto(case)

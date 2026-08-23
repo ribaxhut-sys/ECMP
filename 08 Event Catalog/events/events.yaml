@@ -695,7 +695,7 @@ events:
     idempotency: idempotent by caseId + escalatedAt
   - id: EVT-CM-041
     name: CaseEscalationReturned
-    status: Planned
+    status: Implemented
     producer: ECMF
     description: Pusat returned escalation to originating branch (reason code + note)
     fr: FR-CM-011
@@ -704,7 +704,6 @@ events:
       caseId: string
       complaintId: string
       returnedToBranchId: string
-      returnReasonCode: string
       returnNote: string
       returnedBy: string
       returnedAt: datetime
@@ -766,6 +765,24 @@ events:
     consumers:
       - Core Platform
     idempotency: idempotent by caseId + actorId + deniedAt
+
+  - id: EVT-CM-046
+    name: CaseEscalationToPusatCancelled
+    status: Implemented
+    producer: ECMF
+    description: Originating branch cancelled Case-level escalation to Pusat before Pusat claimed handling (API-538)
+    fr: FR-CM-010
+    api: API-538
+    payload:
+      caseId: string
+      complaintId: string
+      reason: string
+      cancelledBy: string
+      cancelledAt: datetime
+    consumers:
+      - Notification
+      - Core Platform
+    idempotency: idempotent by caseId + cancelledAt
 
   # --- Mode A Batch-1 HQ visit complete (lab; not DEC-F4 Case resolve) ---
   - id: EVT-CM-045

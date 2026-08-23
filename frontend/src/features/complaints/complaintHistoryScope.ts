@@ -24,6 +24,8 @@ export const CASE_SUMMARY_EVENT_CODES = new Set([
   "CASE_RESOLVED",
   "CASE_CANCELLED",
   "CASE_ESCALATED_TO_PUSAT",
+  "CASE_ESCALATION_TO_PUSAT_CANCELLED",
+  "CASE_ESCALATION_RETURNED",
 ]);
 
 export function isCaseWorkDetailEvent(eventCode: string): boolean {
@@ -65,6 +67,8 @@ export const CASE_LAST_EVENT_LABEL_KEYS: Record<string, string> = {
   CASE_CLOSED: "eventCaseClosed",
   CASE_RESOLVED: "eventCaseResolved",
   CASE_ESCALATED_TO_PUSAT: "eventCaseEscalatedToPusat",
+  CASE_ESCALATION_TO_PUSAT_CANCELLED: "eventCaseEscalationToPusatCancelled",
+  CASE_ESCALATION_RETURNED: "eventCaseEscalationReturned",
   HANDLING_CONTINUED: "eventHandlingContinued",
   HANDLING_TAKEN_OVER: "eventHandlingTakenOver",
   CASE_HANDLING_UNIT_ACCEPTED: "eventHandlingUnitAccepted",

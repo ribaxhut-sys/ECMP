@@ -185,6 +185,22 @@ class EscalateToPusatRequest(BaseModel):
     reason: str
 
 
+class CancelEscalationToPusatRequest(BaseModel):
+    """Mode A lab — branch cancels API-520; reason min 20 after trim (domain)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    reason: str
+
+
+class ReturnEscalationRequest(BaseModel):
+    """API-521 lab — Pusat returns Case; note min 10 after trim (F4-OQ-01)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    return_note: str = Field(alias="returnNote")
+
+
 class CaseHistoryEntry(BaseModel):
     """API-537 — chronological Case Timeline row (this Case + parent HQ path)."""
 

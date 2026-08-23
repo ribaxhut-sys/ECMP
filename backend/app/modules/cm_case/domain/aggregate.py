@@ -507,7 +507,57 @@ class CaseAggregate:
         self.escalated_to_pusat = True
         self.escalation_reason = text
         self.escalated_at = now
+        # Pusat must claim; branch cancel stays open until that claim.
+        self.handling_claimed_by = None
         self.updated_at = now
+
+    def cancel_escalation_to_pusat(self, *, reason: str) -> None:
+        """Branch pulls back API-520 while Pusat has not claimed handling."""
+        if not self.escalated_to_pusat:
+            raise err.conflict(
+                "CASE_NOT_ESCALATED_TO_PUSAT",
+                "This Case is not with Pusat.",
+            )
+        if self.status in (CaseStatus.CLOSED, CaseStatus.CANCELLED, CaseStatus.RESOLVED):
+            raise err.invalid_state(
+                "A finished Case cannot cancel escalation to Pusat.",
+                details={"status": self.status.value},
+            )
+        if (self.handling_claimed_by or "").strip():
+            raise err.conflict(
+                "CASE_PUSAT_WORK_STARTED",
+                "Pusat has already taken this Case; branch cannot cancel escalation.",
+            )
+        text = (reason or "").strip()
+        if len(text) < 20:
+            raise err.validation(
+                "cancellation reason must be at least 20 characters",
+                details={"field": "reason", "minLength": 20},
+            )
+        self.escalated_to_pusat = False
+        self.updated_at = _utcnow()
+
+    def return_escalation_from_pusat(self, *, note: str) -> None:
+        """API-521 lab — Pusat returns this Case; free-text reason/note only."""
+        if not self.escalated_to_pusat:
+            raise err.conflict(
+                "CASE_NOT_ESCALATED_TO_PUSAT",
+                "This Case is not with Pusat.",
+            )
+        if self.status in (CaseStatus.CLOSED, CaseStatus.CANCELLED, CaseStatus.RESOLVED):
+            raise err.invalid_state(
+                "A finished Case cannot be returned to the branch.",
+                details={"status": self.status.value},
+            )
+        text = (note or "").strip()
+        if len(text) < 10:
+            raise err.validation(
+                "return note must be at least 10 characters",
+                details={"field": "returnNote", "minLength": 10},
+            )
+        self.escalated_to_pusat = False
+        self.handling_claimed_by = None
+        self.updated_at = _utcnow()
 
     def claim_handling(self, user_id: str) -> None:
         uid = (user_id or "").strip()

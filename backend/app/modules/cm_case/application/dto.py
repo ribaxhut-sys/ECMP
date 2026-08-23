@@ -51,6 +51,7 @@ class UpdateStatusCommand:
     actor_unit_id: str | None = None
     handling_claimed_by: str | None = None
     actor_can_reassign: bool = False
+    actor_is_pusat: bool = False
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,7 @@ class ResolveCaseCommand:
     attachment_ids: list[str] = field(default_factory=list)
     rejection_reason: str | None = None
     actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,7 @@ class CloseCaseCommand:
     actor_id: str
     note: str | None = None
     actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
 
 
 @dataclass(frozen=True)
@@ -86,6 +89,7 @@ class RecordAcceptanceCommand:
     actor_id: str
     actor_unit_id: str | None = None
     note: str | None = None
+    actor_is_pusat: bool = False
 
 
 @dataclass(frozen=True)
@@ -96,6 +100,28 @@ class EscalateToPusatCommand:
     reason: str
     actor_id: str
     actor_unit_id: str | None = None
+
+
+@dataclass(frozen=True)
+class CancelEscalationToPusatCommand:
+    """Mode A lab — branch cancels API-520 before Pusat claims the Case."""
+
+    case_id: str
+    reason: str
+    actor_id: str
+    actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
+
+
+@dataclass(frozen=True)
+class ReturnEscalationCommand:
+    """API-521 lab — Pusat returns this Case; free-text reason/note only."""
+
+    case_id: str
+    return_note: str
+    actor_id: str
+    actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
 
 
 @dataclass

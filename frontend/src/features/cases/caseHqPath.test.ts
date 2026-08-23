@@ -3,6 +3,9 @@ import {
   hideCaseBranchWorkActions,
   resolveCaseHqPath,
   showCaseCancelEscalation,
+  showCaseLevelCancelEscalation,
+  showCaseReturnEscalation,
+  actorMayHandleEscalatedCase,
 } from "./caseHqPath";
 
 describe("resolveCaseHqPath", () => {
@@ -54,6 +57,12 @@ describe("hideCaseBranchWorkActions", () => {
     expect(hideCaseBranchWorkActions(false, "IN_PROGRESS", true)).toBe(true);
     expect(hideCaseBranchWorkActions(false, "RESOLVED", true)).toBe(false);
   });
+
+  it("lets a Pusat actor work an escalated Case", () => {
+    expect(hideCaseBranchWorkActions(false, "IN_PROGRESS", true, true)).toBe(
+      false,
+    );
+  });
 });
 
 describe("showCaseCancelEscalation", () => {
@@ -95,6 +104,82 @@ describe("showCaseCancelEscalation", () => {
         ...approved,
         intakeDisposition: "HQ_SCHEDULED",
         hqAcceptedAt: "2026-08-22T08:00:00Z",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("showCaseLevelCancelEscalation", () => {
+  const open = {
+    escalatedToPusat: true,
+    handlingClaimedBy: null as string | null,
+    canCancel: true,
+    actorIsPusat: false,
+    caseStatus: "IN_PROGRESS",
+  };
+
+  it("shows for the originating branch before Pusat claims", () => {
+    expect(showCaseLevelCancelEscalation(open)).toBe(true);
+  });
+
+  it("hides after Pusat claims handling", () => {
+    expect(
+      showCaseLevelCancelEscalation({
+        ...open,
+        handlingClaimedBy: "pusat-1",
+      }),
+    ).toBe(false);
+  });
+
+  it("hides for a Pusat actor", () => {
+    expect(showCaseLevelCancelEscalation({ ...open, actorIsPusat: true })).toBe(
+      false,
+    );
+  });
+});
+
+describe("showCaseReturnEscalation", () => {
+  const open = {
+    escalatedToPusat: true,
+    actorIsPusat: true,
+    canUpdate: true,
+    caseStatus: "IN_PROGRESS",
+  };
+
+  it("shows for Pusat while the Case is with HQ", () => {
+    expect(showCaseReturnEscalation(open)).toBe(true);
+  });
+
+  it("hides for the branch", () => {
+    expect(showCaseReturnEscalation({ ...open, actorIsPusat: false })).toBe(
+      false,
+    );
+  });
+
+  it("hides after the Case is resolved", () => {
+    expect(showCaseReturnEscalation({ ...open, caseStatus: "RESOLVED" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("actorMayHandleEscalatedCase", () => {
+  it("treats a Pusat unit officer as able to work the Case", () => {
+    expect(
+      actorMayHandleEscalatedCase({
+        roles: ["AGENT"],
+        hasPermission: () => true,
+        unitCode: "PUSAT",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not treat a branch officer as Pusat", () => {
+    expect(
+      actorMayHandleEscalatedCase({
+        roles: ["AGENT"],
+        hasPermission: () => true,
+        unitCode: "JKT-SELATAN",
       }),
     ).toBe(false);
   });

@@ -31,7 +31,9 @@ info:
     This document is the Mode A CAP-008 contract (FR-003/FR-005). DEC-F4
     `result_visibility` remains OUT OF SCOPE. API-520 lab (DEC-029) is
     implemented here: escalate **this Case** to Pusat without exposing
-    status `ESCALATED`. API-521…526 remain Planned.
+    status `ESCALATED`. API-538 (cancel while Pusat has not claimed) and
+    API-521 lab (Pusat return with reason code + note) are implemented here.
+    API-522…526 remain Planned.
 
     **Out of scope:** Notification Engine · Assignment Engine · SLA Engine · Identity
     redesign · Mode B · Customer Merge · Dashboard · Reporting · AI.
@@ -80,7 +82,7 @@ tags:
   - name: CM-Case-Close
     description: FR-006 Close Case (compatibility; dual-acceptance gate)
   - name: CM-Case-Escalate
-    description: DEC-029 / API-520 lab — escalate this Case to Pusat (BQ-009 no ESCALATED)
+    description: DEC-029 / API-520 lab — escalate this Case to Pusat; API-538 cancel before Pusat claims
 
 paths:
   /api/v1/cm/cases:
@@ -888,6 +890,106 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           description: Already with Pusat / Case not open
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat:
+    post:
+      summary: Cancel this Case's escalation to Pusat
+      description: |
+        Mode A lab companion to API-520 (DEC-029). Originating branch recalls
+        **this Case only** while Pusat has not claimed handling.
+
+        Does not unlock API-521 (Pusat return). Reason minimum 20 characters
+        after trim.
+      operationId: cmB2CancelEscalationToPusat
+      x-ear-id: API-538
+      x-ecmp-logical-id: API-CM-B2-010
+      x-ecmp-fr: FR-CM-010
+      x-ecmp-dec:
+        - DEC-029
+      x-ecmp-bq:
+        - BQ-009
+      x-ecmp-cap: CAP-008
+      tags: [CM-Case-Escalate]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelEscalationToPusatRequest"
+      responses:
+        "200":
+          description: Escalation flag cleared (`escalatedToPusat=false`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+                "409":
+          description: Not with Pusat / Pusat already claimed handling
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/cm/cases/{caseId}/return-escalation:
+    post:
+      summary: Return this Case's escalation to the originating branch
+      description: |
+        API-521 lab (FR-CM-011 slice). Pusat returns **this Case only** with a
+        free-text reason/note (≥10 chars). No reason-code catalog on this Mode A
+        surface.
+
+        Clears `escalatedToPusat` and handling claim so the branch can work
+        again. Does not unlock API-522…526.
+      operationId: cmB2ReturnEscalation
+      x-ear-id: API-521
+      x-ecmp-logical-id: API-CM-F4-002
+      x-ecmp-fr: FR-CM-011
+      x-ecmp-dec:
+        - DEC-F4
+        - DEC-029
+      x-ecmp-cap: CAP-008
+      tags: [CM-Case-Escalate]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnEscalationRequest"
+      responses:
+        "200":
+          description: Escalation returned (`escalatedToPusat=false`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Not with Pusat / Case finished
           content:
             application/problem+json:
               schema:
@@ -1717,6 +1819,28 @@ components:
           type: string
           minLength: 20
           description: Free-text reason; minimum 20 characters after trim.
+
+    CancelEscalationToPusatRequest:
+      type: object
+      description: Mode A lab — branch cancels API-520 before Pusat claims handling.
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 20
+          description: Free-text reason; minimum 20 characters after trim.
+
+    ReturnEscalationRequest:
+      type: object
+      description: API-521 lab — Pusat returns this Case; free-text reason/note only.
+      required:
+        - returnNote
+      properties:
+        returnNote:
+          type: string
+          minLength: 10
+          description: Free-text reason/note; minimum 10 characters after trim.
 
     ProblemDetails:
       type: object

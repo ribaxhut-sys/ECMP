@@ -86,6 +86,29 @@ describe("CaseHistoryPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("labels Case escalation to HQ instead of Other", async () => {
+    renderWithProviders(
+      <CaseHistoryPanel
+        loading={false}
+        error={null}
+        entries={[
+          entry({
+            entryId: "e1",
+            eventCode: "CASE_ESCALATED_TO_PUSAT",
+            actorName: "Dewi",
+            note: "Case cabang tidak bisa diselesaikan di unit ini.",
+          }),
+        ]}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Sent to HQ")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText("Case cabang tidak bisa diselesaikan di unit ini."),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows empty copy inside the card", async () => {
     renderWithProviders(
       <CaseHistoryPanel loading={false} error={null} entries={[]} />,
