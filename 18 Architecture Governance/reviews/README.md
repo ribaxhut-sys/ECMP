@@ -37,6 +37,8 @@ Proses dan formulir review arsitektur ECMP. Bagian dari Governance (`18`), bukan
 - OpenAPI: `../../07 API Catalog/openapi/complaint-management-esc-res.v1.yaml`
 - `ECMP_FRD_CM_001_v1.1_LOCKED_Release_Notes.md` — FRD-CM-001 Batch 1 LOCK
 - `ECMP_ADR_014_Architecture_Review_v1.0.md` — ADR-014 review
+- `ECMP_ADR_CAP006_002_ARB_Decision_Package_v1.0.md` (GOV-AR-CAP006-002 / AR-20260823-01) — ARB decision package for **ADR-CAP006-002**; status 🟢 **COMPLETE — Accepted with Conditions** (2026-08-23, rbxhut); **CAP006-BLK-001 lifted**; FR-030 eng **NOT authorized** until Implementation Gate 1–4; evidence [`../../deploy/evidence/B2-25_CAP-006_ADR-CAP006-002_Accept_With_Conditions_20260823.md`](../../deploy/evidence/B2-25_CAP-006_ADR-CAP006-002_Accept_With_Conditions_20260823.md)
+- `ECMP_ADR_CAP006_002_Implementation_Gate_Pack_v1.0.md` (GOV-AR-CAP006-002-IGATE / IG-20260823-01) — Implementation Gate **PASS**; FR-030 eng **AUTHORIZED WITH SCOPE**; evidence [`../../deploy/evidence/B2-26_CAP-006_Implementation_Gate_Pass_20260823.md`](../../deploy/evidence/B2-26_CAP-006_Implementation_Gate_Pass_20260823.md)
 - `ECMP_CM_Batch1_S3_Operational_Migrate_Gate_v1.0.md` (GOV-S3-CM-B1-MIG-001) — local Docker `ecmp` Alembic `0040→0043` + CM smoke
 - `ECMP_CM_Batch1_S3_OPS01_Redeploy_Gate_v1.0.md` (GOV-S3-CM-B1-OPS01-001) — backend rebuild + HTTP CM smoke (supervisor) COMPLETE
 - `ECMP_CM_Batch1_S3_Release_Exception_Pack_v1.0.md` (GOV-EX-CM-B1-S3-001 / EX-20260729-01) — Batch 1 residual exceptions **countersigned lab/synthetic-only**

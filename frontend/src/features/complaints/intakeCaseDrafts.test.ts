@@ -4,6 +4,8 @@ import {
   MAX_INTAKE_CASES,
   buildIntakeCaseForms,
   buildIntakeDecisionRows,
+  intakeMayEscalateToPusat,
+  parseIntakeCaseAction,
   sanitizeExtraCaseDrafts,
 } from "./intakeCaseDrafts";
 
@@ -64,6 +66,38 @@ describe("intakeCaseDrafts", () => {
     expect(rows[0]?.action).toBe("register");
     expect(rows[1]?.action).toBe("close");
     expect(rows[1]?.priority).toBe("HIGH");
+  });
+
+  it("keeps escalate as a per-Case action (API-520 after create)", () => {
+    expect(parseIntakeCaseAction("escalate")).toBe("escalate");
+    expect(parseIntakeCaseAction("close")).toBe("close");
+    expect(parseIntakeCaseAction("nope")).toBe("register");
+    const values = {
+      ...createEmptyComplaintForm({ channel: "BRANCH" }),
+      subject: "Mesin error",
+      description: "Uraian case 1",
+    };
+    const rows = buildIntakeDecisionRows(
+      values,
+      [
+        {
+          id: "b",
+          description: "Uraian case 2",
+          note: "Tidak selesai di cabang, perlu Pusat.",
+          action: "escalate",
+        },
+      ],
+      "register",
+    );
+    expect(rows[1]?.action).toBe("escalate");
+  });
+
+  it("offers escalate-to-Pusat only when recording unit is a branch", () => {
+    expect(intakeMayEscalateToPusat("JKT01")).toBe(true);
+    expect(intakeMayEscalateToPusat("UPPPD-X")).toBe(true);
+    expect(intakeMayEscalateToPusat(null)).toBe(true);
+    expect(intakeMayEscalateToPusat("PUSAT")).toBe(false);
+    expect(intakeMayEscalateToPusat("PUSAT-CRO")).toBe(false);
   });
 
   it("caps total cases at BQ-003 max", () => {

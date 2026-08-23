@@ -8,6 +8,7 @@ import {
   isCmBatch1AttachmentVoidable,
   isSameCmBatch1Attachment,
   normalizeCmBatch1Attachment,
+  isCmBatch1AttachmentInCaseScope,
   normalizeCmBatch1VoidReason,
   openBlankAttachmentTab,
   pickCmBatch1UploadFiles,
@@ -122,6 +123,45 @@ describe("normalizeCmBatch1Attachment", () => {
     expect(normalized.platformAttachmentId).toBe("p1");
     expect(normalized.originalName).toBe("x.png");
     expect(normalized.sizeBytes).toBe(9);
+    expect(normalized.caseId).toBeNull();
+  });
+
+  it("maps caseId pin from camelCase or snake_case", () => {
+    expect(
+      normalizeCmBatch1Attachment({
+        attachmentId: "a2",
+        platformAttachmentId: "p2",
+        caseId: "case-1",
+      }).caseId,
+    ).toBe("case-1");
+    expect(
+      normalizeCmBatch1Attachment({
+        attachment_id: "a3",
+        platform_attachment_id: "p3",
+        case_id: "case-2",
+      }).caseId,
+    ).toBe("case-2");
+  });
+});
+
+describe("isCmBatch1AttachmentInCaseScope", () => {
+  it("shows all files on the complaint page", () => {
+    expect(
+      isCmBatch1AttachmentInCaseScope({ caseId: "case-1" }, null),
+    ).toBe(true);
+    expect(isCmBatch1AttachmentInCaseScope({ caseId: null }, "")).toBe(true);
+  });
+
+  it("on a Case page shows shared files plus this Case pin", () => {
+    expect(
+      isCmBatch1AttachmentInCaseScope({ caseId: null }, "case-1"),
+    ).toBe(true);
+    expect(
+      isCmBatch1AttachmentInCaseScope({ caseId: "case-1" }, "case-1"),
+    ).toBe(true);
+    expect(
+      isCmBatch1AttachmentInCaseScope({ caseId: "case-2" }, "case-1"),
+    ).toBe(false);
   });
 });
 

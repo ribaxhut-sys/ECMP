@@ -1,8 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { DashboardSlaSummary } from "@/lib/api/types";
+import type { DashboardResolutionSla } from "@/lib/api/types";
 import { IconCheck, IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import {
@@ -11,127 +10,164 @@ import {
   DASHBOARD_SURFACE_QUIET,
   OPS_TONE_DOT,
   OPS_TONE_TEXT,
-  slaCompletionRatio,
-  slaHealthLevel,
+  slaComplianceLevel,
   slaLevelToOpsTone,
 } from "./dashboardUtils";
 
+/**
+ * DEC-031 resolution-SLA panel.
+ *
+ * Replaces the five-stage CAP-006 view this card used to render. Those stages
+ * (assignment / appointment / resolution / escalation / overall) have no
+ * clocks in Mode A and could only ever show zero, so the card was permanently
+ * short-circuited to an "not activated yet" empty state. One target — 30
+ * calendar days from registration to closure — is what the module actually
+ * measures now.
+ */
 export function SlaCards({
   sla,
   loading,
 }: {
-  sla: DashboardSlaSummary | null;
+  sla: DashboardResolutionSla | null;
   loading: boolean;
 }) {
-  const router = useRouter();
   const t = useTranslations("dashboard");
-  const tCommon = useTranslations("common");
-  const slaDeferred = true;
 
-  const stages = sla
+  const level = slaComplianceLevel(sla);
+  const tone = slaLevelToOpsTone(level);
+
+  // Live state first: what needs doing now, then how the settled ones went.
+  const openRows = sla
     ? [
-        { key: "assignment", label: t("stageAssignment"), ...sla.assignment },
-        { key: "appointment", label: t("stageAppointment"), ...sla.appointment },
-        { key: "resolution", label: t("stageResolution"), ...sla.resolution },
-        { key: "escalation", label: t("stageEscalation"), ...sla.escalation },
-        { key: "overall", label: t("stageOverall"), ...sla.overall },
+        { key: "overdue", label: t("slaCountOverdue"), value: sla.overdue, tone: "critical" as const },
+        { key: "warning", label: t("slaCountWarning"), value: sla.warning, tone: "attention" as const },
+        { key: "onTrack", label: t("slaCountOnTrack"), value: sla.onTrack, tone: "healthy" as const },
+      ]
+    : [];
+  const settledRows = sla
+    ? [
+        { key: "met", label: t("slaCountMet"), value: sla.met, tone: "healthy" as const },
+        { key: "missed", label: t("slaCountMissed"), value: sla.missed, tone: "critical" as const },
       ]
     : [];
 
-  // When every stage is fine, five identical "healthy" rows carry no signal
-  // — collapse to one line and only expand back to a list once something
-  // actually needs attention.
-  const allHealthy =
-    stages.length > 0 &&
-    stages.every((stage) => {
-      const level = slaHealthLevel(stage);
-      return level === "healthy" || level === "excellent";
-    });
-  const overallPct = sla ? Math.round(slaCompletionRatio(sla.overall) * 100) : 0;
+  const nothingPressing =
+    sla !== null && sla.overdue === 0 && sla.warning === 0;
 
   return (
     <section
       data-testid="dashboard-sla-cards"
       id="sla-overview"
-      aria-label={t("slaHealthSummary")}
+      aria-label={t("slaResolutionSummary")}
       className={`${DASHBOARD_SURFACE_QUIET} flex h-full flex-col p-3.5`}
     >
       <div>
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("slaHealthSummary")}</h2>
-        <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>{t("slaStageHealthHint")}</p>
+        <h2 className={DASHBOARD_SECTION_TITLE}>{t("slaResolutionSummary")}</h2>
+        <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>
+          {sla ? t("slaTargetTitle", { days: sla.targetDays }) : null}
+        </p>
       </div>
 
       {loading ? (
         <div className="mt-3" aria-busy="true">
           <Skeleton rows={5} />
         </div>
-      ) : !sla || slaDeferred ? (
+      ) : !sla ? (
         <div className="mt-3 flex-1">
           <Empty
             className="py-8"
             icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
-            title={slaDeferred ? t("slaDeferredTitle") : t("noSlaData")}
-            description={
-              slaDeferred
-                ? t("slaDeferredDescription")
-                : t("noSlaDataDescription")
-            }
-            primaryAction={
-              slaDeferred
-                ? undefined
-                : {
-                    label: tCommon("goToComplaints"),
-                    onClick: () => router.push("/complaints/cm/cases"),
-                  }
-            }
+            title={t("slaDeferredTitle")}
+            description={t("slaDeferredDescription")}
           />
         </div>
-      ) : allHealthy ? (
-        <div className="mt-3 flex flex-1 items-center gap-2.5">
-          <IconCheck className="size-4 shrink-0 text-ecmp-success-text" aria-hidden />
-          <p className="text-[13px] text-ecmp-text-primary">
-            {t("slaAllStagesHealthy", { pct: overallPct })}
-          </p>
-        </div>
       ) : (
-        <ul className="mt-3 space-y-1">
-          {stages.map((stage) => {
-            const level = slaHealthLevel(stage);
-            const tone = slaLevelToOpsTone(level);
-            const pct = Math.round(slaCompletionRatio(stage) * 100);
-            const label =
-              level === "warning"
-                ? t("kpiAttention")
-                : level === "critical"
-                  ? t("kpiCritical")
-                  : t("kpiHealthy");
-            return (
-              <li
-                key={stage.key}
-                className="flex items-center justify-between gap-2 px-1 py-1.5"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
-                    aria-hidden
-                  />
-                  <span className="truncate text-[13px] text-ecmp-text-primary">
-                    {stage.label}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="tabular-nums text-[12px] text-ecmp-text-secondary">
-                    {pct}%
-                  </span>
-                  <span className={`text-[11px] ${OPS_TONE_TEXT[tone]}`}>
-                    {label}
-                  </span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="mt-3 flex flex-1 flex-col gap-3">
+          <div className="flex items-baseline gap-2">
+            <span
+              className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
+              aria-hidden
+            />
+            <p className={`text-[13px] font-medium ${OPS_TONE_TEXT[tone]}`}>
+              {sla.compliancePercentage === null
+                ? t("slaComplianceNone")
+                : t("slaCompliance", { pct: sla.compliancePercentage })}
+            </p>
+          </div>
+
+          {nothingPressing ? (
+            <div className="flex items-center gap-2.5">
+              <IconCheck
+                className="size-4 shrink-0 text-ecmp-success-text"
+                aria-hidden
+              />
+              <p className="text-[13px] text-ecmp-text-primary">
+                {t("slaAlertsEmptyDescription", { days: sla.targetDays })}
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {openRows.map(({ key, ...row }) => (
+                <SlaCountRow key={key} {...row} />
+              ))}
+            </ul>
+          )}
+
+          <ul className="space-y-1 border-t border-ecmp-border/40 pt-2">
+            {settledRows.map(({ key, ...row }) => (
+              <SlaCountRow key={key} {...row} />
+            ))}
+          </ul>
+
+          {sla.unknown > 0 ? (
+            <p className={DASHBOARD_CAPTION}>
+              {t("slaUnknownHint", { count: sla.unknown })}
+            </p>
+          ) : null}
+
+          <p className={`mt-auto ${DASHBOARD_CAPTION}`}>{t("slaResolutionHint")}</p>
+        </div>
       )}
     </section>
+  );
+}
+
+function SlaCountRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "healthy" | "attention" | "critical";
+}) {
+  // A zero count is dimmed rather than hidden: the set of rows must stay
+  // stable so "0 lewat batas" is readable as good news, not as missing data.
+  const muted = value === 0;
+  return (
+    <li className="flex items-center justify-between gap-2 px-1 py-1">
+      <span className="flex min-w-0 items-center gap-2">
+        <span
+          className={`size-1.5 shrink-0 rounded-full ${
+            muted ? "bg-ecmp-muted" : OPS_TONE_DOT[tone]
+          }`}
+          aria-hidden
+        />
+        <span
+          className={`truncate text-[13px] ${
+            muted ? "text-ecmp-text-secondary" : "text-ecmp-text-primary"
+          }`}
+        >
+          {label}
+        </span>
+      </span>
+      <span
+        className={`shrink-0 tabular-nums text-[13px] ${
+          muted ? "text-ecmp-text-secondary" : `font-medium ${OPS_TONE_TEXT[tone]}`
+        }`}
+      >
+        {value}
+      </span>
+    </li>
   );
 }

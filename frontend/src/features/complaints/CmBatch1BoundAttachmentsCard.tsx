@@ -21,6 +21,7 @@ import {
   cmBatch1VoidTargetId,
   formatCmBatch1AttachmentBytes,
   formatCmBatch1AttachmentSummaryLine,
+  isCmBatch1AttachmentInCaseScope,
   isCmBatch1AttachmentVoidable,
   isSameCmBatch1Attachment,
   normalizeCmBatch1Attachment,
@@ -56,11 +57,13 @@ const ACCEPT_MIME =
 export function CmBatch1BoundAttachmentsCard({
   complaintId,
   customerId = null,
+  caseId = null,
   allowVoid = true,
   allowUpload = true,
 }: {
   complaintId: string;
   customerId?: string | null;
+  caseId?: string | null;
   allowVoid?: boolean;
   allowUpload?: boolean;
 }) {
@@ -161,6 +164,7 @@ export function CmBatch1BoundAttachmentsCard({
               classification,
               complaintId: complaintId.trim(),
               customerId: customerId?.trim() || null,
+              caseId: caseId?.trim() || null,
             });
             const data = normalizeCmBatch1Attachment(
               res.data as unknown as Record<string, unknown>,
@@ -222,7 +226,7 @@ export function CmBatch1BoundAttachmentsCard({
         setUploading(false);
       }
     },
-    [canUpload, classification, complaintId, customerId, t, tErrors, tCommon, uploading],
+    [canUpload, caseId, classification, complaintId, customerId, t, tErrors, tCommon, uploading],
   );
 
   const onVoid = useCallback(
@@ -316,7 +320,10 @@ export function CmBatch1BoundAttachmentsCard({
   }
 
   const visible = items.filter(
-    (item) => item.status !== "VOID" && item.status !== "SUPERSEDED",
+    (item) =>
+      item.status !== "VOID" &&
+      item.status !== "SUPERSEDED" &&
+      isCmBatch1AttachmentInCaseScope(item, caseId),
   );
 
   return (
@@ -329,7 +336,9 @@ export function CmBatch1BoundAttachmentsCard({
         description={
           readOnlyList
             ? t("boundAttachmentsClosedDescription")
-            : t("boundAttachmentsOptionalDescription")
+            : caseId
+              ? t("boundAttachmentsCaseDescription")
+              : t("boundAttachmentsOptionalDescription")
         }
       />
       <Card>
@@ -452,6 +461,13 @@ export function CmBatch1BoundAttachmentsCard({
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge tone="neutral">{item.status}</Badge>
                           <Badge tone="info">{classificationLabel}</Badge>
+                          <Badge tone="neutral">
+                            {item.caseId
+                              ? caseId && item.caseId === caseId
+                                ? t("attachmentPinThisCase")
+                                : t("attachmentPinCase")
+                              : t("attachmentPinShared")}
+                          </Badge>
                           <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
                             {formatCmBatch1AttachmentBytes(item.sizeBytes)}
                           </span>

@@ -417,6 +417,11 @@ MESSAGES: dict[str, str] = {
         "Tidak dapat supersede lampiran void atau yang sudah di-supersede."
     ),
     "attachment.case_id_not_supported": ("CaseId tidak didukung pada unggahan lampiran Batch 1."),
+    "attachment.case_pin_requires_complaint": (
+        "CaseId tidak dapat dipakai pada lampiran staging."
+    ),
+    "attachment.case_not_found": "CaseId tidak ditemukan.",
+    "attachment.case_not_in_complaint": "CaseId tidak termasuk Complaint ini.",
     "attachment.duplicate_checksum": "Checksum lampiran duplikat.",
     "attachment.file_not_in_storage": "Berkas lampiran tidak ditemukan di storage.",
     "attachment.metadata_bind_failed": (
@@ -661,6 +666,9 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     ),
     "Cannot supersede void or already superseded attachment": "attachment.cannot_supersede_void",
     "CaseId is not supported in Batch 1 attachment upload": "attachment.case_id_not_supported",
+    "CaseId cannot be used on staged attachments": "attachment.case_pin_requires_complaint",
+    "CaseId was not found": "attachment.case_not_found",
+    "CaseId does not belong to this Complaint": "attachment.case_not_in_complaint",
     "Closer not found or inactive": "complaint.closer_not_found",
     "Complaint already has a resolution and cannot be escalated.": (
         "complaint.has_resolution_cannot_escalate"

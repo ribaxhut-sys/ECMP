@@ -1,7 +1,7 @@
 import { fetchDashboardAggregateKpis, fetchDashboardTrends } from "@/lib/api";
 import type {
   DashboardHeader,
-  DashboardSlaSummary,
+  DashboardResolutionSla,
   DashboardTrendItem,
   StatusCount,
 } from "@/lib/api/types";
@@ -23,12 +23,18 @@ export type AggregateDashboardKpis = {
   /** Mutually exclusive operational slices — sum equals total. */
   byStatus: StatusCount[];
   header: DashboardHeader;
+  /** DEC-031 rollup as returned by the API; null when not measured. */
+  sla: DashboardResolutionSla | null;
 };
 
 export type DashboardData = {
   header: DashboardHeader | null;
-  /** Always null (BQ-005 / CAP-006 deferred). */
-  sla: DashboardSlaSummary | null;
+  /**
+   * DEC-031 resolution-SLA rollup, computed server-side on the same call as
+   * the KPI counts. Null when measurement is switched off
+   * (COMPLAINT_RESOLUTION_TARGET_DAYS=0).
+   */
+  sla: DashboardResolutionSla | null;
   byStatus: StatusCount[] | null;
   /** 30-day daily complaint-count trend from CM Aggregate. */
   trend: DashboardTrendItem[] | null;
@@ -43,6 +49,7 @@ export function buildAggregateKpis(input: {
   escalateApproved?: number;
   escalateScheduled?: number;
   inProgress?: number;
+  sla?: DashboardResolutionSla | null;
 }): AggregateDashboardKpis {
   const escalateApproved = input.escalateApproved ?? 0;
   const escalateScheduled = input.escalateScheduled ?? 0;
@@ -106,6 +113,7 @@ export function buildAggregateKpis(input: {
       openComplaints: input.open,
       closedComplaints: input.closed,
     },
+    sla: input.sla ?? null,
   };
 }
 
@@ -121,12 +129,14 @@ async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
     escalateApproved: data.escalateApproved,
     escalateScheduled: data.escalateScheduled,
     inProgress: data.inProgress,
+    sla: data.sla ?? null,
   });
 }
 
 /**
  * Dashboard payload (DEC-026): CM Aggregate is the only complaint SoT.
- * SLA clocks stay null (BQ-005 / CAP-006 deferred).
+ * The SLA rollup rides on the aggregate-KPI response (DEC-031) — no extra
+ * round trip, and no scheduler behind it.
  */
 export async function loadDashboardData(): Promise<DashboardData> {
   const [aggregate, trends] = await Promise.allSettled([
@@ -140,7 +150,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
 
   return {
     header: aggregate.value.header,
-    sla: null,
+    sla: aggregate.value.sla,
     byStatus: aggregate.value.byStatus,
     trend: trends.status === "fulfilled" ? trends.value.data.items : null,
   };

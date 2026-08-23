@@ -104,6 +104,41 @@ class CreateComplaintBatch1Request(BaseModel):
     )
 
 
+class ComplaintSlaView(BaseModel):
+    """Resolution-SLA position of one complaint (DEC-031).
+
+    Every value is computed server-side at read time; the client never
+    recalculates from its own clock (DEC-031 §2.9). ``null`` on the parent
+    field means "not measured" — either measurement is switched off or the
+    closure timestamp is unknown.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    status: Literal["ON_TRACK", "OVERDUE", "MET", "MISSED"]
+    target_days: int = Field(alias="targetDays")
+    due_at: datetime = Field(alias="dueAt")
+    elapsed_days: int = Field(
+        alias="elapsedDays",
+        description="Whole days from registration to closure, or to now if open",
+    )
+    remaining_days: int | None = Field(
+        default=None,
+        alias="remainingDays",
+        description="Whole days left before dueAt; null once overdue or settled",
+    )
+    overdue_days: int | None = Field(
+        default=None,
+        alias="overdueDays",
+        description="Whole days past dueAt; null while inside the target",
+    )
+    is_warning: bool = Field(
+        default=False,
+        alias="isWarning",
+        description="Open and past the warning threshold, not yet overdue",
+    )
+
+
 class ComplaintBatch1Response(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -244,6 +279,15 @@ class ComplaintBatch1Response(BaseModel):
     )
     priority: str | None = None
     created_at: datetime | None = Field(default=None, alias="createdAt")
+    closed_at: datetime | None = Field(
+        default=None,
+        alias="closedAt",
+        description="When the complaint reached CLOSED; cleared on reopen (DEC-031)",
+    )
+    sla: ComplaintSlaView | None = Field(
+        default=None,
+        description="Resolution SLA position; null when not measured (DEC-031)",
+    )
     duplicate_check_result: str | None = Field(
         default=None, alias="duplicateCheckResult"
     )
@@ -468,6 +512,11 @@ class Batch1AttachmentResponse(BaseModel):
     staging_token: str | None = Field(default=None, alias="stagingToken")
     complaint_id: str | None = Field(default=None, alias="complaintId")
     customer_id: str | None = Field(default=None, alias="customerId")
+    case_id: str | None = Field(
+        default=None,
+        alias="caseId",
+        description="Optional Case pin; Case MUST belong to complaintId (FR-004).",
+    )
     original_name: str = Field(alias="originalName")
     mime_type: str = Field(alias="mimeType")
     size_bytes: int = Field(alias="sizeBytes")

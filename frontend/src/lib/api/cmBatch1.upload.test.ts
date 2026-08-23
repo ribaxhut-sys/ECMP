@@ -52,6 +52,28 @@ describe("uploadCmBatch1Attachment", () => {
     expect(options.body.get("stagingToken")).toBe("STG-test");
     expect(options.body.get("file")).toBeInstanceOf(File);
     expect(options.body.get("aggregateType")).toBeNull();
+    expect(options.body.get("caseId")).toBeNull();
+  });
+
+  it("sends caseId when pinning a bound upload to a Case", async () => {
+    const { uploadCmBatch1Attachment } = await import("./cmBatch1");
+    const file = new File(["hello"], "case1.pdf", { type: "application/pdf" });
+    await uploadCmBatch1Attachment({
+      file,
+      classification: "customer_evidence",
+      complaintId: "11111111-1111-1111-1111-111111111111",
+      caseId: "22222222-2222-2222-2222-222222222222",
+    });
+    const [, options] = apiRequest.mock.calls[0] as [
+      string,
+      { method: string; body: FormData },
+    ];
+    expect(options.body.get("complaintId")).toBe(
+      "11111111-1111-1111-1111-111111111111",
+    );
+    expect(options.body.get("caseId")).toBe(
+      "22222222-2222-2222-2222-222222222222",
+    );
   });
 
   it("voids via DELETE with reason query (API-512)", async () => {

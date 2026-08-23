@@ -90,5 +90,40 @@ describe("EscalateIntakeView — Catatan mention chips", () => {
     expect(
       screen.getByRole("radio", { name: /register this case/i }),
     ).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: /request escalation to hq/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /complete this case/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides escalate-to-HQ when recording unit is Pusat", async () => {
+    stashEscalateIntakeDraft({
+      values: {
+        ...createEmptyComplaintForm({ channel: "BRANCH" }),
+        customerId: "cust-1",
+        customerName: "Ada",
+        subject: "Mesin error",
+        description: "Detail kasus",
+        resolution: "Sudah diinfokan ke wajib pajak.",
+      },
+      stagingToken: "",
+      hasStagedAttachments: false,
+      overrideJustification: null,
+      recordingUnitCode: "PUSAT",
+    });
+
+    renderWithProviders(<EscalateIntakeView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /case 1/i })).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("radio", { name: /register this case/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("radio", { name: /request escalation to hq/i }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -35,6 +35,7 @@ from app.modules.cm_batch1.predicates import (
     in_escalation_family,
     is_open,
 )
+from app.modules.cm_batch1.sla import apply_complaint_status
 
 
 class Batch1Store:
@@ -293,6 +294,7 @@ class Batch1Store:
                 description=description,
                 priority=priority,
                 status=initial_status,
+                closed_at=now if initial_status == "CLOSED" else None,
                 intake_disposition=disposition,
                 owning_unit_id=unit,
                 created_by=created_by,
@@ -556,7 +558,7 @@ class Batch1Store:
                 return None
             row.description = description
             row.intake_disposition = intake_disposition
-            row.status = "CLOSED"
+            apply_complaint_status(row, "CLOSED")
             _ = closed_by
             return row
 

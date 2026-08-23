@@ -48,6 +48,7 @@ from app.modules.cm_batch1.predicates import (
     CLOSED_STATUS,
     ESCALATION_FAMILY,
 )
+from app.modules.cm_batch1.sla import apply_complaint_status
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
 
@@ -62,6 +63,7 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         description=row.description,
         priority=row.priority,
         status=row.status,
+        closed_at=row.closed_at,
         intake_disposition=row.intake_disposition,
         hq_accepted_at=row.hq_accepted_at,
         hq_arrival_date=row.hq_arrival_date,
@@ -471,6 +473,9 @@ class CmBatch1Repository:
             description=description,
             priority=priority,
             status=initial_status,
+            # Branch walk-away close at intake resolves the complaint the same
+            # moment it is registered (DEC-031: elapsed 0 days → MET).
+            closed_at=now if initial_status == CLOSED_STATUS else None,
             intake_disposition=disposition,
             owning_unit_id=unit,
             case_created=False,
@@ -890,7 +895,7 @@ class CmBatch1Repository:
             case.updated_at = now
         row.description = description
         row.intake_disposition = intake_disposition
-        row.status = "CLOSED"
+        apply_complaint_status(row, "CLOSED", now=now)
         row.updated_at = now
         self._session.flush()
         return _to_entity(row)

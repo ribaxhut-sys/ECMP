@@ -23,6 +23,7 @@ import {
 import { LiveStatusBar } from "./LiveStatusBar";
 import { QueueHealth } from "./QueueHealth";
 import { RecentActivity } from "./RecentActivity";
+import { SlaAlertsPanel } from "./SlaAlertsPanel";
 import { SlaCards } from "./SlaCards";
 import { SummaryCards } from "./SummaryCards";
 import { useDashboardData } from "./useDashboardData";
@@ -102,6 +103,14 @@ export function DashboardView() {
       ) : (
         <>
           {/*
+            DEC-031 SLA band. Sits above the decision zone because a complaint
+            past its 30-day promise outranks every queue number below it. It
+            renders nothing when nothing is pressing, so its mere presence is
+            the alert. Refetches whenever the page data does.
+          */}
+          <SlaAlertsPanel reloadKey={updatedAt?.getTime()} />
+
+          {/*
             Decision zone — one seamless command-center panel: hero number
             and "needs action" fused with hairline dividers, not two
             separate floating cards.
@@ -112,6 +121,7 @@ export function DashboardView() {
                 header={data?.header ?? null}
                 byStatus={data?.byStatus ?? null}
                 trend={data?.trend ?? null}
+                sla={data?.sla ?? null}
                 loading={firstLoad}
               />
             </div>

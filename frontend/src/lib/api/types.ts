@@ -185,6 +185,41 @@ export interface DashboardSummary {
   recentActivity: DashboardRecentActivityItem[];
 }
 
+/** DEC-031 — 30 calendar-day resolution SLA status of one complaint. */
+export type ComplaintSlaStatus = "ON_TRACK" | "OVERDUE" | "MET" | "MISSED";
+
+/**
+ * DEC-031 resolution SLA. Every value is computed server-side at read time —
+ * never recomputed from the browser clock.
+ */
+export interface ComplaintSla {
+  status: ComplaintSlaStatus;
+  targetDays: number;
+  dueAt: string;
+  elapsedDays: number;
+  remainingDays: number | null;
+  overdueDays: number | null;
+  /** Open and past the warning threshold, not yet overdue. */
+  isWarning: boolean;
+}
+
+/**
+ * DEC-031 dashboard rollup. The six counts partition every complaint in
+ * scope, so they always sum to the total.
+ */
+export interface DashboardResolutionSla {
+  targetDays: number;
+  onTrack: number;
+  warning: number;
+  overdue: number;
+  met: number;
+  missed: number;
+  /** Closed without a stamped closure time — excluded from compliance. */
+  unknown: number;
+  /** met / (met + missed); null until something has settled. */
+  compliancePercentage: number | null;
+}
+
 /** GET /api/v1/dashboard/aggregate-kpis — CM Aggregate complaint KPIs (DEC-026). */
 export interface DashboardAggregateKpis {
   total: number;
@@ -196,6 +231,34 @@ export interface DashboardAggregateKpis {
   /** HQ visit already scheduled — still on the escalation path. */
   escalateScheduled: number;
   inProgress: number;
+  /** DEC-031 rollup; null when SLA measurement is switched off. */
+  sla?: DashboardResolutionSla | null;
+}
+
+/** DEC-031 — one complaint approaching or past its resolution target. */
+export interface ComplaintSlaAlertItem {
+  complaintId: string;
+  complaintNumber: string;
+  subject: string | null;
+  owningUnitId: string | null;
+  priority: string | null;
+  dueAt: string;
+  elapsedDays: number;
+  remainingDays: number | null;
+  overdueDays: number | null;
+  /** true = past the target; false = approaching it. */
+  isOverdue: boolean;
+}
+
+/**
+ * GET /api/v1/dashboard/sla-alerts. Counts cover the whole scope even when
+ * `items` is truncated, so a badge never under-reports.
+ */
+export interface ComplaintSlaAlerts {
+  targetDays: number;
+  overdueCount: number;
+  warningCount: number;
+  items: ComplaintSlaAlertItem[];
 }
 
 /** API-393 daily complaint trend from CM Aggregate (DEC-026). */

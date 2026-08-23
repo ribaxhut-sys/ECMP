@@ -6,6 +6,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.modules.cm_batch1.domain_events import DomainEvent
+from app.modules.cm_batch1.sla_thresholds import (
+    SlaThresholdCode,
+    sla_idempotency_key,
+)
 
 # Operator notes are already visible on the same screen; only the length is capped.
 # Duplicate justification stays out of timeline metadata (see DomainEvent).
@@ -849,5 +853,80 @@ def hq_completed(
         ),
         timeline_metadata={**payload, "note": clip_note(note)},
         outbox_event_id=None,
+        occurred_at=now,
+    )
+
+
+def complaint_sla_threshold(
+    *,
+    complaint_id: str,
+    complaint_number: str,
+    threshold: str,
+    due_at: datetime,
+    occurred_at: datetime | None = None,
+    actor_id: str | None = None,
+    elapsed_days: int | None = None,
+    remaining_days: int | None = None,
+    overdue_days: int | None = None,
+) -> DomainEvent:
+    """H7/H3/H1 warning or EVT-004 SLABreached (FR-030 / DEC-031 Fase 2).
+
+    Mode A measures the Complaint Aggregate (DEC-031 §2.3). Catalog EVT-004
+    still names the field ``caseId`` — filled with the complaint id here.
+    Warning thresholds stay durable (Audit/Timeline/Outbox) but use
+    ``NO-PUBLISH`` so the Mode A drainer only publishes catalog ``EVT-%`` rows.
+    """
+    now = occurred_at or datetime.now(UTC)
+    code = threshold.upper()
+    if code not in {"H7", "H3", "H1", "BREACH"}:
+        raise ValueError(f"unsupported SLA threshold: {threshold!r}")
+    typed: SlaThresholdCode = code  # type: ignore[assignment]
+    is_breach = typed == "BREACH"
+    due_iso = due_at.isoformat() if due_at.tzinfo else due_at.replace(tzinfo=UTC).isoformat()
+    payload: dict[str, Any] = {
+        "caseId": complaint_id,
+        "complaintId": complaint_id,
+        "complaintNumber": complaint_number,
+        "slaId": "RESOLUTION",
+        "threshold": typed,
+        "dueAt": due_iso,
+        "severity": "BREACH" if is_breach else typed,
+        "elapsedDays": elapsed_days,
+        "remainingDays": remaining_days,
+        "overdueDays": overdue_days,
+    }
+    if is_breach:
+        payload["breachedAt"] = now.isoformat()
+
+    title = "SLA Breached" if is_breach else f"SLA Threshold {typed}"
+    description = (
+        f"Complaint {complaint_number} resolution SLA breached (due {due_iso})"
+        if is_breach
+        else (
+            f"Complaint {complaint_number} crossed resolution SLA "
+            f"threshold {typed} (due {due_iso})"
+        )
+    )
+    return DomainEvent(
+        name="SLABreached" if is_breach else "ComplaintSlaThresholdReached",
+        aggregate_type="Complaint",
+        aggregate_id=complaint_id,
+        actor_id=actor_id,
+        payload=payload,
+        idempotency_key=sla_idempotency_key(
+            complaint_id=complaint_id, threshold=typed
+        ),
+        audit_operation="SLABreached" if is_breach else "ComplaintSlaThreshold",
+        audit_action="CREATE",
+        after=payload,
+        timeline_event_type="SLABreached" if is_breach else "ComplaintSlaThreshold",
+        timeline_title=title,
+        timeline_description=description,
+        timeline_metadata={
+            "complaintNumber": complaint_number,
+            "threshold": typed,
+            "dueAt": due_iso,
+        },
+        outbox_event_id="EVT-004" if is_breach else None,
         occurred_at=now,
     )

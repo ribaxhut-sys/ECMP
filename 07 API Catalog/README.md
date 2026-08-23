@@ -204,7 +204,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-504 | API-CM-B1-005 | GET /api/v1/cm/customers/{customerId}/batch1-360 | FR-002 | 🟢 Implemented (lab) |
 | API-505 | API-CM-B1-006 | POST /api/v1/cm/duplicates/check | FR-003 | 🟢 Implemented (lab) |
 | API-506 | API-CM-B1-007 | POST /api/v1/cm/duplicates/decisions | FR-003 | 🟢 Implemented (lab) |
-| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟢 Implemented (lab; shared attachment CAP + Batch 1 fields) |
+| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟢 Implemented (lab; optional `caseId` pin when Case belongs to Complaint) |
 | API-508 | API-CM-B1-009 | POST /api/v1/cm/attachments/transfer | FR-004 | 🟢 Implemented (lab) |
 | API-509 | API-CM-B1-010 | GET /api/v1/cm/complaints/{complaintId}/attachments (align API-387) | FR-004 | 🟢 Implemented (lab; empty list is 200) |
 | API-510 | API-CM-B1-011 | GET /api/v1/attachments/{id} (align API-324) | FR-004 | 🟢 Implemented (lab; shared) |

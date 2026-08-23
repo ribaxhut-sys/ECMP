@@ -54,6 +54,7 @@ See [`../docs/deployment/README.md`](../docs/deployment/README.md).
 ## Related
 
 - [`../15 Operations Runbook/`](../15%20Operations%20Runbook/)
+- CAP-006 scheduled-command provisioning (Implementation Gate PASS IG-20260823-01; crontab after commands ship): [`../15 Operations Runbook/ECMP_CM_Batch1_SLA_Sweep_v0.1.md`](../15%20Operations%20Runbook/ECMP_CM_Batch1_SLA_Sweep_v0.1.md) (OPS-CM-B1-SLA-001) — hourly flock + heartbeat markers; see also [`../05 Architecture Decision Records/ADR-CAP006-002_Time_Source_Fulfillment_Pattern.md`](../05%20Architecture%20Decision%20Records/ADR-CAP006-002_Time_Source_Fulfillment_Pattern.md)
 - [`../16 Release Management/`](../16%20Release%20Management/)
 - [`../10 Security and Access Standards/`](../10%20Security%20and%20Access%20Standards/)
 - [`../docs/deployment/`](../docs/deployment/)

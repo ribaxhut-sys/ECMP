@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -52,6 +53,7 @@ from app.modules.cm_batch1.schemas import (
     TransferAttachmentsRequest,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.service import SettingsService
 from cm_batch1_helpers import confirmed_create
@@ -66,6 +68,7 @@ _TABLES = [
     CmBatch1DuplicateDecisionORM.__table__,
     CmBatch1LaterReviewItemORM.__table__,
     CmBatch1AttachmentStagingORM.__table__,
+    CmCaseORM.__table__,
     CmBatch1AttachmentORM.__table__,
     CmBatch1AttachmentHistoryORM.__table__,
 ]
@@ -137,6 +140,29 @@ def _create_complaint(cm_service: CmBatch1Service, request_id: str) -> str:
         actor_id="actor",
     )
     return created.complaint_id
+
+
+def _insert_case(
+    db_session: Session, *, complaint_id: str, case_number: str
+) -> str:
+    case_id = uuid.uuid4()
+    db_session.add(
+        CmCaseORM(
+            id=case_id,
+            case_number=case_number,
+            complaint_id=complaint_id,
+            customer_id="CUST-10001",
+            status="CREATED",
+            case_type="BILLING",
+            subject="Attachment pin case",
+            description="Case for FR-004 pin",
+            priority="MEDIUM",
+            created_by="actor",
+            created_at=datetime.now(UTC),
+        )
+    )
+    db_session.commit()
+    return str(case_id)
 
 
 def test_unit_config_provider_defaults() -> None:
@@ -479,10 +505,16 @@ def test_transfer_unknown_staging_token_is_noop(
     assert transferred.attachments == []
 
 
-def test_tc_cm_fr004_09_case_id_rejected(
-    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+def test_tc_cm_fr004_09_foreign_case_id_rejected(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
 ) -> None:
-    complaint_id = _create_complaint(cm_service, "att-9")
+    complaint_id = _create_complaint(cm_service, "att-9a")
+    other = _create_complaint(cm_service, "att-9b")
+    foreign_case = _insert_case(
+        db_session, complaint_id=other, case_number="TAB-2608-0091"
+    )
     with pytest.raises(ValidationAppError) as exc:
         batch1_attachments.upload(
             data=b"x",
@@ -491,6 +523,63 @@ def test_tc_cm_fr004_09_case_id_rejected(
             classification="customer_evidence",
             actor_id="a1",
             complaint_id=complaint_id,
+            case_id=foreign_case,
+        )
+    assert "CaseId" in exc.value.message
+
+
+def test_tc_cm_fr004_09_unknown_case_id_rejected(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-9c")
+    with pytest.raises(ValidationAppError) as exc:
+        batch1_attachments.upload(
+            data=b"x",
+            filename="a.txt",
+            content_type="text/plain",
+            classification="customer_evidence",
+            actor_id="a1",
+            complaint_id=complaint_id,
+            case_id=str(uuid.uuid4()),
+        )
+    assert "CaseId" in exc.value.message
+
+
+def test_case_pin_accepted_when_case_belongs_to_complaint(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-9d")
+    case_id = _insert_case(
+        db_session, complaint_id=complaint_id, case_number="TAB-2608-0092"
+    )
+    result = batch1_attachments.upload(
+        data=b"pinned-bytes",
+        filename="case1.pdf",
+        content_type="application/pdf",
+        classification="customer_evidence",
+        actor_id="a1",
+        complaint_id=complaint_id,
+        case_id=case_id,
+    )
+    assert result.status == "ACTIVE"
+    assert result.case_id == case_id
+    listed = batch1_attachments.list_for_complaint(complaint_id)
+    assert listed[0].case_id == case_id
+
+
+def test_case_pin_rejected_on_staging(
+    batch1_attachments: CmBatch1AttachmentService,
+) -> None:
+    with pytest.raises(ValidationAppError) as exc:
+        batch1_attachments.upload(
+            data=b"staged",
+            filename="a.txt",
+            content_type="text/plain",
+            classification="customer_evidence",
+            actor_id="a1",
+            staging_token="STG-pin-not-allowed",
             case_id=str(uuid.uuid4()),
         )
     assert "CaseId" in exc.value.message

@@ -80,6 +80,62 @@ describe("CmBatch1BoundAttachmentsCard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("on a Case page hides files pinned to another Case", async () => {
+    fetchCmBatch1ComplaintAttachments.mockResolvedValue({
+      data: [
+        {
+          attachmentId: "att-shared",
+          platformAttachmentId: "plat-s",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "shared.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 10,
+          checksumSha256: "s",
+          createdAt: "2026-08-23T00:00:00Z",
+        },
+        {
+          attachmentId: "att-case-1",
+          platformAttachmentId: "plat-1",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "case1.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 20,
+          checksumSha256: "c1",
+          caseId: "case-1",
+          createdAt: "2026-08-23T00:00:00Z",
+        },
+        {
+          attachmentId: "att-case-2",
+          platformAttachmentId: "plat-2",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "case2.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 30,
+          checksumSha256: "c2",
+          caseId: "case-2",
+          createdAt: "2026-08-23T00:00:00Z",
+        },
+      ],
+      meta: { page: 1, pageSize: 100, totalItems: 3 },
+    });
+
+    renderWithProviders(
+      <CmBatch1BoundAttachmentsCard
+        complaintId={COMPLAINT_ID}
+        caseId="case-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bound-item-att-shared")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("bound-item-att-case-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("bound-item-att-case-2")).not.toBeInTheDocument();
+  });
+
   it("shows empty label when none bound", async () => {
     fetchCmBatch1ComplaintAttachments.mockResolvedValue({
       data: [],

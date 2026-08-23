@@ -147,11 +147,16 @@ def test_aggregate_kpis_forwards_period_window_normalized_to_utc() -> None:
     )
 
     assert result.total == 3
-    activity.complaint_kpis.assert_called_once_with(
-        branch_id=None,
-        date_from=datetime(2026, 8, 1, tzinfo=UTC),
-        date_to=datetime(2026, 8, 31, tzinfo=UTC),
-    )
+    activity.complaint_kpis.assert_called_once()
+    kwargs = activity.complaint_kpis.call_args.kwargs
+    assert kwargs["branch_id"] is None
+    assert kwargs["date_from"] == datetime(2026, 8, 1, tzinfo=UTC)
+    assert kwargs["date_to"] == datetime(2026, 8, 31, tzinfo=UTC)
+    # DEC-031: the SLA target rides along on the same call rather than costing
+    # a second round-trip. Asserted as present, not pinned to 30 — the value is
+    # configuration and a deployment may legitimately change it.
+    assert kwargs["target_days"] >= 0
+    assert 1 <= kwargs["warning_percent"] <= 99
 
 
 def test_aggregate_kpis_invalid_period_raises() -> None:

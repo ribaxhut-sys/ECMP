@@ -131,8 +131,13 @@ links:
       Runtime Architecture Accepted (ARC-CAP006-002, B2-21); B2-22 Non-Invent
       Gate = ADDITIONAL ARCHITECTURE REQUIRED; B2-23 Time Source fulfillment
       pattern NOT SPECIFIED; B2-24 Stay Deferred confirmation — official
-      blocker CAP006-BLK-001 frozen; FR-030 engineering NOT authorized;
-      concrete runtime Deferred. EVT-004 Planned; no FR-030 engine yet.
+      blocker CAP006-BLK-001 lifted by B2-25 / AR-20260823-01 (ADR-CAP006-002
+      Accepted with Conditions — Scheduled Command Invocation). C-3 = 1h lag;
+      C-4 = outbox drainer under same pattern; C-6 = in-app H-7/H-3/H-1 + breach.
+      Implementation Gate PASS IG-20260823-01 / B2-26: FR-030 engineering
+      AUTHORIZED WITH SCOPE (in-app H-7/H-3/H-1 + breach + outbox drain; no
+      CAP-005). Concrete runtime not built yet. EVT-004 Planned; engine coding
+      may start under gate pack scope.
       api: [] until contract-first surface is approved. TC-030 Planned.
   - id: TRC-L-008
     domain: Dashboard

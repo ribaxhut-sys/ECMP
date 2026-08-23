@@ -147,7 +147,7 @@ Bukan antrian fitur baru. Coding Mode A hanya bila regresi, atau setelah keputus
 | DEC-F4 / FRD-CM-002 coding | **CLOSED 2026-08-22** — F4.1/F4.2/F4.4/F4.5 sudah terimplementasi; F4.3/F4.3a (`ALL_BRANCHES`) **dibatalkan** BO: hasil eskalasi hanya untuk cabang asal. Nol sisa coding | Business Owner |
 | HQ schedule overdue visual hint | Mode A FE — slice ini | Tech Lead (keep-green) |
 | Mode B / SSO / Identity Adapter | **CLOSED** (C-B6-1) | Board Unlock Resolution |
-| CAP-006 FR-030 engine | Stay Deferred (CAP006-BLK-001) | Time Source pattern |
+| CAP-006 FR-030 engine | **Gate PASS (B2-26)** — scoped eng open: sweep H-7/H-3/H-1 + breach + outbox drain + heartbeat; no CAP-005 | Tech Lead |
 
 ---
 

@@ -133,3 +133,19 @@ class OutboxRepository:
             )
             for r in rows
         ]
+
+    def mark_published(
+        self, outbox_id: str, *, published_at: datetime | None = None
+    ) -> bool:
+        """Mode A local acknowledgment — no broker (C-4 / ADR-CAP006-002)."""
+        try:
+            row_uuid = uuid.UUID(outbox_id)
+        except ValueError:
+            return False
+        row = self._session.get(CmBatch1OutboxORM, row_uuid)
+        if row is None or row.status != "UNPUBLISHED":
+            return False
+        row.status = "PUBLISHED"
+        row.published_at = published_at or datetime.now(UTC)
+        self._session.flush()
+        return True

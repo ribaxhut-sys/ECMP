@@ -5,8 +5,7 @@ import type {
   BranchCount,
   DashboardHeader,
   DashboardRecentActivityItem,
-  DashboardSlaStage,
-  DashboardSlaSummary,
+  DashboardResolutionSla,
   StatusCount,
   StatusCountStatus,
 } from "@/lib/api/types";
@@ -157,19 +156,25 @@ export function countByStatus(
   return match?.count ?? 0;
 }
 
-export function slaCompletionRatio(stage: DashboardSlaStage): number {
-  const total = stage.completed + stage.breached;
-  if (total <= 0) return 1;
-  return stage.completed / total;
-}
-
-export function slaHealthLevel(stage: DashboardSlaStage): SlaHealthLevel {
-  if (stage.breached <= 0) {
-    return stage.completed > 0 ? "excellent" : "healthy";
+/**
+ * DEC-031 compliance health. Judged only on settled complaints (met/missed);
+ * `unknown` rows are excluded upstream so a data gap cannot flatter or damn
+ * the figure. `null` compliance means nothing has settled yet — reported as
+ * "healthy" rather than 0%, which would read as total failure.
+ */
+export function slaComplianceLevel(
+  sla: DashboardResolutionSla | null,
+): SlaHealthLevel {
+  if (!sla) return "healthy";
+  // Anything already past the target outranks the historical average — it is
+  // a live problem, not a statistic.
+  if (sla.overdue > 0) return "critical";
+  if (sla.compliancePercentage === null) {
+    return sla.warning > 0 ? "warning" : "healthy";
   }
-  const ratio = slaCompletionRatio(stage);
-  if (ratio >= 0.85) return "healthy";
-  if (ratio >= 0.65) return "warning";
+  if (sla.compliancePercentage >= 95) return "excellent";
+  if (sla.compliancePercentage >= 85) return "healthy";
+  if (sla.compliancePercentage >= 65) return "warning";
   return "critical";
 }
 
@@ -223,16 +228,20 @@ export function branchBadgeKind(
 export function resolveSystemHealth(input: {
   loading: boolean;
   error: boolean;
-  sla: DashboardSlaSummary | null;
+  sla: DashboardResolutionSla | null;
   waitingAssignment?: number;
   escalatePending?: number;
 }): SystemHealthKind {
   if (input.loading) return "syncing";
   if (input.error) return "degraded";
-  const breached = input.sla?.overall.breached ?? 0;
+  // DEC-031: a complaint past its 30-day target is the strongest operational
+  // signal on this bar — stronger than a queue that merely has work in it.
+  const overdue = input.sla?.overdue ?? 0;
+  if (overdue > 0) return "degraded";
+  const approaching = input.sla?.warning ?? 0;
   const waiting = input.waitingAssignment ?? 0;
   const escalate = input.escalatePending ?? 0;
-  if (breached > 0 || waiting > 0 || escalate > 0) return "attention";
+  if (approaching > 0 || waiting > 0 || escalate > 0) return "attention";
   return "healthy";
 }
 

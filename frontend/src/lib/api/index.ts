@@ -36,6 +36,7 @@ export {
 export {
   fetchDashboardAggregateKpis,
   fetchDashboardRecentActivity,
+  fetchDashboardSlaAlerts,
   fetchDashboardTrends,
 } from "./dashboard";
 export {

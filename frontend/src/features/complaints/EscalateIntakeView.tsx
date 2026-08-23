@@ -49,6 +49,8 @@ import {
   parseIntakeCaseAction,
   parseIntakePriority,
   createIntakeCasesForRegisteredComplaint,
+  intakeMayEscalateToPusat,
+  ESCALATE_TO_PUSAT_REASON_MIN,
   type IntakeCaseAction,
   type IntakeCaseDecisionRow,
 } from "./intakeCaseDrafts";
@@ -58,8 +60,9 @@ const INTAKE_CASE_NOTE_PRESET_KEY = "cm_batch1.intake_case_note_presets";
 const PRESET_KEYS = [INTAKE_CASE_NOTE_PRESET_KEY];
 
 /**
- * After "Lanjut": per-Case priority, note, and one action (register / close Case).
- * Eskalasi ke Pusat diajukan dari halaman Case (DEC-029), bukan dari form induk.
+ * After "Lanjut": per-Case priority, note, and one action
+ * (register / escalate-to-Pusat / close Case).
+ * Escalation calls API-520 on the created Case (DEC-029) — not the parent.
  */
 export function EscalateIntakeView() {
   const router = useRouter();
@@ -80,6 +83,7 @@ export function EscalateIntakeView() {
   /** True when submitError comes from link_existing (not create). */
   const [linkError, setLinkError] = useState(false);
   const [escalationReasonMissing, setEscalationReasonMissing] = useState(false);
+  const [escalateReasonTooShort, setEscalateReasonTooShort] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -119,11 +123,16 @@ export function EscalateIntakeView() {
     const loaded = peekEscalateIntakeDraft();
     setDraft(loaded);
     if (loaded) {
+      const mayEscalate = intakeMayEscalateToPusat(loaded.recordingUnitCode);
       setRows(
         buildIntakeDecisionRows(
           loaded.values,
           loaded.extraCaseDrafts ?? [],
           loaded.case1Action,
+        ).map((row) =>
+          !mayEscalate && row.action === "escalate"
+            ? { ...row, action: "register" }
+            : row,
         ),
       );
     }
@@ -197,11 +206,24 @@ export function EscalateIntakeView() {
     const needsNote = rows.find((row) => !row.note.trim());
     if (needsNote) {
       setEscalationReasonMissing(true);
+      setEscalateReasonTooShort(false);
       document.getElementById(`case-note-${needsNote.id}`)?.focus();
+      return false;
+    }
+    const escalateShort = rows.find(
+      (row) =>
+        row.action === "escalate" &&
+        row.note.trim().length < ESCALATE_TO_PUSAT_REASON_MIN,
+    );
+    if (escalateShort) {
+      setEscalateReasonTooShort(true);
+      setEscalationReasonMissing(false);
+      document.getElementById(`case-note-${escalateShort.id}`)?.focus();
       return false;
     }
     setPriorityError(null);
     setEscalationReasonMissing(false);
+    setEscalateReasonTooShort(false);
     return true;
   }
 
@@ -246,6 +268,7 @@ export function EscalateIntakeView() {
     setSubmitError(null);
     setLinkError(false);
     setEscalationReasonMissing(false);
+    setEscalateReasonTooShort(false);
     setInfoMessage(null);
     if (!ensureCaseDecisions()) return;
 
@@ -289,6 +312,7 @@ export function EscalateIntakeView() {
     setSubmitError(null);
     setLinkError(false);
     setEscalationReasonMissing(false);
+    setEscalateReasonTooShort(false);
     setInfoMessage(null);
     if (!ensureCaseDecisions()) return;
 
@@ -466,9 +490,12 @@ export function EscalateIntakeView() {
 
   const values = draft.values;
   const showNote = Boolean(values.resolution.trim());
+  const mayEscalate = intakeMayEscalateToPusat(draft.recordingUnitCode);
   const actionLabel = (action: IntakeCaseAction) =>
-      action === "close"
-        ? t("submitCloseCase")
+    action === "close"
+      ? t("submitCloseCase")
+      : action === "escalate"
+        ? t("submitEscalateCase")
         : t("submitRegisterCase");
   const confirmCopy = {
     title: t("confirmCaseDecisionsTitle"),
@@ -506,6 +533,16 @@ export function EscalateIntakeView() {
           tone="danger"
           title={t("intakeNoteMissingTitle")}
           description={t("intakeNoteMissingDescription")}
+        />
+      ) : null}
+
+      {escalateReasonTooShort ? (
+        <Alert
+          tone="danger"
+          title={t("intakeEscalateReasonMinTitle")}
+          description={t("intakeEscalateReasonMinDescription", {
+            min: ESCALATE_TO_PUSAT_REASON_MIN,
+          })}
         />
       ) : null}
 
@@ -633,13 +670,28 @@ export function EscalateIntakeView() {
                   error={
                     escalationReasonMissing && !row.note.trim()
                       ? tValidation("intakeNoteRequired")
-                      : undefined
+                      : escalateReasonTooShort &&
+                          row.action === "escalate" &&
+                          row.note.trim().length < ESCALATE_TO_PUSAT_REASON_MIN
+                        ? tValidation("escalationReasonMin", {
+                            min: ESCALATE_TO_PUSAT_REASON_MIN,
+                          })
+                        : undefined
                   }
                   onChange={(next) => {
                     patchRow(row.id, { note: next });
                     if (next.trim()) setEscalationReasonMissing(false);
+                    if (next.trim().length >= ESCALATE_TO_PUSAT_REASON_MIN) {
+                      setEscalateReasonTooShort(false);
+                    }
                   }}
-                  hint={t("intakeCaseNoteHint")}
+                  hint={
+                    row.action === "escalate"
+                      ? t("intakeEscalateReasonHint", {
+                          min: ESCALATE_TO_PUSAT_REASON_MIN,
+                        })
+                      : t("intakeCaseNoteHint")
+                  }
                 />
                 <RadioGroup
                   name={`case-action-${row.id}`}
@@ -655,6 +707,14 @@ export function EscalateIntakeView() {
                   }
                   options={[
                     { value: "register", label: t("submitRegisterCase") },
+                    ...(mayEscalate
+                      ? [
+                          {
+                            value: "escalate",
+                            label: t("submitEscalateCase"),
+                          },
+                        ]
+                      : []),
                     { value: "close", label: t("submitCloseCase") },
                   ]}
                 />

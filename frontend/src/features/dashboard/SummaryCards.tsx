@@ -7,6 +7,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import type {
   DashboardHeader,
+  DashboardResolutionSla,
   DashboardTrendItem,
   StatusCount,
 } from "@/lib/api/types";
@@ -24,6 +25,8 @@ import {
   OPS_TONE_TEXT,
   openBacklogAccent,
   resolutionRatePct,
+  slaComplianceLevel,
+  slaLevelToOpsTone,
   type OpsTone,
 } from "./dashboardUtils";
 import { TrendSparkline } from "./TrendSparkline";
@@ -92,11 +95,13 @@ export function SummaryCards({
   header,
   byStatus,
   trend,
+  sla,
   loading,
 }: {
   header: DashboardHeader | null;
   byStatus: StatusCount[] | null;
   trend?: DashboardTrendItem[] | null;
+  sla?: DashboardResolutionSla | null;
   loading: boolean;
 }) {
   const router = useRouter();
@@ -148,8 +153,21 @@ export function SummaryCards({
 
   const waitingAssignment = countByStatus(byStatus, "waitingAssignment") ?? 0;
   const escalated = countByStatus(byStatus, "escalatePending") ?? 0;
-  const slaSignal = t("slaDeferredBatch1");
-  const slaTone: OpsTone = "neutral";
+  // DEC-031 Fase 1: the 30-day resolution clock is measured at read time.
+  // This tile used to hard-code "not activated on Batch-1" even after the
+  // rollup arrived — that leftover is what made SLA look switched off.
+  const slaActive = sla != null;
+  const slaTone: OpsTone = slaActive
+    ? slaLevelToOpsTone(slaComplianceLevel(sla))
+    : "neutral";
+  const slaValue = slaActive ? sla.overdue : tCommon("emDash");
+  const slaSignal = !slaActive
+    ? t("slaDeferredBatch1")
+    : sla.overdue > 0
+      ? t("slaKpiOverdue", { count: sla.overdue })
+      : sla.warning > 0
+        ? t("slaKpiWarning", { count: sla.warning })
+        : t("slaKpiHealthy", { days: sla.targetDays });
   const rate = resolutionRatePct(header);
   const openAccent = openBacklogAccent(
     header.openComplaints,
@@ -202,7 +220,13 @@ export function SummaryCards({
         <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ecmp-border/30 pt-4 sm:grid-cols-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
           <KpiBlock
             title={t("slaBreached")}
-            value={tCommon("emDash")}
+            value={
+              typeof slaValue === "number" ? (
+                <AnimatedCount value={slaValue} />
+              ) : (
+                slaValue
+              )
+            }
             signal={slaSignal}
             tone={slaTone}
           />

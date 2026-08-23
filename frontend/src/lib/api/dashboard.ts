@@ -1,5 +1,6 @@
 import { apiRequest } from "./client";
 import type {
+  ComplaintSlaAlerts,
   DashboardAggregateKpis,
   DashboardRecentActivityItem,
   DashboardTrends,
@@ -38,6 +39,24 @@ export function fetchDashboardRecentActivity(
   const qs = params.toString();
   return apiRequest<DataResponse<DashboardRecentActivityItem[]>>(
     `/api/v1/dashboard/recent-activity${qs ? `?${qs}` : ""}`,
+  );
+}
+
+/**
+ * DEC-031 — GET /api/v1/dashboard/sla-alerts.
+ * Complaints approaching or past the 30-day resolution target, computed on
+ * request. In-app only: there is no scheduler or transport behind it, so it
+ * reaches an officer when they open the app (DEC-031 §3 Fase 2).
+ */
+export function fetchDashboardSlaAlerts(
+  options: { branchId?: string; limit?: number } = {},
+): Promise<DataResponse<ComplaintSlaAlerts>> {
+  const params = new URLSearchParams();
+  if (options.branchId) params.set("branchId", options.branchId);
+  if (options.limit) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return apiRequest<DataResponse<ComplaintSlaAlerts>>(
+    `/api/v1/dashboard/sla-alerts${qs ? `?${qs}` : ""}`,
   );
 }
 

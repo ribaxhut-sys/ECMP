@@ -719,6 +719,35 @@ paths:
         void-not-delete, and Aggregate anchor rules per FR-004 / BR-012.
         Optional form field `customerId` scopes duplicate-checksum rejection
         to the same customer (identical bytes for a different customer are allowed).
+        Optional form field `caseId` pins the file to a Case that MUST belong
+        to `complaintId` (FR-004 E7). Staging uploads MUST omit `caseId`.
+        Omitted `caseId` = shared complaint evidence.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                classification:
+                  type: string
+                stagingToken:
+                  type: string
+                complaintId:
+                  type: string
+                customerId:
+                  type: string
+                caseId:
+                  type: string
+                  description: |
+                    Optional Case pin. Rejected when Case is missing, belongs
+                    to another Complaint, or the upload is still staging.
+                supersedesAttachmentId:
+                  type: string
       responses:
         "201":
           description: Uploaded / staged

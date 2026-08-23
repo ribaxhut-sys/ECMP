@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { formatDateTime } from "@/i18n/formatting";
-import type { DashboardSlaSummary } from "@/lib/api/types";
+import type { DashboardResolutionSla } from "@/lib/api/types";
 import { IconComplaints } from "@/shared/icons";
 import { Skeleton } from "@/shared/ui";
 import {
@@ -37,7 +37,7 @@ export function LiveStatusBar({
   updatedAt,
   onRefresh,
 }: {
-  sla: DashboardSlaSummary | null;
+  sla: DashboardResolutionSla | null;
   waitingAssignment?: number;
   escalatePending?: number;
   loading: boolean;

@@ -16,6 +16,7 @@ import {
   type CmCase,
   type CmCaseStatus,
 } from "@/lib/api";
+import type { ComplaintSla } from "@/lib/api/types";
 import { useReasonPresets } from "@/shared/hooks";
 import { formatDateTime24, formatHqArrivalSlot, resolveHqArrivalDisplay } from "@/shared/utils/datetime";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
@@ -39,6 +40,7 @@ import {
   type BadgeTone,
 } from "@/shared/ui";
 import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
+import { ComplaintSlaBadge } from "@/features/complaints/ComplaintSlaBadge";
 import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
 import { PENANGANAN_FOCUS_QUERY } from "@/features/complaints/ComplaintPenangananSection";
 import { CaseStatusBadge } from "./CaseStatusBadge";
@@ -219,6 +221,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [complaintIntakeNote, setComplaintIntakeNote] = useState<string | null>(
     null,
   );
+  const [complaintSla, setComplaintSla] = useState<ComplaintSla | null>(null);
   const [handlePromptOpen, setHandlePromptOpen] = useState(false);
   const [handleClaiming, setHandleClaiming] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -284,6 +287,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         complaint?.branchResolution?.trim() ||
           intakeNoteFromDescription(complaint?.description),
       );
+      setComplaintSla(complaint?.sla ?? null);
 
       const fromComplaint = complaint?.customerDisplayName?.trim() || null;
       const from360 = profileText(
@@ -358,6 +362,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setComplaintHqArrivalDate(null);
       setComplaintHqArrivalTime(null);
       setComplaintHqArrivalNote(null);
+      setComplaintSla(null);
       setError(
         err instanceof ApiError
           ? resolveApiErrorMessage(err, tErrors, tCommon)
@@ -805,6 +810,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                       <Badge tone={priorityTone(data.priority)} variant="outline">
                         {priorityLabel(data.priority)}
                       </Badge>
+                      <ComplaintSlaBadge sla={complaintSla} />
                     </dd>
                   </div>
                   <MetaItem
@@ -965,6 +971,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           <CmBatch1BoundAttachmentsCard
             complaintId={data.complaintId}
             customerId={data.customerId}
+            caseId={data.caseId}
             allowUpload={!attachmentsLocked}
             allowVoid={!attachmentsLocked}
           />

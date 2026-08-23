@@ -29,6 +29,7 @@ def _to_attachment(row: CmBatch1AttachmentORM) -> Batch1AttachmentRecord:
         staging_token=row.staging_token,
         complaint_id=str(row.complaint_id) if row.complaint_id else None,
         customer_id=row.customer_id,
+        case_id=str(row.case_id) if row.case_id else None,
         original_name=row.original_name,
         mime_type=row.mime_type,
         size_bytes=row.size_bytes,
@@ -130,6 +131,7 @@ class CmBatch1AttachmentRepository:
         staging_token: str | None,
         complaint_id: uuid.UUID | None,
         customer_id: str | None,
+        case_id: uuid.UUID | None = None,
         original_name: str,
         mime_type: str,
         size_bytes: int,
@@ -144,6 +146,7 @@ class CmBatch1AttachmentRepository:
             staging_token=staging_token,
             complaint_id=complaint_id,
             customer_id=(customer_id or "").strip() or None,
+            case_id=case_id,
             classification=classification,
             status=status,
             original_name=original_name,
@@ -166,6 +169,15 @@ class CmBatch1AttachmentRepository:
             return None
         row = self._session.get(CmBatch1AttachmentORM, aid)
         return _to_attachment(row) if row is not None else None
+
+    def complaint_id_for_case(self, case_id: uuid.UUID) -> str | None:
+        """Return the parent complaint id for a Case, or None if missing."""
+        from app.modules.cm_case.infrastructure.orm import CmCaseORM
+
+        row = self._session.get(CmCaseORM, case_id)
+        if row is None:
+            return None
+        return str(row.complaint_id) if row.complaint_id else None
 
     def get_by_platform_id(
         self, platform_attachment_id: uuid.UUID

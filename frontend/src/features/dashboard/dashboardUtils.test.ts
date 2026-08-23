@@ -16,6 +16,7 @@ import {
   dashboardEmptyWorkCta,
   formatRelativeTime,
   resolveSystemHealth,
+  slaComplianceLevel,
   completionPercent,
   dashboardEnvironmentLabel,
   monthDateRangeIso,
@@ -254,6 +255,83 @@ describe("resolveSystemHealth", () => {
         escalatePending: 0,
       }),
     ).toBe("healthy");
+  });
+
+  it("degrades on an overdue complaint even when the queue is empty", () => {
+    // DEC-031: a broken 30-day promise outranks queue counts on this bar.
+    expect(
+      resolveSystemHealth({
+        loading: false,
+        error: false,
+        sla: { ...emptySla, overdue: 1 },
+        waitingAssignment: 0,
+        escalatePending: 0,
+      }),
+    ).toBe("degraded");
+  });
+
+  it("asks for attention when a complaint is only approaching its deadline", () => {
+    expect(
+      resolveSystemHealth({
+        loading: false,
+        error: false,
+        sla: { ...emptySla, warning: 2 },
+        waitingAssignment: 0,
+        escalatePending: 0,
+      }),
+    ).toBe("attention");
+  });
+});
+
+const emptySla = {
+  targetDays: 30,
+  onTrack: 0,
+  warning: 0,
+  overdue: 0,
+  met: 0,
+  missed: 0,
+  unknown: 0,
+  compliancePercentage: null,
+};
+
+describe("slaComplianceLevel", () => {
+  it("is healthy when nothing is measured", () => {
+    expect(slaComplianceLevel(null)).toBe("healthy");
+  });
+
+  it("does not read 'nothing settled yet' as failure", () => {
+    // compliancePercentage null must not be treated as 0%.
+    expect(slaComplianceLevel({ ...emptySla, onTrack: 5 })).toBe("healthy");
+  });
+
+  it("warns while nothing has settled but something is approaching", () => {
+    expect(slaComplianceLevel({ ...emptySla, warning: 1 })).toBe("warning");
+  });
+
+  it("is critical whenever a complaint is past the target, whatever the average", () => {
+    expect(
+      slaComplianceLevel({
+        ...emptySla,
+        overdue: 1,
+        met: 99,
+        compliancePercentage: 99,
+      }),
+    ).toBe("critical");
+  });
+
+  it("grades settled compliance", () => {
+    expect(
+      slaComplianceLevel({ ...emptySla, met: 96, missed: 4, compliancePercentage: 96 }),
+    ).toBe("excellent");
+    expect(
+      slaComplianceLevel({ ...emptySla, met: 88, missed: 12, compliancePercentage: 88 }),
+    ).toBe("healthy");
+    expect(
+      slaComplianceLevel({ ...emptySla, met: 70, missed: 30, compliancePercentage: 70 }),
+    ).toBe("warning");
+    expect(
+      slaComplianceLevel({ ...emptySla, met: 40, missed: 60, compliancePercentage: 40 }),
+    ).toBe("critical");
   });
 });
 

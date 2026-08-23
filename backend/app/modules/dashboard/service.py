@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
+from app.core.config import get_settings
 from app.core.errors import ValidationAppError
 from app.core.user_messages import m
 from app.modules.dashboard.domain.dto import DashboardFilters, TrendPeriod
@@ -20,6 +21,7 @@ from app.modules.dashboard.providers.notification_provider import (
 from app.modules.dashboard.providers.queue_provider import QueueDashboardProvider
 from app.modules.dashboard.providers.sla_provider import SlaDashboardProvider
 from app.modules.dashboard.schemas import (
+    ComplaintSlaAlertsResponse,
     DashboardAggregateKpiResponse,
     DashboardComplaintSummaryResponse,
     DashboardHeader,
@@ -136,8 +138,35 @@ class DashboardService:
         f = _validate_filters(
             DashboardFilters(branch_id=branch_id, date_from=date_from, date_to=date_to)
         )
+        settings = get_settings()
         return self._activity.complaint_kpis(
-            branch_id=branch_id, date_from=f.date_from, date_to=f.date_to
+            branch_id=branch_id,
+            date_from=f.date_from,
+            date_to=f.date_to,
+            target_days=settings.complaint_resolution_target_days,
+            warning_percent=settings.complaint_sla_warning_percent,
+        )
+
+    def sla_alerts(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        limit: int = 20,
+    ) -> ComplaintSlaAlertsResponse:
+        """DEC-031 in-app alert feed — complaints approaching or past 30 days.
+
+        Read-time computation, no scheduler and no transport: this is the part
+        of "notify me" that can be built while CAP-005 (delivery) and CAP-006
+        (breach engine) stay deferred. See DEC-031 §3.
+        """
+        if self._activity is None:
+            raise RuntimeError("Dashboard sla_alerts requires Activity wiring")
+        settings = get_settings()
+        return self._activity.sla_alerts(
+            branch_id=branch_id,
+            target_days=settings.complaint_resolution_target_days,
+            warning_percent=settings.complaint_sla_warning_percent,
+            limit=limit,
         )
 
     def queue(

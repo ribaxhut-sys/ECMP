@@ -11,7 +11,7 @@ import {
   cmBatch1Paths,
   type CmBatch1CreateComplaintOptions,
 } from "./cmBatch1Contract";
-import type { DataResponse, ListResponse } from "./types";
+import type { ComplaintSla, DataResponse, ListResponse } from "./types";
 
 export {
   CM_BATCH1_BASE,
@@ -167,6 +167,14 @@ export interface CmBatch1ComplaintResponse {
   owningUnitId?: string | null;
   priority?: string | null;
   createdAt?: string | null;
+  /** When the complaint reached CLOSED; cleared on reopen (DEC-031). */
+  closedAt?: string | null;
+  /**
+   * DEC-031 resolution SLA (30 calendar days), computed server-side on every
+   * read. Null when measurement is off or the closure time is unknown — the
+   * UI shows nothing rather than guessing.
+   */
+  sla?: ComplaintSla | null;
   duplicateCheckResult?: string | null;
 }
 
@@ -272,6 +280,7 @@ export interface CmBatch1AttachmentResponse {
   classification: string;
   stagingToken?: string | null;
   complaintId?: string | null;
+  caseId?: string | null;
   originalName: string;
   mimeType: string;
   sizeBytes: number;

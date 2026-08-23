@@ -16,10 +16,10 @@ pattern). Creator ``User.branch_id`` is no longer used for complaint KPI/activit
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import Interval, and_, case, func, literal, not_, or_, select
 from sqlalchemy.orm import Session
 
 from app.integrations.directory import LocalUserDirectory
@@ -27,9 +27,14 @@ from app.models import Branch
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_batch1.predicates import CLOSED_STATUS, ESCALATION_ACTIVE, HQ_SCHEDULED
 from app.modules.cm_batch1.repository import CmBatch1Repository
+from app.modules.cm_batch1.sla import SLA_OVERDUE, resolve_complaint_sla
+from app.modules.cm_batch1.sla_thresholds import classify_in_app_threshold
 from app.modules.dashboard.schemas import (
+    ComplaintSlaAlertItem,
+    ComplaintSlaAlertsResponse,
     DashboardAggregateKpiResponse,
     DashboardRecentActivityItem,
+    DashboardResolutionSla,
 )
 from app.modules.timeline.repository import TimelineRepository
 
@@ -134,6 +139,82 @@ def _omit_close_path_precursors(entries: list[Any]) -> list[Any]:
     ]
 
 
+def _tally(condition: Any, label: str) -> Any:
+    """One conditional count column — a slice of the single grouped pass."""
+    return func.coalesce(func.sum(case((condition, 1), else_=0)), 0).label(label)
+
+
+def _empty_sla(target_days: int) -> DashboardResolutionSla | None:
+    if target_days <= 0:
+        return None
+    return DashboardResolutionSla(targetDays=target_days)
+
+
+def _sla_columns(
+    target_days: int, warning_percent: int, now: datetime | None
+) -> list[Any]:
+    """DEC-031 slices, expressed against ``created_at`` / ``closed_at``.
+
+    Thresholds are resolved to absolute instants here rather than in SQL so the
+    statement stays free of database-side ``now()`` — the same instant then
+    governs every slice, and a caller can pin it for a deterministic test.
+    """
+    current = now or datetime.now(UTC)
+    target = timedelta(days=target_days)
+    # Registered at or before this instant means the target has elapsed.
+    overdue_cutoff = current - target
+    warning_cutoff = current - timedelta(
+        seconds=target.total_seconds() * (warning_percent / 100)
+    )
+
+    created = CmBatch1ComplaintORM.created_at
+    closed_at = CmBatch1ComplaintORM.closed_at
+    is_open = CmBatch1ComplaintORM.status != CLOSED_STATUS
+    is_closed_row = CmBatch1ComplaintORM.status == CLOSED_STATUS
+    # Resolution duration compared in the database: closed_at <= created_at +
+    # target. Postgres does the interval arithmetic per row, so a complaint
+    # registered in January and one registered in June are judged alike.
+    within_target = closed_at <= created + literal(target, Interval())
+
+    return [
+        _tally(and_(is_open, created > warning_cutoff), "sla_on_track"),
+        _tally(
+            and_(is_open, created <= warning_cutoff, created > overdue_cutoff),
+            "sla_warning",
+        ),
+        _tally(and_(is_open, created <= overdue_cutoff), "sla_overdue"),
+        _tally(
+            and_(is_closed_row, closed_at.is_not(None), within_target), "sla_met"
+        ),
+        _tally(
+            and_(is_closed_row, closed_at.is_not(None), not_(within_target)),
+            "sla_missed",
+        ),
+        # Closed but never stamped. Reported as its own number instead of being
+        # folded into met/missed, so a gap in the data cannot flatter the
+        # compliance figure.
+        _tally(and_(is_closed_row, closed_at.is_(None)), "sla_unknown"),
+    ]
+
+
+def _sla_from_row(row: Any, target_days: int) -> DashboardResolutionSla:
+    met = int(row.sla_met or 0)
+    missed = int(row.sla_missed or 0)
+    settled = met + missed
+    return DashboardResolutionSla(
+        targetDays=target_days,
+        onTrack=int(row.sla_on_track or 0),
+        warning=int(row.sla_warning or 0),
+        overdue=int(row.sla_overdue or 0),
+        met=met,
+        missed=missed,
+        unknown=int(row.sla_unknown or 0),
+        compliancePercentage=(
+            round(met / settled * 100.0, 2) if settled > 0 else None
+        ),
+    )
+
+
 class CmBatch1ActivityDashboardProvider:
     """Read-only recent-activity feed backed by timeline_entries + cm_batch1_complaints."""
 
@@ -226,6 +307,9 @@ class CmBatch1ActivityDashboardProvider:
         branch_id: uuid.UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        target_days: int = 0,
+        warning_percent: int = 80,
+        now: datetime | None = None,
     ) -> DashboardAggregateKpiResponse:
         """COUNT Aggregate complaints, optionally locked to one branch unit.
 
@@ -235,12 +319,13 @@ class CmBatch1ActivityDashboardProvider:
         ``date_from``/``date_to`` narrow the same counts to a registration
         window (``created_at``) so /reports can report per period while still
         reading the one Aggregate SoT the dashboard reads (DEC-026).
+
+        ``target_days > 0`` adds the DEC-031 resolution-SLA rollup. It rides
+        along in the same statement deliberately: this endpoint is polled every
+        60s by the dashboard, and it used to issue eight sequential COUNT(*)
+        round-trips for what one grouped pass answers. Adding six more counts
+        the old way would have made a known cost worse.
         """
-        window: list[Any] = []
-        if date_from is not None:
-            window.append(CmBatch1ComplaintORM.created_at >= date_from)
-        if date_to is not None:
-            window.append(CmBatch1ComplaintORM.created_at <= date_to)
         owning_unit: str | None
         if branch_id is None:
             owning_unit = None  # unrestricted
@@ -256,91 +341,158 @@ class CmBatch1ActivityDashboardProvider:
                     escalateApproved=0,
                     escalateScheduled=0,
                     inProgress=0,
+                    sla=_empty_sla(target_days),
                 )
 
-        total = self._count_complaints(owning_unit, *window)
-        # Open = not CLOSED (DEC-025 M-025-1 / predicates.is_open), matching
-        # KPI/dashboard summary — an out-of-set stored status stays open here
-        # too, so open+closed=total.
-        open_count = self._count_complaints(
-            owning_unit,
-            CmBatch1ComplaintORM.status != CLOSED_STATUS,
-            *window,
-        )
-        closed = self._count_complaints(
-            owning_unit, CmBatch1ComplaintORM.status == CLOSED_STATUS, *window
-        )
-        # Donut slices are mutually exclusive and sum to total, with no row
-        # left out: closed / HQ-scheduled / in-progress / escalation pending /
-        # escalation approved / waiting. "Registered" is every non-closed,
-        # non-in-progress row — an out-of-set stored status is exposed as
-        # REGISTERED by cm_batch1/service.py and must land here too.
-        registered = (
-            CmBatch1ComplaintORM.status.notin_((CLOSED_STATUS, "IN_PROGRESS")),
-        )
-        escalate_pending = self._count_complaints(
-            owning_unit,
-            *registered,
-            CmBatch1ComplaintORM.intake_disposition == "ESCALATE_PENDING_APPROVAL",
-            *window,
-        )
-        # Registered but not held in an escalation path — the whole
-        # ESCALATION_ACTIVE set has its own slice, HQ_SCHEDULED included.
-        waiting_assignment = self._count_complaints(
-            owning_unit,
-            *registered,
-            or_(
-                CmBatch1ComplaintORM.intake_disposition.is_(None),
-                CmBatch1ComplaintORM.intake_disposition.notin_(ESCALATION_ACTIVE),
-            ),
-            *window,
-        )
-        escalate_approved = self._count_complaints(
-            owning_unit,
-            *registered,
-            CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
-            *window,
-        )
-        # A scheduled HQ visit binds a Case, so these rows are usually
-        # IN_PROGRESS; they are still escalation, not ordinary handling.
-        escalate_scheduled = self._count_complaints(
-            owning_unit,
-            CmBatch1ComplaintORM.status != CLOSED_STATUS,
-            CmBatch1ComplaintORM.intake_disposition == HQ_SCHEDULED,
-            *window,
-        )
-        in_progress = self._count_complaints(
-            owning_unit,
-            CmBatch1ComplaintORM.status == "IN_PROGRESS",
-            or_(
-                CmBatch1ComplaintORM.intake_disposition.is_(None),
-                CmBatch1ComplaintORM.intake_disposition != HQ_SCHEDULED,
-            ),
-            *window,
-        )
-        return DashboardAggregateKpiResponse(
-            total=total,
-            open=open_count,
-            closed=closed,
-            escalatePending=escalate_pending,
-            waitingAssignment=waiting_assignment,
-            escalateApproved=escalate_approved,
-            escalateScheduled=escalate_scheduled,
-            inProgress=in_progress,
+        status_col = CmBatch1ComplaintORM.status
+        disposition = CmBatch1ComplaintORM.intake_disposition
+        is_open = status_col != CLOSED_STATUS
+        is_closed_row = status_col == CLOSED_STATUS
+        # "Registered" is every non-closed, non-in-progress row — an out-of-set
+        # stored status is exposed as REGISTERED by cm_batch1/service.py and
+        # must land here too, so open+closed==total holds.
+        registered = status_col.notin_((CLOSED_STATUS, "IN_PROGRESS"))
+        not_escalating = or_(
+            disposition.is_(None),
+            disposition.notin_(ESCALATION_ACTIVE),
         )
 
-    def _count_complaints(
+        columns: list[Any] = [
+            func.count().label("total"),
+            # Open = not CLOSED (DEC-025 M-025-1 / predicates.is_open).
+            _tally(is_open, "open_count"),
+            _tally(is_closed_row, "closed"),
+            _tally(
+                and_(registered, disposition == "ESCALATE_PENDING_APPROVAL"),
+                "escalate_pending",
+            ),
+            # Registered but not held in an escalation path — the whole
+            # ESCALATION_ACTIVE set has its own slice, HQ_SCHEDULED included.
+            _tally(and_(registered, not_escalating), "waiting_assignment"),
+            _tally(
+                and_(registered, disposition == "ESCALATE_APPROVED"),
+                "escalate_approved",
+            ),
+            # A scheduled HQ visit binds a Case, so these rows are usually
+            # IN_PROGRESS; they are still escalation, not ordinary handling.
+            _tally(and_(is_open, disposition == HQ_SCHEDULED), "escalate_scheduled"),
+            _tally(
+                and_(
+                    status_col == "IN_PROGRESS",
+                    or_(disposition.is_(None), disposition != HQ_SCHEDULED),
+                ),
+                "in_progress",
+            ),
+        ]
+
+        measuring = target_days > 0
+        if measuring:
+            columns.extend(_sla_columns(target_days, warning_percent, now))
+
+        stmt = select(*columns).select_from(CmBatch1ComplaintORM)
+        if owning_unit is not None:
+            stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == owning_unit)
+        if date_from is not None:
+            stmt = stmt.where(CmBatch1ComplaintORM.created_at >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(CmBatch1ComplaintORM.created_at <= date_to)
+        row = self._session.execute(stmt).one()
+
+        return DashboardAggregateKpiResponse(
+            total=int(row.total or 0),
+            open=int(row.open_count or 0),
+            closed=int(row.closed or 0),
+            escalatePending=int(row.escalate_pending or 0),
+            waitingAssignment=int(row.waiting_assignment or 0),
+            escalateApproved=int(row.escalate_approved or 0),
+            escalateScheduled=int(row.escalate_scheduled or 0),
+            inProgress=int(row.in_progress or 0),
+            sla=_sla_from_row(row, target_days) if measuring else None,
+        )
+
+    def sla_alerts(
         self,
-        owning_unit_id: str | None,
-        *extra: Any,
-    ) -> int:
-        """``owning_unit_id is None`` = unrestricted; otherwise exact unit match."""
-        stmt = select(func.count()).select_from(CmBatch1ComplaintORM)
-        if owning_unit_id is not None:
-            stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == owning_unit_id)
-        for clause in extra:
-            stmt = stmt.where(clause)
-        return int(self._session.scalar(stmt) or 0)
+        *,
+        branch_id: uuid.UUID | None = None,
+        target_days: int,
+        warning_percent: int = 80,
+        limit: int = 20,
+        now: datetime | None = None,
+    ) -> ComplaintSlaAlertsResponse:
+        """Open complaints at or past the warning threshold, worst first.
+
+        The list is capped, but ``overdueCount``/``warningCount`` are counted
+        over the whole scope so a badge never under-reports because the feed
+        was truncated.
+        """
+        if target_days <= 0:
+            return ComplaintSlaAlertsResponse(targetDays=target_days)
+
+        owning_unit: str | None = None
+        if branch_id is not None:
+            owning_unit = self._owning_unit_for_branch(branch_id)
+            if not owning_unit:
+                return ComplaintSlaAlertsResponse(targetDays=target_days)
+
+        current = now or datetime.now(UTC)
+        warning_cutoff = current - timedelta(
+            seconds=timedelta(days=target_days).total_seconds()
+            * (warning_percent / 100)
+        )
+
+        stmt = (
+            select(CmBatch1ComplaintORM)
+            .where(CmBatch1ComplaintORM.status != CLOSED_STATUS)
+            .where(CmBatch1ComplaintORM.created_at <= warning_cutoff)
+            # Oldest first: the most overdue complaint is the one to act on.
+            .order_by(CmBatch1ComplaintORM.created_at.asc())
+        )
+        if owning_unit is not None:
+            stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == owning_unit)
+        rows = list(self._session.scalars(stmt).all())
+
+        items: list[ComplaintSlaAlertItem] = []
+        overdue_count = 0
+        warning_count = 0
+        for row in rows:
+            # Same function the complaint detail and list use — one definition
+            # of "overdue", so a badge and a row can never disagree.
+            sla = resolve_complaint_sla(
+                created_at=row.created_at,
+                closed_at=row.closed_at,
+                status=row.status,
+                target_days=target_days,
+                warning_percent=warning_percent,
+                now=current,
+            )
+            if sla is None or not sla.needs_attention:
+                continue
+            if sla.status == SLA_OVERDUE:
+                overdue_count += 1
+            else:
+                warning_count += 1
+            if len(items) < limit:
+                items.append(
+                    ComplaintSlaAlertItem(
+                        complaintId=str(row.id),
+                        complaintNumber=row.complaint_number,
+                        subject=row.subject,
+                        owningUnitId=row.owning_unit_id,
+                        priority=row.priority,
+                        dueAt=sla.due_at,
+                        elapsedDays=sla.elapsed_days,
+                        remainingDays=sla.remaining_days,
+                        overdueDays=sla.overdue_days,
+                        isOverdue=sla.status == SLA_OVERDUE,
+                        threshold=classify_in_app_threshold(sla),
+                    )
+                )
+        return ComplaintSlaAlertsResponse(
+            targetDays=target_days,
+            overdueCount=overdue_count,
+            warningCount=warning_count,
+            items=items,
+        )
 
     def _owning_unit_for_branch(self, branch_id: uuid.UUID) -> str | None:
         """Map dashboard ``branchId`` (UUID) → org unit key stored on Aggregate."""

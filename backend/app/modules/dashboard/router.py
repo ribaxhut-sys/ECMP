@@ -18,6 +18,7 @@ from app.modules.dashboard.domain.dto import DashboardFilters, TrendPeriod
 from app.modules.dashboard.permissions import DASHBOARD_READ
 from app.modules.dashboard.registration import build_dashboard_service
 from app.modules.dashboard.schemas import (
+    ComplaintSlaAlertsResponse,
     DashboardAggregateKpiResponse,
     DashboardComplaintSummaryResponse,
     DashboardKpiResponse,
@@ -32,6 +33,7 @@ from app.modules.dashboard.service import DashboardService
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
 _DEFAULT_ACTIVITY_LIMIT = 10
+_DEFAULT_SLA_ALERT_LIMIT = 20
 
 
 def get_dashboard_service(
@@ -123,6 +125,31 @@ def get_dashboard_aggregate_kpis(
             branch_id=branch_id, date_from=date_from, date_to=date_to
         )
     )
+
+
+@router.get(
+    "/sla-alerts",
+    response_model=DataResponse[ComplaintSlaAlertsResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Complaints approaching or past the resolution SLA (DEC-031)",
+)
+def get_dashboard_sla_alerts(
+    service: Annotated[DashboardService, Depends(get_dashboard_service)],
+    principal: Annotated[Principal, Depends(require_permissions(DASHBOARD_READ))],
+    session: Annotated[Session, Depends(get_db_session)],
+    branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = _DEFAULT_SLA_ALERT_LIMIT,
+) -> DataResponse[ComplaintSlaAlertsResponse]:
+    """In-app substitute for a proactive breach notification (DEC-031 §3).
+
+    Computed on request — there is no scheduler and no transport behind it, so
+    it reaches an officer when they open the app rather than at the instant a
+    threshold is crossed. Branch scoping follows the same
+    ``_effective_branch_id`` convention as recent-activity: Head Office may
+    pick any branch, a branch-scoped principal is locked to their own.
+    """
+    branch_id = _effective_branch_id(session, principal, branch_id)
+    return DataResponse(data=service.sla_alerts(branch_id=branch_id, limit=limit))
 
 
 @router.get(

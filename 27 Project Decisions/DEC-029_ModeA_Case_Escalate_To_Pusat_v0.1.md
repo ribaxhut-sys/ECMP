@@ -25,6 +25,7 @@ Eskalasi Cabang → Pusat diajukan dari **Case** yang tidak bisa diselesaikan di
 4. Hanya Case yang diajukan yang ke Pusat. `intakeDisposition` induk **tidak** menarik sibling.
 5. **BQ-009 tetap:** Mode A tidak menampilkan status `ESCALATED`. Case tetap status ter-expose (`IN_PROGRESS` bila perlu naik dari CREATED/ASSIGNED). Ownership Pusat = flag `escalatedToPusat` / `owningUnit=PUSAT`, **bukan** menimpa `owning_unit_id` cabang (DEC-028).
 6. Alasan eskalasi wajib (minimum 20 karakter, selaras ajuan cabang yang sudah ada).
+7. **Amend 2026-08-23:** putusan intake per Case (`/complaints/new/escalate`) boleh memanggil API-520 segera setelah Case dibuat. CTA/deep-link eskalasi di **pengaduan induk** tetap dicabut (butir 3). Sibling Case tidak ikut.
 
 ## 3. Conditions
 
@@ -35,7 +36,7 @@ Eskalasi Cabang → Pusat diajukan dari **Case** yang tidak bisa diselesaikan di
 
 ## 4. Acceptance
 
-1. Dari halaman Case terbuka, petugas dapat mengajukan eskalasi ke Pusat dengan alasan.
+1. Dari halaman Case terbuka **atau** putusan intake per Case, petugas cabang dapat mengajukan eskalasi ke Pusat dengan alasan.
 2. Sibling Case pada induk yang sama tetap di cabang.
 3. Form/tombol eskalasi di induk tidak lagi menawarkan ajuan baru.
 4. Response/UI Mode A tidak memakai label status `ESCALATED`.

@@ -1,7 +1,8 @@
 """SQLAlchemy ORM for CM Batch 1 Aggregate persistence (S2 Task 01).
 
 Separate from legacy ``complaints`` / ``complaint_cases`` tables.
-No Case FK or Batch-2 columns.
+Optional ``case_id`` pin (FR-004) references ``cm_cases`` when a Case exists.
+No Batch-2 columns on the Complaint aggregate itself.
 """
 
 from __future__ import annotations
@@ -46,6 +47,12 @@ class CmBatch1ComplaintORM(Base):
             "ix_cm_batch1_complaints_hq_destination_unit_id",
             "hq_destination_unit_id",
         ),
+        # SLA feed only scans still-open complaints (DEC-031).
+        Index(
+            "ix_cm_batch1_complaints_open_created_at",
+            "created_at",
+            postgresql_where=text("closed_at IS NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -63,6 +70,13 @@ class CmBatch1ComplaintORM(Base):
     priority: Mapped[str] = mapped_column(String(32), nullable=False, default="MEDIUM")
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="REGISTERED"
+    )
+    # When the Aggregate reached CLOSED (DEC-031). Kept in lockstep with
+    # ``status`` by ``apply_complaint_status`` — cleared again on reopen, so it
+    # always describes the *current* closure, never a stale earlier one.
+    # ``updated_at`` cannot serve this purpose: any edit moves it.
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     # Intake path label (not Aggregate lifecycle). e.g. ESCALATE_PENDING_APPROVAL.
     intake_disposition: Mapped[str | None] = mapped_column(
@@ -336,6 +350,7 @@ class CmBatch1AttachmentORM(Base):
         Index("ix_cm_batch1_attachments_platform_id", "platform_attachment_id"),
         Index("ix_cm_batch1_attachments_checksum", "checksum_sha256"),
         Index("ix_cm_batch1_attachments_customer_id", "customer_id"),
+        Index("ix_cm_batch1_attachments_case_id", "case_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -356,6 +371,11 @@ class CmBatch1AttachmentORM(Base):
         nullable=True,
     )
     customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_cases.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     classification: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     original_name: Mapped[str] = mapped_column(String(255), nullable=False)

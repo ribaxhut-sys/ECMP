@@ -2,17 +2,21 @@ import { toCreateCaseRequest, type CreateCaseFormValues } from "@/features/cases
 import {
   closeCmCase,
   createCmCase,
+  escalateCmCaseToPusat,
   recordCmCaseAcceptance,
   resolveCmCase,
   updateCmCaseStatus,
   type CmCase,
   type CmCaseStatus,
 } from "@/lib/api/cmCase";
+import { isPusatUnitCode } from "@/shared/utils";
 import type { CreateComplaintFormValues } from "./createComplaintForm";
 
 /** BQ-003 Mode A: max Cases per Complaint including Case 1 from intake description. */
 export const MAX_INTAKE_CASES = 5;
 export const MAX_EXTRA_INTAKE_CASES = MAX_INTAKE_CASES - 1;
+/** API-520 / DEC-029 — same floor as Case-page escalate-to-Pusat. */
+export const ESCALATE_TO_PUSAT_REASON_MIN = 20;
 
 export type IntakeCaseAction = "register" | "close" | "escalate";
 
@@ -34,9 +38,15 @@ export interface IntakeCaseDecisionRow {
 }
 
 export function parseIntakeCaseAction(raw: unknown): IntakeCaseAction {
-  if (raw === "close" || raw === "register") return raw;
-  // DEC-029: leftover "escalate" drafts register the Case (parent path retired).
+  if (raw === "close" || raw === "register" || raw === "escalate") return raw;
   return "register";
+}
+
+/** Cabang → Pusat only. Recording at Pusat has nowhere to escalate. */
+export function intakeMayEscalateToPusat(
+  recordingUnitCode: string | null | undefined,
+): boolean {
+  return !isPusatUnitCode(recordingUnitCode);
 }
 
 export function parseIntakePriority(raw: unknown): string {
@@ -252,8 +262,12 @@ export async function createIntakeCasesForRegisteredComplaint(options: {
       created += 1;
       if (row.action === "close") {
         await closeIntakeCase(res.data, row.note || options.values.resolution);
+      } else if (row.action === "escalate") {
+        const reason = (row.note || options.values.resolution).trim();
+        await escalateCmCaseToPusat(res.data.caseId, { reason });
       }
-    } catch {
+    } catch (err) {
+      if (row.action === "escalate") throw err;
       // Complaint already registered — remaining Cases can be added from Penanganan.
     }
   }

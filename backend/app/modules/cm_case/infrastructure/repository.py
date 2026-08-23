@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.authorization.visibility import pusat_unit_clause
 from app.modules.cm_batch1.complaint_number import case_counter_name, resolve_unit_code
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.sla import apply_complaint_status
 from app.modules.cm_case.domain.aggregate import CaseAggregate
 from app.modules.cm_case.domain.repositories import ParentComplaintRef
 from app.modules.cm_case.domain.value_objects import CaseNumber
@@ -289,18 +290,20 @@ class SqlAlchemyCaseRepository:
         row.case_created = True
         if working:
             if row.status in {"CLOSED", "REGISTERED"}:
-                row.status = "IN_PROGRESS"
+                # Reopen: apply_complaint_status clears closed_at so the SLA
+                # measures the reopened cycle, not the closure it superseded.
+                apply_complaint_status(row, "IN_PROGRESS")
             disp = (row.intake_disposition or "").strip().upper()
             if disp in {"BRANCH_CLOSED", "ALL_CASES_CANCELLED"}:
                 row.intake_disposition = None
         elif has_closed:
-            row.status = "CLOSED"
+            apply_complaint_status(row, "CLOSED")
             disp = (row.intake_disposition or "").strip().upper()
             if not disp or disp in {"BRANCH_CLOSED", "ALL_CASES_CANCELLED"}:
                 row.intake_disposition = "BRANCH_CLOSED"
         else:
             # Semua Case CANCELLED — induk ditutup sebagai batal, bukan selesai.
-            row.status = "CLOSED"
+            apply_complaint_status(row, "CLOSED")
             row.intake_disposition = "ALL_CASES_CANCELLED"
 
         self._session.flush()

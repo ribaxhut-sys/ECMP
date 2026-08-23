@@ -43,6 +43,7 @@ import {
   defaultCmBatch1ListFilters,
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
+import { ComplaintSlaBadge } from "./ComplaintSlaBadge";
 import {
   hqPathCopyKeys,
   penangananCountsFromCases,
@@ -308,6 +309,15 @@ export function CmBatch1ComplaintListView() {
               ? t("statusInProgress")
               : t("statusOpen")}
         </Badge>
+      ),
+    },
+    {
+      // DEC-031 — 30 calendar-day resolution target. Server-computed; the
+      // column is blank for complaints the server did not measure.
+      key: "sla",
+      header: t("slaColumn"),
+      cell: (row) => (
+        <ComplaintSlaBadge sla={row.sla} />
       ),
     },
     {

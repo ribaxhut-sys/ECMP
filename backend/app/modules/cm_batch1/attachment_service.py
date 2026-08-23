@@ -121,6 +121,42 @@ class CmBatch1AttachmentService:
             )
         return complaint
 
+    def _resolve_case_pin(
+        self,
+        *,
+        case_id: str | None,
+        complaint_id: str | None,
+    ) -> uuid.UUID | None:
+        """Optional FR-004 Case pin — Case MUST belong to the bound Complaint."""
+        raw = (case_id or "").strip()
+        if not raw:
+            return None
+        complaint = (complaint_id or "").strip()
+        if not complaint:
+            raise ValidationAppError(
+                m("attachment.case_pin_requires_complaint"),
+                details={"caseId": raw},
+            )
+        try:
+            case_uuid = uuid.UUID(raw)
+        except ValueError:
+            raise ValidationAppError(
+                m("attachment.case_not_found"),
+                details={"caseId": raw},
+            ) from None
+        case_complaint_id = self._repo.complaint_id_for_case(case_uuid)
+        if case_complaint_id is None:
+            raise ValidationAppError(
+                m("attachment.case_not_found"),
+                details={"caseId": raw},
+            )
+        if case_complaint_id.strip().lower() != complaint.lower():
+            raise ValidationAppError(
+                m("attachment.case_not_in_complaint"),
+                details={"caseId": raw, "complaintId": complaint},
+            )
+        return case_uuid
+
     def upload(
         self,
         *,
@@ -137,13 +173,6 @@ class CmBatch1AttachmentService:
         uploaded_by: uuid.UUID | None = None,
     ) -> Batch1AttachmentResponse:
         cfg = self._cfg()
-        if case_id and str(case_id).strip():
-            # Batch 1 has no Case — membership invariant fails closed (FR-004 E7 / AC-09).
-            raise ValidationAppError(
-                m("attachment.case_id_not_supported"),
-                details={"caseId": case_id},
-            )
-
         classification_clean = (classification or "").strip()
         if classification_clean not in cfg.allowed_classifications:
             raise ValidationAppError(
@@ -212,6 +241,11 @@ class CmBatch1AttachmentService:
             aggregate_id = uuid.uuid5(
                 uuid.NAMESPACE_URL, f"cm-batch1-staging:{token}"
             )
+
+        resolved_case_id = self._resolve_case_pin(
+            case_id=case_id,
+            complaint_id=str(complaint_uuid) if complaint_uuid else None,
+        )
 
         checksum = hashlib.sha256(data).hexdigest()
         if cfg.duplicate_checksum_policy == "REJECT_WITH_EXISTING_REFERENCE":
@@ -299,6 +333,7 @@ class CmBatch1AttachmentService:
                 staging_token=token,
                 complaint_id=complaint_uuid,
                 customer_id=complaint_customer_id,
+                case_id=resolved_case_id,
                 original_name=safe_name,
                 mime_type=mime_type,
                 size_bytes=len(data),
@@ -723,6 +758,7 @@ class CmBatch1AttachmentService:
             stagingToken=row.staging_token,
             complaintId=row.complaint_id,
             customerId=row.customer_id,
+            caseId=row.case_id,
             originalName=row.original_name or "",
             mimeType=row.mime_type or "",
             sizeBytes=row.size_bytes or 0,

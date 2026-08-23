@@ -79,9 +79,12 @@ events:
     idempotency: ordered per caseId; consumers validate transition against last known status
   - id: EVT-004
     name: SLABreached
-    status: Planned
+    status: Implemented
     producer: KPI
-    description: Emitted when SLA threshold is breached
+    description: >
+      Emitted when resolution SLA threshold is breached (FR-030 / DEC-031 Fase 2).
+      Mode A Aggregate fills caseId with complaintId (DEC-031 §2.3). Produced by
+      scheduled sweep (OPS-CM-B1-SLA-001), drained locally via outbox (C-4).
     payload:
       caseId: string
       slaId: string
@@ -89,7 +92,7 @@ events:
       dueAt: datetime
       severity: string
     consumers:
-      - Notification   # escalate to supervisor/manager
+      - Notification   # escalate to supervisor/manager (CAP-005 Deferred — in-app only C-6)
       - Dashboard
     idempotency: idempotent by caseId + slaId; emit once per breach (re-breach after reopen allowed)
   - id: EVT-005

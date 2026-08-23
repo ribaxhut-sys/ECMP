@@ -400,9 +400,32 @@ def test_list_recent_forwards_aggregate_type_and_limit() -> None:
     )
 
 
+def _kpi_row(**overrides: int) -> SimpleNamespace:
+    """One grouped-pass result row (DEC-031 collapsed the 8 COUNTs into one)."""
+    base = {
+        "total": 16,
+        "open_count": 10,
+        "closed": 6,
+        "escalate_pending": 4,
+        "waiting_assignment": 3,
+        "escalate_approved": 1,
+        "escalate_scheduled": 2,
+        "in_progress": 0,
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def _stub_kpi_execute(provider, row: SimpleNamespace) -> MagicMock:
+    execute = MagicMock()
+    execute.return_value.one.return_value = row
+    provider._session.execute = execute
+    return execute
+
+
 def test_complaint_kpis_unrestricted_counts() -> None:
     provider, *_ = _provider()
-    provider._count_complaints = MagicMock(side_effect=[16, 10, 6, 4, 3, 1, 2, 0])
+    execute = _stub_kpi_execute(provider, _kpi_row())
 
     kpis = provider.complaint_kpis(branch_id=None)
 
@@ -424,15 +447,80 @@ def test_complaint_kpis_unrestricted_counts() -> None:
         + kpis.closed
         == kpis.total
     )
-    assert provider._count_complaints.call_count == 8
-    # First call is unrestricted (owning_unit_id=None)
-    assert provider._count_complaints.call_args_list[0].args[0] is None
+    # One statement, not one per slice — this endpoint is polled every 60s.
+    assert execute.call_count == 1
+
+
+def test_complaint_kpis_omits_sla_when_measurement_is_off() -> None:
+    provider, *_ = _provider()
+    _stub_kpi_execute(provider, _kpi_row())
+
+    kpis = provider.complaint_kpis(branch_id=None, target_days=0)
+
+    assert kpis.sla is None
+
+
+def test_complaint_kpis_rolls_up_sla_slices() -> None:
+    provider, *_ = _provider()
+    _stub_kpi_execute(
+        provider,
+        _kpi_row(
+            sla_on_track=7,
+            sla_warning=2,
+            sla_overdue=1,
+            sla_met=4,
+            sla_missed=1,
+            sla_unknown=1,
+        ),
+    )
+
+    kpis = provider.complaint_kpis(branch_id=None, target_days=30)
+
+    assert kpis.sla is not None
+    assert kpis.sla.target_days == 30
+    assert (kpis.sla.on_track, kpis.sla.warning, kpis.sla.overdue) == (7, 2, 1)
+    assert (kpis.sla.met, kpis.sla.missed, kpis.sla.unknown) == (4, 1, 1)
+    # Compliance counts only settled complaints: 4 of 5, not 4 of 6 — an
+    # unstamped closure must not flatter the figure.
+    assert kpis.sla.compliance_percentage == 80.0
+    # Every complaint lands in exactly one slice.
+    assert (
+        kpis.sla.on_track
+        + kpis.sla.warning
+        + kpis.sla.overdue
+        + kpis.sla.met
+        + kpis.sla.missed
+        + kpis.sla.unknown
+        == kpis.total
+    )
+
+
+def test_complaint_kpis_compliance_is_none_before_anything_settles() -> None:
+    provider, *_ = _provider()
+    _stub_kpi_execute(
+        provider,
+        _kpi_row(
+            sla_on_track=16,
+            sla_warning=0,
+            sla_overdue=0,
+            sla_met=0,
+            sla_missed=0,
+            sla_unknown=0,
+        ),
+    )
+
+    kpis = provider.complaint_kpis(branch_id=None, target_days=30)
+
+    assert kpis.sla is not None
+    # Not 0% — nothing has been judged yet, and 0% would read as total failure.
+    assert kpis.sla.compliance_percentage is None
 
 
 def test_complaint_kpis_branch_with_unknown_unit_is_zero() -> None:
     provider, *_ = _provider()
     provider._owning_unit_for_branch = MagicMock(return_value=None)
-    provider._count_complaints = MagicMock()
+    execute = MagicMock()
+    provider._session.execute = execute
 
     kpis = provider.complaint_kpis(branch_id=uuid.uuid4())
 
@@ -441,17 +529,15 @@ def test_complaint_kpis_branch_with_unknown_unit_is_zero() -> None:
     assert kpis.closed == 0
     assert kpis.escalate_pending == 0
     assert kpis.escalate_scheduled == 0
-    provider._count_complaints.assert_not_called()
+    execute.assert_not_called()
 
 
 def test_complaint_kpis_branch_passes_owning_unit_scope() -> None:
     provider, *_ = _provider()
     provider._owning_unit_for_branch = MagicMock(return_value="UPPPD-A")
-    provider._count_complaints = MagicMock(return_value=0)
+    _stub_kpi_execute(provider, _kpi_row())
     branch_id = uuid.uuid4()
 
     provider.complaint_kpis(branch_id=branch_id)
 
     provider._owning_unit_for_branch.assert_called_once_with(branch_id)
-    for call in provider._count_complaints.call_args_list:
-        assert call.args[0] == "UPPPD-A"

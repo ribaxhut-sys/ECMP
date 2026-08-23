@@ -15,6 +15,7 @@ from app.core.authorization.visibility import (
     is_pusat_unit,
     resolve_row_visibility,
 )
+from app.core.config import Settings, get_settings
 from app.core.errors import (
     InvalidStateError,
     NotFoundError,
@@ -60,6 +61,7 @@ from app.modules.cm_batch1.predicates import is_closed
 from app.modules.cm_batch1.schemas import (
     AgingComplaintItemResponse,
     ComplaintBatch1Response,
+    ComplaintSlaView,
     ConfirmCustomerResponse,
     CreateComplaintBatch1Request,
     Customer360Batch1Response,
@@ -85,6 +87,7 @@ from app.modules.cm_batch1.side_effects import (
     NoOpSideEffectRecorder,
     SideEffectRecorder,
 )
+from app.modules.cm_batch1.sla import resolve_complaint_sla
 from app.modules.cm_batch1.store import STORE, Batch1Store
 
 
@@ -437,9 +440,11 @@ class CmBatch1Service:
         duplicate_config: DuplicateConfig | None = None,
         scope_allows_candidate: Callable[[ComplaintAggregate], bool] | None = None,
         side_effects: SideEffectRecorder | None = None,
+        settings: Settings | None = None,
         # Deprecated alias — prefer customer_provider
         master: CustomerProvider | None = None,
     ) -> None:
+        self._settings = settings or get_settings()
         self._customers: CustomerProvider = (
             customer_provider
             or master
@@ -2010,4 +2015,27 @@ class CmBatch1Service:
             owningUnitId=row.owning_unit_id,
             priority=row.priority,
             createdAt=row.created_at,
+            closedAt=row.closed_at,
+            sla=self._sla_view(row),
+        )
+
+    def _sla_view(self, row: ComplaintAggregate) -> ComplaintSlaView | None:
+        """DEC-031 resolution SLA, computed fresh on every read."""
+        sla = resolve_complaint_sla(
+            created_at=row.created_at,
+            closed_at=row.closed_at,
+            status=row.status,
+            target_days=self._settings.complaint_resolution_target_days,
+            warning_percent=self._settings.complaint_sla_warning_percent,
+        )
+        if sla is None:
+            return None
+        return ComplaintSlaView(
+            status=sla.status,
+            targetDays=sla.target_days,
+            dueAt=sla.due_at,
+            elapsedDays=sla.elapsed_days,
+            remainingDays=sla.remaining_days,
+            overdueDays=sla.overdue_days,
+            isWarning=sla.is_warning,
         )

@@ -17,6 +17,8 @@ class ComplaintAggregate:
     description: str
     priority: str
     status: str = "REGISTERED"
+    #: Set/cleared with ``status`` by ``sla.apply_complaint_status`` (DEC-031).
+    closed_at: datetime | None = None
     intake_disposition: str | None = None
     hq_accepted_at: datetime | None = None
     hq_arrival_date: date | None = None
@@ -91,6 +93,7 @@ class Batch1AttachmentRecord:
     staging_token: str | None = None
     complaint_id: str | None = None
     customer_id: str | None = None
+    case_id: str | None = None
     original_name: str | None = None
     mime_type: str | None = None
     size_bytes: int | None = None

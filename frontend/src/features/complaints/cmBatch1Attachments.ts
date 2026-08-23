@@ -154,6 +154,7 @@ export function normalizeCmBatch1Attachment(
   classification: string;
   stagingToken?: string | null;
   complaintId?: string | null;
+  caseId?: string | null;
   originalName: string;
   mimeType: string;
   sizeBytes: number;
@@ -178,6 +179,7 @@ export function normalizeCmBatch1Attachment(
     classification: String(r.classification ?? ""),
     stagingToken: (r.stagingToken ?? r.staging_token ?? null) as string | null,
     complaintId: (r.complaintId ?? r.complaint_id ?? null) as string | null,
+    caseId: (r.caseId ?? r.case_id ?? null) as string | null,
     originalName: String(r.originalName ?? r.original_name ?? ""),
     mimeType: String(r.mimeType ?? r.mime_type ?? ""),
     sizeBytes: Number(r.sizeBytes ?? r.size_bytes ?? 0),
@@ -199,6 +201,8 @@ type CmBatch1AttachmentLike = {
   staging_token?: string | null;
   complaintId?: string | null;
   complaint_id?: string | null;
+  caseId?: string | null;
+  case_id?: string | null;
   originalName?: string;
   original_name?: string;
   mimeType?: string;
@@ -214,6 +218,17 @@ type CmBatch1AttachmentLike = {
   createdAt?: string;
   created_at?: string;
 };
+
+/** Complaint-page: all files. Case-page: unpinned (shared) + pinned to this Case. */
+export function isCmBatch1AttachmentInCaseScope(
+  item: { caseId?: string | null; case_id?: string | null },
+  caseId?: string | null,
+): boolean {
+  const scope = (caseId ?? "").trim();
+  if (!scope) return true;
+  const pin = String(item.caseId ?? item.case_id ?? "").trim();
+  return pin.length === 0 || pin === scope;
+}
 
 /**
  * Open a blank tab during the user gesture (before await).
