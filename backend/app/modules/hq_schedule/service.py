@@ -8,6 +8,7 @@ complaint's schedule.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -42,6 +43,45 @@ def _minutes(t: time) -> int:
     return t.hour * 60 + t.minute
 
 
+def _from_minutes(value: int) -> time:
+    return time(hour=value // 60, minute=value % 60)
+
+
+def _parse_break_overrides(raw: object) -> dict[int, tuple[time, time] | None]:
+    """``{"5": {"start": "11:30", "end": "13:30"}}`` -> ``{5: (11:30, 13:30)}``.
+
+    Keys are ISO weekdays (1=Mon..7=Sun); a ``null`` value means that weekday
+    has no break at all. Unreadable entries are skipped so one bad key cannot
+    hide the whole calendar — the weekday simply falls back to the default
+    break window.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    parsed: dict[int, tuple[time, time] | None] = {}
+    for key, value in raw.items():
+        try:
+            weekday = int(key)
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= weekday <= 7:
+            continue
+        if value is None:
+            parsed[weekday] = None
+            continue
+        if not isinstance(value, dict):
+            continue
+        start_raw = str(value.get("start", "")).strip()
+        end_raw = str(value.get("end", "")).strip()
+        if not start_raw or not end_raw:
+            parsed[weekday] = None
+            continue
+        try:
+            parsed[weekday] = (_parse_hhmm(start_raw), _parse_hhmm(end_raw))
+        except ValueError:
+            continue
+    return parsed
+
+
 @dataclass(frozen=True, slots=True)
 class ScheduleConfig:
     start: time
@@ -51,6 +91,34 @@ class ScheduleConfig:
     workdays: frozenset[int]
     break_start: time | None
     break_end: time | None
+    # ISO weekday -> break window replacing the default one for that day
+    # (``None`` = that weekday has no break at all). Jumat 11:30-13:30 lives
+    # here; Senin-Kamis keep break_start/break_end.
+    break_overrides: Mapping[int, tuple[time, time] | None]
+
+    def break_for(self, weekday: int) -> tuple[time, time] | None:
+        if weekday in self.break_overrides:
+            return self.break_overrides[weekday]
+        if self.break_start is None or self.break_end is None:
+            return None
+        return self.break_start, self.break_end
+
+
+@dataclass(frozen=True, slots=True)
+class SlotSpec:
+    """One grid cell of a given weekday, after the break window is cut out.
+
+    A break that does not land on grid boundaries (Jumat 11:30-13:30 on an
+    hourly grid) splits the slot it crosses: the usable remainder stays
+    bookable with a pro-rated capacity, the break itself becomes one
+    ``is_break`` block so arrivals already booked inside it stay visible.
+    """
+
+    start: time
+    end: time
+    is_break: bool
+    capacity: int
+    partial: bool
 
 
 class HqScheduleService:
@@ -90,6 +158,14 @@ class HqScheduleService:
         ).strip()
         break_start = _parse_hhmm(break_start_raw) if break_start_raw else None
         break_end = _parse_hhmm(break_end_raw) if break_end_raw else None
+        try:
+            overrides_raw = self._settings.get_json(
+                SettingsKey.HQ_SCHEDULE_BREAK_OVERRIDES, default={}
+            )
+        except ValidationAppError:
+            # Malformed JSON must not take the whole calendar down — same
+            # tolerance as the workdays setting above.
+            overrides_raw = {}
         return ScheduleConfig(
             start=_parse_hhmm(start_raw),
             end=_parse_hhmm(end_raw),
@@ -98,20 +174,86 @@ class HqScheduleService:
             workdays=workdays or frozenset({1, 2, 3, 4, 5}),
             break_start=break_start,
             break_end=break_end,
+            break_overrides=_parse_break_overrides(overrides_raw),
         )
 
     @staticmethod
-    def _generate_slots(config: ScheduleConfig) -> list[tuple[time, time]]:
-        slots: list[tuple[time, time]] = []
-        cursor = _minutes(config.start)
-        end = _minutes(config.end)
-        while cursor + config.slot_minutes <= end:
-            slot_start = time(hour=cursor // 60, minute=cursor % 60)
+    def _prorated_capacity(config: ScheduleConfig, minutes: int) -> int:
+        """Capacity of a shortened slot, floored — but never silently zero.
+
+        Default 2 arrivals/hour, Jumat 11:00-11:30 -> 1. An odd capacity
+        rounds down (3/hour -> 1 for a half slot) per the business decision.
+        """
+        if config.capacity_per_slot <= 0 or minutes <= 0:
+            return 0
+        if minutes >= config.slot_minutes:
+            return config.capacity_per_slot
+        return max(1, config.capacity_per_slot * minutes // config.slot_minutes)
+
+    @classmethod
+    def _generate_slots(cls, config: ScheduleConfig, weekday: int) -> list[SlotSpec]:
+        day_start = _minutes(config.start)
+        day_end = _minutes(config.end)
+        window = config.break_for(weekday)
+        break_lo = break_hi = None
+        if window is not None:
+            break_lo, break_hi = _minutes(window[0]), _minutes(window[1])
+            if break_hi <= break_lo:  # inverted/empty window — ignore it
+                break_lo = break_hi = None
+
+        specs: list[SlotSpec] = []
+        cursor = day_start
+        while cursor + config.slot_minutes <= day_end:
             nxt = cursor + config.slot_minutes
-            slot_end = time(hour=nxt // 60, minute=nxt % 60)
-            slots.append((slot_start, slot_end))
+            overlaps = (
+                break_lo is not None
+                and break_hi is not None
+                and cursor < break_hi
+                and break_lo < nxt
+            )
+            if not overlaps:
+                specs.append(
+                    SlotSpec(
+                        start=_from_minutes(cursor),
+                        end=_from_minutes(nxt),
+                        is_break=False,
+                        capacity=config.capacity_per_slot,
+                        partial=False,
+                    )
+                )
+            else:
+                # Keep whatever minutes fall outside the break as a shortened,
+                # still-bookable slot; a slot fully inside the break vanishes
+                # into the break block appended below.
+                assert break_lo is not None and break_hi is not None
+                for lo, hi in ((cursor, break_lo), (break_hi, nxt)):
+                    if lo >= hi:
+                        continue
+                    specs.append(
+                        SlotSpec(
+                            start=_from_minutes(lo),
+                            end=_from_minutes(hi),
+                            is_break=False,
+                            capacity=cls._prorated_capacity(config, hi - lo),
+                            partial=True,
+                        )
+                    )
             cursor = nxt
-        return slots
+
+        if break_lo is not None and break_hi is not None:
+            lo, hi = max(break_lo, day_start), min(break_hi, day_end)
+            if lo < hi:
+                specs.append(
+                    SlotSpec(
+                        start=_from_minutes(lo),
+                        end=_from_minutes(hi),
+                        is_break=True,
+                        capacity=0,
+                        partial=False,
+                    )
+                )
+        specs.sort(key=lambda spec: (spec.start, spec.end))
+        return specs
 
     def _closed_reason(
         self,
@@ -145,7 +287,9 @@ class HqScheduleService:
             )
 
         config = self._load_config()
-        slots = self._generate_slots(config)
+        # The grid now differs per weekday (Jumat has a longer break), so it is
+        # built once per weekday instead of once per range.
+        slots_by_weekday: dict[int, list[SlotSpec]] = {}
         holidays = {
             row.holiday_date: row.label
             for row in self._repo.list_holidays(date_from=date_from, date_to=date_to)
@@ -163,9 +307,14 @@ class HqScheduleService:
             )
             day_slots: list[SlotAvailability] = []
             if not closed:
+                weekday = cursor.isoweekday()
+                specs = slots_by_weekday.get(weekday)
+                if specs is None:
+                    specs = self._generate_slots(config, weekday)
+                    slots_by_weekday[weekday] = specs
                 day_slots = self._slots_for_day(
                     cursor,
-                    slots,
+                    specs,
                     arrivals,
                     config=config,
                     detail=detail,
@@ -194,7 +343,7 @@ class HqScheduleService:
     @staticmethod
     def _slots_for_day(
         day: date,
-        slots: list[tuple[time, time]],
+        slots: list[SlotSpec],
         arrivals: list[ArrivalRow],
         *,
         config: ScheduleConfig,
@@ -210,18 +359,11 @@ class HqScheduleService:
             if a.proposed_arrival_date == day and a.proposed_arrival_time
         ]
 
-        break_lo = _minutes(config.break_start) if config.break_start else None
-        break_hi = _minutes(config.break_end) if config.break_end else None
-
         result: list[SlotAvailability] = []
-        for slot_start, slot_end in slots:
+        for spec in slots:
+            slot_start, slot_end = spec.start, spec.end
             lo, hi = _minutes(slot_start), _minutes(slot_end)
-            is_break = (
-                break_lo is not None
-                and break_hi is not None
-                and lo < break_hi
-                and break_lo < hi
-            )
+            is_break = spec.is_break
 
             def in_slot(value: str | None, *, lo: int = lo, hi: int = hi) -> bool:
                 if not value:
@@ -239,7 +381,7 @@ class HqScheduleService:
             scheduled_count = len(scheduled)
             completed_count = sum(1 for a in scheduled if a.completed)
             proposed_count = len(proposed)
-            available = max(0, config.capacity_per_slot - scheduled_count)
+            available = max(0, spec.capacity - scheduled_count)
             slot_start_dt = datetime.combine(day, slot_start, tzinfo=_OPERATOR_TZ)
             bookable = not is_break and slot_start_dt > now and available > 0
             bookable_count = available if bookable else 0
@@ -274,8 +416,9 @@ class HqScheduleService:
                 SlotAvailability(
                     startTime=slot_start.strftime("%H:%M"),
                     endTime=slot_end.strftime("%H:%M"),
-                    capacity=config.capacity_per_slot,
+                    capacity=spec.capacity,
                     isBreak=is_break,
+                    partial=spec.partial,
                     scheduledCount=scheduled_count,
                     completedCount=completed_count,
                     proposedCount=proposed_count,

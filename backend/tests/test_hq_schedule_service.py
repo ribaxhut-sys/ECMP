@@ -466,3 +466,159 @@ def test_holiday_crud_relabels_creates_and_deletes() -> None:
     service.delete_holiday(tuesday)
     with pytest.raises(NotFoundError):
         service.delete_holiday(tuesday + timedelta(days=1))
+
+
+def _next_friday(start: date) -> date:
+    cursor = start
+    while cursor.isoweekday() != 5:
+        cursor += timedelta(days=1)
+    return cursor
+
+
+_FRIDAY_OVERRIDE = '{"5": {"start": "11:30", "end": "13:30"}}'
+
+
+def _full_day_settings(**overrides: str) -> SettingsService:
+    values = {
+        SettingsKey.HQ_SCHEDULE_START.value: "08:00",
+        SettingsKey.HQ_SCHEDULE_END.value: "16:00",
+        SettingsKey.HQ_SCHEDULE_BREAK_START.value: "12:00",
+        SettingsKey.HQ_SCHEDULE_BREAK_END.value: "13:00",
+        SettingsKey.HQ_SCHEDULE_BREAK_OVERRIDES.value: _FRIDAY_OVERRIDE,
+    }
+    values.update(overrides)
+    return _settings_service(**values)
+
+
+def test_friday_break_override_splits_slots_and_halves_capacity() -> None:
+    """Jumat 11:30-13:30: the crossed slots survive as half slots, not as
+    two lost hours."""
+    friday = _next_friday(date.today() + timedelta(days=7))
+    service = HqScheduleService(_FakeHqScheduleRepository(), _full_day_settings())
+    day = service.get_availability(
+        date_from=friday, date_to=friday, detail=False
+    ).days[0]
+
+    assert [(s.start_time, s.end_time) for s in day.slots] == [
+        ("08:00", "09:00"),
+        ("09:00", "10:00"),
+        ("10:00", "11:00"),
+        ("11:00", "11:30"),
+        ("11:30", "13:30"),
+        ("13:30", "14:00"),
+        ("14:00", "15:00"),
+        ("15:00", "16:00"),
+    ]
+    by_start = {s.start_time: s for s in day.slots}
+    assert by_start["11:30"].is_break is True
+    assert by_start["11:30"].bookable is False
+    assert by_start["11:30"].capacity == 0
+    for start in ("11:00", "13:30"):
+        half = by_start[start]
+        assert half.is_break is False
+        assert half.partial is True
+        assert half.capacity == 1  # half of 2 per hour
+        assert half.bookable is True
+        assert half.bookable_count == 1
+    assert by_start["10:00"].capacity == 2
+    assert by_start["10:00"].partial is False
+
+
+def test_break_override_leaves_other_weekdays_on_the_default_window() -> None:
+    monday = _next_monday(date.today() + timedelta(days=7))
+    service = HqScheduleService(_FakeHqScheduleRepository(), _full_day_settings())
+    day = service.get_availability(
+        date_from=monday, date_to=monday, detail=False
+    ).days[0]
+
+    by_start = {s.start_time: s for s in day.slots}
+    assert by_start["12:00"].is_break is True
+    assert by_start["12:00"].end_time == "13:00"
+    assert by_start["11:00"].partial is False
+    assert by_start["11:00"].capacity == 2
+    assert by_start["13:00"].capacity == 2
+
+
+def test_arrival_already_booked_inside_the_break_stays_visible() -> None:
+    """A visit scheduled at 11:45 before the Jumat rule existed must not
+    disappear from the board — it is bucketed into the break block."""
+    friday = _next_friday(date.today() + timedelta(days=7))
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="TAB-2608-0001",
+            owning_unit_id="UPPPD-TANAH-ABANG",
+            hq_arrival_date=friday,
+            hq_arrival_time="11:45",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            case_numbers=("CASE-1",),
+        )
+    ]
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals), _full_day_settings()
+    )
+    day = service.get_availability(
+        date_from=friday, date_to=friday, detail=False
+    ).days[0]
+
+    break_slot = next(s for s in day.slots if s.is_break)
+    assert break_slot.scheduled_count == 1
+    assert [c.complaint_number for c in break_slot.scheduled_cases] == [
+        "TAB-2608-0001"
+    ]
+    assert break_slot.available_count == 0
+    assert break_slot.bookable is False
+
+
+def test_partial_slot_capacity_rounds_down_but_never_to_zero() -> None:
+    friday = _next_friday(date.today() + timedelta(days=7))
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(),
+        _full_day_settings(
+            **{SettingsKey.HQ_SCHEDULE_CAPACITY_PER_SLOT.value: "3"}
+        ),
+    )
+    by_start = {
+        s.start_time: s
+        for s in service.get_availability(
+            date_from=friday, date_to=friday, detail=False
+        ).days[0].slots
+    }
+    assert by_start["11:00"].capacity == 1  # floor(3 * 30 / 60)
+    assert by_start["10:00"].capacity == 3
+
+
+def test_break_override_null_means_no_break_that_weekday() -> None:
+    friday = _next_friday(date.today() + timedelta(days=7))
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(),
+        _full_day_settings(
+            **{SettingsKey.HQ_SCHEDULE_BREAK_OVERRIDES.value: '{"5": null}'}
+        ),
+    )
+    day = service.get_availability(
+        date_from=friday, date_to=friday, detail=False
+    ).days[0]
+    assert all(not s.is_break for s in day.slots)
+    assert all(s.capacity == 2 for s in day.slots)
+
+
+def test_malformed_break_overrides_fall_back_to_the_default_break() -> None:
+    friday = _next_friday(date.today() + timedelta(days=7))
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(),
+        _full_day_settings(
+            **{SettingsKey.HQ_SCHEDULE_BREAK_OVERRIDES.value: "{bukan json"}
+        ),
+    )
+    by_start = {
+        s.start_time: s
+        for s in service.get_availability(
+            date_from=friday, date_to=friday, detail=False
+        ).days[0].slots
+    }
+    assert by_start["12:00"].is_break is True
+    assert by_start["12:00"].end_time == "13:00"

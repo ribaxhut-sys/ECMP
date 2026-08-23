@@ -52,6 +52,13 @@ class SlotAvailability(BaseModel):
     end_time: str = Field(alias="endTime")
     capacity: int
     is_break: bool = Field(default=False, alias="isBreak")
+    partial: bool = Field(
+        default=False,
+        description=(
+            "Slot shortened by a break that does not fall on a grid boundary "
+            "(e.g. Jumat 11:00-11:30) — capacity is pro-rated, not the nominal one."
+        ),
+    )
     scheduled_count: int = Field(
         alias="scheduledCount",
         description="Total occupants (live + completed) — the slot's booked ratio.",
@@ -103,5 +110,11 @@ class AvailabilityResponse(BaseModel):
     start_time: str = Field(alias="startTime")
     end_time: str = Field(alias="endTime")
     slot_minutes: int = Field(alias="slotMinutes")
-    capacity_per_slot: int = Field(alias="capacityPerSlot")
+    capacity_per_slot: int = Field(
+        alias="capacityPerSlot",
+        description=(
+            "Nominal capacity of a full-length slot; shortened slots carry their "
+            "own pro-rated capacity — read slots[].capacity for ratios."
+        ),
+    )
     days: list[DayAvailability] = Field(default_factory=list)

@@ -283,12 +283,28 @@ function SlotCard({
   nowMs: number;
 }) {
   if (slot.isBreak) {
+    // Arrivals booked before the break window changed (Jumat 11:30–13:30) are
+    // bucketed here — still listed, so nobody disappears from the board.
     return (
       <div
         data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
-        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2.5 py-3 text-center text-[length:var(--ecmp-font-body-size)] font-bold italic text-ecmp-text-secondary"
+        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2.5 py-3 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
       >
-        {slot.startTime} · {breakLabel}
+        <p className="text-center font-bold italic">
+          {slot.startTime}–{slot.endTime} · {breakLabel}
+        </p>
+        {slot.scheduledCases.length > 0 ? (
+          <div className="mt-1.5 space-y-1">
+            {slot.scheduledCases.map((proposal) => (
+              <CaseLine
+                key={proposal.complaintId}
+                proposal={proposal}
+                canOpen={canOpenCase(proposal.owningUnitId)}
+                overdue={isArrivalOverdue(date, slot.endTime, nowMs)}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -315,7 +331,9 @@ function SlotCard({
     >
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-[length:var(--ecmp-font-helper-size)] font-semibold text-ecmp-text-primary">
-          {slot.startTime}
+          {/* A shortened slot must show where it ends — "11:00" alone would
+              read as a full hour that runs into the break. */}
+          {slot.partial ? `${slot.startTime}–${slot.endTime}` : slot.startTime}
         </p>
         <p className="text-[length:var(--ecmp-font-helper-size)] tabular-nums text-ecmp-text-secondary">
           {slotRatioLabel}

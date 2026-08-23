@@ -289,6 +289,17 @@ components:
           description: HH:MM (24h)
         capacity:
           type: integer
+          description: >
+            Capacity of THIS slot. Equals capacityPerSlot for a full-length slot;
+            a slot shortened by a break (partial=true) carries a pro-rated,
+            rounded-down capacity (minimum 1).
+        partial:
+          type: boolean
+          default: false
+          description: >
+            Slot shortened because a break window does not land on a grid
+            boundary — e.g. Jumat break 11:30–13:30 leaves 11:00–11:30 and
+            13:30–14:00 bookable at half capacity.
         scheduledCount:
           type: integer
           description: >
@@ -350,6 +361,9 @@ components:
           type: integer
         capacityPerSlot:
           type: integer
+          description: >
+            Nominal capacity of a full-length slot (hq.schedule.capacity_per_slot);
+            read slots[].capacity for the actual ratio of a given slot.
         days:
           type: array
           items:

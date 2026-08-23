@@ -25,6 +25,12 @@ export interface HqScheduleSlotAvailability {
   endTime: string;
   capacity: number;
   isBreak: boolean;
+  /**
+   * Slot shortened by a break that does not fall on a grid boundary (Jumat
+   * 11:00–11:30 / 13:30–14:00) — `capacity` is pro-rated, not the nominal
+   * `capacityPerSlot`.
+   */
+  partial?: boolean;
   /** Total occupants (live + completed) — the slot's booked ratio. */
   scheduledCount: number;
   /** Subset of scheduledCount whose HQ visit is already closed. */
@@ -55,6 +61,7 @@ export interface HqScheduleAvailabilityResponse {
   startTime: string;
   endTime: string;
   slotMinutes: number;
+  /** Nominal capacity of a full-length slot — read slot.capacity for ratios. */
   capacityPerSlot: number;
   days: HqScheduleDayAvailability[];
 }

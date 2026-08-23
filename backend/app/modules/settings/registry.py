@@ -24,6 +24,7 @@ class SettingsKey(StrEnum):
     HQ_SCHEDULE_WORKDAYS = "hq.schedule.workdays"
     HQ_SCHEDULE_BREAK_START = "hq.schedule.break_start"
     HQ_SCHEDULE_BREAK_END = "hq.schedule.break_end"
+    HQ_SCHEDULE_BREAK_OVERRIDES = "hq.schedule.break_overrides"
     INTERNAL_COMPLAINT_CANCEL_REASON_PRESETS = "internal_complaint.cancel_reason_presets"
     INTERNAL_COMPLAINT_TRANSFER_REASON_PRESETS = "internal_complaint.transfer_reason_presets"
     INTERNAL_COMPLAINT_REQUEST_TRANSFER_REASON_PRESETS = (
@@ -181,6 +182,17 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         category="hq_schedule",
         visibility=SettingVisibility.PROTECTED,
         description="HQ arrival schedule lunch break end (HH:MM)",
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_BREAK_OVERRIDES,
+        value='{"5": {"start": "11:30", "end": "13:30"}}',
+        value_type=SettingValueType.JSON,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description=(
+            "Per-weekday break windows overriding break_start/break_end "
+            '(ISO weekday key, null = no break); Jumat defaults to 11:30-13:30'
+        ),
     ),
     SettingDefinition(
         key=SettingsKey.INTERNAL_COMPLAINT_CANCEL_REASON_PRESETS,

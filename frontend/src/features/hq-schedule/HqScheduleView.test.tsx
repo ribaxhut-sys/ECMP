@@ -593,4 +593,76 @@ describe("HqScheduleView", () => {
     expect(slotOccupancy(2, 3)).toBe("partial");
     expect(slotOccupancy(3, 3)).toBe("full");
   });
+
+  it("shows the Jumat half slot with its end time and keeps break occupants listed", async () => {
+    mockOrgUnitCode = "PUSAT";
+    mockRoles = ["AGENT"];
+    fetchHqScheduleAvailabilityDetail.mockResolvedValue({
+      data: {
+        startTime: "08:00",
+        endTime: "16:00",
+        slotMinutes: 60,
+        capacityPerSlot: 2,
+        days: [
+          {
+            date: "2026-08-21",
+            weekday: 5,
+            closed: false,
+            slots: [
+              {
+                startTime: "11:00",
+                endTime: "11:30",
+                capacity: 1,
+                isBreak: false,
+                partial: true,
+                scheduledCount: 0,
+                completedCount: 0,
+                proposedCount: 0,
+                availableCount: 1,
+                bookable: true,
+                bookableCount: 1,
+                pendingProposals: [],
+                scheduledCases: [],
+              },
+              {
+                startTime: "11:30",
+                endTime: "13:30",
+                capacity: 0,
+                isBreak: true,
+                partial: false,
+                scheduledCount: 1,
+                completedCount: 0,
+                proposedCount: 0,
+                availableCount: 0,
+                bookable: false,
+                bookableCount: 0,
+                pendingProposals: [],
+                scheduledCases: [
+                  {
+                    complaintId: "legacy",
+                    complaintNumber: "TAB-2608-0011",
+                    owningUnitId: "UPPPD-A",
+                    unitCode: "TAB",
+                    caseNumbers: ["CASE-2026-000011"],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    renderWithProviders(<HqScheduleView />);
+
+    const halfSlot = await screen.findByTestId("hq-schedule-slot-2026-08-21-11:00");
+    expect(halfSlot).toHaveTextContent("11:00\u201311:30");
+    expect(halfSlot).toHaveTextContent("0/1");
+
+    // Booked before the Jumat window changed — still on the board.
+    const breakSlot = screen.getByTestId("hq-schedule-slot-2026-08-21-11:30");
+    expect(breakSlot).toHaveTextContent("11:30\u201313:30");
+    expect(
+      within(breakSlot).getByRole("link", { name: "CASE-2026-000011" }),
+    ).toBeInTheDocument();
+  });
 });
