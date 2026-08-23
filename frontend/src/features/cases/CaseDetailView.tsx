@@ -39,7 +39,6 @@ import {
   type BadgeTone,
 } from "@/shared/ui";
 import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
-import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
 import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
 import { PENANGANAN_FOCUS_QUERY } from "@/features/complaints/ComplaintPenangananSection";
 import { CaseStatusBadge } from "./CaseStatusBadge";
