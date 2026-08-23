@@ -245,6 +245,23 @@ def _upload_primary_file(
     return resp.json()["data"]
 
 
+def _expire_edit_window(session: Session, knowledge_id: str) -> None:
+    """Backdate ``published_at`` past the grace window (DEC-030).
+
+    Moving the clock in the database, not in Python, keeps this honest: the
+    service reads the same column production does.
+    """
+    hours = get_settings().knowledge_edit_grace_hours
+    session.execute(
+        text("UPDATE knowledge SET published_at = :when WHERE id = :id"),
+        {
+            "when": datetime.now(UTC) - timedelta(hours=hours + 1),
+            "id": uuid.UUID(knowledge_id),
+        },
+    )
+    session.commit()
+
+
 # --- Authorization matrix (Pusat-only manage, LOCKED) -----------------------
 
 
@@ -526,14 +543,16 @@ def test_delete_draft_removes_from_search(
     assert detail.status_code == 404
 
 
-# --- ACTIVE identity lock (KM §17, LOCKED) ----------------------------------
+# --- Post-publish edit window (DEC-030) -------------------------------------
 
 
-def test_active_identity_fields_locked(
+def test_published_record_fully_editable_inside_window(
     client: TestClient, admin_header: dict[str, str]
 ) -> None:
+    """Inside the window even identity fields move — a correction caught in
+    the first hours is the same document, not a new one."""
     created = _create_draft(
-        client, admin_header, title="Identitas terkunci", versionLabel="1.0"
+        client, admin_header, title="Identitas masih boleh", versionLabel="1.0"
     )
     _upload_primary_file(client, admin_header, created["id"])
     client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
@@ -541,36 +560,159 @@ def test_active_identity_fields_locked(
     resp = client.put(
         f"/api/v1/knowledge/{created['id']}",
         json={
-            "title": "Judul diubah paksa",
+            "title": "Judul hasil koreksi",
+            "knowledgeType": "PERATURAN",
+            "versionLabel": "1.1",
+            "summary": "Ringkasan yang diperbarui.",
+        },
+        headers=admin_header,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()["data"]
+    assert body["title"] == "Judul hasil koreksi"
+    assert body["knowledgeType"] == "PERATURAN"
+    assert body["versionLabel"] == "1.1"
+    assert body["summary"] == "Ringkasan yang diperbarui."
+
+
+def test_published_record_locked_after_window(
+    client: TestClient, admin_header: dict[str, str], db_session: Session
+) -> None:
+    created = _create_draft(
+        client, admin_header, title="Terkunci setelah lewat", versionLabel="1.0"
+    )
+    _upload_primary_file(client, admin_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    _expire_edit_window(db_session, created["id"])
+
+    # Not just identity — even the summary is refused once the window closes.
+    resp = client.put(
+        f"/api/v1/knowledge/{created['id']}",
+        json={
+            "title": "Terkunci setelah lewat",
             "knowledgeType": "SOP",
             "versionLabel": "1.0",
+            "summary": "Terlambat.",
+        },
+        headers=admin_header,
+    )
+    assert resp.status_code == 400, resp.text
+
+    detail = client.get(f"/api/v1/knowledge/{created['id']}", headers=admin_header)
+    assert detail.json()["data"]["summary"] is None
+
+
+def test_window_applies_to_kasatpel_the_same_as_admin(
+    client: TestClient,
+    seeded_user_id: uuid.UUID,
+    db_session: Session,
+) -> None:
+    """DEC-030: the window is time-based, not role-based — KaSatPel (MANAGER)
+    and Staff KaSatPel get exactly what Admin gets, no more and no less.
+
+    Carries a real ``users.id`` subject (like ``admin_header``) since this
+    test uploads a file — the plain ``manager_header`` fixture's random
+    subject fails attachments' uploaded_by FK.
+    """
+    manager_header = _header(
+        roles=["MANAGER"],
+        permissions=MANAGE_PERMISSIONS,
+        org_unit_id=_PUSAT_ORG_UNIT_ID,
+        subject=seeded_user_id,
+    )
+    created = _create_draft(
+        client, manager_header, title="KaSatPel sama dengan admin", versionLabel="1.0"
+    )
+    _upload_primary_file(client, manager_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=manager_header)
+
+    inside = client.put(
+        f"/api/v1/knowledge/{created['id']}",
+        json={
+            "title": "KaSatPel ubah judul",
+            "knowledgeType": "SOP",
+            "versionLabel": "1.0",
+        },
+        headers=manager_header,
+    )
+    assert inside.status_code == 200, inside.text
+
+    _expire_edit_window(db_session, created["id"])
+    outside = client.put(
+        f"/api/v1/knowledge/{created['id']}",
+        json={
+            "title": "KaSatPel ubah judul",
+            "knowledgeType": "SOP",
+            "versionLabel": "1.0",
+            "summary": "Terlambat juga untuk KaSatPel.",
+        },
+        headers=manager_header,
+    )
+    assert outside.status_code == 400, outside.text
+
+
+def test_archived_locked_regardless_of_age(
+    client: TestClient, admin_header: dict[str, str]
+) -> None:
+    """Archiving ends the editable life immediately — being minutes old does
+    not reopen a retired record."""
+    created = _create_draft(client, admin_header, title="Arsip terkunci", versionLabel="1.0")
+    _upload_primary_file(client, admin_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    archived = client.put(
+        f"/api/v1/knowledge/{created['id']}/archive", headers=admin_header
+    )
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["data"]["editable"] is False
+
+    resp = client.put(
+        f"/api/v1/knowledge/{created['id']}",
+        json={
+            "title": "Arsip terkunci",
+            "knowledgeType": "SOP",
+            "versionLabel": "1.0",
+            "summary": "Tidak boleh.",
         },
         headers=admin_header,
     )
     assert resp.status_code == 400, resp.text
 
 
-def test_active_non_identity_fields_still_editable(
+def test_editable_until_exposed_to_client(
+    client: TestClient, admin_header: dict[str, str], db_session: Session
+) -> None:
+    """FE reads the deadline from the server, never from its own clock."""
+    created = _create_draft(client, admin_header, title="Batas waktu tampil")
+    assert created["editable"] is True
+    assert created["editableUntil"] is None  # DRAFT has no deadline
+
+    _upload_primary_file(client, admin_header, created["id"])
+    published = client.put(
+        f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header
+    ).json()["data"]
+    assert published["editable"] is True
+    assert published["editableUntil"] is not None
+    expected = datetime.fromisoformat(published["publishedAt"]) + timedelta(
+        hours=get_settings().knowledge_edit_grace_hours
+    )
+    assert datetime.fromisoformat(published["editableUntil"]) == expected
+
+    _expire_edit_window(db_session, created["id"])
+    later = client.get(f"/api/v1/knowledge/{created['id']}", headers=admin_header)
+    assert later.json()["data"]["editable"] is False
+
+
+def test_delete_still_draft_only_inside_window(
     client: TestClient, admin_header: dict[str, str]
 ) -> None:
-    created = _create_draft(
-        client, admin_header, title="Ringkasan boleh diubah", versionLabel="1.0"
-    )
+    """The window loosens editing, not unpublishing — a live record is retired
+    with Archive, never deleted."""
+    created = _create_draft(client, admin_header, title="Hapus tetap draft saja")
     _upload_primary_file(client, admin_header, created["id"])
     client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
 
-    resp = client.put(
-        f"/api/v1/knowledge/{created['id']}",
-        json={
-            "title": "Ringkasan boleh diubah",
-            "knowledgeType": "SOP",
-            "versionLabel": "1.0",
-            "summary": "Ringkasan yang diperbarui.",
-        },
-        headers=admin_header,
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["data"]["summary"] == "Ringkasan yang diperbarui."
+    resp = client.delete(f"/api/v1/knowledge/{created['id']}", headers=admin_header)
+    assert resp.status_code == 409, resp.text
 
 
 def test_draft_identity_fields_freely_editable(
@@ -660,12 +802,37 @@ def test_remove_file_while_draft(client: TestClient, admin_header: dict[str, str
     assert resp.json()["data"]["files"] == []
 
 
-def test_file_mutation_rejected_once_active(
+def test_file_mutation_allowed_while_active_inside_window(
     client: TestClient, admin_header: dict[str, str]
 ) -> None:
-    created = _create_draft(client, admin_header, title="Aktif tidak boleh ubah file")
+    created = _create_draft(client, admin_header, title="Aktif masih boleh ubah file")
     primary = _upload_primary_file(client, admin_header, created["id"])
     client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+
+    files = {"file": ("lain.pdf", io.BytesIO(b"%PDF-1.4 lain"), "application/pdf")}
+    upload_resp = client.post(
+        f"/api/v1/knowledge/{created['id']}/files",
+        headers=admin_header,
+        files=files,
+        data={"role": "SUPPORTING"},
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+
+    attachment_id = primary["files"][0]["id"]
+    remove_resp = client.delete(
+        f"/api/v1/knowledge/{created['id']}/files/{attachment_id}",
+        headers=admin_header,
+    )
+    assert remove_resp.status_code == 200, remove_resp.text
+
+
+def test_file_mutation_rejected_after_window(
+    client: TestClient, admin_header: dict[str, str], db_session: Session
+) -> None:
+    created = _create_draft(client, admin_header, title="Berkas terkunci")
+    primary = _upload_primary_file(client, admin_header, created["id"])
+    client.put(f"/api/v1/knowledge/{created['id']}/publish", headers=admin_header)
+    _expire_edit_window(db_session, created["id"])
 
     files = {"file": ("lain.pdf", io.BytesIO(b"%PDF-1.4 lain"), "application/pdf")}
     upload_resp = client.post(

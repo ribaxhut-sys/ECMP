@@ -9,10 +9,9 @@ import {
   Button,
   Modal,
   ModalSection,
-  ReasonPresetTags,
 } from "@/shared/ui";
 import { useReasonPresets } from "@/shared/hooks";
-import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import { emptyCloseCaseForm, toCloseCaseRequest } from "./caseForms";
 
 /** Quick-fill note presets for closing a case (PUBLIC setting, JSON array). */
@@ -87,11 +86,8 @@ export function CloseCaseDialog({
         <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
           {t("closeChecklist")}
         </p>
-        <ReasonPresetTags
+        <PresetTextField
           presets={presets[CLOSE_NOTE_PRESET_KEY] ?? []}
-          onSelect={setNote}
-        />
-        <KnowledgeMentionTextarea
           name="note"
           label={t("noteOptional")}
           value={note}

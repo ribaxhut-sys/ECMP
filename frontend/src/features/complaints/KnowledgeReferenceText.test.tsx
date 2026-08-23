@@ -56,6 +56,8 @@ function knowledge(overrides: Partial<Knowledge> = {}): Knowledge {
     createdAt: "2026-07-30T00:00:00Z",
     updatedBy: null,
     updatedAt: "2026-07-30T00:00:00Z",
+    editable: true,
+    editableUntil: null,
     files: [],
     ...overrides,
   };

@@ -899,6 +899,12 @@ export interface Knowledge {
   createdAt: string;
   updatedBy: string | null;
   updatedAt: string;
+  /** Post-publish edit window (DEC-030) — server-computed from `publishedAt`;
+   * never derive this from the client clock. `editableUntil` is null when
+   * DRAFT (no deadline) or already locked — read `editable` to tell those
+   * two apart. */
+  editable: boolean;
+  editableUntil: string | null;
   /** Already access-filtered per-caller by the backend — never filter again in FE. */
   files: KnowledgeFile[];
 }
@@ -945,12 +951,17 @@ export interface KnowledgeHistoryEntry {
   id: string;
   /** "KnowledgeCreated" | "KnowledgeUpdated" | "KnowledgePublished" |
    * "KnowledgeArchived" | "KnowledgeUnarchived" | "KnowledgeDeleted" |
-   * "KnowledgeFileUploaded" | "KnowledgeFileReplaced" | "KnowledgeFileRemoved" */
+   * "KnowledgeFileUploaded" | "KnowledgeFileReplaced" |
+   * "KnowledgeFilePrimaryChanged" | "KnowledgeFileRemoved" */
   eventType: string;
   action: "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "EXPORT" | "IMPORT";
   actorId: string | null;
   actorName: string | null;
   oldValues: Record<string, unknown> | null;
   newValues: Record<string, unknown> | null;
+  /** DEC-030: `{ postPublish: true, statusAtChange, editableUntil }` set on
+   * any change made after publication — lets the UI flag entries made in
+   * the post-publish grace window. Null on a DRAFT-time change. */
+  metadata: Record<string, unknown> | null;
   createdAt: string;
 }

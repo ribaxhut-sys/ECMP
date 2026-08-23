@@ -66,6 +66,8 @@ function knowledge(overrides: Partial<Knowledge> = {}): Knowledge {
     createdAt: "2026-07-30T00:00:00Z",
     updatedBy: null,
     updatedAt: "2026-07-30T00:00:00Z",
+    editable: true,
+    editableUntil: null,
     files: [],
     ...overrides,
   };
@@ -103,11 +105,13 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the Documents list read-only in the Edit modal once the record is ACTIVE", async () => {
+  it("lets a manager keep uploading files on an ACTIVE record inside the edit window (DEC-030)", async () => {
     const user = userEvent.setup();
     fetchKnowledge.mockResolvedValue({
       data: knowledge({
         status: "ACTIVE",
+        editable: true,
+        editableUntil: "2026-08-01T00:00:00Z",
         files: [
           {
             id: "g7777777-7777-7777-7777-777777777777",
@@ -130,15 +134,43 @@ describe("KnowledgeDetailView — Edit modal Documents section", () => {
     const dialog = await screen.findByRole("dialog");
 
     expect(within(dialog).getByText("sop-utama.pdf")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /^add file$/i })).toBeInTheDocument();
+  });
+
+  it("shows the Documents list read-only once the ACTIVE record's edit window has closed", async () => {
+    fetchKnowledge.mockResolvedValue({
+      data: knowledge({
+        status: "ACTIVE",
+        editable: false,
+        editableUntil: "2026-07-30T00:00:00Z",
+        files: [
+          {
+            id: "g7777777-7777-7777-7777-777777777777",
+            fileName: "sop-utama.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            role: "PRIMARY",
+            createdAt: "2026-07-30T00:00:00Z",
+          },
+        ],
+      }),
+    });
+
+    renderWithProviders(<KnowledgeDetailView id="f6666666-6666-6666-6666-666666666666" />);
+
+    await waitFor(() => {
+      expect(fetchKnowledge).toHaveBeenCalled();
+    });
+
+    // Edit is disabled outright once locked — no point opening a dead form.
+    expect(await screen.findByRole("button", { name: /^edit$/i })).toBeDisabled();
+
+    expect(screen.getAllByText("sop-utama.pdf").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /upload file/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add file$/i })).not.toBeInTheDocument();
+    expect(screen.getAllByText(/edit window has closed/i).length).toBeGreaterThan(0);
     expect(
-      within(dialog).queryByRole("button", { name: /upload file/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByRole("button", { name: /^add file$/i }),
-    ).not.toBeInTheDocument();
-    expect(within(dialog).getByText(/files cannot be replaced/i)).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole("button", { name: /create replacement version/i }),
+      screen.getByRole("button", { name: /create replacement version/i }),
     ).toBeInTheDocument();
   });
 

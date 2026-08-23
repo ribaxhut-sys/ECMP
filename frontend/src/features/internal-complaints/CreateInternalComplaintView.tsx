@@ -15,7 +15,6 @@ import {
   ModalSection,
   PageContainer,
   PageHeader,
-  ReasonPresetTags,
   Select,
   SectionHeader,
   type SelectOption,
@@ -30,6 +29,7 @@ import {
 } from "@/lib/api/internalComplaints";
 import { uploadAttachment } from "@/lib/api/attachments";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import {
   defaultInternalComplaintForm,
   isInternalComplaintFormValid,
@@ -457,11 +457,8 @@ export function CreateInternalComplaintView() {
               )}
               {!canAssign && fromPusat && values.destinationUnitId ? (
                 <>
-                  <ReasonPresetTags
+                  <PresetTextField
                     presets={presets[REQUEST_TRANSFER_PRESET_KEY] ?? []}
-                    onSelect={(preset) => setField("requestReason", preset)}
-                  />
-                  <KnowledgeMentionTextarea
                     id="internal-request-reason"
                     label={t("requestReason")}
                     value={values.requestReason}

@@ -117,7 +117,9 @@ export function KnowledgeFileManager({
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canMutate = canManage && knowledge.status === "DRAFT";
+  // DEC-030: files move while DRAFT and while ACTIVE inside the post-publish
+  // grace window — `editable` is server-computed, never re-derive it here.
+  const canMutate = canManage && knowledge.editable;
   // Which document the big inline preview shows. Defaults to PRIMARY; the
   // tab strip below lets a reader page through every attached file instead
   // of only the primary one (a Knowledge record may carry several).

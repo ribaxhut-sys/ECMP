@@ -15,11 +15,10 @@ import {
   Input,
   Modal,
   ModalSection,
-  ReasonPresetTags,
   Select,
 } from "@/shared/ui";
 import { useReasonPresets } from "@/shared/hooks";
-import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import {
   CANCEL_REASON_OPTIONS,
   emptyUpdateStatusForm,
@@ -179,11 +178,8 @@ export function UpdateStatusDialog({
                   options={CANCEL_REASON_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
                   error={fieldErrors.cancelReason ? tValidation(fieldErrors.cancelReason) : undefined}
                 />
-                <ReasonPresetTags
+                <PresetTextField
                   presets={presets[CANCEL_REASON_PRESET_KEY] ?? []}
-                  onSelect={(preset) => setField("reason", preset)}
-                />
-                <KnowledgeMentionTextarea
                   name="reason"
                   label={t("reason")}
                   value={values.reason}

@@ -3,6 +3,7 @@ import {
   knowledgeHistoryDiffFields,
   knowledgeHistoryEventIcon,
   knowledgeHistoryEventLabelKey,
+  knowledgeHistoryIsPostPublish,
 } from "./knowledgeHistory";
 
 describe("knowledgeHistoryEventLabelKey", () => {
@@ -12,6 +13,9 @@ describe("knowledgeHistoryEventLabelKey", () => {
     expect(knowledgeHistoryEventLabelKey("KnowledgePublished")).toBe("historyEventPublished");
     expect(knowledgeHistoryEventLabelKey("KnowledgeFileReplaced")).toBe(
       "historyEventFileReplaced",
+    );
+    expect(knowledgeHistoryEventLabelKey("KnowledgeFilePrimaryChanged")).toBe(
+      "historyEventFilePrimaryChanged",
     );
   });
 
@@ -41,5 +45,14 @@ describe("knowledgeHistoryDiffFields", () => {
 
   it("returns an empty list when there is nothing to diff", () => {
     expect(knowledgeHistoryDiffFields({ oldValues: null, newValues: null })).toEqual([]);
+  });
+});
+
+describe("knowledgeHistoryIsPostPublish", () => {
+  it("is true only when metadata.postPublish is exactly true (DEC-030)", () => {
+    expect(knowledgeHistoryIsPostPublish({ metadata: { postPublish: true } })).toBe(true);
+    expect(knowledgeHistoryIsPostPublish({ metadata: { postPublish: false } })).toBe(false);
+    expect(knowledgeHistoryIsPostPublish({ metadata: null })).toBe(false);
+    expect(knowledgeHistoryIsPostPublish({ metadata: { reason: "SET" } })).toBe(false);
   });
 });

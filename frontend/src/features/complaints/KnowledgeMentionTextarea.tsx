@@ -4,11 +4,13 @@ import {
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type Ref,
 } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -88,6 +90,19 @@ type MentionResult = {
   typeLabel: string;
 };
 
+/** Imperative escape hatch for callers that change `value` from outside the
+ * editor (quick-fill preset tags) and need the caret back in the text. */
+export type KnowledgeMentionTextareaHandle = {
+  /**
+   * Focus the editor and put the caret after the last character.
+   * `afterValueSync` defers the placement until the contenteditable DOM has
+   * been rebuilt from the new `value` — pass it whenever the same click also
+   * changed `value`, otherwise the caret lands in the pre-update DOM and is
+   * wiped by the rebuild.
+   */
+  focusEnd: (options?: { afterValueSync?: boolean }) => void;
+};
+
 export function KnowledgeMentionTextarea({
   id,
   label,
@@ -100,6 +115,7 @@ export function KnowledgeMentionTextarea({
   hint,
   maxLength,
   disabled,
+  ref,
 }: {
   id?: string;
   label: string;
@@ -112,6 +128,7 @@ export function KnowledgeMentionTextarea({
   hint?: string;
   maxLength?: number;
   disabled?: boolean;
+  ref?: Ref<KnowledgeMentionTextareaHandle>;
 }) {
   const t = useTranslations("knowledgeMention");
   const tKnowledge = useTranslations("knowledge");
@@ -120,6 +137,8 @@ export function KnowledgeMentionTextarea({
 
   const editorRef = useRef<HTMLDivElement | null>(null);
   const skipRenderFromValueRef = useRef(false);
+  /** Set by `focusEnd({ afterValueSync: true })`, consumed by the value sync. */
+  const focusEndPendingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeqRef = useRef(0);
   const mentionRef = useRef<MentionQuery | null>(null);
@@ -172,6 +191,29 @@ export function KnowledgeMentionTextarea({
     [t],
   );
 
+  const placeCaretAtEnd = useCallback(() => {
+    const root = editorRef.current;
+    if (!root) return;
+    root.focus();
+    const range = document.createRange();
+    range.selectNodeContents(root);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusEnd(options) {
+        if (options?.afterValueSync) focusEndPendingRef.current = true;
+        placeCaretAtEnd();
+      },
+    }),
+    [placeCaretAtEnd],
+  );
+
   const updateMenuPosition = useCallback(() => {
     const root = editorRef.current;
     const current = mentionRef.current;
@@ -211,11 +253,17 @@ export function KnowledgeMentionTextarea({
     if (!root) return;
     if (skipRenderFromValueRef.current) {
       skipRenderFromValueRef.current = false;
+      // The change came from the editor itself; the caret is already where the
+      // user put it, so drop any pending external focus request.
+      focusEndPendingRef.current = false;
       return;
     }
-    if (serializeMentionEditor(root) === value) return;
-    renderMentionEditor(root, value);
-  }, [value]);
+    if (serializeMentionEditor(root) !== value) renderMentionEditor(root, value);
+    if (focusEndPendingRef.current) {
+      focusEndPendingRef.current = false;
+      placeCaretAtEnd();
+    }
+  }, [value, placeCaretAtEnd]);
 
   // Mark inline chips red when the referenced record is no longer active
   // (deleted / archived / expired / access revoked) — any of the 3 kinds.

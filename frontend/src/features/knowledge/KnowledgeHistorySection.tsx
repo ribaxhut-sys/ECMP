@@ -12,6 +12,7 @@ import {
   knowledgeHistoryDiffFields,
   knowledgeHistoryEventIcon,
   knowledgeHistoryEventLabelKey,
+  knowledgeHistoryIsPostPublish,
   type KnowledgeHistoryDiffField,
 } from "./knowledgeHistory";
 
@@ -106,6 +107,7 @@ export function KnowledgeHistorySection({ knowledgeId }: { knowledgeId: string }
     if (
       entry.eventType === "KnowledgeFileUploaded" ||
       entry.eventType === "KnowledgeFileReplaced" ||
+      entry.eventType === "KnowledgeFilePrimaryChanged" ||
       entry.eventType === "KnowledgeFileRemoved"
     ) {
       const oldName = fileName(entry.oldValues);
@@ -135,6 +137,10 @@ export function KnowledgeHistorySection({ knowledgeId }: { knowledgeId: string }
             (entry): TimelineItem => ({
               id: entry.id,
               title: t(knowledgeHistoryEventLabelKey(entry.eventType)),
+              status: knowledgeHistoryIsPostPublish(entry)
+                ? t("historyPostPublishBadge")
+                : undefined,
+              statusTone: "warning",
               actor: entry.actorName?.trim() || t("historySystemActor"),
               time: (
                 <time dateTime={entry.createdAt}>

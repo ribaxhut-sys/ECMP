@@ -350,9 +350,30 @@ export function KnowledgeDetailView({ id }: { id: string }) {
         />
       ) : null}
 
+      {canManage && knowledge.status === "ACTIVE" ? (
+        knowledge.editable && knowledge.editableUntil ? (
+          <Alert
+            tone="info"
+            title={t("editWindowOpenTitle")}
+            description={t("editWindowOpenDescription", {
+              date: formatDateTime(knowledge.editableUntil, locale),
+            })}
+          />
+        ) : (
+          <Alert tone="warning" title={t("editWindowClosedTitle")} description={t("lockedHint")} />
+        )
+      ) : null}
+
       {canManage ? (
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary" onClick={openEdit}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={!knowledge.editable}
+            title={!knowledge.editable ? t("editWindowClosedTitle") : undefined}
+            onClick={openEdit}
+          >
             {tCommon("edit")}
           </Button>
           {knowledge.status !== "DRAFT" ? (
@@ -512,8 +533,8 @@ export function KnowledgeDetailView({ id }: { id: string }) {
               onChange={(key, value) =>
                 setEditValues((prev) => (prev ? { ...prev, [key]: value } : prev))
               }
-              identityLocked={knowledge.status !== "DRAFT"}
-              identityLockedAction={
+              locked={!knowledge.editable}
+              lockedAction={
                 knowledge.status !== "DRAFT" ? (
                   <Button type="button" size="sm" variant="outline" onClick={openReplace}>
                     {t("createReplacement")}

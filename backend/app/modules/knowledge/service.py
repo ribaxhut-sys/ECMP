@@ -10,11 +10,12 @@ AnnouncementService.get_for_reader / get_for_management).
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.core.enums import AuditAction
 from app.core.errors import (
     InvalidStateError,
@@ -67,12 +68,14 @@ class KnowledgeService:
         attachments: AttachmentService,
         audit: AuditService,
         session: Session,
+        settings: Settings | None = None,
     ) -> None:
         self._repo = repository
         self._files = files
         self._attachments = attachments
         self._audit = audit
         self._session = session
+        self._settings = settings or get_settings()
 
     def _log(
         self,
@@ -107,6 +110,46 @@ class KnowledgeService:
         except NotFoundError:
             return "?"
 
+    # --- Post-publish edit window (DEC-030) ----------------------------
+
+    def _editable_until(self, row: KnowledgeORM) -> datetime | None:
+        """Instant the record locks for good, or ``None`` when it is either
+        still freely editable (DRAFT) or already locked (ARCHIVED, or ACTIVE
+        with no ``published_at`` to measure from)."""
+        if row.status != "ACTIVE" or row.published_at is None:
+            return None
+        return row.published_at + timedelta(hours=self._settings.knowledge_edit_grace_hours)
+
+    def _is_editable(self, row: KnowledgeORM, *, now: datetime | None = None) -> bool:
+        """DRAFT is always editable. ACTIVE stays editable until the grace
+        window after publication elapses. ARCHIVED never is — retiring a
+        record ends its editable life regardless of age."""
+        if row.status == "DRAFT":
+            return True
+        until = self._editable_until(row)
+        return until is not None and (now or datetime.now(UTC)) < until
+
+    def _require_editable(
+        self, knowledge_id: uuid.UUID, *, now: datetime | None = None
+    ) -> KnowledgeORM:
+        row = self._repo.get(knowledge_id)
+        if row is None:
+            raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
+        if not self._is_editable(row, now=now):
+            raise InvalidStateError(m("knowledge.files_locked"))
+        return row
+
+    def _post_publish_metadata(self, row: KnowledgeORM) -> dict[str, Any] | None:
+        """Marks a history entry as a change made *after* publication, so the
+        audit trail distinguishes it from ordinary DRAFT editing at a glance."""
+        if row.status == "DRAFT":
+            return None
+        return {
+            "postPublish": True,
+            "statusAtChange": row.status,
+            "editableUntil": _iso(self._editable_until(row)),
+        }
+
     def _to_response(
         self, row: KnowledgeORM, file_rows: list[KnowledgeFileRow]
     ) -> KnowledgeResponse:
@@ -133,6 +176,8 @@ class KnowledgeService:
             createdAt=row.created_at,
             updatedBy=row.updated_by,
             updatedAt=row.updated_at,
+            editable=self._is_editable(row),
+            editableUntil=self._editable_until(row),
             files=[_file_response(f) for f in file_rows],
         )
 
@@ -248,20 +293,19 @@ class KnowledgeService:
         *,
         actor_id: uuid.UUID,
         commit: bool = True,
+        now: datetime | None = None,
     ) -> KnowledgeResponse:
-        """DRAFT — fully editable. ACTIVE/ARCHIVED — identity fields (title,
-        knowledgeType, versionLabel) are locked (KM §17, LOCKED): a
-        substantive change must instead create a new Knowledge record with
+        """DRAFT — fully editable. ACTIVE — fully editable too, but only until
+        the grace window after publication elapses (DEC-030); a correction
+        caught in that window is still the same document. Once locked (window
+        elapsed, or ARCHIVED at any age) nothing may change: a substantive
+        update must instead create a new Knowledge record with
         ``supersedesKnowledgeId``."""
         row = self._repo.get(knowledge_id)
         if row is None:
             raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
-        if row.status != "DRAFT" and (
-            payload.title != row.title
-            or payload.knowledge_type != row.knowledge_type
-            or payload.version_label != row.version_label
-        ):
-            raise ValidationAppError(m("knowledge.active_identity_locked"))
+        if not self._is_editable(row, now=now):
+            raise ValidationAppError(m("knowledge.edit_window_expired"))
         before = {
             "title": row.title,
             "knowledgeType": row.knowledge_type,
@@ -301,6 +345,7 @@ class KnowledgeService:
                 actor_id=actor_id,
                 old_values=changed_old,
                 new_values=changed_new,
+                metadata=self._post_publish_metadata(row),
             )
         if commit:
             self._repo.commit()
@@ -309,16 +354,19 @@ class KnowledgeService:
         return self._to_response(row, files)
 
     def _ensure_file_for_activation(
-        self, knowledge_id: uuid.UUID, *, actor_id: uuid.UUID
+        self, row: KnowledgeORM, *, actor_id: uuid.UUID
     ) -> None:
         """Activation needs at least one source file (PRIMARY is an internal role)."""
-        files = self._files.list_for_knowledge(knowledge_id)
+        files = self._files.list_for_knowledge(row.id)
         if not files:
             raise ValidationAppError(m("knowledge.primary_file_required"))
-        if self._files.get_primary(knowledge_id) is None:
-            join = self._files.get(knowledge_id, files[0].attachment_id)
+        if self._files.get_primary(row.id) is None:
+            join = self._files.get(row.id, files[0].attachment_id)
             if join is not None:
                 self._files.set_primary(join, updated_by=actor_id)
+                self._log_primary_changed(
+                    row, join.attachment_id, actor_id=actor_id, reason="AUTO"
+                )
 
     def _archive_superseded_if_active(
         self, row: KnowledgeORM, *, actor_id: uuid.UUID
@@ -346,7 +394,7 @@ class KnowledgeService:
             raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
         if row.status != "DRAFT":
             raise InvalidStateError(m("knowledge.not_draft"))
-        self._ensure_file_for_activation(knowledge_id, actor_id=actor_id)
+        self._ensure_file_for_activation(row, actor_id=actor_id)
         if (
             row.effective_from is not None
             and row.effective_to is not None
@@ -413,7 +461,7 @@ class KnowledgeService:
             raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
         if row.status != "ARCHIVED":
             raise InvalidStateError(m("knowledge.not_archived"))
-        self._ensure_file_for_activation(knowledge_id, actor_id=actor_id)
+        self._ensure_file_for_activation(row, actor_id=actor_id)
         if (
             row.effective_from is not None
             and row.effective_to is not None
@@ -443,7 +491,9 @@ class KnowledgeService:
         commit: bool = True,
     ) -> None:
         """Soft delete — DRAFT only (KM §23, LOCKED). ACTIVE/ARCHIVED are
-        never deletable, hard or soft."""
+        never deletable, hard or soft — DEC-030's edit window loosens
+        editing, never unpublishing; a live record is retired via
+        ``archive()``, not delete."""
         row = self._repo.get(knowledge_id)
         if row is None:
             raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
@@ -460,15 +510,7 @@ class KnowledgeService:
         if commit:
             self._repo.commit()
 
-    # --- Files (knowledge:manage, DRAFT only) ---------------------------
-
-    def _require_draft(self, knowledge_id: uuid.UUID) -> KnowledgeORM:
-        row = self._repo.get(knowledge_id)
-        if row is None:
-            raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
-        if row.status != "DRAFT":
-            raise InvalidStateError(m("knowledge.files_draft_only"))
-        return row
+    # --- Files (knowledge:manage, while editable) -----------------------
 
     def upload_file(
         self,
@@ -480,7 +522,7 @@ class KnowledgeService:
         role: str,
         actor_id: uuid.UUID,
     ) -> KnowledgeResponse:
-        self._require_draft(knowledge_id)
+        row = self._require_editable(knowledge_id)
         existing_primary = self._files.get_primary(knowledge_id)
         previous_primary = existing_primary if role == "PRIMARY" else None
         uploaded: AttachmentResponse = self._attachments.upload(
@@ -511,6 +553,7 @@ class KnowledgeService:
                 actor_id=actor_id,
                 old_values={"fileName": old_name, "role": "PRIMARY"},
                 new_values={"fileName": uploaded.original_name, "role": "PRIMARY"},
+                metadata=self._post_publish_metadata(row),
             )
         else:
             self._log(
@@ -522,9 +565,32 @@ class KnowledgeService:
                     "fileName": uploaded.original_name,
                     "role": "PRIMARY" if make_primary else role,
                 },
+                metadata=self._post_publish_metadata(row),
             )
         self._files.commit()
         return self.get(knowledge_id, caller_may_manage=True)
+
+    def _log_primary_changed(
+        self,
+        row: KnowledgeORM,
+        attachment_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID,
+        reason: str,
+    ) -> None:
+        """PRIMARY moved without a file being replaced — either the first
+        primary was set, or removing the primary promoted the next file
+        automatically. ``reason`` is SET or AUTO."""
+        metadata = self._post_publish_metadata(row) or {}
+        metadata["reason"] = reason
+        self._log(
+            event_type="KnowledgeFilePrimaryChanged",
+            action=AuditAction.UPDATE,
+            entity_id=row.id,
+            actor_id=actor_id,
+            new_values={"fileName": self._file_name(attachment_id), "role": "PRIMARY"},
+            metadata=metadata,
+        )
 
     def set_primary_file(
         self,
@@ -533,13 +599,16 @@ class KnowledgeService:
         *,
         actor_id: uuid.UUID,
     ) -> KnowledgeResponse:
-        self._require_draft(knowledge_id)
+        row = self._require_editable(knowledge_id)
         join = self._files.get(knowledge_id, attachment_id)
         if join is None:
             raise NotFoundError(m("attachment.not_found"))
         previous_primary = self._files.get_primary(knowledge_id)
+        already_primary = (
+            previous_primary is not None and previous_primary.attachment_id == attachment_id
+        )
         self._files.set_primary(join, updated_by=actor_id)
-        if previous_primary is not None and previous_primary.attachment_id != attachment_id:
+        if previous_primary is not None and not already_primary:
             old_name = self._file_name(previous_primary.attachment_id)
             self._log(
                 event_type="KnowledgeFileReplaced",
@@ -548,7 +617,12 @@ class KnowledgeService:
                 actor_id=actor_id,
                 old_values={"fileName": old_name, "role": "PRIMARY"},
                 new_values={"fileName": self._file_name(attachment_id), "role": "PRIMARY"},
+                metadata=self._post_publish_metadata(row),
             )
+        elif previous_primary is None:
+            # No prior primary to replace — still a change of the document
+            # readers actually see, so it must leave a trace of its own.
+            self._log_primary_changed(row, attachment_id, actor_id=actor_id, reason="SET")
         self._files.commit()
         return self.get(knowledge_id, caller_may_manage=True)
 
@@ -559,7 +633,7 @@ class KnowledgeService:
         *,
         actor_id: uuid.UUID,
     ) -> KnowledgeResponse:
-        self._require_draft(knowledge_id)
+        row = self._require_editable(knowledge_id)
         join = self._files.get(knowledge_id, attachment_id)
         if join is None:
             raise NotFoundError(m("attachment.not_found"))
@@ -570,6 +644,7 @@ class KnowledgeService:
             entity_id=knowledge_id,
             actor_id=actor_id,
             old_values={"fileName": self._file_name(attachment_id), "role": join.role},
+            metadata=self._post_publish_metadata(row),
         )
         self._files.delete(join)
         self._attachments.soft_delete(attachment_id, commit=False)
@@ -579,6 +654,11 @@ class KnowledgeService:
                 next_join = self._files.get(knowledge_id, remaining[0].attachment_id)
                 if next_join is not None:
                     self._files.set_primary(next_join, updated_by=actor_id)
+                    # Promotion is automatic, but the displayed document
+                    # changes — never let that happen without history.
+                    self._log_primary_changed(
+                        row, next_join.attachment_id, actor_id=actor_id, reason="AUTO"
+                    )
         self._files.commit()
         return self.get(knowledge_id, caller_may_manage=True)
 

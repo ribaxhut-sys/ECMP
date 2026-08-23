@@ -351,8 +351,8 @@ MESSAGES: dict[str, str] = {
     "knowledge.effective_to_before_from": (
         "Berlaku sampai harus setelah berlaku mulai."
     ),
-    "knowledge.active_identity_locked": (
-        "Judul, jenis, dan versi tidak dapat diubah setelah Pengetahuan aktif. "
+    "knowledge.edit_window_expired": (
+        "Masa perubahan Pengetahuan ini sudah berakhir, jadi isinya terkunci. "
         "Buat Pengetahuan baru yang menggantikan versi ini."
     ),
     "knowledge.not_draft": "Tindakan ini hanya berlaku untuk Pengetahuan berstatus draft.",
@@ -366,8 +366,8 @@ MESSAGES: dict[str, str] = {
     "knowledge.delete_draft_only": (
         "Hanya Pengetahuan berstatus draft yang dapat dihapus."
     ),
-    "knowledge.files_draft_only": (
-        "Berkas Pengetahuan hanya dapat diubah selama berstatus draft."
+    "knowledge.files_locked": (
+        "Berkas Pengetahuan ini terkunci karena masa perubahannya sudah berakhir."
     ),
     # --- SLA ---
     "sla.active_cannot_have_completed_at": "SLA aktif tidak boleh memiliki completed_at.",

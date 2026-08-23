@@ -1,1 +1,1 @@
-export { ReasonPresetTags } from "./ReasonPresetTags";
+export { ReasonPresetTags, appendPreset } from "./ReasonPresetTags";

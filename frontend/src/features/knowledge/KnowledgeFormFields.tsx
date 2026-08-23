@@ -19,9 +19,11 @@ export function KnowledgeFormFields({
   values,
   fieldErrors,
   onChange,
-  /** ACTIVE/ARCHIVED — title, jenis, and versi are locked server-side (KM §17). */
-  identityLocked = false,
-  identityLockedAction = null,
+  /** DEC-030: once the post-publish edit window has closed (or the record
+   * is ARCHIVED), every field locks — not just title/jenis/versi. Pass
+   * `!knowledge.editable`, never re-derive this from `status` in the FE. */
+  locked = false,
+  lockedAction = null,
 }: {
   values: KnowledgeFormValues;
   fieldErrors: KnowledgeFieldErrors;
@@ -29,8 +31,8 @@ export function KnowledgeFormFields({
     key: K,
     value: KnowledgeFormValues[K],
   ) => void;
-  identityLocked?: boolean;
-  identityLockedAction?: ReactNode;
+  locked?: boolean;
+  lockedAction?: ReactNode;
 }) {
   const t = useTranslations("knowledge");
   const tValidation = useTranslations("validation");
@@ -85,12 +87,12 @@ export function KnowledgeFormFields({
 
   return (
     <div className="space-y-[var(--ecmp-form-gap)]">
-      {identityLocked ? (
+      {locked ? (
         <div className="space-y-2">
           <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-            {t("identityLockedHint")}
+            {t("lockedHint")}
           </p>
-          {identityLockedAction}
+          {lockedAction}
         </div>
       ) : null}
       <Input
@@ -100,7 +102,7 @@ export function KnowledgeFormFields({
         error={fieldError("title")}
         required
         maxLength={200}
-        disabled={identityLocked}
+        disabled={locked}
       />
       <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
         <Select
@@ -108,7 +110,7 @@ export function KnowledgeFormFields({
           value={values.knowledgeType}
           onChange={(e) => onChange("knowledgeType", e.target.value as KnowledgeType)}
           options={typeOptions}
-          disabled={identityLocked}
+          disabled={locked}
         />
         <Input
           label={t("fieldVersionLabel")}
@@ -117,7 +119,7 @@ export function KnowledgeFormFields({
           onChange={(e: ChangeEvent<HTMLInputElement>) =>
             onChange("versionLabel", e.target.value)
           }
-          disabled={identityLocked}
+          disabled={locked}
         />
       </div>
       <Input
@@ -127,6 +129,7 @@ export function KnowledgeFormFields({
         onChange={(e: ChangeEvent<HTMLInputElement>) =>
           onChange("documentNumber", e.target.value)
         }
+        disabled={locked}
       />
       <Textarea
         label={t("fieldSummaryLabel")}
@@ -135,6 +138,7 @@ export function KnowledgeFormFields({
           onChange("summary", e.target.value)
         }
         rows={4}
+        disabled={locked}
       />
       <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
         <Input
@@ -145,6 +149,7 @@ export function KnowledgeFormFields({
             onChange("effectiveFrom", e.target.value)
           }
           error={fieldError("effectiveFrom")}
+          disabled={locked}
         />
         <Input
           type="datetime-local"
@@ -154,6 +159,7 @@ export function KnowledgeFormFields({
             onChange("effectiveTo", e.target.value)
           }
           error={fieldError("effectiveTo")}
+          disabled={locked}
         />
       </div>
     </div>

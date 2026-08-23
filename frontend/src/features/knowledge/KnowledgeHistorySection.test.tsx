@@ -24,6 +24,7 @@ function entry(overrides: Partial<KnowledgeHistoryEntry> = {}): KnowledgeHistory
     actorName: "Admin Pusat",
     oldValues: null,
     newValues: { title: "SOP Baru" },
+    metadata: null,
     createdAt: "2026-08-01T00:00:00Z",
     ...overrides,
   };
@@ -88,6 +89,24 @@ describe("KnowledgeHistorySection", () => {
     renderWithProviders(<KnowledgeHistorySection knowledgeId="k-1" />);
 
     expect(await screen.findByText("sop_v1.pdf → sop_v2.pdf")).toBeInTheDocument();
+  });
+
+  it("marks a post-publish change (DEC-030) with a badge", async () => {
+    fetchKnowledgeHistory.mockResolvedValue({
+      data: [
+        entry({
+          id: "a4",
+          eventType: "KnowledgeUpdated",
+          oldValues: { summary: "Lama" },
+          newValues: { summary: "Baru" },
+          metadata: { postPublish: true, statusAtChange: "ACTIVE" },
+        }),
+      ],
+    });
+
+    renderWithProviders(<KnowledgeHistorySection knowledgeId="k-1" />);
+
+    expect(await screen.findByText("After publish")).toBeInTheDocument();
   });
 
   it("shows the empty state when there is no history yet", async () => {

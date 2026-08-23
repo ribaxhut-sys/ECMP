@@ -216,6 +216,17 @@ class Settings(BaseSettings):
     )
     email_provider: str = Field(default="logging", alias="EMAIL_PROVIDER")
 
+    # Knowledge (Pengetahuan) post-publish edit window — DEC-030.
+    # Hours after ``published_at`` during which a manager may still correct a
+    # published record (every field, files included). Once elapsed the record
+    # is fully locked; a substantive change must create a replacement.
+    knowledge_edit_grace_hours: int = Field(
+        default=24,
+        alias="KNOWLEDGE_EDIT_GRACE_HOURS",
+        ge=0,
+        le=720,
+    )
+
     # Master Customer integration (ADR-002 read-only; CM Batch 1)
     # stub = in-memory seed (default / current behavior)
     # local = lab Postgres customers reference cache (ID / name / phone)

@@ -157,6 +157,12 @@ class KnowledgeResponse(BaseModel):
     created_at: datetime = Field(alias="createdAt")
     updated_by: uuid.UUID | None = Field(default=None, alias="updatedBy")
     updated_at: datetime = Field(alias="updatedAt")
+    # Post-publish edit window (DEC-030), computed server-side from
+    # ``published_at`` — FE must never derive it from the client clock.
+    # ``editable_until`` is null when the record is DRAFT (no deadline) or
+    # already locked; read ``editable`` to tell those two apart.
+    editable: bool = True
+    editable_until: datetime | None = Field(default=None, alias="editableUntil")
     # Already access-filtered per-caller by the service — never filter again in FE.
     files: list[KnowledgeFileResponse] = Field(default_factory=list)
 

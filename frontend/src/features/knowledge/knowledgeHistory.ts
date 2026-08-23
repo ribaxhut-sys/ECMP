@@ -32,6 +32,8 @@ export function knowledgeHistoryEventLabelKey(eventType: string): string {
       return "historyEventFileUploaded";
     case "KnowledgeFileReplaced":
       return "historyEventFileReplaced";
+    case "KnowledgeFilePrimaryChanged":
+      return "historyEventFilePrimaryChanged";
     case "KnowledgeFileRemoved":
       return "historyEventFileRemoved";
     default:
@@ -53,11 +55,21 @@ export function knowledgeHistoryEventIcon(eventType: string): string {
       return "✕"; // x
     case "KnowledgeFileUploaded":
     case "KnowledgeFileReplaced":
+    case "KnowledgeFilePrimaryChanged":
     case "KnowledgeFileRemoved":
       return "📎"; // paperclip
     default:
       return "•"; // bullet
   }
+}
+
+/** DEC-030 — a change made after publication (still inside the grace
+ * window) is marked in the timeline so the audit trail distinguishes it from
+ * ordinary DRAFT-time editing at a glance. */
+export function knowledgeHistoryIsPostPublish(
+  entry: Pick<KnowledgeHistoryEntry, "metadata">,
+): boolean {
+  return entry.metadata?.postPublish === true;
 }
 
 /** Only meaningful for a KnowledgeUpdated entry — every other event type
