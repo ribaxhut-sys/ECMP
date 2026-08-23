@@ -60,6 +60,7 @@ function knowledge(overrides: Partial<Knowledge> = {}): Knowledge {
     editable: true,
     editableUntil: null,
     files: [],
+    pinned: false,
     ...overrides,
   };
 }

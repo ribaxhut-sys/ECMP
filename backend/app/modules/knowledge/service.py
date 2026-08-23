@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.enums import AuditAction
 from app.core.errors import (
+    ConflictError,
     InvalidStateError,
     NotFoundError,
     PermissionDeniedError,
@@ -32,6 +33,7 @@ from app.modules.audit.schemas import AuditLogResponse
 from app.modules.audit.service import AuditService
 from app.modules.knowledge.file_repository import KnowledgeFileRepository, KnowledgeFileRow
 from app.modules.knowledge.models import KnowledgeORM
+from app.modules.knowledge.pin_repository import MAX_PINS_PER_USER, KnowledgePinRepository
 from app.modules.knowledge.repository import KnowledgeRepository, within_effective_window
 from app.modules.knowledge.schemas import (
     KnowledgeCreateRequest,
@@ -69,6 +71,7 @@ class KnowledgeService:
         audit: AuditService,
         session: Session,
         settings: Settings | None = None,
+        pins: KnowledgePinRepository | None = None,
     ) -> None:
         self._repo = repository
         self._files = files
@@ -76,6 +79,12 @@ class KnowledgeService:
         self._audit = audit
         self._session = session
         self._settings = settings or get_settings()
+        self._pins = pins
+
+    def _require_pins(self) -> KnowledgePinRepository:
+        if self._pins is None:
+            self._pins = KnowledgePinRepository(self._session)
+        return self._pins
 
     def _log(
         self,
@@ -151,7 +160,11 @@ class KnowledgeService:
         }
 
     def _to_response(
-        self, row: KnowledgeORM, file_rows: list[KnowledgeFileRow]
+        self,
+        row: KnowledgeORM,
+        file_rows: list[KnowledgeFileRow],
+        *,
+        pinned: bool = False,
     ) -> KnowledgeResponse:
         supersedes_title: str | None = None
         if row.supersedes_knowledge_id is not None:
@@ -179,6 +192,7 @@ class KnowledgeService:
             editable=self._is_editable(row),
             editableUntil=self._editable_until(row),
             files=[_file_response(f) for f in file_rows],
+            pinned=pinned,
         )
 
     # --- Read ---------------------------------------------------------
@@ -194,6 +208,7 @@ class KnowledgeService:
         knowledge_type: str | None,
         status: str,
         caller_may_manage: bool,
+        user_id: uuid.UUID,
         reference_only: bool = False,
         limit: int | None = None,
     ) -> list[KnowledgeResponse]:
@@ -207,6 +222,10 @@ class KnowledgeService:
         Reference search returns at most 10 rows (default and hard cap) so
         the ``@`` popover stays scannable; the management list is uncapped
         unless the caller passes an explicit ``limit``.
+
+        Pins (0104) only reorder the browse/manage list — the ``@`` reference
+        picker stays purely recency-ordered so a citation search never
+        depends on one caller's personal curation.
         """
         effective_status = "ACTIVE" if reference_only else status
         if effective_status == "DRAFT" and not caller_may_manage:
@@ -223,7 +242,21 @@ class KnowledgeService:
         elif limit is not None:
             rows = rows[:limit]
         files_by_id = self._files.list_for_knowledge_ids([r.id for r in rows])
-        return [self._to_response(r, files_by_id.get(r.id, [])) for r in rows]
+
+        pinned_ids: set[uuid.UUID] = set()
+        if not reference_only:
+            pinned_ids = self._require_pins().pinned_ids(user_id)
+        responses = [
+            self._to_response(
+                r, files_by_id.get(r.id, []), pinned=r.id in pinned_ids
+            )
+            for r in rows
+        ]
+        if pinned_ids:
+            # Stable — inside each group the repository's created_at DESC
+            # order survives.
+            responses.sort(key=lambda item: not item.pinned)
+        return responses
 
     def count_citable_by_type(self) -> KnowledgeTypeCounts:
         raw = self._repo.count_citable_by_type()
@@ -241,6 +274,38 @@ class KnowledgeService:
             raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
         files = self._files.list_for_knowledge(knowledge_id)
         return self._to_response(row, files)
+
+    def set_pin(
+        self,
+        knowledge_id: uuid.UUID,
+        *,
+        pinned: bool,
+        user_id: uuid.UUID,
+        caller_may_manage: bool,
+    ) -> None:
+        """Pin/unpin a Knowledge record for the calling user only.
+
+        A pin is presentation state: it changes where the record appears in
+        this caller's own list and nothing else. Both directions are
+        idempotent, so a double click never turns into an error. Same
+        visibility gate as ``get()`` — a caller may not pin, and thereby
+        confirm the existence of, a DRAFT they are not allowed to see.
+        """
+        row = self._repo.get(knowledge_id)
+        if row is None or (row.status == "DRAFT" and not caller_may_manage):
+            raise NotFoundError(KNOWLEDGE_NOT_FOUND_MESSAGE)
+
+        pins = self._require_pins()
+        if not pinned:
+            pins.unpin(user_id=user_id, knowledge_id=knowledge_id)
+            pins.commit()
+            return
+
+        already = pins.is_pinned(user_id=user_id, knowledge_id=knowledge_id)
+        if not already and pins.count_for_user(user_id) >= MAX_PINS_PER_USER:
+            raise ConflictError(m("knowledge.pin_limit_reached"))
+        pins.pin(user_id=user_id, knowledge_id=knowledge_id)
+        pins.commit()
 
     # --- Management (knowledge:manage) ---------------------------------
 

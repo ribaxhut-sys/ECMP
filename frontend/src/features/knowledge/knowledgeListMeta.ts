@@ -40,10 +40,12 @@ export function pickKnowledgeDisplayFile(
 }
 
 /** Newest upload (`createdAt`) first — stable for catalog paging. */
-export function sortKnowledgeByUploadedAtDesc<T extends Pick<Knowledge, "createdAt" | "id">>(
-  rows: readonly T[],
-): T[] {
+/** Pinned records always lead (0104), newest-first within each group. */
+export function sortKnowledgeByUploadedAtDesc<
+  T extends Pick<Knowledge, "createdAt" | "id" | "pinned">,
+>(rows: readonly T[]): T[] {
   return [...rows].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     const aTime = Date.parse(a.createdAt);
     const bTime = Date.parse(b.createdAt);
     const aOk = Number.isFinite(aTime);

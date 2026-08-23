@@ -165,6 +165,8 @@ class KnowledgeResponse(BaseModel):
     editable_until: datetime | None = Field(default=None, alias="editableUntil")
     # Already access-filtered per-caller by the service — never filter again in FE.
     files: list[KnowledgeFileResponse] = Field(default_factory=list)
+    #: Per-caller pin (0104) — presentation only, never an access grant.
+    pinned: bool = False
 
 
 class KnowledgeTypeCounts(BaseModel):

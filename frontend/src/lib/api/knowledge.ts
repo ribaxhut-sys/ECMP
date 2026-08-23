@@ -97,6 +97,19 @@ export function deleteKnowledge(id: string): Promise<void> {
   });
 }
 
+/** Pin a Knowledge record to the top of the caller's own list (max 10). */
+export function pinKnowledge(id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/knowledge/${encodeURIComponent(id)}/pin`, {
+    method: "PUT",
+  });
+}
+
+export function unpinKnowledge(id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/knowledge/${encodeURIComponent(id)}/pin`, {
+    method: "DELETE",
+  });
+}
+
 // --- Files (knowledge:manage, DRAFT only) -----------------------------
 
 export function uploadKnowledgeFile(

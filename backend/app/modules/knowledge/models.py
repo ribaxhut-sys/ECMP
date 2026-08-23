@@ -30,6 +30,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -134,4 +135,34 @@ class KnowledgeFileORM(UUIDPrimaryKeyMixin, TimestampMixin, AuditUserMixin, Base
     )
     role: Mapped[str] = mapped_column(
         String(20), nullable=False, default="SUPPORTING"
+    )
+
+
+class KnowledgeUserPinORM(UUIDPrimaryKeyMixin, Base):
+    """Per-user pin (0104) — presentation preference, never an access grant.
+
+    ``user_id`` intentionally carries no FK — same reasoning as
+    ``AttachmentUserPinORM`` (app.modules.attachment.models): the identity
+    contract with the Enterprise Platform is still open.
+    """
+
+    __tablename__ = "knowledge_user_pins"
+    __table_args__ = (
+        UniqueConstraint(
+            "knowledge_id", "user_id", name="uq_knowledge_user_pins_pair"
+        ),
+        Index("ix_knowledge_user_pins_user_id", "user_id"),
+        Index("ix_knowledge_user_pins_knowledge_id", "knowledge_id"),
+    )
+
+    knowledge_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("knowledge.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    pinned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )

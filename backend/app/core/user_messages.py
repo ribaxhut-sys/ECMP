@@ -344,6 +344,10 @@ MESSAGES: dict[str, str] = {
     "announcement.not_published": "Pengumuman belum published.",
     # --- Knowledge (Pengetahuan) ---
     "knowledge.not_found": "Pengetahuan tidak ditemukan.",
+    "knowledge.pin_limit_reached": (
+        "Maksimal 10 Pengetahuan yang dapat disematkan. "
+        "Lepas salah satu sematan lebih dulu."
+    ),
     "knowledge.only_admin_supervisor_manager_pusat": (
         "Hanya Admin Pusat, Supervisor Pusat, atau Manager Pusat yang dapat "
         "mengelola Pengetahuan."

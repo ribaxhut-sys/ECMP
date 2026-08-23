@@ -155,6 +155,9 @@ def test_manage_routes_depend_on_require_announcement_manage() -> None:
         ("/api/v1/announcements/attachment-library", "POST"),
         ("/api/v1/announcements/attachment-library/{attachment_id}", "DELETE"),
         ("/api/v1/announcements/attachment-library/{attachment_id}/access", "PUT"),
+        # Pin (0103) — presentation only, per-caller; announcement:read is enough.
+        ("/api/v1/announcements/attachment-library/{attachment_id}/pin", "PUT"),
+        ("/api/v1/announcements/attachment-library/{attachment_id}/pin", "DELETE"),
     }
 
     assert set(routes_by_key) == manage_keys | read_only_keys, set(routes_by_key)

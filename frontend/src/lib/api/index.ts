@@ -76,9 +76,11 @@ export {
   publishKnowledge,
   removeKnowledgeFile,
   fetchKnowledgeTypeCounts,
+  pinKnowledge,
   searchKnowledge,
   setPrimaryKnowledgeFile,
   unarchiveKnowledge,
+  unpinKnowledge,
   updateKnowledge,
   uploadKnowledgeFile,
 } from "./knowledge";

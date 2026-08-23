@@ -972,6 +972,8 @@ export interface Knowledge {
   editableUntil: string | null;
   /** Already access-filtered per-caller by the backend — never filter again in FE. */
   files: KnowledgeFile[];
+  /** Pinned by the caller — presentation only, scoped per user. */
+  pinned: boolean;
 }
 
 export interface KnowledgeCreateRequest {

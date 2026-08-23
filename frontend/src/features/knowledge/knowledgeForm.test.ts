@@ -141,6 +141,7 @@ describe("knowledgeFormFromExisting", () => {
     editable: true,
     editableUntil: null,
     files: [],
+    pinned: false,
   };
 
   it("round-trips a knowledge record with no effective window", () => {

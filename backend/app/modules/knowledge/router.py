@@ -96,6 +96,7 @@ def search_knowledge(
         knowledge_type=knowledge_type,
         status=status_filter,
         caller_may_manage=caller_may_manage,
+        user_id=principal.user_id,
         reference_only=reference_only,
         limit=limit,
     )
@@ -151,6 +152,49 @@ def get_knowledge_history(
     history is invisible to a non-manager, same as the record itself."""
     caller_may_manage = _caller_may_manage(principal, session)
     return DataResponse(data=service.list_history(id, caller_may_manage=caller_may_manage))
+
+
+@router.put(
+    "/{id}/pin",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Pin a Knowledge record to the top of the caller's own list",
+)
+def pin_knowledge(
+    id: uuid.UUID,
+    service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+    principal: Annotated[Principal, Depends(require_permissions("knowledge:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> Response:
+    """Presentation only — reorders the caller's own catalog view (max 10)."""
+    caller_may_manage = _caller_may_manage(principal, session)
+    service.set_pin(
+        id,
+        pinned=True,
+        user_id=principal.user_id,
+        caller_may_manage=caller_may_manage,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/{id}/pin",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Unpin a Knowledge record for the caller",
+)
+def unpin_knowledge(
+    id: uuid.UUID,
+    service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+    principal: Annotated[Principal, Depends(require_permissions("knowledge:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> Response:
+    caller_may_manage = _caller_may_manage(principal, session)
+    service.set_pin(
+        id,
+        pinned=False,
+        user_id=principal.user_id,
+        caller_may_manage=caller_may_manage,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

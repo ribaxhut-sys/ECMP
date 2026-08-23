@@ -10,6 +10,8 @@ import { renderWithProviders } from "@/test/harness";
 const searchKnowledge = vi.fn();
 const createKnowledge = vi.fn();
 const uploadKnowledgeFile = vi.fn();
+const pinKnowledge = vi.fn();
+const unpinKnowledge = vi.fn();
 const push = vi.fn();
 const hasPermission = vi.fn<(permission: string) => boolean>(() => false);
 let mockRoles: string[] = [];
@@ -39,9 +41,12 @@ vi.mock("@/lib/api", async () => {
     searchKnowledge: (...args: unknown[]) => searchKnowledge(...args),
     createKnowledge: (...args: unknown[]) => createKnowledge(...args),
     uploadKnowledgeFile: (...args: unknown[]) => uploadKnowledgeFile(...args),
+    pinKnowledge: (...args: unknown[]) => pinKnowledge(...args),
+    unpinKnowledge: (...args: unknown[]) => unpinKnowledge(...args),
   };
 });
 
+import { ApiError } from "@/lib/api/client";
 import { KnowledgeListView } from "./KnowledgeListView";
 
 function knowledge(overrides: Record<string, unknown> = {}) {
@@ -65,6 +70,7 @@ function knowledge(overrides: Record<string, unknown> = {}) {
     updatedBy: null,
     updatedAt: "2026-07-30T00:00:00Z",
     files: [],
+    pinned: false,
     ...overrides,
   };
 }
@@ -74,6 +80,8 @@ describe("KnowledgeListView", () => {
     searchKnowledge.mockReset();
     createKnowledge.mockReset();
     uploadKnowledgeFile.mockReset();
+    pinKnowledge.mockReset().mockResolvedValue(undefined);
+    unpinKnowledge.mockReset().mockResolvedValue(undefined);
     push.mockReset();
     hasPermission.mockReset().mockReturnValue(false);
     mockRoles = [];
@@ -314,6 +322,44 @@ describe("KnowledgeListView", () => {
     await waitFor(() => {
       expect(screen.getByText("No Knowledge yet")).toBeInTheDocument();
     });
+  });
+
+  it("pins a record and reloads the list", async () => {
+    const user = userEvent.setup();
+    searchKnowledge.mockResolvedValue({ data: [knowledge()] });
+
+    renderWithProviders(<KnowledgeListView />);
+    const pinButtons = await screen.findAllByRole("button", { name: /^pin$/i });
+
+    searchKnowledge.mockResolvedValueOnce({
+      data: [knowledge({ pinned: true })],
+    });
+    await user.click(pinButtons[0]!);
+
+    await waitFor(() => {
+      expect(pinKnowledge).toHaveBeenCalledWith(
+        "d4444444-4444-4444-4444-444444444444",
+      );
+    });
+    expect(
+      (await screen.findAllByRole("button", { name: /^unpin$/i })).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows the pin-limit message on a 409 CONFLICT from the pin endpoint", async () => {
+    const user = userEvent.setup();
+    searchKnowledge.mockResolvedValue({ data: [knowledge()] });
+    pinKnowledge.mockRejectedValue(
+      new ApiError(409, "CONFLICT", "Knowledge pin limit reached"),
+    );
+
+    renderWithProviders(<KnowledgeListView />);
+    const pinButtons = await screen.findAllByRole("button", { name: /^pin$/i });
+    await user.click(pinButtons[0]!);
+
+    expect(
+      await screen.findByText(/maksimal 10 pengetahuan|at most 10 knowledge/i),
+    ).toBeInTheDocument();
   });
 
   describe("pagination", () => {

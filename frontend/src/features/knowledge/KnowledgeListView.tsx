@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { createKnowledge, searchKnowledge, uploadKnowledgeFile } from "@/lib/api";
+import {
+  createKnowledge,
+  pinKnowledge,
+  searchKnowledge,
+  unpinKnowledge,
+  uploadKnowledgeFile,
+} from "@/lib/api";
+import { ApiError } from "@/lib/api/client";
 import type { Knowledge, KnowledgeStatus, KnowledgeType } from "@/lib/api/types";
 import { formatDate } from "@/i18n/formatting";
 import {
@@ -22,7 +29,7 @@ import {
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useToast } from "@/shared/providers";
-import { IconExternalLink } from "@/shared/icons";
+import { IconExternalLink, IconPin } from "@/shared/icons";
 import { attachmentPreviewPath } from "@/features/attachments/previewRoutes";
 import { knowledgeTypeKey, KnowledgeTypeBadge } from "./KnowledgeBadges";
 import { KnowledgeCreateFileStaging, type StagedKnowledgeFile } from "./KnowledgeCreateFileStaging";
@@ -89,6 +96,7 @@ export function KnowledgeListView() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [pinBusyId, setPinBusyId] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createValues, setCreateValues] = useState<KnowledgeFormValues>(
@@ -155,6 +163,38 @@ export function KnowledgeListView() {
     [pushToast, tAttachments],
   );
 
+  const onTogglePin = useCallback(
+    async (knowledge: Knowledge) => {
+      setPinBusyId(knowledge.id);
+      try {
+        if (knowledge.pinned) {
+          await unpinKnowledge(knowledge.id);
+        } else {
+          await pinKnowledge(knowledge.id);
+        }
+        // Server decides the pinned-first order — reload rather than
+        // reorder locally so the list stays consistent with the cap of 10.
+        await load();
+      } catch (err) {
+        // Backend caps pins at 10 (CONFLICT) — that specific reason is worth
+        // more than a generic error toast.
+        if (!knowledge.pinned && err instanceof ApiError && err.code === "CONFLICT") {
+          pushToast({ title: t("pinLimitReached"), tone: "danger" });
+        } else {
+          pushToast({
+            title:
+              resolveApiErrorMessage(err, tErrors, tCommon) ||
+              (knowledge.pinned ? t("unableToUnpin") : t("unableToPin")),
+            tone: "danger",
+          });
+        }
+      } finally {
+        setPinBusyId(null);
+      }
+    },
+    [load, pushToast, t, tCommon, tErrors],
+  );
+
   const columns: TableColumn<KnowledgeFileListRow>[] = useMemo(
     () => [
       {
@@ -185,6 +225,13 @@ export function KnowledgeListView() {
               aria-hidden
             />
             <KnowledgeTypeBadge type={knowledge.knowledgeType} />
+            {knowledge.pinned ? (
+              <IconPin
+                className="mt-[0.15rem] size-3.5 shrink-0 text-ecmp-primary"
+                fill="currentColor"
+                title={t("pinnedBadge")}
+              />
+            ) : null}
             <span
               className="min-w-0 break-words font-medium text-ecmp-text-primary"
               title={knowledge.title}
@@ -247,8 +294,37 @@ export function KnowledgeListView() {
             <span className="text-ecmp-text-secondary">{tCommon("emDash")}</span>
           ),
       },
+      {
+        key: "pin",
+        header: t("columnPin"),
+        slot: "action",
+        cell: ({ knowledge }) => {
+          const busy = pinBusyId === knowledge.id;
+          return (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              aria-label={knowledge.pinned ? t("unpin") : t("pin")}
+              title={knowledge.pinned ? t("unpin") : t("pin")}
+              className={
+                knowledge.pinned
+                  ? "!min-h-8 !min-w-8 !px-0 text-ecmp-primary"
+                  : "!min-h-8 !min-w-8 !px-0"
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                void onTogglePin(knowledge);
+              }}
+            >
+              <IconPin className="size-4" fill={knowledge.pinned ? "currentColor" : "none"} />
+            </Button>
+          );
+        },
+      },
     ],
-    [t, tCommon, tAttachments, locale, openFileInNewTab],
+    [t, tCommon, tAttachments, locale, openFileInNewTab, pinBusyId, onTogglePin],
   );
 
   const pageSizeOptions = useMemo(
