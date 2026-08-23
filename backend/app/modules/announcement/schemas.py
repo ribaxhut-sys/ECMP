@@ -54,6 +54,8 @@ class AnnouncementAttachmentLibraryItem(BaseModel):
     uploaded_by: uuid.UUID | None = Field(default=None, alias="uploadedBy")
     uploaded_by_name: str | None = Field(default=None, alias="uploadedByName")
     usage_count: int = Field(default=0, alias="usageCount")
+    #: Per-caller pin (0103) — presentation only, never an access grant.
+    pinned: bool = False
 
 
 class AnnouncementAttachmentAccessUpdateRequest(BaseModel):

@@ -277,6 +277,15 @@ export function IconDownload(props: IconProps) {
   );
 }
 
+/** Filled when pinned, outline when not — pass fill="currentColor" from the caller. */
+export function IconPin(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M9 4h6l-.5 5.5L18 12v2h-5.5L12 21l-.5-6.5H6v-2l3.5-2.5L9 4z" />
+    </IconBase>
+  );
+}
+
 export function IconExternalLink(props: IconProps) {
   return (
     <IconBase {...props}>

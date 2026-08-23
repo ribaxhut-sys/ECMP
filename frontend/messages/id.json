@@ -1648,6 +1648,9 @@
     "applyFilters": "Terapkan filter",
     "supervisorQueue": "Perlu tinjauan Staff KaSatPel",
     "aggregateListTitle": "Daftar pengaduan",
+    "listCaseColumn": "Case",
+    "noCaseYet": "Belum ada case",
+    "aggregateSearchPlaceholder": "Nomor case, nomor pengaduan, subjek…",
     "aggregateListEmpty": "Belum ada pengaduan",
     "aggregateListEmptyDescription": "Buat pengaduan baru dari formulir. Setelah terdaftar, muncul di sini.",
     "aggregateListEmptyFiltered": "Coba sesuaikan filter atau hapus filter.",
@@ -2257,7 +2260,13 @@
     "idsPlaceholder": "uuid-1, uuid-2",
     "apiHintPrefix": "Hanya menggunakan API yang ada:",
     "apiHintJoin": "dan",
-    "refreshAttachments": "Muat ulang lampiran"
+    "refreshAttachments": "Muat ulang lampiran",
+    "pin": "Sematkan",
+    "unpin": "Lepas sematan",
+    "pinnedBadge": "Disematkan",
+    "pinLimitReached": "Maksimal 10 lampiran yang dapat disematkan. Lepas salah satu sematan lebih dulu.",
+    "unableToPin": "Tidak dapat menyematkan lampiran.",
+    "unableToUnpin": "Tidak dapat melepas sematan lampiran."
   },
   "reports": {
     "title": "Laporan",
@@ -2580,8 +2589,8 @@
         "description": "Panjang setiap slot kedatangan HQ, dalam menit."
       },
       "hq_schedule_capacity_per_slot": {
-        "label": "Kapasitas per slot",
-        "description": "Jumlah maksimum kedatangan wajib pajak per slot jadwal HQ."
+        "label": "Kapasitas default per unit",
+        "description": "Kuota kedatangan default per slot untuk setiap unit Pusat. Unit yang disebut di kapasitas per unit memakai nilai sendiri."
       },
       "hq_schedule_workdays": {
         "label": "Hari kerja",
@@ -2594,6 +2603,14 @@
       "hq_schedule_break_end": {
         "label": "Akhir istirahat",
         "description": "Waktu selesai istirahat siang jadwal HQ (JJ:MM)."
+      },
+      "hq_schedule_break_overrides": {
+        "label": "Istirahat per hari",
+        "description": "JSON jendela istirahat per hari ISO (contoh Jumat 11:30–13:30). null = tanpa istirahat pada hari itu."
+      },
+      "hq_schedule_capacity_by_unit": {
+        "label": "Kapasitas per unit",
+        "description": "JSON kuota per slot per unit Pusat, mis. {\"PUSAT-SEKRETARIAT\": 1}. Unit yang tidak disebut memakai kapasitas default."
       },
       "storage_provider": {
         "label": "Penyedia penyimpanan",
@@ -2880,6 +2897,15 @@
     "emptySlotsLabel": "Slot bisa dibooking",
     "weekCompletedLabel": "Kunjungan selesai",
     "daySummaryLabel": "{scheduled} kunjungan · {pending} belum ditutup",
+    "dayUnitCount": "{unit} {count}",
+    "dayUnassignedCount": "belum ditetapkan {count}",
+    "unitFilterLabel": "Filter unit tujuan",
+    "unitFilterAll": "Semua",
+    "unitUnassigned": "Unit belum ditetapkan",
+    "destinationUnassigned": "belum ditetapkan",
+    "overCapacityWarningTitle": "Kuota unit penuh",
+    "overCapacityWarningBody": "Slot ini sudah penuh untuk unit tujuan yang dipilih. Pusat boleh tetap menjadwalkan — pastikan kapasitas operasional mencukupi.",
+    "pickDestinationFirst": "Pilih unit tujuan terlebih dahulu untuk melihat sisa kuota per jam.",
     "slotAvailable": "Slot tersedia",
     "breakLabel": "Istirahat",
     "slotRatio": "{scheduled}/{capacity} slot",

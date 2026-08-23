@@ -182,6 +182,21 @@ export function deleteAnnouncementAttachmentFromCatalog(
   );
 }
 
+/** Pin a catalog file to the top of the caller's own list (max 10). */
+export function pinAnnouncementAttachment(attachmentId: string): Promise<void> {
+  return apiRequest<void>(
+    `/api/v1/announcements/attachment-library/${encodeURIComponent(attachmentId)}/pin`,
+    { method: "PUT" },
+  );
+}
+
+export function unpinAnnouncementAttachment(attachmentId: string): Promise<void> {
+  return apiRequest<void>(
+    `/api/v1/announcements/attachment-library/${encodeURIComponent(attachmentId)}/pin`,
+    { method: "DELETE" },
+  );
+}
+
 export function linkAnnouncementAttachment(
   announcementId: string,
   body: AnnouncementAttachmentLinkRequest,

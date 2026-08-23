@@ -6,6 +6,8 @@ import {
   deleteAnnouncementAttachmentFromCatalog,
   downloadAttachment,
   fetchAnnouncementAttachmentLibrary,
+  pinAnnouncementAttachment,
+  unpinAnnouncementAttachment,
   updateAnnouncementAttachmentAccess,
   uploadAnnouncementAttachmentToCatalog,
 } from "@/lib/api";
@@ -26,8 +28,9 @@ import {
   Table,
   type TableColumn,
 } from "@/shared/ui";
+import { ApiError } from "@/lib/api/client";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { IconClose, IconDownload } from "@/shared/icons";
+import { IconClose, IconDownload, IconPin } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 
 /** Keep accept simple — complex MIME lists break the picker on some OS/browsers. */
@@ -246,6 +249,35 @@ export function AttachmentsWorkspace() {
     }
   }
 
+  async function onTogglePin(item: AnnouncementAttachmentLibraryItem) {
+    setBusyId(item.id);
+    setActionError(null);
+    try {
+      if (item.pinned) {
+        await unpinAnnouncementAttachment(item.id);
+      } else {
+        await pinAnnouncementAttachment(item.id);
+      }
+      // Server decides the pinned-first order — reload rather than
+      // reorder locally so the list stays consistent with the cap of 10.
+      await load();
+    } catch (err) {
+      // Backend caps pins at 10 (CONFLICT) — that specific reason is worth
+      // more than the generic "conflict" text resolveApiErrorMessage falls
+      // back to, so it takes priority for this action.
+      if (!item.pinned && err instanceof ApiError && err.code === "CONFLICT") {
+        setActionError(t("pinLimitReached"));
+      } else {
+        setActionError(
+          resolveApiErrorMessage(err, tErrors, tCommon) ||
+            (item.pinned ? t("unableToUnpin") : t("unableToPin")),
+        );
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function onDownload(item: AnnouncementAttachmentLibraryItem) {
     setBusyId(item.id);
     setActionError(null);
@@ -272,16 +304,25 @@ export function AttachmentsWorkspace() {
       header: t("fileName"),
       cell: (row) => (
         <div className="min-w-0 max-w-[22rem]">
-          <button
-            type="button"
-            className="max-w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left font-medium !text-ecmp-primary underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
-            onClick={() => setPreview(row)}
-            disabled={busyId === row.id || uploading}
-            aria-label={`${t("preview")}: ${row.fileName}`}
-            title={t("preview")}
-          >
-            {row.fileName}
-          </button>
+          <div className="flex min-w-0 items-center gap-1">
+            {row.pinned ? (
+              <IconPin
+                className="size-3.5 shrink-0 text-ecmp-primary"
+                fill="currentColor"
+                title={t("pinnedBadge")}
+              />
+            ) : null}
+            <button
+              type="button"
+              className="max-w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left font-medium !text-ecmp-primary underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+              onClick={() => setPreview(row)}
+              disabled={busyId === row.id || uploading}
+              aria-label={`${t("preview")}: ${row.fileName}`}
+              title={t("preview")}
+            >
+              {row.fileName}
+            </button>
+          </div>
           <p className="truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
             {t("catalogUnitUser", {
               unit: row.uploadedOrgUnitId || tCommon("emDash"),
@@ -342,6 +383,25 @@ export function AttachmentsWorkspace() {
         const busy = busyId === row.id;
         return (
           <div className="flex flex-nowrap items-center justify-end gap-0.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={busy || uploading}
+              aria-label={row.pinned ? t("unpin") : t("pin")}
+              title={row.pinned ? t("unpin") : t("pin")}
+              className={
+                row.pinned
+                  ? "!min-h-8 !min-w-8 !px-0 text-ecmp-primary"
+                  : "!min-h-8 !min-w-8 !px-0"
+              }
+              onClick={() => void onTogglePin(row)}
+            >
+              <IconPin
+                className="size-4"
+                fill={row.pinned ? "currentColor" : "none"}
+              />
+            </Button>
             <Button
               type="button"
               size="sm"

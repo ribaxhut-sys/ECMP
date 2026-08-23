@@ -101,6 +101,7 @@ function libraryFile(
     uploadedBy: null,
     uploadedByName: null,
     usageCount: 0,
+    pinned: false,
     ...overrides,
   };
 }

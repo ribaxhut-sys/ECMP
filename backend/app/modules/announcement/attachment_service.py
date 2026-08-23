@@ -40,6 +40,10 @@ from app.modules.announcement.schemas import (
 )
 from app.modules.attachment.domain.enums import AggregateType, AttachmentStatus
 from app.modules.attachment.models import AttachmentORM
+from app.modules.attachment.pin_repository import (
+    MAX_PINS_PER_USER,
+    AttachmentPinRepository,
+)
 from app.modules.attachment.service import AttachmentService
 
 
@@ -96,16 +100,23 @@ class AnnouncementAttachmentService:
         join_repo: AnnouncementAttachmentRepository,
         attachments: AttachmentService,
         session: Session | None = None,
+        pins: AttachmentPinRepository | None = None,
     ) -> None:
         self._announcements = announcements
         self._join_repo = join_repo
         self._attachments = attachments
         self._session = session
+        self._pins = pins
 
     def _require_session(self) -> Session:
         if self._session is None:
             raise RuntimeError("AnnouncementAttachmentService requires a DB session")
         return self._session
+
+    def _require_pins(self) -> AttachmentPinRepository:
+        if self._pins is None:
+            self._pins = AttachmentPinRepository(self._require_session())
+        return self._pins
 
     def upload(
         self,
@@ -329,8 +340,64 @@ class AnnouncementAttachmentService:
                         continue
 
             items.append(_library_item_from_row(row))
+
+        # Pins reorder only the caller's own view; the access filtering above
+        # has already decided what this caller may see at all.
+        pinned_ids = self._require_pins().pinned_ids(principal.user_id)
+        if pinned_ids:
+            for item in items:
+                item.pinned = item.id in pinned_ids
+            # Stable — inside each group the uploaded_at DESC order survives.
+            items.sort(key=lambda item: not item.pinned)
+
         session.commit()
         return items
+
+    def set_pin(
+        self,
+        attachment_id: uuid.UUID,
+        *,
+        pinned: bool,
+        principal: Principal,
+    ) -> None:
+        """Pin/unpin a catalog file for the calling user only.
+
+        A pin is presentation state: it changes where the row appears in this
+        caller's list and nothing else. Both directions are idempotent, so a
+        double click never turns into an error.
+        """
+        if not self._join_repo.is_announcement_domain_attachment(attachment_id):
+            # Orphan announcement aggregate still allowed.
+            try:
+                platform = self._attachments.get(attachment_id)
+            except NotFoundError:
+                raise NotFoundError(m("attachment.not_found")) from None
+            if platform.aggregate_type != AggregateType.ANNOUNCEMENT.value:
+                raise ValidationAppError(m("attachment.not_announcement_domain"))
+        else:
+            platform = self._attachments.get(attachment_id)
+
+        session = self._require_session()
+        # Never let a caller pin — and thereby confirm the existence of — a
+        # file they are not allowed to see in the catalog.
+        if not can_view_catalog_attachment(
+            principal=principal, session=session, attachment=platform
+        ):
+            raise PermissionDeniedError(m("common.forbidden"))
+
+        pins = self._require_pins()
+        if not pinned:
+            pins.unpin(user_id=principal.user_id, attachment_id=attachment_id)
+            pins.commit()
+            return
+
+        already = pins.is_pinned(
+            user_id=principal.user_id, attachment_id=attachment_id
+        )
+        if not already and pins.count_for_user(principal.user_id) >= MAX_PINS_PER_USER:
+            raise ConflictError(m("attachment.pin_limit_reached"))
+        pins.pin(user_id=principal.user_id, attachment_id=attachment_id)
+        pins.commit()
 
     def update_access_level(
         self,

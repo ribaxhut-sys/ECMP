@@ -823,3 +823,148 @@ def test_access_granted_via_any_visible_join(
         f"/api/v1/attachments/{uploaded['id']}/download", headers=agent_header
     )
     assert resp.status_code == 200, resp.text
+
+
+# --- Pin (0103) — presentation only, capped at 10, scoped per caller -------
+
+
+def test_pin_floats_file_to_top_of_library(
+    client: TestClient, admin_header: dict[str, str], storage_root: Path
+) -> None:
+    _catalog_upload(client, admin_header, filename="Older.pdf")
+    newer = _catalog_upload(client, admin_header, filename="Newer.pdf")
+
+    # Default order is uploaded_at DESC, so "Newer" already leads — pin the
+    # older file and confirm it jumps ahead despite its older timestamp.
+    older_first = client.get(
+        "/api/v1/announcements/attachment-library", headers=admin_header
+    ).json()["data"]
+    older = next(item for item in older_first if item["fileName"] == "Older.pdf")
+    assert older["pinned"] is False
+
+    pin_resp = client.put(
+        f"/api/v1/announcements/attachment-library/{older['id']}/pin",
+        headers=admin_header,
+    )
+    assert pin_resp.status_code == 204, pin_resp.text
+
+    listing = client.get(
+        "/api/v1/announcements/attachment-library", headers=admin_header
+    ).json()["data"]
+    assert listing[0]["id"] == older["id"]
+    assert listing[0]["pinned"] is True
+    assert listing[1]["id"] == newer["id"]
+    assert listing[1]["pinned"] is False
+
+
+def test_pin_is_idempotent(
+    client: TestClient, admin_header: dict[str, str], storage_root: Path
+) -> None:
+    item = _catalog_upload(client, admin_header, filename="Once.pdf")
+
+    first = client.put(
+        f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+        headers=admin_header,
+    )
+    second = client.put(
+        f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+        headers=admin_header,
+    )
+    assert first.status_code == 204
+    assert second.status_code == 204
+
+
+def test_unpin_is_idempotent_and_restores_order(
+    client: TestClient, admin_header: dict[str, str], storage_root: Path
+) -> None:
+    item = _catalog_upload(client, admin_header, filename="Toggle.pdf")
+    client.put(
+        f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+        headers=admin_header,
+    )
+
+    first = client.delete(
+        f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+        headers=admin_header,
+    )
+    second = client.delete(
+        f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+        headers=admin_header,
+    )
+    assert first.status_code == 204
+    assert second.status_code == 204
+
+    listing = client.get(
+        "/api/v1/announcements/attachment-library", headers=admin_header
+    ).json()["data"]
+    pinned = next(row for row in listing if row["id"] == item["id"])
+    assert pinned["pinned"] is False
+
+
+def test_pin_limit_is_ten_per_caller(
+    client: TestClient, admin_header: dict[str, str], storage_root: Path
+) -> None:
+    items = [
+        _catalog_upload(client, admin_header, filename=f"F{i}.pdf") for i in range(11)
+    ]
+    for item in items[:10]:
+        resp = client.put(
+            f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+            headers=admin_header,
+        )
+        assert resp.status_code == 204, resp.text
+
+    over_limit = client.put(
+        f"/api/v1/announcements/attachment-library/{items[10]['id']}/pin",
+        headers=admin_header,
+    )
+    assert over_limit.status_code == 409, over_limit.text
+    assert over_limit.json()["code"] == "CONFLICT"
+
+    # Re-pinning an already-pinned file at the cap must still succeed —
+    # the limit only blocks growing past 10, not confirming an existing pin.
+    already_pinned_again = client.put(
+        f"/api/v1/announcements/attachment-library/{items[0]['id']}/pin",
+        headers=admin_header,
+    )
+    assert already_pinned_again.status_code == 204, already_pinned_again.text
+
+
+def test_pins_are_scoped_per_caller(
+    client: TestClient,
+    admin_header: dict[str, str],
+    other_admin_header: dict[str, str],
+    storage_root: Path,
+) -> None:
+    item = _catalog_upload(client, admin_header, filename="MineOnly.pdf")
+
+    pin_resp = client.put(
+        f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+        headers=admin_header,
+    )
+    assert pin_resp.status_code == 204, pin_resp.text
+
+    mine = client.get(
+        "/api/v1/announcements/attachment-library", headers=admin_header
+    ).json()["data"]
+    other = client.get(
+        "/api/v1/announcements/attachment-library", headers=other_admin_header
+    ).json()["data"]
+
+    assert next(r for r in mine if r["id"] == item["id"])["pinned"] is True
+    assert next(r for r in other if r["id"] == item["id"])["pinned"] is False
+
+
+def test_pin_requires_announcement_read_permission(
+    client: TestClient,
+    admin_header: dict[str, str],
+    no_permission_header: dict[str, str],
+    storage_root: Path,
+) -> None:
+    item = _catalog_upload(client, admin_header, filename="Guarded.pdf")
+
+    resp = client.put(
+        f"/api/v1/announcements/attachment-library/{item['id']}/pin",
+        headers=no_permission_header,
+    )
+    assert resp.status_code == 403, resp.text

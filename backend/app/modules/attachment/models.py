@@ -5,7 +5,16 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -60,3 +69,33 @@ class AttachmentORM(UUIDPrimaryKeyMixin, Base):
 
 # Backward-compatible alias used by ``app.models`` and existing imports.
 Attachment = AttachmentORM
+
+
+class AttachmentUserPinORM(UUIDPrimaryKeyMixin, Base):
+    """Per-user pin — presentation preference, never an access grant.
+
+    ``user_id`` intentionally carries no FK (see 0103): the identity contract
+    with the Enterprise Platform is still open, so this table must not depend
+    on how module users are provisioned.
+    """
+
+    __tablename__ = "attachment_user_pins"
+    __table_args__ = (
+        UniqueConstraint(
+            "attachment_id", "user_id", name="uq_attachment_user_pins_pair"
+        ),
+        Index("ix_attachment_user_pins_user_id", "user_id"),
+        Index("ix_attachment_user_pins_attachment_id", "attachment_id"),
+    )
+
+    attachment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("attachments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    pinned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )

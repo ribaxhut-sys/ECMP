@@ -205,6 +205,39 @@ def update_announcement_attachment_access(
     )
 
 
+@router.put(
+    "/attachment-library/{attachment_id}/pin",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Pin an announcement catalog file to the top of the caller's own list",
+)
+def pin_announcement_attachment(
+    attachment_id: uuid.UUID,
+    attachments: Annotated[
+        AnnouncementAttachmentService, Depends(get_announcement_attachment_service)
+    ],
+    principal: Annotated[Principal, Depends(require_permissions("announcement:read"))],
+) -> Response:
+    """Presentation only — reorders the caller's own catalog view (max 10)."""
+    attachments.set_pin(attachment_id, pinned=True, principal=principal)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/attachment-library/{attachment_id}/pin",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Unpin an announcement catalog file for the caller",
+)
+def unpin_announcement_attachment(
+    attachment_id: uuid.UUID,
+    attachments: Annotated[
+        AnnouncementAttachmentService, Depends(get_announcement_attachment_service)
+    ],
+    principal: Annotated[Principal, Depends(require_permissions("announcement:read"))],
+) -> Response:
+    attachments.set_pin(attachment_id, pinned=False, principal=principal)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.delete(
     "/attachment-library/{attachment_id}",
     status_code=status.HTTP_204_NO_CONTENT,

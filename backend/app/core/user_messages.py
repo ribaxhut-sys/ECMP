@@ -428,6 +428,10 @@ MESSAGES: dict[str, str] = {
         "Pengikatan metadata lampiran gagal; lampiran platform dikompensasi."
     ),
     "attachment.not_found": "Lampiran tidak ditemukan.",
+    "attachment.pin_limit_reached": (
+        "Maksimal 10 lampiran yang dapat disematkan. "
+        "Lepas salah satu sematan lebih dulu."
+    ),
     "attachment.already_linked_announcement": (
         "Lampiran sudah tertaut ke pengumuman ini."
     ),

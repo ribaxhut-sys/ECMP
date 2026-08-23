@@ -64,6 +64,8 @@ export {
   linkAnnouncementAttachment,
   updateAnnouncementAttachmentAccess,
   deleteAnnouncementAttachmentFromCatalog,
+  pinAnnouncementAttachment,
+  unpinAnnouncementAttachment,
 } from "./announcements";
 export {
   archiveKnowledge,

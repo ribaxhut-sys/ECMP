@@ -1131,6 +1131,9 @@
     "applyFilters": "Apply filters",
     "supervisorQueue": "Needs Staff KaSatPel review",
     "aggregateListTitle": "Complaint list",
+    "listCaseColumn": "Case",
+    "noCaseYet": "No case yet",
+    "aggregateSearchPlaceholder": "Case number, complaint number, subject…",
     "aggregateListEmpty": "No complaints yet",
     "aggregateListEmptyDescription": "Create a complaint from the form. Registered items appear here.",
     "aggregateListEmptyFiltered": "Try adjusting filters or clear them.",
@@ -2257,7 +2260,13 @@
     "idsPlaceholder": "uuid-1, uuid-2",
     "apiHintPrefix": "Uses existing APIs only:",
     "apiHintJoin": "and",
-    "refreshAttachments": "Refresh attachments"
+    "refreshAttachments": "Refresh attachments",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinnedBadge": "Pinned",
+    "pinLimitReached": "You can pin at most 10 attachments. Unpin one first.",
+    "unableToPin": "Unable to pin the attachment.",
+    "unableToUnpin": "Unable to unpin the attachment."
   },
   "reports": {
     "title": "Reports",
@@ -2580,8 +2589,8 @@
         "description": "Length of each HQ arrival slot, in minutes."
       },
       "hq_schedule_capacity_per_slot": {
-        "label": "Arrivals per slot",
-        "description": "Maximum taxpayer arrivals allowed in one HQ schedule slot."
+        "label": "Default capacity per unit",
+        "description": "Default arrivals allowed per slot for each Pusat unit. Units listed in capacity by unit keep their own value."
       },
       "hq_schedule_workdays": {
         "label": "Working days",
@@ -2594,6 +2603,14 @@
       "hq_schedule_break_end": {
         "label": "Break end",
         "description": "End of the HQ arrival lunch break (HH:MM)."
+      },
+      "hq_schedule_break_overrides": {
+        "label": "Break by weekday",
+        "description": "JSON break windows per ISO weekday (e.g. Friday 11:30–13:30). null = no break that day."
+      },
+      "hq_schedule_capacity_by_unit": {
+        "label": "Capacity by unit",
+        "description": "JSON per-slot quota per Pusat unit, e.g. {\"PUSAT-SEKRETARIAT\": 1}. Units not listed use the default capacity."
       },
       "storage_provider": {
         "label": "Storage provider",
@@ -2880,6 +2897,15 @@
     "emptySlotsLabel": "Bookable slots",
     "weekCompletedLabel": "Visits completed",
     "daySummaryLabel": "{scheduled} visits · {pending} still open",
+    "dayUnitCount": "{unit} {count}",
+    "dayUnassignedCount": "unassigned {count}",
+    "unitFilterLabel": "Filter by destination unit",
+    "unitFilterAll": "All",
+    "unitUnassigned": "Unit not set",
+    "destinationUnassigned": "not set",
+    "overCapacityWarningTitle": "Unit quota full",
+    "overCapacityWarningBody": "This slot is already full for the selected destination unit. Pusat may still schedule — confirm operational capacity first.",
+    "pickDestinationFirst": "Choose a destination unit first to see remaining quota per hour.",
     "slotAvailable": "Slot available",
     "breakLabel": "Break",
     "slotRatio": "{scheduled}/{capacity} slot",

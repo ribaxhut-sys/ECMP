@@ -868,6 +868,8 @@ export interface AnnouncementAttachmentLibraryItem {
   uploadedBy: string | null;
   uploadedByName: string | null;
   usageCount: number;
+  /** Pinned by the caller — presentation only, scoped per user. */
+  pinned: boolean;
 }
 
 export interface AnnouncementAttachmentLinkRequest {
