@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   checkCmBatch1Duplicates,
+  confirmCmBatch1Customer,
   createCmBatch1Complaint,
   fetchBranches,
   recordCmBatch1DuplicateDecision,
@@ -72,6 +73,7 @@ import {
   extraIntakeCaseIssues,
   extrasFromDecisionRows,
   filledExtraCaseDrafts,
+  isBlankExtraCaseDraft,
   anyIntakeCaseEscalates,
   intakeDecisionLockSummary,
   intakeMayEscalateToPusat,
@@ -393,7 +395,6 @@ export function CreateComplaintView() {
         return;
       }
       setCase1Locked(true);
-      collapseCase(PRIMARY_CASE_ID);
       return;
     }
 
@@ -439,7 +440,6 @@ export function CreateComplaintView() {
       return;
     }
     patchExtraCase(id, { locked: true });
-    collapseCase(id);
   }
 
   function unlockCase(id: string): void {
@@ -667,6 +667,14 @@ export function CreateComplaintView() {
     token: string,
     rows: IntakeCaseDecisionRow[],
   ): Promise<void> {
+    const customerId = form.customerId.trim();
+    if (!customerId) {
+      throw new Error("customerId required");
+    }
+    // FR-002 / API-503 — create rejects without a server-side confirm lock.
+    // Draft resume can restore customerId in UI without re-locking; always
+    // refresh the lock immediately before API-500.
+    await confirmCmBatch1Customer({ customerId });
     const prioritized = withPriority(form, rows);
     const escalate = anyIntakeCaseEscalates(rows);
     const escalateRow = rows.find((row) => row.action === "escalate");
@@ -738,9 +746,15 @@ export function CreateComplaintView() {
     setLinkError(false);
     setEscalationReasonMissing(false);
     setEscalateReasonTooShort(false);
-    setInfoMessage(null);
-    if (!collectFormIssues()) return;
+    const blankCount = extraCaseDrafts.filter(isBlankExtraCaseDraft).length;
     const extras = filledExtraCaseDrafts(extraCaseDrafts);
+    if (blankCount > 0) {
+      setExtraCaseDrafts(extras);
+      setInfoMessage(t("intakeExtraCaseEmptyRemoved"));
+    } else {
+      setInfoMessage(null);
+    }
+    if (!collectFormIssues()) return;
     setExtraCaseDrafts(extras);
     const rows = buildIntakeDecisionRows(
       values,
@@ -1270,33 +1284,37 @@ export function CreateComplaintView() {
                             : t("intakeCaseExpand")}
                         </Button>
                         <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => {
-                          const filled =
-                            draft.description.trim().length > 0 ||
-                            (draft.note ?? "").trim().length > 0;
-                          if (
-                            filled &&
-                            !window.confirm(t("intakeExtraCaseDiscardConfirm"))
-                          ) {
-                            return;
-                          }
-                          setExtraCaseDrafts((prev) =>
-                            prev.filter((item) => item.id !== draft.id),
-                          );
-                          setExtraCaseErrors((prev) => {
-                            if (!prev[draft.id]) return prev;
-                            const next = { ...prev };
-                            delete next[draft.id];
-                            return next;
-                          });
-                        }}
-                      >
-                        {tCommon("cancel")}
-                      </Button>
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          aria-label={t("intakeExtraCaseRemoveAria", { n: extraN })}
+                          onClick={() => {
+                            if (
+                              !isBlankExtraCaseDraft(draft) &&
+                              !window.confirm(t("intakeExtraCaseDiscardConfirm"))
+                            ) {
+                              return;
+                            }
+                            setExtraCaseDrafts((prev) =>
+                              prev.filter((item) => item.id !== draft.id),
+                            );
+                            setExtraCaseErrors((prev) => {
+                              if (!prev[draft.id]) return prev;
+                              const next = { ...prev };
+                              delete next[draft.id];
+                              return next;
+                            });
+                            setExpandedIds((prev) => {
+                              if (!(draft.id in prev)) return prev;
+                              const next = { ...prev };
+                              delete next[draft.id];
+                              return next;
+                            });
+                          }}
+                        >
+                          {t("intakeExtraCaseRemove")}
+                        </Button>
                       </div>
                     </div>
                     {extraExpanded ? (

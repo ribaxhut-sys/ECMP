@@ -25,12 +25,15 @@ vi.mock("@/auth/AuthProvider", () => ({
 
 const fetchBranches = vi.fn();
 const fetchPublicSettings = vi.fn();
+const confirmCmBatch1Customer = vi.fn();
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
     ...actual,
     fetchBranches: (...args: unknown[]) => fetchBranches(...args),
     fetchPublicSettings: (...args: unknown[]) => fetchPublicSettings(...args),
+    confirmCmBatch1Customer: (...args: unknown[]) =>
+      confirmCmBatch1Customer(...args),
   };
 });
 
@@ -68,8 +71,12 @@ beforeEach(() => {
   replace.mockReset();
   fetchBranches.mockReset();
   fetchPublicSettings.mockReset();
+  confirmCmBatch1Customer.mockReset();
   fetchBranches.mockResolvedValue({ data: [] });
   fetchPublicSettings.mockResolvedValue({ data: [] });
+  confirmCmBatch1Customer.mockResolvedValue({
+    data: { customerId: "cust-1", locked: true },
+  });
 });
 
 describe("CreateComplaintView — catatan dan putusan per Case", () => {
@@ -230,17 +237,17 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
     await user.click(
       screen.getByRole("button", { name: /lock decision for case 1/i }),
     );
-    expect(document.getElementById("description")).not.toBeInTheDocument();
+    // Lock must not auto-collapse — officer still sees the locked fields.
+    expect(document.getElementById("description")).toBeInTheDocument();
+    expect(document.getElementById("description")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(
       screen.getByRole("button", {
         name: /save the complaint with each case decision/i,
       }),
     ).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: /^expand$/i }));
-    expect(document.getElementById("description")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
     expect(document.getElementById("case-priority-primary")).toBeDisabled();
     await user.click(
       screen.getByRole("button", { name: /edit decision for case 1/i }),

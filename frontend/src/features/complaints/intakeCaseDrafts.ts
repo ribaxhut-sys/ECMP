@@ -81,13 +81,23 @@ export function emptyExtraCaseDraft(): IntakeExtraCaseDraft {
   };
 }
 
-/** Extra cards left blank (no uraian and no catatan) are dropped on Lanjut. */
+/** True when the officer has not entered subject, uraian, or catatan. */
+export function isBlankExtraCaseDraft(draft: IntakeExtraCaseDraft): boolean {
+  return (
+    !(draft.subject ?? "").trim() &&
+    !draft.description.trim() &&
+    !(draft.note ?? "").trim()
+  );
+}
+
+/**
+ * Extra cards with any content (subject / uraian / catatan). Blank cards are
+ * dropped on Simpan; partially filled cards must be completed or removed.
+ */
 export function filledExtraCaseDrafts(
   drafts: IntakeExtraCaseDraft[],
 ): IntakeExtraCaseDraft[] {
-  return drafts.filter(
-    (draft) => draft.description.trim() || (draft.note ?? "").trim(),
-  );
+  return drafts.filter((draft) => !isBlankExtraCaseDraft(draft));
 }
 
 export type ExtraIntakeCaseIssue = {

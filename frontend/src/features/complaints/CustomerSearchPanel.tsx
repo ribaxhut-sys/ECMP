@@ -253,6 +253,11 @@ export function CustomerSearchPanel({
     });
     setSelectedCandidateId(id);
     setShowCandidatePicker(false);
+    // Draft / parent restore shows a locked WP but may not have a live
+    // server confirm lock — refresh API-503 so Simpan does not 400.
+    void confirmCmBatch1Customer({ customerId: id }).catch(() => {
+      /* selection UI stays; create path will re-confirm and surface errors */
+    });
     void load360(id);
   }, [confirmedCustomerId, confirmedDisplayName, load360]);
 

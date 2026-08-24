@@ -170,12 +170,17 @@ describe("intakeCaseDrafts", () => {
     expect(
       filledExtraCaseDrafts([
         { id: "empty", description: "  ", note: "" },
+        { id: "subject-only", subject: "Case 2", description: "", note: "" },
         { id: "note-only", description: "", note: "Sudah diinfokan." },
       ]),
-    ).toEqual([{ id: "note-only", description: "", note: "Sudah diinfokan." }]);
+    ).toEqual([
+      { id: "subject-only", subject: "Case 2", description: "", note: "" },
+      { id: "note-only", description: "", note: "Sudah diinfokan." },
+    ]);
     expect(
       extraIntakeCaseIssues([
         { id: "empty", description: "", note: "" },
+        { id: "subject-only", subject: "Case 2", description: "", note: "" },
         { id: "note-only", description: "", note: "Sudah diinfokan." },
         { id: "ok", description: "Uraian", note: "Catatan cabang" },
         {
@@ -186,6 +191,11 @@ describe("intakeCaseDrafts", () => {
         },
       ]),
     ).toEqual([
+      {
+        id: "subject-only",
+        description: "required",
+        note: "required",
+      },
       { id: "note-only", subject: "required", description: "required" },
       { id: "ok", subject: "required" },
     ]);
