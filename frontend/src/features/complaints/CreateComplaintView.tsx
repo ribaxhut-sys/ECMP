@@ -358,10 +358,6 @@ export function CreateComplaintView() {
     setExpandedIds((prev) => ({ ...prev, [id]: true }));
   }
 
-  function collapseCase(id: string): void {
-    setExpandedIds((prev) => ({ ...prev, [id]: false }));
-  }
-
   function lockedDecisionLabel(action: IntakeCaseAction): string {
     if (action === "close") return t("intakeCaseLockedClose");
     if (action === "escalate") return t("intakeCaseLockedEscalate");
