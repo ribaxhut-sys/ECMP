@@ -40,8 +40,8 @@ function isKnownPriority(
 }
 
 /**
- * API-537 panel — chronology for this Case only (summary rows).
- * Handling notes are shown under Deskripsi, not inside this log.
+ * API-537 panel — chronology for this Case only.
+ * Notes stay visible here so Pusat/branch handoffs preserve full context.
  */
 export function CaseHistoryPanel({
   entries,
@@ -126,6 +126,10 @@ export function CaseHistoryPanel({
                       ? tPriority(priorityKey)
                       : entry.priority
                     : null;
+                  const note = entry.note?.trim() || null;
+                  const actorUnit = entry.actorUnitId?.trim() || null;
+                  const caseStatus = entry.caseStatus?.trim() || null;
+                  const caseNumber = entry.caseNumber?.trim() || null;
                   return (
                     <li
                       key={entry.entryId}
@@ -173,6 +177,42 @@ export function CaseHistoryPanel({
                           ) : null}
                         </span>
                       </div>
+                      {caseNumber || caseStatus || actorUnit || note ? (
+                        <div className="border-t border-ecmp-border/60 px-12 pb-3 pt-3">
+                          <dl className="grid grid-cols-1 gap-3 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary sm:grid-cols-2">
+                            {caseNumber ? (
+                              <div className="space-y-1">
+                                <dt className="text-ecmp-text-secondary">{t("caseNumber")}</dt>
+                                <dd className="font-mono">{caseNumber}</dd>
+                              </div>
+                            ) : null}
+                            {caseStatus ? (
+                              <div className="space-y-1">
+                                <dt className="text-ecmp-text-secondary">
+                                  {tComplaints("status")}
+                                </dt>
+                                <dd>{caseStatus}</dd>
+                              </div>
+                            ) : null}
+                            {actorUnit ? (
+                              <div className="space-y-1">
+                                <dt className="text-ecmp-text-secondary">
+                                  {t("historyUnitLabel")}
+                                </dt>
+                                <dd>{actorUnit}</dd>
+                              </div>
+                            ) : null}
+                            {note ? (
+                              <div className="space-y-1 sm:col-span-2">
+                                <dt className="text-ecmp-text-secondary">
+                                  {t("historyNoteLabel")}
+                                </dt>
+                                <dd className="whitespace-pre-wrap">{note}</dd>
+                              </div>
+                            ) : null}
+                          </dl>
+                        </div>
+                      ) : null}
                     </li>
                   );
                 })}

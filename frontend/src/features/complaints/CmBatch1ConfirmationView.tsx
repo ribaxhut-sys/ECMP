@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
@@ -65,9 +65,10 @@ import {
   isCmBatch1HqNoteReady,
   isCmBatch1HqRescheduleReady,
   isCmBatch1PusatUnitCode,
-  isHqScheduleDestinationUnitCode,
+  hqCroDestinationDisplayLabel,
   resolveCmBatch1BranchEscalationCtas,
   resolveCmBatch1HqActionVisibility,
+  resolveDefaultHqScheduleDestinationUnitCode,
   showBranchHandleComplaintCta,
 } from "./cmBatch1HqActions";
 import {
@@ -299,8 +300,6 @@ export function CmBatch1ConfirmationView({
     useState<CmBatch1HqReturnReasonCode>("MISSING_ATTACHMENT");
   const [arrivalDate, setArrivalDate] = useState("");
   const [arrivalTime, setArrivalTime] = useState("");
-  /** Which Pusat unit the taxpayer reports to — Pusat decides, never the branch. */
-  const [arrivalUnit, setArrivalUnit] = useState("");
   const [arrivalNote, setArrivalNote] = useState("");
   const [deciding, setDeciding] = useState(false);
   const announcedIdRef = useRef<string | null>(null);
@@ -527,7 +526,7 @@ export function CmBatch1ConfirmationView({
         const res = await acceptAndScheduleCmBatch1HqEscalation(data.complaintId, {
         arrivalDate: arrivalDate.trim(),
         arrivalTime: arrivalTime.trim(),
-        destinationUnitId: arrivalUnit.trim(),
+        destinationUnitId: resolveDefaultHqScheduleDestinationUnitCode(branches),
         note,
       });
       setData(res.data);
@@ -535,7 +534,6 @@ export function CmBatch1ConfirmationView({
       setHqAcceptOpen(false);
       setArrivalDate("");
       setArrivalTime("");
-      setArrivalUnit("");
       setArrivalNote("");
       pushSuccess(
         t("hqAcceptScheduledToast"),
@@ -736,18 +734,22 @@ export function CmBatch1ConfirmationView({
       user.id.trim().toLowerCase() === data.createdBy.trim().toLowerCase(),
   );
 
+  const hqCroDestinationUnit = useMemo(
+    () => resolveDefaultHqScheduleDestinationUnitCode(branches),
+    [branches],
+  );
+  const hqCroDestinationLabel = useMemo(
+    () => hqCroDestinationDisplayLabel(branches),
+    [branches],
+  );
   const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
   const hqCompleteNoteOk = isCmBatch1HqNoteReady(hqCompleteNote);
   const hqAcceptScheduleReady = isCmBatch1HqAcceptScheduleReady({
     arrivalDate,
     arrivalTime,
     arrivalNote,
-    destinationUnitId: arrivalUnit,
+    destinationUnitId: hqCroDestinationUnit,
   });
-  /** Pusat units available as an arrival destination — CRO only. */
-  const pusatUnitOptions = branches
-    .filter((b) => isHqScheduleDestinationUnitCode(b.code))
-    .map((b) => ({ value: b.code, label: `${b.code} — ${b.name}` }));
   const hqScheduleReady = isCmBatch1HqRescheduleReady({
     arrivalDate,
     arrivalTime,
@@ -1539,7 +1541,7 @@ export function CmBatch1ConfirmationView({
                 {t("reRequestEscalation")}
               </Button>
             ) : null}
-            {showHqAcceptAndSchedule ? (
+            {showHqAcceptAndSchedule && !hasBoundCase ? (
               <Button
                 type="button"
                 onClick={() => {
@@ -1551,7 +1553,6 @@ export function CmBatch1ConfirmationView({
                   setArrivalTime(
                     proposedStale ? "" : data?.proposedArrivalTime ?? "",
                   );
-                  setArrivalUnit(data?.hqDestinationUnitId ?? "");
                   setArrivalNote("");
                   setHqAcceptOpen(true);
                 }}
@@ -1560,7 +1561,7 @@ export function CmBatch1ConfirmationView({
                 {t("hqAcceptAndSchedule")}
               </Button>
             ) : null}
-            {showHqReturn ? (
+            {showHqReturn && !hasBoundCase ? (
               <Button
                 type="button"
                 variant="outline"
@@ -1570,7 +1571,7 @@ export function CmBatch1ConfirmationView({
                 {t("hqReturn")}
               </Button>
             ) : null}
-            {showHqReschedule ? (
+            {showHqReschedule && !hasBoundCase ? (
               <Button
                 type="button"
                 onClick={() => {
@@ -1586,7 +1587,7 @@ export function CmBatch1ConfirmationView({
                   : t("hqScheduleArrival")}
               </Button>
             ) : null}
-            {showHqComplete ? (
+            {showHqComplete && !hasBoundCase ? (
               <Button
                 type="button"
                 onClick={() => {
@@ -1951,27 +1952,25 @@ export function CmBatch1ConfirmationView({
             <Alert
               tone="info"
               title={t("proposedArrivalHintTitle")}
-              description={t("branchProposedArrivalHint", {
-                date: data.proposedArrivalDate,
-                time: data.proposedArrivalTime,
-              })}
+              description={
+                data.proposedArrivalDate < toLocalDateKey(new Date())
+                  ? t("branchProposedArrivalStaleHint", {
+                      date: data.proposedArrivalDate,
+                      time: data.proposedArrivalTime,
+                    })
+                  : t("branchProposedArrivalHint", {
+                      date: data.proposedArrivalDate,
+                      time: data.proposedArrivalTime,
+                    })
+              }
             />
           ) : null}
-          <Select
-            name="hqDestinationUnitId"
-            label={t("hqDestinationUnitLabel")}
-            hint={t("hqDestinationUnitHint")}
-            placeholder={t("hqDestinationUnitPlaceholder")}
-            value={arrivalUnit}
-            onChange={(e) => {
-              setArrivalUnit(e.target.value);
-              // Quota is per unit — clear the hour so Pusat re-picks against the new pool.
-              setArrivalTime("");
-            }}
-            disabled={deciding}
-            required
-            options={pusatUnitOptions}
-          />
+          <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+            {t("hqDestinationUnitValue", { unit: hqCroDestinationLabel })}
+          </p>
+          <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+            {t("hqDestinationUnitHint")}
+          </p>
           <HqArrivalSlotPicker
             value={
               arrivalDate || arrivalTime
@@ -1982,7 +1981,7 @@ export function CmBatch1ConfirmationView({
               setArrivalDate(slot?.date ?? "");
               setArrivalTime(slot?.time ?? "");
             }}
-            destinationUnitCode={arrivalUnit}
+            destinationUnitCode={hqCroDestinationUnit}
             allowOverCapacity
             disabled={deciding}
           />
@@ -2100,7 +2099,9 @@ export function CmBatch1ConfirmationView({
               setArrivalDate(slot?.date ?? "");
               setArrivalTime(slot?.time ?? "");
             }}
-            destinationUnitCode={data?.hqDestinationUnitId ?? arrivalUnit}
+            destinationUnitCode={
+              data?.hqDestinationUnitId ?? hqCroDestinationUnit
+            }
             allowOverCapacity
             disabled={deciding}
           />

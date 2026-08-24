@@ -13,6 +13,7 @@ import {
   isHqScheduleDestinationUnitCode,
   resolveCmBatch1BranchEscalationCtas,
   resolveCmBatch1HqActionVisibility,
+  resolveDefaultHqScheduleDestinationUnitCode,
   showBranchHandleComplaintCta,
 } from "./cmBatch1HqActions";
 
@@ -163,7 +164,7 @@ describe("HQ note / schedule readiness", () => {
         destinationUnitId: "PUSAT-CRO",
       }),
     ).toBe(false);
-    // Pusat is not one door — no destination unit, no schedule.
+    // Destination is still required on the payload (UI auto-fills CRO).
     expect(
       isCmBatch1HqAcceptScheduleReady({
         arrivalDate: "2026-08-10",
@@ -195,6 +196,20 @@ describe("HQ note / schedule readiness", () => {
     expect(isHqScheduleDestinationUnitCode("PUSAT")).toBe(false);
     expect(isHqScheduleDestinationUnitCode("PUSAT-SUBAN-1")).toBe(false);
     expect(isHqScheduleDestinationUnitCode("PUSAT-SEKRETARIAT")).toBe(false);
+  });
+
+  it("auto-resolves the HQ CRO destination without a picker", () => {
+    expect(resolveDefaultHqScheduleDestinationUnitCode([])).toBe("PUSAT-CRO");
+    expect(
+      resolveDefaultHqScheduleDestinationUnitCode([
+        { code: "PUSAT-SUBAN-1" },
+        { code: "PUSAT-CRO" },
+        { code: "PUSAT-CRO-A" },
+      ]),
+    ).toBe("PUSAT-CRO");
+    expect(
+      resolveDefaultHqScheduleDestinationUnitCode([{ code: "HO-CRO" }]),
+    ).toBe("HO-CRO");
   });
 
   it("allows empty note on reschedule but not short note", () => {

@@ -233,9 +233,13 @@ const messages = {
     hqArrivalDateLabel: "x",
     hqArrivalTimeLabel: "x",
     hqDestinationUnitLabel: "Unit tujuan",
-    hqDestinationUnitHint: "Pilih unit",
-    hqDestinationUnitPlaceholder: "Pilih",
+    hqDestinationUnitHint: "Kunjungan ke CRO Pusat",
+    hqDestinationUnitPlaceholder: "CRO Pusat",
     hqDestinationUnitValue: "Unit tujuan: {unit}",
+    proposedArrivalHintTitle: "Usulan slot dari cabang",
+    branchProposedArrivalHint: "Cabang mengusulkan {date} pukul {time}",
+    branchProposedArrivalStaleHint:
+      "Usulan cabang {date} pukul {time} sudah lewat",
     hqAcceptScheduleNoteLabel: "x",
     hqAcceptScheduleNoteHint: "x",
     hqReturnTitle: "x",
@@ -402,7 +406,7 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows complete-with-notes for an HQ reviewer after the visit is scheduled", async () => {
+  it("hides complete-with-notes on the complaint page once the scheduled HQ work already has a Case", async () => {
     authState.permissions = [
       "complaints:read",
       "complaints:create",
@@ -422,8 +426,8 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
     renderView();
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "Selesai dengan catatan" }),
-      ).toBeInTheDocument(),
+        screen.queryByRole("button", { name: "Selesai dengan catatan" }),
+      ).not.toBeInTheDocument(),
     );
   });
 
@@ -631,6 +635,25 @@ describe("CmBatch1ConfirmationView — section layout", () => {
       screen.queryByText("Sudah diinfokan ke wajib pajak"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Catatan")).not.toBeInTheDocument();
+  });
+
+  it("hides HQ action buttons on the complaint page once a Case already exists", async () => {
+    authState.permissions = ["complaints:read", "complaints:create", "escalations:review"];
+    authState.user = { id: "pusat-1", branchId: null };
+    authState.roles = ["SCHEDULER"];
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        caseCreated: true,
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+      }),
+    });
+    renderView();
+    await waitFor(() => screen.getByText("CMP-0001"));
+    expect(
+      screen.queryByRole("button", { name: "Terima & jadwalkan" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Kembalikan" })).not.toBeInTheDocument();
   });
 
   it("renders the Case table panel above the description panel", async () => {

@@ -8,10 +8,15 @@ const fetchCmCase = vi.fn();
 const fetchCmBatch1Complaint = vi.fn();
 const fetchCmBatch1Customer360 = vi.fn();
 const fetchUsers = vi.fn();
+const fetchBranches = vi.fn();
 const fetchCmCaseHistory = vi.fn();
 const decideCmBatch1IntakeEscalation = vi.fn();
 const escalateCmCaseToPusat = vi.fn();
 const cancelCmCaseEscalationToPusat = vi.fn();
+const acceptAndScheduleCmBatch1HqEscalation = vi.fn();
+const returnCmBatch1HqEscalation = vi.fn();
+const scheduleCmBatch1HqArrival = vi.fn();
+const completeCmBatch1HqVisit = vi.fn();
 const hasPermission = vi.fn((code: string) =>
   code === "complaints:read" ||
   code === "complaints:update" ||
@@ -51,6 +56,7 @@ vi.mock("@/lib/api", async () => {
     fetchCmBatch1Customer360: (...args: unknown[]) =>
       fetchCmBatch1Customer360(...args),
     fetchUsers: (...args: unknown[]) => fetchUsers(...args),
+    fetchBranches: (...args: unknown[]) => fetchBranches(...args),
     fetchCmCaseHistory: (...args: unknown[]) => fetchCmCaseHistory(...args),
     decideCmBatch1IntakeEscalation: (...args: unknown[]) =>
       decideCmBatch1IntakeEscalation(...args),
@@ -58,6 +64,14 @@ vi.mock("@/lib/api", async () => {
       escalateCmCaseToPusat(...args),
     cancelCmCaseEscalationToPusat: (...args: unknown[]) =>
       cancelCmCaseEscalationToPusat(...args),
+    acceptAndScheduleCmBatch1HqEscalation: (...args: unknown[]) =>
+      acceptAndScheduleCmBatch1HqEscalation(...args),
+    returnCmBatch1HqEscalation: (...args: unknown[]) =>
+      returnCmBatch1HqEscalation(...args),
+    scheduleCmBatch1HqArrival: (...args: unknown[]) =>
+      scheduleCmBatch1HqArrival(...args),
+    completeCmBatch1HqVisit: (...args: unknown[]) =>
+      completeCmBatch1HqVisit(...args),
   };
 });
 
@@ -120,10 +134,15 @@ describe("CaseDetailView HQ path", () => {
     fetchCmBatch1Complaint.mockReset();
     fetchCmBatch1Customer360.mockReset();
     fetchUsers.mockReset();
+    fetchBranches.mockReset();
     fetchCmCaseHistory.mockReset();
     decideCmBatch1IntakeEscalation.mockReset();
     escalateCmCaseToPusat.mockReset();
     cancelCmCaseEscalationToPusat.mockReset();
+    acceptAndScheduleCmBatch1HqEscalation.mockReset();
+    returnCmBatch1HqEscalation.mockReset();
+    scheduleCmBatch1HqArrival.mockReset();
+    completeCmBatch1HqVisit.mockReset();
     orgUnitCode = "JKT-SELATAN";
     hasPermission.mockImplementation(
       (code: string) =>
@@ -137,6 +156,9 @@ describe("CaseDetailView HQ path", () => {
     fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
     fetchCmBatch1Customer360.mockResolvedValue({ data: { profile: {} } });
     fetchUsers.mockResolvedValue({ data: [] });
+    fetchBranches.mockResolvedValue({
+      data: [{ id: "branch-pusat-cro", code: "PUSAT-CRO", name: "CRO Pusat" }],
+    });
     fetchCmCaseHistory.mockResolvedValue({ data: [] });
   });
 
@@ -252,6 +274,75 @@ describe("CaseDetailView HQ path", () => {
       screen.getByText(
         /applies to every Case under the parent, not this Case alone/i,
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders HQ accept and return actions on the Case page for Pusat reviewers", async () => {
+    orgUnitCode = "PUSAT";
+    authState.userId = "pusat-reviewer";
+    authState.roles = ["SCHEDULER"];
+    hasPermission.mockImplementation(
+      (code: string) =>
+        code === "complaints:read" ||
+        code === "complaints:update" ||
+        code === "complaints:create" ||
+        code === "escalations:review",
+    );
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: null,
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Accept & schedule" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: /return/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("prefills branch proposed arrival when opening Accept & schedule", async () => {
+    orgUnitCode = "PUSAT";
+    authState.userId = "pusat-reviewer";
+    authState.roles = ["SCHEDULER"];
+    hasPermission.mockImplementation(
+      (code: string) =>
+        code === "complaints:read" ||
+        code === "complaints:update" ||
+        code === "complaints:create" ||
+        code === "escalations:review",
+    );
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: null,
+        proposedArrivalDate: "2099-08-20",
+        proposedArrivalTime: "09:30",
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Accept & schedule" }),
+      ).toBeInTheDocument();
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Accept & schedule" }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Branch proposed 2099-08-20 at 09:30/i),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("20/08/2099")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Destination unit: PUSAT-CRO/i),
     ).toBeInTheDocument();
   });
 

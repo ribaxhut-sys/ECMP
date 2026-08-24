@@ -21,7 +21,7 @@ describe("CaseHistoryPanel", () => {
     cleanup();
   });
 
-  it("lists this Case's events as summaries without note bodies", async () => {
+  it("lists this Case's events with operational detail blocks", async () => {
     renderWithProviders(
       <CaseHistoryPanel
         loading={false}
@@ -38,6 +38,9 @@ describe("CaseHistoryPanel", () => {
             eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
             actorName: "Budi",
             note: "OK unit",
+            actorUnitId: "PUSAT-CRO",
+            caseStatus: "IN_PROGRESS",
+            caseNumber: "CASE-2026-0001",
           }),
         ]}
       />,
@@ -47,18 +50,20 @@ describe("CaseHistoryPanel", () => {
     );
     expect(screen.getByText("Case history")).toBeInTheDocument();
     expect(
-      screen.getByText("Event summary for this Case. Full notes are under the description."),
+      screen.getByText(
+        "Full event history for this Case, including status, unit, and operational notes.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Case created")).toBeInTheDocument();
     expect(screen.getByText("Work started")).toBeInTheDocument();
     expect(screen.getByText("Handling unit accepted")).toBeInTheDocument();
-    expect(screen.queryByText("OK unit")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Show note|Lihat catatan/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("OK unit")).toBeInTheDocument();
+    expect(screen.getByText("PUSAT-CRO")).toBeInTheDocument();
+    expect(screen.getByText("IN_PROGRESS")).toBeInTheDocument();
+    expect(screen.getByText("CASE-2026-0001")).toBeInTheDocument();
   });
 
-  it("shows HQ scheduled slot on the history row, not the visit note", async () => {
+  it("shows HQ scheduled slot and preserves the visit note", async () => {
     renderWithProviders(
       <CaseHistoryPanel
         loading={false}
@@ -81,9 +86,7 @@ describe("CaseHistoryPanel", () => {
     expect(
       screen.getByText("Thursday, August 20, 2026 at 09:30"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Bring original documents"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("Bring original documents")).toBeInTheDocument();
   });
 
   it("labels Case escalation to HQ instead of Other", async () => {
@@ -105,8 +108,8 @@ describe("CaseHistoryPanel", () => {
       expect(screen.getByText("Sent to HQ")).toBeInTheDocument(),
     );
     expect(
-      screen.queryByText("Case cabang tidak bisa diselesaikan di unit ini."),
-    ).not.toBeInTheDocument();
+      screen.getByText("Case cabang tidak bisa diselesaikan di unit ini."),
+    ).toBeInTheDocument();
   });
 
   it("shows empty copy inside the card", async () => {

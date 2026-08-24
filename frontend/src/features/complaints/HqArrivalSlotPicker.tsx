@@ -172,7 +172,7 @@ export function HqArrivalSlotPicker({
           {t("pickDestinationFirst")}
         </p>
       ) : !selectedDate ? null : (
-        <div className="w-full sm:w-[150px]">
+        <div className="w-full min-w-0 sm:w-[18rem]">
           {dayLoading ? (
             <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
               {t("proposeLoading")}

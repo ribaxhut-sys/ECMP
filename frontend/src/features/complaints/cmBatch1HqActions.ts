@@ -6,7 +6,11 @@
  * AuthZ rule. Not DEC-F4 Case APIs (API-520…).
  */
 
-import { PUSAT_UNIT_ROOT_CODES, isPusatUnitCode } from "@/shared/utils";
+import {
+  PUSAT_UNIT_ROOT_CODES,
+  isPusatUnitCode,
+  resolveDefaultHqScheduleDestinationUnitCode,
+} from "@/shared/utils";
 
 import { isHqIntakeDisposition } from "./penangananGroups";
 import { isCaseSummaryEvent } from "./complaintHistoryScope";
@@ -37,8 +41,12 @@ const PUSAT_AGENT_ROLE_SET = new Set<string>(CM_BATCH1_PUSAT_AGENT_ROLES);
 /** Root or Pusat sub-unit (PUSAT-CRO, PUSAT-SUBAN-…) — see shared helper. */
 export const isCmBatch1PusatUnitCode = isPusatUnitCode;
 
-/** Re-export — HQ schedule door is CRO only. */
-export { isHqScheduleDestinationUnitCode } from "@/shared/utils";
+/** Re-export — HQ schedule door is CRO only (no UI pick). */
+export {
+  DEFAULT_HQ_SCHEDULE_DESTINATION_UNIT_CODE,
+  isHqScheduleDestinationUnitCode,
+  resolveDefaultHqScheduleDestinationUnitCode,
+} from "@/shared/utils";
 
 export function canCmBatch1HqReview(input: {
   roles: readonly string[];
@@ -298,7 +306,10 @@ export function isCmBatch1HqAcceptScheduleReady(input: {
   arrivalDate: string;
   arrivalTime: string;
   arrivalNote: string;
-  /** Pusat unit the taxpayer reports to — mandatory, Pusat is not one door. */
+  /**
+   * HQ CRO destination — still required on the API payload, but the UI
+   * auto-fills CRO Pusat (no picker). Empty string fails readiness.
+   */
   destinationUnitId: string;
 }): boolean {
   return (
@@ -308,6 +319,18 @@ export function isCmBatch1HqAcceptScheduleReady(input: {
         input.destinationUnitId.trim(),
     ) && isCmBatch1HqNoteReady(input.arrivalNote)
   );
+}
+
+/** Fixed display label for the auto-bound HQ CRO destination. */
+export function hqCroDestinationDisplayLabel(
+  units: readonly { code: string; name?: string | null }[],
+): string {
+  const code = resolveDefaultHqScheduleDestinationUnitCode(units);
+  const match = units.find(
+    (unit) => unit.code.trim().toUpperCase() === code.toUpperCase(),
+  );
+  const name = match?.name?.trim();
+  return name ? `${code} — ${name}` : code;
 }
 
 export function isCmBatch1HqRescheduleReady(input: {

@@ -7,26 +7,39 @@ import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
   ApiError,
+  acceptAndScheduleCmBatch1HqEscalation,
+  completeCmBatch1HqVisit,
   cancelCmCaseEscalationToPusat,
   decideCmBatch1IntakeEscalation,
   escalateCmCaseToPusat,
+  fetchBranches,
   returnCmCaseEscalation,
+  returnCmBatch1HqEscalation,
+  scheduleCmBatch1HqArrival,
   fetchCmBatch1Complaint,
   fetchCmBatch1Customer360,
   fetchCmCase,
   fetchUsers,
   updateCmCaseStatus,
   type CmCase,
+  type CmBatch1HqReturnReasonCode,
   type CmCaseStatus,
 } from "@/lib/api";
+import type { Branch } from "@/lib/api/branches";
 import type { ComplaintSla } from "@/lib/api/types";
 import { useReasonPresets } from "@/shared/hooks";
-import { formatDateTime24, formatHqArrivalSlot, resolveHqArrivalDisplay } from "@/shared/utils/datetime";
+import {
+  formatDateTime24,
+  formatHqArrivalSlot,
+  resolveHqArrivalDisplay,
+  toLocalDateKey,
+} from "@/shared/utils/datetime";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { cn } from "@/shared/utils";
 import { formatCmBatch1CustomerLabel } from "@/features/complaints/cmBatch1RegistrationLabels";
 import { officerDisplayName } from "@/features/complaints/officerDisplayName";
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -36,16 +49,22 @@ import {
   Modal,
   PageContainer,
   PageHeader,
+  Select,
   ReasonPresetTags,
   Skeleton,
   Textarea,
   Toast,
   type BadgeTone,
 } from "@/shared/ui";
+import {
+  HqArrivalSlotPicker,
+  type HqArrivalSlotValue,
+} from "@/features/complaints/HqArrivalSlotPicker";
 import { CmBatch1BoundAttachmentsCard } from "@/features/complaints/CmBatch1BoundAttachmentsCard";
 import { ComplaintSlaBadge } from "@/features/complaints/ComplaintSlaBadge";
 import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReferenceText";
 import { PENANGANAN_FOCUS_QUERY } from "@/features/complaints/ComplaintPenangananSection";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import { CaseStatusBadge } from "./CaseStatusBadge";
 import { CaseHistoryPanel } from "./CaseHistoryPanel";
 import { CaseHandlingNotes } from "./CaseHandlingNotes";
@@ -71,6 +90,15 @@ import {
   showCaseLevelCancelEscalation,
   showCaseReturnEscalation,
 } from "./caseHqPath";
+import {
+  canCmBatch1HqReview,
+  hqCroDestinationDisplayLabel,
+  isCmBatch1HqAcceptScheduleReady,
+  isCmBatch1HqNoteReady,
+  isCmBatch1HqRescheduleReady,
+  resolveCmBatch1HqActionVisibility,
+  resolveDefaultHqScheduleDestinationUnitCode,
+} from "@/features/complaints/cmBatch1HqActions";
 import {
   canClose,
   canOfferResolve,
@@ -140,6 +168,18 @@ const CANCEL_ESCALATION_PRESET_KEYS = [
 const ESCALATE_TO_PUSAT_PRESET_KEYS = [
   "cm_batch1.rerequest_escalation_reason_presets",
 ] as const;
+const HQ_ACCEPT_SCHEDULE_PRESET_KEY = "cm_batch1.hq_accept_schedule_note_presets";
+const HQ_RETURN_PRESET_KEY = "cm_batch1.hq_return_note_presets";
+const HQ_SCHEDULE_PRESET_KEY = "cm_batch1.hq_schedule_note_presets";
+const HQ_COMPLETE_PRESET_KEY = "cm_batch1.hq_complete_note_presets";
+const HQ_RETURN_REASON_CODES: CmBatch1HqReturnReasonCode[] = [
+  "MISSING_ATTACHMENT",
+  "INCOMPLETE_CHRONOLOGY",
+  "UNCLEAR_CUSTOMER_DATA",
+  "WRONG_CATEGORY_OR_ROUTING",
+  "ADDITIONAL_EVIDENCE_REQUIRED",
+  "OTHER",
+];
 
 function nextStepKey(
   status: CmCaseStatus,
@@ -205,8 +245,13 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const canDecideEscalation = hasPermission("complaints:escalate");
   const cancelPresets = useReasonPresets(CANCEL_ESCALATION_PRESET_KEYS);
   const escalatePresets = useReasonPresets(ESCALATE_TO_PUSAT_PRESET_KEYS);
+  const hqAcceptPresets = useReasonPresets([HQ_ACCEPT_SCHEDULE_PRESET_KEY] as const);
+  const hqReturnPresets = useReasonPresets([HQ_RETURN_PRESET_KEY] as const);
+  const hqSchedulePresets = useReasonPresets([HQ_SCHEDULE_PRESET_KEY] as const);
+  const hqCompletePresets = useReasonPresets([HQ_COMPLETE_PRESET_KEY] as const);
 
   const [data, setData] = useState<CmCase | null>(null);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [customerLabel, setCustomerLabel] = useState<string | null>(null);
   const [createdByLabel, setCreatedByLabel] = useState<string | null>(null);
   const [assignedLabel, setAssignedLabel] = useState<string | null>(null);
@@ -237,6 +282,13 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [complaintHqArrivalTime, setComplaintHqArrivalTime] = useState<
     string | null
   >(null);
+  const [complaintProposedArrivalDate, setComplaintProposedArrivalDate] =
+    useState<string | null>(null);
+  const [complaintProposedArrivalTime, setComplaintProposedArrivalTime] =
+    useState<string | null>(null);
+  const [complaintHqDestinationUnitId, setComplaintHqDestinationUnitId] = useState<
+    string | null
+  >(null);
   const [complaintHqArrivalNote, setComplaintHqArrivalNote] = useState<
     string | null
   >(null);
@@ -261,6 +313,18 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnNote, setReturnNote] = useState("");
   const [returning, setReturning] = useState(false);
+  const [hqAcceptOpen, setHqAcceptOpen] = useState(false);
+  const [hqReturnOpen, setHqReturnOpen] = useState(false);
+  const [hqScheduleOpen, setHqScheduleOpen] = useState(false);
+  const [hqCompleteOpen, setHqCompleteOpen] = useState(false);
+  const [arrivalDate, setArrivalDate] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
+  const [arrivalNote, setArrivalNote] = useState("");
+  const [hqReturnNote, setHqReturnNote] = useState("");
+  const [hqReturnReasonCode, setHqReturnReasonCode] =
+    useState<CmBatch1HqReturnReasonCode>("MISSING_ATTACHMENT");
+  const [hqCompleteNote, setHqCompleteNote] = useState("");
+  const [hqActionPending, setHqActionPending] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastTone, setToastTone] = useState<"success" | "danger">("success");
@@ -290,12 +354,13 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setData(caseData);
       rememberCaseId(caseData.complaintId, caseData.caseId);
 
-      const [complaintRes, customer360Res, usersRes] = await Promise.all([
+      const [complaintRes, customer360Res, usersRes, branchesRes] = await Promise.all([
         fetchCmBatch1Complaint(caseData.complaintId).catch(() => null),
         caseData.customerId
           ? fetchCmBatch1Customer360(caseData.customerId).catch(() => null)
           : Promise.resolve(null),
         fetchUsers({ page: 1, pageSize: 100 }).catch(() => null),
+        fetchBranches(200).catch(() => null),
       ]);
 
       const complaint = complaintRes?.data ?? null;
@@ -307,12 +372,16 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setComplaintHqAcceptedAt(complaint?.hqAcceptedAt ?? null);
       setComplaintHqArrivalDate(complaint?.hqArrivalDate ?? null);
       setComplaintHqArrivalTime(complaint?.hqArrivalTime ?? null);
+      setComplaintProposedArrivalDate(complaint?.proposedArrivalDate ?? null);
+      setComplaintProposedArrivalTime(complaint?.proposedArrivalTime ?? null);
+      setComplaintHqDestinationUnitId(complaint?.hqDestinationUnitId ?? null);
       setComplaintHqArrivalNote(complaint?.hqArrivalNote ?? null);
       setComplaintIntakeNote(
         complaint?.branchResolution?.trim() ||
           intakeNoteFromDescription(complaint?.description),
       );
       setComplaintSla(complaint?.sla ?? null);
+      setBranches(branchesRes?.data ?? []);
 
       const fromComplaint = complaint?.customerDisplayName?.trim() || null;
       const from360 = profileText(
@@ -374,6 +443,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       );
     } catch (err) {
       setData(null);
+      setBranches([]);
       setCustomerLabel(null);
       setCreatedByLabel(null);
       setAssignedLabel(null);
@@ -386,6 +456,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setComplaintHqAcceptedAt(null);
       setComplaintHqArrivalDate(null);
       setComplaintHqArrivalTime(null);
+      setComplaintProposedArrivalDate(null);
+      setComplaintProposedArrivalTime(null);
+      setComplaintHqDestinationUnitId(null);
       setComplaintHqArrivalNote(null);
       setComplaintSla(null);
       setError(
@@ -443,6 +516,44 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   );
   const cancelNoteOk = cancelNote.trim().length >= CANCEL_NOTE_MIN;
   const returnNoteOk = returnNote.trim().length >= RETURN_NOTE_MIN;
+  const canHqReview = canCmBatch1HqReview({ roles, hasPermission, unitCode });
+  const hqActions = resolveCmBatch1HqActionVisibility(
+    {
+      status: complaintStatus,
+      intakeDisposition: complaintIntakeDisposition,
+      hqAcceptedAt: complaintHqAcceptedAt,
+      hqArrivalDate: complaintHqArrivalDate,
+      caseCreated: Boolean(data?.caseId),
+    },
+    canHqReview,
+  );
+  const {
+    showHqAcceptAndSchedule,
+    showHqReturn,
+    showHqReschedule,
+    showHqComplete,
+  } = hqActions;
+  const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
+  const hqCompleteNoteOk = isCmBatch1HqNoteReady(hqCompleteNote);
+  const hqCroDestinationUnit = useMemo(
+    () => resolveDefaultHqScheduleDestinationUnitCode(branches),
+    [branches],
+  );
+  const hqCroDestinationLabel = useMemo(
+    () => hqCroDestinationDisplayLabel(branches),
+    [branches],
+  );
+  const hqAcceptScheduleReady = isCmBatch1HqAcceptScheduleReady({
+    arrivalDate,
+    arrivalTime,
+    arrivalNote,
+    destinationUnitId: hqCroDestinationUnit,
+  });
+  const hqScheduleReady = isCmBatch1HqRescheduleReady({
+    arrivalDate,
+    arrivalTime,
+    arrivalNote,
+  });
 
   // Plain textarea counterpart of PresetTextField: after a preset tag is
   // clicked the caret goes back to the end of the note so typing can continue.
@@ -727,6 +838,150 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       );
     } finally {
       setReturning(false);
+    }
+  }
+
+  async function submitHqAcceptAndSchedule(): Promise<void> {
+    if (!data || hqActionPending || !hqAcceptScheduleReady) return;
+    setHqActionPending(true);
+    try {
+      const res = await acceptAndScheduleCmBatch1HqEscalation(data.complaintId, {
+        arrivalDate: arrivalDate.trim(),
+        arrivalTime: arrivalTime.trim(),
+        destinationUnitId: hqCroDestinationUnit,
+        note: arrivalNote.trim(),
+      });
+      setComplaintStatus(res.data.status);
+      setComplaintIntakeDisposition(res.data.intakeDisposition ?? null);
+      setComplaintHqAcceptedAt(res.data.hqAcceptedAt ?? null);
+      setComplaintHqArrivalDate(res.data.hqArrivalDate ?? null);
+      setComplaintHqArrivalTime(res.data.hqArrivalTime ?? null);
+      setComplaintHqDestinationUnitId(res.data.hqDestinationUnitId ?? null);
+      setComplaintHqArrivalNote(res.data.hqArrivalNote ?? null);
+      setHqAcceptOpen(false);
+      setArrivalDate("");
+      setArrivalTime("");
+      setArrivalNote("");
+      showSuccess(
+        tComplaints("hqAcceptScheduledToastDescription", {
+          number: res.data.complaintNumber,
+          date: res.data.hqArrivalDate ?? arrivalDate.trim(),
+          time: res.data.hqArrivalTime ?? arrivalTime.trim(),
+        }),
+      );
+      await reload();
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : tComplaints("hqAcceptScheduleFailed"),
+      );
+    } finally {
+      setHqActionPending(false);
+    }
+  }
+
+  async function submitHqReturn(): Promise<void> {
+    if (!data || hqActionPending || !hqReturnNoteOk) return;
+    setHqActionPending(true);
+    try {
+      const res = await returnCmBatch1HqEscalation(data.complaintId, {
+        reasonCode: hqReturnReasonCode,
+        note: hqReturnNote.trim(),
+      });
+      setComplaintStatus(res.data.status);
+      setComplaintIntakeDisposition(res.data.intakeDisposition ?? null);
+      setComplaintHqAcceptedAt(res.data.hqAcceptedAt ?? null);
+      setComplaintHqArrivalDate(res.data.hqArrivalDate ?? null);
+      setComplaintHqArrivalTime(res.data.hqArrivalTime ?? null);
+      setComplaintHqDestinationUnitId(res.data.hqDestinationUnitId ?? null);
+      setComplaintHqArrivalNote(res.data.hqArrivalNote ?? null);
+      setHqReturnOpen(false);
+      setHqReturnNote("");
+      showSuccess(
+        tComplaints("hqReturnedToastDescription", {
+          number: res.data.complaintNumber,
+        }),
+      );
+      await reload();
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : tComplaints("hqReturnFailed"),
+      );
+    } finally {
+      setHqActionPending(false);
+    }
+  }
+
+  async function submitHqSchedule(): Promise<void> {
+    if (!data || hqActionPending || !hqScheduleReady) return;
+    setHqActionPending(true);
+    try {
+      const res = await scheduleCmBatch1HqArrival(data.complaintId, {
+        arrivalDate: arrivalDate.trim(),
+        arrivalTime: arrivalTime.trim(),
+        note: arrivalNote.trim() || undefined,
+      });
+      setComplaintStatus(res.data.status);
+      setComplaintIntakeDisposition(res.data.intakeDisposition ?? null);
+      setComplaintHqAcceptedAt(res.data.hqAcceptedAt ?? null);
+      setComplaintHqArrivalDate(res.data.hqArrivalDate ?? null);
+      setComplaintHqArrivalTime(res.data.hqArrivalTime ?? null);
+      setComplaintHqDestinationUnitId(res.data.hqDestinationUnitId ?? null);
+      setComplaintHqArrivalNote(res.data.hqArrivalNote ?? null);
+      setHqScheduleOpen(false);
+      setArrivalNote("");
+      showSuccess(
+        tComplaints("hqScheduledToastDescription", {
+          number: res.data.complaintNumber,
+          date: arrivalDate.trim(),
+          time: arrivalTime.trim(),
+        }),
+      );
+      await reload();
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : tComplaints("hqScheduleFailed"),
+      );
+    } finally {
+      setHqActionPending(false);
+    }
+  }
+
+  async function submitHqComplete(): Promise<void> {
+    if (!data || hqActionPending || !hqCompleteNoteOk) return;
+    setHqActionPending(true);
+    try {
+      const res = await completeCmBatch1HqVisit(data.complaintId, {
+        note: hqCompleteNote.trim(),
+      });
+      setComplaintStatus(res.data.status);
+      setComplaintIntakeDisposition(res.data.intakeDisposition ?? null);
+      setComplaintHqAcceptedAt(res.data.hqAcceptedAt ?? null);
+      setComplaintHqArrivalDate(res.data.hqArrivalDate ?? null);
+      setComplaintHqArrivalTime(res.data.hqArrivalTime ?? null);
+      setComplaintHqDestinationUnitId(res.data.hqDestinationUnitId ?? null);
+      setComplaintHqArrivalNote(res.data.hqArrivalNote ?? null);
+      setHqCompleteOpen(false);
+      setHqCompleteNote("");
+      showSuccess(
+        tComplaints("hqCompletedToastDescription", {
+          number: res.data.complaintNumber,
+        }),
+      );
+      await reload();
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : tComplaints("hqCompleteFailed"),
+      );
+    } finally {
+      setHqActionPending(false);
     }
   }
 
@@ -1105,6 +1360,65 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 {tComplaints("cancelEscalation")}
               </Button>
             ) : null}
+            {showHqAcceptAndSchedule ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  const proposedDate =
+                    complaintProposedArrivalDate?.trim() ?? "";
+                  const proposedTime =
+                    complaintProposedArrivalTime?.trim() ?? "";
+                  const proposedStale =
+                    Boolean(proposedDate) &&
+                    proposedDate < toLocalDateKey(new Date());
+                  setArrivalDate(proposedStale ? "" : proposedDate);
+                  setArrivalTime(proposedStale ? "" : proposedTime);
+                  setArrivalNote("");
+                  setHqAcceptOpen(true);
+                }}
+                disabled={hqActionPending}
+              >
+                {tComplaints("hqAcceptAndSchedule")}
+              </Button>
+            ) : null}
+            {showHqReturn ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setHqReturnOpen(true)}
+                disabled={hqActionPending}
+              >
+                {tComplaints("hqReturn")}
+              </Button>
+            ) : null}
+            {showHqReschedule ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setArrivalDate(complaintHqArrivalDate ?? "");
+                  setArrivalTime(complaintHqArrivalTime ?? "");
+                  setArrivalNote("");
+                  setHqScheduleOpen(true);
+                }}
+                disabled={hqActionPending}
+              >
+                {complaintHqArrivalDate
+                  ? tComplaints("hqRescheduleArrival")
+                  : tComplaints("hqScheduleArrival")}
+              </Button>
+            ) : null}
+            {showHqComplete ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setHqCompleteNote("");
+                  setHqCompleteOpen(true);
+                }}
+                disabled={hqActionPending}
+              >
+                {tComplaints("hqComplete")}
+              </Button>
+            ) : null}
             {showReturnEscalation ? (
               <Button
                 type="button"
@@ -1169,6 +1483,263 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           />
         </div>
       ) : null}
+
+      <Modal
+        open={hqAcceptOpen}
+        onClose={() => (!hqActionPending ? setHqAcceptOpen(false) : undefined)}
+        title={tComplaints("hqAcceptAndScheduleTitle")}
+        size="md"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqAcceptOpen(false)}
+              disabled={hqActionPending}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={hqActionPending}
+              disabled={!hqAcceptScheduleReady || hqActionPending}
+              onClick={() => void submitHqAcceptAndSchedule()}
+            >
+              {tComplaints("hqAcceptAndSchedule")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {tComplaints("hqAcceptAndScheduleBody", {
+              number: complaintNumber ?? tCommon("emDash"),
+            })}
+          </p>
+          {complaintProposedArrivalDate?.trim() &&
+          complaintProposedArrivalTime?.trim() ? (
+            <Alert
+              tone="info"
+              title={tComplaints("proposedArrivalHintTitle")}
+              description={
+                complaintProposedArrivalDate.trim() <
+                toLocalDateKey(new Date())
+                  ? tComplaints("branchProposedArrivalStaleHint", {
+                      date: complaintProposedArrivalDate,
+                      time: complaintProposedArrivalTime,
+                    })
+                  : tComplaints("branchProposedArrivalHint", {
+                      date: complaintProposedArrivalDate,
+                      time: complaintProposedArrivalTime,
+                    })
+              }
+            />
+          ) : null}
+          <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+            {tComplaints("hqDestinationUnitValue", {
+              unit: hqCroDestinationLabel,
+            })}
+          </p>
+          <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+            {tComplaints("hqDestinationUnitHint")}
+          </p>
+          <HqArrivalSlotPicker
+            value={
+              arrivalDate || arrivalTime
+                ? ({ date: arrivalDate, time: arrivalTime } satisfies HqArrivalSlotValue)
+                : null
+            }
+            onChange={(slot: HqArrivalSlotValue | null) => {
+              setArrivalDate(slot?.date ?? "");
+              setArrivalTime(slot?.time ?? "");
+            }}
+            destinationUnitCode={hqCroDestinationUnit}
+            allowOverCapacity
+            disabled={hqActionPending}
+          />
+          <PresetTextField
+            presets={hqAcceptPresets[HQ_ACCEPT_SCHEDULE_PRESET_KEY] ?? []}
+            name="hqAcceptScheduleNote"
+            label={tComplaints("hqAcceptScheduleNoteLabel")}
+            hint={tComplaints("hqAcceptScheduleNoteHint")}
+            value={arrivalNote}
+            onChange={setArrivalNote}
+            rows={4}
+            maxLength={2000}
+            disabled={hqActionPending}
+            required
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={hqReturnOpen}
+        onClose={() => (!hqActionPending ? setHqReturnOpen(false) : undefined)}
+        title={tComplaints("hqReturnTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqReturnOpen(false)}
+              disabled={hqActionPending}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={hqActionPending}
+              disabled={!hqReturnNoteOk || hqActionPending}
+              onClick={() => void submitHqReturn()}
+            >
+              {tComplaints("hqReturn")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {tComplaints("hqReturnBody", {
+              number: complaintNumber ?? tCommon("emDash"),
+            })}
+          </p>
+          <Select
+            name="hqReturnReasonCode"
+            label={tComplaints("hqReturnReasonLabel")}
+            options={HQ_RETURN_REASON_CODES.map((code) => ({
+              value: code,
+              label: tComplaints(`hqReturnReason_${code}` as never),
+            }))}
+            value={hqReturnReasonCode}
+            onChange={(event) =>
+              setHqReturnReasonCode(event.target.value as CmBatch1HqReturnReasonCode)
+            }
+            disabled={hqActionPending}
+          />
+          <PresetTextField
+            presets={hqReturnPresets[HQ_RETURN_PRESET_KEY] ?? []}
+            name="hqReturnNote"
+            label={tComplaints("hqReturnNoteLabel")}
+            hint={tComplaints("hqReturnNoteHint")}
+            value={hqReturnNote}
+            onChange={setHqReturnNote}
+            rows={4}
+            maxLength={2000}
+            disabled={hqActionPending}
+            required
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={hqScheduleOpen}
+        onClose={() => (!hqActionPending ? setHqScheduleOpen(false) : undefined)}
+        title={tComplaints("hqScheduleTitle")}
+        size="md"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqScheduleOpen(false)}
+              disabled={hqActionPending}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={hqActionPending}
+              disabled={!hqScheduleReady || hqActionPending}
+              onClick={() => void submitHqSchedule()}
+            >
+              {tComplaints("hqScheduleSave")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {tComplaints("hqScheduleBody", {
+              number: complaintNumber ?? tCommon("emDash"),
+            })}
+          </p>
+          <HqArrivalSlotPicker
+            value={
+              arrivalDate || arrivalTime
+                ? ({ date: arrivalDate, time: arrivalTime } satisfies HqArrivalSlotValue)
+                : null
+            }
+            onChange={(slot: HqArrivalSlotValue | null) => {
+              setArrivalDate(slot?.date ?? "");
+              setArrivalTime(slot?.time ?? "");
+            }}
+            destinationUnitCode={
+              complaintHqDestinationUnitId ?? hqCroDestinationUnit
+            }
+            allowOverCapacity
+            disabled={hqActionPending}
+          />
+          <PresetTextField
+            presets={hqSchedulePresets[HQ_SCHEDULE_PRESET_KEY] ?? []}
+            name="hqArrivalNote"
+            label={tComplaints("hqArrivalNoteLabel")}
+            hint={tComplaints("hqArrivalNoteHint")}
+            value={arrivalNote}
+            onChange={setArrivalNote}
+            rows={4}
+            maxLength={2000}
+            disabled={hqActionPending}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={hqCompleteOpen}
+        onClose={() => (!hqActionPending ? setHqCompleteOpen(false) : undefined)}
+        title={tComplaints("hqCompleteTitle")}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHqCompleteOpen(false)}
+              disabled={hqActionPending}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              loading={hqActionPending}
+              disabled={!hqCompleteNoteOk || hqActionPending}
+              onClick={() => void submitHqComplete()}
+            >
+              {tComplaints("hqCompleteAction")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-ecmp-text-primary">
+            {tComplaints("hqCompleteBody", {
+              number: complaintNumber ?? tCommon("emDash"),
+            })}
+          </p>
+          <PresetTextField
+            presets={hqCompletePresets[HQ_COMPLETE_PRESET_KEY] ?? []}
+            name="hqCompleteNote"
+            label={tComplaints("hqCompleteNoteLabel")}
+            hint={tComplaints("hqCompleteNoteHint")}
+            value={hqCompleteNote}
+            onChange={setHqCompleteNote}
+            rows={4}
+            maxLength={2000}
+            disabled={hqActionPending}
+            required
+          />
+        </div>
+      </Modal>
 
       <Toast
         open={toastOpen}
