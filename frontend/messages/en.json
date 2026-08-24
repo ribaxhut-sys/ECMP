@@ -2927,8 +2927,6 @@
     "dayUnitCount": "{unit} {count}",
     "dayUnassignedCount": "unassigned {count}",
     "unitFilterLabel": "Filter by destination unit",
-    "unitFilterAll": "All",
-    "unitUnassigned": "Unit not set",
     "destinationUnassigned": "not set",
     "overCapacityWarningTitle": "Unit quota full",
     "overCapacityWarningBody": "This slot is already full for the selected destination unit. Pusat may still schedule — confirm operational capacity first.",

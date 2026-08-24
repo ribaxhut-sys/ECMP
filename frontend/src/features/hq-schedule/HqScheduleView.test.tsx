@@ -741,12 +741,8 @@ describe("HqScheduleView", () => {
     renderWithProviders(<HqScheduleView />);
 
     const filters = await screen.findByTestId("hq-schedule-unit-filter");
-    expect(within(filters).getByRole("button", { name: "All" })).toBeInTheDocument();
     expect(
       within(filters).getByRole("button", { name: "CRO Pusat" }),
-    ).toBeInTheDocument();
-    expect(
-      within(filters).getByRole("button", { name: /Unit not set/i }),
     ).toBeInTheDocument();
     // Suban / Sekretariat are not schedule destinations — chips stay absent.
     expect(

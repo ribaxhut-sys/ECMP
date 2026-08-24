@@ -2927,8 +2927,6 @@
     "dayUnitCount": "{unit} {count}",
     "dayUnassignedCount": "belum ditetapkan {count}",
     "unitFilterLabel": "Filter unit tujuan",
-    "unitFilterAll": "Semua",
-    "unitUnassigned": "Unit belum ditetapkan",
     "destinationUnassigned": "belum ditetapkan",
     "overCapacityWarningTitle": "Kuota unit penuh",
     "overCapacityWarningBody": "Slot ini sudah penuh untuk unit tujuan yang dipilih. Pusat boleh tetap menjadwalkan — pastikan kapasitas operasional mencukupi.",

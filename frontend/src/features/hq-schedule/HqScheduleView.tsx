@@ -768,9 +768,7 @@ export function HqScheduleView() {
     );
     return { chips, hasUnassigned: destinationCodesThisWeek.hasUnassigned };
   }, [destinationCodesThisWeek, pusatUnits]);
-  const showUnitFilters =
-    canSeeDetail &&
-    (unitFilterChips.chips.length > 0 || unitFilterChips.hasUnassigned);
+  const showUnitFilters = canSeeDetail && unitFilterChips.chips.length > 0;
 
   useEffect(() => {
     if (!unitFilter) return;
@@ -912,14 +910,6 @@ export function HqScheduleView() {
                   className="flex flex-wrap gap-1.5"
                   data-testid="hq-schedule-unit-filter"
                 >
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={unitFilter === null ? "primary" : "secondary"}
-                    onClick={() => setUnitFilter(null)}
-                  >
-                    {t("unitFilterAll")}
-                  </Button>
                   {unitFilterChips.chips.map((unit) => (
                     <Button
                       key={unit.code}
@@ -931,20 +921,6 @@ export function HqScheduleView() {
                       {unit.name}
                     </Button>
                   ))}
-                  {unitFilterChips.hasUnassigned ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={
-                        unitFilter === UNASSIGNED_UNIT_FILTER
-                          ? "primary"
-                          : "secondary"
-                      }
-                      onClick={() => setUnitFilter(UNASSIGNED_UNIT_FILTER)}
-                    >
-                      {t("unitUnassigned")}
-                    </Button>
-                  ) : null}
                 </div>
               ) : null}
               <div
