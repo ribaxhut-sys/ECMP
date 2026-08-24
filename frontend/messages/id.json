@@ -3105,6 +3105,8 @@
     "slaPolicyVersionIdLabel": "ID versi kebijakan SLA",
     "slaCountdownLabel": "Countdown SLA",
     "pageTitleOpen": "Case terdaftar",
+    "pageTitleEscalatedToPusat": "Case diajukan ke Pusat",
+    "pageTitleEscalatedToPusatPusat": "Case dari cabang — siap ditangani",
     "pageTitleInProgress": "Penanganan sedang dikerjakan ({name})",
     "pageTitleResolved": "Case sudah diselesaikan",
     "pageTitleClosed": "Case telah ditutup",

@@ -3105,6 +3105,8 @@
     "slaPolicyVersionIdLabel": "SLA policy version ID",
     "slaCountdownLabel": "SLA countdown",
     "pageTitleOpen": "Case registered",
+    "pageTitleEscalatedToPusat": "Case sent to Pusat",
+    "pageTitleEscalatedToPusatPusat": "Case from branch — ready to handle",
     "pageTitleInProgress": "Handling in progress ({name})",
     "pageTitleResolved": "Case has been resolved",
     "pageTitleClosed": "Case has been closed",

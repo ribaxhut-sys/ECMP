@@ -813,17 +813,27 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       )
     : null;
 
+  const escalationPageTitle = data?.escalatedToPusat
+    ? actorIsPusat
+      ? handlerDisplay
+        ? t("pageTitleInProgress", { name: handlerDisplay })
+        : t("pageTitleEscalatedToPusatPusat")
+      : t("pageTitleEscalatedToPusat")
+    : null;
+
   const pageTitle = !data
     ? t("detail")
     : caseFinished
       ? t("pageTitleClosed")
       : data.status === "RESOLVED"
         ? t("pageTitleResolved")
-        : hqPageTitle
-          ? hqPageTitle
-          : handlerDisplay
-            ? t("pageTitleInProgress", { name: handlerDisplay })
-            : t("pageTitleOpen");
+        : escalationPageTitle
+          ? escalationPageTitle
+          : hqPageTitle
+            ? hqPageTitle
+            : handlerDisplay
+              ? t("pageTitleInProgress", { name: handlerDisplay })
+              : t("pageTitleOpen");
 
   const pageDescription = !data
     ? undefined
