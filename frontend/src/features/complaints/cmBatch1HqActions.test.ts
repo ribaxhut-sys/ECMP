@@ -199,7 +199,10 @@ describe("HQ note / schedule readiness", () => {
   });
 
   it("auto-resolves the HQ CRO destination without a picker", () => {
-    expect(resolveDefaultHqScheduleDestinationUnitCode([])).toBe("PUSAT-CRO");
+    expect(resolveDefaultHqScheduleDestinationUnitCode([])).toBe("");
+    expect(
+      resolveDefaultHqScheduleDestinationUnitCode([{ code: "PUSAT" }]),
+    ).toBe("");
     expect(
       resolveDefaultHqScheduleDestinationUnitCode([
         { code: "PUSAT-SUBAN-1" },

@@ -326,6 +326,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [hqCompleteNote, setHqCompleteNote] = useState("");
   const [hqActionPending, setHqActionPending] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
+  const [toastTitle, setToastTitle] = useState("");
   const [toastMessage, setToastMessage] = useState("");
   const [toastTone, setToastTone] = useState<"success" | "danger">("success");
   const [resolvePreparing, setResolvePreparing] = useState(false);
@@ -581,12 +582,14 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
 
   function showSuccess(message: string) {
     setToastTone("success");
+    setToastTitle(tCommon("success"));
     setToastMessage(message);
     setToastOpen(true);
   }
 
-  function showErrorToast(message: string) {
+  function showErrorToast(message: string, title = tCommon("errorTitle")) {
     setToastTone("danger");
+    setToastTitle(title);
     setToastMessage(message);
     setToastOpen(true);
   }
@@ -1536,13 +1539,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             />
           ) : null}
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-            {tComplaints("hqDestinationUnitValue", {
-              unit: hqCroDestinationLabel,
-            })}
+            {hqCroDestinationUnit.trim()
+              ? tComplaints("hqDestinationUnitValue", {
+                  unit: hqCroDestinationLabel,
+                })
+              : tComplaints("hqDestinationUnitMissing")}
           </p>
-          <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-            {tComplaints("hqDestinationUnitHint")}
-          </p>
+          {hqCroDestinationUnit.trim() ? (
+            <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+              {tComplaints("hqDestinationUnitHint")}
+            </p>
+          ) : null}
           <HqArrivalSlotPicker
             value={
               arrivalDate || arrivalTime
@@ -1744,7 +1751,10 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       <Toast
         open={toastOpen}
         onClose={() => setToastOpen(false)}
-        title={toastTone === "success" ? t("success") : t("resolveFailed")}
+        title={
+          toastTitle ||
+          (toastTone === "success" ? tCommon("success") : tCommon("errorTitle"))
+        }
         description={toastMessage}
         tone={toastTone}
       />

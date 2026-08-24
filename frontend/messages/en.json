@@ -2032,7 +2032,8 @@
     "hqDestinationUnitLabel": "Destination unit at HQ",
     "hqDestinationUnitHint": "Taxpayer visits are scheduled to HQ CRO.",
     "hqDestinationUnitPlaceholder": "HQ CRO",
-    "hqDestinationUnitValue": "Destination unit: {unit}"
+    "hqDestinationUnitValue": "Destination unit: {unit}",
+    "hqDestinationUnitMissing": "HQ CRO unit is missing from the organization directory. Ask lab admin to add PUSAT-CRO."
   },
   "queue": {
     "title": "Queue",

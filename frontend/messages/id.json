@@ -2032,7 +2032,8 @@
     "hqDestinationUnitLabel": "Unit tujuan di Pusat",
     "hqDestinationUnitHint": "Kunjungan wajib pajak dijadwalkan ke CRO Pusat.",
     "hqDestinationUnitPlaceholder": "CRO Pusat",
-    "hqDestinationUnitValue": "Unit tujuan: {unit}"
+    "hqDestinationUnitValue": "Unit tujuan: {unit}",
+    "hqDestinationUnitMissing": "Unit CRO Pusat belum ada di directory organisasi. Hubungi admin lab untuk menambahkan PUSAT-CRO."
   },
   "queue": {
     "title": "Antrian",

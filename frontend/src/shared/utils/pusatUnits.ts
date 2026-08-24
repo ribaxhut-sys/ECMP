@@ -63,13 +63,14 @@ export function isHqScheduleDestinationUnitCode(
   return short === "CRO" || short.startsWith("CRO-") || short.startsWith("CRO.");
 }
 
-/** Canonical lab/prod code when the directory has not yet returned a CRO row. */
+/** Canonical lab/prod CRO code when present in the organization directory. */
 export const DEFAULT_HQ_SCHEDULE_DESTINATION_UNIT_CODE = "PUSAT-CRO";
 
 /**
  * Resolve the single HQ arrival destination — CRO only, no user pick.
  * Prefer an exact `PUSAT-CRO` / `HO-CRO` match, else the first CRO unit in
- * the directory, else the canonical default.
+ * the directory. Returns empty string when no CRO row exists (do not invent
+ * a code the OrgUnitResolver will reject).
  */
 export function resolveDefaultHqScheduleDestinationUnitCode(
   units: readonly { code: string }[],
@@ -81,5 +82,5 @@ export function resolveDefaultHqScheduleDestinationUnitCode(
     const short = pusatUnitShortCode(code).toUpperCase();
     return short === "CRO";
   });
-  return preferred || croCodes[0] || DEFAULT_HQ_SCHEDULE_DESTINATION_UNIT_CODE;
+  return preferred || croCodes[0] || "";
 }

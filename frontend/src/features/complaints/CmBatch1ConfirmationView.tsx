@@ -1967,11 +1967,15 @@ export function CmBatch1ConfirmationView({
             />
           ) : null}
           <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-            {t("hqDestinationUnitValue", { unit: hqCroDestinationLabel })}
+            {hqCroDestinationUnit.trim()
+              ? t("hqDestinationUnitValue", { unit: hqCroDestinationLabel })
+              : t("hqDestinationUnitMissing")}
           </p>
-          <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-            {t("hqDestinationUnitHint")}
-          </p>
+          {hqCroDestinationUnit.trim() ? (
+            <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+              {t("hqDestinationUnitHint")}
+            </p>
+          ) : null}
           <HqArrivalSlotPicker
             value={
               arrivalDate || arrivalTime
