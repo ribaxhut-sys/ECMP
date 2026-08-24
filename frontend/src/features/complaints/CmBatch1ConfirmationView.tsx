@@ -652,6 +652,15 @@ export function CmBatch1ConfirmationView({
     [],
   );
 
+  const hqCroDestinationUnit = useMemo(
+    () => resolveDefaultHqScheduleDestinationUnitCode(branches),
+    [branches],
+  );
+  const hqCroDestinationLabel = useMemo(
+    () => hqCroDestinationDisplayLabel(branches),
+    [branches],
+  );
+
   if (!canRead) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -734,14 +743,6 @@ export function CmBatch1ConfirmationView({
       user.id.trim().toLowerCase() === data.createdBy.trim().toLowerCase(),
   );
 
-  const hqCroDestinationUnit = useMemo(
-    () => resolveDefaultHqScheduleDestinationUnitCode(branches),
-    [branches],
-  );
-  const hqCroDestinationLabel = useMemo(
-    () => hqCroDestinationDisplayLabel(branches),
-    [branches],
-  );
   const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
   const hqCompleteNoteOk = isCmBatch1HqNoteReady(hqCompleteNote);
   const hqAcceptScheduleReady = isCmBatch1HqAcceptScheduleReady({
