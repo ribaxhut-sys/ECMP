@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import {
   fetchHqScheduleAvailability,
   fetchHqScheduleAvailabilityDetail,
+  fetchHqScheduleHolidays,
   type HqScheduleDayAvailability,
   type HqScheduleSlotAvailability,
 } from "@/lib/api/hqSchedule";
@@ -78,12 +79,28 @@ export function HqArrivalSlotPicker({
   const [dayLoading, setDayLoading] = useState(false);
   const [dayFailed, setDayFailed] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [holidayDates, setHolidayDates] = useState<string[]>([]);
 
   const minDate = useMemo(() => toLocalDateKey(new Date()), []);
   const maxDate = useMemo(
     () => toLocalDateKey(addDays(new Date(), MAX_LEAD_DAYS)),
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchHqScheduleHolidays(minDate, maxDate)
+      .then((res) => {
+        if (!cancelled) setHolidayDates(res.data.map((h) => h.holidayDate));
+      })
+      .catch(() => {
+        // Holiday markers are advisory only — the backend still rejects a
+        // closed day on submit, so a failed fetch just skips the hint.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [minDate, maxDate]);
 
   const selectedDate = value?.date ?? "";
   const pusatMode = destinationUnitCode !== undefined && destinationUnitCode !== null;
@@ -158,9 +175,11 @@ export function HqArrivalSlotPicker({
           name="proposedArrivalDate"
           id="proposedArrivalDate"
           label={t("proposeDateLabel")}
+          helper={t("proposeDateHolidayHint")}
           min={minDate}
           max={maxDate}
           disabledWeekdays={[0, 6]}
+          disabledDates={holidayDates}
           value={selectedDate}
           disabled={disabled || needsDestinationFirst}
           onChange={(date) => onChange(date ? { date, time: "" } : null)}

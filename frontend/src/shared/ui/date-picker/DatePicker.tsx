@@ -104,6 +104,8 @@ export interface DatePickerProps {
   max?: string;
   /** Days of week to disable (0=Sunday..6=Saturday, matches `Date#getDay`). */
   disabledWeekdays?: readonly number[];
+  /** Specific ISO `yyyy-mm-dd` dates to disable (e.g. holidays). */
+  disabledDates?: readonly string[];
   placeholder?: string;
 }
 
@@ -129,6 +131,7 @@ export function DatePicker({
   min,
   max,
   disabledWeekdays,
+  disabledDates,
   placeholder = "dd/mm/yyyy",
 }: DatePickerProps) {
   const inputId = id ?? name ?? "date-picker";
@@ -169,10 +172,16 @@ export function DatePicker({
     };
   }, [open]);
 
+  const disabledDateSet = useMemo(
+    () => new Set(disabledDates ?? []),
+    [disabledDates],
+  );
+
   function isDisabledDate(date: Date): boolean {
     if (minDate && date < minDate) return true;
     if (maxDate && date > maxDate) return true;
     if (disabledWeekdays?.includes(date.getDay())) return true;
+    if (disabledDateSet.has(toISO(date))) return true;
     return false;
   }
 

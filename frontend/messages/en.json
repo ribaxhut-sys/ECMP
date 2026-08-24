@@ -2940,6 +2940,7 @@
     "visitCompleted": "Done",
     "visitOverdue": "Past slot — WP hasn't arrived",
     "proposeDateLabel": "Arrival date",
+    "proposeDateHolidayHint": "Weekends and holidays can't be selected — pick the nearest working day.",
     "proposeTimeLabel": "Arrival time",
     "proposeTimePlaceholder": "Choose a time",
     "proposedArrivalLabel": "Your proposed slot",

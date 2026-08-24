@@ -2940,6 +2940,7 @@
     "visitCompleted": "Selesai",
     "visitOverdue": "Lewat jadwal — WP belum datang",
     "proposeDateLabel": "Tanggal kedatangan",
+    "proposeDateHolidayHint": "Akhir pekan dan hari libur tidak bisa dipilih — pilih hari kerja terdekat.",
     "proposeTimeLabel": "Jam kedatangan",
     "proposeTimePlaceholder": "Pilih jam",
     "proposedArrivalLabel": "Usulan Anda",

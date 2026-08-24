@@ -11,12 +11,14 @@ import { renderWithProviders } from "@/test/harness";
 
 const fetchHqScheduleAvailability = vi.fn();
 const fetchHqScheduleAvailabilityDetail = vi.fn();
+const fetchHqScheduleHolidays = vi.fn();
 
 vi.mock("@/lib/api/hqSchedule", () => ({
   fetchHqScheduleAvailability: (...args: unknown[]) =>
     fetchHqScheduleAvailability(...args),
   fetchHqScheduleAvailabilityDetail: (...args: unknown[]) =>
     fetchHqScheduleAvailabilityDetail(...args),
+  fetchHqScheduleHolidays: (...args: unknown[]) => fetchHqScheduleHolidays(...args),
 }));
 
 import { HqArrivalSlotPicker } from "./HqArrivalSlotPicker";
@@ -110,14 +112,31 @@ describe("HqArrivalSlotPicker", () => {
   beforeEach(() => {
     fetchHqScheduleAvailability.mockReset();
     fetchHqScheduleAvailabilityDetail.mockReset();
+    fetchHqScheduleHolidays.mockReset();
     fetchHqScheduleAvailability.mockResolvedValue({ data: dayResponse() });
     fetchHqScheduleAvailabilityDetail.mockResolvedValue({
       data: dayResponse({ units: true }),
     });
+    fetchHqScheduleHolidays.mockResolvedValue({ data: [] });
   });
 
   it("does not fetch until a date is picked", () => {
     renderWithProviders(<HqArrivalSlotPicker value={null} onChange={() => {}} />);
+    expect(fetchHqScheduleAvailability).not.toHaveBeenCalled();
+  });
+
+  it("disables a holiday date in the calendar so it cannot be picked", async () => {
+    const user = userEvent.setup();
+    fetchHqScheduleHolidays.mockResolvedValue({
+      data: [{ holidayDate: "2026-08-25", label: "Cuti bersama", createdAt: "" }],
+    });
+    renderWithProviders(<HqArrivalSlotPicker value={null} onChange={() => {}} />);
+
+    await user.click(screen.getByRole("button", { name: "Arrival date" }));
+    const holidayCell = await screen.findByRole("button", { name: "25/08/2026" });
+    expect(holidayCell).toBeDisabled();
+
+    await user.click(holidayCell);
     expect(fetchHqScheduleAvailability).not.toHaveBeenCalled();
   });
 
