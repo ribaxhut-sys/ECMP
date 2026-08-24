@@ -36,13 +36,19 @@ describe("penangananGroups", () => {
     expect(parts.open.map((x) => x.id)).toEqual(["b"]);
   });
 
-  it("moves open cases to pusat when complaint is on HQ intake path", () => {
+  it("keeps non-escalated Cases out of pusat even on HQ intake path (DEC-029)", () => {
     expect(
       penangananGroupForStatus("ASSIGNED", { complaintOnHqPath: true }),
-    ).toBe("pusat");
+    ).toBe("open");
     expect(
       penangananGroupForStatus("CLOSED", { complaintOnHqPath: true }),
     ).toBe("done");
+    expect(
+      penangananGroupForStatus("IN_PROGRESS", {
+        complaintOnHqPath: true,
+        escalatedToPusat: true,
+      }),
+    ).toBe("pusat");
   });
 
   it("detects active HQ intake dispositions only", () => {
@@ -101,7 +107,7 @@ describe("penangananGroups", () => {
     });
   });
 
-  it("summarizes list-column counts with HQ path", () => {
+  it("summarizes list-column counts without forcing HQ path siblings into pusat", () => {
     expect(
       penangananCountsFromCases(
         [{ status: "IN_PROGRESS" }, { status: "CLOSED" }],
@@ -110,10 +116,14 @@ describe("penangananGroups", () => {
     ).toEqual({ open: 1, pusat: 0, done: 1, cancelled: 0 });
     expect(
       penangananCountsFromCases(
-        [{ status: "ASSIGNED" }, { status: "CLOSED" }],
+        [
+          { status: "ASSIGNED" },
+          { status: "CLOSED" },
+          { status: "IN_PROGRESS", escalatedToPusat: true },
+        ],
         "ESCALATE_PENDING_APPROVAL",
       ),
-    ).toEqual({ open: 0, pusat: 1, done: 1, cancelled: 0 });
+    ).toEqual({ open: 1, pusat: 1, done: 1, cancelled: 0 });
   });
 
   it("omits zero segments from summary", () => {

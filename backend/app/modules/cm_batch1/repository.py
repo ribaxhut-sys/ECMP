@@ -1141,25 +1141,40 @@ class CmBatch1Repository:
         }
 
     def list_cases_for_complaint_ids(
-        self, complaint_ids: list[str]
+        self,
+        complaint_ids: list[str],
+        *,
+        visibility: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
     ) -> dict[str, list[dict[str, object]]]:
         """Parent-scoped Case rows for Aggregate list (API-514 embed).
 
-        Visibility is applied on the parent complaint list; nested Cases follow
-        that scope so the case-first column cannot disagree with the row.
+        For ``PUSAT`` visibility, only Cases that are with Pusat are embedded
+        (``escalated_to_pusat`` or Pusat owning/owner unit). Branch-closed
+        sibling Cases on a mixed complaint must not appear in the Pusat queue.
         """
         keys = [str(i).strip() for i in complaint_ids if str(i).strip()]
         if not keys:
             return {}
         from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
-        rows = list(
-            self._session.scalars(
-                select(CmCaseORM)
-                .where(CmCaseORM.complaint_id.in_(keys))
-                .order_by(CmCaseORM.created_at.desc())
-            )
+        codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+        stmt = (
+            select(CmCaseORM)
+            .where(CmCaseORM.complaint_id.in_(keys))
+            .order_by(CmCaseORM.created_at.desc())
         )
+        if (visibility or "").strip().upper() == "PUSAT":
+            stmt = stmt.where(
+                (CmCaseORM.escalated_to_pusat.is_(True))
+                | pusat_unit_clause(
+                    CmCaseORM.owning_unit_id, pusat_unit_codes=codes
+                )
+                | pusat_unit_clause(
+                    CmCaseORM.owner_unit_id, pusat_unit_codes=codes
+                )
+            )
+        rows = list(self._session.scalars(stmt))
         out: dict[str, list[dict[str, object]]] = {k: [] for k in keys}
         for row in rows:
             cid = str(row.complaint_id)

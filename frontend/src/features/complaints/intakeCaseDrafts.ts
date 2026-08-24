@@ -355,7 +355,13 @@ export async function createIntakeCasesForRegisteredComplaint(options: {
   const rows =
     options.rows ??
     buildIntakeDecisionRows(options.values, options.extraDrafts);
+  const createdRows: { row: IntakeCaseDecisionRow; created: CmCase }[] = [];
   let created = 0;
+
+  // Pass 1 — create every Case first. Closing a Case mid-loop would
+  // BR-009 auto-close the parent (only terminal Cases so far) and reject
+  // later creates with COMPLAINT_CLOSED — mixed close+escalate lost the
+  // escalate Case and left HQ looking at the branch-closed Case only.
   for (const row of rows) {
     try {
       const form = formFromRow(
@@ -376,15 +382,27 @@ export async function createIntakeCasesForRegisteredComplaint(options: {
         },
       );
       created += 1;
-      if (row.action === "close") {
-        await closeIntakeCase(res.data, row.note || options.values.resolution);
-      } else if (row.action === "escalate") {
-        const reason = (row.note || options.values.resolution).trim();
-        await escalateCmCaseToPusat(res.data.caseId, { reason });
-      }
+      createdRows.push({ row, created: res.data });
     } catch (err) {
       if (row.action === "escalate") throw err;
       // Complaint already registered — remaining Cases can be added from Penanganan.
+    }
+  }
+
+  // Pass 2 — apply per-Case decisions once all siblings exist.
+  for (const { row, created: createdCase } of createdRows) {
+    try {
+      if (row.action === "close") {
+        await closeIntakeCase(
+          createdCase,
+          row.note || options.values.resolution,
+        );
+      } else if (row.action === "escalate") {
+        const reason = (row.note || options.values.resolution).trim();
+        await escalateCmCaseToPusat(createdCase.caseId, { reason });
+      }
+    } catch (err) {
+      if (row.action === "escalate") throw err;
     }
   }
   return created;

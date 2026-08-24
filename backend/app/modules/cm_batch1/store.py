@@ -689,9 +689,14 @@ class Batch1Store:
             return rows[start : start + page_size], total
 
     def list_cases_for_complaint_ids(
-        self, complaint_ids: list[str]
+        self,
+        complaint_ids: list[str],
+        *,
+        visibility: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
     ) -> dict[str, list[dict[str, object]]]:
         # In-memory lab store has no Case table — list UI falls back to empty.
+        _ = (visibility, pusat_unit_codes)
         return {str(i).strip(): [] for i in complaint_ids if str(i).strip()}
 
     def work_stats_for_user(self, user_key: str) -> dict[str, int]:

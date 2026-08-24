@@ -222,7 +222,11 @@ class CmBatch1StoreProtocol(Protocol):
     ) -> tuple[list[ComplaintAggregate], int]: ...
 
     def list_cases_for_complaint_ids(
-        self, complaint_ids: list[str]
+        self,
+        complaint_ids: list[str],
+        *,
+        visibility: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
     ) -> dict[str, list[dict[str, object]]]: ...
 
     def work_stats_for_user(self, user_key: str) -> dict[str, int]: ...
@@ -1913,7 +1917,11 @@ class CmBatch1Service:
         cases_by_parent: dict[str, list[dict[str, object]]] = {}
         list_cases = getattr(self._store, "list_cases_for_complaint_ids", None)
         if callable(list_cases):
-            cases_by_parent = list_cases([row.complaint_id for row in rows])
+            cases_by_parent = list_cases(
+                [row.complaint_id for row in rows],
+                visibility=visibility,
+                pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
+            )
         claim_ids = {
             str(c.get("handlingClaimedBy") or "").strip()
             for items in cases_by_parent.values()

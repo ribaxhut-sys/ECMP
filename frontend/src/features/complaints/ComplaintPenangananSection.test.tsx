@@ -536,6 +536,7 @@ describe("ComplaintPenangananSection", () => {
           complaintId: "cmp-1",
           status: "ASSIGNED",
           subject: "Aktif",
+          escalatedToPusat: true,
         },
       ],
       meta: { totalItems: 1 },

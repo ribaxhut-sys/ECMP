@@ -94,4 +94,83 @@ describe("createIntakeCasesForRegisteredComplaint — escalate-to-Pusat", () => 
     expect(createCmCase).toHaveBeenCalledTimes(1);
     expect(escalateCmCaseToPusat).not.toHaveBeenCalled();
   });
+
+  it("creates every Case before close/escalate (mixed close + escalate)", async () => {
+    const order: string[] = [];
+    createCmCase.mockImplementation(async () => {
+      order.push(`create-${createCmCase.mock.calls.length}`);
+      return {
+        data: {
+          caseId: `case-${createCmCase.mock.calls.length}`,
+          status: "CREATED",
+          owningUnitId: "JKT01",
+        },
+      };
+    });
+    updateCmCaseStatus.mockImplementation(async (_id, body) => {
+      order.push(`status-${String((body as { toStatus?: string }).toStatus)}`);
+      return {
+        data: {
+          caseId: "case-1",
+          status: (body as { toStatus?: string }).toStatus ?? "IN_PROGRESS",
+          owningUnitId: "JKT01",
+        },
+      };
+    });
+    resolveCmCase.mockImplementation(async () => {
+      order.push("resolve");
+      return { data: { caseId: "case-1", status: "RESOLVED", owningUnitId: "JKT01" } };
+    });
+    recordCmCaseAcceptance.mockImplementation(async () => {
+      order.push("accept");
+      return { data: { caseId: "case-1", status: "CLOSED", owningUnitId: "JKT01" } };
+    });
+    escalateCmCaseToPusat.mockImplementation(async () => {
+      order.push("escalate");
+      return { data: { caseId: "case-2", escalatedToPusat: true } };
+    });
+
+    const values = {
+      ...createEmptyComplaintForm({ channel: "BRANCH" }),
+      subject: "Case selesai cabang",
+      description: "Uraian case 1",
+      priority: "MEDIUM" as const,
+      resolution: "Sudah diselesaikan di cabang.",
+    };
+    await createIntakeCasesForRegisteredComplaint({
+      complaintId: "cmp-mixed",
+      values,
+      extraDrafts: [],
+      destinationUnitId: "JKT01",
+      rows: [
+        {
+          id: "primary",
+          n: 1,
+          subject: values.subject,
+          description: values.description,
+          priority: "MEDIUM",
+          note: "Sudah diselesaikan di cabang.",
+          action: "close",
+        },
+        {
+          id: "extra-1",
+          n: 2,
+          subject: "Case eskalasi",
+          description: "Perlu penanganan Pusat",
+          priority: "HIGH",
+          note: "Tidak dapat diselesaikan di cabang.",
+          action: "escalate",
+        },
+      ],
+    });
+
+    expect(createCmCase).toHaveBeenCalledTimes(2);
+    expect(escalateCmCaseToPusat).toHaveBeenCalledWith("case-2", {
+      reason: "Tidak dapat diselesaikan di cabang.",
+    });
+    // Both creates must finish before any close/escalate side effects.
+    expect(order.indexOf("create-1")).toBeLessThan(order.indexOf("create-2"));
+    expect(order.indexOf("create-2")).toBeLessThan(order.indexOf("status-CREATED"));
+    expect(order.indexOf("create-2")).toBeLessThan(order.indexOf("escalate"));
+  });
 });

@@ -116,8 +116,9 @@ export function isComplaintHandlingClosed(input: {
 }
 
 /**
- * Map Case status (+ optional complaint HQ path) → Penanganan group.
- * Accepts statuses beyond the Mode A PATCH subset (e.g. ESCALATED) if API returns them.
+ * Map Case status → Penanganan group (DEC-029).
+ * Only ``escalatedToPusat`` / legacy ``ESCALATED`` go to Pusat — complaint-level
+ * HQ path must not pull branch-closed or non-escalated sibling Cases into Pusat.
  */
 export function penangananGroupForStatus(
   status: string | null | undefined,
@@ -128,7 +129,7 @@ export function penangananGroupForStatus(
   if (s === "RESOLVED" || s === "CLOSED") return "done";
   if (s === "ESCALATED") return "pusat";
   if (options?.escalatedToPusat) return "pusat";
-  if (options?.complaintOnHqPath && s !== "") return "pusat";
+  void options?.complaintOnHqPath;
   return "open";
 }
 
@@ -151,7 +152,7 @@ export function partitionPenanganan<
   const cancelled: T[] = [];
   for (const item of items) {
     const group = penangananGroupForStatus(item.status, {
-      ...options,
+      complaintOnHqPath: options?.complaintOnHqPath,
       escalatedToPusat: item.escalatedToPusat,
     });
     if (group === "open") open.push(item);
@@ -218,7 +219,7 @@ export function handlerInitialsFromCases(
 }
 
 export function penangananCountsFromCases(
-  items: readonly { status: string }[],
+  items: readonly { status: string; escalatedToPusat?: boolean }[],
   intakeDisposition?: string | null,
 ): { open: number; pusat: number; done: number; cancelled: number } {
   return penangananSummaryCounts(
