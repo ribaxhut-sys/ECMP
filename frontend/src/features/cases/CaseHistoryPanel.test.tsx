@@ -21,7 +21,7 @@ describe("CaseHistoryPanel", () => {
     cleanup();
   });
 
-  it("lists events as a compact log with notes only (no case/status/unit blocks)", async () => {
+  it("lists events as a compact log without note bodies (no case/status/unit blocks)", async () => {
     renderWithProviders(
       <CaseHistoryPanel
         loading={false}
@@ -35,11 +35,11 @@ describe("CaseHistoryPanel", () => {
           }),
           entry({
             entryId: "3",
-            eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
+            eventCode: "CASE_RESOLVED",
             actorName: "Budi",
             note: "OK unit",
             actorUnitId: "PUSAT-CRO",
-            caseStatus: "IN_PROGRESS",
+            caseStatus: "RESOLVED",
             caseNumber: "CASE-2026-0001",
           }),
         ]}
@@ -51,19 +51,50 @@ describe("CaseHistoryPanel", () => {
     expect(screen.getByText("Case history")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Event log for this Case. Operational notes appear when present.",
+        "Event log for this Case. Note text is shown under Handling notes.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Case created")).toBeInTheDocument();
     expect(screen.getByText("Work started")).toBeInTheDocument();
-    expect(screen.getByText("Handling unit accepted")).toBeInTheDocument();
-    expect(screen.getByText("OK unit")).toBeInTheDocument();
+    expect(screen.getByText("Case resolved")).toBeInTheDocument();
+    expect(screen.queryByText("OK unit")).not.toBeInTheDocument();
     expect(screen.queryByText("PUSAT-CRO")).not.toBeInTheDocument();
-    expect(screen.queryByText("IN_PROGRESS")).not.toBeInTheDocument();
+    expect(screen.queryByText("RESOLVED")).not.toBeInTheDocument();
     expect(screen.queryByText("CASE-2026-0001")).not.toBeInTheDocument();
   });
 
-  it("shows HQ scheduled slot and preserves the visit note", async () => {
+  it("hides Internal dual-acceptance events on taxpayer Case history", async () => {
+    renderWithProviders(
+      <CaseHistoryPanel
+        loading={false}
+        error={null}
+        entries={[
+          entry({ entryId: "1", eventCode: "CASE_RESOLVED", actorName: "Ayu" }),
+          entry({
+            entryId: "2",
+            eventCode: "CASE_OWNER_ACCEPTED",
+            actorName: "Admin Utama",
+          }),
+          entry({
+            entryId: "3",
+            eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
+            actorName: "Budi",
+          }),
+          entry({ entryId: "4", eventCode: "CASE_CLOSED", actorName: "Ayu" }),
+        ]}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Case resolved")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Case closed")).toBeInTheDocument();
+    expect(screen.queryByText("Owner accepted")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Handling unit accepted"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows HQ scheduled slot without the visit note body", async () => {
     renderWithProviders(
       <CaseHistoryPanel
         loading={false}
@@ -86,7 +117,9 @@ describe("CaseHistoryPanel", () => {
     expect(
       screen.getByText("Thursday, August 20, 2026 at 09:30"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Bring original documents")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bring original documents"),
+    ).not.toBeInTheDocument();
   });
 
   it("labels Case escalation to HQ instead of Other", async () => {
@@ -108,8 +141,8 @@ describe("CaseHistoryPanel", () => {
       expect(screen.getByText("Sent to HQ")).toBeInTheDocument(),
     );
     expect(
-      screen.getByText("Case cabang tidak bisa diselesaikan di unit ini."),
-    ).toBeInTheDocument();
+      screen.queryByText("Case cabang tidak bisa diselesaikan di unit ini."),
+    ).not.toBeInTheDocument();
   });
 
   it("shows empty copy inside the card", async () => {

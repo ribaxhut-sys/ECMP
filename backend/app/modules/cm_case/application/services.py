@@ -5,6 +5,7 @@ No Notification / Assignment / SLA / Event engines. Audit + Complaint Timeline o
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Protocol
 from uuid import UUID
 
@@ -45,7 +46,11 @@ from app.modules.cm_case.domain.value_objects import (
     CaseStatus,
     ResolveAction,
 )
-from app.modules.timeline.domain.entity import TimelineEntry
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    REASON_RETURNED,
+    CaseInboxRepository,
+    safe_mark_unread,
+)
 from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
 
@@ -521,6 +526,20 @@ class CaseApplicationService:
             )
             for row in rows
         ]
+        session = getattr(self._repo, "_session", None)
+        if session is not None and items:
+            unread = CaseInboxRepository(session).unread_map(
+                str(principal.user_id),
+                [item.case_id for item in items],
+            )
+            items = [
+                replace(
+                    item,
+                    is_read=unread.get(item.case_id) is None,
+                    unread_reason=unread.get(item.case_id),
+                )
+                for item in items
+            ]
         return items, total
 
     def update_status(self, cmd: UpdateStatusCommand) -> CaseDTO:
@@ -830,6 +849,14 @@ class CaseApplicationService:
             after=case.to_snapshot(),
             note=note or None,
             extra_metadata={"returnedToBranchId": origin_unit},
+        )
+        session = getattr(self._repo, "_session", None)
+        safe_mark_unread(
+            session,
+            case_id=str(case.case_id),
+            user_id=case.created_by,
+            reason=REASON_RETURNED,
+            actor_id=cmd.actor_id,
         )
         self._repo.commit()
         return to_case_dto(case)

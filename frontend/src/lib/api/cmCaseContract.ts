@@ -33,6 +33,7 @@ export function cmCasePaths() {
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/return-escalation`,
     history: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/history`,
+    workBadges: `${CM_CASE_BASE}/work-badges`,
   } as const;
 }
 

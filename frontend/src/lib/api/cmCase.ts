@@ -84,6 +84,8 @@ export interface CmCaseSummary {
   escalatedToPusat?: boolean;
   owningUnit?: "BRANCH" | "PUSAT" | string;
   escalationReason?: string | null;
+  isRead?: boolean | null;
+  unreadReason?: string | null;
 }
 
 export interface CmCase {
@@ -270,6 +272,16 @@ export function fetchCmCases(options?: {
     params.set("status", options.status.trim());
   }
   return apiRequest(`${cmCasePaths().cases}?${params.toString()}`);
+}
+
+export interface CmWorkBadgeCounts {
+  unreadCases: number;
+  pusatQueue: number;
+}
+
+/** Mode A sidebar badges — Cabang unread Cases + Pusat unclaimed queue. */
+export function fetchCmWorkBadges(): Promise<DataResponse<CmWorkBadgeCounts>> {
+  return apiRequest(cmCasePaths().workBadges);
 }
 
 export function updateCmCaseStatus(

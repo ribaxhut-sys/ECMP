@@ -438,6 +438,43 @@ describe("CaseDetailView HQ path", () => {
     expect(
       screen.queryByRole("button", { name: "Request escalation to HQ" }),
     ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Take this Case for HQ handling\?|Ambil Case ini untuk ditangani Pusat\?/i),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText(/Registered by|Didaftarkan/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows one return button when parent HQ path and Case DEC-029 return overlap", async () => {
+    orgUnitCode = "PUSAT";
+    authState.userId = "pusat-1";
+    authState.roles = ["AGENT"];
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        handlingClaimedBy: "pusat-1",
+        handlingClaimedByName: "Teguh Prasetyo",
+      }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        intakeDisposition: "ESCALATE_APPROVED",
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("case-return-escalation")).toBeInTheDocument();
+    });
+    expect(screen.getAllByRole("button", { name: /return to branch|kembalikan/i }))
+      .toHaveLength(1);
+    await userEvent.click(screen.getByTestId("case-return-escalation"));
+    await waitFor(() => {
+      expect(screen.getByLabelText(/return reason|alasan pengembalian/i)).toBeInTheDocument();
+    });
   });
 });
 
@@ -465,7 +502,7 @@ describe("CaseDetailView handling notes", () => {
     fetchUsers.mockResolvedValue({ data: [] });
   });
 
-  it("shows catatan under description and keeps timeline notes out of the history stub", async () => {
+  it("shows catatan under description; note bodies stay in handling notes, not the history log", async () => {
     fetchCmCase.mockResolvedValue({
       data: baseCase({
         description: "Queue too long\n\n---\nCatatan:\nSudah dijelaskan",

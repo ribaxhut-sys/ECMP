@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import String, cast, exists, func, literal, or_, select
+from sqlalchemy import String, and_, cast, exists, func, literal, or_, select
 from sqlalchemy import case as sql_case
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -966,6 +966,7 @@ class CmBatch1Repository:
         actor_id: str | None = None,
         org_unit_id: str | None = None,
         pusat_unit_codes: frozenset[str] | None = None,
+        needs_pusat_handling: bool = False,
     ) -> tuple[list[ComplaintAggregate], int]:
         """Newest-first Aggregate list (API-514) with DEC-024 row visibility."""
         page = max(1, int(page))
@@ -1117,6 +1118,46 @@ class CmBatch1Repository:
         if db_:
             stmt = stmt.where(CmBatch1ComplaintORM.decided_by == db_)
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.decided_by == db_)
+
+        if needs_pusat_handling:
+            from app.modules.cm_case.infrastructure.orm import CmCaseORM
+
+            raw_id = cast(CmBatch1ComplaintORM.id, String)
+            parent_id_txt = sql_case(
+                (func.length(raw_id) == 36, raw_id),
+                else_=func.concat(
+                    func.substr(raw_id, 1, 8),
+                    literal("-"),
+                    func.substr(raw_id, 9, 4),
+                    literal("-"),
+                    func.substr(raw_id, 13, 4),
+                    literal("-"),
+                    func.substr(raw_id, 17, 4),
+                    literal("-"),
+                    func.substr(raw_id, 21, 12),
+                ),
+            )
+            unclaimed_escalated = exists(
+                select(1)
+                .select_from(CmCaseORM)
+                .where(
+                    CmCaseORM.complaint_id == parent_id_txt,
+                    CmCaseORM.escalated_to_pusat.is_(True),
+                    or_(
+                        CmCaseORM.handling_claimed_by.is_(None),
+                        CmCaseORM.handling_claimed_by == "",
+                    ),
+                    ~CmCaseORM.status.in_(("CLOSED", "CANCELLED", "RESOLVED")),
+                )
+            )
+            waiting_accept = and_(
+                CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+                CmBatch1ComplaintORM.hq_accepted_at.is_(None),
+                CmBatch1ComplaintORM.status != CLOSED_STATUS,
+            )
+            handling_clause = or_(unclaimed_escalated, waiting_accept)
+            stmt = stmt.where(handling_clause)
+            count_stmt = count_stmt.where(handling_clause)
 
         total = int(self._session.scalar(count_stmt) or 0)
         rows = self._session.scalars(

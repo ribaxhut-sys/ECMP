@@ -535,6 +535,8 @@ class CaseAggregate:
                 details={"field": "reason", "minLength": 20},
             )
         self.escalated_to_pusat = False
+        # Branch again: restore handling to Case creator (cleared on escalate).
+        self.handling_claimed_by = (self.created_by or "").strip() or None
         self.updated_at = _utcnow()
 
     def return_escalation_from_pusat(self, *, note: str) -> None:
@@ -556,7 +558,8 @@ class CaseAggregate:
                 details={"field": "returnNote", "minLength": 10},
             )
         self.escalated_to_pusat = False
-        self.handling_claimed_by = None
+        # Back at branch: Case stays with the creator — no peer “take over” prompt.
+        self.handling_claimed_by = (self.created_by or "").strip() or None
         self.updated_at = _utcnow()
 
     def claim_handling(self, user_id: str) -> None:

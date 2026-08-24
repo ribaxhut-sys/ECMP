@@ -2657,6 +2657,66 @@ def test_intake_history_branch_closed_after_same_burst_attachments() -> None:
     assert items[-1].note == "adsads"
 
 
+def test_intake_history_auto_approve_burst_orders_requested_before_approved() -> None:
+    """Historical +1s REQUESTED stamp must not appear after APPROVE/Case in the log."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.modules.cm_batch1.history import CmBatch1HistoryService
+    from app.modules.timeline.domain.entity import TimelineEntry
+
+    base = datetime(2026, 8, 24, 15, 57, 11, tzinfo=UTC)
+    agg = uuid.uuid4()
+
+    def entry(event_type: str, metadata: dict, *, offset_s: float) -> TimelineEntry:
+        return TimelineEntry(
+            id=uuid.uuid4(),
+            aggregate_type="Complaint",
+            aggregate_id=agg,
+            event_type=event_type,
+            title=event_type,
+            description=None,
+            actor_type="USER",
+            actor_id="officer-1",
+            actor_name=None,
+            metadata=metadata,
+            created_at=base + timedelta(seconds=offset_s),
+        )
+
+    raw = [
+        entry("ComplaintRegistered", {}, offset_s=0),
+        entry(
+            "IntakeEscalationDecided",
+            {"decision": "APPROVE", "intakeDisposition": "ESCALATE_APPROVED"},
+            offset_s=0.02,
+        ),
+        entry(
+            "CaseCreated",
+            {"caseNumber": "TAB-2608-0007", "intakeAction": "escalate"},
+            offset_s=0.1,
+        ),
+        entry(
+            "CaseEscalatedToPusat",
+            {"caseNumber": "TAB-2608-0007"},
+            offset_s=0.15,
+        ),
+        entry(
+            "IntakeDispositionRecorded",
+            {"intakeDisposition": "ESCALATE_PENDING_APPROVAL"},
+            offset_s=1.0,
+        ),
+    ]
+    items = CmBatch1HistoryService(_FakeTimelineRepo(raw)).list_history(str(agg))
+    assert [i.event_code for i in items] == [
+        "REGISTERED",
+        "ESCALATION_REQUESTED",
+        "ESCALATION_APPROVED",
+        "CASE_CREATED",
+        "CASE_ESCALATED_TO_PUSAT",
+    ]
+    assert items[3].case_number == "TAB-2608-0007"
+    assert items[4].case_number == "TAB-2608-0007"
+
+
 def test_intake_history_empty_for_unknown_complaint_id() -> None:
     from app.modules.cm_batch1.history import CmBatch1HistoryService
 

@@ -168,6 +168,42 @@ class CmCaseAcceptanceORM(Base):
     )
 
 
+class CmCaseInboxReceiptORM(Base):
+    """Per-user Case inbox unread (Cabang creator). Not CAP-005 / email.
+
+    One row per (case, user). ``read_at`` null means unread. A later event
+    (return / HQ schedule) clears ``read_at`` so the row lights up again.
+    ``user_id`` is an actor string (same as ``cm_cases.created_by``) — no FK.
+    """
+
+    __tablename__ = "cm_case_inbox_receipts"
+    __table_args__ = (
+        UniqueConstraint("case_id", "user_id", name="uq_cm_case_inbox_receipts_pair"),
+        Index("ix_cm_case_inbox_receipts_user_id", "user_id"),
+        Index("ix_cm_case_inbox_receipts_case_id", "case_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_cases.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class CmCaseNumberCounterORM(Base):
     """Independent Case sequence — key ``cs:UNIT:YYYYMM`` (BQ-004)."""
 

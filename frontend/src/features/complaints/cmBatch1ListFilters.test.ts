@@ -60,4 +60,14 @@ describe("cmBatch1ListFilters", () => {
     expect(waiting.status).toBe("REGISTERED");
     expect(waiting.intakeDisposition).toBe("UNESCALATED");
   });
+
+  it("parses and serializes needsPusatHandling", () => {
+    const parsed = cmBatch1FiltersFromSearchParams(
+      new URLSearchParams("needsPusatHandling=1"),
+    );
+    expect(parsed.needsPusatHandling).toBe(true);
+    expect(cmBatch1FiltersToSearchParams(parsed).get("needsPusatHandling")).toBe(
+      "1",
+    );
+  });
 });

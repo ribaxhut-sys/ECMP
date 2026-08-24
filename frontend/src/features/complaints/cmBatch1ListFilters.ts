@@ -51,6 +51,7 @@ export interface CmBatch1ListFilters {
   /** Set via drill-down from the Users directory work-stats panel (UM-BUG-006). */
   createdBy: string;
   decidedBy: string;
+  needsPusatHandling: boolean;
   page: number;
   pageSize: number;
 }
@@ -62,6 +63,7 @@ export function defaultCmBatch1ListFilters(): CmBatch1ListFilters {
     intakeDisposition: "",
     createdBy: "",
     decidedBy: "",
+    needsPusatHandling: false,
     page: 1,
     pageSize: 10,
   };
@@ -83,6 +85,9 @@ export function cmBatch1FiltersFromSearchParams(
       : "",
     createdBy: (params.get("createdBy") ?? "").slice(0, 128),
     decidedBy: (params.get("decidedBy") ?? "").slice(0, 128),
+    needsPusatHandling: ["1", "true", "yes"].includes(
+      (params.get("needsPusatHandling") ?? "").trim().toLowerCase(),
+    ),
     page: Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1,
     pageSize:
       Number.isFinite(pageSize) && pageSize >= 1 && pageSize <= 100
@@ -103,6 +108,7 @@ export function cmBatch1FiltersToSearchParams(
   }
   if (filters.createdBy.trim()) params.set("createdBy", filters.createdBy.trim());
   if (filters.decidedBy.trim()) params.set("decidedBy", filters.decidedBy.trim());
+  if (filters.needsPusatHandling) params.set("needsPusatHandling", "1");
   if (filters.page !== defaults.page) params.set("page", String(filters.page));
   if (filters.pageSize !== defaults.pageSize) {
     params.set("pageSize", String(filters.pageSize));

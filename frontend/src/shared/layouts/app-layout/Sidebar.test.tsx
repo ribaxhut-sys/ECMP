@@ -25,6 +25,7 @@ let mockUserId: string | null = "user-1";
 let mockOrgUnitBranch: { code: string } | null | undefined = null;
 const unreadCountApi = vi.fn();
 const hqScheduleDetailApi = vi.fn();
+const workBadgesApi = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -80,6 +81,7 @@ vi.mock("@/lib/api", async () => {
   return {
     ...actual,
     fetchUnreadAnnouncementCount: (...args: unknown[]) => unreadCountApi(...args),
+    fetchCmWorkBadges: (...args: unknown[]) => workBadgesApi(...args),
   };
 });
 
@@ -132,6 +134,8 @@ beforeEach(() => {
   unreadCountApi.mockResolvedValue({ data: 0 });
   hqScheduleDetailApi.mockReset();
   hqScheduleDetailApi.mockResolvedValue({ data: { days: [] } });
+  workBadgesApi.mockReset();
+  workBadgesApi.mockResolvedValue({ data: { unreadCases: 0, pusatQueue: 0 } });
 });
 
 afterEach(() => {
@@ -448,5 +452,53 @@ describe("HQ schedule today-count badge", () => {
     );
     expect(hqScheduleDetailApi).not.toHaveBeenCalled();
     expect(within(link).queryByText(/^\d+$/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Mode A work badges — Cabang Cases / Pusat Complaints", () => {
+  it("shows unread Cases badge for Cabang and does not rewrite Complaints href", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "UPPPD-TANAH-ABANG" };
+    workBadgesApi.mockResolvedValue({
+      data: { unreadCases: 3, pusatQueue: 9 },
+    });
+    const { sidebar } = renderSidebar();
+
+    const casesLink = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^Cases$/i }),
+    );
+    await waitFor(() => {
+      expect(within(casesLink).getByText("3")).toBeInTheDocument();
+    });
+
+    const taxpayerPanel = document.getElementById(
+      "nav-subgroup-panel-taxpayerComplaints",
+    )!;
+    const complaintsLink = within(taxpayerPanel).getByRole("link", {
+      name: /^Complaints$/i,
+    });
+    expect(complaintsLink).toHaveAttribute("href", "/complaints");
+    expect(within(complaintsLink).queryByText("9")).not.toBeInTheDocument();
+  });
+
+  it("shows Pusat queue badge on Complaints with filtered href; Cases stays hidden", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "PUSAT" };
+    workBadgesApi.mockResolvedValue({
+      data: { unreadCases: 4, pusatQueue: 7 },
+    });
+    const { sidebar } = renderSidebar();
+
+    const complaintsLink = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^Complaints$/i }),
+    );
+    await waitFor(() => {
+      expect(within(complaintsLink).getByText("7")).toBeInTheDocument();
+    });
+    expect(complaintsLink).toHaveAttribute(
+      "href",
+      "/complaints?needsPusatHandling=1",
+    );
+    expect(sidebar.queryByRole("link", { name: /^Cases$/i })).not.toBeInTheDocument();
   });
 });

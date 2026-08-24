@@ -355,6 +355,37 @@ paths:
                     code: MAX_CASES_EXCEEDED
                     detail: Maximum 5 Cases per Complaint reached (BQ-003).
 
+  /api/v1/cm/work-badges:
+    get:
+      summary: Mode A work badges (Cabang unread + Pusat queue)
+      description: |
+        Sidebar counts for Complaint work signals (Mode A, in-app only).
+
+        Cabang (`actorIsPusat=false`): `unreadCases` = unread return / HQ-schedule
+        receipts for the caller. `pusatQueue` is 0.
+
+        Pusat: `pusatQueue` = distinct complaints that still need a Pusat handler
+        (unclaimed escalated Case, or `ESCALATE_APPROVED` waiting HQ accept).
+        `unreadCases` is 0.
+
+        Fail-open: errors return zeros so navigation stays up.
+        Not CAP-005 email/SMS. Not a Mode B unlock. Lab UX for API-536 / API-514.
+      operationId: cmB2GetWorkBadges
+      tags: [CM-Case-List]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/WorkBadgeCounts"
+
   /api/v1/cm/cases/{caseId}:
     get:
       summary: View Case
@@ -1389,6 +1420,27 @@ components:
           type: string
           nullable: true
           description: Directory display name for handlingClaimedBy (never the user id).
+        isRead:
+          type: boolean
+          nullable: true
+          description: |
+            Cabang inbox: false when the caller has an unread return / HQ-schedule
+            receipt for this Case. null when not applicable.
+        unreadReason:
+          type: string
+          nullable: true
+          description: RETURNED or HQ_SCHEDULED when isRead is false.
+
+    WorkBadgeCounts:
+      type: object
+      required: [unreadCases, pusatQueue]
+      properties:
+        unreadCases:
+          type: integer
+          minimum: 0
+        pusatQueue:
+          type: integer
+          minimum: 0
 
     CaseAcceptance:
       type: object

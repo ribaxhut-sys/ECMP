@@ -32,7 +32,12 @@ from app.integrations.customer import (
     mask_identity,
 )
 from app.integrations.directory import NullUserDirectory, UserDirectory
-from app.modules.cm_batch1 import event_factory as events
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    REASON_HQ_SCHEDULED,
+    REASON_RETURNED,
+    complaint_needs_pusat_handling,
+    notify_complaint_case_creators,
+)
 from app.modules.cm_batch1.customer_search_key import validate_customer_search_key
 from app.modules.cm_batch1.duplicate_config import (
     DEFAULT_DUPLICATE_CONFIG,
@@ -1156,15 +1161,16 @@ class CmBatch1Service:
                 priority=chosen_priority,
             )
         )
+        disposition_at: datetime | None = None
         if intake_disposition:
-            # Sort above ComplaintRegistered on the dashboard feed when times
-            # would otherwise collide (create + escalate is one user action).
+            # After REGISTERED, before auto-approve / Case — keep ms gaps so
+            # history ASC stays Terdaftar → diajukan → disetujui (not +1s after).
             disposition_at = row.created_at
             if (
                 intake_disposition == "ESCALATE_PENDING_APPROVAL"
                 and disposition_at is not None
             ):
-                disposition_at = disposition_at + timedelta(seconds=1)
+                disposition_at = disposition_at + timedelta(milliseconds=10)
             self._side_effects.record(
                 events.intake_disposition_recorded(
                     complaint_id=row.complaint_id,
@@ -1194,6 +1200,9 @@ class CmBatch1Service:
             )
             if approved is not None:
                 row = approved
+            approve_at = None
+            if disposition_at is not None:
+                approve_at = disposition_at + timedelta(milliseconds=10)
             self._side_effects.record(
                 events.intake_escalation_decided(
                     complaint_id=row.complaint_id,
@@ -1204,6 +1213,7 @@ class CmBatch1Service:
                     note_present=True,
                     priority=row.priority,
                     note=note,
+                    occurred_at=approve_at,
                 )
             )
         if dup_result == "overridden":
@@ -1572,6 +1582,12 @@ class CmBatch1Service:
                 note=note,
             )
         )
+        notify_complaint_case_creators(
+            getattr(self._store, "_session", None),
+            complaint_id=updated.complaint_id,
+            actor_id=actor_id,
+            reason=REASON_RETURNED,
+        )
         self._store.commit()
         return self._to_complaint_response(updated, replayed=False)
 
@@ -1728,6 +1744,12 @@ class CmBatch1Service:
                 proposed_arrival_time=row.proposed_arrival_time,
             )
         )
+        notify_complaint_case_creators(
+            getattr(self._store, "_session", None),
+            complaint_id=updated.complaint_id,
+            actor_id=actor_id,
+            reason=REASON_HQ_SCHEDULED,
+        )
         self._store.commit()
         return self._to_complaint_response(updated, replayed=False)
 
@@ -1805,6 +1827,12 @@ class CmBatch1Service:
                 proposed_arrival_time=row.proposed_arrival_time,
             )
         )
+        notify_complaint_case_creators(
+            getattr(self._store, "_session", None),
+            complaint_id=updated.complaint_id,
+            actor_id=actor_id,
+            reason=REASON_HQ_SCHEDULED,
+        )
         self._store.commit()
         return self._to_complaint_response(updated, replayed=False)
 
@@ -1879,6 +1907,7 @@ class CmBatch1Service:
         decided_by: str | None = None,
         principal: Principal | None = None,
         org_unit_id: str | None = None,
+        needs_pusat_handling: bool = False,
     ) -> tuple[list[ComplaintBatch1Response], int]:
         if principal is not None:
             visibility = resolve_row_visibility(principal).value
@@ -1907,6 +1936,7 @@ class CmBatch1Service:
             actor_id=actor_id,
             org_unit_id=effective_org,
             pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
+            needs_pusat_handling=needs_pusat_handling,
         )
         labels = self._customer_labels_for(
             {row.customer_id for row in rows if row.customer_id}
@@ -2044,6 +2074,12 @@ class CmBatch1Service:
             intakeDisposition=row.intake_disposition,
             caseCreated=bool(row.case_created),
             cases=list(cases or []),
+            needsPusatHandling=complaint_needs_pusat_handling(
+                status=_aggregate_status(row.status),
+                intake_disposition=row.intake_disposition,
+                hq_accepted_at=row.hq_accepted_at,
+                cases=list(cases or []),
+            ),
             replayed=replayed,
             category=row.category,
             channel=row.channel,

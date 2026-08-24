@@ -172,6 +172,8 @@ class CaseSummaryDTO:
     escalated_to_pusat: bool = False
     owning_unit: str = "BRANCH"
     escalation_reason: str | None = None
+    is_read: bool | None = None
+    unread_reason: str | None = None
 
 
 @dataclass

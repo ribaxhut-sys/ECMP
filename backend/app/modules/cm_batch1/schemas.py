@@ -188,6 +188,14 @@ class ComplaintBatch1Response(BaseModel):
             "(avoids list UI falsely showing 'no case' when Case visibility diverges)."
         ),
     )
+    needs_pusat_handling: bool = Field(
+        default=False,
+        alias="needsPusatHandling",
+        description=(
+            "True when Pusat still needs to claim handling: unclaimed escalated "
+            "Case, or ESCALATE_APPROVED waiting HQ accept. Mode A sidebar queue."
+        ),
+    )
     replayed: bool = False
     category: str | None = None
     channel: str | None = None

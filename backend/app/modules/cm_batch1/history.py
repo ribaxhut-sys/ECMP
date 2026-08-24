@@ -4,10 +4,11 @@ The ``description`` blob keeps at most one note per section label, so it can
 never answer "what happened, in what order". This reads the append-only
 timeline instead and maps each entry to a stable code the UI can label.
 
-Display order is chronological with one narrative adjustment: on branch-close
-intake, ``BRANCH_CLOSED`` is written at create time while attachments bind in a
-later request — slide close past the following attachment cluster so the
-business outcome stays last in that burst (Mode A Riwayat intake).
+Display order is chronological with narrative adjustments:
+- On branch-close intake, ``BRANCH_CLOSED`` slides past the following
+  attachment cluster so the business outcome stays last in that burst.
+- Same-burst create+auto-approve ranks REGISTERED → REQUESTED → APPROVED →
+  CASE_* so a historical +1s REQUESTED stamp cannot appear after approval.
 """
 
 from __future__ import annotations
@@ -25,6 +26,30 @@ AGGREGATE_TYPE = "Complaint"
 # Attachments bound shortly after BRANCH_CLOSED on create still belong to the
 # same intake action — keep them before the close row in the narrative.
 _ATTACHMENT_FOLLOW_WINDOW = timedelta(minutes=2)
+
+# Same-burst create+auto-approve (or +1s disposition stamp) can reorder
+# REQUESTED after APPROVED/Case — cluster and rank within this window.
+_BURST_GAP = timedelta(seconds=2)
+
+# Lower = earlier in the complaint-page narrative within one burst.
+_NARRATIVE_RANK: dict[str, int] = {
+    "REGISTERED": 0,
+    "ATTACHMENT_UPLOADED": 5,
+    "ATTACHMENT_BOUND": 5,
+    "ATTACHMENT_SUPERSEDED": 5,
+    "ATTACHMENT_VOIDED": 5,
+    "ATTACHMENT_TRANSFERRED": 5,
+    "ESCALATION_REQUESTED": 10,
+    "ESCALATION_APPROVED": 20,
+    "ESCALATION_REJECTED": 20,
+    "ESCALATION_CANCELLED": 20,
+    "ESCALATION_RE_REQUESTED": 25,
+    "CASE_CREATED": 30,
+    "CASE_ESCALATED_TO_PUSAT": 40,
+    "CASE_ESCALATION_TO_PUSAT_CANCELLED": 41,
+    "CASE_ESCALATION_RETURNED": 42,
+    "BRANCH_CLOSED": 90,
+}
 
 _ATTACHMENT_EVENT_TYPES = frozenset(
     {
@@ -138,17 +163,12 @@ def _is_attachment_event(entry: TimelineEntry) -> bool:
     return event_code(entry).startswith("ATTACHMENT_")
 
 
-def apply_narrative_intake_order(
+def _slide_branch_closed_after_attachments(
     entries: list[TimelineEntry],
     *,
-    follow_window: timedelta = _ATTACHMENT_FOLLOW_WINDOW,
+    follow_window: timedelta,
 ) -> list[TimelineEntry]:
-    """Chronological list with BRANCH_CLOSED after same-burst ATTACHMENT_* rows.
-
-    Create+close writes disposition before staging binds finish, so raw chrono
-    shows Ditutup di tengah. Slide each BRANCH_CLOSED past the contiguous
-    attachment cluster that follows within ``follow_window``.
-    """
+    """Create+close writes disposition before staging binds finish."""
     result = list(entries)
     i = 0
     while i < len(result):
@@ -174,6 +194,62 @@ def apply_narrative_intake_order(
         else:
             i += 1
     return result
+
+
+def _reorder_same_burst_by_narrative(
+    entries: list[TimelineEntry],
+    *,
+    burst_gap: timedelta = _BURST_GAP,
+) -> list[TimelineEntry]:
+    """Stable-rank codes inside a same-second intake burst.
+
+    Auto-approve stamps APPROVE at wall-clock while REQUESTED was historically
+    written at created_at+1s — so raw chrono shows disetujui before diajukan.
+    """
+    if len(entries) < 2:
+        return list(entries)
+
+    def rank(entry: TimelineEntry) -> int:
+        return _NARRATIVE_RANK.get(event_code(entry), 50)
+
+    out: list[TimelineEntry] = []
+    i = 0
+    while i < len(entries):
+        j = i + 1
+        while j < len(entries):
+            gap = entries[j].created_at - entries[j - 1].created_at
+            if gap < timedelta(0) or gap > burst_gap:
+                break
+            j += 1
+        cluster = entries[i:j]
+        if len(cluster) > 1:
+            # Preserve original index for equal ranks / unknown codes.
+            cluster = [
+                entry
+                for _, entry in sorted(
+                    enumerate(cluster),
+                    key=lambda pair: (rank(pair[1]), pair[0]),
+                )
+            ]
+        out.extend(cluster)
+        i = j
+    return out
+
+
+def apply_narrative_intake_order(
+    entries: list[TimelineEntry],
+    *,
+    follow_window: timedelta = _ATTACHMENT_FOLLOW_WINDOW,
+) -> list[TimelineEntry]:
+    """Chronological list with narrative fixes for same-burst intake writes.
+
+    1. BRANCH_CLOSED after same-burst ATTACHMENT_* rows.
+    2. Within a short burst: REGISTERED → REQUESTED → APPROVED → CASE_*.
+    """
+    after_close = _slide_branch_closed_after_attachments(
+        entries, follow_window=follow_window
+    )
+    return _reorder_same_burst_by_narrative(after_close)
 
 
 class CmBatch1HistoryService:

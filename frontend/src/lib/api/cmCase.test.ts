@@ -30,6 +30,7 @@ describe("cmCasePaths", () => {
       "/api/v1/cm/cases/id/return-escalation",
     );
     expect(paths.history("c/1")).toBe("/api/v1/cm/cases/c%2F1/history");
+    expect(paths.workBadges).toBe("/api/v1/cm/work-badges");
   });
 
   it("does not use foundation complaints base for create case", () => {

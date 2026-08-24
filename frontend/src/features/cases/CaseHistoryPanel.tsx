@@ -18,6 +18,7 @@ import {
 import {
   CASE_HISTORY_TONES,
   caseHistoryLabelKey,
+  filterWpCaseHistoryEntries,
   isCaseCloseEvent,
 } from "./caseHistoryMeta";
 
@@ -41,8 +42,8 @@ function isKnownPriority(
 
 /**
  * API-537 panel — Case chronology as a compact log.
- * Operational notes stay visible; caseNumber / status / unit are omitted
- * (already on the Case page header).
+ * Operational note bodies live in CaseHandlingNotes, not here.
+ * caseNumber / status / unit are omitted (already on the Case page header).
  */
 export function CaseHistoryPanel({
   entries,
@@ -59,6 +60,7 @@ export function CaseHistoryPanel({
   const tComplaints = useTranslations("complaints");
   const locale = useLocale();
   const [logPage, setLogPage] = useState(1);
+  const visibleEntries = filterWpCaseHistoryEntries(entries);
 
   useEffect(() => {
     setLogPage(1);
@@ -69,15 +71,20 @@ export function CaseHistoryPanel({
     return t.has(key as "eventOther") ? t(key as "eventOther") : code;
   }
 
-  const logTotalPages = Math.max(1, Math.ceil(entries.length / LOG_PAGE_SIZE));
+  const logTotalPages = Math.max(
+    1,
+    Math.ceil(visibleEntries.length / LOG_PAGE_SIZE),
+  );
   const safeLogPage = Math.min(logPage, logTotalPages);
-  const paged = entries.slice(
+  const paged = visibleEntries.slice(
     (safeLogPage - 1) * LOG_PAGE_SIZE,
     safeLogPage * LOG_PAGE_SIZE,
   );
   const logFrom =
-    entries.length === 0 ? 0 : (safeLogPage - 1) * LOG_PAGE_SIZE + 1;
-  const logTo = Math.min(safeLogPage * LOG_PAGE_SIZE, entries.length);
+    visibleEntries.length === 0
+      ? 0
+      : (safeLogPage - 1) * LOG_PAGE_SIZE + 1;
+  const logTo = Math.min(safeLogPage * LOG_PAGE_SIZE, visibleEntries.length);
 
   return (
     <section className="space-y-[var(--ecmp-panel-gap)]" data-testid="case-history">
@@ -95,12 +102,12 @@ export function CaseHistoryPanel({
               description={t("historyUnavailableDescription")}
             />
           ) : null}
-          {!loading && !error && entries.length === 0 ? (
+          {!loading && !error && visibleEntries.length === 0 ? (
             <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
               {t("historyEmpty")}
             </p>
           ) : null}
-          {!loading && !error && entries.length > 0 ? (
+          {!loading && !error && visibleEntries.length > 0 ? (
             <>
               <ol className="space-y-[var(--ecmp-form-gap)]">
                 {paged.map((entry, index) => {
@@ -127,7 +134,6 @@ export function CaseHistoryPanel({
                       ? tPriority(priorityKey)
                       : entry.priority
                     : null;
-                  const note = entry.note?.trim() || null;
                   return (
                     <li
                       key={entry.entryId}
@@ -137,11 +143,7 @@ export function CaseHistoryPanel({
                           : "bg-ecmp-surface-sunken"
                       }`}
                     >
-                      <div
-                        className={`flex w-full items-start gap-3 p-3 ${
-                          note ? "" : "rounded-[var(--ecmp-radius-md)]"
-                        }`}
-                      >
+                      <div className="flex w-full items-start gap-3 rounded-[var(--ecmp-radius-md)] p-3">
                         <span
                           aria-hidden
                           className="min-w-6 shrink-0 text-[length:var(--ecmp-font-body-size)] font-[number:var(--ecmp-font-overline-weight)] tabular-nums text-ecmp-text-secondary"
@@ -179,16 +181,6 @@ export function CaseHistoryPanel({
                           ) : null}
                         </span>
                       </div>
-                      {note ? (
-                        <div className="border-t border-ecmp-border/60 px-12 pb-3 pt-2">
-                          <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                            {t("historyNoteLabel")}
-                          </p>
-                          <p className="mt-0.5 whitespace-pre-wrap text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
-                            {note}
-                          </p>
-                        </div>
-                      ) : null}
                     </li>
                   );
                 })}
@@ -200,7 +192,7 @@ export function CaseHistoryPanel({
                       {tCommon("showingItems", {
                         from: logFrom,
                         to: logTo,
-                        total: entries.length,
+                        total: visibleEntries.length,
                       })}
                       <span className="mx-2 text-ecmp-border">·</span>
                       {tCommon("pageOf", {

@@ -25,6 +25,20 @@ const BLOB_NOTE_KEYS = [
   { field: "cancellationNote", labelKey: "handlingNoteCancellation" },
 ] as const;
 
+/**
+ * Outcome / acceptance notes belong in Resolusi + Riwayat log — not Catatan.
+ * Dual-acceptance codes are Internal Complaint vocabulary (hidden on WP Case).
+ * Repeating them under every lifecycle label is noise (same body N times).
+ */
+const HISTORY_NOTE_EXCLUDED_CODES = new Set([
+  "CASE_RESOLVED",
+  "CASE_CLOSED",
+  "CASE_OWNER_ACCEPTED",
+  "CASE_OWNER_REJECTED",
+  "CASE_HANDLING_UNIT_ACCEPTED",
+  "CASE_HANDLING_UNIT_REJECTED",
+]);
+
 function normalizeNoteText(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
@@ -85,11 +99,19 @@ function blobNotesFromDescription(raw: string | null | undefined): CaseHandlingN
   return notes;
 }
 
-function historyNotes(entries: CmCaseHistoryEntry[]): CaseHandlingNote[] {
+function historyNotes(
+  entries: CmCaseHistoryEntry[],
+  seen: Set<string>,
+): CaseHandlingNote[] {
   const notes: CaseHandlingNote[] = [];
   entries.forEach((entry, index) => {
+    const code = entry.eventCode.trim().toUpperCase();
+    if (HISTORY_NOTE_EXCLUDED_CODES.has(code)) return;
     const text = entry.note?.trim() || "";
     if (!text) return;
+    const key = normalizeNoteText(text);
+    if (seen.has(key)) return;
+    seen.add(key);
     notes.push({
       key: entry.entryId || `history-${index}`,
       source: "history",
@@ -103,9 +125,18 @@ function historyNotes(entries: CmCaseHistoryEntry[]): CaseHandlingNote[] {
   return notes;
 }
 
+export type CollectCaseHandlingNotesExtras = {
+  parentIntakeNote?: string | null;
+  /** Resolusi summary/comment — omit from Catatan when identical. */
+  resolutionTexts?: Array<string | null | undefined>;
+};
+
 /**
  * Catatan for the Case work card: blob sections not already on the timeline,
  * then chronological timeline notes (API-537).
+ *
+ * Milestone resolve/close/dual-acceptance notes are omitted (Resolusi + Riwayat).
+ * Identical note bodies appear once.
  *
  * `parentIntakeNote` covers Cases created via Tangani pengaduan that did not
  * copy the Complaint Catatan onto the Case row — still Case-page content
@@ -114,10 +145,14 @@ function historyNotes(entries: CmCaseHistoryEntry[]): CaseHandlingNote[] {
 export function collectCaseHandlingNotes(
   description: string | null | undefined,
   entries: CmCaseHistoryEntry[],
-  extras?: { parentIntakeNote?: string | null },
+  extras?: CollectCaseHandlingNotesExtras,
 ): CaseHandlingNote[] {
-  const fromHistory = historyNotes(entries);
-  const seen = new Set(fromHistory.map((row) => normalizeNoteText(row.text)));
+  const seen = new Set<string>();
+  for (const raw of extras?.resolutionTexts ?? []) {
+    const text = raw?.trim() || "";
+    if (text) seen.add(normalizeNoteText(text));
+  }
+  const fromHistory = historyNotes(entries, seen);
   const fromBlob = blobNotesFromDescription(description).filter((row) => {
     const key = normalizeNoteText(row.text);
     if (seen.has(key)) return false;

@@ -116,6 +116,16 @@ paths:
           schema:
             type: string
             maxLength: 100
+        - name: needsPusatHandling
+          in: query
+          required: false
+          description: |
+            When true, list only complaints that still need a Pusat handler
+            (unclaimed escalated Case, or ESCALATE_APPROVED waiting HQ accept).
+            Mode A sidebar queue filter. Not a Mode B unlock.
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: OK
@@ -1157,6 +1167,12 @@ components:
           nullable: true
           description: |
             When set, Pusat has accepted/claimed — Batalkan Eskalasi blocked.
+        needsPusatHandling:
+          type: boolean
+          description: |
+            True when this complaint still needs a Pusat handler (unclaimed
+            escalated Case, or ESCALATE_APPROVED waiting HQ accept). Drives
+            the Pusat sidebar queue and list bolding. Mode A lab UX.
         hqAcceptanceNote:
           type: string
           nullable: true

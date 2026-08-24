@@ -15,6 +15,7 @@ import {
   type CmCaseSummary,
 } from "@/lib/api";
 import {
+  Badge,
   Button,
   Empty,
   ErrorState,
@@ -250,10 +251,21 @@ export function CaseInboxListView() {
           <div className="min-w-0 leading-snug">
             <Link
               href={`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`}
-              className="block truncate font-medium text-ecmp-primary underline-offset-2 hover:underline"
+              className={
+                row.isRead === false
+                  ? "block truncate font-semibold text-ecmp-primary underline-offset-2 hover:underline"
+                  : "block truncate font-medium text-ecmp-primary underline-offset-2 hover:underline"
+              }
             >
               {row.caseNumber}
             </Link>
+            {row.isRead === false && row.unreadReason ? (
+              <Badge tone="warning" className="mt-0.5">
+                {row.unreadReason === "HQ_SCHEDULED"
+                  ? t("unreadHqScheduled")
+                  : t("unreadReturned")}
+              </Badge>
+            ) : null}
             {complaintNumber || complaintHref ? (
               complaintHref ? (
                 <Link
@@ -424,6 +436,9 @@ export function CaseInboxListView() {
             columns={columns}
             rows={rows}
             getRowKey={(row) => row.caseId}
+            getRowClassName={(row) =>
+              row.isRead === false ? "font-semibold" : undefined
+            }
           />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">

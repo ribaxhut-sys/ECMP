@@ -296,6 +296,9 @@ def list_complaints(
     category: Annotated[str | None, Query(max_length=100)] = None,
     created_by: Annotated[str | None, Query(alias="createdBy")] = None,
     decided_by: Annotated[str | None, Query(alias="decidedBy")] = None,
+    needs_pusat_handling: Annotated[
+        bool, Query(alias="needsPusatHandling")
+    ] = False,
 ) -> ListResponse[ComplaintBatch1Response]:
     pri = (priority or "").strip().upper() or None
     if pri is not None and pri not in _ALLOWED_PRIORITIES:
@@ -326,6 +329,7 @@ def list_complaints(
         decided_by=(decided_by or "").strip() or None,
         principal=vis_principal,
         org_unit_id=effective_org,
+        needs_pusat_handling=needs_pusat_handling,
     )
     return ListResponse(
         data=items,

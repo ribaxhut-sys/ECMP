@@ -42,7 +42,7 @@ describe("collectCaseHandlingNotes", () => {
       [
         entry({
           entryId: "2",
-          eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
+          eventCode: "CASE_STATUS_CHANGED",
           note: "OK unit",
         }),
         entry({
@@ -60,14 +60,14 @@ describe("collectCaseHandlingNotes", () => {
     ]);
     expect(notes[0]?.source).toBe("blob");
     expect(notes[2]?.source).toBe("history");
-    expect(notes[2]?.labelKey).toBe("eventHandlingUnitAccepted");
+    expect(notes[2]?.labelKey).toBe("eventCaseStatusChanged");
   });
 
   it("does not duplicate a blob catatan that already appears on the timeline", () => {
     const notes = collectCaseHandlingNotes("Keluhan\n\n---\nCatatan:\nOK unit", [
       entry({
         entryId: "2",
-        eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
+        eventCode: "CASE_STATUS_CHANGED",
         note: "OK unit",
       }),
     ]);
@@ -101,5 +101,59 @@ describe("collectCaseHandlingNotes", () => {
     );
     expect(notes).toHaveLength(1);
     expect(notes[0]?.key).toBe("blob-intake");
+  });
+
+  it("omits resolve/close/owner-accept notes and dedupes identical bodies", () => {
+    const body =
+      "Vivamus sagittis lacus vel augue laoreet rutrum faucibus dolor auctor.\nDilanjutkan sesuai SOP";
+    const notes = collectCaseHandlingNotes("Deskripsi saja", [
+      entry({ entryId: "1", eventCode: "CASE_CREATED", note: body }),
+      entry({ entryId: "2", eventCode: "CASE_RESOLVED", note: body }),
+      entry({ entryId: "3", eventCode: "CASE_OWNER_ACCEPTED", note: body }),
+      entry({ entryId: "4", eventCode: "CASE_CLOSED", note: body }),
+    ]);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.text).toBe(body);
+    expect(notes[0]?.labelKey).toBe("eventCaseCreated");
+  });
+
+  it("suppresses Catatan text that already appears on Resolusi", () => {
+    const body = "Dilanjutkan sesuai SOP";
+    const notes = collectCaseHandlingNotes(
+      "Deskripsi saja",
+      [
+        entry({ entryId: "1", eventCode: "CASE_CREATED", note: body }),
+        entry({ entryId: "2", eventCode: "CASE_RESOLVED", note: body }),
+        entry({ entryId: "3", eventCode: "CASE_CLOSED", note: body }),
+      ],
+      { resolutionTexts: [body, body] },
+    );
+    expect(notes).toEqual([]);
+  });
+
+  it("keeps distinct operational notes after excluding outcome events", () => {
+    const notes = collectCaseHandlingNotes("Keluhan", [
+      entry({
+        entryId: "1",
+        eventCode: "CASE_CREATED",
+        note: "Catatan buat case",
+      }),
+      entry({
+        entryId: "2",
+        eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
+        note: "OK unit",
+      }),
+      entry({
+        entryId: "3",
+        eventCode: "CASE_RESOLVED",
+        note: "Selesai di cabang",
+      }),
+      entry({
+        entryId: "4",
+        eventCode: "CASE_CLOSED",
+        note: "Selesai di cabang",
+      }),
+    ]);
+    expect(notes.map((row) => row.text)).toEqual(["Catatan buat case"]);
   });
 });

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import replace
 from typing import Annotated
@@ -36,6 +37,7 @@ from app.modules.cm_case.api.schemas import (
     CaseResolutionResponse,
     CaseResponse,
     CaseSummaryResponse,
+    WorkBadgeCountsResponse,
     CloseCaseRequest,
     CreateCaseRequest,
     EscalateToPusatRequest,
@@ -61,8 +63,14 @@ from app.modules.cm_case.application.services import (
     AuditTimelineSideEffects,
     CaseApplicationService,
 )
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    safe_mark_read,
+    safe_work_badge_counts,
+)
 from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseRepository
 from app.modules.timeline.repository import TimelineRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CM-Case-ModeA"])
 
@@ -273,6 +281,8 @@ def list_cases(
                 escalatedToPusat=i.escalated_to_pusat,
                 owningUnit=i.owning_unit,
                 escalationReason=i.escalation_reason,
+                isRead=i.is_read,
+                unreadReason=i.unread_reason,
             )
             for i in items
         ],
@@ -375,6 +385,26 @@ def _enforce_case_mutation_scope(
     return dto
 
 
+@router.get("/api/v1/cm/work-badges")
+def get_work_badges(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[WorkBadgeCountsResponse]:
+    """Mode A sidebar counts: Cabang unread Cases + Pusat unclaimed queue.
+
+    Fail-open: repository errors return zeros so navigation stays up.
+    Not CAP-005 email/SMS. Not a Mode B unlock.
+    """
+    unread, queue = safe_work_badge_counts(
+        session,
+        actor_id=str(principal.user_id),
+        actor_is_pusat=_actor_is_pusat(principal, session),
+    )
+    return DataResponse(
+        data=WorkBadgeCountsResponse(unreadCases=unread, pusatQueue=queue)
+    )
+
+
 @router.get("/api/v1/cm/cases/{case_id}")
 def get_case(
     case_id: str,
@@ -399,7 +429,18 @@ def get_case(
             (units.handling_unit_id, units.owner_unit_id),
             settings,
         )
-    return DataResponse(data=_to_response(dto, session=session))
+    body = _to_response(dto, session=session)
+    # get_db_session does not auto-commit; persist mark-read before close.
+    safe_mark_read(session, case_id=case_id, user_id=str(principal.user_id))
+    try:
+        session.commit()
+    except Exception:
+        logger.exception("case inbox mark-read commit failed")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    return DataResponse(data=body)
 
 
 @router.get("/api/v1/cm/cases/{case_id}/history")

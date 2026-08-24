@@ -2,6 +2,18 @@ import type { BadgeTone } from "@/shared/ui";
 
 export const CASE_CLOSE_EVENT_CODES = new Set(["CASE_CLOSED", "CASE_RESOLVED"]);
 
+/**
+ * Dual-acceptance (Owner / Handling Unit) is the Internal Complaint closure
+ * model. On taxpayer CM Case history those codes confuse operators ("Pemilik
+ * menerima" ≠ WP). Keep them out of the WP Case log; CLOSE/RESOLVED remain.
+ */
+export const WP_CASE_HISTORY_HIDDEN_CODES = new Set([
+  "CASE_OWNER_ACCEPTED",
+  "CASE_OWNER_REJECTED",
+  "CASE_HANDLING_UNIT_ACCEPTED",
+  "CASE_HANDLING_UNIT_REJECTED",
+]);
+
 export const CASE_HISTORY_TONES: Record<string, BadgeTone> = {
   CASE_CREATED: "primary",
   CASE_WORK_STARTED: "info",
@@ -63,4 +75,15 @@ export function isCaseCloseEvent(code: string): boolean {
 
 export function caseHistoryLabelKey(eventCode: string): string {
   return CASE_HISTORY_LABEL_KEYS[eventCode] ?? "eventOther";
+}
+
+export function isWpCaseHistoryHidden(eventCode: string): boolean {
+  return WP_CASE_HISTORY_HIDDEN_CODES.has(eventCode.trim().toUpperCase());
+}
+
+/** Taxpayer CM Case log — drop Internal dual-acceptance events. */
+export function filterWpCaseHistoryEntries<T extends { eventCode: string }>(
+  entries: T[],
+): T[] {
+  return entries.filter((entry) => !isWpCaseHistoryHidden(entry.eventCode));
 }

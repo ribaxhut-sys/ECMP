@@ -33,6 +33,15 @@ class CaseSummaryResponse(BaseModel):
     escalated_to_pusat: bool = Field(default=False, alias="escalatedToPusat")
     owning_unit: str = Field(default="BRANCH", alias="owningUnit")
     escalation_reason: str | None = Field(default=None, alias="escalationReason")
+    is_read: bool | None = Field(default=None, alias="isRead")
+    unread_reason: str | None = Field(default=None, alias="unreadReason")
+
+
+class WorkBadgeCountsResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    unread_cases: int = Field(alias="unreadCases")
+    pusat_queue: int = Field(alias="pusatQueue")
 
 
 class CaseResolutionResponse(BaseModel):

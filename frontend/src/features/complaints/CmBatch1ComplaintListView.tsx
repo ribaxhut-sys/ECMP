@@ -127,6 +127,7 @@ export function CmBatch1ComplaintListView() {
         intakeDisposition: filters.intakeDisposition,
         createdBy: filters.createdBy,
         decidedBy: filters.decidedBy,
+        needsPusatHandling: filters.needsPusatHandling || undefined,
       });
       setRows(res.data ?? []);
       setTotal(res.meta?.totalItems ?? res.data?.length ?? 0);
@@ -260,7 +261,11 @@ export function CmBatch1ComplaintListView() {
             <div className="min-w-0">
               <Link
                 href={complaintHref}
-                className="whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+                className={
+                  row.complaint.needsPusatHandling
+                    ? "whitespace-nowrap font-semibold tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+                    : "whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+                }
               >
                 {complaintLabel}
               </Link>
@@ -277,7 +282,11 @@ export function CmBatch1ComplaintListView() {
           <div className="min-w-0">
             <Link
               href={caseHref}
-              className="whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+              className={
+                row.complaint.needsPusatHandling
+                  ? "whitespace-nowrap font-semibold tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+                  : "whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+              }
             >
               {caseLabel}
             </Link>
@@ -624,6 +633,9 @@ export function CmBatch1ComplaintListView() {
                 density="compact"
                 stickyHeader
                 className="[--ecmp-font-table-size:0.9375rem]"
+                getRowClassName={(row) =>
+                  row.complaint.needsPusatHandling ? "font-semibold" : undefined
+                }
               />
               <Pagination
                 summary={tCommon("pageOf", {

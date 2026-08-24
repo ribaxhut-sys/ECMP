@@ -312,6 +312,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [escalating, setEscalating] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnNote, setReturnNote] = useState("");
+  const [returnReasonCode, setReturnReasonCode] =
+    useState<CmBatch1HqReturnReasonCode>("MISSING_ATTACHMENT");
   const [returning, setReturning] = useState(false);
   const [hqAcceptOpen, setHqAcceptOpen] = useState(false);
   const [hqReturnOpen, setHqReturnOpen] = useState(false);
@@ -339,8 +341,21 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const handlingNotes = collectCaseHandlingNotes(
     data?.description,
     history.entries,
-    { parentIntakeNote: complaintIntakeNote },
+    {
+      parentIntakeNote: complaintIntakeNote,
+      resolutionTexts: [
+        data?.resolution?.summary,
+        data?.resolution?.comment,
+        data?.resolution?.detail,
+      ],
+    },
   );
+  const resolutionSummaryText = data?.resolution?.summary?.trim() ?? "";
+  const resolutionCommentText = data?.resolution?.comment?.trim() ?? "";
+  const showResolutionComment =
+    Boolean(resolutionCommentText) &&
+    resolutionCommentText.toLowerCase() !==
+      resolutionSummaryText.toLowerCase();
 
   const reload = useCallback(async () => {
     if (!canRead || !caseId.trim()) {
@@ -361,7 +376,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           ? fetchCmBatch1Customer360(caseData.customerId).catch(() => null)
           : Promise.resolve(null),
         fetchUsers({ page: 1, pageSize: 100 }).catch(() => null),
-        fetchBranches(200).catch(() => null),
+        fetchBranches(100).catch(() => null),
       ]);
 
       const complaint = complaintRes?.data ?? null;
@@ -534,6 +549,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     showHqReschedule,
     showHqComplete,
   } = hqActions;
+  /** Parent HQ return (API-519) — hide when DEC-029 Case return (API-521) applies. */
+  const showParentHqReturn = Boolean(showHqReturn && !showReturnEscalation);
   const hqReturnNoteOk = isCmBatch1HqNoteReady(hqReturnNote);
   const hqCompleteNoteOk = isCmBatch1HqNoteReady(hqCompleteNote);
   const hqCroDestinationUnit = useMemo(
@@ -691,6 +708,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       complaintCreatedBy?.trim() &&
       user.id.trim().toLowerCase() === complaintCreatedBy.trim().toLowerCase(),
   );
+  const handleConfirmIsPusatClaim = Boolean(
+    data?.escalatedToPusat &&
+      actorIsPusat &&
+      !(data.handlingClaimedBy || "").trim(),
+  );
 
   function declineHandleClaim(): void {
     if (data) markCaseHandleViewed(data.caseId);
@@ -825,12 +847,14 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     if (!data || returning || !returnNoteOk) return;
     setReturning(true);
     try {
+      const note = `[${returnReasonCode}] ${returnNote.trim()}`;
       const res = await returnCmCaseEscalation(data.caseId, {
-        returnNote: returnNote.trim(),
+        returnNote: note,
       });
       setData(res.data);
       setReturnOpen(false);
       setReturnNote("");
+      setReturnReasonCode("MISSING_ATTACHMENT");
       showSuccess(t("returnEscalationSuccess"));
       await reload();
     } catch (err) {
@@ -1302,16 +1326,18 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                               pre
                             />
                           ) : null}
-                          <div className="space-y-1">
-                            <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                              {t("comment")}
-                            </dt>
-                            <dd className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                              <KnowledgeReferenceText
-                                text={data.resolution.comment}
-                              />
-                            </dd>
-                          </div>
+                          {showResolutionComment ? (
+                            <div className="space-y-1">
+                              <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                                {t("comment")}
+                              </dt>
+                              <dd className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                                <KnowledgeReferenceText
+                                  text={data.resolution.comment}
+                                />
+                              </dd>
+                            </div>
+                          ) : null}
                         </dl>
                       </>
                     ) : (
@@ -1384,7 +1410,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 {tComplaints("hqAcceptAndSchedule")}
               </Button>
             ) : null}
-            {showHqReturn ? (
+            {showParentHqReturn ? (
               <Button
                 type="button"
                 variant="outline"
@@ -1427,7 +1453,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 type="button"
                 variant="outline"
                 data-testid="case-return-escalation"
-                onClick={() => setReturnOpen(true)}
+                onClick={() => {
+                  setReturnReasonCode("MISSING_ATTACHMENT");
+                  setReturnNote("");
+                  setReturnOpen(true);
+                }}
                 disabled={returning}
               >
                 {tComplaints("hqReturn")}
@@ -1761,7 +1791,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       <Modal
         open={handlePromptOpen}
         onClose={declineHandleClaim}
-        title={tComplaints("handleConfirmTitle")}
+        title={
+          handleConfirmIsPusatClaim
+            ? tComplaints("handleConfirmPusatClaimTitle")
+            : tComplaints("handleConfirmTitle")
+        }
         size="sm"
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1784,14 +1818,16 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         }
       >
         <p className="text-ecmp-text-primary">
-          {handleConfirmIsCreator
-            ? tComplaints("handleConfirmContinueBody")
-            : tComplaints("handleConfirmTakeoverBody", {
-                name:
-                  complaintCreatedByName?.trim() ||
-                  createdByLabel?.trim() ||
-                  tCommon("emDash"),
-              })}
+          {handleConfirmIsPusatClaim
+            ? tComplaints("handleConfirmPusatClaimBody")
+            : handleConfirmIsCreator
+              ? tComplaints("handleConfirmContinueBody")
+              : tComplaints("handleConfirmTakeoverBody", {
+                  name:
+                    complaintCreatedByName?.trim() ||
+                    createdByLabel?.trim() ||
+                    tCommon("emDash"),
+                })}
         </p>
       </Modal>
       <Modal
@@ -1986,12 +2022,26 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
               number: data?.caseNumber ?? tCommon("emDash"),
             })}
           </p>
-          <Textarea
+          <Select
+            name="returnReasonCode"
+            label={tComplaints("hqReturnReasonLabel")}
+            options={HQ_RETURN_REASON_CODES.map((code) => ({
+              value: code,
+              label: tComplaints(`hqReturnReason_${code}` as never),
+            }))}
+            value={returnReasonCode}
+            onChange={(event) =>
+              setReturnReasonCode(event.target.value as CmBatch1HqReturnReasonCode)
+            }
+            disabled={returning}
+          />
+          <PresetTextField
+            presets={hqReturnPresets[HQ_RETURN_PRESET_KEY] ?? []}
             name="returnNote"
             label={t("returnEscalationNoteLabel")}
             hint={t("returnEscalationNoteHint")}
             value={returnNote}
-            onChange={(event) => setReturnNote(event.target.value)}
+            onChange={setReturnNote}
             rows={4}
             maxLength={2000}
             disabled={returning}

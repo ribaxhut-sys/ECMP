@@ -18,6 +18,9 @@ from app.modules.announcement import models as _announcement_orm  # noqa: E402, 
 # CM Batch 1 Aggregate persistence (S2 Task 01).
 from app.modules.cm_batch1 import models as _cm_batch1_orm  # noqa: E402, F401
 
+# CAP-008 Case Aggregate + inbox receipts.
+from app.modules.cm_case.infrastructure import orm as _cm_case_orm  # noqa: E402, F401
+
 # Complaint Domain Foundation ORM (CAPABILITY-004) — register for Alembic only.
 from app.modules.complaint.infrastructure import orm as _complaint_orm  # noqa: E402, F401
 

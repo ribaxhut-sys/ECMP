@@ -616,9 +616,10 @@ def intake_escalation_decided(
     note_present: bool,
     priority: str | None = None,
     note: str | None = None,
+    occurred_at: datetime | None = None,
 ) -> DomainEvent:
     """Audit/timeline only — no EVT-CM catalog row for intake escalation decision."""
-    now = datetime.now(UTC)
+    now = occurred_at or datetime.now(UTC)
     payload = {
         "complaintId": complaint_id,
         "complaintNumber": complaint_number,

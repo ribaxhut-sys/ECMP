@@ -10,6 +10,7 @@ import { mayManageAnnouncements } from "@/features/announcements/announcementMan
 import { prefersComplaintNumberIdentity } from "@/features/complaints/cmBatch1ComplaintListIdentity";
 import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
+import { useCmWorkBadges } from "@/features/cases/useCmWorkBadges";
 import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTodayCount";
 import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
 import { usePendingWithdrawRequestCount } from "@/features/internal-complaints/usePendingWithdrawRequestCount";
@@ -602,6 +603,11 @@ function NavSections({
   const tCommon = useTranslations("common");
   const unreadCount = useUnreadAnnouncementCount();
   const hqScheduleTodayCount = useHqScheduleTodayCount();
+  const { unreadCases, pusatQueue } = useCmWorkBadges();
+  const orgUnitBranch = useOrgUnitBranch();
+  const orgUnitCode =
+    orgUnitBranch === undefined ? undefined : (orgUnitBranch?.code ?? null);
+  const isCabangInbox = prefersComplaintNumberIdentity(orgUnitCode);
   const pendingTransferRequestCount = usePendingTransferRequestCount();
   const pendingWithdrawRequestCount = usePendingWithdrawRequestCount();
   let itemsWithBadges = itemsById;
@@ -632,6 +638,27 @@ function NavSections({
       internalFollowUp: {
         ...itemsWithBadges.internalFollowUp,
         badge: pendingWithdrawRequestCount,
+      },
+    };
+  }
+  if (isCabangInbox && unreadCases > 0 && itemsWithBadges.cases) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      cases: { ...itemsWithBadges.cases, badge: unreadCases },
+    };
+  }
+  if (
+    orgUnitCode !== undefined &&
+    !isCabangInbox &&
+    pusatQueue > 0 &&
+    itemsWithBadges.complaints
+  ) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      complaints: {
+        ...itemsWithBadges.complaints,
+        badge: pusatQueue,
+        href: "/complaints?needsPusatHandling=1",
       },
     };
   }

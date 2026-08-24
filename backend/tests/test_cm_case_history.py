@@ -39,6 +39,7 @@ from app.modules.cm_case.application.services import (
 )
 from app.modules.cm_case.infrastructure.orm import (
     CmCaseAcceptanceORM,
+    CmCaseInboxReceiptORM,
     CmCaseNumberCounterORM,
     CmCaseORM,
     CmCaseResolutionORM,
@@ -284,6 +285,7 @@ _HTTP_TABLES = [
     CmCaseAcceptanceORM.__table__,
     CmCaseNumberCounterORM.__table__,
     TimelineEntryORM.__table__,
+    CmCaseInboxReceiptORM.__table__,
 ]
 
 

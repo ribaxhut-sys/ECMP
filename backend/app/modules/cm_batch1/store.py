@@ -611,6 +611,7 @@ class Batch1Store:
         actor_id: str | None = None,
         org_unit_id: str | None = None,
         pusat_unit_codes: frozenset[str] | None = None,
+        needs_pusat_handling: bool = False,
     ) -> tuple[list[ComplaintAggregate], int]:
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
@@ -683,6 +684,21 @@ class Batch1Store:
             db_ = (decided_by or "").strip()
             if db_:
                 rows = [c for c in rows if (c.decided_by or "") == db_]
+            if needs_pusat_handling:
+                from app.modules.cm_case.infrastructure.inbox_repository import (
+                    complaint_needs_pusat_handling,
+                )
+
+                rows = [
+                    c
+                    for c in rows
+                    if complaint_needs_pusat_handling(
+                        status=c.status,
+                        intake_disposition=c.intake_disposition,
+                        hq_accepted_at=c.hq_accepted_at,
+                        cases=[],
+                    )
+                ]
             rows = sorted(rows, key=lambda c: c.created_at, reverse=True)
             total = len(rows)
             start = (page - 1) * page_size

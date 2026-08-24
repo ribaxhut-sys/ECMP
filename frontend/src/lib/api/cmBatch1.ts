@@ -130,6 +130,8 @@ export interface CmBatch1ComplaintResponse {
   caseCreated: boolean;
   /** Nested Cases from API-514 list (parent-scoped; preferred over N+1). */
   cases?: CmCaseSummary[];
+  /** Pusat still needs to claim this complaint (unclaimed escalate / waiting HQ accept). */
+  needsPusatHandling?: boolean;
   replayed: boolean;
   category?: string | null;
   channel?: string | null;
@@ -405,6 +407,7 @@ export function fetchCmBatch1Complaints(
     category?: string;
     createdBy?: string;
     decidedBy?: string;
+    needsPusatHandling?: boolean;
   } = 1,
   pageSizeArg = 20,
 ): Promise<ListResponse<CmBatch1ComplaintResponse>> {
@@ -430,6 +433,7 @@ export function fetchCmBatch1Complaints(
   if (createdBy) params.set("createdBy", createdBy);
   const decidedBy = filters.decidedBy?.trim();
   if (decidedBy) params.set("decidedBy", decidedBy);
+  if (filters.needsPusatHandling) params.set("needsPusatHandling", "true");
   return apiRequest(`${cmBatch1Paths().complaints}?${params.toString()}`);
 }
 

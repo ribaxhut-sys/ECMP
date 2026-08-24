@@ -38,6 +38,7 @@ from app.modules.cm_case.domain.aggregate import CaseAggregate
 from app.modules.cm_case.domain.value_objects import CaseNumber, CaseStatus
 from app.modules.cm_case.infrastructure.orm import (
     CmCaseAcceptanceORM,
+    CmCaseInboxReceiptORM,
     CmCaseNumberCounterORM,
     CmCaseORM,
     CmCaseResolutionORM,
@@ -50,6 +51,7 @@ _TABLES = [
     CmCaseResolutionORM.__table__,
     CmCaseAcceptanceORM.__table__,
     CmCaseNumberCounterORM.__table__,
+    CmCaseInboxReceiptORM.__table__,
 ]
 
 
@@ -1101,9 +1103,12 @@ def jwt_org_api_client(
         app.dependency_overrides.clear()
 
 
-def _principal_for(org_unit_id: str | None) -> Principal:
+def _principal_for(
+    org_unit_id: str | None, *, roles: tuple[str, ...] = ()
+) -> Principal:
     return Principal(
         user_id=uuid.uuid4(),
+        roles=roles,
         permissions=frozenset(
             {"complaints:create", "complaints:read", "complaints:update"}
         ),
@@ -2072,6 +2077,7 @@ def test_cancel_escalation_to_pusat_before_claim(
     )
     assert cancelled.escalated_to_pusat is False
     assert cancelled.owning_unit == "BRANCH"
+    assert cancelled.handling_claimed_by == "officer-1"
 
     with pytest.raises(ApiError) as missing:
         service.cancel_escalation_to_pusat(
@@ -2223,7 +2229,7 @@ def test_pusat_returns_escalated_case_with_note(
     )
     assert returned.escalated_to_pusat is False
     assert returned.owning_unit == "BRANCH"
-    assert not (returned.handling_claimed_by or "").strip()
+    assert returned.handling_claimed_by == "officer-1"
 
 
 def test_api_cancel_escalation_to_pusat(
@@ -2260,3 +2266,154 @@ def test_api_cancel_escalation_to_pusat(
     body = cancelled.json()["data"]
     assert body["escalatedToPusat"] is False
     assert body["owningUnit"] == "BRANCH"
+    assert (body.get("handlingClaimedBy") or "").strip()
+    assert body["handlingClaimedBy"] == create.json()["data"]["createdBy"]
+
+
+def test_return_escalation_marks_creator_unread_until_detail_open(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Inbox unread",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    escalated = client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert escalated.status_code == 200, escalated.text
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+
+    state["principal"] = creator
+    listed = client.get("/api/v1/cm/cases")
+    assert listed.status_code == 200, listed.text
+    row = next(item for item in listed.json()["data"] if item["caseId"] == case_id)
+    assert row["isRead"] is False
+    assert row["unreadReason"] == "RETURNED"
+
+    opened = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert opened.status_code == 200, opened.text
+    listed_again = client.get("/api/v1/cm/cases")
+    row_again = next(
+        item for item in listed_again.json()["data"] if item["caseId"] == case_id
+    )
+    assert row_again["isRead"] is True
+    assert row_again.get("unreadReason") in (None, "")
+
+
+def test_work_badges_pusat_queue_and_cabang_unread(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Queue badge",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+
+    cabang_badges = client.get("/api/v1/cm/work-badges")
+    assert cabang_badges.status_code == 200, cabang_badges.text
+    assert cabang_badges.json()["data"]["unreadCases"] == 0
+    assert cabang_badges.json()["data"]["pusatQueue"] == 0
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    pusat_badges = client.get("/api/v1/cm/work-badges")
+    assert pusat_badges.status_code == 200, pusat_badges.text
+    assert pusat_badges.json()["data"]["unreadCases"] == 0
+    assert pusat_badges.json()["data"]["pusatQueue"] >= 1
+
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+
+    state["principal"] = creator
+    after_return = client.get("/api/v1/cm/work-badges")
+    assert after_return.json()["data"]["unreadCases"] >= 1
+    assert after_return.json()["data"]["pusatQueue"] == 0
+
+
+def test_return_escalation_fail_open_when_inbox_write_breaks(
+    jwt_org_api_client: dict[str, object], db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.modules.cm_case.infrastructure import inbox_repository as inbox
+
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("inbox unavailable")
+
+    monkeypatch.setattr(inbox.CaseInboxRepository, "mark_unread", _boom)
+
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Fail-open inbox",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+    assert returned.json()["data"]["escalatedToPusat"] is False
