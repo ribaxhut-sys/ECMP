@@ -40,8 +40,9 @@ function isKnownPriority(
 }
 
 /**
- * API-537 panel — chronology for this Case only.
- * Notes stay visible here so Pusat/branch handoffs preserve full context.
+ * API-537 panel — Case chronology as a compact log.
+ * Operational notes stay visible; caseNumber / status / unit are omitted
+ * (already on the Case page header).
  */
 export function CaseHistoryPanel({
   entries,
@@ -127,9 +128,6 @@ export function CaseHistoryPanel({
                       : entry.priority
                     : null;
                   const note = entry.note?.trim() || null;
-                  const actorUnit = entry.actorUnitId?.trim() || null;
-                  const caseStatus = entry.caseStatus?.trim() || null;
-                  const caseNumber = entry.caseNumber?.trim() || null;
                   return (
                     <li
                       key={entry.entryId}
@@ -139,7 +137,11 @@ export function CaseHistoryPanel({
                           : "bg-ecmp-surface-sunken"
                       }`}
                     >
-                      <div className="flex w-full items-start gap-3 rounded-[var(--ecmp-radius-md)] p-3">
+                      <div
+                        className={`flex w-full items-start gap-3 p-3 ${
+                          note ? "" : "rounded-[var(--ecmp-radius-md)]"
+                        }`}
+                      >
                         <span
                           aria-hidden
                           className="min-w-6 shrink-0 text-[length:var(--ecmp-font-body-size)] font-[number:var(--ecmp-font-overline-weight)] tabular-nums text-ecmp-text-secondary"
@@ -177,40 +179,14 @@ export function CaseHistoryPanel({
                           ) : null}
                         </span>
                       </div>
-                      {caseNumber || caseStatus || actorUnit || note ? (
-                        <div className="border-t border-ecmp-border/60 px-12 pb-3 pt-3">
-                          <dl className="grid grid-cols-1 gap-3 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary sm:grid-cols-2">
-                            {caseNumber ? (
-                              <div className="space-y-1">
-                                <dt className="text-ecmp-text-secondary">{t("caseNumber")}</dt>
-                                <dd className="font-mono">{caseNumber}</dd>
-                              </div>
-                            ) : null}
-                            {caseStatus ? (
-                              <div className="space-y-1">
-                                <dt className="text-ecmp-text-secondary">
-                                  {tComplaints("status")}
-                                </dt>
-                                <dd>{caseStatus}</dd>
-                              </div>
-                            ) : null}
-                            {actorUnit ? (
-                              <div className="space-y-1">
-                                <dt className="text-ecmp-text-secondary">
-                                  {t("historyUnitLabel")}
-                                </dt>
-                                <dd>{actorUnit}</dd>
-                              </div>
-                            ) : null}
-                            {note ? (
-                              <div className="space-y-1 sm:col-span-2">
-                                <dt className="text-ecmp-text-secondary">
-                                  {t("historyNoteLabel")}
-                                </dt>
-                                <dd className="whitespace-pre-wrap">{note}</dd>
-                              </div>
-                            ) : null}
-                          </dl>
+                      {note ? (
+                        <div className="border-t border-ecmp-border/60 px-12 pb-3 pt-2">
+                          <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                            {t("historyNoteLabel")}
+                          </p>
+                          <p className="mt-0.5 whitespace-pre-wrap text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary">
+                            {note}
+                          </p>
                         </div>
                       ) : null}
                     </li>

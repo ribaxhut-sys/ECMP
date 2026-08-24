@@ -3159,7 +3159,7 @@
     "evidenceTitle": "Bukti / lampiran",
     "evidenceDescription": "Dokumen pendukung pada pengaduan induk.",
     "historyTitle": "Riwayat Case",
-    "historyDescription": "Riwayat Case ini lengkap per kejadian, termasuk status, unit, dan catatan operasional.",
+    "historyDescription": "Urutan kejadian Case ini. Catatan operasional ditampilkan bila ada.",
     "historyEmpty": "Belum ada kejadian tercatat untuk Case ini.",
     "historyUnavailable": "Riwayat Case tidak dapat dimuat",
     "historyUnavailableDescription": "Muat ulang halaman untuk mencoba lagi.",

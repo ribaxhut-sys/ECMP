@@ -3159,7 +3159,7 @@
     "evidenceTitle": "Evidence / attachments",
     "evidenceDescription": "Supporting documents on the parent complaint.",
     "historyTitle": "Case history",
-    "historyDescription": "Full event history for this Case, including status, unit, and operational notes.",
+    "historyDescription": "Event log for this Case. Operational notes appear when present.",
     "historyEmpty": "No events recorded for this Case yet.",
     "historyUnavailable": "Case history could not be loaded",
     "historyUnavailableDescription": "Reload the page to retry.",

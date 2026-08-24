@@ -21,7 +21,7 @@ describe("CaseHistoryPanel", () => {
     cleanup();
   });
 
-  it("lists this Case's events with operational detail blocks", async () => {
+  it("lists events as a compact log with notes only (no case/status/unit blocks)", async () => {
     renderWithProviders(
       <CaseHistoryPanel
         loading={false}
@@ -51,16 +51,16 @@ describe("CaseHistoryPanel", () => {
     expect(screen.getByText("Case history")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Full event history for this Case, including status, unit, and operational notes.",
+        "Event log for this Case. Operational notes appear when present.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Case created")).toBeInTheDocument();
     expect(screen.getByText("Work started")).toBeInTheDocument();
     expect(screen.getByText("Handling unit accepted")).toBeInTheDocument();
     expect(screen.getByText("OK unit")).toBeInTheDocument();
-    expect(screen.getByText("PUSAT-CRO")).toBeInTheDocument();
-    expect(screen.getByText("IN_PROGRESS")).toBeInTheDocument();
-    expect(screen.getByText("CASE-2026-0001")).toBeInTheDocument();
+    expect(screen.queryByText("PUSAT-CRO")).not.toBeInTheDocument();
+    expect(screen.queryByText("IN_PROGRESS")).not.toBeInTheDocument();
+    expect(screen.queryByText("CASE-2026-0001")).not.toBeInTheDocument();
   });
 
   it("shows HQ scheduled slot and preserves the visit note", async () => {
