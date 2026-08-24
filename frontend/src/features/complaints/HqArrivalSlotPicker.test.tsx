@@ -1,21 +1,37 @@
 /**
  * HQ arrival slot picker — free date pick (not limited to "this week"),
- * per-day fetch, and break-slot exclusion.
+ * per-day fetch, and break-slot exclusion. Pusat mode uses the detail API
+ * and may keep a full unit slot selectable with a warning.
  */
 import { cleanup, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { renderWithProviders } from "@/test/harness";
 
 const fetchHqScheduleAvailability = vi.fn();
+const fetchHqScheduleAvailabilityDetail = vi.fn();
 
 vi.mock("@/lib/api/hqSchedule", () => ({
   fetchHqScheduleAvailability: (...args: unknown[]) =>
     fetchHqScheduleAvailability(...args),
+  fetchHqScheduleAvailabilityDetail: (...args: unknown[]) =>
+    fetchHqScheduleAvailabilityDetail(...args),
 }));
 
 import { HqArrivalSlotPicker } from "./HqArrivalSlotPicker";
 
-function dayResponse(overrides: Partial<{ closed: boolean }> = {}) {
+function dayResponse(
+  overrides: Partial<{
+    closed: boolean;
+    units: boolean;
+    unitAvailable: number;
+    date: string;
+  }> = {},
+) {
+  const withUnits = overrides.units === true;
+  const unitAvailable = overrides.unitAvailable ?? 2;
+  const date = overrides.date ?? "2026-08-18";
   return {
     startTime: "08:00",
     endTime: "13:00",
@@ -23,7 +39,7 @@ function dayResponse(overrides: Partial<{ closed: boolean }> = {}) {
     capacityPerSlot: 2,
     days: [
       {
-        date: "2026-08-18",
+        date,
         weekday: 2,
         closed: overrides.closed ?? false,
         slots: overrides.closed
@@ -32,16 +48,38 @@ function dayResponse(overrides: Partial<{ closed: boolean }> = {}) {
               {
                 startTime: "08:00",
                 endTime: "09:00",
-                capacity: 2,
+                capacity: withUnits ? 4 : 2,
                 isBreak: false,
-                scheduledCount: 0,
+                scheduledCount: withUnits && unitAvailable <= 0 ? 2 : 0,
                 completedCount: 0,
                 proposedCount: 0,
-                availableCount: 2,
+                availableCount: withUnits ? unitAvailable + 2 : 2,
                 bookable: true,
-                bookableCount: 2,
+                bookableCount: withUnits ? unitAvailable + 2 : 2,
                 pendingProposals: [],
                 scheduledCases: [],
+                units: withUnits
+                  ? [
+                      {
+                        unitCode: "PUSAT-CRO",
+                        unitName: "CRO",
+                        capacity: 2,
+                        scheduledCount: unitAvailable <= 0 ? 2 : 0,
+                        completedCount: 0,
+                        availableCount: unitAvailable,
+                        bookable: unitAvailable > 0,
+                      },
+                      {
+                        unitCode: "PUSAT-SEKRETARIAT",
+                        unitName: "Sekretariat",
+                        capacity: 2,
+                        scheduledCount: 0,
+                        completedCount: 0,
+                        availableCount: 2,
+                        bookable: true,
+                      },
+                    ]
+                  : [],
               },
               {
                 startTime: "12:00",
@@ -56,6 +94,7 @@ function dayResponse(overrides: Partial<{ closed: boolean }> = {}) {
                 bookableCount: 0,
                 pendingProposals: [],
                 scheduledCases: [],
+                units: [],
               },
             ],
       },
@@ -70,7 +109,11 @@ describe("HqArrivalSlotPicker", () => {
 
   beforeEach(() => {
     fetchHqScheduleAvailability.mockReset();
+    fetchHqScheduleAvailabilityDetail.mockReset();
     fetchHqScheduleAvailability.mockResolvedValue({ data: dayResponse() });
+    fetchHqScheduleAvailabilityDetail.mockResolvedValue({
+      data: dayResponse({ units: true }),
+    });
   });
 
   it("does not fetch until a date is picked", () => {
@@ -138,5 +181,59 @@ describe("HqArrivalSlotPicker", () => {
       />,
     );
     expect(await screen.findByText("No open slots")).toBeInTheDocument();
+  });
+
+  it("waits for a destination unit before fetching in Pusat mode", () => {
+    renderWithProviders(
+      <HqArrivalSlotPicker
+        value={{ date: "2026-09-15", time: "" }}
+        onChange={() => {}}
+        destinationUnitCode=""
+        allowOverCapacity
+      />,
+    );
+    expect(fetchHqScheduleAvailabilityDetail).not.toHaveBeenCalled();
+    expect(fetchHqScheduleAvailability).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/Choose a destination unit first/i),
+    ).toBeInTheDocument();
+  });
+
+  it("loads detail availability and keeps a full unit slot selectable with a warning", async () => {
+    const user = userEvent.setup();
+    fetchHqScheduleAvailabilityDetail.mockResolvedValue({
+      data: dayResponse({ units: true, unitAvailable: 0, date: "2026-09-15" }),
+    });
+
+    function Harness() {
+      const [value, setValue] = useState<{ date: string; time: string } | null>({
+        date: "2026-09-15",
+        time: "",
+      });
+      return (
+        <HqArrivalSlotPicker
+          value={value}
+          onChange={setValue}
+          destinationUnitCode="PUSAT-CRO"
+          allowOverCapacity
+        />
+      );
+    }
+
+    renderWithProviders(<Harness />);
+    await waitFor(() => {
+      expect(fetchHqScheduleAvailabilityDetail).toHaveBeenCalledWith(
+        "2026-09-15",
+        "2026-09-15",
+      );
+    });
+    const timeSelect =
+      await screen.findByLabelText<HTMLSelectElement>(/^Arrival time$/i);
+    const fullOption = Array.from(timeSelect.querySelectorAll("option")).find(
+      (opt) => opt.getAttribute("value") === "08:00",
+    );
+    expect(fullOption).not.toBeDisabled();
+    await user.selectOptions(timeSelect, "08:00");
+    expect(await screen.findByText(/Unit quota full/i)).toBeInTheDocument();
   });
 });

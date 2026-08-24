@@ -20,7 +20,10 @@ from app.core.authorization.gates import (
     require_hq_intake_action,
 )
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
-from app.core.authorization.visibility import is_pusat_unit
+from app.core.authorization.visibility import (
+    is_hq_schedule_destination_unit,
+    is_pusat_unit,
+)
 from app.core.config import Settings, get_settings
 from app.core.errors import ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
@@ -243,10 +246,10 @@ def _enforce_cm_org_or_pusat_hq(
 def _resolve_hq_destination_unit(
     session: Session, declared: str | None, *, required: bool
 ) -> str | None:
-    """Validate the Pusat unit the taxpayer is directed to (CRO/Sekretariat/Suban).
+    """Validate the HQ CRO unit the taxpayer is directed to for arrival.
 
     Two checks, deliberately at different layers: the service enforces the
-    domain rule (must be a Pusat unit), this one the directory fact (the unit
+    domain rule (must be HQ CRO), this one the directory fact (the unit
     exists and is active). A taxpayer sent to a unit that no longer exists is
     a wasted trip, so an unknown code is rejected rather than stored as text.
     """
@@ -264,9 +267,9 @@ def _resolve_hq_destination_unit(
             "destinationUnitId is not a known active organization unit",
             details={"field": "destinationUnitId", "value": cleaned},
         )
-    if not is_pusat_unit(resolved):
+    if not is_hq_schedule_destination_unit(resolved):
         raise ValidationAppError(
-            "destinationUnitId must be a Pusat unit",
+            "destinationUnitId must be a HQ CRO unit",
             details={"field": "destinationUnitId", "value": resolved},
         )
     return resolved

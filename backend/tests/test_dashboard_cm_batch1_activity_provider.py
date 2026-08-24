@@ -70,7 +70,7 @@ def test_list_recent_resolves_complaint_number_and_maps_created_event() -> None:
     provider, timeline, complaints, directory = _provider()
     entry = _entry(event_type="ComplaintRegistered")
     timeline.list_recent.return_value = [entry]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000001")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000001': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -79,7 +79,7 @@ def test_list_recent_resolves_complaint_number_and_maps_created_event() -> None:
     assert items[0].complaint_number == "CM-00000001"
     assert items[0].event_type == "complaint.created"
     assert items[0].actor == "SYSTEM"  # no actor_id, no actor_name on this row
-    complaints.get.assert_called_once_with(str(entry.aggregate_id))
+    complaints.complaint_numbers_by_ids.assert_called_once_with({entry.aggregate_id})
 
 
 def test_list_recent_maps_escalation_decisions_by_metadata() -> None:
@@ -91,7 +91,7 @@ def test_list_recent_maps_escalation_decisions_by_metadata() -> None:
         event_type="IntakeEscalationDecided", metadata={"decision": "REJECT"}
     )
     timeline.list_recent.return_value = [approved, rejected]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000002")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000002': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -110,7 +110,7 @@ def test_list_recent_maps_intake_disposition_escalation_requested() -> None:
         metadata={"intakeDisposition": "ESCALATE_PENDING_APPROVAL"},
     )
     timeline.list_recent.return_value = [entry]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000009")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000009': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -124,7 +124,7 @@ def test_list_recent_omits_attachment_bind_from_dashboard_feed() -> None:
     bound = _entry(event_type="AttachmentBound")
     created = _entry(event_type="ComplaintRegistered")
     timeline.list_recent.return_value = [bound, created]
-    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-2608-0002")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='TAB-2608-0002': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -139,7 +139,7 @@ def test_list_recent_maps_handling_and_case_created() -> None:
     created = _entry(event_type="CaseCreated", metadata={"caseNumber": "CASE-9"})
     handling = _entry(event_type="HandlingTakenOver")
     timeline.list_recent.return_value = [created, handling]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000011")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000011': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -154,7 +154,7 @@ def test_list_recent_maps_handling_and_case_created() -> None:
 def test_list_recent_maps_handling_continued() -> None:
     provider, timeline, complaints, directory = _provider()
     timeline.list_recent.return_value = [_entry(event_type="HandlingContinued")]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000012")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000012': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -178,7 +178,7 @@ def test_list_recent_maps_hq_and_case_ops_not_generic_update() -> None:
         ),
         _entry(event_type="DuplicateFound"),
     ]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000013")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000013': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=20)
@@ -230,7 +230,7 @@ def test_list_recent_collapses_resolve_accept_into_closed() -> None:
             created_at=when,
         ),
     ]
-    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-2608-0008")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='TAB-2608-0008': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -245,7 +245,7 @@ def test_list_recent_collapses_resolve_accept_into_closed() -> None:
 def test_list_recent_keeps_resolved_when_not_yet_closed() -> None:
     provider, timeline, complaints, directory = _provider()
     timeline.list_recent.return_value = [_entry(event_type="CaseResolved")]
-    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-OPEN")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='TAB-OPEN': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -269,7 +269,7 @@ def test_list_recent_ranks_closed_above_created_when_same_timestamp() -> None:
         created_at=when,
     )
     timeline.list_recent.return_value = [created, closed]
-    complaints.get.return_value = SimpleNamespace(complaint_number="TAB-2608-0009")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='TAB-2608-0009': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -297,7 +297,7 @@ def test_list_recent_ranks_escalation_above_created_when_same_timestamp() -> Non
     )
     # Deliberately return created first — provider must re-rank.
     timeline.list_recent.return_value = [created, escalated]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-00000006")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000006': {i: _n for i in ids}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)
@@ -313,7 +313,7 @@ def test_list_recent_resolves_actor_via_directory() -> None:
     actor_id = "11111111-1111-1111-1111-111111111111"
     entry = _entry(event_type="ComplaintRegistered", actor_id=actor_id)
     timeline.list_recent.return_value = [entry]
-    complaints.get.return_value = SimpleNamespace(complaint_number="CM-1")
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-1': {i: _n for i in ids}
     directory.display_names.return_value = {actor_id: "Galih Firmansyah"}
 
     items = provider.list_recent(limit=10)
@@ -330,7 +330,7 @@ def test_list_recent_falls_back_to_metadata_complaint_number_when_complaint_miss
         event_type="ComplaintRegistered", metadata={"complaintNumber": "CM-FALLBACK"}
     )
     timeline.list_recent.return_value = [entry]
-    complaints.get.return_value = None
+    complaints.complaint_numbers_by_ids.return_value = {}
     directory.display_names.return_value = {}
 
     items = provider.list_recent(limit=10)

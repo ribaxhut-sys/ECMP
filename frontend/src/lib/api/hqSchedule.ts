@@ -18,6 +18,8 @@ export interface HqScheduleProposalSummary {
   proposedAt?: string | null;
   /** HQ visit completed (HQ_CLOSED) — still listed that day and counted in the slot ratio. */
   completed?: boolean;
+  /** Pusat unit the taxpayer reports to. Empty on pending proposals and legacy rows. */
+  destinationUnitCode?: string | null;
 }
 
 export interface HqScheduleSlotAvailability {
@@ -46,6 +48,18 @@ export interface HqScheduleSlotAvailability {
   pendingProposals: HqScheduleProposalSummary[];
   /** Pusat detail view only — empty on the branch-facing aggregate view. */
   scheduledCases: HqScheduleProposalSummary[];
+  /** Per-destination occupancy. Pusat detail only — empty on the branch aggregate. */
+  units?: HqScheduleUnitAvailability[];
+}
+
+export interface HqScheduleUnitAvailability {
+  unitCode: string;
+  unitName: string;
+  capacity: number;
+  scheduledCount: number;
+  completedCount: number;
+  availableCount: number;
+  bookable: boolean;
 }
 
 export interface HqScheduleDayAvailability {

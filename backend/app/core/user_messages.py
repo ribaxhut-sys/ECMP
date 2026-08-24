@@ -163,7 +163,7 @@ MESSAGES: dict[str, str] = {
     ),
     "complaint.not_found": "Pengaduan tidak ditemukan.",
     "complaint.only_supervisor_admin_close": (
-        "Hanya Staff KaSatPel, KaSatPel, atau Head Office Admin yang dapat menutup pengaduan."
+        "Hanya CRO, Staff KaSatPel, atau KaSatPel yang dapat menutup pengaduan."
     ),
     "complaint.only_supervisor_assign": (
         "Hanya Staff KaSatPel atau KaSatPel yang dapat menugaskan pengaduan."
@@ -766,6 +766,9 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "One or more roles not found": "iam.roles_not_found",
     "Only BOOKED appointments can be checked in.": "appointment.only_booked_check_in",
     "Only BOOKED appointments can be marked as no-show.": "appointment.only_booked_no_show",
+    "Only CRO, Staff KaSatPel, or KaSatPel can close complaints": (
+        "complaint.only_supervisor_admin_close"
+    ),
     "Only Branch Supervisor or Head Office Admin can close complaints": (
         "complaint.only_supervisor_admin_close"
     ),

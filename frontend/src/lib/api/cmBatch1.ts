@@ -12,6 +12,7 @@ import {
   type CmBatch1CreateComplaintOptions,
 } from "./cmBatch1Contract";
 import type { ComplaintSla, DataResponse, ListResponse } from "./types";
+import type { CmCaseSummary } from "./cmCase";
 
 export {
   CM_BATCH1_BASE,
@@ -127,6 +128,8 @@ export interface CmBatch1ComplaintResponse {
     | string
     | null;
   caseCreated: boolean;
+  /** Nested Cases from API-514 list (parent-scoped; preferred over N+1). */
+  cases?: CmCaseSummary[];
   replayed: boolean;
   category?: string | null;
   channel?: string | null;

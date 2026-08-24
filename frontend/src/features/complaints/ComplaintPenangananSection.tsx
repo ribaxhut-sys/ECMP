@@ -166,6 +166,7 @@ function PenangananGroupBlock({
                 <Td className="whitespace-nowrap py-3 text-right">
                   <div className="flex flex-nowrap items-center justify-end gap-2">
                     {continueOnOpen &&
+                    !item.escalatedToPusat &&
                     canClaimHandling({
                       handlingClaimedBy: item.handlingClaimedBy,
                       userId: currentUserId,
@@ -197,7 +198,9 @@ function PenangananGroupBlock({
                         {t("penangananReassign")}
                       </Button>
                     ) : null}
-                    {escalateEnabled && continueOnOpen ? (
+                    {escalateEnabled &&
+                    continueOnOpen &&
+                    !item.escalatedToPusat ? (
                       <Button
                         type="button"
                         size="sm"
@@ -276,6 +279,7 @@ export function ComplaintPenangananSection({
   onPenangananSnapshot?: (snapshot: {
     loading: boolean;
     openCount: number;
+    pusatCount: number;
     totalCount: number;
     handlingClaimedBy: string | null;
     handlingClaimedByName: string | null;
@@ -417,6 +421,7 @@ export function ComplaintPenangananSection({
     onPenangananSnapshot?.({
       loading,
       openCount: counts.open,
+      pusatCount: counts.pusat,
       totalCount:
         counts.open + counts.pusat + counts.done + counts.cancelled,
       handlingClaimedBy: claimedBy,

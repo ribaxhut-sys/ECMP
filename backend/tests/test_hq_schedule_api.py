@@ -82,6 +82,9 @@ class _FakeHqScheduleRepository:
     def list_arrivals_in_range(self, *, date_from: date, date_to: date) -> list:
         return list(self._arrivals)
 
+    def list_pusat_units(self) -> list:
+        return []
+
     def get_holiday(self, holiday_date: date) -> _FakeHoliday | None:
         return next((h for h in self._holidays if h.holiday_date == holiday_date), None)
 

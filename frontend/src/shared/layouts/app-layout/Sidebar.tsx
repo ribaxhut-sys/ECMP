@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import type { Branch } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
+import { prefersComplaintNumberIdentity } from "@/features/complaints/cmBatch1ComplaintListIdentity";
 import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTodayCount";
@@ -259,6 +260,11 @@ function useShellNav(orgUnitBranch: Branch | null | undefined): {
             hasPermission,
             orgUnitCode,
           });
+        }
+        // Case inbox = Cabang work door (DEC-025 route stays deep-linkable).
+        // Pusat / Admin tanpa branch / loading → hide sidebar entry.
+        if (item.id === "cases") {
+          return prefersComplaintNumberIdentity(orgUnitCode);
         }
         return true;
       },

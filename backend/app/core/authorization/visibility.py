@@ -89,6 +89,36 @@ def is_pusat_unit(
     return False
 
 
+def _pusat_unit_short_code(
+    org_unit_id: str,
+    *,
+    pusat_unit_codes: frozenset[str] = DEFAULT_PUSAT_UNIT_CODES,
+) -> str:
+    """PUSAT-CRO → CRO; root PUSAT → PUSAT."""
+    upper = OrgUnitResolver.normalize(org_unit_id).upper()
+    for root in (code.upper() for code in pusat_unit_codes):
+        for sep in _PUSAT_SUBUNIT_SEPARATORS:
+            prefix = f"{root}{sep}"
+            if upper.startswith(prefix) and len(upper) > len(prefix):
+                return upper[len(prefix) :]
+    return upper
+
+
+def is_hq_schedule_destination_unit(
+    org_unit_id: str | None,
+    *,
+    pusat_unit_codes: frozenset[str] = DEFAULT_PUSAT_UNIT_CODES,
+) -> bool:
+    """HQ arrival schedule door — CRO only (not Suban / Sekretariat)."""
+    if not is_pusat_unit(org_unit_id, pusat_unit_codes=pusat_unit_codes):
+        return False
+    upper = OrgUnitResolver.normalize(org_unit_id).upper()
+    if upper in {code.upper() for code in pusat_unit_codes}:
+        return False
+    short = _pusat_unit_short_code(org_unit_id, pusat_unit_codes=pusat_unit_codes)
+    return short == "CRO" or short.startswith("CRO-") or short.startswith("CRO.")
+
+
 def pusat_unit_clause(
     column: ColumnElement[str | None],
     *,

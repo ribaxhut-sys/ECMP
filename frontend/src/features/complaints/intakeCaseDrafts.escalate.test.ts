@@ -53,6 +53,7 @@ describe("createIntakeCasesForRegisteredComplaint — escalate-to-Pusat", () => 
         {
           id: "primary",
           n: 1,
+          subject: values.subject,
           description: values.description,
           priority: "HIGH",
           note: "Tidak dapat diselesaikan di cabang.",
@@ -82,6 +83,7 @@ describe("createIntakeCasesForRegisteredComplaint — escalate-to-Pusat", () => 
         {
           id: "primary",
           n: 1,
+          subject: values.subject,
           description: values.description,
           priority: "MEDIUM",
           note: "Sudah diinfokan.",

@@ -37,6 +37,9 @@ const PUSAT_AGENT_ROLE_SET = new Set<string>(CM_BATCH1_PUSAT_AGENT_ROLES);
 /** Root or Pusat sub-unit (PUSAT-CRO, PUSAT-SUBAN-…) — see shared helper. */
 export const isCmBatch1PusatUnitCode = isPusatUnitCode;
 
+/** Re-export — HQ schedule door is CRO only. */
+export { isHqScheduleDestinationUnitCode } from "@/shared/utils";
+
 export function canCmBatch1HqReview(input: {
   roles: readonly string[];
   hasPermission: (permission: string) => boolean;
@@ -165,6 +168,25 @@ export function resolveCmBatch1BranchEscalationCtas(
       !input.isHqReviewer &&
       !input.isPusatUnitMember,
   };
+}
+
+/**
+ * Bottom "Tangani pengaduan" on the parent. Intake HQ path already clears
+ * showManageCases. Case-level DEC-029 escalate leaves the parent off that
+ * path, so hide the CTA when the only remaining work is already at Pusat.
+ * Sibling branch Cases (openCount > 0) may still be handled.
+ */
+export function showBranchHandleComplaintCta(input: {
+  showManageCases: boolean;
+  loading: boolean;
+  handlingClaimedBy?: string | null;
+  openCount: number;
+  pusatCount: number;
+}): boolean {
+  if (!input.showManageCases || input.loading) return false;
+  if (input.handlingClaimedBy) return false;
+  if (input.pusatCount > 0 && input.openCount === 0) return false;
+  return true;
 }
 
 export interface CmBatch1BlobEventInput {

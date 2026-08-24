@@ -5,9 +5,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
-# Owner: Admin may do everything except register a complaint (WP or internal).
-# Wildcard ``*`` must not imply this code — otherwise revoking the grant is a no-op.
-WILDCARD_EXCLUDED_PERMISSIONS: frozenset[str] = frozenset({"complaints:create"})
+# Owner: Admin may do everything except register or close a complaint (WP).
+# Wildcard ``*`` must not imply these codes — otherwise revoking the grant is a no-op.
+WILDCARD_EXCLUDED_PERMISSIONS: frozenset[str] = frozenset(
+    {"complaints:create", "complaints:close"}
+)
 
 
 @dataclass(frozen=True, slots=True)

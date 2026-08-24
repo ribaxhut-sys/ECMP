@@ -11,13 +11,17 @@ info:
     complaint-management-batch1.v1.yaml). Completing a visit (`HQ_CLOSED`)
     keeps the row visible that day (`scheduledCases[].completed=true`);
     occupancy (`scheduledCount` / `availableCount`) counts live
-    `HQ_SCHEDULED` arrivals only. This module only answers "what does the
+    `HQ_SCHEDULED` arrivals only. Detail responses also expose per-destination
+    `units[]` (CRO / Sekretariat / Suban) driven by
+    `hq.schedule.capacity_by_unit` (missing keys inherit `capacityPerSlot`).
+    This module only answers "what does the
     grid look like" — a read-mostly
     capacity/proposal view plus a minimal holiday calendar CRUD for Pusat.
     Branch-proposed slots (`proposedArrivalDate` / `proposedArrivalTime` on
     ComplaintBatch1Response) are advisory only and never reduce
     `availableCount`; only Pusat-scheduled arrivals reduce slot capacity.
-    Logical IDs API-CM-HQ-001…005 map to catalog IDs API-540…544.
+    Arrivals without `destinationUnitCode` stay listed but consume no unit's
+    quota. Logical IDs API-CM-HQ-001…005 map to catalog IDs API-540…544.
     Not a Mode B unlock — `require_hq_intake_action` is a Mode A lab gate
     (backend/app/core/authorization/gates.py), not SSO/OIDC.
   x-ecmp-frd: FRD-CM-001
@@ -270,7 +274,35 @@ components:
           default: false
           description: >
             HQ visit completed (HQ_CLOSED). Still listed on that day's slot;
-            does not consume capacity / scheduledCount.
+            still counted in scheduledCount / the occupancy ratio.
+        destinationUnitCode:
+          type: string
+          nullable: true
+          description: >
+            Pusat unit the taxpayer reports to (CRO / Sekretariat / Suban).
+            Empty on pending proposals and on visits scheduled before the
+            destination column existed — those visits occupy no unit's quota.
+    SlotUnitAvailability:
+      type: object
+      description: Per-destination occupancy inside one slot.
+      required: [unitCode, capacity, scheduledCount, availableCount]
+      properties:
+        unitCode:
+          type: string
+        unitName:
+          type: string
+        capacity:
+          type: integer
+        scheduledCount:
+          type: integer
+        completedCount:
+          type: integer
+          default: 0
+        availableCount:
+          type: integer
+        bookable:
+          type: boolean
+          default: false
     SlotAvailability:
       type: object
       required:
@@ -323,6 +355,28 @@ components:
             Branch aggregate only includes the caller's own unit.
           items:
             $ref: "#/components/schemas/ProposalSummary"
+        isBreak:
+          type: boolean
+          default: false
+        completedCount:
+          type: integer
+          default: 0
+        bookable:
+          type: boolean
+          default: false
+        bookableCount:
+          type: integer
+          default: 0
+        units:
+          type: array
+          description: >
+            Occupancy per Pusat destination unit. Pusat detail only — always
+            empty on the branch-facing aggregate view. Slot-level
+            capacity / availableCount are the sums; arrivals with no
+            destination unit yet are counted in scheduledCount but in no
+            unit's quota.
+          items:
+            $ref: "#/components/schemas/SlotUnitAvailability"
     DayAvailability:
       type: object
       required: [date, weekday, closed]
@@ -362,8 +416,10 @@ components:
         capacityPerSlot:
           type: integer
           description: >
-            Nominal capacity of a full-length slot (hq.schedule.capacity_per_slot);
-            read slots[].capacity for the actual ratio of a given slot.
+            Default per-unit capacity of a full-length slot
+            (hq.schedule.capacity_per_slot). Detail view sums unit capacities
+            into slots[].capacity; override individual units via
+            hq.schedule.capacity_by_unit.
         days:
           type: array
           items:

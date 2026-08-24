@@ -252,14 +252,14 @@ class CmBatch1ActivityDashboardProvider:
 
         actor_ids = {e.actor_id for e in visible if e.actor_id}
         actor_names = self._directory.display_names(actor_ids) if actor_ids else {}
+        complaint_numbers = self._complaints.complaint_numbers_by_ids(
+            {e.aggregate_id for e in visible}
+        )
 
         items: list[DashboardRecentActivityItem] = []
         for entry in visible:
-            complaint = self._complaints.get(str(entry.aggregate_id))
-            complaint_number = (
-                complaint.complaint_number
-                if complaint is not None
-                else str(entry.metadata.get("complaintNumber") or entry.aggregate_id)
+            complaint_number = complaint_numbers.get(entry.aggregate_id) or str(
+                entry.metadata.get("complaintNumber") or entry.aggregate_id
             )
             actor_name = (
                 (actor_names.get(entry.actor_id) if entry.actor_id else None)

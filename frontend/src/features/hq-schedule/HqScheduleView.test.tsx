@@ -46,10 +46,14 @@ vi.mock("@/lib/api/hqSchedule", () => ({
 
 import {
   HqScheduleView,
+  dayOccupancyTotals,
+  dayUnitBreakdown,
   isArrivalOverdue,
   isSlotPast,
+  matchingScheduledCases,
   slotOccupancy,
   summarizeHqWeek,
+  UNASSIGNED_UNIT_FILTER,
 } from "./HqScheduleView";
 
 const emptyGrid = {
@@ -156,7 +160,12 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailabilityDetail.mockResolvedValue({ data: emptyGrid });
     fetchHqScheduleHolidays.mockResolvedValue({ data: [] });
     fetchBranches.mockResolvedValue({
-      data: [{ id: "b1", code: "UPPPD-A", name: "Cabang Tanah Abang" }],
+      data: [
+        { id: "b1", code: "UPPPD-A", name: "Cabang Tanah Abang" },
+        { id: "p-cro", code: "PUSAT-CRO", name: "CRO Pusat" },
+        { id: "p-sek", code: "PUSAT-SEKRETARIAT", name: "Sekretariat" },
+        { id: "p-sub", code: "PUSAT-SUBAN-1", name: "Suban 1" },
+      ],
     });
     createHqScheduleHoliday.mockResolvedValue({ data: {} });
   });
@@ -183,10 +192,10 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
     renderWithProviders(<HqScheduleView />);
 
-    const ownLink = await screen.findByRole("link", { name: "CASE-2026-000001" });
+    const ownLink = await screen.findByRole("link", { name: /CASE-2026-000001/ });
     expect(ownLink).toHaveAttribute("href", "/complaints/cm/case-own");
 
-    const otherCase = screen.getAllByText("CASE-2026-000002")[0];
+    const otherCase = screen.getAllByText(/CASE-2026-000002/)[0];
     expect(otherCase.closest("a")).toBeNull();
   });
 
@@ -196,10 +205,10 @@ describe("HqScheduleView", () => {
     renderWithProviders(<HqScheduleView />);
 
     expect(
-      await screen.findByRole("link", { name: "CASE-2026-000001" }),
+      await screen.findByRole("link", { name: /CASE-2026-000001/ }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole("link", { name: "CASE-2026-000002" }),
+      await screen.findByRole("link", { name: /CASE-2026-000002/ }),
     ).toBeInTheDocument();
   });
 
@@ -211,8 +220,8 @@ describe("HqScheduleView", () => {
     const board = await screen.findByTestId("hq-schedule-board");
     expect(within(board).getByText("Senin")).toBeInTheDocument();
     expect(within(board).getByTestId("hq-schedule-slot-2026-08-17-08:00")).toBeInTheDocument();
-    expect(within(board).getByRole("link", { name: "CASE-2026-000001" })).toBeInTheDocument();
-    expect(within(board).getByRole("link", { name: "CASE-2026-000002" })).toBeInTheDocument();
+    expect(within(board).getByRole("link", { name: /CASE-2026-000001/ })).toBeInTheDocument();
+    expect(within(board).getByRole("link", { name: /CASE-2026-000002/ })).toBeInTheDocument();
     expect(screen.queryByText("This week's escalations")).not.toBeInTheDocument();
   });
 
@@ -282,7 +291,7 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
     renderWithProviders(<HqScheduleView />);
 
-    await screen.findAllByText("CASE-2026-000001");
+    await screen.findAllByText(/CASE-2026-000001/);
     expect(screen.getAllByText("2/2 slot").length).toBeGreaterThan(0);
     expect(screen.getAllByText("0/2 slot").length).toBeGreaterThan(0);
     expect(screen.queryByText("Slot available")).not.toBeInTheDocument();
@@ -373,10 +382,10 @@ describe("HqScheduleView", () => {
     const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-10:00");
     expect(slot).toHaveAttribute("data-occupancy", "partial");
     expect(within(slot).getByText("1/2 slot")).toBeInTheDocument();
-    expect(within(slot).getByText("CASE-2026-000009")).toBeInTheDocument();
+    expect(within(slot).getByText(/CASE-2026-000009/)).toBeInTheDocument();
     expect(within(slot).getByLabelText("Done")).toBeInTheDocument();
     expect(within(slot).queryByText("Done")).not.toBeInTheDocument();
-    expect(within(slot).getByText("CASE-2026-000009").closest("[data-completed]")).toHaveAttribute(
+    expect(within(slot).getByText(/CASE-2026-000009/).closest("[data-completed]")).toHaveAttribute(
       "data-completed",
       "true",
     );
@@ -391,7 +400,7 @@ describe("HqScheduleView", () => {
     // 08:00-09:00 slot, now 09:30 — past end time and not completed.
     const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
     expect(
-      within(slot).getByText("CASE-2026-000001").closest("[data-overdue]"),
+      within(slot).getByText(/CASE-2026-000001/).closest("[data-overdue]"),
     ).toHaveAttribute("data-overdue", "true");
     expect(within(slot).getAllByLabelText("Past slot — WP hasn't arrived")).toHaveLength(2);
   });
@@ -404,7 +413,7 @@ describe("HqScheduleView", () => {
 
     const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
     expect(
-      within(slot).getByText("CASE-2026-000001").closest("[data-overdue]"),
+      within(slot).getByText(/CASE-2026-000001/).closest("[data-overdue]"),
     ).toHaveAttribute("data-overdue", "false");
     expect(
       within(slot).queryByLabelText("Past slot — WP hasn't arrived"),
@@ -430,7 +439,7 @@ describe("HqScheduleView", () => {
 
     const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
     expect(
-      within(slot).getByText("CASE-2026-000009").closest("[data-overdue]"),
+      within(slot).getByText(/CASE-2026-000009/).closest("[data-overdue]"),
     ).toHaveAttribute("data-overdue", "false");
     expect(within(slot).getByLabelText("Done")).toBeInTheDocument();
     expect(
@@ -662,7 +671,146 @@ describe("HqScheduleView", () => {
     const breakSlot = screen.getByTestId("hq-schedule-slot-2026-08-21-11:30");
     expect(breakSlot).toHaveTextContent("11:30\u201313:30");
     expect(
-      within(breakSlot).getByRole("link", { name: "CASE-2026-000011" }),
+      within(breakSlot).getByRole("link", { name: /CASE-2026-000011/ }),
     ).toBeInTheDocument();
+  });
+
+  it("shows destination-unit filter chips only for units that have scheduled visits", async () => {
+    mockOrgUnitCode = "PUSAT";
+    mockRoles = ["AGENT"];
+    const user = userEvent.setup();
+    fetchHqScheduleAvailabilityDetail.mockResolvedValue({
+      data: {
+        startTime: "08:00",
+        endTime: "10:00",
+        slotMinutes: 60,
+        capacityPerSlot: 2,
+        days: [
+          {
+            date: "2026-08-17",
+            weekday: 1,
+            closed: false,
+            slots: [
+              {
+                startTime: "08:00",
+                endTime: "09:00",
+                capacity: 4,
+                isBreak: false,
+                scheduledCount: 2,
+                completedCount: 0,
+                proposedCount: 0,
+                availableCount: 2,
+                bookable: false,
+                bookableCount: 0,
+                pendingProposals: [],
+                scheduledCases: [
+                  {
+                    complaintId: "cro",
+                    complaintNumber: "TAB-2608-0020",
+                    owningUnitId: "UPPPD-A",
+                    unitCode: "TAB",
+                    caseNumbers: ["CASE-2026-000020"],
+                    destinationUnitCode: "PUSAT-CRO",
+                  },
+                  {
+                    complaintId: "legacy",
+                    complaintNumber: "TAB-2608-0021",
+                    owningUnitId: "UPPPD-A",
+                    unitCode: "TAB",
+                    caseNumbers: ["CASE-2026-000021"],
+                    destinationUnitCode: null,
+                  },
+                ],
+                units: [
+                  {
+                    unitCode: "PUSAT-CRO",
+                    unitName: "CRO Pusat",
+                    capacity: 2,
+                    scheduledCount: 1,
+                    completedCount: 0,
+                    availableCount: 1,
+                    bookable: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    renderWithProviders(<HqScheduleView />);
+
+    const filters = await screen.findByTestId("hq-schedule-unit-filter");
+    expect(within(filters).getByRole("button", { name: "All" })).toBeInTheDocument();
+    expect(
+      within(filters).getByRole("button", { name: "CRO Pusat" }),
+    ).toBeInTheDocument();
+    expect(
+      within(filters).getByRole("button", { name: /Unit not set/i }),
+    ).toBeInTheDocument();
+    // Suban / Sekretariat are not schedule destinations — chips stay absent.
+    expect(
+      within(filters).queryByRole("button", { name: "Sekretariat" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(filters).queryByRole("button", { name: "Suban 1" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(filters).getByRole("button", { name: "CRO Pusat" }));
+    const slot = screen.getByTestId("hq-schedule-slot-2026-08-17-08:00");
+    expect(within(slot).getByText(/CASE-2026-000020/)).toBeInTheDocument();
+    expect(within(slot).queryByText(/CASE-2026-000021/)).not.toBeInTheDocument();
+  });
+
+  it("matches scheduled cases and day breakdown helpers by destination unit", () => {
+    const cases = [
+      {
+        complaintId: "a",
+        complaintNumber: "A",
+        unitCode: "TAB",
+        caseNumbers: ["CASE-A"],
+        destinationUnitCode: "PUSAT-SEKRETARIAT",
+      },
+      {
+        complaintId: "b",
+        complaintNumber: "B",
+        unitCode: "TAB",
+        caseNumbers: ["CASE-B"],
+        destinationUnitCode: null,
+      },
+    ];
+    expect(matchingScheduledCases(cases, null)).toHaveLength(2);
+    expect(matchingScheduledCases(cases, "PUSAT-SEKRETARIAT")).toHaveLength(1);
+    expect(matchingScheduledCases(cases, UNASSIGNED_UNIT_FILTER)).toHaveLength(1);
+
+    const day = {
+      date: "2026-08-17",
+      weekday: 1,
+      closed: false,
+      slots: [
+        {
+          startTime: "08:00",
+          endTime: "09:00",
+          capacity: 2,
+          isBreak: false,
+          scheduledCount: 2,
+          completedCount: 1,
+          proposedCount: 0,
+          availableCount: 0,
+          bookable: false,
+          bookableCount: 0,
+          pendingProposals: [],
+          scheduledCases: cases.map((c, i) => ({
+            ...c,
+            completed: i === 0,
+          })),
+        },
+      ],
+    };
+    expect(dayOccupancyTotals(day, null)).toEqual({ scheduled: 2, completed: 1 });
+    expect(dayUnitBreakdown(day)).toEqual([
+      { code: "PUSAT-SEKRETARIAT", count: 1 },
+      { code: null, count: 1 },
+    ]);
   });
 });

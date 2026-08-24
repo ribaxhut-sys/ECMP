@@ -111,7 +111,7 @@ export function buildCriticalAlerts(input: {
       tone: "critical",
       titleKey: "alertAssignmentSlaTitle",
       count: input.assignmentBreached,
-      href: "/complaints/cm/cases",
+      href: "/complaints",
     });
   }
   if (input.resolutionBreached > 0 && input.resolutionBreached !== input.breached) {

@@ -25,6 +25,7 @@ class SettingsKey(StrEnum):
     HQ_SCHEDULE_BREAK_START = "hq.schedule.break_start"
     HQ_SCHEDULE_BREAK_END = "hq.schedule.break_end"
     HQ_SCHEDULE_BREAK_OVERRIDES = "hq.schedule.break_overrides"
+    HQ_SCHEDULE_CAPACITY_BY_UNIT = "hq.schedule.capacity_by_unit"
     INTERNAL_COMPLAINT_CANCEL_REASON_PRESETS = "internal_complaint.cancel_reason_presets"
     INTERNAL_COMPLAINT_TRANSFER_REASON_PRESETS = "internal_complaint.transfer_reason_presets"
     INTERNAL_COMPLAINT_REQUEST_TRANSFER_REASON_PRESETS = (
@@ -157,7 +158,10 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         value_type=SettingValueType.INTEGER,
         category="hq_schedule",
         visibility=SettingVisibility.PROTECTED,
-        description="Max taxpayer arrivals accommodated per HQ schedule slot",
+        description=(
+            "Default arrivals per slot for each Pusat unit; overridden per "
+            "unit by hq.schedule.capacity_by_unit"
+        ),
     ),
     SettingDefinition(
         key=SettingsKey.HQ_SCHEDULE_WORKDAYS,
@@ -192,6 +196,18 @@ DEFAULT_SETTINGS: tuple[SettingDefinition, ...] = (
         description=(
             "Per-weekday break windows overriding break_start/break_end "
             '(ISO weekday key, null = no break); Jumat defaults to 11:30-13:30'
+        ),
+    ),
+    SettingDefinition(
+        key=SettingsKey.HQ_SCHEDULE_CAPACITY_BY_UNIT,
+        value="{}",
+        value_type=SettingValueType.JSON,
+        category="hq_schedule",
+        visibility=SettingVisibility.PROTECTED,
+        description=(
+            "Arrivals per slot for a specific Pusat unit "
+            '(e.g. {"PUSAT-SEKRETARIAT": 1}); units not listed use '
+            "capacity_per_slot"
         ),
     ),
     SettingDefinition(

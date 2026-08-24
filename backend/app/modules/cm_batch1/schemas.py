@@ -139,6 +139,24 @@ class ComplaintSlaView(BaseModel):
     )
 
 
+class ComplaintCaseListItem(BaseModel):
+    """Nested Case row for Aggregate list (API-514) — case-first UI without N+1."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    case_id: str = Field(alias="caseId")
+    case_number: str = Field(alias="caseNumber")
+    complaint_id: str = Field(alias="complaintId")
+    status: str
+    subject: str | None = None
+    priority: str | None = None
+    escalated_to_pusat: bool = Field(default=False, alias="escalatedToPusat")
+    handling_claimed_by: str | None = Field(default=None, alias="handlingClaimedBy")
+    handling_claimed_by_name: str | None = Field(
+        default=None, alias="handlingClaimedByName"
+    )
+
+
 class ComplaintBatch1Response(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -162,6 +180,14 @@ class ComplaintBatch1Response(BaseModel):
     )
     intake_disposition: str | None = Field(default=None, alias="intakeDisposition")
     case_created: bool = Field(default=False, alias="caseCreated")
+    cases: list[ComplaintCaseListItem] = Field(
+        default_factory=list,
+        description=(
+            "Cases under this Aggregate for list/detail display. "
+            "Parent-scoped: if the complaint is visible, its Cases are included "
+            "(avoids list UI falsely showing 'no case' when Case visibility diverges)."
+        ),
+    )
     replayed: bool = False
     category: str | None = None
     channel: str | None = None

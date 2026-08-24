@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from app.core.errors import NotFoundError, ValidationAppError
-from app.modules.hq_schedule.repository import ArrivalRow
+from app.modules.hq_schedule.repository import ArrivalRow, PusatUnit
 from app.modules.hq_schedule.schemas import HolidayCreateRequest
 from app.modules.hq_schedule.service import HqScheduleService
 from app.modules.settings.registry import SettingsKey
@@ -44,9 +44,11 @@ class _FakeHqScheduleRepository:
         *,
         holidays: list[_FakeHoliday] | None = None,
         arrivals: list[ArrivalRow] | None = None,
+        pusat_units: list[PusatUnit] | None = None,
     ) -> None:
         self._holidays = holidays or []
         self._arrivals = arrivals or []
+        self._pusat_units = pusat_units or []
         self.committed = False
 
     def list_holidays(self, *, date_from: date, date_to: date) -> list[_FakeHoliday]:
@@ -79,6 +81,9 @@ class _FakeHqScheduleRepository:
         self, *, date_from: date, date_to: date
     ) -> list[ArrivalRow]:
         return list(self._arrivals)
+
+    def list_pusat_units(self) -> list[PusatUnit]:
+        return list(self._pusat_units)
 
 
 def _settings_service(**overrides: str) -> SettingsService:
@@ -622,3 +627,178 @@ def test_malformed_break_overrides_fall_back_to_the_default_break() -> None:
     }
     assert by_start["12:00"].is_break is True
     assert by_start["12:00"].end_time == "13:00"
+
+
+_PUSAT_UNITS = (
+    PusatUnit(code="PUSAT-CRO", name="CRO"),
+    PusatUnit(code="PUSAT-SEKRETARIAT", name="Sekretariat"),
+)
+
+
+def _arrival(
+    *,
+    complaint_id: str,
+    hq_arrival_date: date,
+    hq_arrival_time: str,
+    hq_destination_unit_id: str | None,
+) -> ArrivalRow:
+    return ArrivalRow(
+        complaint_id=complaint_id,
+        complaint_number=f"CMP-{complaint_id}",
+        owning_unit_id="UPPPD-A",
+        hq_arrival_date=hq_arrival_date,
+        hq_arrival_time=hq_arrival_time,
+        proposed_arrival_date=None,
+        proposed_arrival_time=None,
+        proposed_by=None,
+        proposed_at=None,
+        case_numbers=(f"CASE-{complaint_id}",),
+        hq_destination_unit_id=hq_destination_unit_id,
+    )
+
+
+def test_destination_unit_code_on_scheduled_cases() -> None:
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    arrivals = [
+        _arrival(
+            complaint_id="c1",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:15",
+            hq_destination_unit_id="PUSAT-SEKRETARIAT",
+        ),
+        _arrival(
+            complaint_id="c2",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:30",
+            hq_destination_unit_id=None,
+        ),
+    ]
+    slot = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals, pusat_units=list(_PUSAT_UNITS)),
+        _settings_service(),
+    ).get_availability(
+        date_from=future_monday, date_to=future_monday, detail=True
+    ).days[0].slots[0]
+    by_id = {case.complaint_id: case for case in slot.scheduled_cases}
+    assert by_id["c1"].destination_unit_code == "PUSAT-SEKRETARIAT"
+    assert by_id["c2"].destination_unit_code is None
+
+
+def test_per_unit_quota_does_not_close_other_units() -> None:
+    """Two CRO bookings fill CRO; Sekretariat still has room so the slot stays bookable."""
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    arrivals = [
+        _arrival(
+            complaint_id="c1",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:10",
+            hq_destination_unit_id="PUSAT-CRO",
+        ),
+        _arrival(
+            complaint_id="c2",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:20",
+            hq_destination_unit_id="PUSAT-CRO",
+        ),
+    ]
+    slot = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals, pusat_units=list(_PUSAT_UNITS)),
+        _settings_service(),
+    ).get_availability(
+        date_from=future_monday, date_to=future_monday, detail=True
+    ).days[0].slots[0]
+    assert slot.scheduled_count == 2
+    assert slot.capacity == 4
+    assert slot.available_count == 2
+    assert slot.bookable is True
+    by_code = {unit.unit_code: unit for unit in slot.units}
+    assert by_code["PUSAT-CRO"].scheduled_count == 2
+    assert by_code["PUSAT-CRO"].available_count == 0
+    assert by_code["PUSAT-CRO"].bookable is False
+    assert by_code["PUSAT-SEKRETARIAT"].scheduled_count == 0
+    assert by_code["PUSAT-SEKRETARIAT"].available_count == 2
+    assert by_code["PUSAT-SEKRETARIAT"].bookable is True
+
+
+def test_unassigned_destination_does_not_consume_unit_quota() -> None:
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    arrivals = [
+        _arrival(
+            complaint_id="legacy",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:15",
+            hq_destination_unit_id=None,
+        )
+    ]
+    slot = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals, pusat_units=list(_PUSAT_UNITS)),
+        _settings_service(),
+    ).get_availability(
+        date_from=future_monday, date_to=future_monday, detail=True
+    ).days[0].slots[0]
+    assert slot.scheduled_count == 1
+    assert all(unit.scheduled_count == 0 for unit in slot.units)
+    assert slot.available_count == 4
+    assert slot.bookable is True
+
+
+def test_capacity_by_unit_overrides_default_for_named_units() -> None:
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    slot = HqScheduleService(
+        _FakeHqScheduleRepository(pusat_units=list(_PUSAT_UNITS)),
+        _settings_service(
+            **{
+                SettingsKey.HQ_SCHEDULE_CAPACITY_BY_UNIT.value: (
+                    '{"PUSAT-SEKRETARIAT": 1}'
+                )
+            }
+        ),
+    ).get_availability(
+        date_from=future_monday, date_to=future_monday, detail=True
+    ).days[0].slots[0]
+    by_code = {unit.unit_code: unit for unit in slot.units}
+    assert by_code["PUSAT-CRO"].capacity == 2
+    assert by_code["PUSAT-SEKRETARIAT"].capacity == 1
+    assert slot.capacity == 3
+
+
+def test_malformed_capacity_by_unit_falls_back_to_capacity_per_slot() -> None:
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    slot = HqScheduleService(
+        _FakeHqScheduleRepository(pusat_units=list(_PUSAT_UNITS)),
+        _settings_service(
+            **{SettingsKey.HQ_SCHEDULE_CAPACITY_BY_UNIT.value: "{bukan json"}
+        ),
+    ).get_availability(
+        date_from=future_monday, date_to=future_monday, detail=True
+    ).days[0].slots[0]
+    assert all(unit.capacity == 2 for unit in slot.units)
+    assert slot.capacity == 4
+
+
+def test_branch_view_hides_units_but_keeps_summed_remaining() -> None:
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    arrivals = [
+        _arrival(
+            complaint_id="c1",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:10",
+            hq_destination_unit_id="PUSAT-CRO",
+        ),
+        _arrival(
+            complaint_id="c2",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:20",
+            hq_destination_unit_id="PUSAT-CRO",
+        ),
+    ]
+    slot = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals, pusat_units=list(_PUSAT_UNITS)),
+        _settings_service(),
+    ).get_availability(
+        date_from=future_monday, date_to=future_monday, detail=False
+    ).days[0].slots[0]
+    assert slot.units == []
+    assert slot.available_count == 2
+    assert slot.bookable is True
+    assert slot.scheduled_cases[0].destination_unit_code == "PUSAT-CRO"

@@ -209,6 +209,9 @@ describe("buildCriticalAlerts", () => {
       "attention",
       "attention",
     ]);
+    expect(alerts.find((a) => a.id === "sla-assignment")?.href).toBe(
+      "/complaints",
+    );
   });
 });
 

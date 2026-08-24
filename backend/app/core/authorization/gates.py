@@ -169,11 +169,16 @@ def require_final_resolution(
 
 
 _COMPLAINT_CLOSE_ROLES = (
+    # CRO
+    "AGENT",
+    "CS_AGENT",
+    "HANDLER",
+    "BRANCH_OFFICER",
+    # Staff KaSatPel
     "SUPERVISOR",
     "BRANCH_SUPERVISOR",
+    # KaSatPel
     "MANAGER",
-    "ADMIN",
-    "ADMINISTRATOR",
 )
 
 
@@ -182,7 +187,7 @@ def require_complaint_close(
         Principal, Depends(require_permissions("complaints:close"))
     ],
 ) -> Principal:
-    """API-312 gate: complaints:close + Branch Supervisor or Head Office Admin."""
+    """API-312 gate: complaints:close + CRO / Staff KaSatPel / KaSatPel (SoD A)."""
     if not principal.has_any_role(*_COMPLAINT_CLOSE_ROLES):
         raise PermissionDeniedError(
             m("complaint.only_supervisor_admin_close")

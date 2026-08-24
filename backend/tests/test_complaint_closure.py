@@ -215,13 +215,23 @@ def test_require_complaint_close_permission_supervisor() -> None:
     assert require_complaint_close(principal) is principal
 
 
-def test_require_complaint_close_permission_admin() -> None:
+def test_require_complaint_close_permission_cro() -> None:
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:close"}),
+    )
+    assert require_complaint_close(principal) is principal
+
+
+def test_require_complaint_close_rejects_admin() -> None:
     principal = Principal(
         user_id=uuid.uuid4(),
         roles=("ADMIN",),
         permissions=frozenset({"complaints:close", "*"}),
     )
-    assert require_complaint_close(principal) is principal
+    with pytest.raises(ForbiddenError):
+        require_complaint_close(principal)
 
 
 def test_require_complaint_close_permission_manager() -> None:

@@ -271,6 +271,7 @@ def test_completed_hq_visit_stays_listed_on_schedule(
     before = hq_repo.list_arrivals_in_range(date_from=_TOMORROW, date_to=_TOMORROW)
     assert len(before) == 1
     assert before[0].hq_arrival_date == _TOMORROW
+    assert before[0].hq_destination_unit_id == "PUSAT-CRO"
 
     completed = service.complete_at_hq(
         resp.complaint_id,

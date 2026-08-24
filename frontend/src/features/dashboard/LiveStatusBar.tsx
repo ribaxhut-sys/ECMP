@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { formatDateTime } from "@/i18n/formatting";
 import type { DashboardResolutionSla } from "@/lib/api/types";
 import { IconComplaints } from "@/shared/icons";
 import { Skeleton } from "@/shared/ui";
@@ -33,6 +31,7 @@ export function LiveStatusBar({
   waitingAssignment = 0,
   escalatePending = 0,
   loading,
+  refreshing = false,
   error,
   updatedAt,
   onRefresh,
@@ -40,24 +39,19 @@ export function LiveStatusBar({
   sla: DashboardResolutionSla | null;
   waitingAssignment?: number;
   escalatePending?: number;
+  /** First-load only — drives skeleton + "syncing" health. */
   loading: boolean;
+  /** Background / manual refresh — button label only, not health pulse. */
+  refreshing?: boolean;
   error: boolean;
   updatedAt: Date | null;
   onRefresh?: () => void;
 }) {
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canCreate = hasPermission("complaints:create");
-  // Wall clock in WIB — not last-fetch time. Mount-only to avoid UTC SSR drift.
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const id = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const health = resolveSystemHealth({
     loading,
@@ -76,6 +70,8 @@ export function LiveStatusBar({
         : health === "syncing"
           ? t("systemSyncing")
           : t("systemDegraded");
+
+  const busy = loading || refreshing;
 
   return (
     // Command bar: scoped to the app's own dark palette (`.dark` cascades
@@ -102,19 +98,6 @@ export function LiveStatusBar({
               />
               <span className="truncate">{healthLabel}</span>
             </p>
-
-            {now ? (
-              <p className="hidden text-ecmp-text-secondary sm:inline">
-                {formatDateTime(now, locale, {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  timeZone: "Asia/Jakarta",
-                })}
-              </p>
-            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
@@ -139,13 +122,13 @@ export function LiveStatusBar({
               <button
                 type="button"
                 onClick={onRefresh}
-                disabled={loading}
+                disabled={busy}
                 className="rounded px-1.5 py-0.5 font-medium text-ecmp-primary hover:bg-ecmp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus disabled:opacity-50"
                 aria-label={
-                  loading ? tCommon("refreshing") : tCommon("refresh")
+                  busy ? tCommon("refreshing") : tCommon("refresh")
                 }
               >
-                {loading ? tCommon("refreshing") : tCommon("refresh")}
+                {busy ? tCommon("refreshing") : tCommon("refresh")}
               </button>
             ) : null}
           </div>

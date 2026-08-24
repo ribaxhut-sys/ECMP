@@ -57,6 +57,7 @@ describe("escalateIntakeDraft", () => {
         priority: "",
         note: "",
         action: "register",
+        locked: false,
       },
     ]);
   });

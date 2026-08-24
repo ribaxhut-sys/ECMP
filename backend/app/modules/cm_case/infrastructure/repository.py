@@ -205,8 +205,24 @@ class SqlAlchemyCaseRepository:
         if vis == "ALL":
             pass
         elif vis == "SELF":
-            # Mode A interim (BQ-006): no assigned_user column → created_by only
-            stmt = stmt.where(CmCaseORM.created_by == actor_id)
+            actor = (actor_id or "").strip()
+            if not actor:
+                return [], 0
+            # Mode A interim (BQ-006): no assignee column. Inbox = Case.created_by.
+            # Parent-scoped reads (complaintId=…) also include Cases under a
+            # Complaint the actor created — another officer may have opened the
+            # Case (list/detail penanganan must not show a false "no case").
+            parent_key = (complaint_id or "").strip()
+            if parent_key:
+                parent = self.get_parent_complaint(parent_key)
+                parent_owned = (
+                    parent is not None
+                    and (parent.created_by or "").strip() == actor
+                )
+                if not parent_owned:
+                    stmt = stmt.where(CmCaseORM.created_by == actor)
+            else:
+                stmt = stmt.where(CmCaseORM.created_by == actor)
         elif vis == "UNIT":
             unit = (org_unit_id or "").strip()
             if not unit:

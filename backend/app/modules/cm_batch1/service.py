@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
+    is_hq_schedule_destination_unit,
     is_pusat_unit,
     resolve_row_visibility,
 )
@@ -61,6 +62,7 @@ from app.modules.cm_batch1.predicates import is_closed
 from app.modules.cm_batch1.schemas import (
     AgingComplaintItemResponse,
     ComplaintBatch1Response,
+    ComplaintCaseListItem,
     ComplaintSlaView,
     ConfirmCustomerResponse,
     CreateComplaintBatch1Request,
@@ -219,6 +221,10 @@ class CmBatch1StoreProtocol(Protocol):
         pusat_unit_codes: frozenset[str] | None = None,
     ) -> tuple[list[ComplaintAggregate], int]: ...
 
+    def list_cases_for_complaint_ids(
+        self, complaint_ids: list[str]
+    ) -> dict[str, list[dict[str, object]]]: ...
+
     def work_stats_for_user(self, user_key: str) -> dict[str, int]: ...
 
     def update_intake_disposition(
@@ -345,7 +351,7 @@ def _validate_proposed_arrival(
 
 
 def _validate_hq_destination_unit(value: str | None, *, required: bool) -> str | None:
-    """Destination must be a Pusat unit — CRO, Sekretariat or a Suban.
+    """Destination must be HQ CRO — Suban/Sekretariat are not schedule doors.
 
     Existence/active checks belong to the org directory (router boundary via
     ``OrgUnitResolver.resolve_active_unit_code``); this is the domain rule.
@@ -358,9 +364,9 @@ def _validate_hq_destination_unit(value: str | None, *, required: bool) -> str |
                 details={"field": "destinationUnitId"},
             )
         return None
-    if not is_pusat_unit(cleaned):
+    if not is_hq_schedule_destination_unit(cleaned):
         raise ValidationAppError(
-            "destinationUnitId must be a Pusat unit",
+            "destinationUnitId must be a HQ CRO unit",
             details={"field": "destinationUnitId", "value": cleaned},
         )
     return cleaned
@@ -1904,6 +1910,17 @@ class CmBatch1Service:
         officers = self._officer_labels_for(
             {row.created_by for row in rows if row.created_by}
         )
+        cases_by_parent: dict[str, list[dict[str, object]]] = {}
+        list_cases = getattr(self._store, "list_cases_for_complaint_ids", None)
+        if callable(list_cases):
+            cases_by_parent = list_cases([row.complaint_id for row in rows])
+        claim_ids = {
+            str(c.get("handlingClaimedBy") or "").strip()
+            for items in cases_by_parent.values()
+            for c in items
+            if c.get("handlingClaimedBy")
+        }
+        claim_names = self._officer_labels_for(claim_ids) if claim_ids else {}
         return (
             [
                 self._to_complaint_response(
@@ -1911,6 +1928,10 @@ class CmBatch1Service:
                     replayed=False,
                     customer_labels=labels,
                     officer_labels=officers,
+                    cases=self._case_list_items(
+                        cases_by_parent.get(row.complaint_id, []),
+                        claim_names=claim_names,
+                    ),
                 )
                 for row in rows
             ],
@@ -1955,6 +1976,32 @@ class CmBatch1Service:
         except Exception:
             return {}
 
+    def _case_list_items(
+        self,
+        raw: list[dict[str, object]],
+        *,
+        claim_names: dict[str, str],
+    ) -> list[ComplaintCaseListItem]:
+        items: list[ComplaintCaseListItem] = []
+        for row in raw:
+            claimed = str(row.get("handlingClaimedBy") or "").strip() or None
+            items.append(
+                ComplaintCaseListItem(
+                    caseId=str(row.get("caseId") or ""),
+                    caseNumber=str(row.get("caseNumber") or ""),
+                    complaintId=str(row.get("complaintId") or ""),
+                    status=str(row.get("status") or ""),
+                    subject=(str(row["subject"]) if row.get("subject") else None),
+                    priority=(str(row["priority"]) if row.get("priority") else None),
+                    escalatedToPusat=bool(row.get("escalatedToPusat")),
+                    handlingClaimedBy=claimed,
+                    handlingClaimedByName=(
+                        claim_names.get(claimed) if claimed else None
+                    ),
+                )
+            )
+        return items
+
     def _to_complaint_response(
         self,
         row: ComplaintAggregate,
@@ -1962,6 +2009,7 @@ class CmBatch1Service:
         replayed: bool,
         customer_labels: dict[str, tuple[str | None, str | None]] | None = None,
         officer_labels: dict[str, str] | None = None,
+        cases: list[ComplaintCaseListItem] | None = None,
     ) -> ComplaintBatch1Response:
         labels = customer_labels
         if labels is None and row.customer_id:
@@ -1987,6 +2035,7 @@ class CmBatch1Service:
             createdByName=created_by_name,
             intakeDisposition=row.intake_disposition,
             caseCreated=bool(row.case_created),
+            cases=list(cases or []),
             replayed=replayed,
             category=row.category,
             channel=row.channel,

@@ -4,9 +4,13 @@ import {
   MAX_INTAKE_CASES,
   buildIntakeCaseForms,
   buildIntakeDecisionRows,
+  extraIntakeCaseIssues,
+  filledExtraCaseDrafts,
+  intakeDecisionLockSummary,
   intakeMayEscalateToPusat,
   parseIntakeCaseAction,
   sanitizeExtraCaseDrafts,
+  validateIntakeCaseRow,
 } from "./intakeCaseDrafts";
 
 describe("intakeCaseDrafts", () => {
@@ -30,14 +34,14 @@ describe("intakeCaseDrafts", () => {
       values,
       [
         { id: "a", description: "  " },
-        { id: "b", description: "Uraian case 2" },
+        { id: "b", subject: "Case 2 mesin", description: "Uraian case 2" },
       ],
       "UPPPD-X",
     );
     expect(forms).toHaveLength(2);
     expect(forms[0]?.description).toBe("Uraian case 1");
     expect(forms[1]?.description).toBe("Uraian case 2");
-    expect(forms[1]?.subject).toBe("Uraian case 2");
+    expect(forms[1]?.subject).toBe("Case 2 mesin");
     expect(forms[0]?.priority).toBe("HIGH");
     expect(forms[0]?.destinationUnitId).toBe("UPPPD-X");
   });
@@ -113,5 +117,77 @@ describe("intakeCaseDrafts", () => {
     expect(buildIntakeCaseForms(values, extras, "U")).toHaveLength(
       MAX_INTAKE_CASES,
     );
+  });
+
+  it("round-trips locked flags on extra drafts", () => {
+    const sanitized = sanitizeExtraCaseDrafts([
+      { id: "b", description: "Uraian case 2", locked: true, action: "escalate" },
+    ]);
+    expect(sanitized[0]?.locked).toBe(true);
+    const values = {
+      ...createEmptyComplaintForm({ channel: "BRANCH" }),
+      subject: "Mesin error",
+      description: "Uraian case 1",
+    };
+    const rows = buildIntakeDecisionRows(values, sanitized, "close", true);
+    expect(rows[0]?.locked).toBe(true);
+    expect(rows[0]?.action).toBe("close");
+    expect(rows[1]?.locked).toBe(true);
+    expect(rows[1]?.action).toBe("escalate");
+  });
+
+  it("validates note length for escalate and summarizes locks", () => {
+    const row = {
+      id: "primary",
+      n: 1,
+      subject: "Subjek",
+      description: "Uraian",
+      priority: "HIGH",
+      note: "pendek",
+      action: "escalate" as const,
+    };
+    expect(validateIntakeCaseRow(row)).toBe("escalateShort");
+    expect(
+      validateIntakeCaseRow({ ...row, note: "Tidak selesai di cabang, perlu Pusat." }),
+    ).toBeNull();
+    const summary = intakeDecisionLockSummary([
+      { ...row, locked: true, action: "register" },
+      { ...row, id: "e2", n: 2, locked: false, action: "escalate" },
+    ]);
+    expect(summary).toMatchObject({
+      total: 2,
+      locked: 1,
+      escalate: 1,
+      requiresLock: true,
+      allLocked: false,
+    });
+    expect(intakeDecisionLockSummary([{ ...row, action: "register" }]).requiresLock).toBe(
+      true,
+    );
+  });
+
+  it("drops blank extra Case cards and requires both description and note when either is filled", () => {
+    expect(
+      filledExtraCaseDrafts([
+        { id: "empty", description: "  ", note: "" },
+        { id: "note-only", description: "", note: "Sudah diinfokan." },
+      ]),
+    ).toEqual([{ id: "note-only", description: "", note: "Sudah diinfokan." }]);
+    expect(
+      extraIntakeCaseIssues([
+        { id: "empty", description: "", note: "" },
+        { id: "note-only", description: "", note: "Sudah diinfokan." },
+        { id: "ok", description: "Uraian", note: "Catatan cabang" },
+        {
+          id: "full",
+          subject: "Case 2",
+          description: "Uraian",
+          note: "Catatan cabang",
+        },
+      ]),
+    ).toEqual([
+      { id: "note-only", subject: "required", description: "required" },
+      { id: "ok", subject: "required" },
+    ]);
   });
 });

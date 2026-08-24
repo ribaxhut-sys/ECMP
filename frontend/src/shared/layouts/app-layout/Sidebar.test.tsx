@@ -142,6 +142,7 @@ afterEach(() => {
 describe("Scenario 1 — taxpayer-only permission", () => {
   it("shows Wajib Pajak items and hides Antrian / Penugasan / Resolusi", () => {
     mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "UPPPD-TANAH-ABANG" };
     const { sidebar } = renderSidebar();
 
     expect(sidebar.getByText("Taxpayer")).toBeInTheDocument();
@@ -159,6 +160,29 @@ describe("Scenario 1 — taxpayer-only permission", () => {
     expect(sidebar.queryByRole("link", { name: /^Queue$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Assignments$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Resolutions$/i })).not.toBeInTheDocument();
+  });
+
+  it("hides Cases nav for Pusat unit (route remains deep-linkable)", () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "PUSAT" };
+    const { sidebar } = renderSidebar();
+
+    expect(
+      sidebar.getByRole("link", { name: /^Complaints$/i }),
+    ).toBeInTheDocument();
+    expect(
+      sidebar.queryByRole("link", { name: /^Cases$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Cases nav while org unit is still loading", () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = undefined;
+    const { sidebar } = renderSidebar();
+
+    expect(
+      sidebar.queryByRole("link", { name: /^Cases$/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

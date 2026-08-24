@@ -1,5 +1,8 @@
-/** Wildcard ``*`` does not grant these codes (Admin may not create complaints). */
-export const WILDCARD_EXCLUDED_PERMISSIONS = new Set(["complaints:create"]);
+/** Wildcard ``*`` does not grant these codes (Admin may not create/close complaints). */
+export const WILDCARD_EXCLUDED_PERMISSIONS = new Set([
+  "complaints:create",
+  "complaints:close",
+]);
 
 export function principalHasPermission(
   permissions: readonly string[],

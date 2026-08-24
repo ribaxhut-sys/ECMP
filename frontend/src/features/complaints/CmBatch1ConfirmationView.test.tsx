@@ -27,6 +27,15 @@ vi.mock("@/shared/providers", () => ({
   useToast: () => ({ pushSuccess: vi.fn(), pushError: vi.fn() }),
 }));
 
+vi.mock("@/lib/api/hqSchedule", () => ({
+  fetchHqScheduleAvailability: vi.fn().mockResolvedValue({
+    data: { startTime: "08:00", endTime: "16:00", slotMinutes: 60, capacityPerSlot: 2, days: [] },
+  }),
+  fetchHqScheduleAvailabilityDetail: vi.fn().mockResolvedValue({
+    data: { startTime: "08:00", endTime: "16:00", slotMinutes: 60, capacityPerSlot: 2, days: [] },
+  }),
+}));
+
 const fetchCmBatch1Complaint = vi.fn();
 const fetchCmBatch1ComplaintHistory = vi.fn();
 const fetchBranches = vi.fn();
@@ -223,6 +232,10 @@ const messages = {
     hqAcceptAndScheduleBody: "x",
     hqArrivalDateLabel: "x",
     hqArrivalTimeLabel: "x",
+    hqDestinationUnitLabel: "Unit tujuan",
+    hqDestinationUnitHint: "Pilih unit",
+    hqDestinationUnitPlaceholder: "Pilih",
+    hqDestinationUnitValue: "Unit tujuan: {unit}",
     hqAcceptScheduleNoteLabel: "x",
     hqAcceptScheduleNoteHint: "x",
     hqReturnTitle: "x",
@@ -530,6 +543,35 @@ describe("CmBatch1ConfirmationView — page title matrix", () => {
       expect(
         screen.getByRole("heading", { name: "Pengaduan terdaftar" }),
       ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Tangani pengaduan" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Tangani pengaduan when the only Case is already at Pusat", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        caseCreated: true,
+      }),
+    });
+    renderView();
+    await waitFor(() => expect(lastPenangananProps).not.toBeNull());
+    (
+      lastPenangananProps!.onPenangananSnapshot as (s: unknown) => void
+    )({
+      loading: false,
+      openCount: 0,
+      pusatCount: 1,
+      totalCount: 1,
+      handlingClaimedBy: null,
+      handlingClaimedByName: null,
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Tangani pengaduan" }),
+      ).not.toBeInTheDocument(),
     );
   });
 });

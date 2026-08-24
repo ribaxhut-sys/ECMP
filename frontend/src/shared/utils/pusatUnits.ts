@@ -2,11 +2,9 @@
  * Pusat unit codes — single FE mirror of the backend rule in
  * `app/core/authorization/visibility.py`.
  *
- * Pusat is not one door: a taxpayer escalated to Pusat may be directed to CRO,
- * to Sekretariat, or to a Suban. Those sub-units are coded as a root code plus
- * a separator ("PUSAT-CRO", "PUSAT-SUBAN-1"), so every gate that asks "is this
- * Pusat?" must accept them too. A separator is required — "PUSATAKA" is a
- * different branch, not a Pusat sub-unit.
+ * Pusat visibility still covers CRO / Sekretariat / Suban sub-units. HQ
+ * **arrival schedule** destinations are CRO only — Suban and Sekretariat are
+ * not booked in this app (branch closes with a redirect note instead).
  */
 
 /** Root codes only; sub-units are derived, never enumerated. */
@@ -36,4 +34,31 @@ export function isPusatUnitCode(code: string | null | undefined): boolean {
 /** True only for a root Pusat code — "PUSAT-CRO" is a sub-unit, not the root. */
 export function isPusatRootUnitCode(code: string | null | undefined): boolean {
   return ROOT_SET.has((code || "").trim().toUpperCase());
+}
+
+/** Compact destination label from a Pusat unit code: PUSAT-CRO → CRO. */
+export function pusatUnitShortCode(code: string | null | undefined): string {
+  const normalized = (code || "").trim().toUpperCase();
+  if (!normalized) return "";
+  for (const root of PUSAT_UNIT_ROOT_CODES) {
+    for (const sep of PUSAT_SUBUNIT_SEPARATORS) {
+      const prefix = `${root}${sep}`;
+      if (normalized.startsWith(prefix) && normalized.length > prefix.length) {
+        return normalized.slice(prefix.length);
+      }
+    }
+  }
+  return normalized;
+}
+
+/**
+ * HQ visit schedule door — CRO only (`PUSAT-CRO`, `HO-CRO`, …).
+ * Suban / Sekretariat are not schedule destinations in this app.
+ */
+export function isHqScheduleDestinationUnitCode(
+  code: string | null | undefined,
+): boolean {
+  if (!isPusatUnitCode(code) || isPusatRootUnitCode(code)) return false;
+  const short = pusatUnitShortCode(code).toUpperCase();
+  return short === "CRO" || short.startsWith("CRO-") || short.startsWith("CRO.");
 }

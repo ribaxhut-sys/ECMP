@@ -15,7 +15,11 @@ from zoneinfo import ZoneInfo
 
 from app.core.errors import NotFoundError, ValidationAppError
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
-from app.modules.hq_schedule.repository import ArrivalRow, HqScheduleRepository
+from app.modules.hq_schedule.repository import (
+    ArrivalRow,
+    HqScheduleRepository,
+    PusatUnit,
+)
 from app.modules.hq_schedule.schemas import (
     AvailabilityResponse,
     DayAvailability,
@@ -23,6 +27,7 @@ from app.modules.hq_schedule.schemas import (
     HolidayResponse,
     ProposalSummary,
     SlotAvailability,
+    SlotUnitAvailability,
 )
 from app.modules.settings.registry import SettingsKey
 from app.modules.settings.service import SettingsService
@@ -45,6 +50,34 @@ def _minutes(t: time) -> int:
 
 def _from_minutes(value: int) -> time:
     return time(hour=value // 60, minute=value % 60)
+
+
+def _parse_capacity_by_unit(raw: object) -> dict[str, int]:
+    """``{"PUSAT-SEKRETARIAT": 1}`` -> ``{"PUSAT-SEKRETARIAT": 1}`` (upper keys).
+
+    Units absent from the map keep ``capacity_per_slot``. Unreadable or
+    negative entries are skipped rather than treated as zero, so a typo can
+    never silently close a unit's whole day.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    parsed: dict[str, int] = {}
+    for key, value in raw.items():
+        code = str(key).strip().upper()
+        if not code:
+            continue
+        try:
+            capacity = int(value)
+        except (TypeError, ValueError):
+            continue
+        if capacity < 0:
+            continue
+        parsed[code] = capacity
+    return parsed
+
+
+def _same_unit(left: str | None, right: str | None) -> bool:
+    return (left or "").strip().upper() == (right or "").strip().upper()
 
 
 def _parse_break_overrides(raw: object) -> dict[int, tuple[time, time] | None]:
@@ -95,6 +128,15 @@ class ScheduleConfig:
     # (``None`` = that weekday has no break at all). Jumat 11:30-13:30 lives
     # here; Senin-Kamis keep break_start/break_end.
     break_overrides: Mapping[int, tuple[time, time] | None]
+    # Pusat unit code (upper-cased) -> arrivals that unit accepts per full slot.
+    # A unit absent from the map keeps ``capacity_per_slot`` (today every unit
+    # is configured the same as CRO; the setting exists to change that).
+    capacity_by_unit: Mapping[str, int]
+
+    def capacity_for_unit(self, unit_code: str) -> int:
+        return self.capacity_by_unit.get(
+            unit_code.strip().upper(), self.capacity_per_slot
+        )
 
     def break_for(self, weekday: int) -> tuple[time, time] | None:
         if weekday in self.break_overrides:
@@ -117,8 +159,10 @@ class SlotSpec:
     start: time
     end: time
     is_break: bool
-    capacity: int
     partial: bool
+    # Minutes actually usable in this cell — capacity is pro-rated from it,
+    # per unit, because each Pusat unit has its own quota.
+    usable_minutes: int
 
 
 class HqScheduleService:
@@ -166,6 +210,12 @@ class HqScheduleService:
             # Malformed JSON must not take the whole calendar down — same
             # tolerance as the workdays setting above.
             overrides_raw = {}
+        try:
+            capacity_by_unit_raw = self._settings.get_json(
+                SettingsKey.HQ_SCHEDULE_CAPACITY_BY_UNIT, default={}
+            )
+        except ValidationAppError:
+            capacity_by_unit_raw = {}
         return ScheduleConfig(
             start=_parse_hhmm(start_raw),
             end=_parse_hhmm(end_raw),
@@ -175,23 +225,24 @@ class HqScheduleService:
             break_start=break_start,
             break_end=break_end,
             break_overrides=_parse_break_overrides(overrides_raw),
+            capacity_by_unit=_parse_capacity_by_unit(capacity_by_unit_raw),
         )
 
     @staticmethod
-    def _prorated_capacity(config: ScheduleConfig, minutes: int) -> int:
+    def _prorated_capacity(capacity: int, *, minutes: int, slot_minutes: int) -> int:
         """Capacity of a shortened slot, floored — but never silently zero.
 
         Default 2 arrivals/hour, Jumat 11:00-11:30 -> 1. An odd capacity
         rounds down (3/hour -> 1 for a half slot) per the business decision.
         """
-        if config.capacity_per_slot <= 0 or minutes <= 0:
+        if capacity <= 0 or minutes <= 0:
             return 0
-        if minutes >= config.slot_minutes:
-            return config.capacity_per_slot
-        return max(1, config.capacity_per_slot * minutes // config.slot_minutes)
+        if minutes >= slot_minutes:
+            return capacity
+        return max(1, capacity * minutes // slot_minutes)
 
-    @classmethod
-    def _generate_slots(cls, config: ScheduleConfig, weekday: int) -> list[SlotSpec]:
+    @staticmethod
+    def _generate_slots(config: ScheduleConfig, weekday: int) -> list[SlotSpec]:
         day_start = _minutes(config.start)
         day_end = _minutes(config.end)
         window = config.break_for(weekday)
@@ -217,8 +268,8 @@ class HqScheduleService:
                         start=_from_minutes(cursor),
                         end=_from_minutes(nxt),
                         is_break=False,
-                        capacity=config.capacity_per_slot,
                         partial=False,
+                        usable_minutes=nxt - cursor,
                     )
                 )
             else:
@@ -234,8 +285,8 @@ class HqScheduleService:
                             start=_from_minutes(lo),
                             end=_from_minutes(hi),
                             is_break=False,
-                            capacity=cls._prorated_capacity(config, hi - lo),
                             partial=True,
+                            usable_minutes=hi - lo,
                         )
                     )
             cursor = nxt
@@ -248,8 +299,8 @@ class HqScheduleService:
                         start=_from_minutes(lo),
                         end=_from_minutes(hi),
                         is_break=True,
-                        capacity=0,
                         partial=False,
+                        usable_minutes=0,
                     )
                 )
         specs.sort(key=lambda spec: (spec.start, spec.end))
@@ -297,6 +348,9 @@ class HqScheduleService:
         arrivals = self._repo.list_arrivals_in_range(
             date_from=date_from, date_to=date_to
         )
+        # Pusat is not one door: CRO schedules the taxpayer into its own
+        # counter, Sekretariat or a Suban, and each of those has its own quota.
+        units = self._repo.list_pusat_units()
         now = datetime.now(_OPERATOR_TZ)
 
         days: list[DayAvailability] = []
@@ -316,6 +370,7 @@ class HqScheduleService:
                     cursor,
                     specs,
                     arrivals,
+                    units,
                     config=config,
                     detail=detail,
                     now=now,
@@ -340,11 +395,13 @@ class HqScheduleService:
             days=days,
         )
 
-    @staticmethod
+    @classmethod
     def _slots_for_day(
+        cls,
         day: date,
         slots: list[SlotSpec],
         arrivals: list[ArrivalRow],
+        units: list[PusatUnit],
         *,
         config: ScheduleConfig,
         detail: bool,
@@ -381,9 +438,64 @@ class HqScheduleService:
             scheduled_count = len(scheduled)
             completed_count = sum(1 for a in scheduled if a.completed)
             proposed_count = len(proposed)
-            available = max(0, spec.capacity - scheduled_count)
             slot_start_dt = datetime.combine(day, slot_start, tzinfo=_OPERATOR_TZ)
-            bookable = not is_break and slot_start_dt > now and available > 0
+            future = slot_start_dt > now
+
+            def unit_capacity(
+                code: str,
+                *,
+                closed: bool = is_break,
+                minutes: int = spec.usable_minutes,
+            ) -> int:
+                if closed:
+                    return 0
+                return cls._prorated_capacity(
+                    config.capacity_for_unit(code),
+                    minutes=minutes,
+                    slot_minutes=config.slot_minutes,
+                )
+
+            unit_rows: list[SlotUnitAvailability] = []
+            if units:
+                capacity = 0
+                available = 0
+                for unit in units:
+                    cap = unit_capacity(unit.code)
+                    booked = [
+                        a
+                        for a in scheduled
+                        if _same_unit(a.hq_destination_unit_id, unit.code)
+                    ]
+                    unit_available = max(0, cap - len(booked))
+                    capacity += cap
+                    available += unit_available
+                    unit_rows.append(
+                        SlotUnitAvailability(
+                            unitCode=unit.code,
+                            unitName=unit.name,
+                            capacity=cap,
+                            scheduledCount=len(booked),
+                            completedCount=sum(1 for a in booked if a.completed),
+                            availableCount=unit_available,
+                            bookable=not is_break and future and unit_available > 0,
+                        )
+                    )
+            else:
+                # No Pusat unit in the org directory (bare lab DB): fall back to
+                # one shared pool, exactly the pre-per-unit behaviour.
+                capacity = (
+                    0
+                    if is_break
+                    else cls._prorated_capacity(
+                        config.capacity_per_slot,
+                        minutes=spec.usable_minutes,
+                        slot_minutes=config.slot_minutes,
+                    )
+                )
+                available = max(0, capacity - scheduled_count)
+            # Arrivals scheduled before the destination column existed occupy no
+            # unit's quota — they stay listed, but must not close a unit's slot.
+            bookable = not is_break and future and available > 0
             bookable_count = available if bookable else 0
             pending: list[ProposalSummary] = []
             if detail:
@@ -409,6 +521,9 @@ class HqScheduleService:
                     unitCode=resolve_unit_code(a.owning_unit_id),
                     caseNumbers=list(a.case_numbers),
                     completed=a.completed,
+                    # Where the taxpayer reports — set by CRO Pusat together
+                    # with the final time; unitCode above is the origin branch.
+                    destinationUnitCode=a.hq_destination_unit_id,
                 )
                 for a in scheduled
             ]
@@ -416,9 +531,12 @@ class HqScheduleService:
                 SlotAvailability(
                     startTime=slot_start.strftime("%H:%M"),
                     endTime=slot_end.strftime("%H:%M"),
-                    capacity=spec.capacity,
+                    capacity=capacity,
                     isBreak=is_break,
                     partial=spec.partial,
+                    # Pusat-internal structure is detail-only: a branch never
+                    # picks the destination unit, it only proposes a time.
+                    units=unit_rows if detail else [],
                     scheduledCount=scheduled_count,
                     completedCount=completed_count,
                     proposedCount=proposed_count,

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return true;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** Lightweight count-up for KPI values. Respects reduced motion. */
+/** Lightweight count tween for KPI values. Respects reduced motion. */
 export function AnimatedCount({
   value,
   durationMs = 500,
@@ -16,6 +16,11 @@ export function AnimatedCount({
   durationMs?: number;
 }) {
   const [display, setDisplay] = useState(value);
+  const displayRef = useRef(value);
+
+  useEffect(() => {
+    displayRef.current = display;
+  }, [display]);
 
   useEffect(() => {
     if (prefersReducedMotion() || !Number.isFinite(value)) {
@@ -23,10 +28,15 @@ export function AnimatedCount({
       return;
     }
 
+    const from = displayRef.current;
+    const to = value;
+    if (from === to) {
+      setDisplay(to);
+      return;
+    }
+
     let frame = 0;
     const start = performance.now();
-    const from = 0;
-    const to = value;
 
     const tick = (now: number) => {
       const progress = Math.min(1, (now - start) / durationMs);

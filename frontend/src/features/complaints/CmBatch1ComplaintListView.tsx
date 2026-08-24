@@ -11,10 +11,10 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
   ApiError,
   fetchCmBatch1Complaints,
-  fetchCmCases,
   type CmBatch1ComplaintResponse,
 } from "@/lib/api";
 import {
@@ -37,6 +37,7 @@ import {
 } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { prefersComplaintNumberIdentity } from "./cmBatch1ComplaintListIdentity";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
@@ -45,17 +46,16 @@ import {
 } from "./cmBatch1ListFilters";
 import { ComplaintSlaBadge } from "./ComplaintSlaBadge";
 import {
+  expandComplaintsToCaseRows,
+  type CmBatch1ComplaintListCases,
+  type CmBatch1ComplaintListRow,
+} from "./cmBatch1ComplaintListRows";
+import {
   hqPathCopyKeys,
   penangananCountsFromCases,
   resolveHqPathPhase,
   resolvePenangananContextKind,
 } from "./penangananGroups";
-
-type PenangananListCounts = {
-  open: number;
-  pusat: number;
-  done: number;
-};
 
 function customerCellLabel(
   row: CmBatch1ComplaintResponse,
@@ -77,8 +77,9 @@ function customerCellLabel(
 }
 
 /**
- * CM Aggregate complaint list (API-514) at `/complaints` (DEC-026 Single SoT).
- * Filters: keyword + status (server-side).
+ * CM Aggregate list API (API-514 / DEC-026) at `/complaints`.
+ * Pusat: Case number primary, complaint secondary.
+ * Cabang (unit-scoped): complaint number primary, Case secondary.
  */
 export function CmBatch1ComplaintListView() {
   const router = useRouter();
@@ -92,6 +93,8 @@ export function CmBatch1ComplaintListView() {
   const locale = useLocale();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
+  const orgUnitCode = useOrgUnitCode();
+  const complaintNumberFirst = prefersComplaintNumberIdentity(orgUnitCode);
 
   const filters = useMemo(
     () => cmBatch1FiltersFromSearchParams(searchParams),
@@ -107,9 +110,6 @@ export function CmBatch1ComplaintListView() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [penangananByComplaint, setPenangananByComplaint] = useState<
-    Record<string, PenangananListCounts | "loading" | "error">
-  >({});
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -133,7 +133,6 @@ export function CmBatch1ComplaintListView() {
     } catch (err) {
       setRows([]);
       setTotal(0);
-      setPenangananByComplaint({});
       setError(
         err instanceof ApiError
           ? resolveApiErrorMessage(err, tErrors, tCommon)
@@ -142,65 +141,29 @@ export function CmBatch1ComplaintListView() {
     } finally {
       setLoading(false);
     }
-  }, [canRead, filters, t, tErrors, tCommon]);
+    // i18n helpers are stable enough for error copy; omit from deps so this
+    // callback does not churn every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t/tErrors/tCommon
+  }, [canRead, filters]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!canRead || rows.length === 0) {
-      setPenangananByComplaint({});
-      return;
-    }
-    let cancelled = false;
-    const pending: Record<string, PenangananListCounts | "loading" | "error"> =
-      {};
+  // Case column uses parent-scoped `cases` embedded in API-514 list response
+  // (no N+1 /api/v1/cm/cases). Avoids false "Belum ada case" from race/visibility.
+  const casesByComplaint = useMemo(() => {
+    const next: Record<string, CmBatch1ComplaintListCases> = {};
     for (const row of rows) {
-      pending[row.complaintId] = "loading";
+      next[row.complaintId] = Array.isArray(row.cases) ? row.cases : [];
     }
-    setPenangananByComplaint(pending);
+    return next;
+  }, [rows]);
 
-    void (async () => {
-      const entries = await Promise.all(
-        rows.map(async (row) => {
-          try {
-            const res = await fetchCmCases({
-              complaintId: row.complaintId,
-              page: 1,
-              pageSize: 50,
-            });
-            const cases = res.data ?? [];
-            const counts = penangananCountsFromCases(
-              cases,
-              row.intakeDisposition,
-            );
-            return [
-              row.complaintId,
-              {
-                open: counts.open,
-                pusat: counts.pusat,
-                done: counts.done,
-              } satisfies PenangananListCounts,
-            ] as const;
-          } catch {
-            return [row.complaintId, "error" as const] as const;
-          }
-        }),
-      );
-      if (cancelled) return;
-      const next: Record<string, PenangananListCounts | "loading" | "error"> =
-        {};
-      for (const [id, value] of entries) {
-        next[id] = value;
-      }
-      setPenangananByComplaint(next);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canRead, rows]);
+  const listRows = useMemo(
+    () => expandComplaintsToCaseRows(rows, casesByComplaint),
+    [rows, casesByComplaint],
+  );
 
   function applyFilters(next: CmBatch1ListFilters): void {
     const params = cmBatch1FiltersToSearchParams(next);
@@ -265,30 +228,70 @@ export function CmBatch1ComplaintListView() {
     );
   }
 
-  const columns: TableColumn<CmBatch1ComplaintResponse>[] = [
+  const columns: TableColumn<CmBatch1ComplaintListRow>[] = [
     {
-      key: "complaintNumber",
-      header: t("complaintNumber"),
+      key: "caseNumber",
+      header: complaintNumberFirst
+        ? t("listComplaintNumberColumn")
+        : t("listCaseColumn"),
       className: "whitespace-nowrap",
       headerClassName: "whitespace-nowrap",
-      cell: (row) => (
-        <div className="min-w-0">
-          <Link
-            href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
-            className="whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
-          >
-            {row.complaintNumber}
-          </Link>
-          <div className="truncate text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-            {row.createdByName?.trim() || tCommon("emDash")}
+      cell: (row) => {
+        const caseItem = row.caseItem;
+        const complaintHref = `/complaints/cm/${encodeURIComponent(row.complaint.complaintId)}`;
+        const caseHref = caseItem
+          ? `/complaints/cm/cases/${encodeURIComponent(caseItem.caseId)}`
+          : complaintHref;
+        const caseLabel =
+          row.casesState === "loading"
+            ? tCommon("emDash")
+            : row.casesState === "error"
+              ? t("penangananListUnavailable")
+              : caseItem?.caseNumber || t("noCaseYet");
+        const complaintLabel = row.complaint.complaintNumber;
+        if (complaintNumberFirst) {
+          return (
+            <div className="min-w-0">
+              <Link
+                href={complaintHref}
+                className="whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+              >
+                {complaintLabel}
+              </Link>
+              <Link
+                href={caseHref}
+                className="mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary"
+              >
+                {caseLabel}
+              </Link>
+            </div>
+          );
+        }
+        return (
+          <div className="min-w-0">
+            <Link
+              href={caseHref}
+              className="whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
+            >
+              {caseLabel}
+            </Link>
+            <Link
+              href={complaintHref}
+              className="mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary"
+            >
+              {complaintLabel}
+            </Link>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "subject",
       header: t("subject"),
-      cell: (row) => row.subject?.trim() || "—",
+      cell: (row) =>
+        row.caseItem?.subject?.trim() ||
+        row.complaint.subject?.trim() ||
+        "—",
     },
     {
       key: "status",
@@ -296,16 +299,16 @@ export function CmBatch1ComplaintListView() {
       cell: (row) => (
         <Badge
           tone={
-            row.status === "CLOSED"
+            row.complaint.status === "CLOSED"
               ? "success"
-              : row.status === "IN_PROGRESS"
+              : row.complaint.status === "IN_PROGRESS"
                 ? "warning"
                 : "info"
           }
         >
-          {row.status === "CLOSED"
+          {row.complaint.status === "CLOSED"
             ? t("statusClosed")
-            : row.status === "IN_PROGRESS"
+            : row.complaint.status === "IN_PROGRESS"
               ? t("statusInProgress")
               : t("statusOpen")}
         </Badge>
@@ -317,15 +320,15 @@ export function CmBatch1ComplaintListView() {
       key: "sla",
       header: t("slaColumn"),
       cell: (row) => (
-        <ComplaintSlaBadge sla={row.sla} />
+        <ComplaintSlaBadge sla={row.complaint.sla} />
       ),
     },
     {
       key: "priority",
       header: t("priority"),
       cell: (row) => {
-        const p = (row.priority || "").toUpperCase();
-        if (!p || row.status === "CLOSED") {
+        const p = (row.caseItem?.priority || row.complaint.priority || "").toUpperCase();
+        if (!p || row.complaint.status === "CLOSED") {
           return (
             <span className="text-ecmp-text-secondary">{tCommon("emDash")}</span>
           );
@@ -345,7 +348,10 @@ export function CmBatch1ComplaintListView() {
       key: "customer",
       header: t("customer"),
       cell: (row) => {
-        const { name, id } = customerCellLabel(row, tCommon("emDash"));
+        const { name, id } = customerCellLabel(
+          row.complaint,
+          tCommon("emDash"),
+        );
         return (
           <div className="min-w-0">
             <div className="truncate font-medium text-ecmp-text-primary">
@@ -363,39 +369,49 @@ export function CmBatch1ComplaintListView() {
     {
       key: "createdAt",
       header: t("createdAt"),
-      cell: (row) => formatDateTime24(row.createdAt, locale, tCommon("emDash")),
+      cell: (row) =>
+        formatDateTime24(row.complaint.createdAt, locale, tCommon("emDash")),
     },
     {
       key: "penanganan",
       header: t("penangananColumn"),
       cell: (row) => {
-        const summary = penangananByComplaint[row.complaintId];
-        if (summary === undefined || summary === "loading") {
+        const entry = casesByComplaint[row.complaint.complaintId];
+        if (entry === undefined || entry === "loading") {
           return (
             <span className="text-ecmp-text-secondary">
               {tCommon("emDash")}
             </span>
           );
         }
-        if (summary === "error") {
+        if (entry === "error") {
           return (
             <span className="text-ecmp-text-secondary">
               {t("penangananListUnavailable")}
             </span>
           );
         }
+        if (row.caseItem?.escalatedToPusat) {
+          return (
+            <Badge tone="warning">{t("penangananListHqWaiting")}</Badge>
+          );
+        }
+        const counts = penangananCountsFromCases(
+          entry,
+          row.complaint.intakeDisposition,
+        );
         const kind = resolvePenangananContextKind({
-          complaintStatus: row.status,
-          intakeDisposition: row.intakeDisposition,
-          counts: summary,
+          complaintStatus: row.complaint.status,
+          intakeDisposition: row.complaint.intakeDisposition,
+          counts,
         });
         if (kind === "closed") {
           return <Badge tone="success">{t("penangananListClosed")}</Badge>;
         }
         if (kind === "hq_waiting") {
           const phase = resolveHqPathPhase({
-            intakeDisposition: row.intakeDisposition,
-            hqAcceptedAt: row.hqAcceptedAt,
+            intakeDisposition: row.complaint.intakeDisposition,
+            hqAcceptedAt: row.complaint.hqAcceptedAt,
           });
           const copy = phase
             ? hqPathCopyKeys(phase)
@@ -435,13 +451,15 @@ export function CmBatch1ComplaintListView() {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints/cm/cases")}
-            >
-              {tCases("inboxTitle")}
-            </Button>
+            {complaintNumberFirst ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/complaints/cm/cases")}
+              >
+                {tCases("inboxTitle")}
+              </Button>
+            ) : null}
             {canRead ? (
               <Button
                 type="button"
@@ -468,7 +486,7 @@ export function CmBatch1ComplaintListView() {
             <Input
               name="keyword"
               label={tCommon("search")}
-              placeholder={t("searchPlaceholder")}
+              placeholder={t("aggregateSearchPlaceholder")}
               value={draft.keyword}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, keyword: e.target.value }))
@@ -595,8 +613,8 @@ export function CmBatch1ComplaintListView() {
               />
               <Table
                 columns={columns}
-                rows={rows}
-                getRowKey={(row) => row.complaintId}
+                rows={listRows}
+                getRowKey={(row) => row.key}
                 density="compact"
                 stickyHeader
                 className="[--ecmp-font-table-size:0.9375rem]"

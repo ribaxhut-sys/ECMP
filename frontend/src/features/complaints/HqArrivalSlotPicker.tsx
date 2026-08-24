@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   fetchHqScheduleAvailability,
+  fetchHqScheduleAvailabilityDetail,
   type HqScheduleDayAvailability,
+  type HqScheduleSlotAvailability,
 } from "@/lib/api/hqSchedule";
 import { Alert, DatePicker, Select } from "@/shared/ui";
 import { toLocalDateKey } from "@/shared/utils/datetime";
@@ -17,6 +19,22 @@ function addDays(date: Date, days: number): Date {
   return copy;
 }
 
+function isSlotStartFuture(date: string, startTime: string, nowMs: number): boolean {
+  const start = new Date(`${date}T${startTime}:00`).getTime();
+  return Number.isFinite(start) && start > nowMs;
+}
+
+function unitRemaining(
+  slot: HqScheduleSlotAvailability,
+  destinationUnitCode: string,
+): number | null {
+  const needle = destinationUnitCode.trim().toUpperCase();
+  const unit = (slot.units ?? []).find(
+    (row) => row.unitCode.trim().toUpperCase() === needle,
+  );
+  return unit ? unit.availableCount : null;
+}
+
 export interface HqArrivalSlotValue {
   date: string;
   time: string;
@@ -26,6 +44,16 @@ export interface HqArrivalSlotPickerProps {
   value: HqArrivalSlotValue | null;
   onChange: (value: HqArrivalSlotValue | null) => void;
   disabled?: boolean;
+  /**
+   * When set, load the Pusat detail grid and label each slot with that
+   * unit's remaining quota. Empty string waits for the caller to pick a unit.
+   */
+  destinationUnitCode?: string | null;
+  /**
+   * Pusat may schedule past a unit's quota (authority stays with Pusat).
+   * Full slots stay selectable; a warning is shown instead of disabling.
+   */
+  allowOverCapacity?: boolean;
 }
 
 /**
@@ -33,16 +61,23 @@ export interface HqArrivalSlotPickerProps {
  * only, Pusat still decides the final HQ arrival date/time. The date input
  * is free-pick (not limited to "this week") so a taxpayer asking for a slot
  * weeks out can still be proposed one; only that single day is fetched.
+ *
+ * With ``destinationUnitCode`` + ``allowOverCapacity``, the same control is
+ * reused on the Pusat accept/schedule dialog so CRO sees per-unit remaining
+ * before confirming.
  */
 export function HqArrivalSlotPicker({
   value,
   onChange,
   disabled,
+  destinationUnitCode,
+  allowOverCapacity = false,
 }: HqArrivalSlotPickerProps) {
   const t = useTranslations("hqSchedule");
   const [day, setDay] = useState<HqScheduleDayAvailability | null>(null);
   const [dayLoading, setDayLoading] = useState(false);
   const [dayFailed, setDayFailed] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const minDate = useMemo(() => toLocalDateKey(new Date()), []);
   const maxDate = useMemo(
@@ -51,9 +86,17 @@ export function HqArrivalSlotPicker({
   );
 
   const selectedDate = value?.date ?? "";
+  const pusatMode = destinationUnitCode !== undefined && destinationUnitCode !== null;
+  const destinationReady = Boolean(destinationUnitCode?.trim());
+  const needsDestinationFirst = pusatMode && !destinationReady;
 
   useEffect(() => {
-    if (!selectedDate) {
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDate || needsDestinationFirst) {
       setDay(null);
       setDayFailed(false);
       return;
@@ -61,7 +104,10 @@ export function HqArrivalSlotPicker({
     let cancelled = false;
     setDayLoading(true);
     setDayFailed(false);
-    fetchHqScheduleAvailability(selectedDate, selectedDate)
+    const fetchDay = pusatMode
+      ? fetchHqScheduleAvailabilityDetail
+      : fetchHqScheduleAvailability;
+    fetchDay(selectedDate, selectedDate)
       .then((res) => {
         if (!cancelled) setDay(res.data.days[0] ?? null);
       })
@@ -74,17 +120,36 @@ export function HqArrivalSlotPicker({
     return () => {
       cancelled = true;
     };
-  }, [selectedDate]);
+  }, [selectedDate, pusatMode, needsDestinationFirst, destinationUnitCode]);
 
   const slotOptions = (day?.slots ?? [])
     .filter((slot) => !slot.isBreak)
-    .map((slot) => ({
-      value: slot.startTime,
-      label: `${slot.startTime}–${slot.endTime} (${t("availableCount", {
-        count: slot.bookableCount,
-      })})`,
-      disabled: !slot.bookable,
-    }));
+    .map((slot) => {
+      const remaining = destinationReady
+        ? unitRemaining(slot, destinationUnitCode!)
+        : null;
+      const count =
+        remaining !== null ? remaining : slot.bookableCount;
+      const future = isSlotStartFuture(selectedDate, slot.startTime, nowMs);
+      const overCapacity =
+        allowOverCapacity && destinationReady && remaining !== null && remaining <= 0;
+      const selectable = allowOverCapacity
+        ? future
+        : slot.bookable && (remaining === null || remaining > 0);
+      return {
+        value: slot.startTime,
+        label: `${slot.startTime}–${slot.endTime} (${t("availableCount", {
+          count,
+        })})`,
+        disabled: !selectable,
+        overCapacity,
+      };
+    });
+
+  const selectedOverCapacity = Boolean(
+    value?.time &&
+      slotOptions.find((opt) => opt.value === value.time)?.overCapacity,
+  );
 
   return (
     <div className="flex flex-wrap gap-[var(--ecmp-form-gap)]">
@@ -97,12 +162,16 @@ export function HqArrivalSlotPicker({
           max={maxDate}
           disabledWeekdays={[0, 6]}
           value={selectedDate}
-          disabled={disabled}
+          disabled={disabled || needsDestinationFirst}
           onChange={(date) => onChange(date ? { date, time: "" } : null)}
         />
       </div>
 
-      {!selectedDate ? null : (
+      {needsDestinationFirst ? (
+        <p className="w-full text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+          {t("pickDestinationFirst")}
+        </p>
+      ) : !selectedDate ? null : (
         <div className="w-full sm:w-[150px]">
           {dayLoading ? (
             <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
@@ -137,6 +206,16 @@ export function HqArrivalSlotPicker({
           )}
         </div>
       )}
+
+      {selectedOverCapacity ? (
+        <div className="w-full">
+          <Alert
+            tone="warning"
+            title={t("overCapacityWarningTitle")}
+            description={t("overCapacityWarningBody")}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

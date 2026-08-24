@@ -17,9 +17,19 @@ describe("principalHasPermission", () => {
     expect(principalHasPermission(["*"], "complaints:create")).toBe(false);
   });
 
+  it("does not let wildcard grant complaints:close", () => {
+    expect(principalHasPermission(["*"], "complaints:close")).toBe(false);
+  });
+
   it("still grants complaints:create when the code is explicit", () => {
     expect(
       principalHasPermission(["*", "complaints:create"], "complaints:create"),
+    ).toBe(true);
+  });
+
+  it("still grants complaints:close when the code is explicit", () => {
+    expect(
+      principalHasPermission(["*", "complaints:close"], "complaints:close"),
     ).toBe(true);
   });
 });

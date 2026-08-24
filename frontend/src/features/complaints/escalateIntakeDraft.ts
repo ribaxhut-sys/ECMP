@@ -26,6 +26,11 @@ export interface EscalateIntakeDraft {
   extraCaseDrafts?: IntakeExtraCaseDraft[];
   /** Putusan Case 1 di langkah prioritas (default daftarkan). */
   case1Action?: IntakeCaseAction;
+  /** Local lock for Case 1 on the priority step. */
+  case1Locked?: boolean;
+  /** Advisory HQ arrival proposal — sent only when a Case escalates. */
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
 }
 
 const STORAGE_KEY = "ecmp.cm.escalateIntakeDraft.v1";
@@ -56,6 +61,15 @@ export function peekEscalateIntakeDraft(): EscalateIntakeDraft | null {
     }
     parsed.extraCaseDrafts = sanitizeExtraCaseDrafts(parsed.extraCaseDrafts);
     parsed.case1Action = parseIntakeCaseAction(parsed.case1Action);
+    parsed.case1Locked = parsed.case1Locked === true;
+    parsed.proposedArrivalDate =
+      typeof parsed.proposedArrivalDate === "string"
+        ? parsed.proposedArrivalDate
+        : undefined;
+    parsed.proposedArrivalTime =
+      typeof parsed.proposedArrivalTime === "string"
+        ? parsed.proposedArrivalTime
+        : undefined;
     return parsed;
   } catch {
     return null;

@@ -5,7 +5,11 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
-import { canCmBatch1HqReview } from "@/features/complaints/cmBatch1HqActions";
+import {
+  canCmBatch1HqReview,
+  isHqScheduleDestinationUnitCode,
+} from "@/features/complaints/cmBatch1HqActions";
+import { fetchBranches } from "@/lib/api";
 import {
   createHqScheduleHoliday,
   deleteHqScheduleHoliday,
@@ -35,7 +39,7 @@ import {
 import { IconAlert, IconCheck, IconChevronRight } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 import { toLocalDateKey } from "@/shared/utils/datetime";
-import { cn } from "@/shared/utils";
+import { cn, pusatUnitShortCode } from "@/shared/utils";
 
 const RANGE_DAYS = 6; // one week, inclusive
 
@@ -105,9 +109,103 @@ export interface HqWeekSummary {
   weekCompleted: number;
 }
 
+export const UNASSIGNED_UNIT_FILTER = "__unassigned__";
+
+export function matchingScheduledCases(
+  cases: HqScheduleProposalSummary[],
+  unitFilter: string | null,
+): HqScheduleProposalSummary[] {
+  if (!unitFilter) return cases;
+  if (unitFilter === UNASSIGNED_UNIT_FILTER) {
+    return cases.filter((c) => !c.destinationUnitCode?.trim());
+  }
+  const needle = unitFilter.trim().toUpperCase();
+  return cases.filter(
+    (c) => (c.destinationUnitCode ?? "").trim().toUpperCase() === needle,
+  );
+}
+
+export function slotCountsForFilter(
+  slot: HqScheduleSlotAvailability,
+  unitFilter: string | null,
+): { scheduled: number; capacity: number; completed: number } {
+  if (!unitFilter) {
+    return {
+      scheduled: slot.scheduledCount,
+      capacity: slot.capacity,
+      completed: slot.completedCount,
+    };
+  }
+  if (unitFilter === UNASSIGNED_UNIT_FILTER) {
+    const cases = matchingScheduledCases(slot.scheduledCases, unitFilter);
+    return {
+      scheduled: cases.length,
+      capacity: slot.capacity,
+      completed: cases.filter((c) => Boolean(c.completed)).length,
+    };
+  }
+  const unit = (slot.units ?? []).find(
+    (row) => row.unitCode.trim().toUpperCase() === unitFilter.trim().toUpperCase(),
+  );
+  if (unit) {
+    return {
+      scheduled: unit.scheduledCount,
+      capacity: unit.capacity,
+      completed: unit.completedCount,
+    };
+  }
+  const cases = matchingScheduledCases(slot.scheduledCases, unitFilter);
+  return {
+    scheduled: cases.length,
+    capacity: slot.capacity,
+    completed: cases.filter((c) => Boolean(c.completed)).length,
+  };
+}
+
+export function dayOccupancyTotals(
+  day: HqScheduleDayAvailability,
+  unitFilter: string | null,
+): { scheduled: number; completed: number } {
+  let scheduled = 0;
+  let completed = 0;
+  for (const slot of day.slots) {
+    if (slot.isBreak) continue;
+    const counts = slotCountsForFilter(slot, unitFilter);
+    scheduled += counts.scheduled;
+    completed += counts.completed;
+  }
+  return { scheduled, completed };
+}
+
+/** Per-destination counts for a day's past summary (null code = unit belum ditetapkan). */
+export function dayUnitBreakdown(
+  day: HqScheduleDayAvailability,
+): { code: string | null; count: number }[] {
+  const byUnit = new Map<string, number>();
+  let unassigned = 0;
+  for (const slot of day.slots) {
+    if (slot.isBreak) continue;
+    for (const visit of slot.scheduledCases ?? []) {
+      const code = visit.destinationUnitCode?.trim();
+      if (!code) {
+        unassigned += 1;
+        continue;
+      }
+      const key = code.toUpperCase();
+      byUnit.set(key, (byUnit.get(key) ?? 0) + 1);
+    }
+  }
+  const rows: { code: string | null; count: number }[] = [...byUnit.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, count]) => ({ code, count }));
+  if (unassigned > 0) rows.push({ code: null, count: unassigned });
+  return rows;
+}
+
 export function summarizeHqWeek(
   days: HqScheduleDayAvailability[],
   todayIso: string,
+  unitFilter: string | null = null,
 ): HqWeekSummary {
   let scheduled = 0;
   let today = 0;
@@ -118,12 +216,21 @@ export function summarizeHqWeek(
     if (day.closed) continue;
     for (const slot of day.slots) {
       if (slot.isBreak) continue;
-      scheduled += slot.scheduledCount;
-      weekCompleted += slot.completedCount;
-      bookable += slot.bookableCount;
+      const counts = slotCountsForFilter(slot, unitFilter);
+      scheduled += counts.scheduled;
+      weekCompleted += counts.completed;
+      if (!unitFilter || unitFilter === UNASSIGNED_UNIT_FILTER) {
+        bookable += slot.bookableCount;
+      } else {
+        const unit = (slot.units ?? []).find(
+          (row) =>
+            row.unitCode.trim().toUpperCase() === unitFilter.trim().toUpperCase(),
+        );
+        bookable += unit && unit.bookable ? unit.availableCount : 0;
+      }
       if (day.date === todayIso) {
-        today += slot.scheduledCount;
-        todayCompleted += slot.completedCount;
+        today += counts.scheduled;
+        todayCompleted += counts.completed;
       }
     }
   }
@@ -133,6 +240,13 @@ export function summarizeHqWeek(
 /** Case number(s) tracking this complaint's escalation — always populated by the time HQ schedules an arrival. */
 function caseNumbersLabel(proposal: HqScheduleProposalSummary): string {
   return proposal.caseNumbers.join(", ");
+}
+
+function visitLabel(proposal: HqScheduleProposalSummary, unsetLabel: string): string {
+  const dest = proposal.destinationUnitCode?.trim()
+    ? pusatUnitShortCode(proposal.destinationUnitCode)
+    : unsetLabel;
+  return `${caseNumbersLabel(proposal)} · ${dest}`;
 }
 
 /**
@@ -164,15 +278,17 @@ function slotRatioText(
   slot: HqScheduleSlotAvailability,
   nowMs: number,
   t: ReturnType<typeof useTranslations>,
+  unitFilter: string | null = null,
 ): string {
+  const counts = slotCountsForFilter(slot, unitFilter);
   if (isSlotPast(date, slot.endTime, nowMs)) {
-    if (slot.scheduledCount === 0) return t("slotPastEmpty");
+    if (counts.scheduled === 0) return t("slotPastEmpty");
     return t("slotOutcomeLabel", {
-      completed: slot.completedCount,
-      scheduled: slot.scheduledCount,
+      completed: counts.completed,
+      scheduled: counts.scheduled,
     });
   }
-  return t("slotRatio", { scheduled: slot.scheduledCount, capacity: slot.capacity });
+  return t("slotRatio", { scheduled: counts.scheduled, capacity: counts.capacity });
 }
 
 /** "healthy" once every occupant today is closed out; "critical" once one is overdue and still open. */
@@ -229,7 +345,7 @@ function CaseLine({
             showOverdue ? "text-ecmp-danger-text" : "text-ecmp-primary",
           )}
         >
-          {caseNumbersLabel(proposal)}
+          {visitLabel(proposal, t("destinationUnassigned"))}
         </Link>
       ) : (
         <span
@@ -238,7 +354,7 @@ function CaseLine({
             showOverdue ? "font-medium text-ecmp-danger-text" : "text-ecmp-text-secondary",
           )}
         >
-          {caseNumbersLabel(proposal)}
+          {visitLabel(proposal, t("destinationUnassigned"))}
         </span>
       )}
       {proposal.completed ? (
@@ -274,6 +390,7 @@ function SlotCard({
   slotRatioLabel,
   breakLabel,
   nowMs,
+  unitFilter,
 }: {
   slot: HqScheduleSlotAvailability;
   date: string;
@@ -281,7 +398,9 @@ function SlotCard({
   slotRatioLabel: string;
   breakLabel: string;
   nowMs: number;
+  unitFilter: string | null;
 }) {
+  const visibleCases = matchingScheduledCases(slot.scheduledCases, unitFilter);
   if (slot.isBreak) {
     // Arrivals booked before the break window changed (Jumat 11:30–13:30) are
     // bucketed here — still listed, so nobody disappears from the board.
@@ -293,9 +412,9 @@ function SlotCard({
         <p className="text-center font-bold italic">
           {slot.startTime}–{slot.endTime} · {breakLabel}
         </p>
-        {slot.scheduledCases.length > 0 ? (
+        {visibleCases.length > 0 ? (
           <div className="mt-1.5 space-y-1">
-            {slot.scheduledCases.map((proposal) => (
+            {visibleCases.map((proposal) => (
               <CaseLine
                 key={proposal.complaintId}
                 proposal={proposal}
@@ -309,8 +428,9 @@ function SlotCard({
     );
   }
 
-  const listed = slot.scheduledCases.length > 0;
-  const occupancy = slotOccupancy(slot.scheduledCount, slot.capacity);
+  const counts = slotCountsForFilter(slot, unitFilter);
+  const listed = visibleCases.length > 0;
+  const occupancy = slotOccupancy(counts.scheduled, counts.capacity);
   const isPast = isSlotPast(date, slot.endTime, nowMs);
   return (
     <article
@@ -341,7 +461,7 @@ function SlotCard({
       </div>
       {listed ? (
         <div className="mt-1.5 space-y-1">
-          {slot.scheduledCases.map((proposal) => (
+          {visibleCases.map((proposal) => (
             <CaseLine
               key={proposal.complaintId}
               proposal={proposal}
@@ -369,6 +489,7 @@ function DayColumn({
   weekendLabel,
   columnRef,
   nowMs,
+  unitFilter,
 }: {
   day: HqScheduleDayAvailability;
   isToday: boolean;
@@ -383,6 +504,7 @@ function DayColumn({
   weekendLabel: string;
   columnRef?: Ref<HTMLElement>;
   nowMs: number;
+  unitFilter: string | null;
 }) {
   const closedCopy =
     day.closedReason === "HOLIDAY" ? day.holidayLabel || holidayLabel : weekendLabel;
@@ -437,6 +559,7 @@ function DayColumn({
             slotRatioLabel={slotRatio(slot)}
             breakLabel={breakLabel}
             nowMs={nowMs}
+            unitFilter={unitFilter}
           />
         ))
       )}
@@ -476,6 +599,10 @@ export function HqScheduleView() {
   const todayColumnRef = useRef<HTMLElement>(null);
   // Drives the "overdue" tag only — ticks slowly since it's a visual hint, not a stored fact.
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [unitFilter, setUnitFilter] = useState<string | null>(null);
+  const [pusatUnits, setPusatUnits] = useState<{ code: string; name: string }[]>(
+    [],
+  );
 
   const rangeFrom = useMemo(() => toLocalDateKey(weekStart), [weekStart]);
   const rangeTo = useMemo(
@@ -505,6 +632,25 @@ export function HqScheduleView() {
       cancelled = true;
     };
   }, [canRead, canSeeDetail, orgReady, rangeFrom, rangeTo, status]);
+
+  useEffect(() => {
+    if (!canSeeDetail) return;
+    let cancelled = false;
+    fetchBranches()
+      .then((res) => {
+        if (cancelled) return;
+        const units = (res.data ?? [])
+          .filter((branch) => isHqScheduleDestinationUnitCode(branch.code))
+          .map((branch) => ({ code: branch.code, name: branch.name }));
+        setPusatUnits(units);
+      })
+      .catch(() => {
+        if (!cancelled) setPusatUnits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSeeDetail]);
 
   const canOpenCase = useCallback(
     (owningUnitId: string | null | undefined): boolean => {
@@ -596,6 +742,45 @@ export function HqScheduleView() {
     [],
   );
 
+  const visibleDays: HqScheduleDayAvailability[] = useMemo(
+    () => data?.days.filter((day) => day.closedReason !== "WEEKEND") ?? [],
+    [data],
+  );
+  const todayIso = toLocalDateKey(new Date());
+  const weekStats = summarizeHqWeek(visibleDays, todayIso, unitFilter);
+  const destinationCodesThisWeek = useMemo(() => {
+    const codes = new Set<string>();
+    let hasUnassigned = false;
+    for (const day of visibleDays) {
+      for (const slot of day.slots) {
+        for (const visit of slot.scheduledCases ?? []) {
+          const code = visit.destinationUnitCode?.trim();
+          if (code) codes.add(code);
+          else hasUnassigned = true;
+        }
+      }
+    }
+    return { codes, hasUnassigned };
+  }, [visibleDays]);
+  const unitFilterChips = useMemo(() => {
+    const chips = pusatUnits.filter((unit) =>
+      destinationCodesThisWeek.codes.has(unit.code),
+    );
+    return { chips, hasUnassigned: destinationCodesThisWeek.hasUnassigned };
+  }, [destinationCodesThisWeek, pusatUnits]);
+  const showUnitFilters =
+    canSeeDetail &&
+    (unitFilterChips.chips.length > 0 || unitFilterChips.hasUnassigned);
+
+  useEffect(() => {
+    if (!unitFilter) return;
+    const stillVisible =
+      unitFilter === UNASSIGNED_UNIT_FILTER
+        ? unitFilterChips.hasUnassigned
+        : unitFilterChips.chips.some((unit) => unit.code === unitFilter);
+    if (!stillVisible) setUnitFilter(null);
+  }, [unitFilter, unitFilterChips]);
+
   if (status === "authenticated" && !canRead) {
     return (
       <PageContainer>
@@ -608,10 +793,6 @@ export function HqScheduleView() {
   }
 
   const showLoading = status !== "authenticated" || !orgReady || loading;
-  const visibleDays: HqScheduleDayAvailability[] =
-    data?.days.filter((day) => day.closedReason !== "WEEKEND") ?? [];
-  const todayIso = toLocalDateKey(new Date());
-  const weekStats = summarizeHqWeek(visibleDays, todayIso);
   const hasOpenSlots = visibleDays.some(
     (day) => !day.closed && day.slots.length > 0,
   );
@@ -724,6 +905,48 @@ export function HqScheduleView() {
               <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary lg:hidden">
                 {t("boardSwipeHint")}
               </p>
+              {showUnitFilters ? (
+                <div
+                  role="group"
+                  aria-label={t("unitFilterLabel")}
+                  className="flex flex-wrap gap-1.5"
+                  data-testid="hq-schedule-unit-filter"
+                >
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={unitFilter === null ? "primary" : "secondary"}
+                    onClick={() => setUnitFilter(null)}
+                  >
+                    {t("unitFilterAll")}
+                  </Button>
+                  {unitFilterChips.chips.map((unit) => (
+                    <Button
+                      key={unit.code}
+                      type="button"
+                      size="sm"
+                      variant={unitFilter === unit.code ? "primary" : "secondary"}
+                      onClick={() => setUnitFilter(unit.code)}
+                    >
+                      {unit.name}
+                    </Button>
+                  ))}
+                  {unitFilterChips.hasUnassigned ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        unitFilter === UNASSIGNED_UNIT_FILTER
+                          ? "primary"
+                          : "secondary"
+                      }
+                      onClick={() => setUnitFilter(UNASSIGNED_UNIT_FILTER)}
+                    >
+                      {t("unitUnassigned")}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               <div
                 data-testid="hq-schedule-board"
                 role="region"
@@ -734,18 +957,28 @@ export function HqScheduleView() {
                   const isPastDay = day.date < todayIso;
                   let summaryLabel: string | null = null;
                   if (isPastDay && !day.closed) {
-                    let daySlotsScheduled = 0;
-                    let daySlotsCompleted = 0;
-                    for (const slot of day.slots) {
-                      if (slot.isBreak) continue;
-                      daySlotsScheduled += slot.scheduledCount;
-                      daySlotsCompleted += slot.completedCount;
-                    }
-                    if (daySlotsScheduled > 0) {
-                      summaryLabel = t("daySummaryLabel", {
-                        scheduled: daySlotsScheduled,
-                        pending: daySlotsScheduled - daySlotsCompleted,
+                    const totals = dayOccupancyTotals(day, unitFilter);
+                    if (totals.scheduled > 0) {
+                      const base = t("daySummaryLabel", {
+                        scheduled: totals.scheduled,
+                        pending: totals.scheduled - totals.completed,
                       });
+                      if (unitFilter === null) {
+                        const parts = dayUnitBreakdown(day).map((row) =>
+                          row.code
+                            ? t("dayUnitCount", {
+                                unit: pusatUnitShortCode(row.code),
+                                count: row.count,
+                              })
+                            : t("dayUnassignedCount", { count: row.count }),
+                        );
+                        summaryLabel =
+                          parts.length > 0
+                            ? `${base} · ${parts.join(" · ")}`
+                            : base;
+                      } else {
+                        summaryLabel = base;
+                      }
                     }
                   }
                   return (
@@ -755,12 +988,15 @@ export function HqScheduleView() {
                       isToday={day.date === todayIso}
                       isPast={isPastDay}
                       summaryLabel={summaryLabel}
+                      unitFilter={unitFilter}
                       weekdayLabel={weekdayFormatterLong.format(
                         new Date(`${day.date}T00:00:00`),
                       )}
                       todayLabel={t("todayLabel")}
                       canOpenCase={canOpenCase}
-                      slotRatio={(slot) => slotRatioText(day.date, slot, nowMs, t)}
+                      slotRatio={(slot) =>
+                        slotRatioText(day.date, slot, nowMs, t, unitFilter)
+                      }
                       breakLabel={t("breakLabel")}
                       holidayLabel={t("holiday")}
                       weekendLabel={t("weekend")}

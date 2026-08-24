@@ -20,6 +20,7 @@ _AGENT_PERMISSIONS: frozenset[str] = frozenset(
         "complaints:create",
         "complaints:read",
         "complaints:update",
+        "complaints:close",
         "escalations:read",
         "reports:read",
         "kpi:read",
@@ -76,7 +77,11 @@ _HO_ENGINEER_PERMISSIONS: frozenset[str] = frozenset(
 
 _ADMIN_PERMISSIONS: frozenset[str] = frozenset(
     {
-        *(p for p in _SUPERVISOR_PERMISSIONS if p != "complaints:create"),
+        *(
+            p
+            for p in _SUPERVISOR_PERMISSIONS
+            if p not in ("complaints:create", "complaints:close")
+        ),
         "escalations:review",
         "escalations:close",
         "appointments:complete",

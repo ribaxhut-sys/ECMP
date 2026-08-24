@@ -100,6 +100,14 @@ def test_check_permissions_wildcard_does_not_grant_complaints_create() -> None:
     assert exc.value.details["missingPermissions"] == ["complaints:create"]
 
 
+def test_check_permissions_wildcard_does_not_grant_complaints_close() -> None:
+    """Owner: Admin wildcard must not close WP complaints (SoD A allowlist)."""
+    principal = Principal(user_id=uuid.uuid4(), permissions=frozenset({"*"}))
+    with pytest.raises(PermissionDeniedError) as exc:
+        check_permissions(principal, "complaints:close")
+    assert exc.value.details["missingPermissions"] == ["complaints:close"]
+
+
 def test_check_permissions_denied() -> None:
     principal = Principal(user_id=uuid.uuid4(), permissions=frozenset())
     with pytest.raises(PermissionDeniedError) as exc:

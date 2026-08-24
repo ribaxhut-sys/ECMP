@@ -1287,8 +1287,8 @@ components:
           minLength: 1
           maxLength: 128
           description: >-
-            Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE /
-            PUSAT-SUBAN-…). Mandatory — Pusat is not one door. Must resolve to
+            Pusat unit the taxpayer reports to (PUSAT-CRO only — Suban /
+            Sekretariat are not schedule destinations). Mandatory — Pusat is not one door. Must resolve to
             an active organization unit under Pusat.
         note:
           type: string

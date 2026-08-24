@@ -29,7 +29,6 @@ import {
   CardBody,
   Empty,
   ErrorState,
-  Input,
   Modal,
   PageContainer,
   PageHeader,
@@ -66,8 +65,10 @@ import {
   isCmBatch1HqNoteReady,
   isCmBatch1HqRescheduleReady,
   isCmBatch1PusatUnitCode,
+  isHqScheduleDestinationUnitCode,
   resolveCmBatch1BranchEscalationCtas,
   resolveCmBatch1HqActionVisibility,
+  showBranchHandleComplaintCta,
 } from "./cmBatch1HqActions";
 import {
   formatCmBatch1CustomerLabel,
@@ -261,12 +262,14 @@ export function CmBatch1ConfirmationView({
   const [penangananSnapshot, setPenangananSnapshot] = useState<{
     loading: boolean;
     openCount: number;
+    pusatCount: number;
     totalCount: number;
     handlingClaimedBy: string | null;
     handlingClaimedByName: string | null;
   }>({
     loading: true,
     openCount: 0,
+    pusatCount: 0,
     totalCount: 0,
     handlingClaimedBy: null,
     handlingClaimedByName: null,
@@ -629,6 +632,7 @@ export function CmBatch1ConfirmationView({
     (snapshot: {
       loading: boolean;
       openCount: number;
+      pusatCount: number;
       totalCount: number;
       handlingClaimedBy: string | null;
       handlingClaimedByName: string | null;
@@ -637,6 +641,7 @@ export function CmBatch1ConfirmationView({
         if (
           prev.loading === snapshot.loading &&
           prev.openCount === snapshot.openCount &&
+          prev.pusatCount === snapshot.pusatCount &&
           prev.totalCount === snapshot.totalCount &&
           prev.handlingClaimedBy === snapshot.handlingClaimedBy &&
           prev.handlingClaimedByName === snapshot.handlingClaimedByName
@@ -718,10 +723,13 @@ export function CmBatch1ConfirmationView({
     hasBoundCase,
   });
   /** Bottom CTA: buat penanganan pertama atau ambil alih yang sudah ada. */
-  const showTanganiCta =
-    showManageCases &&
-    !penangananSnapshot.loading &&
-    !penangananSnapshot.handlingClaimedBy;
+  const showTanganiCta = showBranchHandleComplaintCta({
+    showManageCases,
+    loading: penangananSnapshot.loading,
+    handlingClaimedBy: penangananSnapshot.handlingClaimedBy,
+    openCount: penangananSnapshot.openCount,
+    pusatCount: penangananSnapshot.pusatCount,
+  });
   const handleConfirmIsCreator = Boolean(
     user?.id?.trim() &&
       data?.createdBy?.trim() &&
@@ -736,9 +744,9 @@ export function CmBatch1ConfirmationView({
     arrivalNote,
     destinationUnitId: arrivalUnit,
   });
-  /** Pusat units available as an arrival destination (CRO / Sekretariat / Suban). */
+  /** Pusat units available as an arrival destination — CRO only. */
   const pusatUnitOptions = branches
-    .filter((b) => isCmBatch1PusatUnitCode(b.code))
+    .filter((b) => isHqScheduleDestinationUnitCode(b.code))
     .map((b) => ({ value: b.code, label: `${b.code} — ${b.name}` }));
   const hqScheduleReady = isCmBatch1HqRescheduleReady({
     arrivalDate,
@@ -1949,32 +1957,34 @@ export function CmBatch1ConfirmationView({
               })}
             />
           ) : null}
-          <Input
-            type="date"
-            label={t("hqArrivalDateLabel")}
-            value={arrivalDate}
-            onChange={(e) => setArrivalDate(e.target.value)}
-            disabled={deciding}
-            required
-          />
-          <Input
-            type="time"
-            label={t("hqArrivalTimeLabel")}
-            value={arrivalTime}
-            onChange={(e) => setArrivalTime(e.target.value)}
-            disabled={deciding}
-            required
-          />
           <Select
             name="hqDestinationUnitId"
             label={t("hqDestinationUnitLabel")}
             hint={t("hqDestinationUnitHint")}
             placeholder={t("hqDestinationUnitPlaceholder")}
             value={arrivalUnit}
-            onChange={(e) => setArrivalUnit(e.target.value)}
+            onChange={(e) => {
+              setArrivalUnit(e.target.value);
+              // Quota is per unit — clear the hour so Pusat re-picks against the new pool.
+              setArrivalTime("");
+            }}
             disabled={deciding}
             required
             options={pusatUnitOptions}
+          />
+          <HqArrivalSlotPicker
+            value={
+              arrivalDate || arrivalTime
+                ? { date: arrivalDate, time: arrivalTime }
+                : null
+            }
+            onChange={(slot: HqArrivalSlotValue | null) => {
+              setArrivalDate(slot?.date ?? "");
+              setArrivalTime(slot?.time ?? "");
+            }}
+            destinationUnitCode={arrivalUnit}
+            allowOverCapacity
+            disabled={deciding}
           />
           <PresetTextField
             presets={presets["cm_batch1.hq_accept_schedule_note_presets"] ?? []}
@@ -2080,26 +2090,18 @@ export function CmBatch1ConfirmationView({
           <p className="text-ecmp-text-primary">
             {t("hqScheduleBody", { number: data?.complaintNumber ?? "" })}
           </p>
-          <Input
-            name="arrivalDate"
-            id="arrivalDate"
-            type="date"
-            label={t("hqArrivalDateLabel")}
-            value={arrivalDate}
-            onChange={(e) => setArrivalDate(e.target.value)}
-            required
-            aria-required="true"
-            disabled={deciding}
-          />
-          <Input
-            name="arrivalTime"
-            id="arrivalTime"
-            type="time"
-            label={t("hqArrivalTimeLabel")}
-            value={arrivalTime}
-            onChange={(e) => setArrivalTime(e.target.value)}
-            required
-            aria-required="true"
+          <HqArrivalSlotPicker
+            value={
+              arrivalDate || arrivalTime
+                ? { date: arrivalDate, time: arrivalTime }
+                : null
+            }
+            onChange={(slot: HqArrivalSlotValue | null) => {
+              setArrivalDate(slot?.date ?? "");
+              setArrivalTime(slot?.time ?? "");
+            }}
+            destinationUnitCode={data?.hqDestinationUnitId ?? arrivalUnit}
+            allowOverCapacity
             disabled={deciding}
           />
           <PresetTextField

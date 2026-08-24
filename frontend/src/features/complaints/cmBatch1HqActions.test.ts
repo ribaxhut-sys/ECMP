@@ -10,8 +10,10 @@ import {
   isCmBatch1HqNoteReady,
   isCmBatch1HqRescheduleReady,
   isCmBatch1PusatUnitCode,
+  isHqScheduleDestinationUnitCode,
   resolveCmBatch1BranchEscalationCtas,
   resolveCmBatch1HqActionVisibility,
+  showBranchHandleComplaintCta,
 } from "./cmBatch1HqActions";
 
 describe("isCmBatch1PusatUnitCode", () => {
@@ -185,6 +187,14 @@ describe("HQ note / schedule readiness", () => {
     expect(isCmBatch1PusatUnitCode("pusat-suban-1")).toBe(true);
     expect(isCmBatch1PusatUnitCode("PUSATAKA")).toBe(false);
     expect(isCmBatch1PusatUnitCode("UPPPD-GAMBIR")).toBe(false);
+  });
+
+  it("limits HQ schedule destinations to CRO", () => {
+    expect(isHqScheduleDestinationUnitCode("PUSAT-CRO")).toBe(true);
+    expect(isHqScheduleDestinationUnitCode("ho-cro")).toBe(true);
+    expect(isHqScheduleDestinationUnitCode("PUSAT")).toBe(false);
+    expect(isHqScheduleDestinationUnitCode("PUSAT-SUBAN-1")).toBe(false);
+    expect(isHqScheduleDestinationUnitCode("PUSAT-SEKRETARIAT")).toBe(false);
   });
 
   it("allows empty note on reschedule but not short note", () => {
@@ -408,5 +418,39 @@ describe("resolveCmBatch1BranchEscalationCtas", () => {
     expect(v.showCancelEscalation).toBe(false);
     expect(v.showManageCases).toBe(true);
     expect(v.showReRequestEscalation).toBe(false);
+  });
+});
+
+describe("showBranchHandleComplaintCta", () => {
+  const ready = {
+    showManageCases: true,
+    loading: false,
+    handlingClaimedBy: null as string | null,
+    openCount: 0,
+    pusatCount: 0,
+  };
+
+  it("shows Tangani when the complaint has no Case yet", () => {
+    expect(showBranchHandleComplaintCta(ready)).toBe(true);
+  });
+
+  it("hides Tangani when the only Case is already at Pusat", () => {
+    expect(
+      showBranchHandleComplaintCta({
+        ...ready,
+        openCount: 0,
+        pusatCount: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps Tangani when a sibling branch Case is still open", () => {
+    expect(
+      showBranchHandleComplaintCta({
+        ...ready,
+        openCount: 1,
+        pusatCount: 1,
+      }),
+    ).toBe(true);
   });
 });

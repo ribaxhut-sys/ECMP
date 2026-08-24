@@ -8,9 +8,19 @@ from datetime import UTC, date, datetime
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.authorization.visibility import is_hq_schedule_destination_unit
+from app.models import Branch
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
 from app.modules.hq_schedule.models import CmHqHolidayORM
+
+
+@dataclass(frozen=True, slots=True)
+class PusatUnit:
+    """One Pusat door a taxpayer can be directed to, from the org directory."""
+
+    code: str
+    name: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +38,10 @@ class ArrivalRow:
     case_numbers: tuple[str, ...] = ()
     # True when the HQ visit was completed (HQ_CLOSED) — still listed that day.
     completed: bool = False
+    # Which Pusat unit the taxpayer reports to (CRO / Sekretariat / Suban).
+    # None while the branch proposal is still awaiting a Pusat decision, and
+    # on rows scheduled before the destination column existed.
+    hq_destination_unit_id: str | None = None
 
 
 class HqScheduleRepository:
@@ -140,8 +154,29 @@ class HqScheduleRepository:
                     (r.status or "").strip().upper() == "CLOSED"
                     and (r.intake_disposition or "").strip().upper() == "HQ_CLOSED"
                 ),
+                hq_destination_unit_id=r.hq_destination_unit_id,
             )
             for r in rows
+        ]
+
+    def list_pusat_units(self) -> list[PusatUnit]:
+        """Active HQ CRO units — the only schedule destination in this app.
+
+        Suban / Sekretariat remain Pusat for visibility, but are not booked
+        here. Read from the org directory (Branch) rather than an ECMP-owned
+        list. Capacity per unit is the only thing ECMP configures
+        (hq.schedule.capacity_by_unit).
+        """
+        stmt = (
+            select(Branch.code, Branch.name)
+            .where(Branch.deleted_at.is_(None))
+            .where(Branch.is_active.is_(True))
+            .order_by(Branch.code)
+        )
+        return [
+            PusatUnit(code=code, name=name)
+            for code, name in self._session.execute(stmt)
+            if is_hq_schedule_destination_unit(code)
         ]
 
     def _case_numbers_by_complaint(

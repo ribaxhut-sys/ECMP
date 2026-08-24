@@ -208,6 +208,32 @@ describe("ComplaintPenangananSection", () => {
     );
   });
 
+  it("does not offer Lanjutkan for a Case already escalated to Pusat", async () => {
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "CASE-1",
+          complaintId: "cmp-1",
+          status: "IN_PROGRESS",
+          subject: "Tagihan",
+          escalatedToPusat: true,
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+    renderSection();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Menunggu / di Pusat" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Lanjutkan" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lihat" })).toBeInTheDocument();
+  });
+
   it("shows the latest Case event as a one-line summary", async () => {
     fetchCmCases.mockResolvedValue({
       data: [

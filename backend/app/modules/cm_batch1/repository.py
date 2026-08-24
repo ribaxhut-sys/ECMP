@@ -299,6 +299,19 @@ class CmBatch1Repository:
         row = self._session.get(CmBatch1ComplaintORM, cid)
         return _to_entity(row) if row is not None else None
 
+    def complaint_numbers_by_ids(
+        self, complaint_ids: set[uuid.UUID]
+    ) -> dict[uuid.UUID, str]:
+        """One round-trip map id → complaint_number (dashboard recent-activity)."""
+        if not complaint_ids:
+            return {}
+        rows = self._session.execute(
+            select(CmBatch1ComplaintORM.id, CmBatch1ComplaintORM.complaint_number).where(
+                CmBatch1ComplaintORM.id.in_(complaint_ids)
+            )
+        ).all()
+        return {row.id: row.complaint_number for row in rows}
+
     def list_active_for_customer(self, customer_id: str) -> list[ComplaintAggregate]:
         rows = self._session.scalars(
             select(CmBatch1ComplaintORM)
@@ -1126,3 +1139,42 @@ class CmBatch1Repository:
             "escalation_approved_count": escalation_approved_count,
             "escalation_rejected_count": escalation_rejected_count,
         }
+
+    def list_cases_for_complaint_ids(
+        self, complaint_ids: list[str]
+    ) -> dict[str, list[dict[str, object]]]:
+        """Parent-scoped Case rows for Aggregate list (API-514 embed).
+
+        Visibility is applied on the parent complaint list; nested Cases follow
+        that scope so the case-first column cannot disagree with the row.
+        """
+        keys = [str(i).strip() for i in complaint_ids if str(i).strip()]
+        if not keys:
+            return {}
+        from app.modules.cm_case.infrastructure.orm import CmCaseORM
+
+        rows = list(
+            self._session.scalars(
+                select(CmCaseORM)
+                .where(CmCaseORM.complaint_id.in_(keys))
+                .order_by(CmCaseORM.created_at.desc())
+            )
+        )
+        out: dict[str, list[dict[str, object]]] = {k: [] for k in keys}
+        for row in rows:
+            cid = str(row.complaint_id)
+            if cid not in out:
+                out[cid] = []
+            out[cid].append(
+                {
+                    "caseId": str(row.id),
+                    "caseNumber": row.case_number,
+                    "complaintId": cid,
+                    "status": row.status,
+                    "subject": row.subject,
+                    "priority": row.priority,
+                    "escalatedToPusat": bool(row.escalated_to_pusat),
+                    "handlingClaimedBy": row.handling_claimed_by,
+                }
+            )
+        return out

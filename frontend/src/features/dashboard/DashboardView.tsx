@@ -87,7 +87,8 @@ export function DashboardView() {
         sla={data?.sla ?? null}
         waitingAssignment={countByStatus(data?.byStatus, "waitingAssignment") ?? 0}
         escalatePending={countByStatus(data?.byStatus, "escalatePending") ?? 0}
-        loading={firstLoad || isFetching}
+        loading={firstLoad}
+        refreshing={isFetching}
         error={state.status === "error"}
         updatedAt={updatedAt}
         onRefresh={() => void reload()}

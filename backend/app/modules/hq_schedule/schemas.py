@@ -43,6 +43,28 @@ class ProposalSummary(BaseModel):
         default=False,
         description="HQ visit completed (HQ_CLOSED) — still counted in the slot's occupied ratio",
     )
+    destination_unit_code: str | None = Field(
+        default=None,
+        alias="destinationUnitCode",
+        description=(
+            "Pusat unit the taxpayer reports to (CRO / Sekretariat / Suban). "
+            "Empty on pending proposals — Pusat sets it when accepting."
+        ),
+    )
+
+
+class SlotUnitAvailability(BaseModel):
+    """Per-destination occupancy inside one slot — each Pusat unit has its own quota."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    unit_code: str = Field(alias="unitCode")
+    unit_name: str = Field(default="", alias="unitName")
+    capacity: int = Field(description="0 on a break block; pro-rated on a partial slot.")
+    scheduled_count: int = Field(alias="scheduledCount")
+    completed_count: int = Field(default=0, alias="completedCount")
+    available_count: int = Field(alias="availableCount")
+    bookable: bool = Field(default=False)
 
 
 class SlotAvailability(BaseModel):
@@ -88,6 +110,14 @@ class SlotAvailability(BaseModel):
     )
     scheduled_cases: list[ProposalSummary] = Field(
         default_factory=list, alias="scheduledCases"
+    )
+    units: list[SlotUnitAvailability] = Field(
+        default_factory=list,
+        description=(
+            "Occupancy per Pusat destination unit. Slot-level capacity/"
+            "availableCount are the sums; arrivals with no destination unit "
+            "yet are counted in scheduledCount but in no unit's quota."
+        ),
     )
 
 
