@@ -6,6 +6,7 @@ import {
   buildIntakeDecisionRows,
   extraIntakeCaseIssues,
   filledExtraCaseDrafts,
+  intakeConfirmOutcome,
   intakeDecisionLockSummary,
   intakeMayEscalateToPusat,
   parseIntakeCaseAction,
@@ -162,8 +163,25 @@ describe("intakeCaseDrafts", () => {
       allLocked: false,
     });
     expect(intakeDecisionLockSummary([{ ...row, action: "register" }]).requiresLock).toBe(
-      true,
+      false,
     );
+    expect(
+      intakeDecisionLockSummary([{ ...row, action: "register" }]).allLocked,
+    ).toBe(true);
+    expect(intakeConfirmOutcome([{ ...row, action: "close" }])).toBe("all_close");
+    expect(
+      intakeConfirmOutcome([
+        { ...row, action: "close" },
+        { ...row, id: "e2", n: 2, action: "register" },
+      ]),
+    ).toBe("partial_close");
+    expect(
+      intakeConfirmOutcome([
+        { ...row, action: "register" },
+        { ...row, id: "e2", n: 2, action: "escalate" },
+      ]),
+    ).toBe("has_escalate");
+    expect(intakeConfirmOutcome([{ ...row, action: "register" }])).toBe("open");
   });
 
   it("drops blank extra Case cards and requires both description and note when either is filled", () => {

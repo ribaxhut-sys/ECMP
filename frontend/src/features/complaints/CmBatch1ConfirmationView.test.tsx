@@ -131,6 +131,7 @@ const messages = {
     intakeHistoryDescriptionLabel: "Deskripsi",
     intakeHistoryNoteLabel: "Catatan",
     intakeHistoryClosedNoteLabel: "Catatan ditutup",
+    complaintSummaryHint: "Ringkasan pengaduan. Detail di Case.",
     escalationReasonLabel: "Alasan eskalasi ke Pusat",
     intakeEventLogDescription: "Urut waktu, satu baris per kejadian.",
     intakeEventLogEmpty: "Belum ada kejadian tercatat.",
@@ -654,6 +655,36 @@ describe("CmBatch1ConfirmationView — section layout", () => {
       screen.queryByRole("button", { name: "Terima & jadwalkan" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Kembalikan" })).not.toBeInTheDocument();
+  });
+
+  it("still renders Penanganan when the complaint is CLOSED", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "CLOSED",
+        intakeDisposition: "BRANCH_CLOSED",
+        caseCreated: true,
+      }),
+    });
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("PenangananSection")).toBeInTheDocument(),
+    );
+    expect(lastPenangananProps?.allowStart).toBe(false);
+  });
+
+  it("shows the complaint summary hint when a Case is bound", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        caseCreated: true,
+        description: "Narasi keluhan panjang untuk ringkasan.",
+      }),
+    });
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByText("Ringkasan pengaduan. Detail di Case."),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("renders the Case table panel above the description panel", async () => {

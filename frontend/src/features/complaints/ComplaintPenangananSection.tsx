@@ -31,6 +31,10 @@ import { CreateCaseDialog } from "@/features/cases/CreateCaseDialog";
 import { mergeCreateCaseForm, toCreateCaseRequest } from "@/features/cases/caseForms";
 import { rememberCaseId, markCaseHandleClaimed } from "@/features/cases/caseSessionRegistry";
 import {
+  MAX_CASES_PER_COMPLAINT,
+  addCaseToComplaintHref,
+} from "./addCaseToComplaint";
+import {
   canClaimHandling,
   isHandlingReassignRole,
   sameUserId,
@@ -56,9 +60,6 @@ import {
 } from "./penangananGroups";
 
 const SECTION_ID = "penanganan";
-
-/** Matches backend BQ-003 / MAX_CASES_PER_COMPLAINT. */
-const MAX_CASES_PER_COMPLAINT = 5;
 
 /** Query value for `/complaints/cm/[id]?focus=penanganan` deep-link. */
 export const PENANGANAN_FOCUS_QUERY = "penanganan";
@@ -600,14 +601,16 @@ export function ComplaintPenangananSection({
             {t("penangananTitle")}
           </h2>
           <p className="mt-1 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-            {t("penangananDescription")}
+            {contextKind === "closed"
+              ? t("penangananDescriptionClosed")
+              : t("penangananDescription")}
           </p>
         </div>
         {canAddCase ? (
           <Button
             type="button"
             className="shrink-0"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => router.push(addCaseToComplaintHref(complaintId))}
           >
             {t("penangananAddCase")}
           </Button>
@@ -723,15 +726,20 @@ export function ComplaintPenangananSection({
           <PenangananGroupBlock
             title={t("penangananGroupOpen")}
             items={parts.open}
-            continueOnOpen={contextKind !== "hq_waiting"}
+            continueOnOpen={
+              allowStart &&
+              contextKind !== "hq_waiting" &&
+              contextKind !== "closed"
+            }
             escalateEnabled={Boolean(
               allowEscalate &&
                 onRequestHqEscalation &&
                 !complaintOnHqPath &&
-                contextKind !== "hq_waiting",
+                contextKind !== "hq_waiting" &&
+                contextKind !== "closed",
             )}
             currentUserId={user?.id ?? null}
-            canReassign={canReassign}
+            canReassign={canReassign && contextKind !== "closed"}
             caseHistory={caseHistory}
             onContinue={requestContinue}
             onView={viewItem}

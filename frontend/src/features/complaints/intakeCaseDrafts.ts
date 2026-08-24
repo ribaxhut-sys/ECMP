@@ -227,7 +227,9 @@ export function intakeDecisionLockSummary(rows: IntakeCaseDecisionRow[]): {
   allLocked: boolean;
 } {
   const total = rows.length;
-  const requiresLock = total >= 1;
+  // Lock-before-save only matters when multiple Cases share one complaint;
+  // a single Case can be saved directly (validate on Simpan).
+  const requiresLock = total >= 2;
   const locked = rows.filter((row) => row.locked === true).length;
   const escalate = rows.filter((row) => row.action === "escalate").length;
   return {
@@ -237,6 +239,23 @@ export function intakeDecisionLockSummary(rows: IntakeCaseDecisionRow[]): {
     requiresLock,
     allLocked: !requiresLock || (total > 0 && locked === total),
   };
+}
+
+/** Confirm-modal outcome copy (BR-009): complaint closes when every Case closes. */
+export type IntakeConfirmOutcome =
+  | "all_close"
+  | "has_escalate"
+  | "partial_close"
+  | "open";
+
+export function intakeConfirmOutcome(
+  rows: IntakeCaseDecisionRow[],
+): IntakeConfirmOutcome {
+  if (rows.length === 0) return "open";
+  if (rows.every((row) => row.action === "close")) return "all_close";
+  if (rows.some((row) => row.action === "escalate")) return "has_escalate";
+  if (rows.some((row) => row.action === "close")) return "partial_close";
+  return "open";
 }
 
 function caseTypeFromComplaint(values: CreateComplaintFormValues): string {

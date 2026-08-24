@@ -45,6 +45,8 @@ const messages = {
   complaints: {
     penangananTitle: "Penanganan",
     penangananDescription: "Desc",
+    penangananDescriptionClosed: "Closed desc",
+    complaintSummaryHint: "Ringkasan hint",
     penangananSummary: "{open} terbuka · {pusat} ke Pusat · {done} selesai",
     penangananSummaryOpen: "{count} terbuka",
     penangananSummaryPusat: "{count} ke Pusat",
@@ -405,6 +407,52 @@ describe("ComplaintPenangananSection", () => {
       expect(push).toHaveBeenCalledWith("/complaints/cm/cases/c1");
     });
     expect(updateCmCaseStatus).not.toHaveBeenCalled();
+  });
+
+  it("uses view-only actions when the complaint is closed", async () => {
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "CASE-1",
+          complaintId: "cmp-1",
+          status: "IN_PROGRESS",
+          subject: "Aktif",
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+    renderSection({ complaintStatus: "CLOSED" });
+    expect(await screen.findByText("Closed desc")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Lihat" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Lanjutkan" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Tambah Case" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("navigates Tambah Case to the add-case intake deep-link", async () => {
+    const user = userEvent.setup();
+    fetchCmCases.mockResolvedValue({
+      data: [
+        {
+          caseId: "c1",
+          caseNumber: "CASE-1",
+          complaintId: "cmp-1",
+          status: "IN_PROGRESS",
+          subject: "Satu",
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+    renderSection();
+    const addBtn = await screen.findByRole("button", { name: "Tambah Case" });
+    await user.click(addBtn);
+    expect(push).toHaveBeenCalledWith(
+      "/complaints/new?mode=add-case&complaintId=cmp-1",
+    );
   });
 
   it("shows add-another while under the Case cap and hides it at five", async () => {

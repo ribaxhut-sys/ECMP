@@ -57,6 +57,9 @@ vi.mock("@/lib/api/hqSchedule", () => ({
   fetchHqScheduleAvailabilityDetail: vi.fn().mockResolvedValue({
     data: { days: [] },
   }),
+  fetchHqScheduleHolidays: vi.fn().mockResolvedValue({
+    data: [],
+  }),
 }));
 
 import { CreateComplaintView } from "./CreateComplaintView";
@@ -120,11 +123,48 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
     expect(
       screen.getAllByRole("radio", { name: /register this case/i }),
     ).toHaveLength(2);
+    // Blank Case 2 is dropped on Simpan — still one filled Case, so Simpan stays usable.
     expect(
       screen.getByRole("button", {
         name: /save the complaint with each case decision/i,
       }),
-    ).toBeDisabled();
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: /lock decision for case/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides lock controls for a single Case and keeps Simpan enabled", async () => {
+    stashEscalateIntakeDraft({
+      values: {
+        ...createEmptyComplaintForm({ channel: "BRANCH" }),
+        customerId: "cust-1",
+        customerName: "Ada",
+        subject: "Mesin error",
+        description: "Uraian case 1",
+        resolution: "Catatan case 1",
+        priority: "HIGH",
+      },
+      stagingToken: "",
+      hasStagedAttachments: false,
+      overrideJustification: null,
+      recordingUnitCode: "JKT01",
+    });
+    renderWithProviders(<CreateComplaintView />);
+    await waitFor(() => {
+      expect(document.getElementById("description")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: /lock decision for case/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("intake-case-lock-summary"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /save the complaint with each case decision/i,
+      }),
+    ).toBeEnabled();
   });
 
   it("requires a note on a filled extra Case before apply", async () => {
@@ -213,7 +253,7 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("locks Case 1, disables its fields, and unlocks for edits", async () => {
+  it("locks Case 1 when multiple Cases exist, disables fields, and unlocks for edits", async () => {
     const user = userEvent.setup();
     stashEscalateIntakeDraft({
       values: {
@@ -229,6 +269,15 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
       hasStagedAttachments: false,
       overrideJustification: null,
       recordingUnitCode: "JKT01",
+      extraCaseDrafts: [
+        {
+          id: "e2",
+          subject: "Case 2",
+          description: "Uraian case 2",
+          note: "Catatan case 2",
+          priority: "MEDIUM",
+        },
+      ],
     });
     renderWithProviders(<CreateComplaintView />);
     await waitFor(() => {
@@ -247,7 +296,7 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
       screen.getByRole("button", {
         name: /save the complaint with each case decision/i,
       }),
-    ).toBeEnabled();
+    ).toBeDisabled();
     expect(document.getElementById("case-priority-primary")).toBeDisabled();
     await user.click(
       screen.getByRole("button", { name: /edit decision for case 1/i }),
@@ -264,7 +313,7 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
     ).toBeDisabled();
   });
 
-  it("opens confirm when a single locked Case is saved", async () => {
+  it("opens confirm when a single Case is saved without locking", async () => {
     const user = userEvent.setup();
     stashEscalateIntakeDraft({
       values: {
@@ -280,9 +329,11 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
       hasStagedAttachments: false,
       overrideJustification: null,
       recordingUnitCode: "JKT01",
-      case1Locked: true,
     });
     renderWithProviders(<CreateComplaintView />);
+    expect(
+      screen.queryByRole("button", { name: /lock decision for case/i }),
+    ).not.toBeInTheDocument();
     const save = await screen.findByRole("button", {
       name: /save the complaint with each case decision/i,
     });
@@ -290,6 +341,47 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
     await user.click(save);
     expect(
       await screen.findByRole("heading", { name: /save complaint\?/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/taxpayer:\s*ada/i)).toBeInTheDocument();
+    expect(screen.getByText(/subject:\s*[“"]mesin error[”"]/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/the complaint will be saved and remain open for handling/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows close-complaint outcome when the only Case is completed", async () => {
+    const user = userEvent.setup();
+    stashEscalateIntakeDraft({
+      values: {
+        ...createEmptyComplaintForm({ channel: "BRANCH" }),
+        customerId: "cust-1",
+        customerName: "Ayu Santoso",
+        subject: "Lorem Ipsum",
+        description: "Uraian case 1",
+        resolution: "Catatan penyelesaian case 1",
+        priority: "HIGH",
+      },
+      stagingToken: "",
+      hasStagedAttachments: false,
+      overrideJustification: null,
+      recordingUnitCode: "JKT01",
+      case1Action: "close",
+    });
+    renderWithProviders(<CreateComplaintView />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: /save the complaint with each case decision/i,
+      }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: /close complaint\?/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/taxpayer:\s*ayu santoso/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/this complaint will be closed as completed/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /yes, close complaint/i }),
     ).toBeInTheDocument();
   });
 
@@ -348,7 +440,7 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
     expect(screen.getByText(/proposed hq arrival/i)).toBeInTheDocument();
   });
 
-  it("blocks locking an escalated Case until an arrival slot is chosen", async () => {
+  it("blocks saving an escalated single Case until an arrival slot is chosen", async () => {
     const user = userEvent.setup();
     stashEscalateIntakeDraft({
       values: {
@@ -372,8 +464,13 @@ describe("CreateComplaintView — catatan dan putusan per Case", () => {
     await user.click(
       screen.getByRole("radio", { name: /request escalation to hq/i }),
     );
+    expect(
+      screen.queryByRole("button", { name: /lock decision for case/i }),
+    ).not.toBeInTheDocument();
     await user.click(
-      screen.getByRole("button", { name: /lock decision for case 1/i }),
+      screen.getByRole("button", {
+        name: /save the complaint with each case decision/i,
+      }),
     );
     expect(
       screen.getByText(/choose a proposed hq arrival date and time/i),

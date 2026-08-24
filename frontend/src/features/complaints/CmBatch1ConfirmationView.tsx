@@ -51,6 +51,7 @@ import {
 import { CM_BATCH1_ESCALATION_PENDING_HREF } from "./cmBatch1ListFilters";
 import { PresetTextField } from "./PresetTextField";
 import { KnowledgeReferenceText } from "./KnowledgeReferenceText";
+import { summarizeComplaintNarrative } from "./complaintSummary";
 import {
   HqArrivalSlotPicker,
   type HqArrivalSlotValue,
@@ -1198,8 +1199,7 @@ export function CmBatch1ConfirmationView({
             </Card>
           </section>
 
-          {!intakeClosed && data.status !== "CLOSED" ? (
-            <ComplaintPenangananSection
+          <ComplaintPenangananSection
               complaintId={data.complaintId}
               caseHistory={history}
               complaintStatus={data.status}
@@ -1227,7 +1227,6 @@ export function CmBatch1ConfirmationView({
                 destinationUnitId: data.owningUnitId || unitCode,
               }}
             />
-          ) : null}
 
           {data.subject ||
           intakeHistory.narrative.trim() ||
@@ -1236,6 +1235,11 @@ export function CmBatch1ConfirmationView({
             <section className="space-y-[var(--ecmp-panel-gap)]">
               <Card>
                 <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+                  {hasBoundCase ? (
+                    <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+                      {t("complaintSummaryHint")}
+                    </p>
+                  ) : null}
                   {data.subject ? (
                     <div className="space-y-1">
                       <p className="sr-only">{t("subject")}</p>
@@ -1251,7 +1255,13 @@ export function CmBatch1ConfirmationView({
                       </p>
                       <div className="whitespace-pre-wrap text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
                         <KnowledgeReferenceText
-                          text={intakeHistory.narrative.trim()}
+                          text={
+                            hasBoundCase
+                              ? summarizeComplaintNarrative(
+                                  intakeHistory.narrative,
+                                ).text
+                              : intakeHistory.narrative.trim()
+                          }
                         />
                       </div>
                     </div>

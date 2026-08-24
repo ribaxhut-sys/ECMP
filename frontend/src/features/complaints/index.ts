@@ -1,4 +1,11 @@
 export { CreateComplaintView } from "./CreateComplaintView";
+export { AddCaseToComplaintView } from "./AddCaseToComplaintView";
+export {
+  ADD_CASE_QUERY_MODE,
+  MAX_CASES_PER_COMPLAINT,
+  addCaseToComplaintHref,
+  isAddCaseMode,
+} from "./addCaseToComplaint";
 export { EscalateIntakeView } from "./EscalateIntakeView";
 export { CmBatch1ConfirmationView } from "./CmBatch1ConfirmationView";
 export { CmBatch1ComplaintListView } from "./CmBatch1ComplaintListView";

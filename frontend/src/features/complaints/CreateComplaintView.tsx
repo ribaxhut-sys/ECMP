@@ -75,6 +75,7 @@ import {
   filledExtraCaseDrafts,
   isBlankExtraCaseDraft,
   anyIntakeCaseEscalates,
+  intakeConfirmOutcome,
   intakeDecisionLockSummary,
   intakeMayEscalateToPusat,
   parseIntakeCaseAction,
@@ -900,7 +901,22 @@ export function CreateComplaintView() {
   }
 
   const lockSummary = intakeDecisionLockSummary(currentRows());
-  const applyBlockedByLock = lockSummary.requiresLock && !lockSummary.allLocked;
+  const useCaseLocks = lockSummary.requiresLock;
+  const applyBlockedByLock = useCaseLocks && !lockSummary.allLocked;
+  const primaryLockedUi = useCaseLocks && case1Locked;
+  const confirmRows = currentRows();
+  const confirmOutcome = intakeConfirmOutcome(confirmRows);
+  const confirmClosesComplaint = confirmOutcome === "all_close";
+  const confirmOutcomeMessage =
+    confirmOutcome === "all_close"
+      ? t("confirmCaseDecisionsOutcomeClose")
+      : confirmOutcome === "has_escalate"
+        ? t("confirmCaseDecisionsOutcomeEscalate")
+        : confirmOutcome === "partial_close"
+          ? t("confirmCaseDecisionsOutcomePartialClose")
+          : t("confirmCaseDecisionsOutcomeOpen");
+  const confirmCustomer =
+    values.customerName.trim() || values.customerId.trim();
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -1055,7 +1071,7 @@ export function CreateComplaintView() {
                       />
                       <span className="min-w-0">
                         <h3 className="text-[length:var(--ecmp-font-body-size)] font-semibold text-ecmp-text-primary">
-                          {case1Locked
+                          {primaryLockedUi
                             ? t("intakeCaseDecisionHeadingLocked", {
                                 n: 1,
                                 decision: lockedDecisionLabel(case1Action),
@@ -1100,7 +1116,7 @@ export function CreateComplaintView() {
                       count: values.description.trim().length,
                       max: 5000,
                     })}
-                    disabled={busy || case1Locked}
+                    disabled={busy || primaryLockedUi}
                   />
                   <div className="max-w-xs">
                     <Select
@@ -1124,7 +1140,7 @@ export function CreateComplaintView() {
                       }
                       required
                       aria-required="true"
-                      disabled={busy || case1Locked}
+                      disabled={busy || primaryLockedUi}
                     />
                   </div>
                   <PresetTextField
@@ -1167,14 +1183,14 @@ export function CreateComplaintView() {
                             max: 5000,
                           })
                     }
-                    disabled={busy || case1Locked}
+                    disabled={busy || primaryLockedUi}
                   />
                   <RadioGroup
                     name="case-action-primary"
                     label={t("intakeCaseActionLabel")}
                     orientation="horizontal"
                     required
-                    disabled={busy || case1Locked}
+                    disabled={busy || primaryLockedUi}
                     value={case1Action}
                     onChange={(value) =>
                       setCase1Action(parseIntakeCaseAction(value))
@@ -1193,35 +1209,37 @@ export function CreateComplaintView() {
                     ]}
                   />
                   {proposedArrivalHostId() === PRIMARY_CASE_ID
-                    ? proposedArrivalPicker(case1Locked)
+                    ? proposedArrivalPicker(primaryLockedUi)
                     : null}
+                  {useCaseLocks ? (
                   <Button
                     type="button"
-                    variant={case1Locked ? "outline" : "secondary"}
+                    variant={primaryLockedUi ? "outline" : "secondary"}
                     size="sm"
                     disabled={busy}
                     aria-label={
-                      case1Locked
+                      primaryLockedUi
                         ? t("intakeUnlockCaseDecisionAria", { n: 1 })
                         : t("intakeLockCaseDecisionAria", { n: 1 })
                     }
                     onClick={() =>
-                      case1Locked
+                      primaryLockedUi
                         ? unlockCase(PRIMARY_CASE_ID)
                         : lockCase(PRIMARY_CASE_ID)
                     }
                   >
-                    {case1Locked
+                    {primaryLockedUi
                       ? t("intakeUnlockCaseDecision")
                       : t("intakeLockCaseDecision")}
                   </Button>
+                  ) : null}
                     </div>
                   ) : null}
                 </div>
                 {extraCaseDrafts.map((draft, index) => {
                   const extraExpanded = expandedIds[draft.id] !== false;
                   const extraAction = parseIntakeCaseAction(draft.action);
-                  const extraLocked = draft.locked === true;
+                  const extraLocked = useCaseLocks && draft.locked === true;
                   const extraN = index + 2;
                   return (
                   <div
@@ -1447,6 +1465,7 @@ export function CreateComplaintView() {
                       : extraAction === "escalate"
                         ? proposedArrivalFollowNote()
                         : null}
+                    {useCaseLocks ? (
                     <Button
                       type="button"
                       variant={extraLocked ? "outline" : "secondary"}
@@ -1467,6 +1486,7 @@ export function CreateComplaintView() {
                         ? t("intakeUnlockCaseDecision")
                         : t("intakeLockCaseDecision")}
                     </Button>
+                    ) : null}
                     </div>
                     ) : null}
                   </div>
@@ -1493,7 +1513,7 @@ export function CreateComplaintView() {
                 <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
                   {t("intakeExtraCaseRegisterHint")}
                 </p>
-                {lockSummary.requiresLock ? (
+                {useCaseLocks ? (
                   <p
                     data-testid="intake-case-lock-summary"
                     className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary"
@@ -1556,7 +1576,11 @@ export function CreateComplaintView() {
       <Modal
         open={confirmOpen}
         onClose={closeConfirm}
-        title={t("confirmCaseDecisionsTitle")}
+        title={
+          confirmClosesComplaint
+            ? t("confirmCaseDecisionsTitleClose")
+            : t("confirmCaseDecisionsTitle")
+        }
         size="sm"
         footer={
           <>
@@ -1577,20 +1601,26 @@ export function CreateComplaintView() {
                 void submitDecisions();
               }}
             >
-              {t("confirmCaseDecisionsAction")}
+              {confirmClosesComplaint
+                ? t("confirmCaseDecisionsActionClose")
+                : t("confirmCaseDecisionsAction")}
             </Button>
           </>
         }
       >
         <div className="space-y-3 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-          <p>
-            {t("confirmCaseDecisionsLead", {
-              customer: values.customerName.trim() || values.customerId.trim(),
-              subject: values.subject.trim(),
-            })}
-          </p>
+          <div className="space-y-1">
+            <p className="text-ecmp-text-primary">
+              {t("confirmCaseDecisionsWp", { customer: confirmCustomer })}
+            </p>
+            <p>
+              {t("confirmCaseDecisionsSubject", {
+                subject: values.subject.trim(),
+              })}
+            </p>
+          </div>
           <ul className="list-none space-y-1.5 text-ecmp-text-primary">
-            {currentRows().map((row) => (
+            {confirmRows.map((row) => (
               <li key={row.n}>
                 <span className="font-medium">
                   {t("confirmCaseDecisionLabel", { n: row.n })}
@@ -1608,8 +1638,14 @@ export function CreateComplaintView() {
               })}
             </p>
           ) : null}
-          <p className="text-[length:var(--ecmp-font-helper-size)]">
-            {t("confirmCaseDecisionsAutoClose")}
+          <p
+            className={
+              confirmClosesComplaint
+                ? "font-medium text-ecmp-text-primary"
+                : "text-[length:var(--ecmp-font-helper-size)]"
+            }
+          >
+            {confirmOutcomeMessage}
           </p>
         </div>
       </Modal>
