@@ -225,6 +225,39 @@ describe("CaseDetailView HQ path", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("hides Cancel escalation and uses schedule title after HQ accepted a Case still flagged to Pusat", async () => {
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        handlingClaimedBy: null,
+        handlingClaimedByName: null,
+      }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        intakeDisposition: "HQ_SCHEDULED",
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+        hqArrivalDate: "2026-08-20",
+        hqArrivalTime: "09:30",
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("heading", {
+          name: "Taxpayer arrival schedule",
+        }).length,
+      ).toBeGreaterThanOrEqual(1);
+    });
+    expect(
+      screen.queryByRole("heading", { name: "Case sent to Pusat" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel escalation" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows parent-level Cancel escalation while HQ has not accepted", async () => {
     hasPermission.mockImplementation(
       (code: string) =>

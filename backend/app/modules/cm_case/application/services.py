@@ -803,13 +803,24 @@ class CaseApplicationService:
     def cancel_escalation_to_pusat(
         self, cmd: CancelEscalationToPusatCommand
     ) -> CaseDTO:
-        """Branch recall of API-520 — blocked once Pusat has claimed handling."""
+        """Branch recall of API-520 — blocked after HQ accept/schedule or claim."""
         if cmd.actor_is_pusat:
             raise err.conflict(
                 "CASE_PUSAT_CANNOT_CANCEL_ESCALATION",
                 "Pusat cannot cancel a branch escalation.",
             )
         case = self._require(cmd.case_id)
+        parent = self._repo.get_parent_complaint(case.complaint_id)
+        disposition = (
+            (parent.intake_disposition or "").strip().upper() if parent else ""
+        )
+        if parent is not None and (
+            parent.hq_accepted_at is not None or disposition == "HQ_SCHEDULED"
+        ):
+            raise err.conflict(
+                "CASE_HQ_ALREADY_ACCEPTED",
+                "Pusat has already accepted this escalation; branch cannot cancel.",
+            )
         before = case.to_snapshot()
         case.cancel_escalation_to_pusat(reason=cmd.reason)
         self._repo.save(case)

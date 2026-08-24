@@ -516,6 +516,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         canCancel: canCreate || canDecideEscalation,
         actorIsPusat,
         caseStatus: data.status,
+        hqAcceptedAt: complaintHqAcceptedAt,
+        intakeDisposition: complaintIntakeDisposition,
       }),
   );
   const showCancelEscalation =
@@ -1095,6 +1097,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       )
     : null;
 
+  const hqPhaseTitle =
+    hqPath.phase === "scheduled" || hqPath.phase === "accepted_unscheduled"
+      ? hqPageTitle
+      : null;
+
   const escalationPageTitle = data?.escalatedToPusat
     ? actorIsPusat
       ? handlerDisplay
@@ -1109,13 +1116,15 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       ? t("pageTitleClosed")
       : data.status === "RESOLVED"
         ? t("pageTitleResolved")
-        : escalationPageTitle
-          ? escalationPageTitle
-          : hqPageTitle
-            ? hqPageTitle
-            : handlerDisplay
-              ? t("pageTitleInProgress", { name: handlerDisplay })
-              : t("pageTitleOpen");
+        : hqPhaseTitle
+          ? hqPhaseTitle
+          : escalationPageTitle
+            ? escalationPageTitle
+            : hqPageTitle
+              ? hqPageTitle
+              : handlerDisplay
+                ? t("pageTitleInProgress", { name: handlerDisplay })
+                : t("pageTitleOpen");
 
   const pageDescription = !data
     ? undefined

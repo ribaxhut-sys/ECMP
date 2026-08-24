@@ -88,18 +88,23 @@ export function showCaseCancelEscalation(input: {
   }).showCancelEscalation;
 }
 
-/** DEC-029 Case-level Batalkan Eskalasi — only before Pusat claims handling. */
+/** DEC-029 Case-level Batalkan Eskalasi — only before Pusat accepts or claims. */
 export function showCaseLevelCancelEscalation(input: {
   escalatedToPusat: boolean;
   handlingClaimedBy?: string | null;
   canCancel: boolean;
   actorIsPusat: boolean;
   caseStatus?: string | null;
+  hqAcceptedAt?: string | null;
+  intakeDisposition?: string | null;
 }): boolean {
   if (!input.canCancel || !input.escalatedToPusat || input.actorIsPusat) {
     return false;
   }
   if ((input.handlingClaimedBy || "").trim()) return false;
+  if ((input.hqAcceptedAt || "").trim()) return false;
+  const disposition = (input.intakeDisposition || "").trim().toUpperCase();
+  if (disposition === "HQ_SCHEDULED") return false;
   const status = (input.caseStatus || "").trim().toUpperCase();
   if (status === "CLOSED" || status === "CANCELLED" || status === "RESOLVED") {
     return false;

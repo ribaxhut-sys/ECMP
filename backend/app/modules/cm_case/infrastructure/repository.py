@@ -57,6 +57,8 @@ class SqlAlchemyCaseRepository:
             case_count=count,
             owning_unit_id=row.owning_unit_id,
             created_by=row.created_by,
+            hq_accepted_at=row.hq_accepted_at,
+            intake_disposition=row.intake_disposition,
         )
 
     def count_cases(self, complaint_id: str) -> int:

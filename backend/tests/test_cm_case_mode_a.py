@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Generator
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -2088,6 +2089,54 @@ def test_cancel_escalation_to_pusat_before_claim(
             )
         )
     assert missing.value.code == "CASE_NOT_ESCALATED_TO_PUSAT"
+
+
+def test_cancel_escalation_to_pusat_blocked_after_hq_accepted(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    row = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert row is not None
+    row.hq_accepted_at = datetime.now(UTC)
+    row.intake_disposition = "HQ_SCHEDULED"
+    db_session.commit()
+
+    with pytest.raises(ApiError) as blocked:
+        service.cancel_escalation_to_pusat(
+            CancelEscalationToPusatCommand(
+                case_id=created.case_id,
+                reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+                actor_id="officer-1",
+                actor_unit_id="TAB",
+            )
+        )
+    assert blocked.value.code == "CASE_HQ_ALREADY_ACCEPTED"
 
 
 def test_pusat_claims_and_resolves_escalated_case(

@@ -20,6 +20,8 @@ class ParentComplaintRef:
         "case_count",
         "owning_unit_id",
         "created_by",
+        "hq_accepted_at",
+        "intake_disposition",
     )
 
     def __init__(
@@ -33,6 +35,8 @@ class ParentComplaintRef:
         case_count: int,
         owning_unit_id: str | None = None,
         created_by: str | None = None,
+        hq_accepted_at: datetime | None = None,
+        intake_disposition: str | None = None,
     ) -> None:
         self.complaint_id = complaint_id
         self.complaint_number = complaint_number
@@ -45,6 +49,8 @@ class ParentComplaintRef:
         self.owning_unit_id = owning_unit_id
         # F4 creator SoD — user who created the Complaint (not the Case).
         self.created_by = created_by
+        self.hq_accepted_at = hq_accepted_at
+        self.intake_disposition = intake_disposition
 
 
 class CaseRepository(Protocol):

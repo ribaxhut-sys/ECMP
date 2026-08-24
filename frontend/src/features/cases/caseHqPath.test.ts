@@ -136,6 +136,24 @@ describe("showCaseLevelCancelEscalation", () => {
       false,
     );
   });
+
+  it("hides after HQ accepted even if handling is unclaimed", () => {
+    expect(
+      showCaseLevelCancelEscalation({
+        ...open,
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+      }),
+    ).toBe(false);
+  });
+
+  it("hides once parent is HQ_SCHEDULED", () => {
+    expect(
+      showCaseLevelCancelEscalation({
+        ...open,
+        intakeDisposition: "HQ_SCHEDULED",
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("showCaseReturnEscalation", () => {
