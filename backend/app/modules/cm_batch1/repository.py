@@ -9,7 +9,8 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, exists, func, literal, or_, select
+from sqlalchemy import case as sql_case
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
@@ -989,6 +990,11 @@ class CmBatch1Repository:
             stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
         elif vis == "PUSAT":
+            # HQ queue: Pusat-owned / approved escalate path, but never a
+            # parent whose only Cases are branch-closed (non-escalated) —
+            # that produced a false "Belum ada case" row after embed filter.
+            from app.modules.cm_case.infrastructure.orm import CmCaseORM
+
             pusat_clause = or_(
                 pusat_unit_clause(
                     CmBatch1ComplaintORM.owning_unit_id, pusat_unit_codes=codes
@@ -998,8 +1004,48 @@ class CmBatch1Repository:
                 ),
                 CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
             )
-            stmt = stmt.where(pusat_clause)
-            count_stmt = count_stmt.where(pusat_clause)
+            # Postgres ``id::text`` keeps hyphens; SQLite cast strips them —
+            # normalize so EXISTS matches ``cm_cases.complaint_id``.
+            raw_id = cast(CmBatch1ComplaintORM.id, String)
+            parent_id_txt = sql_case(
+                (func.length(raw_id) == 36, raw_id),
+                else_=func.concat(
+                    func.substr(raw_id, 1, 8),
+                    literal("-"),
+                    func.substr(raw_id, 9, 4),
+                    literal("-"),
+                    func.substr(raw_id, 13, 4),
+                    literal("-"),
+                    func.substr(raw_id, 17, 4),
+                    literal("-"),
+                    func.substr(raw_id, 21, 12),
+                ),
+            )
+            pusat_case_predicate = or_(
+                CmCaseORM.escalated_to_pusat.is_(True),
+                pusat_unit_clause(
+                    CmCaseORM.owning_unit_id, pusat_unit_codes=codes
+                ),
+                pusat_unit_clause(
+                    CmCaseORM.owner_unit_id, pusat_unit_codes=codes
+                ),
+            )
+            has_any_case = exists(
+                select(1)
+                .select_from(CmCaseORM)
+                .where(CmCaseORM.complaint_id == parent_id_txt)
+            )
+            has_pusat_case = exists(
+                select(1)
+                .select_from(CmCaseORM)
+                .where(
+                    CmCaseORM.complaint_id == parent_id_txt,
+                    pusat_case_predicate,
+                )
+            )
+            case_scope = or_(~has_any_case, has_pusat_case)
+            stmt = stmt.where(pusat_clause, case_scope)
+            count_stmt = count_stmt.where(pusat_clause, case_scope)
         else:
             return [], 0
 

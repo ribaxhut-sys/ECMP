@@ -247,7 +247,13 @@ export function CmBatch1ComplaintListView() {
             ? tCommon("emDash")
             : row.casesState === "error"
               ? t("penangananListUnavailable")
-              : caseItem?.caseNumber || t("noCaseYet");
+              : caseItem?.caseNumber
+                ? caseItem.caseNumber
+                : row.complaint.caseCreated
+                  ? // Cases exist but none are in this viewer's scope (e.g. Pusat
+                    // after filtering branch-closed siblings) — not "no Case yet".
+                    tCommon("emDash")
+                  : t("noCaseYet");
         const complaintLabel = row.complaint.complaintNumber;
         if (complaintNumberFirst) {
           return (
