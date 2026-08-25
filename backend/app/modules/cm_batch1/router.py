@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import replace
 from typing import Annotated
 
@@ -35,8 +36,12 @@ from app.integrations.customer import build_customer_provider
 from app.integrations.directory import LocalUserDirectory
 from app.modules.attachment.permissions import ATTACHMENT_READ
 from app.modules.attachment.registration import build_attachment_service
+from app.modules.cm_batch1.attachment_authorization import (
+    assert_can_access_cm_complaint_attachment,
+)
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
+from app.modules.cm_batch1.complaint_authorization import assert_cm_complaint_visible
 from app.modules.cm_batch1.history import CmBatch1HistoryService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import (
@@ -72,6 +77,11 @@ from app.modules.cm_case.infrastructure.inbox_repository import (
     safe_mark_pusat_queue_seen,
 )
 from app.modules.timeline.repository import TimelineRepository
+from app.modules.users.org_scope import (
+    HEAD_OFFICE_ADMIN_ROLES,
+    assert_target_user_in_same_unit,
+    org_scope_denied,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -190,18 +200,31 @@ def forbid_write_back(
 def get_supervisor_queue(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     work_item_status: Annotated[
         str, Query(alias="workItemStatus")
     ] = "OPEN",
     aging_hours: Annotated[int, Query(alias="agingHours", ge=1, le=8760)] = 24,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> DataResponse[SupervisorQueueResponse]:
-    _ = principal
+    """The aging queue is a list — scope it like one (DEC-024).
+
+    Built from the same visibility class as ``list_complaints``, resolved
+    claim-first with the DB-membership fallback so a branch actor sees only
+    their own unit in Mode A too.
+    """
+    effective_org = _effective_org_unit(OrgUnitResolver(session), principal)
+    visibility = resolve_row_visibility(
+        replace(principal, org_unit_id=effective_org)
+    ).value
     return DataResponse(
         data=service.get_supervisor_queue(
             work_item_status=work_item_status,
             aging_hours=aging_hours,
             limit=limit,
+            visibility=visibility,
+            actor_unit_id=effective_org,
+            actor_id=str(principal.user_id),
         )
     )
 
@@ -389,9 +412,26 @@ def get_user_work_stats(
     user_id: str,
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
 ) -> DataResponse[UserWorkStatsResponse]:
-    _ = principal
-    return DataResponse(data=service.work_stats_for_user(user_id))
+    """Counters for one colleague — scoped like the directory row they open.
+
+    Reuses the Users guard so this panel and ``GET /users/{id}`` cannot
+    disagree about who may be looked at: own stats always, Head Office admins
+    unrestricted, everyone else only within their own unit (Mode A included).
+    """
+    target = (user_id or "").strip()
+    if target != str(principal.user_id):
+        try:
+            target_user_id = uuid.UUID(target)
+        except ValueError:
+            # Legacy free-text ``created_by`` key: no user row, so no unit to
+            # compare — only Head Office may query it.
+            if not principal.has_any_role(*HEAD_OFFICE_ADMIN_ROLES):
+                raise org_scope_denied() from None
+        else:
+            assert_target_user_in_same_unit(principal, target_user_id, session)
+    return DataResponse(data=service.work_stats_for_user(target))
 
 
 @router.post(
@@ -498,6 +538,12 @@ def get_complaint(
         settings=settings,
     )
     body = service.get_complaint(complaint_id)
+    # P0-3 domain floor: the SECMIG-P4 guard above is a no-op in Mode A, and it
+    # lets any Pusat actor through. Opening by id must obey the same row
+    # visibility the list applies (404, never a 403 existence oracle).
+    assert_cm_complaint_visible(
+        principal, body, session=session, settings=settings
+    )
     actor_is_pusat = _actor_is_pusat(principal, session)
     # Opening the parent counts as reading its Pusat queue badge row.
     # get_db_session does not auto-commit; persist the receipt before close.
@@ -541,7 +587,11 @@ def list_cm_complaint_attachments(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 100,
 ) -> ListResponse[Batch1AttachmentResponse]:
-    """Empty list is 200 — attachments are optional (FR-004)."""
+    """Empty list is 200 — attachments are optional (FR-004).
+
+    Same assert as the shared attachment router (G2), so the two doors onto
+    one complaint's files cannot disagree — including in Mode A.
+    """
     if org_scope_enforcement_enabled(settings):
         resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
         _enforce_cm_org_or_pusat_hq(
@@ -550,6 +600,12 @@ def list_cm_complaint_attachments(
             session=session,
             settings=settings,
         )
+    assert_can_access_cm_complaint_attachment(
+        principal=principal,
+        session=session,
+        complaint_id=complaint_id,
+        settings=settings,
+    )
     rows = attachments.list_for_complaint(complaint_id)
     start = (page - 1) * page_size
     return ListResponse(
@@ -582,7 +638,12 @@ def get_complaint_history(
         settings=settings,
     )
     # 404 before reading the log — history is not an existence oracle.
-    service.get_complaint(complaint_id)
+    assert_cm_complaint_visible(
+        principal,
+        service.get_complaint(complaint_id),
+        session=session,
+        settings=settings,
+    )
     items = history.list_history(complaint_id)
     return ListResponse(
         data=items,
@@ -610,6 +671,12 @@ def decide_intake_escalation(
 ) -> DataResponse[ComplaintBatch1Response]:
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
     enforce_org_scope(principal, resource_org, settings)
+    assert_cm_complaint_visible(
+        principal,
+        service.get_complaint(complaint_id),
+        session=session,
+        settings=settings,
+    )
     return DataResponse(
         data=service.decide_intake_escalation(
             complaint_id,
@@ -643,6 +710,12 @@ def request_intake_escalation(
     """
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
     enforce_org_scope(principal, resource_org, settings)
+    assert_cm_complaint_visible(
+        principal,
+        service.get_complaint(complaint_id),
+        session=session,
+        settings=settings,
+    )
     return DataResponse(
         data=service.request_intake_escalation(
             complaint_id,

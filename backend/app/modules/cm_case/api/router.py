@@ -46,6 +46,7 @@ from app.modules.cm_case.api.schemas import (
     UpdateCaseStatusRequest,
     WorkBadgeCountsResponse,
 )
+from app.modules.cm_case.application.authorization import assert_cm_case_visible
 from app.modules.cm_case.application.dto import (
     AddCaseCommand,
     CancelEscalationToPusatCommand,
@@ -362,6 +363,25 @@ def _actor_is_pusat(principal: Principal, session: Session) -> bool:
     return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
 
 
+def _assert_case_visible_for_actor(
+    principal: Principal,
+    session: Session,
+    settings: Settings,
+    service: CaseApplicationService,
+    case_id: str,
+) -> CaseDTO:
+    """Load the Case and apply the domain visibility rule (404 when unseen)."""
+    dto = service.get_case(case_id)
+    assert_cm_case_visible(
+        principal,
+        dto,
+        settings=settings,
+        actor_unit_id=_actor_unit(principal, session),
+        complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+    )
+    return dto
+
+
 def _enforce_case_mutation_scope(
     *,
     principal: Principal,
@@ -374,7 +394,8 @@ def _enforce_case_mutation_scope(
 ) -> CaseDTO:
     """Pusat may mutate an escalated Case; otherwise enforce branch org-scope."""
     dto = service.get_case(case_id)
-    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
     if dto.escalated_to_pusat and _pusat_may_read_escalated(
         vis_principal, True
     ):
@@ -383,6 +404,15 @@ def _enforce_case_mutation_scope(
         enforce_org_scope_any(principal, branch_orgs, settings)
     else:
         enforce_org_scope(principal, branch_org, settings)
+    # P0-3 domain floor, below the jwt-only guard above: in Mode A that guard
+    # is a no-op, so without this any branch could mutate any Case by id.
+    assert_cm_case_visible(
+        principal,
+        dto,
+        settings=settings,
+        actor_unit_id=actor_unit_id,
+        complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+    )
     return dto
 
 
@@ -426,13 +456,23 @@ def get_case(
     originating ``owningUnitId`` stays the branch (DEC-028).
     """
     units = OrgUnitResolver(session).resolve_case_units(case_id)
-    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
     if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
         enforce_org_scope_any(
             principal,
             (units.handling_unit_id, units.owner_unit_id),
             settings,
+        )
+        # Domain floor (Mode A included) — 404 so a by-id probe is not an
+        # existence oracle; the jwt guard above keeps its 403 where it fires.
+        assert_cm_case_visible(
+            principal,
+            dto,
+            settings=settings,
+            actor_unit_id=actor_unit_id,
+            complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
         )
     body = _to_response(dto, session=session)
     # get_db_session does not auto-commit; persist mark-read before close.
@@ -467,13 +507,21 @@ def get_case_history(
 ) -> ListResponse[CaseHistoryEntry]:
     """API-537 / UC-CAP02-07 — this Case, plus parent HQ-path events."""
     units = OrgUnitResolver(session).resolve_case_units(case_id)
-    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
     if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
         enforce_org_scope_any(
             principal,
             (units.handling_unit_id, units.owner_unit_id),
             settings,
+        )
+        assert_cm_case_visible(
+            principal,
+            dto,
+            settings=settings,
+            actor_unit_id=actor_unit_id,
+            complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
         )
     items = history.list_for_case(dto)
     return _history_list_response(items)
@@ -602,6 +650,7 @@ def escalate_case_to_pusat(
         (units.handling_unit_id, units.owner_unit_id),
         settings,
     )
+    _assert_case_visible_for_actor(principal, session, settings, service, case_id)
     dto = service.escalate_to_pusat(
         EscalateToPusatCommand(
             case_id=case_id,
@@ -634,6 +683,7 @@ def cancel_escalation_to_pusat(
         (units.handling_unit_id, units.owner_unit_id),
         settings,
     )
+    _assert_case_visible_for_actor(principal, session, settings, service, case_id)
     dto = service.cancel_escalation_to_pusat(
         CancelEscalationToPusatCommand(
             case_id=case_id,
@@ -658,11 +708,12 @@ def return_case_escalation(
 ) -> DataResponse[CaseResponse]:
     """API-521 lab — Pusat returns this Case to the originating branch."""
     _ = idempotency_key
-    _ = settings
     if not _actor_is_pusat(principal, session):
         raise PermissionDeniedError(
             "Only Pusat may return an escalated Case to the branch."
         )
+    # Pusat, yes — but only for a Case that is actually theirs to return.
+    _assert_case_visible_for_actor(principal, session, settings, service, case_id)
     dto = service.return_escalation(
         ReturnEscalationCommand(
             case_id=case_id,

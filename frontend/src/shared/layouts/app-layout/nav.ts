@@ -252,10 +252,38 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     labelKey: "attachments",
     href: "/attachments",
     icon: "attachments",
+    requiredPermissions: ["attachment:read"],
   },
-  { id: "reports", labelKey: "reports", href: "/reports", icon: "reports" },
-  { id: "users", labelKey: "users", href: "/users", icon: "users" },
-  { id: "settings", labelKey: "settings", href: "/settings", icon: "adjustments" },
+  {
+    id: "reports",
+    labelKey: "reports",
+    href: "/reports",
+    icon: "reports",
+    requiredPermissions: ["reports:read"],
+  },
+  {
+    id: "users",
+    labelKey: "users",
+    href: "/users",
+    icon: "users",
+    requiredPermissions: ["users:read"],
+  },
+  {
+    id: "settings",
+    labelKey: "settings",
+    href: "/settings",
+    icon: "adjustments",
+    // Union of what the page can actually show: General is settings:read,
+    // Kebijakan SLA is sla:read — an admin holding only sla:* keeps the menu.
+    // Workflow / Advanced are placeholder cards, and Preferensi is personal
+    // (language also lives in the header).
+    requiredPermissions: [
+      "settings:read",
+      "settings:update",
+      "sla:read",
+      "sla:manage",
+    ],
+  },
   /**
    * Pengaduan Internal — Mode A (Cabang ↔ Pusat).
    * Sidebar visibility and `/internal` layout gated by

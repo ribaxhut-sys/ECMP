@@ -322,6 +322,7 @@ def test_router_handlers_call_service() -> None:
             batch1,
             session=MagicMock(),
             principal=principal,
+            settings=MagicMock(),
         )
         assert complaint_listed.meta.total_items == 1
 

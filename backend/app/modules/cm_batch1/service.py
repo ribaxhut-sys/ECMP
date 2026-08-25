@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
+    complaint_visible_for_pusat,
     is_hq_schedule_destination_unit,
     resolve_row_visibility,
 )
@@ -859,14 +860,53 @@ class CmBatch1Service:
         self._store.commit()
         return work_item_id
 
+    def _queue_row_visible(
+        self,
+        row: ComplaintAggregate | None,
+        *,
+        visibility: str,
+        actor_unit_id: str | None,
+        actor_id: str | None,
+    ) -> bool:
+        """DEC-024 row visibility for one queue entry (API-513).
+
+        Same classes the Aggregate list is filtered with, applied in Python
+        because the queue joins two sources.
+        """
+        if visibility == "ALL":
+            return True
+        if row is None:
+            return False
+        if visibility == "UNIT":
+            unit = (actor_unit_id or "").strip()
+            return bool(unit) and (row.owning_unit_id or "").strip() == unit
+        if visibility == "PUSAT":
+            return complaint_visible_for_pusat(
+                owning_unit_id=row.owning_unit_id,
+                intake_disposition=row.intake_disposition,
+                hq_accepted_at=row.hq_accepted_at,
+            )
+        if visibility == "SELF":
+            actor = (actor_id or "").strip()
+            return bool(actor) and (row.created_by or "").strip() == actor
+        return False
+
     def get_supervisor_queue(
         self,
         *,
         work_item_status: str = "OPEN",
         aging_hours: int = DEFAULT_AGING_THRESHOLD_HOURS,
         limit: int = DEFAULT_SUPERVISOR_QUEUE_LIMIT,
+        visibility: str | None = None,
+        actor_unit_id: str | None = None,
+        actor_id: str | None = None,
     ) -> SupervisorQueueResponse:
-        """Read-only later-review + no-Case aging visibility (API-513)."""
+        """Read-only later-review + no-Case aging visibility (API-513).
+
+        ``visibility`` defaults to ``ALL`` so internal callers keep the whole
+        queue; the HTTP route always passes the caller's class, so a branch
+        supervisor no longer sees another branch's aging complaints.
+        """
         status = (work_item_status or "OPEN").strip().upper() or "OPEN"
         if status not in {"OPEN", "ALL", "CLOSED"}:
             raise ValidationAppError(
@@ -878,12 +918,50 @@ class CmBatch1Service:
         now = datetime.now(UTC)
         older_than = now - timedelta(hours=hours)
 
+        vis = (visibility or "ALL").strip().upper() or "ALL"
         later_rows = self._store.list_later_review_items(
             status=status, limit=cap
         )
         aging_rows = self._store.list_aging_without_case(
             older_than=older_than, limit=cap
         )
+        if vis != "ALL":
+            owners: dict[str, ComplaintAggregate | None] = {}
+
+            def _owner(complaint_id: str | None) -> ComplaintAggregate | None:
+                key = (complaint_id or "").strip()
+                if not key:
+                    return None
+                if key not in owners:
+                    owners[key] = self._store.get(key)
+                return owners[key]
+
+            # A later-review row raised before its complaint exists carries no
+            # complaint and therefore no unit — it is nobody's branch work, so
+            # it is not another branch's either and stays visible. Only rows
+            # that *do* resolve to a unit are filtered. Attributing them needs
+            # an owning unit on the work item itself (schema change, not G2).
+            later_rows = [
+                item
+                for item in later_rows
+                if (owner := _owner(item.complaint_id)) is None
+                or self._queue_row_visible(
+                    owner,
+                    visibility=vis,
+                    actor_unit_id=actor_unit_id,
+                    actor_id=actor_id,
+                )
+            ]
+            aging_rows = [
+                row
+                for row in aging_rows
+                if self._queue_row_visible(
+                    row,
+                    visibility=vis,
+                    actor_unit_id=actor_unit_id,
+                    actor_id=actor_id,
+                )
+            ]
 
         def _age_hours(created_at: datetime) -> float:
             created = created_at if created_at.tzinfo else created_at.replace(tzinfo=UTC)

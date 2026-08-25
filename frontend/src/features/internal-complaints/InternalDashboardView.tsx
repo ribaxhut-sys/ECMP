@@ -9,8 +9,10 @@ import {
   Card,
   CardBody,
   Empty,
+  ErrorState,
   PageContainer,
   PageHeader,
+  Skeleton,
   StatCard,
   type StatAccent,
 } from "@/shared/ui";
@@ -46,7 +48,7 @@ export function InternalDashboardView() {
   const router = useRouter();
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
-  const { rows, loading, error } = useInternalComplaints();
+  const { rows, total, truncated, loading, error, reload } = useInternalComplaints();
   const pendingTransfer = usePendingTransferRequestCount();
   const pendingWithdraw = usePendingWithdrawRequestCount();
 
@@ -78,7 +80,14 @@ export function InternalDashboardView() {
           </Button>
         }
       />
-      {error ? <Alert tone="danger" title={error} /> : null}
+      {error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : truncated ? (
+        <Alert
+          tone="warning"
+          title={t("partialDataWarning", { loaded: rows.length, total })}
+        />
+      ) : null}
 
       <div className="grid gap-[var(--ecmp-card-gap)] sm:grid-cols-2 xl:grid-cols-4">
         <ClickableStat
@@ -138,7 +147,7 @@ export function InternalDashboardView() {
         </div>
         {loading ? (
           <CardBody className="p-[var(--ecmp-card-padding)]">
-            <Empty title={tCommon("loading")} description="" />
+            <Skeleton rows={4} />
           </CardBody>
         ) : actionable.length === 0 ? (
           <CardBody className="p-[var(--ecmp-card-padding)]">

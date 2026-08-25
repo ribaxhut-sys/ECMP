@@ -463,6 +463,9 @@ MESSAGES: dict[str, str] = {
     "storage.aggregate_type_id_required": (
         "aggregateType dan aggregateId diperlukan untuk unggahan platform."
     ),
+    "storage.list_scope_required": (
+        "Daftar lampiran harus dibatasi: sertakan aggregateType dan aggregateId."
+    ),
     "storage.allowed_mime_empty_strings": ("Entri storage.allowed.mime harus string non-kosong."),
     "storage.allowed_mime_non_empty_array": ("storage.allowed.mime harus array JSON non-kosong."),
     "storage.checksum_sha256_format": "checksum_sha256 harus digest hex 64 karakter.",

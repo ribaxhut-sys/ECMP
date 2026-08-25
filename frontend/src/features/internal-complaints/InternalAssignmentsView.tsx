@@ -6,8 +6,10 @@ import { useTranslations } from "next-intl";
 import {
   Alert,
   Empty,
+  ErrorState,
   PageContainer,
   PageHeader,
+  Skeleton,
   Table,
   type TableColumn,
 } from "@/shared/ui";
@@ -42,7 +44,7 @@ function FilteredList({
   const router = useRouter();
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
-  const { rows, loading, error } = useInternalComplaints();
+  const { rows, total, truncated, loading, error, reload } = useInternalComplaints();
   const filtered = useMemo(
     () =>
       sortByMostRecent(rows.filter((r) => statuses.includes(String(r.status)))),
@@ -95,9 +97,16 @@ function FilteredList({
           { label: title },
         ]}
       />
-      {error ? <Alert tone="danger" title={error} /> : null}
+      {error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : truncated ? (
+        <Alert
+          tone="warning"
+          title={t("partialDataWarning", { loaded: rows.length, total })}
+        />
+      ) : null}
       {loading ? (
-        <Empty title={tCommon("loading")} description="" />
+        <Skeleton rows={6} />
       ) : filtered.length === 0 ? (
         <Empty
           title={t(emptyHint.titleKey)}

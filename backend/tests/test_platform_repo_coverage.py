@@ -36,7 +36,11 @@ def test_report_repository_aggregations() -> None:
     session.execute.return_value.all.side_effect = [
         [("OPEN", 2), ("CLOSED", 1)],
         [(bid, "B1", "Branch 1", 5, 4, 2), (None, None, None, 1, 0, 0)],
-        [("B1", 4, 3)],
+        # _case_counts_by_unit selects four columns — unit, total, all_closed,
+        # branch_resolved — since "Selesai di cabang" stopped counting cases
+        # that were escalated to Pusat. Here: 4 cases, all closed, 3 of them
+        # resolved at the branch.
+        [("B1", 4, 4, 3)],
         [],
     ]
     assert repo.count_by_status(branch_id=bid) == [("OPEN", 2), ("CLOSED", 1)]
@@ -47,8 +51,9 @@ def test_report_repository_aggregations() -> None:
     assert rows[0][4] == 1
     assert rows[0][5] == 4
     assert rows[0][6] == 2
-    assert rows[0][7] == 4
-    assert rows[0][9] == 3
+    assert rows[0][7] == 4  # caseTotal
+    assert rows[0][8] == 0  # caseOpen — total minus every closed case
+    assert rows[0][9] == 3  # caseClosed — branch-resolved only
     assert rows[1][0] is None
 
     # Unresolvable branch (soft-deleted / unknown) is a known-empty scope —

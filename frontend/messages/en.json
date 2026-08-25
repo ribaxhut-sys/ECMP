@@ -3946,7 +3946,8 @@
     "completionReturnReason": "Completion request",
     "resendNoteLabel": "Resend note",
     "activityRETURNED_FOR_COMPLETION": "Returned to branch (incomplete documents)",
-    "activityRESENT_TO_PUSAT": "Resent to HQ"
+    "activityRESENT_TO_PUSAT": "Resent to HQ",
+    "partialDataWarning": "Showing {loaded} of {total} complaints. Figures on this page are computed from the loaded rows only."
   },
   "landing": {
     "title": "Complaints",

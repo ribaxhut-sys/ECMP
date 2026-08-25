@@ -19,15 +19,17 @@ from app.core.auth import (
 )
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.config import Settings, get_settings
-from app.core.errors import OrgScopeDeniedError
 from app.core.local_credential_auth import (
     assert_local_credential_auth_enabled,
     require_local_credential_auth,
 )
 from app.core.schemas import DataResponse, ListResponse, PageMeta
-from app.core.user_messages import m
 from app.db.session import get_db_session
 from app.models import Branch
+from app.modules.users.org_scope import (
+    assert_declared_branch_in_same_unit,
+    assert_target_user_in_same_unit,
+)
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import (
     AdminResetPasswordResponse,
@@ -172,9 +174,7 @@ def list_users(
         # supervisor saw every branch's users in the lab. The domain rule
         # ("see only your own unit") must hold in both modes (CLAUDE.md §2);
         # only the org-unit source differs — DB membership here instead of
-        # an SSO claim. Explicit ?branchId= cross-unit requests are not yet
-        # denied in dev mode (still gated by org_scope_enforcement_enabled
-        # above) — narrower, separate gap from what this fixes.
+        # an SSO claim.
         principal_org = OrgUnitResolver(session).resolve_principal_membership(
             principal.user_id
         )
@@ -182,6 +182,14 @@ def list_users(
             branch_id = session.scalar(
                 select(Branch.id).where(Branch.code == principal_org)
             )
+    else:
+        # G4-4 — the other half of UM-BUG-005: an explicit cross-unit
+        # ?branchId= was still answered in Mode A because only the jwt path
+        # above compared it. Same comparator as users:create / PUT /users/{id};
+        # an actor whose own unit cannot be resolved (head-office membership)
+        # stays unrestricted, exactly like the no-filter branch above.
+        if OrgUnitResolver(session).resolve_principal(principal) is not None:
+            assert_declared_branch_in_same_unit(principal, branch_id, session)
     items, total = service.list(
         page=page,
         page_size=page_size,
@@ -227,11 +235,17 @@ def update_user(
     payload: UserUpdateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:update"))],
+    session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[UserResponse]:
     # Password field is Mode A local credential surface (K-3); profile-only updates stay open.
     if payload.password is not None:
         assert_local_credential_auth_enabled(settings)
+    # UM-SEC-P0-1 — a branch-scoped administrator must not edit another unit's
+    # member; same comparison PATCH /{id}/status already enforces.
+    assert_target_user_in_same_unit(principal, id, session)
+    if payload.branch_id is not None:
+        assert_declared_branch_in_same_unit(principal, payload.branch_id, session)
     updated = service.update(
         id,
         payload,
@@ -239,9 +253,6 @@ def update_user(
         actor_roles=principal.roles,
     )
     return DataResponse(data=updated)
-
-
-_HEAD_OFFICE_ADMIN_ROLES = ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN")
 
 
 @router.patch(
@@ -259,21 +270,9 @@ def update_user_status(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[UserResponse]:
     # UM-BUG-007 — Manager (BC-8.4) is branch-scoped, unlike Head Office
-    # Admin/Administrator/Super Admin above (unrestricted, unchanged).
-    # Resolves the actor's own membership from the DB rather than relying on
-    # an orgUnitId claim, so this also holds in Mode A (no SSO token issues
-    # that claim locally) — same rationale as list_users' UM-BUG-005 fix.
-    if not principal.has_any_role(*_HEAD_OFFICE_ADMIN_ROLES):
-        resolver = OrgUnitResolver(session)
-        actor_org = OrgUnitResolver.normalize(principal.org_unit_id)
-        if actor_org is None:
-            actor_org = resolver.resolve_principal_membership(principal.user_id)
-        target_org = resolver.resolve_user(id)
-        if actor_org is None or target_org is None or actor_org != target_org:
-            raise OrgScopeDeniedError(
-                m("common.org_scope_denied"),
-                details={"reason": "org_unit_mismatch"},
-            )
+    # Admin/Administrator/Super Admin (unrestricted, unchanged). Behavior
+    # unchanged; the comparison now lives in the shared helper above.
+    assert_target_user_in_same_unit(principal, id, session)
     updated = service.update_status(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=updated)
 
@@ -291,8 +290,12 @@ def admin_reset_password(
     principal: Annotated[
         Principal, Depends(require_permissions("users:reset_password"))
     ],
+    session: Annotated[Session, Depends(get_db_session)],
     _: LocalCredentialAuth,
 ) -> DataResponse[AdminResetPasswordResponse]:
+    # UM-SEC-P0-2 — endpoint stays available (SEC-PWD-001, Mode A local
+    # credential surface); it is only narrowed to the actor's own unit.
+    assert_target_user_in_same_unit(principal, id, session)
     result = service.admin_reset_password(
         id, actor_user_id=principal.user_id, request=request
     )

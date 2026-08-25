@@ -8,10 +8,12 @@ import {
   Card,
   CardBody,
   Empty,
+  ErrorState,
   PageContainer,
   PageHeader,
   ProgressMeter,
   SectionHeader,
+  Skeleton,
   Table,
   type ProgressMeterTone,
   type TableColumn,
@@ -46,7 +48,7 @@ export function InternalReportsView() {
   const t = useTranslations("internalComplaints");
   const tPriority = useTranslations("priority");
   const tCommon = useTranslations("common");
-  const { rows, loading, error } = useInternalComplaints();
+  const { rows, total, truncated, loading, error, reload } = useInternalComplaints();
 
   const statusBuckets = useMemo(() => countByStatus(rows), [rows]);
   const unitBuckets = useMemo(
@@ -104,7 +106,14 @@ export function InternalReportsView() {
           { label: t("reportsTitle") },
         ]}
       />
-      {error ? <Alert tone="danger" title={error} /> : null}
+      {error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : truncated ? (
+        <Alert
+          tone="warning"
+          title={t("partialDataWarning", { loaded: rows.length, total })}
+        />
+      ) : null}
 
       {!loading && rows.length === 0 ? (
         <Empty title={t("listEmpty")} description={t("listEmptyDescription")} />
@@ -187,7 +196,7 @@ export function InternalReportsView() {
           <Card>
             <CardBody>
               {loading ? (
-                <Empty title={tCommon("loading")} description="" />
+                <Skeleton rows={6} />
               ) : (
                 <Table columns={columns} rows={sorted} getRowKey={(row) => row.id} />
               )}

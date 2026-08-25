@@ -96,8 +96,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-324 | GET /api/v1/attachments/{id} | Attachment metadata | bearerAuth, permission `attachment:read` | 🟢 Implemented |
 | API-325 | GET /api/v1/attachments/{id}/download | Download file bytes | bearerAuth, permission `attachment:read` | 🟢 Implemented |
 | API-326 | DELETE /api/v1/attachments/{id} | Logical delete attachment (status=DELETED) | bearerAuth, permission `attachment:delete` | 🟢 Implemented |
-| API-386 | GET /api/v1/attachments | List attachments (optional aggregateType/aggregateId) | bearerAuth, permission `attachment:read` | 🟢 Implemented |
-| API-387 | GET /api/v1/complaints/{id}/attachments | List attachments for a complaint | bearerAuth, permission `attachment:read` | 🟢 Implemented |
+| API-386 | GET /api/v1/attachments | List attachments (aggregateType+aggregateId required unless the caller already has cross-unit row visibility; Complaint aggregate is unit-scoped) | bearerAuth, permission `attachment:read` | 🟢 Implemented |
+| API-387 | GET /api/v1/complaints/{id}/attachments | List attachments for a complaint (unit-scoped: caller must be able to see the complaint) | bearerAuth, permission `attachment:read` | 🟢 Implemented |
 | API-388 | GET /api/v1/complaints/search | Search & filter complaints (CAPABILITY-012) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-327 | GET /api/v1/notification/templates | List notification templates (optional activeOnly) | bearerAuth, permission `notification:read` | 🟢 Implemented |
 | API-328 | POST /api/v1/notification/templates | Create notification template | bearerAuth, permission `notification:create` | 🟢 Implemented |

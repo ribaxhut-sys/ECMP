@@ -780,7 +780,7 @@ def test_http_manager_creator_sod_blocks_cross_unit_resolve_accept(
                 "summary": "Done",
             },
         )
-        assert denied.status_code == 403
+        assert denied.status_code == 403, denied.text
     finally:
         client.app.dependency_overrides.clear()
 

@@ -81,7 +81,7 @@ describe("SystemSettingsManagement", () => {
 
     expect(
       await within(card).findByRole("textbox", {
-        name: /Arrivals per slot/i,
+        name: /Default capacity per unit/i,
       }),
     ).toHaveValue("2");
     expect(within(card).getByRole("button", { name: "Save" })).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("SystemSettingsManagement", () => {
     );
     await user.click(within(card).getByRole("button", { name: "Edit" }));
     const input = await within(card).findByRole("textbox", {
-      name: /Arrivals per slot/i,
+      name: /Default capacity per unit/i,
     });
     await user.clear(input);
     await user.type(input, "4");
@@ -145,16 +145,20 @@ describe("SystemSettingsManagement", () => {
     const card = await screen.findByTestId(
       "setting-key-hq.schedule.capacity_per_slot",
     );
-    expect(within(card).getByText("Kapasitas per slot")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Kapasitas default per unit"),
+    ).toBeInTheDocument();
     expect(
       within(card).getByText(
-        "Jumlah maksimum kedatangan wajib pajak per slot jadwal HQ.",
+        "Kuota kedatangan default per slot untuk setiap unit Pusat. Unit yang" +
+          " disebut di kapasitas per unit memakai nilai sendiri.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Jadwal HQ")).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Max taxpayer arrivals accommodated per HQ schedule slot",
+        "Default arrivals allowed per slot for each Pusat unit. Units listed" +
+          " in capacity by unit keep their own value.",
       ),
     ).not.toBeInTheDocument();
   });

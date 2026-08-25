@@ -53,6 +53,9 @@ describe("escalateIntakeDraft", () => {
     expect(peekEscalateIntakeDraft()?.extraCaseDrafts).toEqual([
       {
         id: "e1",
+        // Extra Case cards carry their own title now — sanitize normalizes the
+        // missing field to "" rather than dropping it.
+        subject: "",
         description: "Case 2 uraian",
         priority: "",
         note: "",

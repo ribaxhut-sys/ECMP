@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,6 +18,7 @@ from app.core.errors import ApiError
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
+from app.models import Branch, Role, User
 from app.modules.cm_batch1.models import (
     CmBatch1ComplaintORM,
     CmBatch1PusatQueueSeenORM,
@@ -2525,3 +2526,262 @@ def test_return_escalation_fail_open_when_inbox_write_breaks(
     )
     assert returned.status_code == 200, returned.text
     assert returned.json()["data"]["escalatedToPusat"] is False
+
+
+# --- G3 (P0-3) — domain visibility by id, Mode A ----------------------------
+#
+# The SECMIG-P4 guard above these routes is a no-op when ECMP_AUTH_MODE=dev, so
+# every test here runs with dev settings, asserts that fact, and gives the
+# principal **no** orgUnitId claim: its unit can only come from the DB
+# membership row, exactly like the lab.
+
+
+_MODE_A_TABLES = [
+    *_TABLES,
+    Role.__table__,
+    Branch.__table__,
+    User.__table__,
+]
+
+
+@pytest.fixture()
+def dev_db_session() -> Generator[Session, None, None]:
+    engine = create_engine(
+        "sqlite://",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine, tables=_MODE_A_TABLES)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def _seed_member(session: Session, unit_code: str) -> uuid.UUID:
+    """A real membership row — the only source of the actor's unit in Mode A."""
+    role = Role(id=uuid.uuid4(), code=f"R{uuid.uuid4().hex[:6]}", name="Role")
+    branch = session.scalar(
+        select(Branch).where(Branch.code == unit_code)
+    ) or Branch(id=uuid.uuid4(), code=unit_code, name=unit_code, is_active=True)
+    user = User(
+        id=uuid.uuid4(),
+        role_id=role.id,
+        branch_id=branch.id,
+        email=f"{uuid.uuid4().hex[:8]}@example.com",
+        username=f"u{uuid.uuid4().hex[:8]}",
+        full_name="Mode A Member",
+        initials=uuid.uuid4().hex[:3].upper(),
+        is_active=True,
+    )
+    session.add_all([role, branch, user])
+    session.commit()
+    return user.id
+
+
+def _dev_principal(user_id: uuid.UUID, *, roles: tuple[str, ...] = ("SUPERVISOR",)) -> Principal:
+    """No orgUnitId claim — dev-mode tokens never carry one."""
+    return Principal(
+        user_id=user_id,
+        roles=roles,
+        permissions=frozenset(
+            {
+                "complaints:create",
+                "complaints:read",
+                "complaints:update",
+                "complaints:escalate",
+                "attachment:read",
+            }
+        ),
+        org_unit_id=None,
+    )
+
+
+@pytest.fixture()
+def dev_org_api_client(
+    dev_db_session: Session,
+) -> Generator[dict[str, object], None, None]:
+    from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
+    from app.core.config import Settings, get_settings
+
+    settings = Settings(
+        environment="development",
+        ecmp_auth_mode="dev",
+        ecmp_env="local",
+        jwt_secret_key="test-secret-key-for-cm-case-mode-a-visibility",
+        jwt_algorithm="HS256",
+    )
+    assert org_scope_enforcement_enabled(settings) is False
+
+    app = create_app()
+    svc = CaseApplicationService(
+        SqlAlchemyCaseRepository(dev_db_session),
+        side_effects=NoOpSideEffects(),
+    )
+    state: dict[str, Principal] = {
+        "principal": _dev_principal(uuid.uuid4())
+    }
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: dev_db_session
+    app.dependency_overrides[get_settings] = lambda: settings
+    client = TestClient(app)
+    try:
+        yield {"client": client, "state": state, "service": svc}
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+def _seed_case(
+    service: CaseApplicationService, complaint_id: str, unit: str
+) -> str:
+    dto = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Mode A visibility",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="seed",
+            destination_unit_id=unit,
+        )
+    )
+    return dto.case_id
+
+
+def test_mode_a_cross_unit_case_read_denied_404(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    """Cabang B may not open Cabang A's Case by id — and gets no existence
+    oracle: 404, the same no-leak shape Internal complaints already use."""
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    service: CaseApplicationService = dev_org_api_client["service"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    case_id = _seed_case(service, complaint_id, "OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    denied = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert denied.status_code == 404, denied.text
+    assert denied.json()["code"] == "NOT_FOUND"
+
+    history_denied = client.get(f"/api/v1/cm/cases/{case_id}/history")
+    assert history_denied.status_code == 404
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-A"))
+    allowed = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert allowed.status_code == 200, allowed.text
+    assert allowed.json()["data"]["caseId"] == case_id
+
+
+def test_mode_a_cross_unit_case_mutation_denied(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    service: CaseApplicationService = dev_org_api_client["service"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    case_id = _seed_case(service, complaint_id, "OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    status_denied = client.patch(
+        f"/api/v1/cm/cases/{case_id}/status", json={"toStatus": "IN_PROGRESS"}
+    )
+    assert status_denied.status_code == 404, status_denied.text
+    close_denied = client.post(f"/api/v1/cm/cases/{case_id}/close", json={})
+    assert close_denied.status_code == 404
+    escalate_denied = client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Tidak dapat diselesaikan di unit ini."},
+    )
+    assert escalate_denied.status_code == 404
+
+    # The mutation really did not happen.
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-A"))
+    unchanged = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert unchanged.json()["data"]["status"] == "ASSIGNED"
+
+
+def test_mode_a_cross_unit_complaint_read_denied_404(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    denied = client.get(f"/api/v1/cm/complaints/{complaint_id}")
+    assert denied.status_code == 404, denied.text
+    history_denied = client.get(f"/api/v1/cm/complaints/{complaint_id}/history")
+    assert history_denied.status_code == 404
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-A"))
+    allowed = client.get(f"/api/v1/cm/complaints/{complaint_id}")
+    assert allowed.status_code == 200, allowed.text
+
+
+def test_mode_a_cross_unit_intake_escalation_denied(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    """Mutasi eskalasi lintas cabang ditolak di Mode A."""
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    decision = client.post(
+        f"/api/v1/cm/complaints/{complaint_id}/intake-escalation/decision",
+        json={"decision": "APPROVE", "note": "Setuju"},
+    )
+    assert decision.status_code == 404, decision.text
+    requested = client.post(
+        f"/api/v1/cm/complaints/{complaint_id}/intake-escalation/request",
+        json={"reason": "Perlu ditinjau ulang oleh Pusat untuk kasus ini."},
+    )
+    assert requested.status_code == 404, requested.text
+
+
+def test_mode_a_pusat_actor_is_scoped_by_escalation_predicate(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    """Pusat is not "every branch": a branch complaint that never took the
+    escalate path stays invisible; the approved one opens."""
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    branch_only = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    escalated = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    row = dev_db_session.get(CmBatch1ComplaintORM, uuid.UUID(escalated))
+    assert row is not None
+    row.intake_disposition = "ESCALATE_APPROVED"
+    dev_db_session.commit()
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "PUSAT"))
+    denied = client.get(f"/api/v1/cm/complaints/{branch_only}")
+    assert denied.status_code == 404, denied.text
+    allowed = client.get(f"/api/v1/cm/complaints/{escalated}")
+    assert allowed.status_code == 200, allowed.text
+
+
+def test_mode_a_pusat_actor_may_read_case_escalated_to_pusat(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    service: CaseApplicationService = dev_org_api_client["service"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    branch_case = _seed_case(service, complaint_id, "OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "PUSAT"))
+    denied = client.get(f"/api/v1/cm/cases/{branch_case}")
+    assert denied.status_code == 404, denied.text
+
+    row = dev_db_session.get(CmCaseORM, uuid.UUID(branch_case))
+    assert row is not None
+    row.escalated_to_pusat = True
+    dev_db_session.commit()
+    allowed = client.get(f"/api/v1/cm/cases/{branch_case}")
+    assert allowed.status_code == 200, allowed.text

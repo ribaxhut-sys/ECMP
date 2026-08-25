@@ -481,15 +481,6 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
     with pytest.raises(ValidationAppError, match="kedaluwarsa"):
         svc.ensure_staging_token("STG-2", actor_id="u1")
 
-    with pytest.raises(ValidationAppError, match="CaseId"):
-        svc.upload(
-            data=b"x",
-            filename="a.pdf",
-            content_type="application/pdf",
-            classification="customer_evidence",
-            actor_id="u1",
-            case_id="CASE-1",
-        )
     with pytest.raises(ValidationAppError, match="[Kk]lasifikasi"):
         svc.upload(
             data=b"x",
@@ -544,6 +535,20 @@ def test_attachment_service_validation_and_abandon_paths() -> None:
         )
 
     antivirus.scan.return_value = AntivirusResult(clean=True, engine="stub", detail="ok")
+
+    # The Case pin is resolved *after* the security scan, so this probe only
+    # reaches it once the stub reports clean — a dirty file is rejected before
+    # anything else is looked up, which is the order production wants.
+    with pytest.raises(ValidationAppError, match="CaseId"):
+        svc.upload(
+            data=b"pdf-bytes",
+            filename="a.pdf",
+            content_type="application/pdf",
+            classification="customer_evidence",
+            actor_id="u1",
+            case_id="CASE-1",
+        )
+
     bad_algo = DefaultAttachmentConfigProvider(
         _config=AttachmentConfig(checksum_algorithm="MD5")
     )

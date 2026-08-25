@@ -9,11 +9,14 @@ import {
   Card,
   CardBody,
   Empty,
+  ErrorState,
   FilterBar,
   Input,
   PageContainer,
   PageHeader,
+  Pagination,
   Select,
+  Skeleton,
   Table,
   WorkspaceToolbar,
   type SelectOption,
@@ -43,33 +46,55 @@ import {
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
 
+/** Client-side page window over the filtered rows. */
+const LIST_PAGE_SIZE = 20;
+
 export function InternalComplaintListView() {
   const router = useRouter();
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
   const locale = useLocale();
-  const { rows: allRows, loading, error } = useInternalComplaints();
+  const {
+    rows: allRows,
+    total,
+    truncated,
+    loading,
+    error,
+    reload,
+  } = useInternalComplaints();
 
   const [filters, setFilters] = useState<InternalListFilters>(
     defaultInternalListFilters(),
   );
   const [draft, setDraft] = useState<InternalListFilters>(filters);
+  const [page, setPage] = useState(1);
 
   const rows = useMemo(
     () => sortByMostRecent(filterInternalComplaints(allRows, filters)),
     [allRows, filters],
   );
+  // Filters are client-side (the API filters status only), so the page window
+  // is applied after filtering — same shape as the attachment catalog.
+  const totalPages = Math.max(1, Math.ceil(rows.length / LIST_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = useMemo(
+    () =>
+      rows.slice((currentPage - 1) * LIST_PAGE_SIZE, currentPage * LIST_PAGE_SIZE),
+    [rows, currentPage],
+  );
 
   function onSubmitFilters(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setFilters(draft);
+    setPage(1);
   }
 
   function onResetFilters(): void {
     const next = defaultInternalListFilters();
     setDraft(next);
     setFilters(next);
+    setPage(1);
   }
 
   const statusOptions: SelectOption[] = [
@@ -223,6 +248,13 @@ export function InternalComplaintListView() {
           />
           <form id="internal-filters" onSubmit={onSubmitFilters} className="hidden" />
 
+          {truncated ? (
+            <Alert
+              tone="warning"
+              title={t("partialDataWarning", { loaded: allRows.length, total })}
+            />
+          ) : null}
+
           <WorkspaceToolbar
             summary={
               hasActiveInternalFilters(filters)
@@ -232,18 +264,31 @@ export function InternalComplaintListView() {
           />
 
           {loading ? (
-            <Empty title={tCommon("loading")} description="" />
+            <Skeleton rows={6} />
+          ) : error ? (
+            <ErrorState message={error} onRetry={reload} />
           ) : rows.length === 0 ? (
             <Empty
               title={t("listEmpty")}
               description={t("listEmptyDescription")}
             />
           ) : (
-            <Table
-              columns={columns}
-              rows={rows}
-              getRowKey={(row) => row.id}
-            />
+            <>
+              <Table
+                columns={columns}
+                rows={pageRows}
+                getRowKey={(row) => row.id}
+              />
+              <Pagination
+                summary={tCommon("pageOf", { page: currentPage, totalPages })}
+                previousLabel={tCommon("previous")}
+                nextLabel={tCommon("next")}
+                onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                previousDisabled={currentPage <= 1}
+                nextDisabled={currentPage >= totalPages}
+              />
+            </>
           )}
         </CardBody>
       </Card>

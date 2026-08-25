@@ -44,6 +44,7 @@ from app.modules.cm_batch1.models import (
     CmBatch1IdempotencyORM,
     CmBatch1LaterReviewItemORM,
     CmBatch1NumberCounterORM,
+    CmBatch1OutboxORM,
 )
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.router import get_cm_batch1_service
@@ -71,6 +72,9 @@ _TABLES = [
     CmCaseORM.__table__,
     CmBatch1AttachmentORM.__table__,
     CmBatch1AttachmentHistoryORM.__table__,
+    # Org resolution falls back to the ComplaintCreated outbox payload when a
+    # row predates owning_unit_id — the attachment routes resolve units now.
+    CmBatch1OutboxORM.__table__,
 ]
 
 

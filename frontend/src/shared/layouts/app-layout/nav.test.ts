@@ -140,7 +140,7 @@ describe("APP_NAV_GROUPS", () => {
 describe("complaints nav permission gate (Commit 6)", () => {
   const complaintsItem = APP_NAV_ITEMS.find((item) => item.id === "complaints")!;
 
-  it("gates only the complaints, cases, followUp, closed, hqSchedule, announcements, and knowledge items", () => {
+  it("gates the module items whose page needs a permission (G4-1 adds users, settings, attachments, reports)", () => {
     const gatedItemIds = new Set([
       "complaints",
       "cases",
@@ -150,6 +150,10 @@ describe("complaints nav permission gate (Commit 6)", () => {
       "announcements",
       "announcementsManage",
       "knowledge",
+      "attachments",
+      "reports",
+      "users",
+      "settings",
     ]);
     for (const item of APP_NAV_ITEMS) {
       if (gatedItemIds.has(item.id)) {
@@ -218,6 +222,42 @@ describe("complaints nav permission gate (Commit 6)", () => {
     const knowledgeItem = APP_NAV_ITEMS.find((item) => item.id === "knowledge")!;
     expect(knowledgeItem.requiredPermissions).toEqual(["knowledge:read"]);
     expect(knowledgeItem.href).toBe("/knowledge");
+  });
+
+  it("gates the admin-facing items on their own catalog permission (G4-1)", () => {
+    const byId = (id: string) => APP_NAV_ITEMS.find((item) => item.id === id)!;
+    expect(byId("users").requiredPermissions).toEqual(["users:read"]);
+    expect(byId("attachments").requiredPermissions).toEqual(["attachment:read"]);
+    expect(byId("reports").requiredPermissions).toEqual(["reports:read"]);
+    expect(byId("settings").requiredPermissions).toEqual([
+      "settings:read",
+      "settings:update",
+      "sla:read",
+      "sla:manage",
+    ]);
+  });
+
+  it("hides Pengguna from an Agent and keeps it for a Supervisor (rbac.py matrix)", () => {
+    const agent = new Set([
+      "complaints:create",
+      "complaints:read",
+      "complaints:update",
+      "complaints:close",
+      "reports:read",
+      "attachment:read",
+    ]);
+    const supervisor = new Set([...agent, "users:read"]);
+    const usersItem = APP_NAV_ITEMS.find((item) => item.id === "users")!;
+    expect(isNavItemVisible(usersItem, (p) => agent.has(p))).toBe(false);
+    expect(isNavItemVisible(usersItem, (p) => supervisor.has(p))).toBe(true);
+  });
+
+  it("keeps Pengaturan for an sla-only admin and hides it from an Agent", () => {
+    const settingsItem = APP_NAV_ITEMS.find((item) => item.id === "settings")!;
+    expect(isNavItemVisible(settingsItem, (p) => p === "sla:read")).toBe(true);
+    expect(
+      isNavItemVisible(settingsItem, (p) => p === "complaints:read"),
+    ).toBe(false);
   });
 });
 

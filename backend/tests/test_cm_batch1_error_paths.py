@@ -580,8 +580,11 @@ def test_list_filters_and_work_stats_http(api_client: TestClient) -> None:
         "/api/v1/cm/complaints?priority=NOPE&status=BOGUS&intakeDisposition=ZZZ"
     )
     assert listed.status_code == 200
+    # G2-4: the panel is scoped to users the caller may see. A random id is
+    # not the caller and resolves to no member, so it is 404 — the same shape
+    # GET /users/{id} already returns for an unknown target.
     stats = api_client.get(f"/api/v1/cm/complaints/work-stats/{uuid4()}")
-    assert stats.status_code == 200
+    assert stats.status_code == 404
     write = api_client.post("/api/v1/cm/customers/write-back")
     assert write.status_code == 400
     three60 = api_client.get("/api/v1/cm/customers/CUST-10001/batch1-360")

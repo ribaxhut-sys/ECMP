@@ -3946,7 +3946,8 @@
     "completionReturnReason": "Permintaan kelengkapan",
     "resendNoteLabel": "Catatan kirim ulang",
     "activityRETURNED_FOR_COMPLETION": "Dikembalikan ke cabang (berkas kurang)",
-    "activityRESENT_TO_PUSAT": "Dikirim ulang ke Pusat"
+    "activityRESENT_TO_PUSAT": "Dikirim ulang ke Pusat",
+    "partialDataWarning": "Menampilkan {loaded} dari {total} pengaduan. Angka pada halaman ini dihitung dari data yang termuat."
   },
   "landing": {
     "title": "Pengaduan",

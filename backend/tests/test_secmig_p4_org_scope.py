@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -27,7 +27,8 @@ from app.core.authorization.org_unit_guard import (
 from app.core.authorization.org_unit_resolver import OrgUnitResolver
 from app.core.authorization.principal import Principal
 from app.core.config import Settings, get_settings
-from app.core.errors import NotFoundError, OrgScopeDeniedError
+from app.core.errors import NotFoundError, OrgScopeDeniedError, ValidationAppError
+from app.core.schemas import PageMeta
 from app.db.session import get_db_session
 from app.main import create_app
 from app.models import Branch, User
@@ -37,11 +38,13 @@ from app.modules.cm_batch1.router import get_cm_batch1_attachment_service, get_c
 from app.modules.cm_batch1.schemas import (
     ComplaintBatch1Response,
     DuplicateDecisionResponse,
+    SupervisorQueueResponse,
     TransferAttachmentsResponse,
+    UserWorkStatsResponse,
 )
 from app.modules.complaints.router import get_complaint_service
 from app.modules.users.router import get_user_service
-from app.modules.users.schemas import UserResponse
+from app.modules.users.schemas import AdminResetPasswordResponse, UserResponse
 
 
 def _jwt_settings(**overrides: object) -> Settings:
@@ -1837,4 +1840,1088 @@ def test_http_get_user_org_scope_noop_in_dev_mode(
         service.get.assert_called_once_with(member_in_b)
     finally:
         app.dependency_overrides.clear()
+        client.close()
+
+
+# --- G1-3 (P0-4) — GET /attachments/{id} metadata: authorize, then short-circuit ---
+
+
+def test_get_attachment_batch1_linked_cross_unit_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Batch 1 early return used to bypass the org check entirely."""
+    from app.modules.attachment.router import get_attachment
+
+    service = MagicMock()
+    linked = MagicMock()
+    linked.complaint_id = str(uuid.uuid4())
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = linked
+
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    settings = _jwt_settings()
+    principal = _principal(org_unit_id="OU-B")
+
+    with pytest.raises(OrgScopeDeniedError):
+        get_attachment(uuid.uuid4(), service, batch1, principal, MagicMock(), settings)
+    service.get.assert_not_called()
+
+
+def test_get_attachment_batch1_linked_by_batch_id_same_unit_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Second lookup shape (Batch 1 id, not platform id) is guarded too."""
+    from app.modules.attachment.router import get_attachment
+
+    service = MagicMock()
+    linked = MagicMock()
+    linked.complaint_id = str(uuid.uuid4())
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = None
+    batch1.try_get.return_value = linked
+
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    settings = _jwt_settings()
+    principal = _principal(org_unit_id="OU-A")
+
+    resp = get_attachment(uuid.uuid4(), service, batch1, principal, MagicMock(), settings)
+    assert resp.data is linked
+    service.get.assert_not_called()
+
+
+def test_get_attachment_batch1_linked_without_complaint_skips_enforcement() -> None:
+    """Unbound Batch 1 attachment (staging upload) has nothing to scope against."""
+    from app.modules.attachment.router import get_attachment
+
+    service = MagicMock()
+    linked = MagicMock()
+    linked.complaint_id = None
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = linked
+
+    resp = get_attachment(
+        uuid.uuid4(), service, batch1, _principal(org_unit_id="OU-B"), MagicMock(), _jwt_settings()
+    )
+    assert resp.data is linked
+
+
+# --- G1-1 (P0-1) — PUT /users/{id} unit compare ------------------------------
+
+
+def test_http_update_user_same_unit_allowed(users_scope_client: dict[str, Any]) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["service"].update.return_value = _fake_user_response()
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.put(
+        f"/api/v1/users/{users_scope_client['member_in_a']}",
+        json={"fullName": "Member One Updated"},
+    )
+    assert resp.status_code == 200, resp.text
+    users_scope_client["service"].update.assert_called_once()
+
+
+def test_http_update_user_cross_unit_denied(users_scope_client: dict[str, Any]) -> None:
+    """P0-1 — a branch administrator must not edit another unit's member."""
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["service"].update.return_value = _fake_user_response()
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.put(
+        f"/api/v1/users/{users_scope_client['member_in_b']}",
+        json={"fullName": "Member Two Updated"},
+    )
+    assert resp.status_code == 403
+    body = resp.json()
+    assert body["code"] == "ORG_SCOPE_DENIED"
+    assert body["details"]["reason"] == "org_unit_mismatch"
+    users_scope_client["service"].update.assert_not_called()
+
+
+def test_http_update_user_head_office_admin_unrestricted(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["service"].update.return_value = _fake_user_response()
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.put(
+        f"/api/v1/users/{users_scope_client['member_in_b']}",
+        json={"fullName": "Member Two Updated"},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_http_update_user_unknown_target_not_found(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """Unknown id resolves to 404 (OrgUnitResolver.resolve_user), not 403 —
+    same shape the status endpoint already returns."""
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.put(
+        f"/api/v1/users/{uuid.uuid4()}", json={"fullName": "Ghost"}
+    )
+    assert resp.status_code == 404
+    users_scope_client["service"].update.assert_not_called()
+
+
+def _dev_users_app(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    session: Any,
+    principal: Principal,
+    service: MagicMock,
+) -> TestClient:
+    """Mode A wiring (no orgUnitId claim) for the domain-parity tests below."""
+    settings = _dev_settings()
+    monkeypatch.setattr("app.modules.users.router.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.core.authorization.org_unit_guard.get_settings", lambda: settings
+    )
+    app = create_app()
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_user_service] = lambda: service
+    return TestClient(app)
+
+
+def test_http_update_user_dev_mode_membership_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mode A must behave exactly like Mode B — cross-unit isolation is a
+    domain rule, and the actor's unit comes from the DB membership record."""
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    manager_id = uuid.uuid4()
+    member_in_a = uuid.uuid4()
+    member_in_b = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={
+            manager_id: _fake_member(manager_id, branch_a),
+            member_in_a: _fake_member(member_in_a, branch_a),
+            member_in_b: _fake_member(member_in_b, branch_b),
+        },
+    )
+    service = MagicMock()
+    service.update.return_value = _fake_user_response()
+    principal = _principal(
+        user_id=manager_id,
+        org_unit_id=None,
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    client = _dev_users_app(
+        monkeypatch, session=session, principal=principal, service=service
+    )
+    try:
+        same = client.put(
+            f"/api/v1/users/{member_in_a}", json={"fullName": "Same Unit"}
+        )
+        assert same.status_code == 200, same.text
+        cross = client.put(
+            f"/api/v1/users/{member_in_b}", json={"fullName": "Cross Unit"}
+        )
+        assert cross.status_code == 403
+        assert cross.json()["details"]["reason"] == "org_unit_mismatch"
+        service.update.assert_called_once()
+    finally:
+        client.app.dependency_overrides.clear()
+        client.close()
+
+
+# --- G1-2 (P0-2) — POST /users/{id}/reset-password unit compare --------------
+
+
+def _reset_response(user_id: uuid.UUID) -> AdminResetPasswordResponse:
+    return AdminResetPasswordResponse.model_validate(
+        {"userId": user_id, "temporaryPassword": "Temp-Pass-1!"}
+    )
+
+
+def test_http_admin_reset_password_same_unit_allowed(
+    users_scope_client: dict[str, Any],
+) -> None:
+    """SEC-PWD-001 stays available in Mode A — only narrowed, never removed."""
+    client: TestClient = users_scope_client["client"]
+    target = users_scope_client["member_in_a"]
+    users_scope_client["service"].admin_reset_password.return_value = _reset_response(target)
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:reset_password"}),
+    )
+    resp = client.post(f"/api/v1/users/{target}/reset-password")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["temporaryPassword"]
+    users_scope_client["service"].admin_reset_password.assert_called_once()
+
+
+def test_http_admin_reset_password_cross_unit_denied(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    target = users_scope_client["member_in_b"]
+    users_scope_client["service"].admin_reset_password.return_value = _reset_response(target)
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:reset_password"}),
+    )
+    resp = client.post(f"/api/v1/users/{target}/reset-password")
+    assert resp.status_code == 403
+    body = resp.json()
+    assert body["code"] == "ORG_SCOPE_DENIED"
+    assert body["details"]["reason"] == "org_unit_mismatch"
+    users_scope_client["service"].admin_reset_password.assert_not_called()
+
+
+def test_http_admin_reset_password_head_office_admin_unrestricted(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    target = users_scope_client["member_in_b"]
+    users_scope_client["service"].admin_reset_password.return_value = _reset_response(target)
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id=None,
+        roles=("ADMIN",),
+        permissions=frozenset({"users:reset_password"}),
+    )
+    resp = client.post(f"/api/v1/users/{target}/reset-password")
+    assert resp.status_code == 200, resp.text
+
+
+def test_http_admin_reset_password_dev_mode_membership_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    manager_id = uuid.uuid4()
+    member_in_a = uuid.uuid4()
+    member_in_b = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={
+            manager_id: _fake_member(manager_id, branch_a),
+            member_in_a: _fake_member(member_in_a, branch_a),
+            member_in_b: _fake_member(member_in_b, branch_b),
+        },
+    )
+    service = MagicMock()
+    service.admin_reset_password.return_value = _reset_response(member_in_a)
+    principal = _principal(
+        user_id=manager_id,
+        org_unit_id=None,
+        roles=("MANAGER",),
+        permissions=frozenset({"users:reset_password"}),
+    )
+    client = _dev_users_app(
+        monkeypatch, session=session, principal=principal, service=service
+    )
+    try:
+        same = client.post(f"/api/v1/users/{member_in_a}/reset-password")
+        assert same.status_code == 200, same.text
+        cross = client.post(f"/api/v1/users/{member_in_b}/reset-password")
+        assert cross.status_code == 403
+        assert cross.json()["details"]["reason"] == "org_unit_mismatch"
+        service.admin_reset_password.assert_called_once()
+    finally:
+        client.app.dependency_overrides.clear()
+        client.close()
+
+
+# --- G2-0 — GET/DOWNLOAD attachment: domain rule, Mode A included ------------
+
+
+def _mode_a_actor_session(unit_code: str) -> tuple[uuid.UUID, Any]:
+    """Mode A actor: no orgUnitId claim, unit known only from DB membership."""
+    actor_id = uuid.uuid4()
+    branch_id = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={branch_id: _fake_branch(branch_id, unit_code)},
+        users_by_id={actor_id: _fake_member(actor_id, branch_id)},
+    )
+    return actor_id, session
+
+
+def _linked_batch1(complaint_id: str | None) -> tuple[MagicMock, MagicMock]:
+    linked = MagicMock()
+    linked.complaint_id = complaint_id
+    batch1 = MagicMock()
+    batch1.try_get_by_platform_id.return_value = linked
+    batch1.resolve_platform_attachment_id.side_effect = lambda aid: aid
+    return linked, batch1
+
+
+def test_get_attachment_batch1_cross_unit_denied_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G2-0 — the residual: enforce_org_scope is a no-op in Mode A, so the
+    metadata gate must be the domain assert, not the SECMIG-P4 guard."""
+    from app.modules.attachment.router import get_attachment
+
+    settings = _dev_settings()
+    assert not org_scope_enforcement_enabled(settings)
+    actor_id, session = _mode_a_actor_session("OU-B")
+    _, batch1 = _linked_batch1(str(uuid.uuid4()))
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    with pytest.raises(OrgScopeDeniedError):
+        get_attachment(uuid.uuid4(), MagicMock(), batch1, principal, session, settings)
+
+
+def test_get_attachment_batch1_same_unit_allowed_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import get_attachment
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-A")
+    linked, batch1 = _linked_batch1(str(uuid.uuid4()))
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    resp = get_attachment(
+        uuid.uuid4(), MagicMock(), batch1, principal, session, settings
+    )
+    assert resp.data is linked
+
+
+def test_download_attachment_batch1_cross_unit_denied_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Metadata and download must agree — download was jwt-only as well."""
+    from app.modules.attachment.router import download_attachment
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-B")
+    _, batch1 = _linked_batch1(str(uuid.uuid4()))
+    entity = _attachment_entity(aggregate_type="Complaint", aggregate_id=uuid.uuid4())
+    service = MagicMock()
+    service.download.return_value = (entity, b"data")
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    with pytest.raises(OrgScopeDeniedError):
+        download_attachment(
+            uuid.uuid4(), service, batch1, principal, session, settings
+        )
+
+
+def test_download_attachment_batch1_same_unit_allowed_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import download_attachment
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-A")
+    _, batch1 = _linked_batch1(str(uuid.uuid4()))
+    entity = _attachment_entity(aggregate_type="Complaint", aggregate_id=uuid.uuid4())
+    service = MagicMock()
+    service.download.return_value = (entity, b"data")
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    resp = download_attachment(
+        uuid.uuid4(), service, batch1, principal, session, settings
+    )
+    assert resp.body == b"data"
+
+
+def test_get_attachment_batch1_pusat_actor_allowed_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pusat passes when the parent complaint cannot be loaded — CAP-011 is
+    aggregate-agnostic, so there is nothing to judge (G3 narrows the case
+    where the row *is* loadable; see the Pusat predicate tests below)."""
+    from app.modules.attachment.router import get_attachment
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("PUSAT-CRO")
+    linked, batch1 = _linked_batch1(str(uuid.uuid4()))
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    resp = get_attachment(
+        uuid.uuid4(), MagicMock(), batch1, principal, session, settings
+    )
+    assert resp.data is linked
+
+
+# --- G2-1 — GET /attachments (list): no cross-unit enumeration ---------------
+
+
+def _empty_list_service() -> MagicMock:
+    service = MagicMock()
+    service.list.return_value = ([], PageMeta(page=1, pageSize=50, totalItems=0))
+    return service
+
+
+def test_list_attachments_unscoped_rejected_for_unit_actor_in_dev_mode() -> None:
+    """Without an aggregate the catalog page leaks other units' aggregateIds."""
+    from app.modules.attachment.router import list_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-B")
+    service = _empty_list_service()
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    with pytest.raises(ValidationAppError):
+        list_attachments(service, principal, session, settings)
+    service.list.assert_not_called()
+
+
+def test_list_attachments_unscoped_allowed_for_admin_in_dev_mode() -> None:
+    """ALL-visibility principals already see every row — unchanged for them."""
+    from app.modules.attachment.router import list_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-B")
+    service = _empty_list_service()
+    principal = _principal(user_id=actor_id, org_unit_id=None, roles=("ADMIN",))
+
+    listed = list_attachments(service, principal, session, settings)
+    assert listed.meta.total_items == 0
+    service.list.assert_called_once()
+
+
+def test_list_attachments_complaint_aggregate_cross_unit_denied_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import list_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-B")
+    service = _empty_list_service()
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    with pytest.raises(OrgScopeDeniedError):
+        list_attachments(
+            service,
+            principal,
+            session,
+            settings,
+            aggregate_type="Complaint",
+            aggregate_id=uuid.uuid4(),
+        )
+    service.list.assert_not_called()
+
+
+def test_list_attachments_complaint_aggregate_same_unit_allowed_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import list_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-A")
+    service = _empty_list_service()
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    listed = list_attachments(
+        service,
+        principal,
+        session,
+        settings,
+        aggregate_type="Complaint",
+        aggregate_id=uuid.uuid4(),
+    )
+    assert listed.meta.total_items == 0
+
+
+# --- G2-2 — GET /complaints/{id}/attachments --------------------------------
+
+
+def _patch_cm_repo_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the router see the id as an existing Batch 1 Aggregate complaint."""
+
+    class _Repo:
+        def __init__(self, _session: Any) -> None: ...
+
+        def get(self, _complaint_id: str) -> object:
+            return object()
+
+    monkeypatch.setattr("app.modules.attachment.router.CmBatch1Repository", _Repo)
+
+
+def test_list_complaint_attachments_cross_unit_denied_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replaces the bare ``_ = principal`` — Mode A must deny as well."""
+    from app.modules.attachment.router import list_complaint_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-B")
+    _patch_cm_repo_found(monkeypatch)
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    batch1 = MagicMock()
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    with pytest.raises(OrgScopeDeniedError):
+        list_complaint_attachments(
+            uuid.uuid4(),
+            MagicMock(),
+            batch1,
+            session,
+            principal,
+            settings,
+        )
+    batch1.list_for_complaint.assert_not_called()
+
+
+def test_list_complaint_attachments_same_unit_allowed_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import list_complaint_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-A")
+    _patch_cm_repo_found(monkeypatch)
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    batch1 = MagicMock()
+    batch1.list_for_complaint.return_value = []
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    listed = list_complaint_attachments(
+        uuid.uuid4(),
+        MagicMock(),
+        batch1,
+        session,
+        principal,
+        settings,
+    )
+    assert listed.meta.total_items == 0
+    batch1.list_for_complaint.assert_called_once()
+
+
+# --- G2-3 — GET /cm/supervisor/queue: aging list is unit-scoped -------------
+
+
+class _QueueStore:
+    """Only the three reads ``get_supervisor_queue`` performs."""
+
+    def __init__(self, complaints: list[Any], later: list[Any]) -> None:
+        self._complaints = {row.complaint_id: row for row in complaints}
+        self._later = later
+
+    def get(self, complaint_id: str) -> Any:
+        return self._complaints.get((complaint_id or "").strip())
+
+    def list_later_review_items(self, *, status: str = "OPEN", limit: int = 100) -> list[Any]:
+        _ = status, limit
+        return list(self._later)
+
+    def list_aging_without_case(self, *, older_than: Any, limit: int = 100) -> list[Any]:
+        _ = older_than, limit
+        return list(self._complaints.values())
+
+
+def _aging_complaint(
+    complaint_id: str,
+    unit: str,
+    *,
+    created_by: str = "someone",
+    intake_disposition: str | None = None,
+) -> Any:
+    from app.modules.cm_batch1.entities import ComplaintAggregate
+
+    return ComplaintAggregate(
+        intake_disposition=intake_disposition,
+        complaint_id=complaint_id,
+        complaint_number=f"CMP-{complaint_id}",
+        customer_id="CUST-1",
+        category="BILLING",
+        channel="BRANCH",
+        subject="s",
+        description="d",
+        priority="MEDIUM",
+        owning_unit_id=unit,
+        created_by=created_by,
+        created_at=datetime.now(UTC) - timedelta(hours=48),
+    )
+
+
+def _later_item(work_item_id: str, complaint_id: str | None) -> Any:
+    from app.modules.cm_batch1.entities import LaterReviewWorkItem
+
+    return LaterReviewWorkItem(
+        work_item_id=work_item_id,
+        customer_id="CUST-1",
+        reason="duplicate_check_degraded",
+        status="OPEN",
+        complaint_id=complaint_id,
+        created_at=datetime.now(UTC) - timedelta(hours=48),
+    )
+
+
+def _queue_service(store: _QueueStore) -> Any:
+    from app.modules.cm_batch1.service import CmBatch1Service
+
+    return CmBatch1Service(store=store)
+
+
+def test_supervisor_queue_unit_actor_sees_only_own_unit() -> None:
+    """API-513 — a branch actor must not read the whole province's aging."""
+    store = _QueueStore(
+        complaints=[_aging_complaint("c-a", "OU-A"), _aging_complaint("c-b", "OU-B")],
+        later=[_later_item("LR-A", "c-a"), _later_item("LR-B", "c-b")],
+    )
+    queue = _queue_service(store).get_supervisor_queue(
+        visibility="UNIT", actor_unit_id="OU-A", actor_id="u1"
+    )
+    assert [c.complaint_id for c in queue.aging_complaints] == ["c-a"]
+    assert [i.work_item_id for i in queue.later_review_items] == ["LR-A"]
+
+
+def test_supervisor_queue_unbound_later_review_stays_visible() -> None:
+    """A work item raised before its complaint exists belongs to no unit, so
+    it is not another unit's either (see the note in the service)."""
+    store = _QueueStore(complaints=[], later=[_later_item("LR-X", None)])
+    queue = _queue_service(store).get_supervisor_queue(
+        visibility="UNIT", actor_unit_id="OU-A", actor_id="u1"
+    )
+    assert [i.work_item_id for i in queue.later_review_items] == ["LR-X"]
+
+
+def test_supervisor_queue_defaults_to_everything_for_internal_callers() -> None:
+    store = _QueueStore(
+        complaints=[_aging_complaint("c-a", "OU-A"), _aging_complaint("c-b", "OU-B")],
+        later=[],
+    )
+    queue = _queue_service(store).get_supervisor_queue()
+    assert len(queue.aging_complaints) == 2
+
+
+def test_http_supervisor_queue_passes_dev_mode_membership_class(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mode A: the class and unit come from DB membership, not from a claim."""
+    from app.modules.cm_batch1.router import get_cm_batch1_service
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-A")
+    service = MagicMock()
+    service.get_supervisor_queue.return_value = SupervisorQueueResponse(
+        laterReviewItems=[],
+        agingComplaints=[],
+        agingThresholdHours=24,
+        asOf=datetime.now(UTC),
+    )
+    app = create_app()
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:read"}),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_cm_batch1_service] = lambda: service
+    client = TestClient(app)
+    try:
+        resp = client.get("/api/v1/cm/supervisor/queue")
+        assert resp.status_code == 200, resp.text
+        kwargs = service.get_supervisor_queue.call_args.kwargs
+        assert kwargs["visibility"] == "UNIT"
+        assert kwargs["actor_unit_id"] == "OU-A"
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+# --- G2-4 — GET /cm/complaints/work-stats/{user_id} -------------------------
+
+
+def _work_stats_client(
+    monkeypatch: pytest.MonkeyPatch, *, session: Any, principal: Principal
+) -> tuple[TestClient, MagicMock]:
+    from app.modules.cm_batch1.router import get_cm_batch1_service
+
+    settings = _dev_settings()
+    service = MagicMock()
+    service.work_stats_for_user.return_value = UserWorkStatsResponse(
+        createdCount=0,
+        escalationRequestedCount=0,
+        escalationApprovedCount=0,
+        escalationRejectedCount=0,
+    )
+    app = create_app()
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_cm_batch1_service] = lambda: service
+    return TestClient(app), service
+
+
+def test_http_work_stats_cross_unit_denied_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    actor_id = uuid.uuid4()
+    target_id = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={
+            actor_id: _fake_member(actor_id, branch_a),
+            target_id: _fake_member(target_id, branch_b),
+        },
+    )
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:read"}),
+    )
+    client, service = _work_stats_client(
+        monkeypatch, session=session, principal=principal
+    )
+    try:
+        resp = client.get(f"/api/v1/cm/complaints/work-stats/{target_id}")
+        assert resp.status_code == 403
+        assert resp.json()["details"]["reason"] == "org_unit_mismatch"
+        service.work_stats_for_user.assert_not_called()
+    finally:
+        client.app.dependency_overrides.clear()
+        client.close()
+
+
+def test_http_work_stats_same_unit_and_self_allowed_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    branch_a = uuid.uuid4()
+    actor_id = uuid.uuid4()
+    target_id = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={branch_a: _fake_branch(branch_a, "OU-A")},
+        users_by_id={
+            actor_id: _fake_member(actor_id, branch_a),
+            target_id: _fake_member(target_id, branch_a),
+        },
+    )
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:read"}),
+    )
+    client, service = _work_stats_client(
+        monkeypatch, session=session, principal=principal
+    )
+    try:
+        same_unit = client.get(f"/api/v1/cm/complaints/work-stats/{target_id}")
+        assert same_unit.status_code == 200, same_unit.text
+        own = client.get(f"/api/v1/cm/complaints/work-stats/{actor_id}")
+        assert own.status_code == 200, own.text
+        assert service.work_stats_for_user.call_count == 2
+    finally:
+        client.app.dependency_overrides.clear()
+        client.close()
+
+
+def test_http_work_stats_non_user_key_denied_for_branch_actor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Free-text created_by keys have no unit — Head Office only."""
+    actor_id, session = _mode_a_actor_session("OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:read"}),
+    )
+    client, service = _work_stats_client(
+        monkeypatch, session=session, principal=principal
+    )
+    try:
+        resp = client.get("/api/v1/cm/complaints/work-stats/agent-1")
+        assert resp.status_code == 403
+        service.work_stats_for_user.assert_not_called()
+    finally:
+        client.app.dependency_overrides.clear()
+        client.close()
+
+
+def test_http_work_stats_head_office_admin_unrestricted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor_id, session = _mode_a_actor_session("OU-A")
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("ADMIN",),
+        permissions=frozenset({"complaints:read"}),
+    )
+    client, service = _work_stats_client(
+        monkeypatch, session=session, principal=principal
+    )
+    try:
+        resp = client.get("/api/v1/cm/complaints/work-stats/agent-1")
+        assert resp.status_code == 200, resp.text
+        service.work_stats_for_user.assert_called_once_with("agent-1")
+    finally:
+        client.app.dependency_overrides.clear()
+        client.close()
+
+
+# --- G2-opt — PUT /users/{id} may not move a member to another unit ---------
+
+
+def test_http_update_user_cannot_move_member_to_other_unit(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["service"].update.return_value = _fake_user_response()
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.put(
+        f"/api/v1/users/{users_scope_client['member_in_a']}",
+        json={"branchId": str(users_scope_client["branch_b"])},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["details"]["reason"] == "org_unit_mismatch"
+    users_scope_client["service"].update.assert_not_called()
+
+
+def test_http_update_user_same_unit_branch_id_allowed(
+    users_scope_client: dict[str, Any],
+) -> None:
+    client: TestClient = users_scope_client["client"]
+    users_scope_client["service"].update.return_value = _fake_user_response()
+    users_scope_client["state"]["principal"] = _principal(
+        org_unit_id="OU-A",
+        roles=("MANAGER",),
+        permissions=frozenset({"users:update"}),
+    )
+    resp = client.put(
+        f"/api/v1/users/{users_scope_client['member_in_a']}",
+        json={"branchId": str(users_scope_client["branch_a"])},
+    )
+    assert resp.status_code == 200, resp.text
+    users_scope_client["service"].update.assert_called_once()
+
+
+# --- G3 — CM attachments list route reuses the G2 assert (403 parity) -------
+
+
+def test_cm_router_complaint_attachments_cross_unit_denied_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The CM twin of GET /complaints/{id}/attachments was jwt-only."""
+    from app.modules.cm_batch1.router import list_cm_complaint_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-B")
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    attachments = MagicMock()
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    with pytest.raises(OrgScopeDeniedError):
+        list_cm_complaint_attachments(
+            str(uuid.uuid4()), principal, attachments, session, settings
+        )
+    attachments.list_for_complaint.assert_not_called()
+
+
+def test_cm_router_complaint_attachments_same_unit_allowed_in_dev_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.cm_batch1.router import list_cm_complaint_attachments
+
+    settings = _dev_settings()
+    actor_id, session = _mode_a_actor_session("OU-A")
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    attachments = MagicMock()
+    attachments.list_for_complaint.return_value = []
+    principal = _principal(
+        user_id=actor_id, org_unit_id=None, roles=("SUPERVISOR",)
+    )
+
+    listed = list_cm_complaint_attachments(
+        str(uuid.uuid4()), principal, attachments, session, settings
+    )
+    assert listed.meta.total_items == 0
+
+
+# --- G3-opt — Pusat on attachments is the escalation predicate, not a pass ---
+
+
+class _NoChildCasesSession:
+    """Session that resolves no rows: no child Cases, no ORM lookups."""
+
+    def get(self, model: type, key: object) -> Any:
+        _ = model, key
+        return None
+
+    def scalar(self, stmt: Any) -> Any:
+        _ = stmt
+        return None
+
+
+def _patch_complaint_row(monkeypatch: pytest.MonkeyPatch, row: Any) -> None:
+    from app.modules.cm_batch1.repository import CmBatch1Repository
+
+    monkeypatch.setattr(OrgUnitResolver, "resolve_cm_complaint", lambda self, cid: "OU-A")
+    monkeypatch.setattr(CmBatch1Repository, "get", lambda self, cid: row)
+
+
+def test_get_attachment_pusat_denied_for_unescalated_branch_complaint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Residual G2 #3 closed: a branch complaint that never took the escalate
+    path is not Pusat's to read, attachments included."""
+    from app.modules.attachment.router import get_attachment
+
+    _patch_complaint_row(monkeypatch, _aging_complaint("c-a", "OU-A"))
+    _, batch1 = _linked_batch1(str(uuid.uuid4()))
+    principal = _principal(org_unit_id="PUSAT", roles=("SUPERVISOR",))
+
+    with pytest.raises(OrgScopeDeniedError):
+        get_attachment(
+            uuid.uuid4(),
+            MagicMock(),
+            batch1,
+            principal,
+            _NoChildCasesSession(),
+            _dev_settings(),
+        )
+
+
+def test_get_attachment_pusat_allowed_for_escalated_complaint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.attachment.router import get_attachment
+
+    _patch_complaint_row(
+        monkeypatch,
+        _aging_complaint("c-a", "OU-A", intake_disposition="ESCALATE_APPROVED"),
+    )
+    linked, batch1 = _linked_batch1(str(uuid.uuid4()))
+    principal = _principal(org_unit_id="PUSAT", roles=("SUPERVISOR",))
+
+    resp = get_attachment(
+        uuid.uuid4(),
+        MagicMock(),
+        batch1,
+        principal,
+        _NoChildCasesSession(),
+        _dev_settings(),
+    )
+    assert resp.data is linked
+
+
+# --- G4-4 — GET /users?branchId= cross-unit denied in Mode A too ------------
+
+
+def test_http_list_users_dev_mode_explicit_cross_unit_branch_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half of UM-BUG-005: narrowing covered the no-filter case, an
+    explicit ?branchId= of another unit was still answered."""
+    branch_a = uuid.uuid4()
+    branch_b = uuid.uuid4()
+    manager_id = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={
+            branch_a: _fake_branch(branch_a, "OU-A"),
+            branch_b: _fake_branch(branch_b, "OU-B"),
+        },
+        users_by_id={manager_id: _fake_member(manager_id, branch_a)},
+        branch_id_by_code={"OU-A": branch_a, "OU-B": branch_b},
+    )
+    service = MagicMock()
+    service.list.return_value = ([], 0)
+    principal = _principal(
+        user_id=manager_id,
+        org_unit_id=None,
+        roles=("MANAGER",),
+        permissions=frozenset({"users:read"}),
+    )
+    client = _dev_users_app(
+        monkeypatch, session=session, principal=principal, service=service
+    )
+    try:
+        denied = client.get("/api/v1/users", params={"branchId": str(branch_b)})
+        assert denied.status_code == 403
+        assert denied.json()["details"]["reason"] == "org_unit_mismatch"
+        service.list.assert_not_called()
+
+        allowed = client.get("/api/v1/users", params={"branchId": str(branch_a)})
+        assert allowed.status_code == 200, allowed.text
+        assert service.list.call_args.kwargs["branch_id"] == branch_a
+    finally:
+        client.app.dependency_overrides.clear()
+        client.close()
+
+
+def test_http_list_users_dev_mode_head_office_keeps_explicit_branch_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No-branch membership stays unrestricted — same open gap as the jwt path,
+    not a new bypass (blocking it would 403 every head-office administrator)."""
+    branch_b = uuid.uuid4()
+    admin_id = uuid.uuid4()
+    session = _UsersScopeSession(
+        branches_by_id={branch_b: _fake_branch(branch_b, "OU-B")},
+        users_by_id={admin_id: _fake_member(admin_id, None)},
+    )
+    service = MagicMock()
+    service.list.return_value = ([], 0)
+    principal = _principal(
+        user_id=admin_id,
+        org_unit_id=None,
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"users:read"}),
+    )
+    client = _dev_users_app(
+        monkeypatch, session=session, principal=principal, service=service
+    )
+    try:
+        resp = client.get("/api/v1/users", params={"branchId": str(branch_b)})
+        assert resp.status_code == 200, resp.text
+        assert service.list.call_args.kwargs["branch_id"] == branch_b
+    finally:
+        client.app.dependency_overrides.clear()
         client.close()

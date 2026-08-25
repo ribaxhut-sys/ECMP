@@ -213,8 +213,11 @@ describe("HqArrivalSlotPicker", () => {
     );
     expect(fetchHqScheduleAvailabilityDetail).not.toHaveBeenCalled();
     expect(fetchHqScheduleAvailability).not.toHaveBeenCalled();
+    // The unit is resolved for the operator now, so the placeholder says the
+    // CRO unit is still loading rather than asking them to pick one — the
+    // behaviour under test (no fetch until it is known) is unchanged.
     expect(
-      screen.getByText(/Choose a destination unit first/i),
+      screen.getByText(/Loading HQ CRO to show remaining quota per hour/i),
     ).toBeInTheDocument();
   });
 
