@@ -16,7 +16,8 @@ export interface NavItem {
     | "attachments"
     | "announcements"
     | "megaphone"
-    | "knowledge";
+    | "knowledge"
+    | "calendarEscalate";
   /** Optional notification badge (presentation only). */
   badge?: number | string;
   /**
@@ -206,7 +207,7 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     id: "hqSchedule",
     labelKey: "hqSchedule",
     href: "/complaints/cm/hq-schedule",
-    icon: "queue",
+    icon: "calendarEscalate",
     // Cabang + Pusat: anyone with complaints:read. Per-complaint pending
     // proposals stay on the Pusat detail API, not this menu gate.
     requiredPermissions: ["complaints:read"],

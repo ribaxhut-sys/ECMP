@@ -24,6 +24,7 @@ import {
   IconAdjustments,
   IconAssignments,
   IconBell,
+  IconCalendarEscalate,
   IconChevronDown,
   IconComplaints,
   IconDashboard,
@@ -101,6 +102,7 @@ const iconMap = {
   announcements: IconBell,
   megaphone: IconMegaphone,
   knowledge: IconFile,
+  calendarEscalate: IconCalendarEscalate,
 } as const;
 
 function NavBadge({

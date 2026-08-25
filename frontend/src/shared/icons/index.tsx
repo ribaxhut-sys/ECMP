@@ -360,3 +360,16 @@ export function IconPaperclip(props: IconProps) {
     </IconBase>
   );
 }
+
+export function IconCalendarEscalate(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="5" width="14" height="14" rx="2" />
+      <path d="M3 10h14" />
+      <path d="M7 3v4" />
+      <path d="M13 3v4" />
+      <path d="M19 21v-8" />
+      <path d="M16 16l3-3 3 3" />
+    </IconBase>
+  );
+}
