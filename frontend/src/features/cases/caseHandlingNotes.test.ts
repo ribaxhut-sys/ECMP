@@ -3,6 +3,8 @@ import type { CmCaseHistoryEntry } from "@/lib/api";
 import {
   caseDescriptionNarrative,
   collectCaseHandlingNotes,
+  groupCaseHandlingNotes,
+  type CaseHandlingNote,
 } from "./caseHandlingNotes";
 
 function entry(
@@ -155,5 +157,87 @@ describe("collectCaseHandlingNotes", () => {
       }),
     ]);
     expect(notes.map((row) => row.text)).toEqual(["Catatan buat case"]);
+  });
+});
+
+describe("groupCaseHandlingNotes", () => {
+  function note(
+    overrides: Partial<CaseHandlingNote> & Pick<CaseHandlingNote, "key" | "labelKey">,
+  ): CaseHandlingNote {
+    return {
+      source: "history",
+      text: overrides.text ?? overrides.key,
+      ...overrides,
+    };
+  }
+
+  it("nests HQ accept under case created and later slots under the first schedule", () => {
+    const groups = groupCaseHandlingNotes([
+      note({
+        key: "1",
+        labelKey: "eventCaseCreated",
+        eventCode: "CASE_CREATED",
+        text: "Catatan buat case",
+      }),
+      note({
+        key: "2",
+        labelKey: "eventHqAccepted",
+        eventCode: "HQ_ACCEPTED",
+        text: "Diterima di Pusat",
+      }),
+      note({
+        key: "3",
+        labelKey: "eventHqScheduled",
+        eventCode: "HQ_ARRIVAL_SCHEDULED",
+        text: "Slot pertama",
+      }),
+      note({
+        key: "4",
+        labelKey: "eventHqScheduled",
+        eventCode: "HQ_ARRIVAL_SCHEDULED",
+        text: "Slot kedua",
+      }),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.parent.key).toBe("1");
+    expect(groups[0]?.children.map((row) => row.key)).toEqual(["2"]);
+    expect(groups[1]?.parent.key).toBe("3");
+    expect(groups[1]?.children.map((row) => row.labelKey)).toEqual([
+      "eventHqRescheduled",
+    ]);
+    expect(groups[1]?.children[0]?.text).toBe("Slot kedua");
+  });
+
+  it("keeps HQ accept top-level when there is no create/escalate parent", () => {
+    const groups = groupCaseHandlingNotes([
+      note({
+        key: "2",
+        labelKey: "eventHqAccepted",
+        eventCode: "HQ_ACCEPTED",
+        text: "Diterima di Pusat",
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.parent.key).toBe("2");
+    expect(groups[0]?.children).toEqual([]);
+  });
+
+  it("nests HQ accept under escalate-to-HQ when that is the intake parent", () => {
+    const groups = groupCaseHandlingNotes([
+      note({
+        key: "e",
+        labelKey: "eventCaseEscalatedToPusat",
+        eventCode: "CASE_ESCALATED_TO_PUSAT",
+        text: "Perlu Pusat",
+      }),
+      note({
+        key: "a",
+        labelKey: "eventHqAccepted",
+        eventCode: "HQ_ACCEPTED",
+        text: "OK",
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.children.map((row) => row.key)).toEqual(["a"]);
   });
 });

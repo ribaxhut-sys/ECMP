@@ -3227,6 +3227,7 @@
     "eventAttachmentUploaded": "Attachment uploaded",
     "eventHqAccepted": "HQ accepted",
     "eventHqScheduled": "Taxpayer arrival scheduled",
+    "eventHqRescheduled": "Arrival rescheduled",
     "eventHqCompleted": "Completed at HQ",
     "eventHqReturned": "Returned by HQ",
     "eventOther": "Other"

@@ -181,6 +181,16 @@ describe("CaseDetailView HQ path", () => {
     expect(screen.queryByTestId("case-hq-schedule-card")).not.toBeInTheDocument();
   });
 
+  it("links the parent complaint number to the parent complaint", async () => {
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    const link = await screen.findByTestId("case-parent-complaint-link");
+    expect(link).toHaveTextContent("CMP-0001");
+    expect(link).toHaveAttribute(
+      "href",
+      `/complaints/cm/${COMPLAINT_ID}?focus=penanganan`,
+    );
+  });
+
   it("hides resolve and uses HQ schedule copy once the parent is HQ_SCHEDULED", async () => {
     fetchCmBatch1Complaint.mockResolvedValue({
       data: baseComplaint({
@@ -545,8 +555,8 @@ describe("CaseDetailView handling notes", () => {
       data: [
         {
           entryId: "3",
-          eventCode: "CASE_HANDLING_UNIT_ACCEPTED",
-          eventType: "CaseHandlingUnitAccepted",
+          eventCode: "HQ_ACCEPTED",
+          eventType: "HqAccepted",
           occurredAt: "2026-08-18T03:00:00Z",
           actorName: "Budi",
           note: "OK unit",
@@ -564,7 +574,7 @@ describe("CaseDetailView handling notes", () => {
     const notes = screen.getByTestId("case-handling-notes");
     expect(notes).toHaveTextContent("Sudah dijelaskan");
     expect(notes).toHaveTextContent("OK unit");
-    expect(notes).toHaveTextContent("Handling unit accepted");
+    expect(notes).toHaveTextContent("HQ accepted");
   });
 
   it("shows parent intake Catatan when the Case description has none", async () => {

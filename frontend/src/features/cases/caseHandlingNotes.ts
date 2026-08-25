@@ -9,11 +9,23 @@ export interface CaseHandlingNote {
   source: CaseHandlingNoteSource;
   /** `cases.*` message key for the note heading. */
   labelKey: string;
+  /** History event code when the note came from API-537; omitted for blob notes. */
+  eventCode?: string;
   text: string;
   actorName?: string | null;
   actorId?: string | null;
   occurredAt?: string | null;
 }
+
+export interface CaseHandlingNoteGroup {
+  parent: CaseHandlingNote;
+  children: CaseHandlingNote[];
+}
+
+const INTAKE_PARENT_CODES = new Set([
+  "CASE_CREATED",
+  "CASE_ESCALATED_TO_PUSAT",
+]);
 
 const INLINE_NOTE = /\n\n(?:Catatan|Note):\s*\n/i;
 const LEADING_DESCRIPTION = /^(Deskripsi|Description):\s*\n/i;
@@ -116,6 +128,7 @@ function historyNotes(
       key: entry.entryId || `history-${index}`,
       source: "history",
       labelKey: caseHistoryLabelKey(entry.eventCode),
+      eventCode: code,
       text,
       actorName: entry.actorName,
       actorId: entry.actorId,
@@ -173,4 +186,41 @@ export function collectCaseHandlingNotes(
     }
   }
   return [...fromBlob, ...fromHistory];
+}
+
+/**
+ * Outline for Catatan: HQ accept nests under create/escalate; later arrival
+ * slots nest under the first schedule (reschedule — not a new domain event).
+ * Notes without a parent stay top-level. Empty parents are not invented.
+ */
+export function groupCaseHandlingNotes(
+  notes: CaseHandlingNote[],
+): CaseHandlingNoteGroup[] {
+  const groups: CaseHandlingNoteGroup[] = [];
+  let intakeGroup: CaseHandlingNoteGroup | null = null;
+  let scheduleGroup: CaseHandlingNoteGroup | null = null;
+
+  for (const note of notes) {
+    const code = (note.eventCode || "").trim().toUpperCase();
+
+    if (code === "HQ_ACCEPTED" && intakeGroup) {
+      intakeGroup.children.push(note);
+      continue;
+    }
+
+    if (code === "HQ_ARRIVAL_SCHEDULED" && scheduleGroup) {
+      scheduleGroup.children.push({
+        ...note,
+        labelKey: "eventHqRescheduled",
+      });
+      continue;
+    }
+
+    const group: CaseHandlingNoteGroup = { parent: note, children: [] };
+    groups.push(group);
+    if (INTAKE_PARENT_CODES.has(code)) intakeGroup = group;
+    if (code === "HQ_ARRIVAL_SCHEDULED") scheduleGroup = group;
+  }
+
+  return groups;
 }

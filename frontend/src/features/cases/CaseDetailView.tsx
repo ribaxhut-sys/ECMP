@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
@@ -143,7 +144,7 @@ function MetaItem({
   pre,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   pre?: boolean;
 }) {
   return (
@@ -1209,7 +1210,19 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                   </div>
                   <MetaItem
                     label={t("parentComplaint")}
-                    value={complaintNumber ?? tCommon("emDash")}
+                    value={
+                      data.complaintId && complaintNumber ? (
+                        <Link
+                          href={`/complaints/cm/${encodeURIComponent(data.complaintId)}?focus=${PENANGANAN_FOCUS_QUERY}`}
+                          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+                          data-testid="case-parent-complaint-link"
+                        >
+                          {complaintNumber}
+                        </Link>
+                      ) : (
+                        complaintNumber ?? tCommon("emDash")
+                      )
+                    }
                   />
                   <MetaItem
                     label={t("owningUnit")}

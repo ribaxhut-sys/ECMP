@@ -3227,6 +3227,7 @@
     "eventAttachmentUploaded": "Lampiran diunggah",
     "eventHqAccepted": "Diterima Pusat",
     "eventHqScheduled": "Kedatangan dijadwalkan",
+    "eventHqRescheduled": "Jadwal kedatangan diubah",
     "eventHqCompleted": "Selesai di Pusat",
     "eventHqReturned": "Dikembalikan Pusat",
     "eventOther": "Lainnya"
