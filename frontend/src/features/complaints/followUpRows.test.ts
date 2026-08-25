@@ -55,13 +55,14 @@ describe("isActiveCaseStatus", () => {
 });
 
 describe("buildFollowUpRows", () => {
-  it("shows caseNumber as the row identity and keeps the parent complaint column", () => {
+  it("shows caseNumber as the row identity and carries subject for the list column", () => {
     const rows = buildFollowUpRows({
       complaints: [complaint()],
-      allCases: [caseSummary()],
+      allCases: [caseSummary({ subject: "Koreksi SPPT" })],
     });
     expect(rows).toHaveLength(1);
     expect(rows[0].number).toBe("CASE-2026-000001");
+    expect(rows[0].subject).toBe("Koreksi SPPT");
     expect(rows[0].parentComplaintId).toBe("cx-1");
     expect(rows[0].parentComplaintNumber).toBe("TAB-0001");
     expect(rows[0].isUnread).toBe(false);

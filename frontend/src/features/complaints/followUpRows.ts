@@ -1,8 +1,8 @@
 /**
  * Tindak lanjut — Case-only work list. Presentation composition over
- * API-514 / API-536. Identity is caseNumber; parent complaint stays in
- * its own column. Status/sort inherit the parent complaint's HQ phase
- * when the complaint is on the HQ path.
+ * API-514 / API-536. Identity is caseNumber; parent complaint stays on
+ * Case detail (not a list column). Status/sort inherit the parent
+ * complaint's HQ phase when the complaint is on the HQ path.
  */
 import type { CmBatch1ComplaintResponse } from "@/lib/api";
 import type { CmCaseSummary } from "@/lib/api/cmCase";
@@ -38,6 +38,8 @@ export interface FollowUpRow {
   caseId: string;
   parentComplaintId: string;
   parentComplaintNumber: string | null;
+  /** Case subject / perihal — list column for scanning work. */
+  subject: string | null;
   statusKey: FollowUpStatusKey;
   createdAt: string | null;
   hqArrivalDate: string | null;
@@ -120,6 +122,7 @@ function caseRow(
     caseId: c.caseId,
     parentComplaintId: c.complaintId,
     parentComplaintNumber: parentNumber,
+    subject: c.subject?.trim() || null,
     statusKey: caseStatusKey(c.status, parent),
     createdAt: c.createdAt ?? null,
     hqArrivalDate: arrivalDate,

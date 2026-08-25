@@ -3013,6 +3013,7 @@
     "accessDescription": "complaints:read permission is required to view Follow-up.",
     "columnNumber": "Case no.",
     "columnParent": "Parent complaint",
+    "columnSubject": "Subject",
     "columnStatus": "Stage",
     "columnSchedule": "Taxpayer visit",
     "columnHandler": "CRO",

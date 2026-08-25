@@ -3013,6 +3013,7 @@
     "accessDescription": "Izin complaints:read diperlukan untuk melihat Tindak lanjut.",
     "columnNumber": "No. Case",
     "columnParent": "Induk pengaduan",
+    "columnSubject": "Perihal",
     "columnStatus": "Tahap",
     "columnSchedule": "Jadwal WP",
     "columnHandler": "CRO",

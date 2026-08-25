@@ -180,6 +180,8 @@ export function FollowUpListView() {
     {
       key: "number",
       header: t("columnNumber"),
+      headerClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap",
       cell: (row) => (
         <Link
           href={followUpRowHref(row)}
@@ -190,25 +192,26 @@ export function FollowUpListView() {
       ),
     },
     {
-      key: "parent",
-      header: t("columnParent"),
+      key: "subject",
+      header: t("columnSubject"),
+      className: "max-w-[16rem]",
       cell: (row) => (
-        <Link
-          href={`/complaints/cm/${encodeURIComponent(row.parentComplaintId)}`}
-          className={followUpNumberClass(row.isUnread)}
-        >
-          {row.parentComplaintNumber ?? row.parentComplaintId}
-        </Link>
+        <span className="block truncate">
+          {row.subject?.trim() || tCommon("emDash")}
+        </span>
       ),
     },
     {
       key: "status",
       header: t("columnStatus"),
+      headerClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap",
       cell: (row) => <Badge tone={statusTone(row.statusKey)}>{statusLabel(row)}</Badge>,
     },
     {
       key: "schedule",
       header: t("columnSchedule"),
+      headerClassName: "whitespace-nowrap",
       cell: (row) => (
         <span className={row.statusKey === "hqScheduled" ? "text-ecmp-text-primary" : "text-ecmp-text-secondary"}>
           {scheduleLabel(row)}
@@ -223,6 +226,8 @@ export function FollowUpListView() {
     {
       key: "actions",
       header: tCommon("actions"),
+      headerClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap",
       cell: (row) => (
         <Button type="button" size="sm" variant="outline" onClick={() => openRow(row)}>
           {t("open")}
@@ -277,7 +282,9 @@ export function FollowUpListView() {
                 columns={columns}
                 rows={rows}
                 getRowKey={(row) => row.key}
+                density="compact"
                 stickyHeader
+                className="[--ecmp-font-table-size:0.9375rem] [--ecmp-density-compact-cell-y:6px]"
                 getRowClassName={(row) =>
                   row.isUnread ? "font-semibold" : undefined
                 }
