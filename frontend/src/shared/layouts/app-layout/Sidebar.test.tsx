@@ -19,6 +19,7 @@ import { NavPreferenceProvider } from "@/shared/navigation";
 import { Sidebar } from "./Sidebar";
 
 let mockPathname = "/dashboard";
+let mockSearch = "";
 let mockPermissions: string[] = [];
 let mockRoles: string[] = [];
 let mockUserId: string | null = "user-1";
@@ -29,6 +30,7 @@ const workBadgesApi = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
+  useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 
 vi.mock("next/link", () => ({
@@ -125,6 +127,7 @@ const COMPLAINT_PERMISSIONS = ["complaints:read"];
 
 beforeEach(() => {
   mockPathname = "/dashboard";
+  mockSearch = "";
   mockPermissions = [];
   mockRoles = [];
   mockUserId = "user-1";
@@ -135,9 +138,9 @@ beforeEach(() => {
   hqScheduleDetailApi.mockReset();
   hqScheduleDetailApi.mockResolvedValue({ data: { days: [] } });
   workBadgesApi.mockReset();
-    workBadgesApi.mockResolvedValue({
-      data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0 },
-    });
+  workBadgesApi.mockResolvedValue({
+    data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0 },
+  });
 });
 
 afterEach(() => {
@@ -163,6 +166,9 @@ describe("Scenario 1 — taxpayer-only permission", () => {
     expect(
       within(taxpayerPanel).getByRole("link", { name: /^Cases$/i }),
     ).toBeInTheDocument();
+    expect(
+      within(taxpayerPanel).getByRole("link", { name: /^Closed$/i }),
+    ).toHaveAttribute("href", "/complaints?status=CLOSED");
     expect(sidebar.queryByRole("link", { name: /^Queue$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Assignments$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Resolutions$/i })).not.toBeInTheDocument();
@@ -479,7 +485,7 @@ describe("Mode A work badges — Cabang Cases / Pusat Complaints", () => {
     const complaintsLink = within(taxpayerPanel).getByRole("link", {
       name: /^Complaints$/i,
     });
-    expect(complaintsLink).toHaveAttribute("href", "/complaints");
+    expect(complaintsLink).toHaveAttribute("href", "/complaints?status=OPEN");
     expect(within(complaintsLink).queryByText("9")).not.toBeInTheDocument();
   });
 

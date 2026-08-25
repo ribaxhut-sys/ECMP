@@ -118,6 +118,7 @@ describe("APP_NAV_GROUPS", () => {
       "cases",
       "followUp",
       "hqSchedule",
+      "closed",
       "reports",
       "internalDashboard",
       "internalComplaints",
@@ -139,11 +140,12 @@ describe("APP_NAV_GROUPS", () => {
 describe("complaints nav permission gate (Commit 6)", () => {
   const complaintsItem = APP_NAV_ITEMS.find((item) => item.id === "complaints")!;
 
-  it("gates only the complaints, cases, followUp, hqSchedule, announcements, and knowledge items", () => {
+  it("gates only the complaints, cases, followUp, closed, hqSchedule, announcements, and knowledge items", () => {
     const gatedItemIds = new Set([
       "complaints",
       "cases",
       "followUp",
+      "closed",
       "hqSchedule",
       "announcements",
       "announcementsManage",
@@ -191,6 +193,19 @@ describe("complaints nav permission gate (Commit 6)", () => {
     const casesItem = APP_NAV_ITEMS.find((item) => item.id === "cases")!;
     expect(casesItem.requiredPermissions).toEqual(["complaints:read"]);
     expect(casesItem.href).toBe("/complaints/cm/cases");
+  });
+
+  it("gates Ditutup on the same complaints permission catalog as Pengaduan", () => {
+    const closedItem = APP_NAV_ITEMS.find((item) => item.id === "closed")!;
+    expect(closedItem.requiredPermissions).toEqual([
+      "complaints:read",
+      "complaints:create",
+      "complaints:update",
+      "complaints:assign",
+      "complaints:escalate",
+      "complaints:close",
+    ]);
+    expect(closedItem.href).toBe("/complaints?status=CLOSED");
   });
 
   it("gates HQ schedule on complaints:read at /complaints/cm/hq-schedule", () => {
@@ -271,10 +286,39 @@ describe("isNavItemActive (longest prefix)", () => {
 
   it("keeps Pengaduan active when the Pusat queue query is on the href", () => {
     const hrefs = ["/complaints?needsPusatHandling=1", "/tindak-lanjut"];
-    expect(resolveActiveNavHref("/complaints", hrefs)).toBe("/complaints");
+    expect(resolveActiveNavHref("/complaints", hrefs)).toBe(
+      "/complaints?needsPusatHandling=1",
+    );
     expect(
       isNavItemActive("/complaints", "/complaints?needsPusatHandling=1", hrefs),
     ).toBe(true);
+  });
+
+  it("activates Ditutup for CLOSED without lighting Pengaduan", () => {
+    const hrefs = [
+      "/complaints?status=OPEN",
+      "/complaints?status=CLOSED",
+      "/tindak-lanjut",
+    ];
+    expect(resolveActiveNavHref("/complaints", hrefs, "status=CLOSED")).toBe(
+      "/complaints?status=CLOSED",
+    );
+    expect(
+      isNavItemActive(
+        "/complaints",
+        "/complaints?status=CLOSED",
+        hrefs,
+        "status=CLOSED",
+      ),
+    ).toBe(true);
+    expect(
+      isNavItemActive(
+        "/complaints",
+        "/complaints?status=OPEN",
+        hrefs,
+        "status=CLOSED",
+      ),
+    ).toBe(false);
   });
 
   it("activates Case inbox without stealing Pengaduan on /complaints/cm/[id]", () => {
@@ -300,7 +344,7 @@ describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () =
     expect(new Set(subgroupItemIds).size).toBe(subgroupItemIds.length);
   });
 
-  it("Wajib Pajak subgroup carries Dasbor, Pengaduan, Case, Tindak lanjut, Laporan", () => {
+  it("Wajib Pajak subgroup carries Dasbor, Pengaduan, Case, Tindak lanjut, Jadwal Eskalasi, Ditutup, Laporan", () => {
     const taxpayer = complaintsGroup.subgroups!.find(
       (s) => s.id === TAXPAYER_COMPLAINTS_SUBGROUP_ID,
     )!;
@@ -310,6 +354,7 @@ describe("complaints group subgroups (collapsible Wajib Pajak / Internal)", () =
       "cases",
       "followUp",
       "hqSchedule",
+      "closed",
       "reports",
     ]);
     expect(taxpayer.labelKey).toBe("subgroupTaxpayerComplaints");

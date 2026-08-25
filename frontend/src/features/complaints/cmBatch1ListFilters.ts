@@ -20,6 +20,9 @@ export type CmBatch1ListIntakeDisposition =
 /** Aggregate list filtered to open complaints (REGISTERED + IN_PROGRESS). */
 export const CM_BATCH1_OPEN_HREF = "/complaints?status=OPEN";
 
+/** Aggregate list filtered to closed complaints (sidebar Ditutup). */
+export const CM_BATCH1_CLOSED_HREF = "/complaints?status=CLOSED";
+
 /** Aggregate list filtered to open intake that is not on an escalate path. */
 export const CM_BATCH1_WAITING_ASSIGNMENT_HREF =
   "/complaints?status=REGISTERED&intakeDisposition=UNESCALATED";
@@ -31,6 +34,13 @@ export const CM_BATCH1_ESCALATION_PENDING_HREF =
 /** Pusat Pengaduan default — Cases escalated to Pusat and never handled. */
 export const CM_BATCH1_PUSAT_UNHANDLED_HREF =
   "/complaints?needsPusatHandling=1";
+
+/** True when the Aggregate list is the Ditutup (CLOSED) archive. */
+export function isCmBatch1ClosedArchive(
+  filters: Pick<CmBatch1ListFilters, "status">,
+): boolean {
+  return (filters.status || "").trim().toUpperCase() === "CLOSED";
+}
 
 const STATUSES = new Set<string>(["REGISTERED", "IN_PROGRESS", "CLOSED", "OPEN"]);
 const INTAKE_DISPOSITIONS = new Set<string>([
@@ -62,14 +72,23 @@ export interface CmBatch1ListFilters {
 
 export function defaultCmBatch1ListFilters(options?: {
   pusatUnhandledQueue?: boolean;
+  /** Cabang work list — open parents only. Ignored when pusatUnhandledQueue. */
+  openOnly?: boolean;
+  /** Ditutup archive — CLOSED parents only. */
+  closedArchive?: boolean;
 }): CmBatch1ListFilters {
+  const closedArchive = options?.closedArchive === true;
+  const pusatUnhandledQueue =
+    !closedArchive && options?.pusatUnhandledQueue === true;
+  const openOnly =
+    !closedArchive && !pusatUnhandledQueue && options?.openOnly === true;
   return {
     keyword: "",
-    status: "",
+    status: closedArchive ? "CLOSED" : openOnly ? "OPEN" : "",
     intakeDisposition: "",
     createdBy: "",
     decidedBy: "",
-    needsPusatHandling: options?.pusatUnhandledQueue === true,
+    needsPusatHandling: pusatUnhandledQueue,
     page: 1,
     pageSize: 10,
   };

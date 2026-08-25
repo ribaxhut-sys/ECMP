@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import type { Branch } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
 import { prefersComplaintNumberIdentity } from "@/features/complaints/cmBatch1ComplaintListIdentity";
-import { CM_BATCH1_PUSAT_UNHANDLED_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import {
+  CM_BATCH1_OPEN_HREF,
+  CM_BATCH1_PUSAT_UNHANDLED_HREF,
+} from "@/features/complaints/cmBatch1ListFilters";
 import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { useCmWorkBadges } from "@/features/cases/useCmWorkBadges";
@@ -135,8 +138,10 @@ function NavLink({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
   const tAnnouncements = useTranslations("announcements");
-  const active = isNavItemActive(pathname, item.href, allHrefs);
+  const active = isNavItemActive(pathname, item.href, allHrefs, search);
   const Icon = iconMap[item.icon];
   const unreadCount =
     item.id === "announcements" && typeof item.badge === "number"
@@ -348,6 +353,8 @@ function useSubgroupExpansion(
   allHrefs: readonly string[],
 ) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
   const { mode, expanded: remembered, setSubgroupExpanded } = useNavPreference();
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
@@ -355,12 +362,13 @@ function useSubgroupExpansion(
     pathname,
     subgroups,
     allHrefs,
+    search,
   );
 
   // Any navigation re-syncs "auto" to the route-owned subgroup.
   useEffect(() => {
     setOverrides({});
-  }, [pathname]);
+  }, [pathname, search]);
 
   const subgroupIds = subgroups.map((subgroup) => subgroup.id);
 
@@ -648,6 +656,15 @@ function NavSections({
       cases: { ...itemsWithBadges.cases, badge: unreadCases },
     };
   }
+  if (orgUnitCode !== undefined && isCabangInbox && itemsWithBadges.complaints) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      complaints: {
+        ...itemsWithBadges.complaints,
+        href: CM_BATCH1_OPEN_HREF,
+      },
+    };
+  }
   if (orgUnitCode !== undefined && !isCabangInbox && itemsWithBadges.complaints) {
     itemsWithBadges = {
       ...itemsWithBadges,
@@ -671,7 +688,7 @@ function NavSections({
   }
 
   const visibleItems = groups
-    .flatMap((group) => group.itemIds.map((id) => itemsById[id]))
+    .flatMap((group) => group.itemIds.map((id) => itemsWithBadges[id] ?? itemsById[id]))
     .filter(Boolean)
     .filter((item) => isItemVisible(item));
   const allHrefs = visibleItems.map((item) => item.href);

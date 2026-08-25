@@ -79,4 +79,14 @@ describe("cmBatch1ListFilters", () => {
         .needsPusatHandling,
     ).toBe(true);
   });
+
+  it("defaults Cabang work list to OPEN and Ditutup to CLOSED", () => {
+    expect(defaultCmBatch1ListFilters({ openOnly: true }).status).toBe("OPEN");
+    expect(defaultCmBatch1ListFilters({ closedArchive: true }).status).toBe(
+      "CLOSED",
+    );
+    expect(
+      defaultCmBatch1ListFilters({ closedArchive: true }).needsPusatHandling,
+    ).toBe(false);
+  });
 });

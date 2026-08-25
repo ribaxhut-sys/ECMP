@@ -45,34 +45,63 @@ function navPath(raw: string): string {
   return withoutQuery;
 }
 
+function navQuery(raw: string): URLSearchParams {
+  const q = raw.includes("?") ? raw.slice(raw.indexOf("?") + 1) : "";
+  return new URLSearchParams(q);
+}
+
+function navStatus(raw: string): string {
+  return (navQuery(raw).get("status") ?? "").trim().toUpperCase();
+}
+
 /**
  * Longest-prefix match so a parent like `/internal` is not active under
  * `/internal/follow-up` when a more specific nav href also matches.
- * Query strings on hrefs (e.g. Pusat `?needsPusatHandling=1`) are ignored.
+ *
+ * Same-path siblings that differ only by query (Pengaduan OPEN vs Ditutup
+ * CLOSED) are disambiguated with ``search``. Other queries such as
+ * ``needsPusatHandling`` stay ignored for matching.
+ *
+ * Returns the winning raw href from ``hrefs`` (may include a query string).
  */
 export function resolveActiveNavHref(
   pathname: string,
   hrefs: readonly string[],
+  search: string = "",
 ): string | null {
   const path = navPath(pathname);
-  let best: string | null = null;
+  const locationStatus = navStatus(`?${search.replace(/^\?/, "")}`);
+  let bestRaw: string | null = null;
+  let bestScore = -1;
   for (const raw of hrefs) {
     const href = navPath(raw);
-    if (path === href || path.startsWith(`${href}/`)) {
-      if (best === null || href.length > best.length) {
-        best = href;
-      }
+    if (!(path === href || path.startsWith(`${href}/`))) continue;
+    const itemStatus = navStatus(raw);
+    if (itemStatus === "CLOSED") {
+      if (locationStatus !== "CLOSED") continue;
+    } else if (locationStatus === "CLOSED" && href === "/complaints") {
+      // Ditutup owns /complaints?status=CLOSED — do not light Pengaduan.
+      continue;
+    }
+    let score = href.length;
+    if (itemStatus === "CLOSED" && locationStatus === "CLOSED") {
+      score += 1000;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestRaw = raw;
     }
   }
-  return best;
+  return bestRaw;
 }
 
 export function isNavItemActive(
   pathname: string,
   href: string,
   allHrefs: readonly string[],
+  search: string = "",
 ): boolean {
-  return resolveActiveNavHref(pathname, allHrefs) === navPath(href);
+  return resolveActiveNavHref(pathname, allHrefs, search) === href;
 }
 
 /**
@@ -111,11 +140,13 @@ export function resolveActiveSubgroupId(
   pathname: string,
   subgroups: readonly { id: string; hrefs: readonly string[] }[],
   allHrefs: readonly string[],
+  search: string = "",
 ): string | null {
-  const active = resolveActiveNavHref(pathname, allHrefs);
+  const active = resolveActiveNavHref(pathname, allHrefs, search);
   if (!active) return null;
+  const activePath = navPath(active);
   for (const subgroup of subgroups) {
-    const owns = subgroup.hrefs.some((href) => navPath(href) === active);
+    const owns = subgroup.hrefs.some((href) => navPath(href) === activePath);
     if (owns) return subgroup.id;
   }
   return null;
@@ -128,6 +159,7 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     id: "complaints",
     labelKey: "complaints",
     // Mode A primary entry = Aggregate list at /complaints (detail stays /complaints/cm/[id]).
+    // Sidebar rewrites: Cabang → ?status=OPEN, Pusat → ?needsPusatHandling=1.
     href: "/complaints",
     icon: "complaints",
     requiredPermissions: [
@@ -153,6 +185,21 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     href: "/complaints/cm/cases",
     icon: "queue",
     requiredPermissions: ["complaints:read"],
+  },
+  {
+    id: "closed",
+    labelKey: "closed",
+    // CLOSED Aggregate archive — label may be revised later (Ditutup).
+    href: "/complaints?status=CLOSED",
+    icon: "resolutions",
+    requiredPermissions: [
+      "complaints:read",
+      "complaints:create",
+      "complaints:update",
+      "complaints:assign",
+      "complaints:escalate",
+      "complaints:close",
+    ],
   },
   { id: "queue", labelKey: "queue", href: "/queue", icon: "queue" },
   {
@@ -280,6 +327,7 @@ const TAXPAYER_COMPLAINTS_ITEM_IDS = [
   "cases",
   "followUp",
   "hqSchedule",
+  "closed",
   "reports",
 ] as const;
 
