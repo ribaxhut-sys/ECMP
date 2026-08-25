@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from app.core.errors import NotFoundError, ValidationAppError
-from app.modules.hq_schedule.repository import ArrivalRow, PusatUnit
+from app.modules.hq_schedule.repository import ArrivalRow, CaseRef, PusatUnit
 from app.modules.hq_schedule.schemas import HolidayCreateRequest
 from app.modules.hq_schedule.service import HqScheduleService
 from app.modules.settings.registry import SettingsKey
@@ -203,7 +203,10 @@ def test_scheduled_cases_visible_to_every_caller_on_aggregate_view() -> None:
             proposed_arrival_time=None,
             proposed_by=None,
             proposed_at=None,
-            case_numbers=("CASE-2026-000001", "CASE-2026-000002"),
+            cases=(
+                CaseRef(case_id="case-id-1", case_number="CASE-2026-000001"),
+                CaseRef(case_id="case-id-2", case_number="CASE-2026-000002"),
+            ),
         ),
         ArrivalRow(
             complaint_id="c2",
@@ -231,7 +234,10 @@ def test_scheduled_cases_visible_to_every_caller_on_aggregate_view() -> None:
     tab_case = next(
         c for c in branch_slot.scheduled_cases if c.complaint_number == "TAB-2608-0001"
     )
-    assert tab_case.case_numbers == ["CASE-2026-000001", "CASE-2026-000002"]
+    assert [(c.case_id, c.case_number) for c in tab_case.cases] == [
+        ("case-id-1", "CASE-2026-000001"),
+        ("case-id-2", "CASE-2026-000002"),
+    ]
 
     pusat_view = service.get_availability(
         date_from=monday, date_to=monday, detail=True
@@ -306,7 +312,7 @@ def test_completed_visit_still_counts_toward_scheduled_ratio() -> None:
             proposed_arrival_time=None,
             proposed_by=None,
             proposed_at=None,
-            case_numbers=("CASE-1",),
+            cases=(CaseRef(case_id="case-id-1", case_number="CASE-1"),),
             completed=True,
         ),
         ArrivalRow(
@@ -319,7 +325,7 @@ def test_completed_visit_still_counts_toward_scheduled_ratio() -> None:
             proposed_arrival_time=None,
             proposed_by=None,
             proposed_at=None,
-            case_numbers=("CASE-2",),
+            cases=(CaseRef(case_id="case-id-2", case_number="CASE-2"),),
             completed=False,
         ),
     ]
@@ -559,7 +565,7 @@ def test_arrival_already_booked_inside_the_break_stays_visible() -> None:
             proposed_arrival_time=None,
             proposed_by=None,
             proposed_at=None,
-            case_numbers=("CASE-1",),
+            cases=(CaseRef(case_id="case-id-1", case_number="CASE-1"),),
         )
     ]
     service = HqScheduleService(
@@ -652,7 +658,9 @@ def _arrival(
         proposed_arrival_time=None,
         proposed_by=None,
         proposed_at=None,
-        case_numbers=(f"CASE-{complaint_id}",),
+        cases=(
+            CaseRef(case_id=f"case-id-{complaint_id}", case_number=f"CASE-{complaint_id}"),
+        ),
         hq_destination_unit_id=hq_destination_unit_id,
     )
 

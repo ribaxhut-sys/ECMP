@@ -21,6 +21,7 @@ from app.modules.cm_batch1.models import (
     CmBatch1IdempotencyORM,
     CmBatch1LaterReviewItemORM,
     CmBatch1NumberCounterORM,
+    CmBatch1PusatQueueSeenORM,
 )
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import (
@@ -28,6 +29,7 @@ from app.modules.cm_batch1.schemas import (
     IntakeEscalationDecisionRequest,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 from cm_batch1_helpers import confirmed_create
 
 _BATCH1_TABLES = [
@@ -38,6 +40,9 @@ _BATCH1_TABLES = [
     CmBatch1NumberCounterORM.__table__,
     CmBatch1DuplicateDecisionORM.__table__,
     CmBatch1LaterReviewItemORM.__table__,
+    CmBatch1PusatQueueSeenORM.__table__,
+    # Pusat visibility + the Case embed both read cm_cases.
+    CmCaseORM.__table__,
 ]
 
 

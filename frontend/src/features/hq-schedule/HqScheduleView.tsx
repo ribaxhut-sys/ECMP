@@ -237,16 +237,24 @@ export function summarizeHqWeek(
   return { scheduled, today, todayCompleted, bookable, weekCompleted };
 }
 
-/** Case number(s) tracking this complaint's escalation — always populated by the time HQ schedules an arrival. */
-function caseNumbersLabel(proposal: HqScheduleProposalSummary): string {
-  return proposal.caseNumbers.join(", ");
-}
-
-function visitLabel(proposal: HqScheduleProposalSummary, unsetLabel: string): string {
-  const dest = proposal.destinationUnitCode?.trim()
+/** Where the taxpayer reports — the trailing half of a visit line. */
+function destinationLabel(
+  proposal: HqScheduleProposalSummary,
+  unsetLabel: string,
+): string {
+  return proposal.destinationUnitCode?.trim()
     ? pusatUnitShortCode(proposal.destinationUnitCode)
     : unsetLabel;
-  return `${caseNumbersLabel(proposal)} · ${dest}`;
+}
+
+/**
+ * The board lists Case numbers, so each one opens its own Case — not the
+ * parent complaint. A row without a Case (legacy arrival booked before the
+ * escalation Case existed) falls back to the complaint number and page,
+ * which is then the only record there is to open.
+ */
+function caseHref(caseId: string): string {
+  return `/complaints/cm/cases/${encodeURIComponent(caseId)}`;
 }
 
 /**
@@ -331,32 +339,47 @@ function CaseLine({
 }) {
   const t = useTranslations("hqSchedule");
   const showOverdue = overdue && !proposal.completed;
+  // One link per Case — the number shown is a Case number, so it must open
+  // that Case. Only a legacy arrival with no Case falls back to the complaint.
+  const refs =
+    proposal.cases.length > 0
+      ? proposal.cases.map((c) => ({ label: c.caseNumber, href: caseHref(c.caseId) }))
+      : [
+          {
+            label: proposal.complaintNumber,
+            href: `/complaints/cm/${encodeURIComponent(proposal.complaintId)}`,
+          },
+        ];
+  const linkClass = cn(
+    "font-medium hover:underline",
+    showOverdue ? "text-ecmp-danger-text" : "text-ecmp-primary",
+  );
+  const plainClass = showOverdue
+    ? "font-medium text-ecmp-danger-text"
+    : "text-ecmp-text-secondary";
   return (
     <div
       data-completed={proposal.completed ? "true" : "false"}
       data-overdue={showOverdue ? "true" : "false"}
       className="flex min-w-0 items-center gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight"
     >
-      {canOpen ? (
-        <Link
-          href={`/complaints/cm/${encodeURIComponent(proposal.complaintId)}`}
-          className={cn(
-            "min-w-0 truncate font-medium hover:underline",
-            showOverdue ? "text-ecmp-danger-text" : "text-ecmp-primary",
-          )}
-        >
-          {visitLabel(proposal, t("destinationUnassigned"))}
-        </Link>
-      ) : (
-        <span
-          className={cn(
-            "min-w-0 truncate",
-            showOverdue ? "font-medium text-ecmp-danger-text" : "text-ecmp-text-secondary",
-          )}
-        >
-          {visitLabel(proposal, t("destinationUnassigned"))}
+      <span className={cn("min-w-0 truncate", !canOpen && plainClass)}>
+        {refs.map((ref, index) => (
+          <span key={ref.href}>
+            {index > 0 ? ", " : null}
+            {canOpen ? (
+              <Link href={ref.href} className={linkClass}>
+                {ref.label}
+              </Link>
+            ) : (
+              ref.label
+            )}
+          </span>
+        ))}
+        <span className={showOverdue ? "text-ecmp-danger-text" : "text-ecmp-text-secondary"}>
+          {` · ${destinationLabel(proposal, t("destinationUnassigned"))}`}
         </span>
-      )}
+      </span>
       {proposal.completed ? (
         <Badge
           tone="success"

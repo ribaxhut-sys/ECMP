@@ -8,6 +8,7 @@ import type { CmBatch1ComplaintResponse } from "@/lib/api";
 import type { CmCaseSummary } from "@/lib/api/cmCase";
 import { officerDisplayName } from "./officerDisplayName";
 import { resolveHqPathPhase } from "./penangananGroups";
+import { isPusatFollowUpCase } from "./pusatWorkQueues";
 
 /** Sort bucket, lowest first (approval → HQ accept → unscheduled → scheduled → returned → branch). */
 export type FollowUpStatusKey =
@@ -42,6 +43,8 @@ export interface FollowUpRow {
   hqArrivalDate: string | null;
   hqArrivalTime: string | null;
   handlerName: string | null;
+  /** Parent unread for this Pusat caller (`pusatUnread`); ignored on Cabang. */
+  isUnread: boolean;
 }
 
 const CASE_TERMINAL_STATUSES = new Set(["CLOSED", "RESOLVED", "CANCELLED"]);
@@ -91,9 +94,19 @@ export function isActiveCaseStatus(status: string | null | undefined): boolean {
   return s.length > 0 && !CASE_TERMINAL_STATUSES.has(s);
 }
 
+function followUpRowIsUnread(
+  caseItem: CmCaseSummary,
+  parent: CmBatch1ComplaintResponse | undefined,
+  audience: "cabang" | "pusat" | undefined,
+): boolean {
+  if (audience === "pusat") return parent?.pusatUnread === true;
+  return caseItem.isRead === false;
+}
+
 function caseRow(
   c: CmCaseSummary,
   complaintById: ReadonlyMap<string, CmBatch1ComplaintResponse>,
+  audience: "cabang" | "pusat" | undefined,
 ): FollowUpRow {
   const parent = complaintById.get(c.complaintId);
   const parentNumber =
@@ -112,16 +125,20 @@ function caseRow(
     hqArrivalDate: arrivalDate,
     hqArrivalTime: arrivalTime,
     handlerName: officerDisplayName(c.handlingClaimedByName),
+    isUnread: followUpRowIsUnread(c, parent, audience),
   };
 }
 
 /**
  * Build the Tindak lanjut row set from already-fetched Aggregate responses.
  * Complaints without a visible Case are omitted (not invented).
+ * ``audience: "pusat"`` keeps Cases Pusat already handles; never-handled
+ * intake stays on Pengaduan.
  */
 export function buildFollowUpRows(input: {
   complaints: readonly CmBatch1ComplaintResponse[];
   allCases: readonly CmCaseSummary[];
+  audience?: "cabang" | "pusat";
 }): FollowUpRow[] {
   const complaintById = new Map<string, CmBatch1ComplaintResponse>();
   for (const c of input.complaints) {
@@ -131,7 +148,11 @@ export function buildFollowUpRows(input: {
   const rows: FollowUpRow[] = [];
   for (const c of input.allCases) {
     if (!isActiveCaseStatus(c.status)) continue;
-    rows.push(caseRow(c, complaintById));
+    if (input.audience === "pusat") {
+      const parent = complaintById.get(c.complaintId);
+      if (!isPusatFollowUpCase(c, parent)) continue;
+    }
+    rows.push(caseRow(c, complaintById, input.audience));
   }
   return sortFollowUpRows(rows);
 }

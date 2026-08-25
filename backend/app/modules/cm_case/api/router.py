@@ -37,7 +37,6 @@ from app.modules.cm_case.api.schemas import (
     CaseResolutionResponse,
     CaseResponse,
     CaseSummaryResponse,
-    WorkBadgeCountsResponse,
     CloseCaseRequest,
     CreateCaseRequest,
     EscalateToPusatRequest,
@@ -45,6 +44,7 @@ from app.modules.cm_case.api.schemas import (
     ResolveCaseRequest,
     ReturnEscalationRequest,
     UpdateCaseStatusRequest,
+    WorkBadgeCountsResponse,
 )
 from app.modules.cm_case.application.dto import (
     AddCaseCommand,
@@ -64,6 +64,7 @@ from app.modules.cm_case.application.services import (
     CaseApplicationService,
 )
 from app.modules.cm_case.infrastructure.inbox_repository import (
+    safe_mark_pusat_queue_seen,
     safe_mark_read,
     safe_work_badge_counts,
 )
@@ -390,18 +391,22 @@ def get_work_badges(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     session: Annotated[Session, Depends(get_db_session)],
 ) -> DataResponse[WorkBadgeCountsResponse]:
-    """Mode A sidebar counts: Cabang unread Cases + Pusat unclaimed queue.
+    """Mode A sidebar counts: Cabang unread Cases + Pusat Pengaduan / Tindak lanjut.
 
     Fail-open: repository errors return zeros so navigation stays up.
     Not CAP-005 email/SMS. Not a Mode B unlock.
     """
-    unread, queue = safe_work_badge_counts(
+    unread, queue, follow_up = safe_work_badge_counts(
         session,
         actor_id=str(principal.user_id),
         actor_is_pusat=_actor_is_pusat(principal, session),
     )
     return DataResponse(
-        data=WorkBadgeCountsResponse(unreadCases=unread, pusatQueue=queue)
+        data=WorkBadgeCountsResponse(
+            unreadCases=unread,
+            pusatQueue=queue,
+            pusatFollowUp=follow_up,
+        )
     )
 
 
@@ -432,6 +437,13 @@ def get_case(
     body = _to_response(dto, session=session)
     # get_db_session does not auto-commit; persist mark-read before close.
     safe_mark_read(session, case_id=case_id, user_id=str(principal.user_id))
+    # Opening a Case also clears the parent from this Pusat user's queue badge.
+    safe_mark_pusat_queue_seen(
+        session,
+        complaint_id=dto.complaint_id,
+        user_id=str(principal.user_id),
+        actor_is_pusat=_actor_is_pusat(principal, session),
+    )
     try:
         session.commit()
     except Exception:

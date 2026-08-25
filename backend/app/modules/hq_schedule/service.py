@@ -22,6 +22,7 @@ from app.modules.hq_schedule.repository import (
 )
 from app.modules.hq_schedule.schemas import (
     AvailabilityResponse,
+    CaseRefResponse,
     DayAvailability,
     HolidayCreateRequest,
     HolidayResponse,
@@ -519,7 +520,10 @@ class HqScheduleService:
                     complaintNumber=a.complaint_number,
                     owningUnitId=a.owning_unit_id,
                     unitCode=resolve_unit_code(a.owning_unit_id),
-                    caseNumbers=list(a.case_numbers),
+                    cases=[
+                        CaseRefResponse(caseId=c.case_id, caseNumber=c.case_number)
+                        for c in a.cases
+                    ],
                     completed=a.completed,
                     # Where the taxpayer reports — set by CRO Pusat together
                     # with the final time; unitCode above is the origin branch.

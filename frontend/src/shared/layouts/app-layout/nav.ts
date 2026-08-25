@@ -40,18 +40,24 @@ export function isNavItemVisible(
   return item.requiredPermissions.some((permission) => hasPermission(permission));
 }
 
+function navPath(raw: string): string {
+  const withoutQuery = (raw.split("?")[0] || "").replace(/\/+$/, "") || "/";
+  return withoutQuery;
+}
+
 /**
  * Longest-prefix match so a parent like `/internal` is not active under
  * `/internal/follow-up` when a more specific nav href also matches.
+ * Query strings on hrefs (e.g. Pusat `?needsPusatHandling=1`) are ignored.
  */
 export function resolveActiveNavHref(
   pathname: string,
   hrefs: readonly string[],
 ): string | null {
-  const path = (pathname.split("?")[0] || "").replace(/\/+$/, "") || "/";
+  const path = navPath(pathname);
   let best: string | null = null;
   for (const raw of hrefs) {
-    const href = raw.replace(/\/+$/, "") || "/";
+    const href = navPath(raw);
     if (path === href || path.startsWith(`${href}/`)) {
       if (best === null || href.length > best.length) {
         best = href;
@@ -66,8 +72,7 @@ export function isNavItemActive(
   href: string,
   allHrefs: readonly string[],
 ): boolean {
-  const normalized = href.replace(/\/+$/, "") || "/";
-  return resolveActiveNavHref(pathname, allHrefs) === normalized;
+  return resolveActiveNavHref(pathname, allHrefs) === navPath(href);
 }
 
 /**
@@ -110,9 +115,7 @@ export function resolveActiveSubgroupId(
   const active = resolveActiveNavHref(pathname, allHrefs);
   if (!active) return null;
   for (const subgroup of subgroups) {
-    const owns = subgroup.hrefs.some(
-      (href) => (href.replace(/\/+$/, "") || "/") === active,
-    );
+    const owns = subgroup.hrefs.some((href) => navPath(href) === active);
     if (owns) return subgroup.id;
   }
   return null;

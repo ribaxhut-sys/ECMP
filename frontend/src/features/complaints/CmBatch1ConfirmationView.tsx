@@ -19,6 +19,7 @@ import {
   type CmBatch1HqReturnReasonCode,
   type CmBatch1IntakeHistoryEntry,
 } from "@/lib/api";
+import { refreshWorkBadges } from "@/features/cases/workBadgesSignal";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
@@ -324,7 +325,12 @@ export function CmBatch1ConfirmationView({
       setError(null);
       try {
         const res = await fetchCmBatch1Complaint(complaintId.trim());
-        if (!cancelled) setData(res.data);
+        if (!cancelled) {
+          setData(res.data);
+          // The read receipt was written by the request above — let the
+          // sidebar drop this row from the Pusat queue badge right away.
+          refreshWorkBadges();
+        }
       } catch (err) {
         if (!cancelled) {
           setError(

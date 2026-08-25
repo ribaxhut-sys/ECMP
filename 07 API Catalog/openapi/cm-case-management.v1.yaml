@@ -357,16 +357,20 @@ paths:
 
   /api/v1/cm/work-badges:
     get:
-      summary: Mode A work badges (Cabang unread + Pusat queue)
+      summary: Mode A work badges (Cabang unread + Pusat queues)
       description: |
         Sidebar counts for Complaint work signals (Mode A, in-app only).
 
         Cabang (`actorIsPusat=false`): `unreadCases` = unread return / HQ-schedule
-        receipts for the caller. `pusatQueue` is 0.
+        receipts for the caller. `pusatQueue` and `pusatFollowUp` are 0.
 
-        Pusat: `pusatQueue` = distinct complaints that still need a Pusat handler
-        (unclaimed escalated Case, or `ESCALATE_APPROVED` waiting HQ accept).
-        `unreadCases` is 0.
+        Pusat: `pusatQueue` = Pengaduan intake rows the caller has not opened
+        yet — the same rows `GET /api/v1/cm/complaints?needsPusatHandling=1`
+        returns (never accepted and never claimed). `pusatFollowUp` = Tindak
+        lanjut parents already handled by Pusat (accepted, claimed, or
+        HQ_SCHEDULED) that the caller has not opened since the last
+        movement. A complaint cannot count in both. Per-user: opening the complaint
+        (or one of its Cases) records a read receipt. `unreadCases` is 0.
 
         Fail-open: errors return zeros so navigation stays up.
         Not CAP-005 email/SMS. Not a Mode B unlock. Lab UX for API-536 / API-514.
@@ -969,7 +973,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-                "409":
+        "409":
           description: Not with Pusat / Pusat already claimed handling
           content:
             application/problem+json:
@@ -1433,7 +1437,7 @@ components:
 
     WorkBadgeCounts:
       type: object
-      required: [unreadCases, pusatQueue]
+      required: [unreadCases, pusatQueue, pusatFollowUp]
       properties:
         unreadCases:
           type: integer
@@ -1441,6 +1445,13 @@ components:
         pusatQueue:
           type: integer
           minimum: 0
+          description: Pusat Pengaduan intake not yet opened by the caller.
+        pusatFollowUp:
+          type: integer
+          minimum: 0
+          description: >
+            Pusat Tindak lanjut parents not yet opened by the caller since the
+            last accept / schedule / status movement.
 
     CaseAcceptance:
       type: object

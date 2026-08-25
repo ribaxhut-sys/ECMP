@@ -263,6 +263,22 @@ class SqlAlchemyCaseRepository:
         )
         return rows, total
 
+    def unclaimed_escalated_case_ids(self, complaint_id: str) -> list[str]:
+        """Open Cases under this parent still parked at Pusat, nobody claimed."""
+        key = (complaint_id or "").strip()
+        if not key:
+            return []
+        rows = self._session.scalars(
+            select(CmCaseORM.id).where(
+                CmCaseORM.complaint_id == key,
+                CmCaseORM.escalated_to_pusat.is_(True),
+                (CmCaseORM.handling_claimed_by.is_(None))
+                | (CmCaseORM.handling_claimed_by == ""),
+                CmCaseORM.status.not_in(("CLOSED", "CANCELLED", "RESOLVED")),
+            )
+        )
+        return [str(row) for row in rows]
+
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         try:
             uid = UUID(complaint_id)

@@ -277,9 +277,10 @@ export function fetchCmCases(options?: {
 export interface CmWorkBadgeCounts {
   unreadCases: number;
   pusatQueue: number;
+  pusatFollowUp?: number;
 }
 
-/** Mode A sidebar badges — Cabang unread Cases + Pusat unclaimed queue. */
+/** Mode A sidebar badges — Cabang unread Cases + Pusat Pengaduan / Tindak lanjut. */
 export function fetchCmWorkBadges(): Promise<DataResponse<CmWorkBadgeCounts>> {
   return apiRequest(cmCasePaths().workBadges);
 }

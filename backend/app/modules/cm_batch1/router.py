@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from typing import Annotated
 
@@ -21,8 +22,10 @@ from app.core.authorization.gates import (
 )
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
 from app.core.authorization.visibility import (
+    VisibilityClass,
     is_hq_schedule_destination_unit,
     is_pusat_unit,
+    resolve_row_visibility,
 )
 from app.core.config import Settings, get_settings
 from app.core.errors import ValidationAppError
@@ -64,7 +67,13 @@ from app.modules.cm_batch1.schemas import (
 )
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.side_effects import CmBatch1SideEffectRecorder
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    safe_mark_cases_read_for_complaint,
+    safe_mark_pusat_queue_seen,
+)
 from app.modules.timeline.repository import TimelineRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/cm", tags=["CM-Batch1"])
 
@@ -222,6 +231,39 @@ def _effective_org_unit(
 ) -> str | None:
     """Claim first; membership fallback fail-open (Mode A / offline lab)."""
     return resolver.resolve_principal(principal)
+
+
+def _actor_is_pusat(principal: Principal, session: Session) -> bool:
+    """Same visibility class the Pusat queue list is built with (DEC-024)."""
+    effective = _effective_org_unit(OrgUnitResolver(session), principal)
+    vis = resolve_row_visibility(replace(principal, org_unit_id=effective))
+    return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
+
+
+def _release_pusat_cases(
+    session: Session,
+    *,
+    complaint_id: str,
+    return_note: str,
+    actor_id: str,
+    actor_unit_id: str | None,
+) -> None:
+    """Hand Cases parked at Pusat back to the branch (API-521 use case).
+
+    Fail-open: the intake decision is already committed, so a Case that
+    cannot be released must not turn the response into a 500.
+    """
+    try:
+        from app.modules.cm_case.api.router import get_case_service
+
+        get_case_service(session).return_escalations_for_complaint(
+            complaint_id=complaint_id,
+            return_note=return_note,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+        )
+    except Exception:
+        logger.exception("release pusat cases after HQ return failed")
 
 
 def _enforce_cm_org_or_pusat_hq(
@@ -455,7 +497,31 @@ def get_complaint(
         session=session,
         settings=settings,
     )
-    return DataResponse(data=service.get_complaint(complaint_id))
+    body = service.get_complaint(complaint_id)
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    # Opening the parent counts as reading its Pusat queue badge row.
+    # get_db_session does not auto-commit; persist the receipt before close.
+    safe_mark_pusat_queue_seen(
+        session,
+        complaint_id=complaint_id,
+        user_id=str(principal.user_id),
+        actor_is_pusat=actor_is_pusat,
+    )
+    safe_mark_cases_read_for_complaint(
+        session,
+        complaint_id=complaint_id,
+        user_id=str(principal.user_id),
+        actor_is_pusat=actor_is_pusat,
+    )
+    try:
+        session.commit()
+    except Exception:
+        logger.exception("pusat queue seen commit failed")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    return DataResponse(data=body)
 
 
 @router.get(
@@ -675,13 +741,22 @@ def hq_return_escalation(
         session=session,
         settings=settings,
     )
-    return DataResponse(
-        data=service.return_from_hq(
-            complaint_id,
-            body,
-            actor_id=_principal_key(principal),
-        )
+    result = service.return_from_hq(
+        complaint_id,
+        body,
+        actor_id=_principal_key(principal),
     )
+    # The parent is back at the branch — release the Cases Pusat still holds,
+    # otherwise they stay flagged ``escalatedToPusat`` on a row no Pusat list
+    # shows any more (ghost work in the sidebar badge).
+    _release_pusat_cases(
+        session,
+        complaint_id=complaint_id,
+        return_note=(body.note or "").strip(),
+        actor_id=_principal_key(principal),
+        actor_unit_id=_effective_org_unit(OrgUnitResolver(session), principal),
+    )
+    return DataResponse(data=result)
 
 
 @router.post(

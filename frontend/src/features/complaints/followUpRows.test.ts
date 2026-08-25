@@ -64,6 +64,33 @@ describe("buildFollowUpRows", () => {
     expect(rows[0].number).toBe("CASE-2026-000001");
     expect(rows[0].parentComplaintId).toBe("cx-1");
     expect(rows[0].parentComplaintNumber).toBe("TAB-0001");
+    expect(rows[0].isUnread).toBe(false);
+  });
+
+  it("marks a Pusat follow-up row unread from the parent receipt", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          pusatUnread: true,
+          intakeDisposition: "HQ_SCHEDULED",
+          hqAcceptedAt: "2026-08-17T10:00:00Z",
+        }),
+      ],
+      allCases: [caseSummary({ isRead: true, escalatedToPusat: true })],
+      audience: "pusat",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].isUnread).toBe(true);
+  });
+
+  it("marks a Cabang follow-up row unread from Case isRead", () => {
+    const rows = buildFollowUpRows({
+      complaints: [complaint({ pusatUnread: false })],
+      allCases: [caseSummary({ isRead: false })],
+      audience: "cabang",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].isUnread).toBe(true);
   });
 
   it("omits complaints that have no visible Case", () => {
@@ -186,6 +213,44 @@ describe("buildFollowUpRows", () => {
       "case-returned:returnedToBranch",
       "case-working:caseWorking",
     ]);
+  });
+
+  it("drops never-handled intake for the Pusat audience (Pengaduan owns it)", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "ESCALATE_APPROVED",
+        }),
+      ],
+      allCases: [
+        caseSummary({
+          status: "IN_PROGRESS",
+          escalatedToPusat: true,
+        }),
+      ],
+      audience: "pusat",
+    });
+    expect(rows).toHaveLength(0);
+  });
+
+  it("keeps accepted Pusat work for the Pusat audience", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "ESCALATE_APPROVED",
+          hqAcceptedAt: "2026-08-17T10:00:00Z",
+        }),
+      ],
+      allCases: [
+        caseSummary({
+          status: "IN_PROGRESS",
+          escalatedToPusat: true,
+        }),
+      ],
+      audience: "pusat",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].statusKey).toBe("hqAcceptedUnscheduled");
   });
 
   it("orders same-bucket rows by newest createdAt first", () => {

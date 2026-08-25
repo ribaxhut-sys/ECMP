@@ -155,6 +155,15 @@ class ComplaintCaseListItem(BaseModel):
     handling_claimed_by_name: str | None = Field(
         default=None, alias="handlingClaimedByName"
     )
+    is_read: bool | None = Field(
+        default=None,
+        alias="isRead",
+        description=(
+            "Cabang inbox: false when the caller has an unread return / "
+            "HQ-schedule receipt for this Case."
+        ),
+    )
+    unread_reason: str | None = Field(default=None, alias="unreadReason")
 
 
 class ComplaintBatch1Response(BaseModel):
@@ -194,6 +203,15 @@ class ComplaintBatch1Response(BaseModel):
         description=(
             "True when Pusat still needs to claim handling: unclaimed escalated "
             "Case, or ESCALATE_APPROVED waiting HQ accept. Mode A sidebar queue."
+        ),
+    )
+    pusat_unread: bool = Field(
+        default=False,
+        alias="pusatUnread",
+        description=(
+            "True when this Pusat caller has not opened the parent since the "
+            "last movement. Same receipt as the Pengaduan / Tindak lanjut "
+            "badges. Always false for Cabang callers."
         ),
     )
     replayed: bool = False

@@ -166,11 +166,11 @@ def test_pending_approval_proposal_is_listed(
     assert row.proposed_arrival_time == "09:00"
 
 
-def test_case_numbers_joined_by_complaint_id(
+def test_cases_joined_by_complaint_id(
     service: CmBatch1Service, db_session: Session
 ) -> None:
     """CmCaseORM.complaint_id is a plain string column, not an FK — the join
-    is manual (HqScheduleRepository._case_numbers_by_complaint). A complaint
+    is manual (HqScheduleRepository._cases_by_complaint). A complaint
     can carry more than one case."""
     resp = confirmed_create(
         service,
@@ -219,7 +219,12 @@ def test_case_numbers_joined_by_complaint_id(
     hq_repo = HqScheduleRepository(db_session)
     rows = hq_repo.list_arrivals_in_range(date_from=_TOMORROW, date_to=_TOMORROW)
     assert len(rows) == 1
-    assert rows[0].case_numbers == ("CASE-2026-000001", "CASE-2026-000002")
+    assert [c.case_number for c in rows[0].cases] == [
+        "CASE-2026-000001",
+        "CASE-2026-000002",
+    ]
+    # The board links by id — every listed case must carry one.
+    assert all(c.case_id for c in rows[0].cases)
 
 
 def test_holiday_crud_round_trip(db_session: Session) -> None:

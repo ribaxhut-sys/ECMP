@@ -43,11 +43,13 @@ from app.modules.cm_batch1.models import (
     CmBatch1IdempotencyORM,
     CmBatch1LaterReviewItemORM,
     CmBatch1NumberCounterORM,
+    CmBatch1PusatQueueSeenORM,
 )
 from app.modules.cm_batch1.predicates import (
     AGGREGATE_STATUSES,
     CLOSED_STATUS,
     ESCALATION_FAMILY,
+    HQ_SCHEDULED,
 )
 from app.modules.cm_batch1.sla import apply_complaint_status
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
@@ -90,6 +92,191 @@ def _clear_proposed(row: CmBatch1ComplaintORM) -> None:
     row.proposed_arrival_time = None
     row.proposed_by = None
     row.proposed_at = None
+
+
+_TERMINAL_CASE_STATUSES = ("CLOSED", "CANCELLED", "RESOLVED")
+
+
+def _parent_id_text():
+    """``cm_batch1_complaints.id`` as the text form ``cm_cases.complaint_id`` uses.
+
+    Postgres ``id::text`` keeps the hyphens; SQLite cast strips them — rebuild
+    the canonical 8-4-4-4-12 shape so correlated EXISTS matches on both.
+    """
+    raw_id = cast(CmBatch1ComplaintORM.id, String)
+    return sql_case(
+        (func.length(raw_id) == 36, raw_id),
+        else_=func.concat(
+            func.substr(raw_id, 1, 8),
+            literal("-"),
+            func.substr(raw_id, 9, 4),
+            literal("-"),
+            func.substr(raw_id, 13, 4),
+            literal("-"),
+            func.substr(raw_id, 17, 4),
+            literal("-"),
+            func.substr(raw_id, 21, 12),
+        ),
+    )
+
+
+def pusat_row_scope_clause(*, pusat_unit_codes: frozenset[str] | None = None):
+    """Rows a Pusat actor may see (DEC-024 visibility ``PUSAT``).
+
+    HQ-owned / approved escalate path, but never a parent whose only Cases are
+    branch-closed (non-escalated) — that produced a false "Belum ada case" row
+    after the embed filter.
+    """
+    codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+    parent_id_txt = _parent_id_text()
+    pusat_clause = or_(
+        pusat_unit_clause(
+            CmBatch1ComplaintORM.owning_unit_id, pusat_unit_codes=codes
+        ),
+        CmBatch1ComplaintORM.intake_disposition.in_(
+            ["ESCALATE_APPROVED", "HQ_SCHEDULED"]
+        ),
+        CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
+    )
+    pusat_case_predicate = or_(
+        CmCaseORM.escalated_to_pusat.is_(True),
+        pusat_unit_clause(CmCaseORM.owning_unit_id, pusat_unit_codes=codes),
+        pusat_unit_clause(CmCaseORM.owner_unit_id, pusat_unit_codes=codes),
+    )
+    has_any_case = exists(
+        select(1)
+        .select_from(CmCaseORM)
+        .where(CmCaseORM.complaint_id == parent_id_txt)
+    )
+    has_pusat_case = exists(
+        select(1)
+        .select_from(CmCaseORM)
+        .where(
+            CmCaseORM.complaint_id == parent_id_txt,
+            pusat_case_predicate,
+        )
+    )
+    # A Case escalated straight to Pusat (DEC-029 / API-520) is HQ work even
+    # when the parent never took the intake escalate path — without this the
+    # row is invisible to Pusat and nobody can claim it.
+    return and_(
+        or_(pusat_clause, has_pusat_case),
+        or_(~has_any_case, has_pusat_case),
+    )
+
+
+def pusat_handling_clause():
+    """Still needs a Pusat handler — the ``needsPusatHandling=1`` queue.
+
+    Pengaduan Pusat = escalated from the branch and never handled (never
+    accepted, never claimed). Accepted / HQ_SCHEDULED work is Tindak lanjut.
+    A later unclaimed Case on a RETURNED_TO_BRANCH parent still counts.
+
+    Single source of truth: the list filter and the sidebar badge both call
+    this, so the badge can never count a row the list will not show.
+    """
+    parent_id_txt = _parent_id_text()
+    unclaimed_escalated = exists(
+        select(1)
+        .select_from(CmCaseORM)
+        .where(
+            CmCaseORM.complaint_id == parent_id_txt,
+            CmCaseORM.escalated_to_pusat.is_(True),
+            or_(
+                CmCaseORM.handling_claimed_by.is_(None),
+                CmCaseORM.handling_claimed_by == "",
+            ),
+            ~CmCaseORM.status.in_(_TERMINAL_CASE_STATUSES),
+        )
+    )
+    waiting_accept = and_(
+        CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+        CmBatch1ComplaintORM.hq_accepted_at.is_(None),
+        CmBatch1ComplaintORM.status != CLOSED_STATUS,
+    )
+    # Do not use NOT (x OR intake = HQ_SCHEDULED): NULL intake makes that
+    # UNKNOWN in SQL and drops DEC-029 rows that never set disposition.
+    not_yet_handled = and_(
+        CmBatch1ComplaintORM.hq_accepted_at.is_(None),
+        or_(
+            CmBatch1ComplaintORM.intake_disposition.is_(None),
+            CmBatch1ComplaintORM.intake_disposition != HQ_SCHEDULED,
+        ),
+    )
+    return and_(
+        CmBatch1ComplaintORM.status != CLOSED_STATUS,
+        not_yet_handled,
+        or_(unclaimed_escalated, waiting_accept),
+    )
+
+
+def _case_is_claimed():
+    return and_(
+        CmCaseORM.handling_claimed_by.is_not(None),
+        CmCaseORM.handling_claimed_by != "",
+    )
+
+
+def pusat_follow_up_case_clause():
+    """Case Pusat already handles — Tindak lanjut, still open.
+
+    Mutually exclusive with ``pusat_handling_clause`` per Case: never accepted
+    and never claimed stays on Pengaduan. NULL intake is not treated as
+    RETURNED / pending (SQL ``!=`` on NULL would drop the row).
+    """
+    accepted = CmBatch1ComplaintORM.hq_accepted_at.is_not(None)
+    scheduled = CmBatch1ComplaintORM.intake_disposition == HQ_SCHEDULED
+    claimed = _case_is_claimed()
+    escalated = CmCaseORM.escalated_to_pusat.is_(True)
+    return and_(
+        CmBatch1ComplaintORM.status != CLOSED_STATUS,
+        ~CmCaseORM.status.in_(_TERMINAL_CASE_STATUSES),
+        or_(
+            CmBatch1ComplaintORM.intake_disposition.is_(None),
+            CmBatch1ComplaintORM.intake_disposition != "RETURNED_TO_BRANCH",
+        ),
+        or_(
+            CmBatch1ComplaintORM.intake_disposition.is_(None),
+            CmBatch1ComplaintORM.intake_disposition
+            != "ESCALATE_PENDING_APPROVAL",
+        ),
+        or_(accepted, claimed, scheduled),
+        or_(escalated, accepted, scheduled),
+    )
+
+
+def pusat_queue_unread_clause(user_id: str):
+    """Queue rows this Pusat user has not opened since the last branch move.
+
+    Read means: a receipt exists for this user whose ``seen_at`` is not older
+    than the parent and every Case under it. Any later movement (a new Case, a
+    fresh escalation, a branch edit) makes ``seen_at`` stale and the row lights
+    up again — for that one user only.
+    """
+    uid = (user_id or "").strip()
+    parent_id_txt = _parent_id_text()
+    seen = CmBatch1PusatQueueSeenORM
+    # Two levels deep, so correlate explicitly — otherwise SQLAlchemy adds a
+    # second cm_batch1_complaints to the inner FROM and the comparison turns
+    # into a cross join over every complaint.
+    last_case_move = (
+        select(func.max(CmCaseORM.updated_at))
+        .where(CmCaseORM.complaint_id == parent_id_txt)
+        .correlate(CmBatch1ComplaintORM)
+        .scalar_subquery()
+    )
+    already_seen = exists(
+        select(1)
+        .select_from(seen)
+        .where(
+            seen.complaint_id == CmBatch1ComplaintORM.id,
+            seen.user_id == uid,
+            seen.seen_at >= CmBatch1ComplaintORM.updated_at,
+            # No Case yet → nothing to be newer than.
+            seen.seen_at >= func.coalesce(last_case_move, seen.seen_at),
+        )
+    ).correlate(CmBatch1ComplaintORM)
+    return ~already_seen
 
 
 class CmBatch1Repository:
@@ -991,62 +1178,9 @@ class CmBatch1Repository:
             stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
         elif vis == "PUSAT":
-            # HQ queue: Pusat-owned / approved escalate path, but never a
-            # parent whose only Cases are branch-closed (non-escalated) —
-            # that produced a false "Belum ada case" row after embed filter.
-            from app.modules.cm_case.infrastructure.orm import CmCaseORM
-
-            pusat_clause = or_(
-                pusat_unit_clause(
-                    CmBatch1ComplaintORM.owning_unit_id, pusat_unit_codes=codes
-                ),
-                CmBatch1ComplaintORM.intake_disposition.in_(
-                    ["ESCALATE_APPROVED", "HQ_SCHEDULED"]
-                ),
-                CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
-            )
-            # Postgres ``id::text`` keeps hyphens; SQLite cast strips them —
-            # normalize so EXISTS matches ``cm_cases.complaint_id``.
-            raw_id = cast(CmBatch1ComplaintORM.id, String)
-            parent_id_txt = sql_case(
-                (func.length(raw_id) == 36, raw_id),
-                else_=func.concat(
-                    func.substr(raw_id, 1, 8),
-                    literal("-"),
-                    func.substr(raw_id, 9, 4),
-                    literal("-"),
-                    func.substr(raw_id, 13, 4),
-                    literal("-"),
-                    func.substr(raw_id, 17, 4),
-                    literal("-"),
-                    func.substr(raw_id, 21, 12),
-                ),
-            )
-            pusat_case_predicate = or_(
-                CmCaseORM.escalated_to_pusat.is_(True),
-                pusat_unit_clause(
-                    CmCaseORM.owning_unit_id, pusat_unit_codes=codes
-                ),
-                pusat_unit_clause(
-                    CmCaseORM.owner_unit_id, pusat_unit_codes=codes
-                ),
-            )
-            has_any_case = exists(
-                select(1)
-                .select_from(CmCaseORM)
-                .where(CmCaseORM.complaint_id == parent_id_txt)
-            )
-            has_pusat_case = exists(
-                select(1)
-                .select_from(CmCaseORM)
-                .where(
-                    CmCaseORM.complaint_id == parent_id_txt,
-                    pusat_case_predicate,
-                )
-            )
-            case_scope = or_(~has_any_case, has_pusat_case)
-            stmt = stmt.where(pusat_clause, case_scope)
-            count_stmt = count_stmt.where(pusat_clause, case_scope)
+            scope = pusat_row_scope_clause(pusat_unit_codes=codes)
+            stmt = stmt.where(scope)
+            count_stmt = count_stmt.where(scope)
         else:
             return [], 0
 
@@ -1120,42 +1254,7 @@ class CmBatch1Repository:
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.decided_by == db_)
 
         if needs_pusat_handling:
-            from app.modules.cm_case.infrastructure.orm import CmCaseORM
-
-            raw_id = cast(CmBatch1ComplaintORM.id, String)
-            parent_id_txt = sql_case(
-                (func.length(raw_id) == 36, raw_id),
-                else_=func.concat(
-                    func.substr(raw_id, 1, 8),
-                    literal("-"),
-                    func.substr(raw_id, 9, 4),
-                    literal("-"),
-                    func.substr(raw_id, 13, 4),
-                    literal("-"),
-                    func.substr(raw_id, 17, 4),
-                    literal("-"),
-                    func.substr(raw_id, 21, 12),
-                ),
-            )
-            unclaimed_escalated = exists(
-                select(1)
-                .select_from(CmCaseORM)
-                .where(
-                    CmCaseORM.complaint_id == parent_id_txt,
-                    CmCaseORM.escalated_to_pusat.is_(True),
-                    or_(
-                        CmCaseORM.handling_claimed_by.is_(None),
-                        CmCaseORM.handling_claimed_by == "",
-                    ),
-                    ~CmCaseORM.status.in_(("CLOSED", "CANCELLED", "RESOLVED")),
-                )
-            )
-            waiting_accept = and_(
-                CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
-                CmBatch1ComplaintORM.hq_accepted_at.is_(None),
-                CmBatch1ComplaintORM.status != CLOSED_STATUS,
-            )
-            handling_clause = or_(unclaimed_escalated, waiting_accept)
+            handling_clause = pusat_handling_clause()
             stmt = stmt.where(handling_clause)
             count_stmt = count_stmt.where(handling_clause)
 
@@ -1166,6 +1265,102 @@ class CmBatch1Repository:
             .limit(page_size)
         ).all()
         return [_to_entity(r) for r in rows], total
+
+    def count_pusat_queue_unread(self, user_id: str) -> int:
+        """Sidebar badge for one Pusat user: queue rows they have not opened.
+
+        Same scope + handling predicates as ``list_complaints`` with
+        ``needs_pusat_handling=True``, so the badge can never disagree with the
+        list behind it.
+        """
+        uid = (user_id or "").strip()
+        if not uid:
+            return 0
+        stmt = (
+            select(func.count())
+            .select_from(CmBatch1ComplaintORM)
+            .where(
+                pusat_row_scope_clause(),
+                pusat_handling_clause(),
+                pusat_queue_unread_clause(uid),
+            )
+        )
+        return int(self._session.scalar(stmt) or 0)
+
+    def count_pusat_follow_up_unread(self, user_id: str) -> int:
+        """Tindak lanjut parents this Pusat user has not opened since last move.
+
+        Same unread receipt as the Pengaduan badge (``cm_pusat_queue_seen``),
+        scoped to follow-up Cases so one row cannot light both menus.
+        Count is parents (same grain as ``pusatQueue``).
+        """
+        uid = (user_id or "").strip()
+        if not uid:
+            return 0
+        follow_up_exists = (
+            exists(
+                select(1)
+                .select_from(CmCaseORM)
+                .where(
+                    CmCaseORM.complaint_id == _parent_id_text(),
+                    pusat_follow_up_case_clause(),
+                )
+            ).correlate(CmBatch1ComplaintORM)
+        )
+        stmt = (
+            select(func.count())
+            .select_from(CmBatch1ComplaintORM)
+            .where(
+                pusat_row_scope_clause(),
+                follow_up_exists,
+                pusat_queue_unread_clause(uid),
+            )
+        )
+        return int(self._session.scalar(stmt) or 0)
+
+    def mark_pusat_queue_seen(self, complaint_id: str, user_id: str) -> None:
+        """Upsert this user's read receipt for one parent (idempotent)."""
+        try:
+            cid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return
+        uid = (user_id or "").strip()
+        if not uid:
+            return
+        now = datetime.now(UTC)
+        row = self._session.scalar(
+            select(CmBatch1PusatQueueSeenORM).where(
+                CmBatch1PusatQueueSeenORM.complaint_id == cid,
+                CmBatch1PusatQueueSeenORM.user_id == uid,
+            )
+        )
+        if row is None:
+            self._session.add(
+                CmBatch1PusatQueueSeenORM(
+                    complaint_id=cid, user_id=uid, seen_at=now
+                )
+            )
+        else:
+            row.seen_at = now
+        self._session.flush()
+
+    def unread_parent_ids(self, user_id: str, complaint_ids: list[str]) -> set[str]:
+        """Which of these parents are still unread for this Pusat user."""
+        uid = (user_id or "").strip()
+        ids: list[uuid.UUID] = []
+        for raw in complaint_ids:
+            try:
+                ids.append(uuid.UUID(str(raw).strip()))
+            except ValueError:
+                continue
+        if not uid or not ids:
+            return set()
+        stmt = select(CmBatch1ComplaintORM.id).where(
+            CmBatch1ComplaintORM.id.in_(ids),
+            pusat_queue_unread_clause(uid),
+        )
+        return {str(cid) for cid in self._session.scalars(stmt)}
+
 
     def work_stats_for_user(self, user_key: str) -> dict[str, int]:
         """Complaint work counters for one actor (UM-BUG-006 / Users directory)."""

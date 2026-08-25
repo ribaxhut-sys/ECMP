@@ -243,6 +243,15 @@ components:
                 type: object
                 additionalProperties: true
   schemas:
+    CaseRef:
+      type: object
+      description: A Case tracking the escalation — id lets the schedule board link straight to the Case.
+      required: [caseId, caseNumber]
+      properties:
+        caseId:
+          type: string
+        caseNumber:
+          type: string
     ProposalSummary:
       type: object
       description: One scheduled or branch-proposed slot occupant (Pusat detail; branch aggregate only sees own unit).
@@ -257,10 +266,10 @@ components:
           nullable: true
         unitCode:
           type: string
-        caseNumbers:
+        cases:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/CaseRef"
           description: Case(s) tracking this complaint's escalation — empty for pending proposals.
         proposedBy:
           type: string

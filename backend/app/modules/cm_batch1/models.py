@@ -473,3 +473,40 @@ class CmBatch1OutboxORM(Base):
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class CmBatch1PusatQueueSeenORM(Base):
+    """Per-user Pusat read receipt for the HQ queue row (one row per parent).
+
+    Derived-unread model: no fan-out at escalation time, so a Pusat user who
+    joins later still sees the backlog and no user directory is needed (the
+    directory belongs to the Enterprise Platform, ADR-015). A row is written
+    only when someone opens the complaint (or one of its Cases); the badge
+    treats the row as read while ``seen_at`` is newer than the last branch
+    movement on that complaint.
+    """
+
+    __tablename__ = "cm_pusat_queue_seen"
+    __table_args__ = (
+        UniqueConstraint(
+            "complaint_id", "user_id", name="uq_cm_pusat_queue_seen_pair"
+        ),
+        Index("ix_cm_pusat_queue_seen_user_id", "user_id"),
+        Index("ix_cm_pusat_queue_seen_complaint_id", "complaint_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_complaints.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

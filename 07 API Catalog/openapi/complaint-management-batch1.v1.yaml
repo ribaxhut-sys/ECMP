@@ -203,6 +203,10 @@ paths:
   /api/v1/cm/complaints/{complaintId}:
     get:
       summary: Get Complaint confirmation/detail
+      description: |
+        For a Pusat caller this read also records a queue read receipt, so the
+        complaint stops counting in that caller's sidebar badge until the
+        branch moves it again (Mode A in-app signal, not CAP-005).
       operationId: cmB1GetComplaint
       x-ear-id: API-501
       x-ecmp-logical-id: API-CM-B1-002
@@ -1063,6 +1067,42 @@ components:
           description: >
             Taxpayer-visit clock time (HH:MM, 24h Asia/Jakarta) paired with
             arrivalDate. Null when arrivalDate is null.
+    ComplaintCaseListItem:
+      type: object
+      required: [caseId, caseNumber, complaintId, status]
+      properties:
+        caseId:
+          type: string
+        caseNumber:
+          type: string
+        complaintId:
+          type: string
+        status:
+          type: string
+        subject:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          nullable: true
+        escalatedToPusat:
+          type: boolean
+        handlingClaimedBy:
+          type: string
+          nullable: true
+        handlingClaimedByName:
+          type: string
+          nullable: true
+        isRead:
+          type: boolean
+          nullable: true
+          description: |
+            Cabang inbox: false when the caller has an unread return /
+            HQ-schedule receipt. Same grain as Case list `isRead`.
+        unreadReason:
+          type: string
+          nullable: true
+          description: RETURNED or HQ_SCHEDULED when isRead is false.
     ComplaintBatch1Response:
       type: object
       required: [complaintId, complaintNumber, status, customerId]
@@ -1172,7 +1212,14 @@ components:
           description: |
             True when this complaint still needs a Pusat handler (unclaimed
             escalated Case, or ESCALATE_APPROVED waiting HQ accept). Drives
-            the Pusat sidebar queue and list bolding. Mode A lab UX.
+            the Pusat Pengaduan sidebar queue. Mode A lab UX.
+        pusatUnread:
+          type: boolean
+          description: |
+            True when this Pusat caller has not opened the parent (complaint
+            or Case) since the last movement. Same `cm_pusat_queue_seen`
+            receipt as the Pengaduan / Tindak lanjut badges. Always false for
+            Cabang callers. Drives list typography (unread = semibold).
         hqAcceptanceNote:
           type: string
           nullable: true
@@ -1226,6 +1273,13 @@ components:
         caseCreated:
           type: boolean
           description: True after the first Case exists under this Aggregate (DEC-025)
+        cases:
+          type: array
+          description: |
+            Nested Cases for list display (parent-scoped). Includes Cabang
+            inbox `isRead` so Pengaduan typography matches the Case list.
+          items:
+            $ref: "#/components/schemas/ComplaintCaseListItem"
         replayed:
           type: boolean
         duplicateCheckResult:

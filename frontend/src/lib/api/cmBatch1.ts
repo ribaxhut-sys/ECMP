@@ -132,6 +132,8 @@ export interface CmBatch1ComplaintResponse {
   cases?: CmCaseSummary[];
   /** Pusat still needs to claim this complaint (unclaimed escalate / waiting HQ accept). */
   needsPusatHandling?: boolean;
+  /** Pusat caller has not opened this parent since last movement (list typography). */
+  pusatUnread?: boolean;
   replayed: boolean;
   category?: string | null;
   channel?: string | null;

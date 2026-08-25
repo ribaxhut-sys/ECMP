@@ -93,14 +93,18 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
                 complaintNumber: "TAB-2608-0001",
                 owningUnitId: "UPPPD-A",
                 unitCode: "TAB",
-                caseNumbers: ["CASE-2026-000001"],
+                cases: [
+                  { caseId: "id-case-2026-000001", caseNumber: "CASE-2026-000001" },
+                ],
               },
               {
                 complaintId: "case-other",
                 complaintNumber: "GAM-2608-0002",
                 owningUnitId: "UPPPD-B",
                 unitCode: "GAM",
-                caseNumbers: ["CASE-2026-000002"],
+                cases: [
+                  { caseId: "id-case-2026-000002", caseNumber: "CASE-2026-000002" },
+                ],
               },
             ],
           },
@@ -193,10 +197,45 @@ describe("HqScheduleView", () => {
     renderWithProviders(<HqScheduleView />);
 
     const ownLink = await screen.findByRole("link", { name: /CASE-2026-000001/ });
-    expect(ownLink).toHaveAttribute("href", "/complaints/cm/case-own");
+    expect(ownLink).toHaveAttribute(
+      "href",
+      "/complaints/cm/cases/id-case-2026-000001",
+    );
 
     const otherCase = screen.getAllByText(/CASE-2026-000002/)[0];
     expect(otherCase.closest("a")).toBeNull();
+  });
+
+  it("links each Case number to its own Case, not to the parent complaint", async () => {
+    const grid = gridWithCases();
+    grid.days[0].slots[0].scheduledCases[0].cases = [
+      { caseId: "id-a", caseNumber: "CASE-2026-000001" },
+      { caseId: "id-b", caseNumber: "CASE-2026-000010" },
+    ];
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    expect(
+      await screen.findByRole("link", { name: "CASE-2026-000001" }),
+    ).toHaveAttribute("href", "/complaints/cm/cases/id-a");
+    expect(screen.getByRole("link", { name: "CASE-2026-000010" })).toHaveAttribute(
+      "href",
+      "/complaints/cm/cases/id-b",
+    );
+    expect(
+      screen.queryByRole("link", { name: /TAB-2608-0001/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to the complaint for a legacy arrival with no Case", async () => {
+    const grid = gridWithCases();
+    grid.days[0].slots[0].scheduledCases[0].cases = [];
+    fetchHqScheduleAvailability.mockResolvedValue({ data: grid });
+    renderWithProviders(<HqScheduleView />);
+
+    expect(
+      await screen.findByRole("link", { name: "TAB-2608-0001" }),
+    ).toHaveAttribute("href", "/complaints/cm/case-own");
   });
 
   it("lets a Pusat reviewer open every case regardless of branch", async () => {
@@ -332,7 +371,9 @@ describe("HqScheduleView", () => {
             complaintNumber: "TAB-2608-0003",
             owningUnitId: "UPPPD-A",
             unitCode: "TAB",
-            caseNumbers: ["CASE-2026-000003"],
+            cases: [
+              { caseId: "id-case-2026-000003", caseNumber: "CASE-2026-000003" },
+            ],
           },
         ],
       },
@@ -371,7 +412,9 @@ describe("HqScheduleView", () => {
           complaintNumber: "TAB-2608-0009",
           owningUnitId: "UPPPD-A",
           unitCode: "TAB",
-          caseNumbers: ["CASE-2026-000009"],
+          cases: [
+            { caseId: "id-case-2026-000009", caseNumber: "CASE-2026-000009" },
+          ],
           completed: true,
         },
       ],
@@ -430,7 +473,9 @@ describe("HqScheduleView", () => {
         complaintNumber: "TAB-2608-0009",
         owningUnitId: "UPPPD-A",
         unitCode: "TAB",
-        caseNumbers: ["CASE-2026-000009"],
+        cases: [
+          { caseId: "id-case-2026-000009", caseNumber: "CASE-2026-000009" },
+        ],
         completed: true,
       },
     ];
@@ -581,7 +626,9 @@ describe("HqScheduleView", () => {
                     complaintNumber: "TAB-2608-0009",
                     owningUnitId: "UPPPD-A",
                     unitCode: "TAB",
-                    caseNumbers: ["CASE-2026-000009"],
+                    cases: [
+                      { caseId: "id-case-2026-000009", caseNumber: "CASE-2026-000009" },
+                    ],
                     completed: true,
                   },
                 ],
@@ -652,7 +699,9 @@ describe("HqScheduleView", () => {
                     complaintNumber: "TAB-2608-0011",
                     owningUnitId: "UPPPD-A",
                     unitCode: "TAB",
-                    caseNumbers: ["CASE-2026-000011"],
+                    cases: [
+                      { caseId: "id-case-2026-000011", caseNumber: "CASE-2026-000011" },
+                    ],
                   },
                 ],
               },
@@ -709,7 +758,9 @@ describe("HqScheduleView", () => {
                     complaintNumber: "TAB-2608-0020",
                     owningUnitId: "UPPPD-A",
                     unitCode: "TAB",
-                    caseNumbers: ["CASE-2026-000020"],
+                    cases: [
+                      { caseId: "id-case-2026-000020", caseNumber: "CASE-2026-000020" },
+                    ],
                     destinationUnitCode: "PUSAT-CRO",
                   },
                   {
@@ -717,7 +768,9 @@ describe("HqScheduleView", () => {
                     complaintNumber: "TAB-2608-0021",
                     owningUnitId: "UPPPD-A",
                     unitCode: "TAB",
-                    caseNumbers: ["CASE-2026-000021"],
+                    cases: [
+                      { caseId: "id-case-2026-000021", caseNumber: "CASE-2026-000021" },
+                    ],
                     destinationUnitCode: null,
                   },
                 ],
@@ -764,14 +817,18 @@ describe("HqScheduleView", () => {
         complaintId: "a",
         complaintNumber: "A",
         unitCode: "TAB",
-        caseNumbers: ["CASE-A"],
+        cases: [
+          { caseId: "id-case-a", caseNumber: "CASE-A" },
+        ],
         destinationUnitCode: "PUSAT-SEKRETARIAT",
       },
       {
         complaintId: "b",
         complaintNumber: "B",
         unitCode: "TAB",
-        caseNumbers: ["CASE-B"],
+        cases: [
+          { caseId: "id-case-b", caseNumber: "CASE-B" },
+        ],
         destinationUnitCode: null,
       },
     ];

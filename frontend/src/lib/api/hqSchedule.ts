@@ -7,13 +7,18 @@ import type { DataResponse } from "./types";
 
 export type HqScheduleClosedReason = "WEEKEND" | "HOLIDAY";
 
+export interface HqScheduleCaseRef {
+  caseId: string;
+  caseNumber: string;
+}
+
 export interface HqScheduleProposalSummary {
   complaintId: string;
   complaintNumber: string;
   owningUnitId?: string | null;
   unitCode: string;
   /** Case(s) tracking this complaint's escalation — empty for pending proposals. */
-  caseNumbers: string[];
+  cases: HqScheduleCaseRef[];
   proposedBy?: string | null;
   proposedAt?: string | null;
   /** HQ visit completed (HQ_CLOSED) — still listed that day and counted in the slot ratio. */

@@ -26,6 +26,15 @@ class HolidayResponse(BaseModel):
     created_at: datetime = Field(alias="createdAt")
 
 
+class CaseRefResponse(BaseModel):
+    """A Case tracking the escalation — id lets the board link straight to the Case."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    case_id: str = Field(alias="caseId")
+    case_number: str = Field(alias="caseNumber")
+
+
 class ProposalSummary(BaseModel):
     """One scheduled or branch-proposed slot occupant (Pusat detail view only)."""
 
@@ -36,7 +45,7 @@ class ProposalSummary(BaseModel):
     owning_unit_id: str | None = Field(default=None, alias="owningUnitId")
     unit_code: str = Field(alias="unitCode")
     # Case(s) tracking this complaint's escalation — scheduled cases only.
-    case_numbers: list[str] = Field(default_factory=list, alias="caseNumbers")
+    cases: list[CaseRefResponse] = Field(default_factory=list)
     proposed_by: str | None = Field(default=None, alias="proposedBy")
     proposed_at: datetime | None = Field(default=None, alias="proposedAt")
     completed: bool = Field(

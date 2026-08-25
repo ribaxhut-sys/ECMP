@@ -14,3 +14,14 @@ export function prefersComplaintNumberIdentity(
   if (!code) return false;
   return !isCmBatch1PusatUnitCode(code);
 }
+
+/**
+ * Whether the signed-in unit uses the Pusat Pengaduan / Tindak lanjut split.
+ * ``null`` while the org unit is still loading — callers must not assume Cabang.
+ */
+export function isPusatWorkAudience(
+  orgUnitCode: string | null | undefined,
+): boolean | null {
+  if (orgUnitCode === undefined) return null;
+  return !prefersComplaintNumberIdentity(orgUnitCode);
+}

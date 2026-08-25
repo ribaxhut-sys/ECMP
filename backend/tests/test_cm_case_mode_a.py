@@ -18,7 +18,10 @@ from app.core.errors import ApiError
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
-from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.models import (
+    CmBatch1ComplaintORM,
+    CmBatch1PusatQueueSeenORM,
+)
 from app.modules.cm_case.api.router import get_case_service
 from app.modules.cm_case.application.dto import (
     CancelEscalationToPusatCommand,
@@ -48,6 +51,7 @@ from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseReposito
 
 _TABLES = [
     CmBatch1ComplaintORM.__table__,
+    CmBatch1PusatQueueSeenORM.__table__,
     CmCaseORM.__table__,
     CmCaseResolutionORM.__table__,
     CmCaseAcceptanceORM.__table__,
@@ -2374,6 +2378,58 @@ def test_return_escalation_marks_creator_unread_until_detail_open(
     assert row_again.get("unreadReason") in (None, "")
 
 
+def test_opening_parent_complaint_clears_cabang_case_inbox(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Parent open clears inbox",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    escalated = client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert escalated.status_code == 200, escalated.text
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+
+    state["principal"] = creator
+    listed = client.get("/api/v1/cm/cases")
+    row = next(item for item in listed.json()["data"] if item["caseId"] == case_id)
+    assert row["isRead"] is False
+
+    opened_parent = client.get(f"/api/v1/cm/complaints/{complaint_id}")
+    assert opened_parent.status_code == 200, opened_parent.text
+    listed_again = client.get("/api/v1/cm/cases")
+    row_again = next(
+        item for item in listed_again.json()["data"] if item["caseId"] == case_id
+    )
+    assert row_again["isRead"] is True
+
+
 def test_work_badges_pusat_queue_and_cabang_unread(
     jwt_org_api_client: dict[str, object], db_session: Session
 ) -> None:
@@ -2407,12 +2463,14 @@ def test_work_badges_pusat_queue_and_cabang_unread(
     assert cabang_badges.status_code == 200, cabang_badges.text
     assert cabang_badges.json()["data"]["unreadCases"] == 0
     assert cabang_badges.json()["data"]["pusatQueue"] == 0
+    assert cabang_badges.json()["data"]["pusatFollowUp"] == 0
 
     state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
     pusat_badges = client.get("/api/v1/cm/work-badges")
     assert pusat_badges.status_code == 200, pusat_badges.text
     assert pusat_badges.json()["data"]["unreadCases"] == 0
     assert pusat_badges.json()["data"]["pusatQueue"] >= 1
+    assert pusat_badges.json()["data"]["pusatFollowUp"] == 0
 
     returned = client.post(
         f"/api/v1/cm/cases/{case_id}/return-escalation",
@@ -2424,6 +2482,7 @@ def test_work_badges_pusat_queue_and_cabang_unread(
     after_return = client.get("/api/v1/cm/work-badges")
     assert after_return.json()["data"]["unreadCases"] >= 1
     assert after_return.json()["data"]["pusatQueue"] == 0
+    assert after_return.json()["data"]["pusatFollowUp"] == 0
 
 
 def test_return_escalation_fail_open_when_inbox_write_breaks(

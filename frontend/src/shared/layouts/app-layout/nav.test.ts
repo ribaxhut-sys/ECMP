@@ -269,6 +269,14 @@ describe("isNavItemActive (longest prefix)", () => {
     ).toBe("/internal/complaints");
   });
 
+  it("keeps Pengaduan active when the Pusat queue query is on the href", () => {
+    const hrefs = ["/complaints?needsPusatHandling=1", "/tindak-lanjut"];
+    expect(resolveActiveNavHref("/complaints", hrefs)).toBe("/complaints");
+    expect(
+      isNavItemActive("/complaints", "/complaints?needsPusatHandling=1", hrefs),
+    ).toBe(true);
+  });
+
   it("activates Case inbox without stealing Pengaduan on /complaints/cm/[id]", () => {
     const hrefs = ["/complaints", "/complaints/cm/cases"];
     expect(resolveActiveNavHref("/complaints/cm/cases", hrefs)).toBe(

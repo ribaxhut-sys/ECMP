@@ -13,7 +13,6 @@ from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
     is_hq_schedule_destination_unit,
-    is_pusat_unit,
     resolve_row_visibility,
 )
 from app.core.config import Settings, get_settings
@@ -32,12 +31,7 @@ from app.integrations.customer import (
     mask_identity,
 )
 from app.integrations.directory import NullUserDirectory, UserDirectory
-from app.modules.cm_case.infrastructure.inbox_repository import (
-    REASON_HQ_SCHEDULED,
-    REASON_RETURNED,
-    complaint_needs_pusat_handling,
-    notify_complaint_case_creators,
-)
+from app.modules.cm_batch1 import event_factory as events
 from app.modules.cm_batch1.customer_search_key import validate_customer_search_key
 from app.modules.cm_batch1.duplicate_config import (
     DEFAULT_DUPLICATE_CONFIG,
@@ -96,6 +90,12 @@ from app.modules.cm_batch1.side_effects import (
 )
 from app.modules.cm_batch1.sla import resolve_complaint_sla
 from app.modules.cm_batch1.store import STORE, Batch1Store
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    REASON_HQ_SCHEDULED,
+    REASON_RETURNED,
+    complaint_needs_pusat_handling,
+    notify_complaint_case_creators,
+)
 
 
 def _candidate_from_minimal(customer: MinimalCustomer) -> CustomerCandidate:
@@ -233,6 +233,8 @@ class CmBatch1StoreProtocol(Protocol):
         visibility: str | None = None,
         pusat_unit_codes: frozenset[str] | None = None,
     ) -> dict[str, list[dict[str, object]]]: ...
+
+    def unread_parent_ids(self, user_id: str, complaint_ids: list[str]) -> set[str]: ...
 
     def work_stats_for_user(self, user_key: str) -> dict[str, int]: ...
 
@@ -1959,6 +1961,35 @@ class CmBatch1Service:
             if c.get("handlingClaimedBy")
         }
         claim_names = self._officer_labels_for(claim_ids) if claim_ids else {}
+        unread_ids: set[str] = set()
+        lookup_unread = getattr(self._store, "unread_parent_ids", None)
+        if (
+            callable(lookup_unread)
+            and actor_id
+            and visibility in {"PUSAT", "ALL"}
+        ):
+            unread_ids = lookup_unread(
+                actor_id, [row.complaint_id for row in rows]
+            )
+        case_unread: dict[str, str] = {}
+        session = getattr(self._store, "_session", None)
+        all_case_ids = [
+            str(c.get("caseId") or "").strip()
+            for items in cases_by_parent.values()
+            for c in items
+            if str(c.get("caseId") or "").strip()
+        ]
+        if session is not None and actor_id and all_case_ids:
+            try:
+                from app.modules.cm_case.infrastructure.inbox_repository import (
+                    CaseInboxRepository,
+                )
+
+                case_unread = CaseInboxRepository(session).unread_map(
+                    actor_id, all_case_ids
+                )
+            except Exception:
+                case_unread = {}
         return (
             [
                 self._to_complaint_response(
@@ -1969,7 +2000,9 @@ class CmBatch1Service:
                     cases=self._case_list_items(
                         cases_by_parent.get(row.complaint_id, []),
                         claim_names=claim_names,
+                        case_unread=case_unread,
                     ),
+                    pusat_unread=row.complaint_id in unread_ids,
                 )
                 for row in rows
             ],
@@ -2019,13 +2052,17 @@ class CmBatch1Service:
         raw: list[dict[str, object]],
         *,
         claim_names: dict[str, str],
+        case_unread: dict[str, str] | None = None,
     ) -> list[ComplaintCaseListItem]:
         items: list[ComplaintCaseListItem] = []
+        unread = case_unread or {}
         for row in raw:
             claimed = str(row.get("handlingClaimedBy") or "").strip() or None
+            case_id = str(row.get("caseId") or "")
+            reason = unread.get(case_id)
             items.append(
                 ComplaintCaseListItem(
-                    caseId=str(row.get("caseId") or ""),
+                    caseId=case_id,
                     caseNumber=str(row.get("caseNumber") or ""),
                     complaintId=str(row.get("complaintId") or ""),
                     status=str(row.get("status") or ""),
@@ -2036,6 +2073,8 @@ class CmBatch1Service:
                     handlingClaimedByName=(
                         claim_names.get(claimed) if claimed else None
                     ),
+                    isRead=False if reason else True,
+                    unreadReason=reason,
                 )
             )
         return items
@@ -2048,6 +2087,7 @@ class CmBatch1Service:
         customer_labels: dict[str, tuple[str | None, str | None]] | None = None,
         officer_labels: dict[str, str] | None = None,
         cases: list[ComplaintCaseListItem] | None = None,
+        pusat_unread: bool = False,
     ) -> ComplaintBatch1Response:
         labels = customer_labels
         if labels is None and row.customer_id:
@@ -2080,6 +2120,7 @@ class CmBatch1Service:
                 hq_accepted_at=row.hq_accepted_at,
                 cases=list(cases or []),
             ),
+            pusatUnread=pusat_unread,
             replayed=replayed,
             category=row.category,
             channel=row.channel,

@@ -5,6 +5,7 @@ No Notification / Assignment / SLA / Event engines. Audit + Complaint Timeline o
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from typing import Protocol
 from uuid import UUID
@@ -51,8 +52,11 @@ from app.modules.cm_case.infrastructure.inbox_repository import (
     CaseInboxRepository,
     safe_mark_unread,
 )
+from app.modules.timeline.domain.entity import TimelineEntry
 from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
+
+logger = logging.getLogger(__name__)
 
 _INTAKE_ACTIONS = frozenset({"register", "close", "escalate"})
 
@@ -871,6 +875,41 @@ class CaseApplicationService:
         )
         self._repo.commit()
         return to_case_dto(case)
+
+    def return_escalations_for_complaint(
+        self,
+        *,
+        complaint_id: str,
+        return_note: str,
+        actor_id: str,
+        actor_unit_id: str | None = None,
+    ) -> int:
+        """Pusat returned the whole intake — release the Cases it parked here.
+
+        Without this a Case keeps ``escalatedToPusat`` after the parent went
+        back to the branch: it counts as Pusat work in the badge but the
+        parent no longer shows in any Pusat list, so nobody can act on it.
+        Already-claimed Cases are left alone — that is real Pusat work in
+        progress, ended through API-521 instead.
+        """
+        released = 0
+        for case_id in self._repo.unclaimed_escalated_case_ids(complaint_id):
+            try:
+                self.return_escalation(
+                    ReturnEscalationCommand(
+                        case_id=case_id,
+                        return_note=return_note,
+                        actor_id=actor_id,
+                        actor_unit_id=actor_unit_id,
+                        actor_is_pusat=True,
+                    )
+                )
+                released += 1
+            except Exception:
+                logger.exception(
+                    "release escalated case failed", extra={"caseId": case_id}
+                )
+        return released
 
     def _require(self, case_id: str, *, for_update: bool = False) -> CaseAggregate:
         case = self._repo.get(case_id, for_update=for_update)

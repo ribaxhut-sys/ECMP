@@ -12,6 +12,10 @@ export {
   showCaseReturnEscalation,
 } from "./caseHqPath";
 export { CaseHistoryPanel } from "./CaseHistoryPanel";
+export {
+  WORK_BADGES_REFRESH_EVENT,
+  refreshWorkBadges,
+} from "./workBadgesSignal";
 export { CreateCaseDialog } from "./CreateCaseDialog";
 export { UpdateStatusDialog } from "./UpdateStatusDialog";
 export { ResolveCaseDialog } from "./ResolveCaseDialog";

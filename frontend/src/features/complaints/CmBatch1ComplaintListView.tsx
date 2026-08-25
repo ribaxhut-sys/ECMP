@@ -37,7 +37,10 @@ import {
 } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { prefersComplaintNumberIdentity } from "./cmBatch1ComplaintListIdentity";
+import {
+  isPusatWorkAudience,
+  prefersComplaintNumberIdentity,
+} from "./cmBatch1ComplaintListIdentity";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
@@ -56,6 +59,16 @@ import {
   resolveHqPathPhase,
   resolvePenangananContextKind,
 } from "./penangananGroups";
+import { complaintWorkListIsUnread, keepPusatPengaduanListRow } from "./pusatWorkQueues";
+
+const NUMBER_LINK_BASE =
+  "whitespace-nowrap tabular-nums text-ecmp-primary underline-offset-2 hover:underline";
+
+function numberLinkClass(unread: boolean): string {
+  return unread
+    ? `${NUMBER_LINK_BASE} font-semibold`
+    : `${NUMBER_LINK_BASE} font-medium`;
+}
 
 function customerCellLabel(
   row: CmBatch1ComplaintResponse,
@@ -78,7 +91,7 @@ function customerCellLabel(
 
 /**
  * CM Aggregate list API (API-514 / DEC-026) at `/complaints`.
- * Pusat: Case number primary, complaint secondary.
+ * Pusat: default queue = escalated Cases never handled by Pusat.
  * Cabang (unit-scoped): complaint number primary, Case secondary.
  */
 export function CmBatch1ComplaintListView() {
@@ -95,6 +108,7 @@ export function CmBatch1ComplaintListView() {
   const canRead = hasPermission("complaints:read");
   const orgUnitCode = useOrgUnitCode();
   const complaintNumberFirst = prefersComplaintNumberIdentity(orgUnitCode);
+  const pusatAudience = isPusatWorkAudience(orgUnitCode);
 
   const filters = useMemo(
     () => cmBatch1FiltersFromSearchParams(searchParams),
@@ -106,6 +120,17 @@ export function CmBatch1ComplaintListView() {
     setDraft(filters);
   }, [filters]);
 
+  useEffect(() => {
+    if (pusatAudience !== true) return;
+    const parsed = cmBatch1FiltersFromSearchParams(searchParams);
+    if (parsed.needsPusatHandling) return;
+    const params = cmBatch1FiltersToSearchParams({
+      ...parsed,
+      needsPusatHandling: true,
+    });
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [pusatAudience, searchParams, pathname, router]);
+
   const [rows, setRows] = useState<CmBatch1ComplaintResponse[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -114,6 +139,12 @@ export function CmBatch1ComplaintListView() {
   const load = useCallback(async () => {
     if (!canRead) {
       setLoading(false);
+      return;
+    }
+    if (pusatAudience === null && !filters.needsPusatHandling) {
+      return;
+    }
+    if (pusatAudience === true && !filters.needsPusatHandling) {
       return;
     }
     setLoading(true);
@@ -145,7 +176,7 @@ export function CmBatch1ComplaintListView() {
     // i18n helpers are stable enough for error copy; omit from deps so this
     // callback does not churn every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t/tErrors/tCommon
-  }, [canRead, filters]);
+  }, [canRead, filters, pusatAudience]);
 
   useEffect(() => {
     void load();
@@ -161,13 +192,18 @@ export function CmBatch1ComplaintListView() {
     return next;
   }, [rows]);
 
-  const listRows = useMemo(
-    () => expandComplaintsToCaseRows(rows, casesByComplaint),
-    [rows, casesByComplaint],
-  );
+  const listRows = useMemo(() => {
+    const expanded = expandComplaintsToCaseRows(rows, casesByComplaint);
+    if (pusatAudience !== true) return expanded;
+    return expanded.filter(keepPusatPengaduanListRow);
+  }, [rows, casesByComplaint, pusatAudience]);
 
   function applyFilters(next: CmBatch1ListFilters): void {
-    const params = cmBatch1FiltersToSearchParams(next);
+    const pinned =
+      pusatAudience === true
+        ? { ...next, needsPusatHandling: true }
+        : next;
+    const params = cmBatch1FiltersToSearchParams(pinned);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
   }
@@ -178,7 +214,9 @@ export function CmBatch1ComplaintListView() {
   }
 
   function onResetFilters(): void {
-    const next = defaultCmBatch1ListFilters();
+    const next = defaultCmBatch1ListFilters({
+      pusatUnhandledQueue: pusatAudience === true,
+    });
     setDraft(next);
     applyFilters(next);
   }
@@ -256,23 +294,24 @@ export function CmBatch1ComplaintListView() {
                     tCommon("emDash")
                   : t("noCaseYet");
         const complaintLabel = row.complaint.complaintNumber;
+        const unread = complaintWorkListIsUnread(
+          row.complaint,
+          pusatAudience,
+          row.caseItem,
+        );
+        const secondaryClass = unread
+          ? "mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] font-semibold text-ecmp-primary underline-offset-2 hover:underline"
+          : "mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary";
         if (complaintNumberFirst) {
           return (
             <div className="min-w-0">
               <Link
                 href={complaintHref}
-                className={
-                  row.complaint.needsPusatHandling
-                    ? "whitespace-nowrap font-semibold tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
-                    : "whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
-                }
+                className={numberLinkClass(unread)}
               >
                 {complaintLabel}
               </Link>
-              <Link
-                href={caseHref}
-                className="mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary"
-              >
+              <Link href={caseHref} className={secondaryClass}>
                 {caseLabel}
               </Link>
             </div>
@@ -282,18 +321,11 @@ export function CmBatch1ComplaintListView() {
           <div className="min-w-0">
             <Link
               href={caseHref}
-              className={
-                row.complaint.needsPusatHandling
-                  ? "whitespace-nowrap font-semibold tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
-                  : "whitespace-nowrap font-medium tabular-nums text-ecmp-primary underline-offset-2 hover:underline"
-              }
+              className={numberLinkClass(unread)}
             >
               {caseLabel}
             </Link>
-            <Link
-              href={complaintHref}
-              className="mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary"
-            >
+            <Link href={complaintHref} className={secondaryClass}>
               {complaintLabel}
             </Link>
           </div>
@@ -459,7 +491,14 @@ export function CmBatch1ComplaintListView() {
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         overline={t("overline")}
-        title={t("aggregateListTitle")}
+        title={
+          pusatAudience === true
+            ? t("aggregateListTitlePusat")
+            : t("aggregateListTitle")
+        }
+        description={
+          pusatAudience === true ? t("aggregateListDescriptionPusat") : undefined
+        }
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
@@ -581,11 +620,17 @@ export function CmBatch1ComplaintListView() {
             <Skeleton rows={6} />
           ) : !error && rows.length === 0 ? (
             <Empty
-              title={t("aggregateListEmpty")}
+              title={
+                pusatAudience === true
+                  ? t("aggregateListEmptyPusat")
+                  : t("aggregateListEmpty")
+              }
               description={
                 hasActiveFilters
                   ? t("aggregateListEmptyFiltered")
-                  : t("aggregateListEmptyDescription")
+                  : pusatAudience === true
+                    ? t("aggregateListEmptyDescriptionPusat")
+                    : t("aggregateListEmptyDescription")
               }
               primaryAction={
                 hasActiveFilters
@@ -593,13 +638,15 @@ export function CmBatch1ComplaintListView() {
                       label: t("clearFilters"),
                       onClick: onResetFilters,
                     }
-                  : {
-                      label: t("create"),
-                      onClick: () => router.push("/complaints/new"),
-                    }
+                  : pusatAudience === true
+                    ? undefined
+                    : {
+                        label: t("create"),
+                        onClick: () => router.push("/complaints/new"),
+                      }
               }
               secondaryAction={
-                hasActiveFilters
+                hasActiveFilters && pusatAudience !== true
                   ? {
                       label: t("create"),
                       onClick: () => router.push("/complaints/new"),
@@ -634,7 +681,13 @@ export function CmBatch1ComplaintListView() {
                 stickyHeader
                 className="[--ecmp-font-table-size:0.9375rem]"
                 getRowClassName={(row) =>
-                  row.complaint.needsPusatHandling ? "font-semibold" : undefined
+                  complaintWorkListIsUnread(
+                    row.complaint,
+                    pusatAudience,
+                    row.caseItem,
+                  )
+                    ? "font-semibold"
+                    : undefined
                 }
               />
               <Pagination

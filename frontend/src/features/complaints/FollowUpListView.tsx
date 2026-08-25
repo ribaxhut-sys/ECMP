@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { ApiError, fetchCmBatch1Complaints, fetchCmCases } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { formatHqArrivalSlot } from "@/shared/utils/datetime";
@@ -23,6 +24,7 @@ import {
   type BadgeTone,
   type TableColumn,
 } from "@/shared/ui";
+import { isPusatWorkAudience } from "./cmBatch1ComplaintListIdentity";
 import {
   buildFollowUpRows,
   followUpRowHref,
@@ -68,6 +70,8 @@ export function FollowUpListView() {
   const locale = useLocale();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
+  const orgUnitCode = useOrgUnitCode();
+  const pusatAudience = isPusatWorkAudience(orgUnitCode);
 
   const [rows, setRows] = useState<FollowUpRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +80,9 @@ export function FollowUpListView() {
   const load = useCallback(async () => {
     if (!canRead) {
       setLoading(false);
+      return;
+    }
+    if (pusatAudience === null) {
       return;
     }
     setLoading(true);
@@ -89,6 +96,7 @@ export function FollowUpListView() {
         buildFollowUpRows({
           complaints: complaintsRes.data ?? [],
           allCases: casesRes.data ?? [],
+          audience: pusatAudience ? "pusat" : "cabang",
         }),
       );
     } catch (err) {
@@ -101,7 +109,7 @@ export function FollowUpListView() {
     } finally {
       setLoading(false);
     }
-  }, [canRead, t, tErrors, tCommon]);
+  }, [canRead, pusatAudience, t, tErrors, tCommon]);
 
   useEffect(() => {
     void load();
@@ -140,6 +148,12 @@ export function FollowUpListView() {
     router.push(followUpRowHref(row));
   }
 
+  function followUpNumberClass(unread: boolean): string {
+    return unread
+      ? "cursor-pointer font-semibold text-ecmp-primary underline-offset-2 hover:underline"
+      : "cursor-pointer font-medium text-ecmp-primary underline-offset-2 hover:underline";
+  }
+
   if (!canRead) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -169,7 +183,7 @@ export function FollowUpListView() {
       cell: (row) => (
         <Link
           href={followUpRowHref(row)}
-          className="cursor-pointer font-medium text-ecmp-primary underline-offset-2 hover:underline"
+          className={followUpNumberClass(row.isUnread)}
         >
           {row.number}
         </Link>
@@ -181,7 +195,7 @@ export function FollowUpListView() {
       cell: (row) => (
         <Link
           href={`/complaints/cm/${encodeURIComponent(row.parentComplaintId)}`}
-          className="cursor-pointer font-medium text-ecmp-primary underline-offset-2 hover:underline"
+          className={followUpNumberClass(row.isUnread)}
         >
           {row.parentComplaintNumber ?? row.parentComplaintId}
         </Link>
@@ -221,7 +235,7 @@ export function FollowUpListView() {
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         title={t("title")}
-        description={t("description")}
+        description={pusatAudience === true ? t("descriptionPusat") : t("description")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
@@ -237,7 +251,14 @@ export function FollowUpListView() {
           {loading && rows.length === 0 ? (
             <Skeleton rows={6} />
           ) : !error && rows.length === 0 ? (
-            <Empty title={t("emptyTitle")} description={t("emptyDescription")} />
+            <Empty
+              title={t("emptyTitle")}
+              description={
+                pusatAudience === true
+                  ? t("emptyDescriptionPusat")
+                  : t("emptyDescription")
+              }
+            />
           ) : (
             <>
               <WorkspaceToolbar
@@ -252,7 +273,15 @@ export function FollowUpListView() {
                   </Button>
                 }
               />
-              <Table columns={columns} rows={rows} getRowKey={(row) => row.key} stickyHeader />
+              <Table
+                columns={columns}
+                rows={rows}
+                getRowKey={(row) => row.key}
+                stickyHeader
+                getRowClassName={(row) =>
+                  row.isUnread ? "font-semibold" : undefined
+                }
+              />
             </>
           )}
         </CardBody>

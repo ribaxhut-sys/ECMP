@@ -28,6 +28,10 @@ export const CM_BATCH1_WAITING_ASSIGNMENT_HREF =
 export const CM_BATCH1_ESCALATION_PENDING_HREF =
   "/complaints?intakeDisposition=ESCALATE_PENDING_APPROVAL";
 
+/** Pusat Pengaduan default — Cases escalated to Pusat and never handled. */
+export const CM_BATCH1_PUSAT_UNHANDLED_HREF =
+  "/complaints?needsPusatHandling=1";
+
 const STATUSES = new Set<string>(["REGISTERED", "IN_PROGRESS", "CLOSED", "OPEN"]);
 const INTAKE_DISPOSITIONS = new Set<string>([
   "ESCALATE_PENDING_APPROVAL",
@@ -56,14 +60,16 @@ export interface CmBatch1ListFilters {
   pageSize: number;
 }
 
-export function defaultCmBatch1ListFilters(): CmBatch1ListFilters {
+export function defaultCmBatch1ListFilters(options?: {
+  pusatUnhandledQueue?: boolean;
+}): CmBatch1ListFilters {
   return {
     keyword: "",
     status: "",
     intakeDisposition: "",
     createdBy: "",
     decidedBy: "",
-    needsPusatHandling: false,
+    needsPusatHandling: options?.pusatUnhandledQueue === true,
     page: 1,
     pageSize: 10,
   };

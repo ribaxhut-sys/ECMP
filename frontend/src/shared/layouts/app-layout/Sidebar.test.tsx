@@ -135,7 +135,9 @@ beforeEach(() => {
   hqScheduleDetailApi.mockReset();
   hqScheduleDetailApi.mockResolvedValue({ data: { days: [] } });
   workBadgesApi.mockReset();
-  workBadgesApi.mockResolvedValue({ data: { unreadCases: 0, pusatQueue: 0 } });
+    workBadgesApi.mockResolvedValue({
+      data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0 },
+    });
 });
 
 afterEach(() => {
@@ -500,5 +502,41 @@ describe("Mode A work badges — Cabang Cases / Pusat Complaints", () => {
       "/complaints?needsPusatHandling=1",
     );
     expect(sidebar.queryByRole("link", { name: /^Cases$/i })).not.toBeInTheDocument();
+  });
+
+  it("points Pusat Pengaduan at the unhandled queue even without a badge", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "PUSAT" };
+    workBadgesApi.mockResolvedValue({
+      data: { unreadCases: 0, pusatQueue: 0 },
+    });
+    const { sidebar } = renderSidebar();
+    const complaintsLink = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^Complaints$/i }),
+    );
+    expect(complaintsLink).toHaveAttribute(
+      "href",
+      "/complaints?needsPusatHandling=1",
+    );
+    expect(within(complaintsLink).queryByText(/^\d+$/)).not.toBeInTheDocument();
+  });
+
+  it("shows Pusat Tindak lanjut badge on Follow-up; Complaints stays separate", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "PUSAT" };
+    workBadgesApi.mockResolvedValue({
+      data: { unreadCases: 0, pusatQueue: 2, pusatFollowUp: 3 },
+    });
+    const { sidebar } = renderSidebar();
+
+    const followUpLink = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^Follow-up$/i }),
+    );
+    await waitFor(() => {
+      expect(within(followUpLink).getByText("3")).toBeInTheDocument();
+    });
+
+    const complaintsLink = sidebar.getByRole("link", { name: /^Complaints$/i });
+    expect(within(complaintsLink).getByText("2")).toBeInTheDocument();
   });
 });

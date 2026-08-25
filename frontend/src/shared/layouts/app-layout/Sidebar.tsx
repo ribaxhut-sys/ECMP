@@ -8,6 +8,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import type { Branch } from "@/lib/api/branches";
 import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
 import { prefersComplaintNumberIdentity } from "@/features/complaints/cmBatch1ComplaintListIdentity";
+import { CM_BATCH1_PUSAT_UNHANDLED_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { useCmWorkBadges } from "@/features/cases/useCmWorkBadges";
@@ -603,7 +604,7 @@ function NavSections({
   const tCommon = useTranslations("common");
   const unreadCount = useUnreadAnnouncementCount();
   const hqScheduleTodayCount = useHqScheduleTodayCount();
-  const { unreadCases, pusatQueue } = useCmWorkBadges();
+  const { unreadCases, pusatQueue, pusatFollowUp } = useCmWorkBadges();
   const orgUnitBranch = useOrgUnitBranch();
   const orgUnitCode =
     orgUnitBranch === undefined ? undefined : (orgUnitBranch?.code ?? null);
@@ -647,19 +648,25 @@ function NavSections({
       cases: { ...itemsWithBadges.cases, badge: unreadCases },
     };
   }
-  if (
-    orgUnitCode !== undefined &&
-    !isCabangInbox &&
-    pusatQueue > 0 &&
-    itemsWithBadges.complaints
-  ) {
+  if (orgUnitCode !== undefined && !isCabangInbox && itemsWithBadges.complaints) {
     itemsWithBadges = {
       ...itemsWithBadges,
       complaints: {
         ...itemsWithBadges.complaints,
-        badge: pusatQueue,
-        href: "/complaints?needsPusatHandling=1",
+        href: CM_BATCH1_PUSAT_UNHANDLED_HREF,
+        ...(pusatQueue > 0 ? { badge: pusatQueue } : {}),
       },
+    };
+  }
+  if (
+    orgUnitCode !== undefined &&
+    !isCabangInbox &&
+    pusatFollowUp > 0 &&
+    itemsWithBadges.followUp
+  ) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      followUp: { ...itemsWithBadges.followUp, badge: pusatFollowUp },
     };
   }
 

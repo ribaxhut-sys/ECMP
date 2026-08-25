@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
+  defaultCmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
 
 describe("cmBatch1ListFilters", () => {
@@ -69,5 +70,13 @@ describe("cmBatch1ListFilters", () => {
     expect(cmBatch1FiltersToSearchParams(parsed).get("needsPusatHandling")).toBe(
       "1",
     );
+  });
+
+  it("defaults Pusat Pengaduan to the unhandled queue", () => {
+    expect(defaultCmBatch1ListFilters().needsPusatHandling).toBe(false);
+    expect(
+      defaultCmBatch1ListFilters({ pusatUnhandledQueue: true })
+        .needsPusatHandling,
+    ).toBe(true);
   });
 });

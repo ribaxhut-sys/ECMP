@@ -34,6 +34,7 @@ import {
   resolveHqArrivalDisplay,
   toLocalDateKey,
 } from "@/shared/utils/datetime";
+import { refreshWorkBadges } from "./workBadgesSignal";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { cn } from "@/shared/utils";
 import { formatCmBatch1CustomerLabel } from "@/features/complaints/cmBatch1RegistrationLabels";
@@ -369,6 +370,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       const caseData = res.data;
       setData(caseData);
       rememberCaseId(caseData.complaintId, caseData.caseId);
+      // Reading the Case also marks its parent read for a Pusat user — refresh
+      // the sidebar without waiting for the next navigation.
+      refreshWorkBadges();
 
       const [complaintRes, customer360Res, usersRes, branchesRes] = await Promise.all([
         fetchCmBatch1Complaint(caseData.complaintId).catch(() => null),

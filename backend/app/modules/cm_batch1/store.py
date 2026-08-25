@@ -715,6 +715,11 @@ class Batch1Store:
         _ = (visibility, pusat_unit_codes)
         return {str(i).strip(): [] for i in complaint_ids if str(i).strip()}
 
+    def unread_parent_ids(self, user_id: str, complaint_ids: list[str]) -> set[str]:
+        # In-memory store has no read-receipt table.
+        _ = (user_id, complaint_ids)
+        return set()
+
     def work_stats_for_user(self, user_key: str) -> dict[str, int]:
         key = (user_key or "").strip()
         with self._lock:

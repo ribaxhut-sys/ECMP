@@ -24,6 +24,14 @@ class PusatUnit:
 
 
 @dataclass(frozen=True, slots=True)
+class CaseRef:
+    """A Case tracking this complaint's escalation — id so the board can link to it."""
+
+    case_id: str
+    case_number: str
+
+
+@dataclass(frozen=True, slots=True)
 class ArrivalRow:
     complaint_id: str
     complaint_number: str
@@ -35,7 +43,7 @@ class ArrivalRow:
     proposed_by: str | None
     proposed_at: datetime | None
     # Case(s) tracking this complaint's escalation — empty if none created yet.
-    case_numbers: tuple[str, ...] = ()
+    cases: tuple[CaseRef, ...] = ()
     # True when the HQ visit was completed (HQ_CLOSED) — still listed that day.
     completed: bool = False
     # Which Pusat unit the taxpayer reports to (CRO / Sekretariat / Suban).
@@ -127,9 +135,7 @@ class HqScheduleRepository:
             )
         )
         rows = self._session.scalars(stmt).all()
-        case_numbers_by_complaint = self._case_numbers_by_complaint(
-            [str(r.id) for r in rows]
-        )
+        cases_by_complaint = self._cases_by_complaint([str(r.id) for r in rows])
         return [
             ArrivalRow(
                 complaint_id=str(r.id),
@@ -149,7 +155,7 @@ class HqScheduleRepository:
                 ),
                 proposed_by=r.proposed_by,
                 proposed_at=r.proposed_at,
-                case_numbers=tuple(case_numbers_by_complaint.get(str(r.id), ())),
+                cases=tuple(cases_by_complaint.get(str(r.id), ())),
                 completed=(
                     (r.status or "").strip().upper() == "CLOSED"
                     and (r.intake_disposition or "").strip().upper() == "HQ_CLOSED"
@@ -179,20 +185,20 @@ class HqScheduleRepository:
             if is_hq_schedule_destination_unit(code)
         ]
 
-    def _case_numbers_by_complaint(
-        self, complaint_ids: list[str]
-    ) -> dict[str, list[str]]:
+    def _cases_by_complaint(self, complaint_ids: list[str]) -> dict[str, list[CaseRef]]:
         """Case.complaint_id is a plain string column (no FK) — join by hand."""
         if not complaint_ids:
             return {}
         stmt = (
-            select(CmCaseORM.complaint_id, CmCaseORM.case_number)
+            select(CmCaseORM.complaint_id, CmCaseORM.id, CmCaseORM.case_number)
             .where(CmCaseORM.complaint_id.in_(complaint_ids))
             .order_by(CmCaseORM.created_at)
         )
-        result: dict[str, list[str]] = {}
-        for complaint_id, case_number in self._session.execute(stmt):
-            result.setdefault(complaint_id, []).append(case_number)
+        result: dict[str, list[CaseRef]] = {}
+        for complaint_id, case_id, case_number in self._session.execute(stmt):
+            result.setdefault(complaint_id, []).append(
+                CaseRef(case_id=str(case_id), case_number=case_number)
+            )
         return result
 
     def commit(self) -> None:
