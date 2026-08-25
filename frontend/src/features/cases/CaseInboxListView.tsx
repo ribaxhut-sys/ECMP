@@ -436,6 +436,9 @@ export function CaseInboxListView() {
             columns={columns}
             rows={rows}
             getRowKey={(row) => row.caseId}
+            density="compact"
+            stickyHeader
+            className="[--ecmp-font-table-size:0.9375rem]"
             getRowClassName={(row) =>
               row.isRead === false ? "font-semibold" : undefined
             }
