@@ -9,9 +9,11 @@ export const STATUS_CHART_COLORS: Partial<Record<StatusCountStatus, string>> = {
   waitingAssignment: "color-mix(in srgb, var(--ecmp-color-info) 88%, white)",
   escalateApproved: "var(--ecmp-color-primary)",
   IN_PROGRESS: "color-mix(in srgb, var(--ecmp-color-warning) 84%, white)",
-  escalateScheduled: "color-mix(in srgb, var(--ecmp-color-secondary) 68%, white)",
+  // Violet, not slate: as slate it sat one step from CLOSED's neutral gray
+  // and the two slices read as the same color in the donut.
+  escalateScheduled: "color-mix(in srgb, var(--ecmp-chart-series-5) 82%, white)",
   escalatePending: "color-mix(in srgb, var(--ecmp-color-danger) 90%, white)",
-  CLOSED: "color-mix(in srgb, var(--ecmp-color-text-secondary) 55%, white)",
+  CLOSED: "color-mix(in srgb, var(--ecmp-color-text-secondary) 42%, white)",
 };
 
 export const STATUS_CHART_FALLBACK =

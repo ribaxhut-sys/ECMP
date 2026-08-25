@@ -42,6 +42,7 @@
   --ecmp-chart-series-2: #eb6834;
   --ecmp-chart-series-3: #1baf7a;
   --ecmp-chart-series-4: #eda100;
+  --ecmp-chart-series-5: #7c3aed;
 
   /* ── Surface system ── */
   --ecmp-color-background: #f1f5f9;
@@ -284,6 +285,7 @@
   --ecmp-chart-series-2: #d95926;
   --ecmp-chart-series-3: #199e70;
   --ecmp-chart-series-4: #c98500;
+  --ecmp-chart-series-5: #a78bfa;
 
   --ecmp-color-background: #0b1220;
   --ecmp-color-surface: #111827;
@@ -361,6 +363,7 @@
   --color-ecmp-chart-series-2: var(--ecmp-chart-series-2);
   --color-ecmp-chart-series-3: var(--ecmp-chart-series-3);
   --color-ecmp-chart-series-4: var(--ecmp-chart-series-4);
+  --color-ecmp-chart-series-5: var(--ecmp-chart-series-5);
 
   /* Surfaces */
   --color-ecmp-background: var(--ecmp-color-background);
