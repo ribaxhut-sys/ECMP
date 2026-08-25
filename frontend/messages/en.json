@@ -1899,6 +1899,7 @@
     "addCaseBlockedMax": "The limit of {max} Cases per complaint has been reached.",
     "addCaseMissingId": "Open an active complaint first, then use Add Case from its detail page.",
     "addCaseBackToComplaint": "Back to complaint",
+    "createComplaint": "Create complaint",
     "penangananEmptyTitle": "No handling yet",
     "penangananEmptyDescription": "This complaint is registered but not worked yet. Start handling to work it at the branch.",
     "penangananEmptyReadOnlyDescription": "This complaint has no handling unit yet. Ask an authorized branch CRO to start one.",

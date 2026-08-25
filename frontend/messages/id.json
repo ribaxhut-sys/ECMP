@@ -1901,6 +1901,7 @@
     "addCaseBlockedMax": "Batas {max} Case per pengaduan sudah tercapai.",
     "addCaseMissingId": "Pilih pengaduan terbuka terlebih dahulu, lalu gunakan Tambah Case dari detail.",
     "addCaseBackToComplaint": "Kembali ke pengaduan",
+    "createComplaint": "Buat pengaduan",
     "penangananEmptyTitle": "Belum ada penanganan",
     "penangananEmptyDescription": "Pengaduan ini sudah terdaftar tetapi belum dikerjakan. Mulai penanganan untuk mengerjakan di cabang.",
     "penangananEmptyReadOnlyDescription": "Pengaduan ini belum memiliki unit penanganan. Hubungi CRO cabang yang berwenang untuk memulai.",
