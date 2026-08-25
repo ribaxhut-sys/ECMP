@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -16,6 +16,7 @@ import {
   CardBody,
   Empty,
   ErrorState,
+  Input,
   PageContainer,
   PageHeader,
   Skeleton,
@@ -27,6 +28,7 @@ import {
 import { isPusatWorkAudience } from "./cmBatch1ComplaintListIdentity";
 import {
   buildFollowUpRows,
+  filterFollowUpRows,
   followUpRowHref,
   type FollowUpRow,
   type FollowUpStatusKey,
@@ -74,6 +76,7 @@ export function FollowUpListView() {
   const pusatAudience = isPusatWorkAudience(orgUnitCode);
 
   const [rows, setRows] = useState<FollowUpRow[]>([]);
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,26 +118,34 @@ export function FollowUpListView() {
     void load();
   }, [load]);
 
-  function statusLabel(row: FollowUpRow): string {
-    switch (row.statusKey) {
-      case "awaitingApproval":
-        return t("statusAwaitingApproval");
-      case "hqAwaitingAccept":
-        return t("statusHqAwaitingAccept");
-      case "hqAcceptedUnscheduled":
-        return t("statusHqAcceptedUnscheduled");
-      case "hqScheduled":
-        return t("statusHqScheduled");
-      case "returnedToBranch":
-        return t("statusReturnedToBranch");
-      case "caseWorking":
-        return t("statusCaseWorking");
-      case "caseNew":
-        return t("statusCaseNew");
-      default:
-        return row.statusKey;
-    }
-  }
+  const statusLabel = useCallback(
+    (row: FollowUpRow): string => {
+      switch (row.statusKey) {
+        case "awaitingApproval":
+          return t("statusAwaitingApproval");
+        case "hqAwaitingAccept":
+          return t("statusHqAwaitingAccept");
+        case "hqAcceptedUnscheduled":
+          return t("statusHqAcceptedUnscheduled");
+        case "hqScheduled":
+          return t("statusHqScheduled");
+        case "returnedToBranch":
+          return t("statusReturnedToBranch");
+        case "caseWorking":
+          return t("statusCaseWorking");
+        case "caseNew":
+          return t("statusCaseNew");
+        default:
+          return row.statusKey;
+      }
+    },
+    [t],
+  );
+
+  const visibleRows = useMemo(
+    () => filterFollowUpRows(rows, query, statusLabel),
+    [rows, query, statusLabel],
+  );
 
   function scheduleLabel(row: FollowUpRow): string {
     if (!row.hqArrivalDate?.trim() || !row.hqArrivalTime?.trim()) {
@@ -236,6 +247,8 @@ export function FollowUpListView() {
     },
   ];
 
+  const hasQuery = query.trim().length > 0;
+
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
@@ -267,28 +280,61 @@ export function FollowUpListView() {
           ) : (
             <>
               <WorkspaceToolbar
+                search={
+                  <Input
+                    name="followUpSearch"
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={t("searchPlaceholder")}
+                    aria-label={t("searchAriaLabel")}
+                  />
+                }
                 summary={tCommon("showingItems", {
-                  from: rows.length === 0 ? 0 : 1,
-                  to: rows.length,
+                  from: visibleRows.length === 0 ? 0 : 1,
+                  to: visibleRows.length,
                   total: rows.length,
                 })}
                 actions={
-                  <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
-                    {tCommon("refresh")}
-                  </Button>
+                  <>
+                    {hasQuery ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setQuery("")}
+                      >
+                        {tCommon("reset")}
+                      </Button>
+                    ) : null}
+                    <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+                      {tCommon("refresh")}
+                    </Button>
+                  </>
                 }
               />
-              <Table
-                columns={columns}
-                rows={rows}
-                getRowKey={(row) => row.key}
-                density="compact"
-                stickyHeader
-                className="[--ecmp-font-table-size:0.9375rem] [--ecmp-density-compact-cell-y:6px]"
-                getRowClassName={(row) =>
-                  row.isUnread ? "font-semibold" : undefined
-                }
-              />
+              {visibleRows.length === 0 ? (
+                <Empty
+                  title={t("emptyFilterTitle")}
+                  description={t("emptyFilterDescription")}
+                  primaryAction={{
+                    label: tCommon("reset"),
+                    onClick: () => setQuery(""),
+                  }}
+                />
+              ) : (
+                <Table
+                  columns={columns}
+                  rows={visibleRows}
+                  getRowKey={(row) => row.key}
+                  density="compact"
+                  stickyHeader
+                  className="[--ecmp-font-table-size:0.9375rem] [--ecmp-density-compact-cell-y:6px]"
+                  getRowClassName={(row) =>
+                    row.isUnread ? "font-semibold" : undefined
+                  }
+                />
+              )}
             </>
           )}
         </CardBody>

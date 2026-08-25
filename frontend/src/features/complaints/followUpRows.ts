@@ -165,6 +165,38 @@ export function followUpRowHref(row: Pick<FollowUpRow, "caseId">): string {
   return `/complaints/cm/cases/${encodeURIComponent(row.caseId)}`;
 }
 
+/** Client search haystack: case no. + subject + CRO + localized stage label. */
+export function followUpRowMatchesQuery(
+  row: FollowUpRow,
+  query: string,
+  stageLabel: string,
+): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  const haystack = [
+    row.number,
+    row.subject,
+    row.handlerName,
+    stageLabel,
+  ]
+    .map((part) => (part || "").trim().toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  return haystack.includes(needle);
+}
+
+export function filterFollowUpRows(
+  rows: readonly FollowUpRow[],
+  query: string,
+  stageLabelFor: (row: FollowUpRow) => string,
+): FollowUpRow[] {
+  const needle = query.trim();
+  if (!needle) return [...rows];
+  return rows.filter((row) =>
+    followUpRowMatchesQuery(row, needle, stageLabelFor(row)),
+  );
+}
+
 export function sortFollowUpRows(rows: readonly FollowUpRow[]): FollowUpRow[] {
   return [...rows].sort((a, b) => {
     const rankDiff = STATUS_RANK[a.statusKey] - STATUS_RANK[b.statusKey];

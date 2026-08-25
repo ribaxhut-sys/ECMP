@@ -3,6 +3,7 @@ import type { CmBatch1ComplaintResponse } from "@/lib/api";
 import type { CmCaseSummary } from "@/lib/api/cmCase";
 import {
   buildFollowUpRows,
+  filterFollowUpRows,
   followUpRowHref,
   isActiveCaseStatus,
 } from "./followUpRows";
@@ -271,6 +272,45 @@ describe("buildFollowUpRows", () => {
       ],
     });
     expect(rows.map((r) => r.caseId)).toEqual(["newer", "older"]);
+  });
+});
+
+describe("filterFollowUpRows", () => {
+  const stage = (row: { statusKey: string }) =>
+    row.statusKey === "hqScheduled" ? "Jadwal kedatangan WP" : "Sedang dikerjakan di cabang";
+
+  it("matches case number, subject, CRO, and stage label", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "HQ_SCHEDULED",
+          hqAcceptedAt: "2026-08-17T10:00:00Z",
+          hqArrivalDate: "2026-08-20",
+          hqArrivalTime: "09:00",
+        }),
+      ],
+      allCases: [
+        caseSummary({
+          subject: "Koreksi SPPT",
+          handlingClaimedByName: "Siti CRO",
+          escalatedToPusat: true,
+          status: "IN_PROGRESS",
+        }),
+      ],
+    });
+    expect(filterFollowUpRows(rows, "CASE-2026", stage)).toHaveLength(1);
+    expect(filterFollowUpRows(rows, "sppt", stage)).toHaveLength(1);
+    expect(filterFollowUpRows(rows, "siti", stage)).toHaveLength(1);
+    expect(filterFollowUpRows(rows, "jadwal", stage)).toHaveLength(1);
+    expect(filterFollowUpRows(rows, "tidak-ada", stage)).toHaveLength(0);
+  });
+
+  it("returns all rows when the query is blank", () => {
+    const rows = buildFollowUpRows({
+      complaints: [complaint()],
+      allCases: [caseSummary({ subject: "A" }), caseSummary({ caseId: "c2", caseNumber: "CASE-2", subject: "B" })],
+    });
+    expect(filterFollowUpRows(rows, "  ", stage)).toHaveLength(2);
   });
 });
 
