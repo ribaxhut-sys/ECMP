@@ -5,13 +5,20 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Select, String, case, cast, exists, func, select
+from sqlalchemy import Select, String, and_, case, cast, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Branch
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
-from app.modules.cm_batch1.predicates import CLOSED_STATUS, ESCALATION_ACTIVE
+from app.modules.cm_batch1.predicates import (
+    CLOSED_STATUS,
+    ESCALATION_ACTIVE,
+    HQ_CLOSED,
+)
 from app.modules.cm_batch1.scope import owning_unit_for_branch
+
+#: CLOSED dispositions that are not "selesai di cabang" (still on / finished via HQ path).
+_NOT_BRANCH_RESOLVED_DISPOSITIONS: tuple[str, ...] = (*ESCALATION_ACTIVE, HQ_CLOSED)
 
 
 class ReportRepository:
@@ -100,7 +107,11 @@ class ReportRepository:
         date_from: datetime | None,
         date_to: datetime | None,
     ) -> dict[str | None, tuple[int, int, int]]:
-        """Map owning_unit_id → (total, open, closed) for CM cases."""
+        """Map owning_unit_id → (total, open, branch_resolved) for CM cases.
+
+        ``open`` = not CLOSED. ``branch_resolved`` (API ``caseClosed``) =
+        CLOSED and never escalated to Pusat — matches legend "Selesai di cabang".
+        """
         from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
         filters: list[object] = []
@@ -113,20 +124,43 @@ class ReportRepository:
             filters.append(CmCaseORM.created_at >= date_from)
         if date_to is not None:
             filters.append(CmCaseORM.created_at <= date_to)
-        closed_col = func.coalesce(
+        all_closed_col = func.coalesce(
             func.sum(case((CmCaseORM.status == CLOSED_STATUS, 1), else_=0)),
             0,
-        ).label("closed")
+        ).label("all_closed")
+        branch_resolved_col = func.coalesce(
+            func.sum(
+                case(
+                    (
+                        and_(
+                            CmCaseORM.status == CLOSED_STATUS,
+                            CmCaseORM.escalated_to_pusat.is_(False),
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("branch_resolved")
         total_col = func.count().label("total")
-        stmt = select(CmCaseORM.owning_unit_id, total_col, closed_col)
+        stmt = select(
+            CmCaseORM.owning_unit_id,
+            total_col,
+            all_closed_col,
+            branch_resolved_col,
+        )
         if filters:
             stmt = stmt.where(*filters)
         stmt = stmt.group_by(CmCaseORM.owning_unit_id)
         out: dict[str | None, tuple[int, int, int]] = {}
-        for unit, total, closed in self._session.execute(stmt).all():
+        for unit, total, all_closed, branch_resolved in self._session.execute(
+            stmt
+        ).all():
             total_n = int(total)
-            closed_n = int(closed or 0)
-            out[unit] = (total_n, max(0, total_n - closed_n), closed_n)
+            all_closed_n = int(all_closed or 0)
+            branch_n = int(branch_resolved or 0)
+            out[unit] = (total_n, max(0, total_n - all_closed_n), branch_n)
         return out
 
     def _implied_case_counts_by_unit(
@@ -136,7 +170,7 @@ class ReportRepository:
         date_from: datetime | None,
         date_to: datetime | None,
     ) -> dict[str | None, tuple[int, int, int]]:
-        """Complaints with no Case row count as one case (closed iff complaint CLOSED)."""
+        """No-Case complaints count as one case; branch_resolved excludes HQ path."""
         from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
         filters = self._base_filters(
@@ -149,26 +183,50 @@ class ReportRepository:
                 CmCaseORM.complaint_id == cast(CmBatch1ComplaintORM.id, String)
             )
         )
-        closed_col = func.coalesce(
+        all_closed_col = func.coalesce(
             func.sum(
                 case((CmBatch1ComplaintORM.status == CLOSED_STATUS, 1), else_=0)
             ),
             0,
-        ).label("closed")
+        ).label("all_closed")
+        branch_resolved_col = func.coalesce(
+            func.sum(
+                case(
+                    (
+                        and_(
+                            CmBatch1ComplaintORM.status == CLOSED_STATUS,
+                            or_(
+                                CmBatch1ComplaintORM.intake_disposition.is_(None),
+                                ~CmBatch1ComplaintORM.intake_disposition.in_(
+                                    _NOT_BRANCH_RESOLVED_DISPOSITIONS
+                                ),
+                            ),
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("branch_resolved")
         total_col = func.count().label("total")
         stmt = select(
             CmBatch1ComplaintORM.owning_unit_id,
             total_col,
-            closed_col,
+            all_closed_col,
+            branch_resolved_col,
         ).where(~has_case)
         if filters:
             stmt = stmt.where(*filters)
         stmt = stmt.group_by(CmBatch1ComplaintORM.owning_unit_id)
         out: dict[str | None, tuple[int, int, int]] = {}
-        for unit, total, closed in self._session.execute(stmt).all():
+        for unit, total, all_closed, branch_resolved in self._session.execute(
+            stmt
+        ).all():
             total_n = int(total)
-            closed_n = int(closed or 0)
-            out[unit] = (total_n, max(0, total_n - closed_n), closed_n)
+            all_closed_n = int(all_closed or 0)
+            branch_n = int(branch_resolved or 0)
+            out[unit] = (total_n, max(0, total_n - all_closed_n), branch_n)
         return out
 
     @staticmethod
@@ -224,8 +282,11 @@ class ReportRepository:
                     func.sum(
                         case(
                             (
-                                CmBatch1ComplaintORM.intake_disposition.in_(
-                                    ESCALATION_ACTIVE
+                                and_(
+                                    CmBatch1ComplaintORM.status != CLOSED_STATUS,
+                                    CmBatch1ComplaintORM.intake_disposition.in_(
+                                        ESCALATION_ACTIVE
+                                    ),
                                 ),
                                 1,
                             ),

@@ -78,6 +78,25 @@ def test_combine_case_counts_adds_implied_no_case_complaints() -> None:
     assert ReportRepository._combine_case_counts((5, 3, 2), (4, 1, 3)) == (9, 4, 5)
 
 
+def test_count_by_branch_branch_resolved_excludes_hq_escalated_closed() -> None:
+    """caseClosed = selesai di cabang; escalated = open only (opsi B)."""
+    session = MagicMock()
+    repo = ReportRepository(session)
+    branch_id = uuid.uuid4()
+    session.execute.return_value.all.side_effect = [
+        # total=4, closed=2, escalated=1 (open-only already applied in SQL mock)
+        [(branch_id, "UPPPD-TANAH-ABANG", "UPPPD Tanah Abang", 4, 2, 1)],
+        # cases: 3 total, 2 all_closed, 1 branch_resolved (1 CLOSED+escalatedToPusat)
+        [("UPPPD-TANAH-ABANG", 3, 2, 1)],
+        # implied: 1 CLOSED HQ_CLOSED → all_closed=1, branch_resolved=0
+        [("UPPPD-TANAH-ABANG", 1, 1, 0)],
+    ]
+    rows = repo.count_by_branch()
+    row = rows[0]
+    assert row[3:7] == (4, 2, 2, 1)  # total, open, closed, escalated
+    assert row[7:10] == (4, 1, 1)  # caseTotal, caseOpen, caseClosed (branch)
+
+
 def test_count_by_branch_keeps_idle_active_branches() -> None:
     """Kesehatan Cabang needs the full unit set, including zeros."""
     session = MagicMock()
@@ -89,7 +108,8 @@ def test_count_by_branch_keeps_idle_active_branches() -> None:
             (idle_id, "UPPPD-GAMBIR", "UPPPD Gambir", 0, 0, 0),
             (active_id, "UPPPD-TANAH-ABANG", "UPPPD Tanah Abang", 12, 5, 2),
         ],
-        [("UPPPD-TANAH-ABANG", 10, 2)],
+        # (unit, total, all_closed, branch_resolved)
+        [("UPPPD-TANAH-ABANG", 10, 2, 2)],
         [],
     ]
     rows = repo.count_by_branch()

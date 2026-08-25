@@ -3607,15 +3607,15 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        SQL `COUNT` + `GROUP BY` owning unit. Sorted by case completion
+        SQL `COUNT` + `GROUP BY` owning unit. Sorted by branch-resolution
         percent (caseClosed/caseTotal) descending, then complaint volume.
         All callers with `reports:read` see every unit; optional `branchId`
         still filters one unit.
-        Each row includes complaint totals and CM case open/closed so
-        completion percent is computed from cases (one complaint may have
-        several cases). A complaint with no Case row still counts as one case
-        (closed if the complaint is CLOSED).
-        Complaints without a branch appear with null branch fields.
+        Each row includes complaint totals and CM case metrics so Kesehatan
+        Cabang can show total cases, resolved-at-branch, and open escalations.
+        `caseClosed` = CLOSED cases not escalated to Pusat (plus no-Case
+        complaints CLOSED off the HQ/escalation-active path). `escalated` =
+        open complaints still on ESCALATION_ACTIVE dispositions.
         Soft-deleted complaints are excluded. Requires permission `reports:read`.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
@@ -5937,10 +5937,17 @@ components:
         escalated:
           type: integer
           minimum: 0
-          description: Complaints on the active escalation path (pending approval, approved, or HQ scheduled)
+          description: >
+            Open (not CLOSED) complaints still on the active escalation path
+            (pending approval, approved, or HQ scheduled)
         caseTotal: { type: integer, minimum: 0, description: CM case total }
         caseOpen: { type: integer, minimum: 0, description: Cases not CLOSED }
-        caseClosed: { type: integer, minimum: 0, description: Cases CLOSED }
+        caseClosed:
+          type: integer
+          minimum: 0
+          description: >
+            Cases resolved at branch (CLOSED and not escalatedToPusat), plus
+            no-Case complaints CLOSED outside HQ/active-escalation dispositions
     ReportSummary:
       type: object
       required: [total, byStatus]

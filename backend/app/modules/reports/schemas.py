@@ -44,10 +44,19 @@ class BranchCount(BaseModel):
     total: int = Field(ge=0)
     open: int = Field(default=0, ge=0)
     closed: int = Field(default=0, ge=0)
-    escalated: int = Field(default=0, ge=0)
+    escalated: int = Field(
+        default=0,
+        ge=0,
+        description="Open complaints still on the active escalation path",
+    )
     case_total: int = Field(default=0, ge=0, alias="caseTotal")
     case_open: int = Field(default=0, ge=0, alias="caseOpen")
-    case_closed: int = Field(default=0, ge=0, alias="caseClosed")
+    case_closed: int = Field(
+        default=0,
+        ge=0,
+        alias="caseClosed",
+        description="Cases / implied cases resolved at branch (not via HQ path)",
+    )
 
 
 class CycleTimeBucket(BaseModel):
