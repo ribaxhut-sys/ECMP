@@ -1112,50 +1112,62 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       ? handlerDisplay
         ? t("pageTitleInProgress", { name: handlerDisplay })
         : t("pageTitleEscalatedToPusatPusat")
-      : t("pageTitleEscalatedToPusat")
+      : handlerDisplay
+        ? t("pageTitleEscalatedToPusatInProgress", { name: handlerDisplay })
+        : t("pageTitleEscalatedToPusat")
     : null;
 
+  // Case status is authoritative for finished states — CLOSED and CANCELLED
+  // are distinct outcomes and must not share copy.
   const pageTitle = !data
     ? t("detail")
-    : caseFinished
-      ? t("pageTitleClosed")
-      : data.status === "RESOLVED"
-        ? t("pageTitleResolved")
-        : hqPhaseTitle
-          ? hqPhaseTitle
-          : escalationPageTitle
-            ? escalationPageTitle
-            : hqPageTitle
-              ? hqPageTitle
-              : handlerDisplay
-                ? t("pageTitleInProgress", { name: handlerDisplay })
-                : t("pageTitleOpen");
+    : data.status === "CANCELLED"
+      ? t("pageTitleCancelled")
+      : caseFinished
+        ? t("pageTitleClosed")
+        : data.status === "RESOLVED"
+          ? t("pageTitleResolved")
+          : hqPhaseTitle
+            ? hqPhaseTitle
+            : escalationPageTitle
+              ? escalationPageTitle
+              : hqPageTitle
+                ? hqPageTitle
+                : handlerDisplay
+                  ? t("pageTitleInProgress", { name: handlerDisplay })
+                  : t("pageTitleOpen");
 
+  // Scheduled-slot copy only applies while the case is still waiting on the
+  // HQ visit — once RESOLVED, the resolution copy below must win instead.
   const pageDescription = !data
     ? undefined
-    : caseFinished
-      ? t("pageDescriptionClosed")
-      : hqPath.phase === "scheduled" && scheduledSlotLabel
-        ? scheduledSlotLabel
-        : hqPageDescription
-          ? hqPageDescription
-          : t(
-              nextStepKey(data.status, {
-                canUpdate,
-                showResolve,
-                showClose,
-                onHqPath: hqPath.onHqPath,
-                escalatedToPusat: Boolean(data.escalatedToPusat),
-                actorIsPusat,
-              }) as
-                | "nextStepStart"
-                | "nextStepResolveOrEscalate"
-                | "nextStepClose"
-                | "nextStepDone"
-                | "nextStepReadOnly"
-                | "nextStepHqPath"
-                | "nextStepPusat",
-            );
+    : data.status === "CANCELLED"
+      ? t("pageDescriptionCancelled")
+      : caseFinished
+        ? t("pageDescriptionClosed")
+        : hqPath.phase === "scheduled" &&
+            scheduledSlotLabel &&
+            data.status !== "RESOLVED"
+          ? scheduledSlotLabel
+          : hqPageDescription
+            ? hqPageDescription
+            : t(
+                nextStepKey(data.status, {
+                  canUpdate,
+                  showResolve,
+                  showClose,
+                  onHqPath: hqPath.onHqPath,
+                  escalatedToPusat: Boolean(data.escalatedToPusat),
+                  actorIsPusat,
+                }) as
+                  | "nextStepStart"
+                  | "nextStepResolveOrEscalate"
+                  | "nextStepClose"
+                  | "nextStepDone"
+                  | "nextStepReadOnly"
+                  | "nextStepHqPath"
+                  | "nextStepPusat",
+              );
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">

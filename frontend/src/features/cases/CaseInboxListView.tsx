@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
+import { isPusatWorkAudience } from "@/features/complaints/cmBatch1ComplaintListIdentity";
 import {
   ApiError,
   fetchCmBatch1Customer360,
@@ -108,6 +110,9 @@ export function CaseInboxListView() {
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
+  const orgUnitCode = useOrgUnitCode();
+  const pusatAudience = isPusatWorkAudience(orgUnitCode);
+  const inboxTitle = pusatAudience === true ? t("inboxTitlePusat") : t("inboxTitle");
 
   const [rows, setRows] = useState<CmCaseSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -220,7 +225,7 @@ export function CaseInboxListView() {
   if (!canRead) {
     return (
       <PageContainer className="space-y-[var(--ecmp-section-gap)]">
-        <PageHeader title={t("inboxTitle")} />
+        <PageHeader title={inboxTitle} />
         <Empty
           title={t("accessDenied")}
           description={t("readPermission")}
@@ -337,10 +342,10 @@ export function CaseInboxListView() {
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
-        title={t("inboxTitle")}
+        title={inboxTitle}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
-          { label: t("inboxTitle") },
+          { label: inboxTitle },
         ]}
         actions={
           <Button

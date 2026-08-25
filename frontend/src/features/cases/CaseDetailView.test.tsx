@@ -235,6 +235,74 @@ describe("CaseDetailView HQ path", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("uses cancelled copy, not the closed copy, for a CANCELLED Case", async () => {
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({ status: "CANCELLED" }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Case cancelled" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("heading", { name: "Case has been closed" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This case was cancelled and will not continue. See history for the cancellation reason.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the resolved title and description, not the HQ slot label, once a scheduled-path Case is RESOLVED", async () => {
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({ status: "RESOLVED" }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        intakeDisposition: "HQ_SCHEDULED",
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+        hqArrivalDate: "2026-08-20",
+        hqArrivalTime: "09:30",
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    const heading = await waitFor(() =>
+      screen.getByRole("heading", { name: "Case has been resolved" }),
+    );
+    // The HQ arrival slot may still appear in the schedule card body — only
+    // the page header description must not regress to the bare slot label.
+    const header = heading.closest("header");
+    expect(header).not.toBeNull();
+    expect(header).not.toHaveTextContent("Thursday, August 20, 2026 at 09:30");
+  });
+
+  it("tells the branch who at Pusat is handling once Pusat claims an escalated Case", async () => {
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        handlingClaimedBy: "officer-pusat-1",
+        handlingClaimedByName: "Rahma Sari",
+      }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ intakeDisposition: "ESCALATE_APPROVED" }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: "Being handled by Pusat (Rahma Sari)",
+        }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("heading", { name: "Case sent to Pusat" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides Cancel escalation and uses schedule title after HQ accepted a Case still flagged to Pusat", async () => {
     fetchCmCase.mockResolvedValue({
       data: baseCase({
