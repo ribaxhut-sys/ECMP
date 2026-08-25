@@ -464,6 +464,7 @@ export function sortBranchesHeadOfficeFirst<T extends { code: string; name: stri
 /** One row per complaint number, from the latest event in the activity window. */
 export type ComplaintActivitySummary = {
   complaintNumber: string;
+  caseNumber: string | null;
   actor: string | null;
   lastEventType: string;
   lastTimestamp: string;
@@ -507,6 +508,7 @@ export function aggregateComplaintActivitySummaries(
     if (!latest) continue;
     summaries.push({
       complaintNumber,
+      caseNumber: latest.caseNumber?.trim() || null,
       actor: latest.actor || null,
       lastEventType: latest.eventType,
       lastTimestamp: latest.timestamp,
@@ -520,12 +522,12 @@ export function aggregateComplaintActivitySummaries(
   });
 }
 
+/** Case number is what officers work by day-to-day; fall back to the
+ * complaint number only for pre-case events (e.g. complaint just created). */
 export function activitySubjectText(
   row: Pick<DashboardRecentActivityItem, "complaintNumber"> & {
     caseNumber?: string | null;
   },
 ): string {
-  const caseNumber = row.caseNumber?.trim();
-  if (!caseNumber) return row.complaintNumber;
-  return `${row.complaintNumber} · ${caseNumber}`;
+  return row.caseNumber?.trim() || row.complaintNumber;
 }

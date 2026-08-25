@@ -177,7 +177,8 @@ export function RecentActivity() {
             {selectedNumber ? (
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className={DASHBOARD_CAPTION}>
-                  {selectedNumber}
+                  {summaries.find((s) => s.complaintNumber === selectedNumber)?.caseNumber ||
+                    selectedNumber}
                 </p>
                 <button
                   type="button"
@@ -195,7 +196,7 @@ export function RecentActivity() {
                 const initials = actorInitials(row.actor);
                 return {
                   id: `${row.complaintNumber}-${row.eventType}-${row.timestamp}-${index}`,
-                  title: t(meta.labelKey),
+                  title: <span className="text-[13px]">{t(meta.labelKey)}</span>,
                   time: formatRelativeTime(row.timestamp, locale),
                   actor: row.actor || tCommon("emDash"),
                   status: t(meta.badgeKey),
@@ -249,7 +250,7 @@ export function RecentActivity() {
                         href={`/complaints?keyword=${encodeURIComponent(summary.complaintNumber)}`}
                         className="shrink-0 font-mono text-[12px] text-ecmp-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
                       >
-                        {summary.complaintNumber}
+                        {summary.caseNumber || summary.complaintNumber}
                       </Link>
                       <Badge tone={meta.statusTone} className="shrink-0">
                         {t(meta.badgeKey)}

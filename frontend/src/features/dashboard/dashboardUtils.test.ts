@@ -376,6 +376,7 @@ describe("aggregateComplaintActivitySummaries", () => {
       {
         eventType: "complaint.closed",
         complaintNumber: "TAD-2608-0002",
+        caseNumber: "CASE-TAD-2",
         timestamp: "2026-08-14T04:22:00.000Z",
         actor: "Ahmad Santoso",
       },
@@ -398,6 +399,7 @@ describe("aggregateComplaintActivitySummaries", () => {
       "TAB-2608-0001",
     ]);
     expect(summaries[0]).toMatchObject({
+      caseNumber: "CASE-TAD-2",
       lastTimestamp: "2026-08-14T04:22:00.000Z",
       lastEventType: "complaint.closed",
       actor: "Ahmad Santoso",
@@ -492,12 +494,21 @@ describe("formatRelativeTime", () => {
 });
 
 describe("activitySubjectText", () => {
-  it("appends case number when present", () => {
+  it("shows the case number when present", () => {
     expect(
       activitySubjectText({
         complaintNumber: "TAB-2608-0001",
         caseNumber: "CASE-3",
       }),
-    ).toBe("TAB-2608-0001 · CASE-3");
+    ).toBe("CASE-3");
+  });
+
+  it("falls back to the complaint number before a case exists", () => {
+    expect(
+      activitySubjectText({
+        complaintNumber: "TAB-2608-0001",
+        caseNumber: null,
+      }),
+    ).toBe("TAB-2608-0001");
   });
 });
