@@ -29,6 +29,7 @@ from app.modules.cm_batch1.predicates import CLOSED_STATUS, ESCALATION_ACTIVE, H
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.sla import SLA_OVERDUE, resolve_complaint_sla
 from app.modules.cm_batch1.sla_thresholds import classify_in_app_threshold
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 from app.modules.dashboard.schemas import (
     ComplaintSlaAlertItem,
     ComplaintSlaAlertsResponse,
@@ -255,6 +256,12 @@ class CmBatch1ActivityDashboardProvider:
         complaint_numbers = self._complaints.complaint_numbers_by_ids(
             {e.aggregate_id for e in visible}
         )
+        # Pre-case events (registered, HQ accepted/scheduled, ...) carry no
+        # caseNumber on their own metadata even once a Case exists for the
+        # same complaint — fall back to the Case that complaint actually has.
+        case_numbers_by_complaint = self._case_numbers_by_complaint_ids(
+            {e.aggregate_id for e in visible}
+        )
 
         items: list[DashboardRecentActivityItem] = []
         for entry in visible:
@@ -266,7 +273,10 @@ class CmBatch1ActivityDashboardProvider:
                 or entry.actor_name
                 or _SYSTEM_ACTOR
             )
-            case_number = str((entry.metadata or {}).get("caseNumber") or "").strip() or None
+            case_number = (
+                str((entry.metadata or {}).get("caseNumber") or "").strip()
+                or case_numbers_by_complaint.get(entry.aggregate_id)
+            )
             items.append(
                 DashboardRecentActivityItem(
                     eventType=_map_event_type(entry.event_type, entry.metadata),
@@ -513,3 +523,23 @@ class CmBatch1ActivityDashboardProvider:
             )
         ).all()
         return set(complaint_ids)
+
+    def _case_numbers_by_complaint_ids(
+        self, complaint_ids: set[uuid.UUID]
+    ) -> dict[uuid.UUID, str]:
+        """Most recent Case number per complaint (``cm_cases.complaint_id`` is a
+        string column, so lookups happen by string then map back to UUID)."""
+        if not complaint_ids:
+            return {}
+        id_strings = {str(cid) for cid in complaint_ids}
+        rows = self._session.execute(
+            select(CmCaseORM.complaint_id, CmCaseORM.case_number)
+            .where(CmCaseORM.complaint_id.in_(id_strings))
+            .order_by(CmCaseORM.complaint_id, CmCaseORM.created_at.desc())
+        ).all()
+        latest: dict[str, str] = {}
+        for complaint_id, case_number in rows:
+            latest.setdefault(complaint_id, case_number)
+        return {
+            cid: latest[str(cid)] for cid in complaint_ids if str(cid) in latest
+        }

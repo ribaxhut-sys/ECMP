@@ -337,6 +337,51 @@ def test_list_recent_falls_back_to_metadata_complaint_number_when_complaint_miss
     assert items[0].complaint_number == "CM-FALLBACK"
 
 
+def test_list_recent_falls_back_to_cm_cases_when_event_metadata_has_no_case_number() -> (
+    None
+):
+    """HqArrivalScheduled etc. carry no caseNumber of their own — once a Case
+    exists for the complaint, the feed must still show it instead of the
+    complaint number (UM-BUG-011)."""
+    provider, timeline, complaints, directory = _provider()
+    entry = _entry(event_type="HqArrivalScheduled")
+    timeline.list_recent.return_value = [entry]
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n="CMTAB-2608-0006": {
+        i: _n for i in ids
+    }
+    directory.display_names.return_value = {}
+
+    session = MagicMock()
+    session.execute.return_value.all.return_value = [
+        (str(entry.aggregate_id), "TAB-2608-0007"),
+    ]
+    provider._session = session
+
+    items = provider.list_recent(limit=10)
+
+    assert items[0].case_number == "TAB-2608-0007"
+
+
+def test_list_recent_prefers_event_metadata_case_number_over_cm_cases_lookup() -> None:
+    provider, timeline, complaints, directory = _provider()
+    entry = _entry(event_type="CaseCreated", metadata={"caseNumber": "CASE-META"})
+    timeline.list_recent.return_value = [entry]
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n="CM-X": {
+        i: _n for i in ids
+    }
+    directory.display_names.return_value = {}
+
+    session = MagicMock()
+    session.execute.return_value.all.return_value = [
+        (str(entry.aggregate_id), "CASE-STALE"),
+    ]
+    provider._session = session
+
+    items = provider.list_recent(limit=10)
+
+    assert items[0].case_number == "CASE-META"
+
+
 def test_complaint_ids_for_branch_returns_matching_ids() -> None:
     provider, *_ = _provider()
     session = provider._session
