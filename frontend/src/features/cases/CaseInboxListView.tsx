@@ -241,60 +241,48 @@ export function CaseInboxListView() {
     {
       key: "caseNumber",
       header: t("caseNumber"),
-      cell: (row) => {
-        const complaintNumber = row.complaintNumber?.trim();
-        const complaintId = row.complaintId?.trim();
-        const complaintHref = complaintId
-          ? `/complaints/cm/${encodeURIComponent(complaintId)}`
-          : null;
-        return (
-          <div className="min-w-0 leading-snug">
-            <Link
-              href={`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`}
-              className={
-                row.isRead === false
-                  ? "block truncate font-semibold text-ecmp-primary underline-offset-2 hover:underline"
-                  : "block truncate font-medium text-ecmp-primary underline-offset-2 hover:underline"
-              }
-            >
-              {row.caseNumber}
-            </Link>
-            {row.isRead === false && row.unreadReason ? (
-              <Badge tone="warning" className="mt-0.5">
-                {row.unreadReason === "HQ_SCHEDULED"
-                  ? t("unreadHqScheduled")
-                  : t("unreadReturned")}
-              </Badge>
-            ) : null}
-            {complaintNumber || complaintHref ? (
-              complaintHref ? (
-                <Link
-                  href={complaintHref}
-                  className="block truncate font-mono text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary"
-                >
-                  {complaintNumber || t("parentComplaintNumber")}
-                </Link>
-              ) : (
-                <div className="truncate font-mono text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary">
-                  {complaintNumber}
-                </div>
-              )
-            ) : null}
-          </div>
-        );
-      },
+      headerClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap",
+      cell: (row) => (
+        <div className="flex min-w-0 max-w-[16rem] items-center gap-1.5">
+          <Link
+            href={`/complaints/cm/cases/${encodeURIComponent(row.caseId)}`}
+            className={
+              row.isRead === false
+                ? "min-w-0 truncate font-semibold text-ecmp-primary underline-offset-2 hover:underline"
+                : "min-w-0 truncate font-medium text-ecmp-primary underline-offset-2 hover:underline"
+            }
+          >
+            {row.caseNumber}
+          </Link>
+          {row.isRead === false && row.unreadReason ? (
+            <Badge tone="warning" className="shrink-0">
+              {row.unreadReason === "HQ_SCHEDULED"
+                ? t("unreadHqScheduled")
+                : t("unreadReturned")}
+            </Badge>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "subject",
       header: t("subject"),
-      cell: (row) => row.subject?.trim() || "—",
+      className: "max-w-[14rem]",
+      cell: (row) => (
+        <span className="block truncate">
+          {row.subject?.trim() || tCommon("emDash")}
+        </span>
+      ),
     },
     {
       key: "priority",
       header: t("priority"),
+      headerClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap",
       cell: (row) => {
         const key = (row.priority || "").toUpperCase();
-        if (!key) return "—";
+        if (!key) return tCommon("emDash");
         return tPriority.has(key as "HIGH")
           ? tPriority(key as "HIGH")
           : row.priority;
@@ -303,8 +291,8 @@ export function CaseInboxListView() {
     {
       key: "customer",
       header: t("customer"),
-      hideOnMobile: true,
-      className: "max-w-[14rem]",
+      mobileLabel: t("customer"),
+      className: "max-w-[12rem]",
       cell: (row) => {
         const label = customerLabelForId(
           row.customerId,
@@ -312,16 +300,28 @@ export function CaseInboxListView() {
           tCommon("emDash"),
         );
         return (
-          <div className="min-w-0 leading-snug">
-            <div className="truncate font-medium text-ecmp-text-primary">
-              {label.name}
-            </div>
-            {label.number ? (
-              <div className="truncate font-mono text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary">
-                {label.number}
-              </div>
-            ) : null}
-          </div>
+          <span className="block truncate font-medium text-ecmp-text-primary">
+            {label.name}
+          </span>
+        );
+      },
+    },
+    {
+      key: "customerNumber",
+      header: t("customerNumber"),
+      mobileLabel: t("customerNumber"),
+      headerClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap font-mono",
+      cell: (row) => {
+        const label = customerLabelForId(
+          row.customerId,
+          customerLabels,
+          tCommon("emDash"),
+        );
+        return (
+          <span className="block truncate font-mono text-ecmp-text-secondary">
+            {label.number || tCommon("emDash")}
+          </span>
         );
       },
     },
@@ -438,7 +438,7 @@ export function CaseInboxListView() {
             getRowKey={(row) => row.caseId}
             density="compact"
             stickyHeader
-            className="[--ecmp-font-table-size:0.9375rem]"
+            className="[--ecmp-font-table-size:0.9375rem] [--ecmp-density-compact-cell-y:6px]"
             getRowClassName={(row) =>
               row.isRead === false ? "font-semibold" : undefined
             }

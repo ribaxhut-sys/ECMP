@@ -3043,6 +3043,7 @@
     "filtersAriaLabel": "Filter daftar Case",
     "caseNumber": "Nomor case",
     "parentComplaintNumber": "No. pengaduan",
+    "customerNumber": "No. WP",
     "contextTitle": "Konteks",
     "noResolutionDescription": "Belum ada resolusi. Resolusi akan tampil di sini setelah Case diselesaikan.",
     "noCases": "Belum ada pekerjaan cabang untuk pengaduan ini",
