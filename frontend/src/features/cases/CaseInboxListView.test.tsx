@@ -133,4 +133,28 @@ describe("CaseInboxListView search", () => {
       );
     });
   });
+
+  it("sends taxpayer name keyword to API-536", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CaseInboxListView />);
+    await waitFor(() => {
+      expect(fetchCmCases).toHaveBeenCalled();
+    });
+    fetchCmCases.mockClear();
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search" }),
+      "Siti Rahayu",
+    );
+    await user.click(screen.getByRole("button", { name: "Apply filters" }));
+
+    await waitFor(() => {
+      expect(fetchCmCases).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          keyword: "Siti Rahayu",
+        }),
+      );
+    });
+  });
 });

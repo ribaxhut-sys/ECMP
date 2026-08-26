@@ -6,7 +6,20 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
-import { ApiError, fetchCmBatch1Complaints, fetchCmCases } from "@/lib/api";
+import {
+  customerLabelForId,
+  customerListLabel,
+  profileText,
+  putCustomerLabel,
+  type CustomerListLabel,
+} from "@/features/cases/customerListLabels";
+import {
+  ApiError,
+  fetchCmBatch1Complaints,
+  fetchCmBatch1Customer360,
+  fetchCmCases,
+  fetchCustomers,
+} from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { formatHqArrivalSlot } from "@/shared/utils/datetime";
 import {
@@ -79,6 +92,9 @@ export function FollowUpListView() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customerLabels, setCustomerLabels] = useState<
+    Record<string, CustomerListLabel>
+  >({});
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -118,6 +134,58 @@ export function FollowUpListView() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const ids = [
+      ...new Set(
+        rows
+          .map((row) => row.customerId?.trim())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (ids.length === 0) {
+      setCustomerLabels({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const [customersRes, ...profiles] = await Promise.all([
+        fetchCustomers(200).catch(() => null),
+        ...ids.map(async (id) => {
+          const res = await fetchCmBatch1Customer360(id).catch(() => null);
+          return [id, res] as const;
+        }),
+      ]);
+      const next: Record<string, CustomerListLabel> = {};
+      for (const customer of customersRes?.data ?? []) {
+        const name = customer.fullName?.trim();
+        const number = customer.externalCustomerId?.trim();
+        putCustomerLabel(
+          next,
+          [customer.id, number],
+          customerListLabel(name, number),
+        );
+      }
+      for (const [id, res] of profiles) {
+        if (next[id]) continue;
+        const profile = res?.data?.profile as
+          | Record<string, unknown>
+          | undefined;
+        const name = profileText(profile, "displayName", "fullName", "name");
+        const number = profileText(
+          profile,
+          "customerNumber",
+          "customer_number",
+          "externalId",
+        );
+        putCustomerLabel(next, [id, number], customerListLabel(name, number));
+      }
+      if (!cancelled) setCustomerLabels(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows]);
+
   const statusLabel = useCallback(
     (row: FollowUpRow): string => {
       switch (row.statusKey) {
@@ -142,9 +210,32 @@ export function FollowUpListView() {
     [t],
   );
 
+  const rowsWithWp = useMemo(
+    () =>
+      rows.map((row) => {
+        const label = customerLabelForId(
+          row.customerId,
+          customerLabels,
+          "",
+        );
+        const resolvedName = row.customerName?.trim() || label.name.trim() || null;
+        const resolvedNumber =
+          row.customerNumber?.trim() || label.number?.trim() || null;
+        return {
+          ...row,
+          customerName: resolvedName,
+          customerNumber:
+            resolvedNumber && resolvedNumber !== resolvedName
+              ? resolvedNumber
+              : row.customerNumber,
+        };
+      }),
+    [rows, customerLabels],
+  );
+
   const visibleRows = useMemo(
-    () => filterFollowUpRows(rows, query, statusLabel),
-    [rows, query, statusLabel],
+    () => filterFollowUpRows(rowsWithWp, query, statusLabel),
+    [rowsWithWp, query, statusLabel],
   );
 
   function scheduleLabel(row: FollowUpRow): string {
@@ -209,6 +300,16 @@ export function FollowUpListView() {
       cell: (row) => (
         <span className="block truncate">
           {row.subject?.trim() || tCommon("emDash")}
+        </span>
+      ),
+    },
+    {
+      key: "customer",
+      header: t("columnCustomer"),
+      className: "max-w-[12rem]",
+      cell: (row) => (
+        <span className="block truncate font-medium text-ecmp-text-primary">
+          {row.customerName?.trim() || tCommon("emDash")}
         </span>
       ),
     },

@@ -40,6 +40,11 @@ export interface FollowUpRow {
   parentComplaintNumber: string | null;
   /** Case subject / perihal — list column for scanning work. */
   subject: string | null;
+  customerId: string | null;
+  /** Operator-facing WP name from parent complaint (not Customer Master SoR). */
+  customerName: string | null;
+  /** External/business WP number when distinct from the display name. */
+  customerNumber: string | null;
   statusKey: FollowUpStatusKey;
   createdAt: string | null;
   hqArrivalDate: string | null;
@@ -123,6 +128,9 @@ function caseRow(
     parentComplaintId: c.complaintId,
     parentComplaintNumber: parentNumber,
     subject: c.subject?.trim() || null,
+    customerId: c.customerId?.trim() || parent?.customerId?.trim() || null,
+    customerName: parent?.customerDisplayName?.trim() || null,
+    customerNumber: parent?.customerNumber?.trim() || null,
     statusKey: caseStatusKey(c.status, parent),
     createdAt: c.createdAt ?? null,
     hqArrivalDate: arrivalDate,
@@ -165,7 +173,7 @@ export function followUpRowHref(row: Pick<FollowUpRow, "caseId">): string {
   return `/complaints/cm/cases/${encodeURIComponent(row.caseId)}`;
 }
 
-/** Client search haystack: case no. + subject + CRO + localized stage label. */
+/** Client search haystack: case no. + WP name/number + subject + CRO + stage. */
 export function followUpRowMatchesQuery(
   row: FollowUpRow,
   query: string,
@@ -175,6 +183,8 @@ export function followUpRowMatchesQuery(
   if (!needle) return true;
   const haystack = [
     row.number,
+    row.customerName,
+    row.customerNumber,
     row.subject,
     row.handlerName,
     stageLabel,

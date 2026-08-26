@@ -66,6 +66,7 @@ describe("buildFollowUpRows", () => {
     expect(rows[0].subject).toBe("Koreksi SPPT");
     expect(rows[0].parentComplaintId).toBe("cx-1");
     expect(rows[0].parentComplaintNumber).toBe("TAB-0001");
+    expect(rows[0].customerName).toBeNull();
     expect(rows[0].isUnread).toBe(false);
   });
 
@@ -273,6 +274,22 @@ describe("buildFollowUpRows", () => {
     });
     expect(rows.map((r) => r.caseId)).toEqual(["newer", "older"]);
   });
+
+  it("carries taxpayer name from the parent complaint", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          customerId: "cust-1",
+          customerDisplayName: "Siti Rahayu",
+          customerNumber: "WP-9901",
+        }),
+      ],
+      allCases: [caseSummary({ customerId: "cust-1", subject: "Koreksi SPPT" })],
+    });
+    expect(rows[0]?.customerId).toBe("cust-1");
+    expect(rows[0]?.customerName).toBe("Siti Rahayu");
+    expect(rows[0]?.customerNumber).toBe("WP-9901");
+  });
 });
 
 describe("filterFollowUpRows", () => {
@@ -303,6 +320,21 @@ describe("filterFollowUpRows", () => {
     expect(filterFollowUpRows(rows, "siti", stage)).toHaveLength(1);
     expect(filterFollowUpRows(rows, "jadwal", stage)).toHaveLength(1);
     expect(filterFollowUpRows(rows, "tidak-ada", stage)).toHaveLength(0);
+  });
+
+  it("matches taxpayer name and WP number", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          customerDisplayName: "Siti Rahayu Unik",
+          customerNumber: "WP-SITI-9901",
+        }),
+      ],
+      allCases: [caseSummary({ subject: "Koreksi SPPT" })],
+    });
+    expect(filterFollowUpRows(rows, "rahayu", stage)).toHaveLength(1);
+    expect(filterFollowUpRows(rows, "WP-SITI", stage)).toHaveLength(1);
+    expect(filterFollowUpRows(rows, "budi", stage)).toHaveLength(0);
   });
 
   it("returns all rows when the query is blank", () => {
