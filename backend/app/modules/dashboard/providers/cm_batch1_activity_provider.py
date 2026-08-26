@@ -367,6 +367,7 @@ class CmBatch1ActivityDashboardProvider:
                     waitingAssignment=0,
                     escalateApproved=0,
                     escalateScheduled=0,
+                    hqAcceptedOpen=0,
                     inProgress=0,
                     sla=_empty_sla(target_days),
                 )
@@ -403,6 +404,17 @@ class CmBatch1ActivityDashboardProvider:
             # A scheduled HQ visit binds a Case, so these rows are usually
             # IN_PROGRESS; they are still escalation, not ordinary handling.
             _tally(and_(is_open, disposition == HQ_SCHEDULED), "escalate_scheduled"),
+            # Cabang work-book exclusion: Pusat has already taken the row.
+            _tally(
+                and_(
+                    is_open,
+                    or_(
+                        CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
+                        disposition == HQ_SCHEDULED,
+                    ),
+                ),
+                "hq_accepted_open",
+            ),
             _tally(
                 and_(
                     status_col == "IN_PROGRESS",
@@ -433,6 +445,7 @@ class CmBatch1ActivityDashboardProvider:
             waitingAssignment=int(row.waiting_assignment or 0),
             escalateApproved=int(row.escalate_approved or 0),
             escalateScheduled=int(row.escalate_scheduled or 0),
+            hqAcceptedOpen=int(row.hq_accepted_open or 0),
             inProgress=int(row.in_progress or 0),
             sla=_sla_from_row(row, target_days) if measuring else None,
         )

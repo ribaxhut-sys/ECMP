@@ -1973,6 +1973,7 @@ paths:
                   waitingAssignment: 3
                   escalateApproved: 1
                   escalateScheduled: 0
+                  hqAcceptedOpen: 0
                   inProgress: 2
         "401":
           $ref: "#/components/responses/Unauthenticated"
@@ -5255,6 +5256,7 @@ components:
         - waitingAssignment
         - escalateApproved
         - escalateScheduled
+        - hqAcceptedOpen
         - inProgress
       properties:
         total: { type: integer, minimum: 0 }
@@ -5284,6 +5286,14 @@ components:
           description: >
             Not CLOSED and intakeDisposition=HQ_SCHEDULED — still on the
             escalation path (usually IN_PROGRESS with a bound Case)
+        hqAcceptedOpen:
+          type: integer
+          minimum: 0
+          description: >
+            Open and already accepted by Pusat (hq_accepted_at set or
+            intakeDisposition=HQ_SCHEDULED). Cabang dashboard excludes
+            these from its work book; Pusat keeps them. DEC-025
+            open+closed=total is unchanged on this wire.
         inProgress:
           type: integer
           minimum: 0

@@ -509,6 +509,7 @@ def _kpi_row(**overrides: int) -> SimpleNamespace:
         "waiting_assignment": 3,
         "escalate_approved": 1,
         "escalate_scheduled": 2,
+        "hq_accepted_open": 2,
         "in_progress": 0,
     }
     base.update(overrides)
@@ -535,6 +536,7 @@ def test_complaint_kpis_unrestricted_counts() -> None:
     assert kpis.waiting_assignment == 3
     assert kpis.escalate_approved == 1
     assert kpis.escalate_scheduled == 2
+    assert kpis.hq_accepted_open == 2
     assert kpis.in_progress == 0
     # Slices partition the set: 3 + 4 + 1 + 2 + 0 + 6 = 16
     assert (
@@ -628,6 +630,7 @@ def test_complaint_kpis_branch_with_unknown_unit_is_zero() -> None:
     assert kpis.closed == 0
     assert kpis.escalate_pending == 0
     assert kpis.escalate_scheduled == 0
+    assert kpis.hq_accepted_open == 0
     execute.assert_not_called()
 
 

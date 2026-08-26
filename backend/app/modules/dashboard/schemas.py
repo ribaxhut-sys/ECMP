@@ -202,6 +202,10 @@ class DashboardAggregateKpiResponse(BaseModel):
     #: HQ visit already scheduled — still on the escalation path
     #: (``ESCALATION_ACTIVE``) whatever the aggregate status says.
     escalate_scheduled: int = Field(default=0, alias="escalateScheduled")
+    #: Open and already accepted by Pusat (``hq_accepted_at`` or
+    #: ``HQ_SCHEDULED``). Cabang dashboard drops these from its work book;
+    #: Pusat keeps them. Does not change DEC-025 ``open + closed == total``.
+    hq_accepted_open: int = Field(default=0, alias="hqAcceptedOpen")
     in_progress: int = Field(default=0, alias="inProgress")
     sla: DashboardResolutionSla | None = Field(
         default=None,

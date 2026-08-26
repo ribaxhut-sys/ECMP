@@ -30,6 +30,7 @@ import { RecentActivity } from "./RecentActivity";
 import { SlaAlertsPanel } from "./SlaAlertsPanel";
 import { SlaCards } from "./SlaCards";
 import { SummaryCards } from "./SummaryCards";
+import { toCabangDashboardBook } from "./loadDashboardData";
 import { useDashboardData } from "./useDashboardData";
 
 export function DashboardView() {
@@ -48,6 +49,10 @@ export function DashboardView() {
   const pusatWork = isPusat
     ? { queue: pusatQueue, followUp: pusatFollowUp, hqScheduleToday }
     : null;
+  const book = useMemo(() => {
+    if (!data) return null;
+    return isPusat ? data : toCabangDashboardBook(data);
+  }, [data, isPusat]);
 
   useEffect(() => {
     if (!canRead) return;
@@ -95,10 +100,14 @@ export function DashboardView() {
         somewhere else on this same page).
       */}
       <LiveStatusBar
-        sla={data?.sla ?? null}
-        waitingAssignment={countByStatus(data?.byStatus, "waitingAssignment") ?? 0}
-        escalatePending={countByStatus(data?.byStatus, "escalatePending") ?? 0}
-        escalateScheduled={countByStatus(data?.byStatus, "escalateScheduled") ?? 0}
+        sla={book?.sla ?? null}
+        waitingAssignment={countByStatus(book?.byStatus, "waitingAssignment") ?? 0}
+        escalatePending={countByStatus(book?.byStatus, "escalatePending") ?? 0}
+        escalateScheduled={
+          isPusat
+            ? (countByStatus(book?.byStatus, "escalateScheduled") ?? 0)
+            : 0
+        }
         pusatQueue={pusatWork?.queue ?? 0}
         pusatFollowUp={pusatWork?.followUp ?? 0}
         hqScheduleToday={pusatWork?.hqScheduleToday ?? 0}
@@ -134,17 +143,17 @@ export function DashboardView() {
           <div className={`grid grid-cols-1 xl:grid-cols-12 ${DASHBOARD_TILE_GRID}`}>
             <div className="xl:col-span-8">
               <SummaryCards
-                header={data?.header ?? null}
-                byStatus={data?.byStatus ?? null}
-                trend={data?.trend ?? null}
-                sla={data?.sla ?? null}
+                header={book?.header ?? null}
+                byStatus={book?.byStatus ?? null}
+                trend={book?.trend ?? null}
+                sla={book?.sla ?? null}
                 loading={firstLoad}
                 pusatWork={pusatWork}
               />
             </div>
             <div className="xl:col-span-4">
               <CriticalAlerts
-                byStatus={data?.byStatus ?? null}
+                byStatus={book?.byStatus ?? null}
                 loading={firstLoad}
                 pusatWork={pusatWork}
               />
@@ -157,15 +166,15 @@ export function DashboardView() {
           <div className={`grid grid-cols-1 xl:grid-cols-12 ${DASHBOARD_TILE_GRID}`}>
             <div className="xl:col-span-8">
               <QueueHealth
-                header={data?.header ?? null}
-                byStatus={data?.byStatus ?? null}
+                header={book?.header ?? null}
+                byStatus={book?.byStatus ?? null}
                 loading={firstLoad}
                 pusatWork={pusatWork}
               />
             </div>
             <div className="xl:col-span-4">
               <ComplaintByStatus
-                rows={data?.byStatus ?? null}
+                rows={book?.byStatus ?? null}
                 loading={firstLoad}
               />
             </div>
@@ -178,7 +187,7 @@ export function DashboardView() {
               <ComplaintByBranch />
             </div>
             <div className="xl:col-span-6">
-              <SlaCards sla={data?.sla ?? null} loading={firstLoad} />
+              <SlaCards sla={book?.sla ?? null} loading={firstLoad} />
             </div>
           </div>
         </>

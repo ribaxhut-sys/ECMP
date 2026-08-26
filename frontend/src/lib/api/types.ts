@@ -230,6 +230,11 @@ export interface DashboardAggregateKpis {
   escalateApproved: number;
   /** HQ visit already scheduled — still on the escalation path. */
   escalateScheduled: number;
+  /**
+   * Open and already accepted by Pusat (`hq_accepted_at` or HQ_SCHEDULED).
+   * Cabang dashboard drops these from its work book; Pusat keeps them.
+   */
+  hqAcceptedOpen?: number;
   inProgress: number;
   /** DEC-031 rollup; null when SLA measurement is switched off. */
   sla?: DashboardResolutionSla | null;

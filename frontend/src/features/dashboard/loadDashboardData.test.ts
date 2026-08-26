@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAggregateKpis } from "./loadDashboardData";
+import { buildAggregateKpis, toCabangDashboardBook } from "./loadDashboardData";
 
 describe("buildAggregateKpis", () => {
   it("maps Aggregate totals into dashboard header and status chips", () => {
@@ -86,5 +86,100 @@ describe("buildAggregateKpis", () => {
       kpis.byStatus.find((row) => row.labelKey === "queueInProgress")?.count,
     ).toBe(0);
     expect(kpis.byStatus.reduce((sum, row) => sum + row.count, 0)).toBe(3);
+  });
+});
+
+describe("toCabangDashboardBook", () => {
+  it("drops HQ-accepted open rows from cabang totals, rate book, and donut", () => {
+    const kpis = buildAggregateKpis({
+      total: 30,
+      open: 19,
+      closed: 11,
+      escalatePending: 0,
+      waitingAssignment: 0,
+      escalateApproved: 0,
+      escalateScheduled: 12,
+      hqAcceptedOpen: 12,
+      inProgress: 7,
+    });
+    const book = toCabangDashboardBook({
+      header: kpis.header,
+      sla: null,
+      byStatus: kpis.byStatus,
+      trend: null,
+      hqAcceptedOpen: 12,
+    });
+    expect(book.header).toEqual({
+      totalComplaints: 18,
+      openComplaints: 7,
+      closedComplaints: 11,
+    });
+    expect(
+      book.byStatus?.find((row) => row.status === "escalateScheduled")?.count,
+    ).toBe(0);
+    expect(
+      book.byStatus?.find((row) => row.status === "IN_PROGRESS")?.count,
+    ).toBe(7);
+    expect(
+      book.byStatus?.find((row) => row.status === "CLOSED")?.count,
+    ).toBe(11);
+    expect(
+      book.byStatus?.reduce((sum, row) => sum + row.count, 0),
+    ).toBe(18);
+    // 11 / 18 = 61% — Perlu perhatian, not Kritis (< 60%).
+    expect(
+      Math.round((book.header!.closedComplaints / book.header!.totalComplaints) * 100),
+    ).toBe(61);
+  });
+
+  it("leaves the book unchanged when Pusat has accepted nothing", () => {
+    const kpis = buildAggregateKpis({
+      total: 3,
+      open: 1,
+      closed: 2,
+      escalatePending: 0,
+      waitingAssignment: 1,
+      hqAcceptedOpen: 0,
+    });
+    const data = {
+      header: kpis.header,
+      sla: null,
+      byStatus: kpis.byStatus,
+      trend: null,
+      hqAcceptedOpen: 0,
+    };
+    expect(toCabangDashboardBook(data)).toBe(data);
+  });
+
+  it("subtracts accepted-unscheduled leftovers from in-progress, not closed", () => {
+    const kpis = buildAggregateKpis({
+      total: 5,
+      open: 4,
+      closed: 1,
+      escalatePending: 0,
+      waitingAssignment: 0,
+      escalateApproved: 0,
+      escalateScheduled: 1,
+      hqAcceptedOpen: 3,
+      inProgress: 3,
+    });
+    const book = toCabangDashboardBook({
+      header: kpis.header,
+      sla: null,
+      byStatus: kpis.byStatus,
+      trend: null,
+      hqAcceptedOpen: 3,
+    });
+    expect(book.header).toEqual({
+      totalComplaints: 2,
+      openComplaints: 1,
+      closedComplaints: 1,
+    });
+    expect(
+      book.byStatus?.find((row) => row.status === "escalateScheduled")?.count,
+    ).toBe(0);
+    expect(
+      book.byStatus?.find((row) => row.status === "IN_PROGRESS")?.count,
+    ).toBe(1);
   });
 });

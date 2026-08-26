@@ -1016,7 +1016,7 @@
     "queueInProgress": "In progress",
     "overSla": "Over SLA",
     "escalationsPending": "Escalations pending",
-    "queueHealthOpsDescription": "Live workload across the complaint queue.",
+    "queueHealthOpsDescription": "Branch workload. Complaints already accepted by HQ are excluded.",
     "queueHealthPusatDescription": "HQ work pipeline: intake → arrivals today → all scheduled.",
     "queueHealthPusatClear": "No HQ work queue items right now.",
     "quickActionsHint": "Jump to a common task.",

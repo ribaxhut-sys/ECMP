@@ -285,6 +285,7 @@ def test_aggregate_kpi_slices_partition_and_count_hq_scheduled(
     before = provider.complaint_kpis()
 
     assert after.escalate_scheduled - before.escalate_scheduled == 2
+    assert after.hq_accepted_open - before.hq_accepted_open == 2
     assert after.escalate_pending - before.escalate_pending == 1
     # The plain IN_PROGRESS row only; the HQ-scheduled one moved to its slice.
     assert after.in_progress - before.in_progress == 1
