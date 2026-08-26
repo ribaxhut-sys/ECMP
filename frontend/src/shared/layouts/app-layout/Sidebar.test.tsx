@@ -168,7 +168,7 @@ describe("Scenario 1 — taxpayer-only permission", () => {
     ).toBeInTheDocument();
     expect(
       within(taxpayerPanel).getByRole("link", { name: /^Closed$/i }),
-    ).toHaveAttribute("href", "/complaints?status=CLOSED");
+    ).toHaveAttribute("href", "/ditutup");
     expect(sidebar.queryByRole("link", { name: /^Queue$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Assignments$/i })).not.toBeInTheDocument();
     expect(sidebar.queryByRole("link", { name: /^Resolutions$/i })).not.toBeInTheDocument();

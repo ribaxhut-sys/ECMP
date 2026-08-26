@@ -45,7 +45,6 @@ import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
   defaultCmBatch1ListFilters,
-  isCmBatch1ClosedArchive,
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
 import { ComplaintSlaBadge } from "./ComplaintSlaBadge";
@@ -115,22 +114,10 @@ export function CmBatch1ComplaintListView() {
     setDraft(filters);
   }, [filters]);
 
-  const closedArchive = isCmBatch1ClosedArchive(filters);
-
-  // Pusat Pengaduan = unhandled queue. Ditutup = CLOSED archive (no queue pin).
+  // Pusat Pengaduan = unhandled queue. Ditutup is `/ditutup`, not this list.
   useEffect(() => {
     if (pusatAudience !== true) return;
     const parsed = cmBatch1FiltersFromSearchParams(searchParams);
-    if (isCmBatch1ClosedArchive(parsed)) {
-      if (!parsed.needsPusatHandling) return;
-      const params = cmBatch1FiltersToSearchParams({
-        ...parsed,
-        status: "CLOSED",
-        needsPusatHandling: false,
-      });
-      router.replace(`${pathname}?${params.toString()}`);
-      return;
-    }
     if (parsed.needsPusatHandling) return;
     const params = cmBatch1FiltersToSearchParams({
       ...parsed,
@@ -139,7 +126,7 @@ export function CmBatch1ComplaintListView() {
     router.replace(`${pathname}?${params.toString()}`);
   }, [pusatAudience, searchParams, pathname, router]);
 
-  // Cabang Pengaduan = open work list. Ditutup / drill-down keep their query.
+  // Cabang Pengaduan = open work list. Drill-down keeps its query.
   useEffect(() => {
     if (pusatAudience !== false) return;
     const parsed = cmBatch1FiltersFromSearchParams(searchParams);
@@ -162,14 +149,10 @@ export function CmBatch1ComplaintListView() {
       setLoading(false);
       return;
     }
-    if (pusatAudience === null && !filters.needsPusatHandling && !closedArchive) {
+    if (pusatAudience === null && !filters.needsPusatHandling) {
       return;
     }
-    if (
-      pusatAudience === true &&
-      !filters.needsPusatHandling &&
-      !closedArchive
-    ) {
+    if (pusatAudience === true && !filters.needsPusatHandling) {
       return;
     }
     if (
@@ -209,7 +192,7 @@ export function CmBatch1ComplaintListView() {
     // i18n helpers are stable enough for error copy; omit from deps so this
     // callback does not churn every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t/tErrors/tCommon
-  }, [canRead, filters, pusatAudience, closedArchive]);
+  }, [canRead, filters, pusatAudience]);
 
   useEffect(() => {
     void load();
@@ -227,15 +210,13 @@ export function CmBatch1ComplaintListView() {
 
   const listRows = useMemo(() => {
     const expanded = expandComplaintsToCaseRows(rows, casesByComplaint);
-    if (pusatAudience !== true || closedArchive) return expanded;
+    if (pusatAudience !== true) return expanded;
     return expanded.filter(keepPusatPengaduanListRow);
-  }, [rows, casesByComplaint, pusatAudience, closedArchive]);
+  }, [rows, casesByComplaint, pusatAudience]);
 
   function applyFilters(next: CmBatch1ListFilters): void {
     let pinned = next;
-    if (closedArchive || isCmBatch1ClosedArchive(next)) {
-      pinned = { ...next, status: "CLOSED", needsPusatHandling: false };
-    } else if (pusatAudience === true) {
+    if (pusatAudience === true) {
       pinned = { ...next, needsPusatHandling: true };
     }
     const params = cmBatch1FiltersToSearchParams(pinned);
@@ -250,9 +231,8 @@ export function CmBatch1ComplaintListView() {
 
   function onResetFilters(): void {
     const next = defaultCmBatch1ListFilters({
-      closedArchive,
-      pusatUnhandledQueue: !closedArchive && pusatAudience === true,
-      openOnly: !closedArchive && pusatAudience === false,
+      pusatUnhandledQueue: pusatAudience === true,
+      openOnly: pusatAudience === false,
     });
     setDraft(next);
     applyFilters(next);
@@ -462,11 +442,7 @@ export function CmBatch1ComplaintListView() {
   const rangeFrom =
     total === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
   const rangeTo = Math.min(filters.page * filters.pageSize, total);
-  const pinnedStatus = closedArchive
-    ? "CLOSED"
-    : pusatAudience === false
-      ? "OPEN"
-      : "";
+  const pinnedStatus = pusatAudience === false ? "OPEN" : "";
   const hasActiveFilters = Boolean(
     filters.keyword.trim() ||
       (filters.status && filters.status !== pinnedStatus) ||
@@ -478,24 +454,16 @@ export function CmBatch1ComplaintListView() {
       <PageHeader
         overline={t("overline")}
         title={
-          closedArchive
-            ? t("aggregateListTitleClosed")
-            : pusatAudience === true
-              ? t("aggregateListTitlePusat")
-              : t("aggregateListTitle")
+          pusatAudience === true
+            ? t("aggregateListTitlePusat")
+            : t("aggregateListTitle")
         }
         description={
-          closedArchive
-            ? t("aggregateListDescriptionClosed")
-            : pusatAudience === true
-              ? t("aggregateListDescriptionPusat")
-              : undefined
+          pusatAudience === true ? t("aggregateListDescriptionPusat") : undefined
         }
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
-          {
-            label: closedArchive ? t("aggregateListTitleClosed") : t("title"),
-          },
+          { label: t("title") },
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -517,14 +485,12 @@ export function CmBatch1ComplaintListView() {
                 {t("supervisorQueue")}
               </Button>
             ) : null}
-            {closedArchive ? null : (
-              <Button
-                type="button"
-                onClick={() => router.push("/complaints/new")}
-              >
-                {t("create")}
-              </Button>
-            )}
+            <Button
+              type="button"
+              onClick={() => router.push("/complaints/new")}
+            >
+              {t("create")}
+            </Button>
           </div>
         }
       />
@@ -555,6 +521,7 @@ export function CmBatch1ComplaintListView() {
                   onChange={(e) =>
                     setDraft((prev) => ({ ...prev, status: e.target.value }))
                   }
+                  data-testid="cm-batch1-status-filter"
                 />
               </div>
               <div className="w-[14rem] shrink-0">
@@ -617,20 +584,16 @@ export function CmBatch1ComplaintListView() {
           ) : !error && rows.length === 0 ? (
             <Empty
               title={
-                closedArchive
-                  ? t("aggregateListEmptyClosed")
-                  : pusatAudience === true
-                    ? t("aggregateListEmptyPusat")
-                    : t("aggregateListEmpty")
+                pusatAudience === true
+                  ? t("aggregateListEmptyPusat")
+                  : t("aggregateListEmpty")
               }
               description={
                 hasActiveFilters
                   ? t("aggregateListEmptyFiltered")
-                  : closedArchive
-                    ? t("aggregateListEmptyDescriptionClosed")
-                    : pusatAudience === true
-                      ? t("aggregateListEmptyDescriptionPusat")
-                      : t("aggregateListEmptyDescription")
+                  : pusatAudience === true
+                    ? t("aggregateListEmptyDescriptionPusat")
+                    : t("aggregateListEmptyDescription")
               }
               primaryAction={
                 hasActiveFilters
@@ -638,7 +601,7 @@ export function CmBatch1ComplaintListView() {
                       label: t("clearFilters"),
                       onClick: onResetFilters,
                     }
-                  : closedArchive || pusatAudience === true
+                  : pusatAudience === true
                     ? undefined
                     : {
                         label: t("create"),
@@ -646,7 +609,7 @@ export function CmBatch1ComplaintListView() {
                       }
               }
               secondaryAction={
-                hasActiveFilters && !closedArchive && pusatAudience !== true
+                hasActiveFilters && pusatAudience !== true
                   ? {
                       label: t("create"),
                       onClick: () => router.push("/complaints/new"),

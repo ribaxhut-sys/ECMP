@@ -113,6 +113,22 @@ def test_complaint_visible_for_pusat_predicates() -> None:
         )
         is True
     )
+    assert (
+        complaint_visible_for_pusat(
+            owning_unit_id="UPPPD-A",
+            intake_disposition="HQ_CLOSED",
+            hq_accepted_at=None,
+        )
+        is True
+    )
+    assert (
+        complaint_visible_for_pusat(
+            owning_unit_id="UPPPD-A",
+            intake_disposition="BRANCH_CLOSED",
+            hq_accepted_at=None,
+        )
+        is False
+    )
 
 
 def test_list_visibility_self_unit_pusat() -> None:

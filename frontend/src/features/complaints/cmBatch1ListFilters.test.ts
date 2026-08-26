@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
+  closedArchiveRedirectHrefFromRecord,
   defaultCmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
 
@@ -88,5 +89,26 @@ describe("cmBatch1ListFilters", () => {
     expect(
       defaultCmBatch1ListFilters({ closedArchive: true }).needsPusatHandling,
     ).toBe(false);
+  });
+});
+
+describe("closedArchiveRedirectHrefFromRecord", () => {
+  it("redirects /complaints?status=CLOSED bookmarks to /ditutup", () => {
+    expect(closedArchiveRedirectHrefFromRecord({ status: "CLOSED" })).toBe(
+      "/ditutup",
+    );
+    expect(
+      closedArchiveRedirectHrefFromRecord({
+        status: "closed",
+        keyword: "CM-1",
+        page: "2",
+        needsPusatHandling: "1",
+      }),
+    ).toBe("/ditutup?keyword=CM-1&page=2");
+  });
+
+  it("leaves the Pengaduan work list alone", () => {
+    expect(closedArchiveRedirectHrefFromRecord({ status: "OPEN" })).toBeNull();
+    expect(closedArchiveRedirectHrefFromRecord({})).toBeNull();
   });
 });

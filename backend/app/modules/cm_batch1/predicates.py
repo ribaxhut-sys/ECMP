@@ -30,6 +30,12 @@ HQ_SCHEDULED = "HQ_SCHEDULED"
 #: HQ visit handled; Aggregate CLOSED. Not on the live escalation path.
 HQ_CLOSED = "HQ_CLOSED"
 
+#: Successful close — branch walk-away or HQ visit complete. Not cancelled.
+CLOSED_SUCCESS_DISPOSITIONS: tuple[str, ...] = ("BRANCH_CLOSED", HQ_CLOSED)
+
+#: List query ``intakeDisposition=COMPLETED`` (Ditutup cabang archive).
+COMPLETED_LIST_FILTER = "COMPLETED"
+
 #: Still travelling the escalation path — the KPI/dashboard "escalated" count.
 ESCALATION_ACTIVE: tuple[str, ...] = (
     "ESCALATE_PENDING_APPROVAL",
@@ -71,3 +77,40 @@ def is_escalation_active(disposition: str | None) -> bool:
 
 def in_escalation_family(disposition: str | None) -> bool:
     return (disposition or "").strip().upper() in ESCALATION_FAMILY
+
+
+#: Values API-514 accepts on ``intakeDisposition`` (exact + pseudo).
+LIST_INTAKE_DISPOSITION_FILTERS: frozenset[str] = frozenset(
+    {
+        "BRANCH_CLOSED",
+        *ESCALATION_FAMILY,
+        HQ_CLOSED,
+        "ALL_CASES_CANCELLED",
+        "ESCALATED",
+        "UNESCALATED",
+        COMPLETED_LIST_FILTER,
+    }
+)
+
+
+def matches_intake_disposition_filter(
+    stored: str | None, requested: str | None
+) -> bool | None:
+    """Row match for API-514 ``intakeDisposition``.
+
+    ``None`` means the requested value is unknown — caller must ignore the
+    filter (same as today's silent drop), not treat it as no-match.
+    """
+    req = (requested or "").strip().upper()
+    if not req:
+        return True
+    if req not in LIST_INTAKE_DISPOSITION_FILTERS:
+        return None
+    disp = (stored or "").strip().upper()
+    if req == "ESCALATED":
+        return in_escalation_family(disp)
+    if req == "UNESCALATED":
+        return not in_escalation_family(disp)
+    if req == COMPLETED_LIST_FILTER:
+        return disp in CLOSED_SUCCESS_DISPOSITIONS
+    return disp == req

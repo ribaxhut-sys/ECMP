@@ -98,6 +98,8 @@ paths:
             triage of escalate-pending Approvals (Mode A).
             `ESCALATED` = any escalate-family state; `UNESCALATED` = not in
             that family (dashboard waiting-assignment).
+            `HQ_CLOSED` = closed after HQ visit. `COMPLETED` = `BRANCH_CLOSED`
+            or `HQ_CLOSED` (Ditutup cabang archive; excludes cancelled).
           schema:
             type: string
             enum:
@@ -108,8 +110,11 @@ paths:
               - ESCALATE_CANCELLED
               - RETURNED_TO_BRANCH
               - HQ_SCHEDULED
+              - HQ_CLOSED
+              - ALL_CASES_CANCELLED
               - ESCALATED
               - UNESCALATED
+              - COMPLETED
         - name: priority
           in: query
           required: false

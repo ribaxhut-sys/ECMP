@@ -188,6 +188,6 @@ def complaint_visible_for_pusat(
     if is_pusat_unit(owning_unit_id, pusat_unit_codes=pusat_unit_codes):
         return True
     disp = (intake_disposition or "").strip().upper()
-    if disp in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
+    if disp in {"ESCALATE_APPROVED", "HQ_SCHEDULED", "HQ_CLOSED"}:
         return True
     return hq_accepted_at is not None

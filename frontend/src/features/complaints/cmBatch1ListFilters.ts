@@ -9,19 +9,22 @@ export type CmBatch1ListIntakeDisposition =
   | "ESCALATE_CANCELLED"
   | "RETURNED_TO_BRANCH"
   | "HQ_SCHEDULED"
+  | "HQ_CLOSED"
   | "BRANCH_CLOSED"
   /** Ditutup karena seluruh Case dibatalkan — bukan penyelesaian kerja. */
   | "ALL_CASES_CANCELLED"
   /** Pseudo-value: any escalate-family state (Users directory drill-down). */
   | "ESCALATED"
   /** Pseudo-value: not in the escalate family (dashboard waiting-assignment). */
-  | "UNESCALATED";
+  | "UNESCALATED"
+  /** Pseudo-value: BRANCH_CLOSED or HQ_CLOSED (Ditutup cabang archive). */
+  | "COMPLETED";
 
 /** Aggregate list filtered to open complaints (REGISTERED + IN_PROGRESS). */
 export const CM_BATCH1_OPEN_HREF = "/complaints?status=OPEN";
 
 /** Aggregate list filtered to closed complaints (sidebar Ditutup). */
-export const CM_BATCH1_CLOSED_HREF = "/complaints?status=CLOSED";
+export const CM_BATCH1_CLOSED_HREF = "/ditutup";
 
 /** Aggregate list filtered to open intake that is not on an escalate path. */
 export const CM_BATCH1_WAITING_ASSIGNMENT_HREF =
@@ -42,6 +45,37 @@ export function isCmBatch1ClosedArchive(
   return (filters.status || "").trim().toUpperCase() === "CLOSED";
 }
 
+function firstSearchValue(
+  value: string | string[] | undefined,
+): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
+
+/**
+ * Bookmark `/complaints?status=CLOSED` → `/ditutup`.
+ * Drops work-queue pins; keeps keyword / paging / user drill-down.
+ */
+export function closedArchiveRedirectHrefFromRecord(
+  params: Record<string, string | string[] | undefined>,
+): string | null {
+  const status = firstSearchValue(params.status).trim().toUpperCase();
+  if (status !== "CLOSED") return null;
+  const next = new URLSearchParams();
+  const keyword = firstSearchValue(params.keyword).trim().slice(0, 200);
+  if (keyword) next.set("keyword", keyword);
+  const createdBy = firstSearchValue(params.createdBy).trim().slice(0, 128);
+  if (createdBy) next.set("createdBy", createdBy);
+  const decidedBy = firstSearchValue(params.decidedBy).trim().slice(0, 128);
+  if (decidedBy) next.set("decidedBy", decidedBy);
+  const page = firstSearchValue(params.page).trim();
+  if (page && page !== "1") next.set("page", page);
+  const pageSize = firstSearchValue(params.pageSize).trim();
+  if (pageSize) next.set("pageSize", pageSize);
+  const qs = next.toString();
+  return qs ? `${CM_BATCH1_CLOSED_HREF}?${qs}` : CM_BATCH1_CLOSED_HREF;
+}
+
 const STATUSES = new Set<string>(["REGISTERED", "IN_PROGRESS", "CLOSED", "OPEN"]);
 const INTAKE_DISPOSITIONS = new Set<string>([
   "ESCALATE_PENDING_APPROVAL",
@@ -50,10 +84,12 @@ const INTAKE_DISPOSITIONS = new Set<string>([
   "ESCALATE_CANCELLED",
   "RETURNED_TO_BRANCH",
   "HQ_SCHEDULED",
+  "HQ_CLOSED",
   "BRANCH_CLOSED",
   "ALL_CASES_CANCELLED",
   "ESCALATED",
   "UNESCALATED",
+  "COMPLETED",
 ]);
 
 export interface CmBatch1ListFilters {

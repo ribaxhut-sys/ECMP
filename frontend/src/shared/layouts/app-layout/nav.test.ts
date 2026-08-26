@@ -209,7 +209,7 @@ describe("complaints nav permission gate (Commit 6)", () => {
       "complaints:escalate",
       "complaints:close",
     ]);
-    expect(closedItem.href).toBe("/complaints?status=CLOSED");
+    expect(closedItem.href).toBe("/ditutup");
   });
 
   it("gates HQ schedule on complaints:read at /complaints/cm/hq-schedule", () => {
@@ -335,29 +335,14 @@ describe("isNavItemActive (longest prefix)", () => {
   });
 
   it("activates Ditutup for CLOSED without lighting Pengaduan", () => {
-    const hrefs = [
-      "/complaints?status=OPEN",
-      "/complaints?status=CLOSED",
-      "/tindak-lanjut",
-    ];
+    const hrefs = ["/complaints?status=OPEN", "/ditutup", "/tindak-lanjut"];
+    expect(resolveActiveNavHref("/ditutup", hrefs)).toBe("/ditutup");
     expect(resolveActiveNavHref("/complaints", hrefs, "status=CLOSED")).toBe(
-      "/complaints?status=CLOSED",
+      "/ditutup",
     );
+    expect(isNavItemActive("/ditutup", "/ditutup", hrefs)).toBe(true);
     expect(
-      isNavItemActive(
-        "/complaints",
-        "/complaints?status=CLOSED",
-        hrefs,
-        "status=CLOSED",
-      ),
-    ).toBe(true);
-    expect(
-      isNavItemActive(
-        "/complaints",
-        "/complaints?status=OPEN",
-        hrefs,
-        "status=CLOSED",
-      ),
+      isNavItemActive("/complaints", "/complaints?status=OPEN", hrefs, "status=CLOSED"),
     ).toBe(false);
   });
 

@@ -59,9 +59,9 @@ function navStatus(raw: string): string {
  * Longest-prefix match so a parent like `/internal` is not active under
  * `/internal/follow-up` when a more specific nav href also matches.
  *
- * Same-path siblings that differ only by query (Pengaduan OPEN vs Ditutup
- * CLOSED) are disambiguated with ``search``. Other queries such as
- * ``needsPusatHandling`` stay ignored for matching.
+ * Bookmark `/complaints?status=CLOSED` lights Ditutup (`/ditutup`) until
+ * the server redirect lands. Other queries such as ``needsPusatHandling``
+ * stay ignored for matching.
  *
  * Returns the winning raw href from ``hrefs`` (may include a query string).
  */
@@ -76,16 +76,18 @@ export function resolveActiveNavHref(
   let bestScore = -1;
   for (const raw of hrefs) {
     const href = navPath(raw);
-    if (!(path === href || path.startsWith(`${href}/`))) continue;
-    const itemStatus = navStatus(raw);
-    if (itemStatus === "CLOSED") {
-      if (locationStatus !== "CLOSED") continue;
-    } else if (locationStatus === "CLOSED" && href === "/complaints") {
-      // Ditutup owns /complaints?status=CLOSED — do not light Pengaduan.
+    const closedBookmark =
+      href === "/ditutup" &&
+      path === "/complaints" &&
+      locationStatus === "CLOSED";
+    if (!closedBookmark && !(path === href || path.startsWith(`${href}/`))) {
+      continue;
+    }
+    if (locationStatus === "CLOSED" && href === "/complaints") {
       continue;
     }
     let score = href.length;
-    if (itemStatus === "CLOSED" && locationStatus === "CLOSED") {
+    if (closedBookmark) {
       score += 1000;
     }
     if (score > bestScore) {
@@ -191,7 +193,7 @@ export const APP_NAV_ITEMS: readonly NavItem[] = [
     id: "closed",
     labelKey: "closed",
     // CLOSED Aggregate archive — label may be revised later (Ditutup).
-    href: "/complaints?status=CLOSED",
+    href: "/ditutup",
     icon: "resolutions",
     requiredPermissions: [
       "complaints:read",

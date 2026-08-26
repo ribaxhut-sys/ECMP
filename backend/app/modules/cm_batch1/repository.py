@@ -52,8 +52,11 @@ from app.modules.cm_batch1.models import (
 from app.modules.cm_batch1.predicates import (
     AGGREGATE_STATUSES,
     CLOSED_STATUS,
+    CLOSED_SUCCESS_DISPOSITIONS,
+    COMPLETED_LIST_FILTER,
     ESCALATION_FAMILY,
     HQ_SCHEDULED,
+    LIST_INTAKE_DISPOSITION_FILTERS,
 )
 from app.modules.cm_batch1.sla import apply_complaint_status
 from app.modules.cm_case.infrastructure.orm import CmCaseORM
@@ -138,7 +141,7 @@ def pusat_row_scope_clause(*, pusat_unit_codes: frozenset[str] | None = None):
             CmBatch1ComplaintORM.owning_unit_id, pusat_unit_codes=codes
         ),
         CmBatch1ComplaintORM.intake_disposition.in_(
-            ["ESCALATE_APPROVED", "HQ_SCHEDULED"]
+            ["ESCALATE_APPROVED", "HQ_SCHEDULED", "HQ_CLOSED"]
         ),
         CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
     )
@@ -1214,27 +1217,34 @@ class CmBatch1Repository:
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.status == st)
 
         disp = (intake_disposition or "").strip().upper()
-        _allowed_disp = {"BRANCH_CLOSED", *ESCALATION_FAMILY}
-        if disp == "ESCALATED":
-            # Pseudo-value: any escalate-family state (Users directory drill-down).
-            stmt = stmt.where(
-                CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
-            )
-            count_stmt = count_stmt.where(
-                CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
-            )
-        elif disp == "UNESCALATED":
-            unescalated = or_(
-                CmBatch1ComplaintORM.intake_disposition.is_(None),
-                ~CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY),
-            )
-            stmt = stmt.where(unescalated)
-            count_stmt = count_stmt.where(unescalated)
-        elif disp in _allowed_disp:
-            stmt = stmt.where(CmBatch1ComplaintORM.intake_disposition == disp)
-            count_stmt = count_stmt.where(
-                CmBatch1ComplaintORM.intake_disposition == disp
-            )
+        if disp and disp in LIST_INTAKE_DISPOSITION_FILTERS:
+            if disp == "ESCALATED":
+                stmt = stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
+                )
+                count_stmt = count_stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
+                )
+            elif disp == "UNESCALATED":
+                unescalated = or_(
+                    CmBatch1ComplaintORM.intake_disposition.is_(None),
+                    ~CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY),
+                )
+                stmt = stmt.where(unescalated)
+                count_stmt = count_stmt.where(unescalated)
+            elif disp == COMPLETED_LIST_FILTER:
+                completed = CmBatch1ComplaintORM.intake_disposition.in_(
+                    CLOSED_SUCCESS_DISPOSITIONS
+                )
+                stmt = stmt.where(completed)
+                count_stmt = count_stmt.where(completed)
+            else:
+                stmt = stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition == disp
+                )
+                count_stmt = count_stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition == disp
+                )
 
         pri = (priority or "").strip().upper()
         if pri:

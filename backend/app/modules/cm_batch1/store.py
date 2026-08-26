@@ -31,9 +31,10 @@ from app.modules.cm_batch1.entities import (
 from app.modules.cm_batch1.exceptions import ReplayConflict
 from app.modules.cm_batch1.predicates import (
     AGGREGATE_STATUSES,
-    ESCALATION_FAMILY,
+    LIST_INTAKE_DISPOSITION_FILTERS,
     in_escalation_family,
     is_open,
+    matches_intake_disposition_filter,
 )
 from app.modules.cm_batch1.sla import apply_complaint_status
 
@@ -659,18 +660,13 @@ class Batch1Store:
             elif st in AGGREGATE_STATUSES:
                 rows = [c for c in rows if (c.status or "").upper() == st]
             disp = (intake_disposition or "").strip().upper()
-            _allowed_disp = {"BRANCH_CLOSED", *ESCALATION_FAMILY}
-            if disp == "ESCALATED":
-                rows = [c for c in rows if in_escalation_family(c.intake_disposition)]
-            elif disp == "UNESCALATED":
-                rows = [
-                    c for c in rows if not in_escalation_family(c.intake_disposition)
-                ]
-            elif disp in _allowed_disp:
+            if disp in LIST_INTAKE_DISPOSITION_FILTERS:
                 rows = [
                     c
                     for c in rows
-                    if (c.intake_disposition or "").upper() == disp
+                    if matches_intake_disposition_filter(
+                        c.intake_disposition, disp
+                    )
                 ]
             pri = (priority or "").strip().upper()
             if pri:

@@ -245,6 +245,8 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
         "ESCALATED",
         # Pseudo-value: not in the escalate family (dashboard waiting-assignment).
         "UNESCALATED",
+        # Pseudo-value: successful close (Ditutup cabang archive).
+        "COMPLETED",
     }
 )
 

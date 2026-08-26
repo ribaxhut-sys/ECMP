@@ -25,6 +25,7 @@ from app.modules.cm_batch1.predicates import (
     in_escalation_family,
     is_escalation_active,
     is_open,
+    matches_intake_disposition_filter,
 )
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.store import Batch1Store
@@ -59,6 +60,16 @@ def test_active_escalation_is_a_subset_of_the_family() -> None:
     assert in_escalation_family("ESCALATE_REJECTED")
     assert in_escalation_family("ESCALATE_CANCELLED")
     assert not in_escalation_family("BRANCH_CLOSED")
+    assert not in_escalation_family("HQ_CLOSED")
+
+
+def test_completed_list_filter_is_successful_close_only() -> None:
+    assert matches_intake_disposition_filter("BRANCH_CLOSED", "COMPLETED") is True
+    assert matches_intake_disposition_filter("HQ_CLOSED", "COMPLETED") is True
+    assert matches_intake_disposition_filter("ALL_CASES_CANCELLED", "COMPLETED") is False
+    assert matches_intake_disposition_filter("HQ_CLOSED", "HQ_CLOSED") is True
+    assert matches_intake_disposition_filter("BRANCH_CLOSED", "HQ_CLOSED") is False
+    assert matches_intake_disposition_filter("HQ_CLOSED", "ZZZ") is None
 
 
 def test_store_work_stats_matches_sql_family_not_the_old_4value_set() -> None:
