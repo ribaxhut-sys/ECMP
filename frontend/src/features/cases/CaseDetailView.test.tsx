@@ -388,6 +388,37 @@ describe("CaseDetailView HQ path", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides Cancel escalation and offers re-escalate plus resolve after HQ return", async () => {
+    hasPermission.mockImplementation(
+      (code: string) =>
+        code === "complaints:read" ||
+        code === "complaints:update" ||
+        code === "complaints:create" ||
+        code === "complaints:escalate",
+    );
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: false,
+        unreadReason: "RETURNED",
+      }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ intakeDisposition: "RETURNED_TO_BRANCH" }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Request re-escalation to HQ" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "Resolve at branch" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel escalation" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders HQ accept and return actions on the Case page for Pusat reviewers", async () => {
     orgUnitCode = "PUSAT";
     authState.userId = "pusat-reviewer";

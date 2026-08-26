@@ -144,6 +144,19 @@ export function formatHqArrivalSlot(
   };
 }
 
+/** List-cell form (`DD/MM/YYYY HH:MM`) — no weekday. Sort still uses ISO keys. */
+export function formatHqArrivalSlotList(
+  date: string,
+  time: string,
+): string | null {
+  const ymd = date.trim();
+  const hm = time.trim();
+  if (!hqArrivalInstant(ymd, hm)) return null;
+  const [year, month, day] = ymd.split("-");
+  if (!year || !month || !day) return null;
+  return `${day}/${month}/${year} ${hm}`;
+}
+
 export function parseHqArrivalScheduleBlob(
   note: string | null | undefined,
 ): { date: string; time: string; wpNote: string } | null {

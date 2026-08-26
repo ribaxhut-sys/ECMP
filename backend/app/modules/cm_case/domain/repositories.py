@@ -93,6 +93,14 @@ class CaseRepository(Protocol):
     ) -> tuple[list, int]:
         """DEC-024 visibility-scoped Case rows (ORM or equivalent) + total."""
 
+    def has_open_escalated_cases(self, complaint_id: str) -> bool:
+        """True if any open Case under this parent is still ``escalatedToPusat``."""
+        ...
+
+    def mark_parent_returned_to_branch(self, complaint_id: str) -> None:
+        """API-521 — set parent ``RETURNED_TO_BRANCH`` and clear HQ accept/slot."""
+        ...
+
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         """First Case effect: Complaint REGISTERED → IN_PROGRESS; case_created=True."""
 

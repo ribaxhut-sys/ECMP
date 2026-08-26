@@ -48,16 +48,21 @@ export function actorMayHandleEscalatedCase(input: {
   return input.roles.some((role) => ADMIN_ROLES.has((role || "").toUpperCase()));
 }
 
-/** Hide cabang resolve/reassign/claim while parent is on HQ path or this Case is with Pusat. */
+/** Hide cabang resolve/reassign/claim while this Case is with Pusat
+ * or the parent is still on the HQ path (and not already returned). */
 export function hideCaseBranchWorkActions(
   onHqPath: boolean,
   caseStatus: string | null | undefined,
   escalatedToPusat = false,
   actorIsPusat = false,
+  parentReturnedToBranch = false,
 ): boolean {
   const status = (caseStatus || "").trim().toUpperCase();
   if (status === "RESOLVED" || status === "CLOSED" || status === "CANCELLED") {
     return false;
+  }
+  if (parentReturnedToBranch) {
+    return escalatedToPusat && !actorIsPusat;
   }
   if (onHqPath) return true;
   if (escalatedToPusat && !actorIsPusat) return true;

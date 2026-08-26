@@ -875,6 +875,8 @@ class CaseApplicationService:
             reason=REASON_RETURNED,
             actor_id=cmd.actor_id,
         )
+        if not self._repo.has_open_escalated_cases(case.complaint_id):
+            self._repo.mark_parent_returned_to_branch(case.complaint_id)
         self._repo.commit()
         return to_case_dto(case)
 

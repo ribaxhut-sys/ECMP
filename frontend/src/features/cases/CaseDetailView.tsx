@@ -500,11 +500,15 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     intakeDisposition: complaintIntakeDisposition,
     hqAcceptedAt: complaintHqAcceptedAt,
   });
+  const parentReturnedToBranch =
+    (complaintIntakeDisposition || "").trim().toUpperCase() ===
+    "RETURNED_TO_BRANCH";
   const hideBranchActions = hideCaseBranchWorkActions(
     hqPath.onHqPath,
     data?.status,
     Boolean(data?.escalatedToPusat),
     Boolean(orgReady && actorIsPusat),
+    parentReturnedToBranch,
   );
   const showParentCancelEscalation = showCaseCancelEscalation({
     canDecideEscalation,
@@ -702,12 +706,16 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     data &&
       (canCreate || canDecideEscalation) &&
       !data.escalatedToPusat &&
-      !hqPath.onHqPath &&
+      (!hqPath.onHqPath || parentReturnedToBranch) &&
       !caseFinished &&
       data.status !== "RESOLVED" &&
       (data.status === "CREATED" ||
         data.status === "ASSIGNED" ||
         data.status === "IN_PROGRESS"),
+  );
+  const returnedToBranch = Boolean(
+    parentReturnedToBranch ||
+      (data?.unreadReason || "").trim().toUpperCase() === "RETURNED",
   );
   const escalateReasonOk = escalateReason.trim().length >= ESCALATE_REASON_MIN;
   const handleConfirmIsCreator = Boolean(
@@ -1509,7 +1517,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 onClick={() => setEscalateOpen(true)}
                 disabled={escalating}
               >
-                {t("escalateToPusat")}
+                {returnedToBranch
+                  ? t("escalateToPusatAgain")
+                  : t("escalateToPusat")}
               </Button>
             ) : null}
             {canReassign && claimedBySomeone && !caseFinished && !hideBranchActions ? (
@@ -1533,7 +1543,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                   void handleResolveClick();
                 }}
               >
-                {t("resolve")}
+                {returnedToBranch ? t("resolveAtBranch") : t("resolve")}
               </Button>
             ) : null}
           </div>

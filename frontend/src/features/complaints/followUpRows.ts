@@ -84,12 +84,21 @@ function complaintDispositionStatusKey(
 }
 
 function caseStatusKey(
-  status: string | null | undefined,
+  caseItem: CmCaseSummary,
   parent: CmBatch1ComplaintResponse | undefined,
 ): FollowUpStatusKey {
+  const escalated = Boolean(caseItem.escalatedToPusat);
+  const unreadReturned =
+    (caseItem.unreadReason || "").trim().toUpperCase() === "RETURNED";
+  const parentReturned =
+    (parent?.intakeDisposition || "").trim().toUpperCase() ===
+    "RETURNED_TO_BRANCH";
+  if (!escalated && (parentReturned || unreadReturned)) {
+    return "returnedToBranch";
+  }
   const fromComplaint = complaintDispositionStatusKey(parent);
   if (fromComplaint) return fromComplaint;
-  const s = (status || "").trim().toUpperCase();
+  const s = (caseItem.status || "").trim().toUpperCase();
   if (CASE_HQ_STATUSES.has(s)) return "hqAwaitingAccept";
   if (s === "CREATED") return "caseNew";
   return "caseWorking";
@@ -131,7 +140,7 @@ function caseRow(
     customerId: c.customerId?.trim() || parent?.customerId?.trim() || null,
     customerName: parent?.customerDisplayName?.trim() || null,
     customerNumber: parent?.customerNumber?.trim() || null,
-    statusKey: caseStatusKey(c.status, parent),
+    statusKey: caseStatusKey(c, parent),
     createdAt: c.createdAt ?? null,
     hqArrivalDate: arrivalDate,
     hqArrivalTime: arrivalTime,
@@ -211,8 +220,23 @@ export function sortFollowUpRows(rows: readonly FollowUpRow[]): FollowUpRow[] {
   return [...rows].sort((a, b) => {
     const rankDiff = STATUS_RANK[a.statusKey] - STATUS_RANK[b.statusKey];
     if (rankDiff !== 0) return rankDiff;
+    const aSched = followUpScheduleSortKey(a);
+    const bSched = followUpScheduleSortKey(b);
+    if (aSched !== bSched) {
+      if (aSched === null) return 1;
+      if (bSched === null) return -1;
+      return aSched < bSched ? -1 : 1;
+    }
     const aTime = a.createdAt ? Date.parse(a.createdAt) : Number.NEGATIVE_INFINITY;
     const bTime = b.createdAt ? Date.parse(b.createdAt) : Number.NEGATIVE_INFINITY;
     return bTime - aTime;
   });
+}
+
+/** `YYYY-MM-DDTHH:MM` when both parts exist — ISO-shaped so string order is date order. */
+export function followUpScheduleSortKey(row: FollowUpRow): string | null {
+  const date = row.hqArrivalDate?.trim() || "";
+  const time = row.hqArrivalTime?.trim() || "";
+  if (!date || !time) return null;
+  return `${date}T${time}`;
 }

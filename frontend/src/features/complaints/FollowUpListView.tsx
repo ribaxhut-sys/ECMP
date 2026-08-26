@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
@@ -21,7 +21,7 @@ import {
   fetchCustomers,
 } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { formatHqArrivalSlot } from "@/shared/utils/datetime";
+import { formatHqArrivalSlotList } from "@/shared/utils/datetime";
 import {
   Badge,
   Button,
@@ -81,8 +81,6 @@ export function FollowUpListView() {
   const t = useTranslations("followUp");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
-  const tComplaints = useTranslations("complaints");
-  const locale = useLocale();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
   const orgUnitCode = useOrgUnitCode();
@@ -242,8 +240,10 @@ export function FollowUpListView() {
     if (!row.hqArrivalDate?.trim() || !row.hqArrivalTime?.trim()) {
       return tCommon("emDash");
     }
-    const parts = formatHqArrivalSlot(row.hqArrivalDate, row.hqArrivalTime, locale);
-    return parts ? tComplaints("hqArrivalSlotLabel", parts) : tCommon("emDash");
+    return (
+      formatHqArrivalSlotList(row.hqArrivalDate, row.hqArrivalTime) ||
+      tCommon("emDash")
+    );
   }
 
   function openRow(row: FollowUpRow): void {

@@ -58,6 +58,12 @@ describe("hideCaseBranchWorkActions", () => {
     expect(hideCaseBranchWorkActions(false, "RESOLVED", true)).toBe(false);
   });
 
+  it("lets the branch work again after Pusat returned the Case", () => {
+    expect(
+      hideCaseBranchWorkActions(true, "IN_PROGRESS", false, false, true),
+    ).toBe(false);
+  });
+
   it("lets a Pusat actor work an escalated Case", () => {
     expect(hideCaseBranchWorkActions(false, "IN_PROGRESS", true, true)).toBe(
       false,
@@ -88,6 +94,15 @@ describe("showCaseCancelEscalation", () => {
       showCaseCancelEscalation({
         ...approved,
         hqAcceptedAt: "2026-08-22T08:00:00Z",
+      }),
+    ).toBe(false);
+  });
+
+  it("hides when parent was returned to the branch", () => {
+    expect(
+      showCaseCancelEscalation({
+        ...approved,
+        intakeDisposition: "RETURNED_TO_BRANCH",
       }),
     ).toBe(false);
   });
@@ -151,6 +166,16 @@ describe("showCaseLevelCancelEscalation", () => {
       showCaseLevelCancelEscalation({
         ...open,
         intakeDisposition: "HQ_SCHEDULED",
+      }),
+    ).toBe(false);
+  });
+
+  it("hides after Pusat returned the Case", () => {
+    expect(
+      showCaseLevelCancelEscalation({
+        ...open,
+        escalatedToPusat: false,
+        intakeDisposition: "RETURNED_TO_BRANCH",
       }),
     ).toBe(false);
   });

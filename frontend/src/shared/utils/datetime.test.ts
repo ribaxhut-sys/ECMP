@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatDateTime24,
   formatHqArrivalSlot,
+  formatHqArrivalSlotList,
   parseHqArrivalScheduleBlob,
   resolveHqArrivalDisplay,
   toLocalDateKey,
@@ -58,6 +59,19 @@ describe("formatHqArrivalSlot", () => {
   it("rejects malformed calendar values", () => {
     expect(formatHqArrivalSlot("20-08-2026", "09:30", "id")).toBeNull();
     expect(formatHqArrivalSlot("2026-08-20", "9:30", "id")).toBeNull();
+  });
+});
+
+describe("formatHqArrivalSlotList", () => {
+  it("formats DD/MM/YYYY HH:MM without a weekday", () => {
+    expect(formatHqArrivalSlotList("2026-08-26", "09:30")).toBe(
+      "26/08/2026 09:30",
+    );
+  });
+
+  it("rejects malformed calendar values", () => {
+    expect(formatHqArrivalSlotList("20-08-2026", "09:30")).toBeNull();
+    expect(formatHqArrivalSlotList("2026-08-20", "9:30")).toBeNull();
   });
 });
 

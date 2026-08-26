@@ -6,6 +6,7 @@ import {
   filterFollowUpRows,
   followUpRowHref,
   isActiveCaseStatus,
+  sortFollowUpRows,
 } from "./followUpRows";
 
 function complaint(
@@ -275,6 +276,55 @@ describe("buildFollowUpRows", () => {
     expect(rows.map((r) => r.caseId)).toEqual(["newer", "older"]);
   });
 
+  it("orders scheduled visits by earliest YYYY-MM-DD HH:MM, unscheduled last", () => {
+    const rows = sortFollowUpRows(
+      buildFollowUpRows({
+        complaints: [
+          complaint({
+            complaintId: "cx-later",
+            intakeDisposition: "HQ_SCHEDULED",
+            hqAcceptedAt: "2026-08-17T10:00:00Z",
+            hqArrivalDate: "2026-08-25",
+            hqArrivalTime: "14:00",
+          }),
+          complaint({
+            complaintId: "cx-sooner",
+            intakeDisposition: "HQ_SCHEDULED",
+            hqAcceptedAt: "2026-08-17T10:00:00Z",
+            hqArrivalDate: "2026-08-20",
+            hqArrivalTime: "09:00",
+          }),
+          complaint({
+            complaintId: "cx-none",
+            intakeDisposition: "HQ_SCHEDULED",
+            hqAcceptedAt: "2026-08-17T10:00:00Z",
+          }),
+        ],
+        allCases: [
+          caseSummary({
+            caseId: "later",
+            complaintId: "cx-later",
+            status: "IN_PROGRESS",
+            createdAt: "2026-08-10T00:00:00Z",
+          }),
+          caseSummary({
+            caseId: "sooner",
+            complaintId: "cx-sooner",
+            status: "IN_PROGRESS",
+            createdAt: "2026-08-11T00:00:00Z",
+          }),
+          caseSummary({
+            caseId: "none",
+            complaintId: "cx-none",
+            status: "IN_PROGRESS",
+            createdAt: "2026-08-12T00:00:00Z",
+          }),
+        ],
+      }),
+    );
+    expect(rows.map((r) => r.caseId)).toEqual(["sooner", "later", "none"]);
+  });
+
   it("carries taxpayer name from the parent complaint", () => {
     const rows = buildFollowUpRows({
       complaints: [
@@ -289,6 +339,41 @@ describe("buildFollowUpRows", () => {
     expect(rows[0]?.customerId).toBe("cust-1");
     expect(rows[0]?.customerName).toBe("Siti Rahayu");
     expect(rows[0]?.customerNumber).toBe("WP-9901");
+  });
+
+  it("uses returnedToBranch after Pusat returns even if parent HQ phase is stale", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "ESCALATE_APPROVED",
+        }),
+      ],
+      allCases: [
+        caseSummary({
+          escalatedToPusat: false,
+          unreadReason: "RETURNED",
+          status: "IN_PROGRESS",
+        }),
+      ],
+    });
+    expect(rows[0]?.statusKey).toBe("returnedToBranch");
+  });
+
+  it("uses returnedToBranch from parent RETURNED_TO_BRANCH after Case-level return", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "RETURNED_TO_BRANCH",
+        }),
+      ],
+      allCases: [
+        caseSummary({
+          escalatedToPusat: false,
+          status: "IN_PROGRESS",
+        }),
+      ],
+    });
+    expect(rows[0]?.statusKey).toBe("returnedToBranch");
   });
 });
 

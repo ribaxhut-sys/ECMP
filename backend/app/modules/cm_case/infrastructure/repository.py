@@ -342,6 +342,50 @@ class SqlAlchemyCaseRepository:
         )
         return [str(row) for row in rows]
 
+    def has_open_escalated_cases(self, complaint_id: str) -> bool:
+        """True if any open Case under this parent is still with Pusat."""
+        key = (complaint_id or "").strip()
+        if not key:
+            return False
+        count = self._session.scalar(
+            select(func.count())
+            .select_from(CmCaseORM)
+            .where(
+                CmCaseORM.complaint_id == key,
+                CmCaseORM.escalated_to_pusat.is_(True),
+                CmCaseORM.status.not_in(("CLOSED", "CANCELLED", "RESOLVED")),
+            )
+        )
+        return int(count or 0) > 0
+
+    def mark_parent_returned_to_branch(self, complaint_id: str) -> None:
+        """Case-level return (API-521) — parent leaves the HQ path.
+
+        Only when no sibling Case remains at Pusat. Clears accept/slot so
+        cabang tahap/CTA follow ``RETURNED_TO_BRANCH`` (not stale HQ_SCHEDULED).
+        """
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return
+        if (row.status or "").strip().upper() == "CLOSED":
+            return
+        row.intake_disposition = "RETURNED_TO_BRANCH"
+        row.hq_accepted_at = None
+        row.hq_arrival_date = None
+        row.hq_arrival_time = None
+        row.hq_destination_unit_id = None
+        row.hq_destination_set_by = None
+        row.hq_destination_set_at = None
+        row.proposed_arrival_date = None
+        row.proposed_arrival_time = None
+        row.proposed_by = None
+        row.proposed_at = None
+        self._session.flush()
+
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         try:
             uid = UUID(complaint_id)

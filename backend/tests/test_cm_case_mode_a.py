@@ -92,6 +92,8 @@ def _seed_complaint(
     status: str = "REGISTERED",
     owning_unit_id: str | None = None,
     customer_id: str = "CUST-10001",
+    intake_disposition: str | None = None,
+    hq_accepted_at: datetime | None = None,
 ) -> str:
     row = CmBatch1ComplaintORM(
         id=uuid.uuid4(),
@@ -106,6 +108,8 @@ def _seed_complaint(
         case_created=False,
         created_by="seed",
         owning_unit_id=owning_unit_id,
+        intake_disposition=intake_disposition,
+        hq_accepted_at=hq_accepted_at,
     )
     session.add(row)
     session.commit()
@@ -2326,7 +2330,13 @@ def test_pusat_claims_and_resolves_escalated_case(
 def test_pusat_returns_escalated_case_with_note(
     service: CaseApplicationService, db_session: Session
 ) -> None:
-    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    accepted_at = datetime(2026, 8, 20, 9, 0, tzinfo=UTC)
+    complaint_id = _seed_complaint(
+        db_session,
+        owning_unit_id="TAB",
+        intake_disposition="HQ_SCHEDULED",
+        hq_accepted_at=accepted_at,
+    )
     created = service.create_case(
         CreateCaseCommand(
             complaint_id=complaint_id,
@@ -2387,6 +2397,80 @@ def test_pusat_returns_escalated_case_with_note(
     assert returned.escalated_to_pusat is False
     assert returned.owning_unit == "BRANCH"
     assert returned.handling_claimed_by == "officer-1"
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "RETURNED_TO_BRANCH"
+    assert parent.hq_accepted_at is None
+    assert parent.hq_arrival_date is None
+
+
+def test_return_escalation_keeps_parent_hq_path_while_sibling_still_at_pusat(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(
+        db_session,
+        owning_unit_id="TAB",
+        intake_disposition="ESCALATE_APPROVED",
+    )
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="First",
+            description="Branch cannot finish first case.",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    second = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Second",
+            description="Branch cannot finish second case.",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    for created in (first, second):
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="IN_PROGRESS",
+                actor_id="officer-1",
+            )
+        )
+        service.escalate_to_pusat(
+            EscalateToPusatCommand(
+                case_id=created.case_id,
+                reason="Case cabang tidak bisa diselesaikan di unit ini.",
+                actor_id="officer-1",
+                actor_unit_id="TAB",
+            )
+        )
+    service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=first.case_id,
+            return_note="Lampirkan bukti pembayaran asli.",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+    service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=second.case_id,
+            return_note="Lampirkan bukti pembayaran asli.",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    db_session.refresh(parent)
+    assert parent.intake_disposition == "RETURNED_TO_BRANCH"
 
 
 def test_api_cancel_escalation_to_pusat(
