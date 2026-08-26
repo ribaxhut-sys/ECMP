@@ -240,7 +240,13 @@ export function FollowUpListView() {
       headerClassName: "whitespace-nowrap",
       className: "whitespace-nowrap",
       cell: (row) => (
-        <Button type="button" size="sm" variant="outline" onClick={() => openRow(row)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="!h-7 !min-h-7 px-2.5 text-[length:var(--ecmp-font-caption-size)]"
+          onClick={() => openRow(row)}
+        >
           {t("open")}
         </Button>
       ),
@@ -329,7 +335,7 @@ export function FollowUpListView() {
                   getRowKey={(row) => row.key}
                   density="compact"
                   stickyHeader
-                  className="[--ecmp-font-table-size:0.9375rem] [--ecmp-density-compact-cell-y:6px]"
+                  className="leading-tight [--ecmp-font-table-size:0.9375rem] [--ecmp-density-compact-cell-y:4px]"
                   getRowClassName={(row) =>
                     row.isUnread ? "font-semibold" : undefined
                   }
