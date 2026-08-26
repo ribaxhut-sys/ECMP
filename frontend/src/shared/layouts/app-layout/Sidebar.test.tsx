@@ -139,7 +139,7 @@ beforeEach(() => {
   hqScheduleDetailApi.mockResolvedValue({ data: { days: [] } });
   workBadgesApi.mockReset();
   workBadgesApi.mockResolvedValue({
-    data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0 },
+    data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0, hqScheduleUnread: 0 },
   });
 });
 
@@ -460,6 +460,39 @@ describe("HQ schedule today-count badge", () => {
     );
     expect(hqScheduleDetailApi).not.toHaveBeenCalled();
     expect(within(link).queryByText(/^\d+$/)).not.toBeInTheDocument();
+  });
+
+  it("shows Cabang HQ_SCHEDULED unread on Jadwal Eskalasi, not today's volume", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockRoles = ["AGENT"];
+    mockOrgUnitBranch = { code: "UPPPD-TANAH-ABANG" };
+    workBadgesApi.mockResolvedValue({
+      data: { unreadCases: 2, pusatQueue: 9, pusatFollowUp: 0, hqScheduleUnread: 3 },
+    });
+    hqScheduleDetailApi.mockResolvedValue({
+      data: {
+        days: [
+          {
+            date: "2026-08-18",
+            weekday: 2,
+            closed: false,
+            slots: [
+              { startTime: "08:00", endTime: "09:00", capacity: 2, isBreak: false, scheduledCount: 8, proposedCount: 0, availableCount: 0, pendingProposals: [], scheduledCases: [] },
+            ],
+          },
+        ],
+      },
+    });
+    const { sidebar } = renderSidebar();
+
+    const link = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^Escalation Schedule$/i }),
+    );
+    await waitFor(() => {
+      expect(within(link).getByText("3")).toBeInTheDocument();
+    });
+    expect(within(link).queryByText("8")).not.toBeInTheDocument();
+    expect(hqScheduleDetailApi).not.toHaveBeenCalled();
   });
 });
 

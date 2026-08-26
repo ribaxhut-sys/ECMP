@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Generator
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -41,6 +42,11 @@ from app.modules.cm_case.application.services import (
 )
 from app.modules.cm_case.domain.aggregate import CaseAggregate
 from app.modules.cm_case.domain.value_objects import CaseNumber, CaseStatus
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    REASON_HQ_SCHEDULED,
+    REASON_RETURNED,
+    CaseInboxRepository,
+)
 from app.modules.cm_case.infrastructure.orm import (
     CmCaseAcceptanceORM,
     CmCaseInboxReceiptORM,
@@ -2465,6 +2471,7 @@ def test_work_badges_pusat_queue_and_cabang_unread(
     assert cabang_badges.json()["data"]["unreadCases"] == 0
     assert cabang_badges.json()["data"]["pusatQueue"] == 0
     assert cabang_badges.json()["data"]["pusatFollowUp"] == 0
+    assert cabang_badges.json()["data"]["hqScheduleUnread"] == 0
 
     state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
     pusat_badges = client.get("/api/v1/cm/work-badges")
@@ -2472,6 +2479,7 @@ def test_work_badges_pusat_queue_and_cabang_unread(
     assert pusat_badges.json()["data"]["unreadCases"] == 0
     assert pusat_badges.json()["data"]["pusatQueue"] >= 1
     assert pusat_badges.json()["data"]["pusatFollowUp"] == 0
+    assert pusat_badges.json()["data"]["hqScheduleUnread"] == 0
 
     returned = client.post(
         f"/api/v1/cm/cases/{case_id}/return-escalation",
@@ -2484,6 +2492,84 @@ def test_work_badges_pusat_queue_and_cabang_unread(
     assert after_return.json()["data"]["unreadCases"] >= 1
     assert after_return.json()["data"]["pusatQueue"] == 0
     assert after_return.json()["data"]["pusatFollowUp"] == 0
+    assert after_return.json()["data"]["hqScheduleUnread"] == 0
+
+
+def test_cabang_hq_schedule_badge_is_unit_scoped_and_acks_hq_scheduled_only(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    actor_id = str(creator.user_id)
+    repo = CaseInboxRepository(db_session)
+
+    scheduled_complaint = _seed_complaint(db_session, owning_unit_id="OU-A")
+    scheduled = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": scheduled_complaint,
+            "caseType": "BILLING",
+            "subject": "HQ scheduled badge",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert scheduled.status_code == 201, scheduled.text
+    scheduled_case_id = scheduled.json()["data"]["caseId"]
+
+    returned_complaint = _seed_complaint(db_session, owning_unit_id="OU-A")
+    returned = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": returned_complaint,
+            "caseType": "BILLING",
+            "subject": "Returned stays unread",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert returned.status_code == 201, returned.text
+    returned_case_id = returned.json()["data"]["caseId"]
+
+    repo.mark_unread(scheduled_case_id, actor_id, REASON_HQ_SCHEDULED)
+    repo.mark_unread(returned_case_id, actor_id, REASON_RETURNED)
+    db_session.commit()
+
+    cabang = client.get("/api/v1/cm/work-badges")
+    assert cabang.status_code == 200, cabang.text
+    assert cabang.json()["data"]["unreadCases"] == 2
+    assert cabang.json()["data"]["hqScheduleUnread"] == 1
+
+    state["principal"] = replace(creator, org_unit_id="OU-B")
+    other_unit = client.get("/api/v1/cm/work-badges")
+    assert other_unit.json()["data"]["hqScheduleUnread"] == 0
+    assert other_unit.json()["data"]["unreadCases"] == 2
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    pusat = client.get("/api/v1/cm/work-badges")
+    assert pusat.json()["data"]["hqScheduleUnread"] == 0
+    pusat_ack = client.post("/api/v1/cm/work-badges/hq-schedule-seen")
+    assert pusat_ack.status_code == 200, pusat_ack.text
+    assert pusat_ack.json()["data"]["hqScheduleUnread"] == 0
+
+    state["principal"] = creator
+    still_unread = client.get("/api/v1/cm/work-badges")
+    assert still_unread.json()["data"]["hqScheduleUnread"] == 1
+    assert still_unread.json()["data"]["unreadCases"] == 2
+
+    acked = client.post("/api/v1/cm/work-badges/hq-schedule-seen")
+    assert acked.status_code == 200, acked.text
+    assert acked.json()["data"]["hqScheduleUnread"] == 0
+    assert acked.json()["data"]["unreadCases"] == 1
+
+    unread = CaseInboxRepository(db_session).unread_map(
+        actor_id, [scheduled_case_id, returned_case_id]
+    )
+    assert scheduled_case_id not in unread
+    assert unread[returned_case_id] == REASON_RETURNED
 
 
 def test_return_escalation_fail_open_when_inbox_write_breaks(

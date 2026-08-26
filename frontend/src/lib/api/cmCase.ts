@@ -278,11 +278,17 @@ export interface CmWorkBadgeCounts {
   unreadCases: number;
   pusatQueue: number;
   pusatFollowUp?: number;
+  hqScheduleUnread?: number;
 }
 
 /** Mode A sidebar badges — Cabang unread Cases + Pusat Pengaduan / Tindak lanjut. */
 export function fetchCmWorkBadges(): Promise<DataResponse<CmWorkBadgeCounts>> {
   return apiRequest(cmCasePaths().workBadges);
+}
+
+/** Cabang opened Jadwal Eskalasi — ack HQ_SCHEDULED receipts for this unit. */
+export function ackCmHqScheduleSeen(): Promise<DataResponse<CmWorkBadgeCounts>> {
+  return apiRequest(cmCasePaths().hqScheduleSeen, { method: "POST" });
 }
 
 export function updateCmCaseStatus(

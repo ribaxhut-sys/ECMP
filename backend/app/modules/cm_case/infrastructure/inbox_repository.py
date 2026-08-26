@@ -12,7 +12,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.cm_case.infrastructure.orm import CmCaseInboxReceiptORM, CmCaseORM
@@ -150,6 +150,46 @@ class CaseInboxRepository:
         )
         return {str(row.case_id): row.reason for row in rows}
 
+    def _hq_scheduled_unread_query(self, user_id: str, owner_unit_id: str | None):
+        uid = _norm(user_id)
+        unit = _norm(owner_unit_id)
+        if not uid or not unit:
+            return None
+        unit_key = unit.casefold()
+        return (
+            select(CmCaseInboxReceiptORM)
+            .join(CmCaseORM, CmCaseORM.id == CmCaseInboxReceiptORM.case_id)
+            .where(
+                CmCaseInboxReceiptORM.user_id == uid,
+                CmCaseInboxReceiptORM.read_at.is_(None),
+                CmCaseInboxReceiptORM.reason == REASON_HQ_SCHEDULED,
+                func.lower(
+                    func.coalesce(CmCaseORM.owner_unit_id, CmCaseORM.owning_unit_id)
+                )
+                == unit_key,
+            )
+        )
+
+    def count_unread_hq_scheduled(
+        self, user_id: str, owner_unit_id: str | None
+    ) -> int:
+        """Cabang Jadwal Eskalasi badge — this unit's HQ_SCHEDULED receipts only."""
+        stmt = self._hq_scheduled_unread_query(user_id, owner_unit_id)
+        if stmt is None:
+            return 0
+        return len(list(self._session.scalars(stmt)))
+
+    def mark_read_hq_scheduled(self, user_id: str, owner_unit_id: str | None) -> None:
+        """Opening the HQ calendar acks HQ_SCHEDULED only — RETURNED stays."""
+        stmt = self._hq_scheduled_unread_query(user_id, owner_unit_id)
+        if stmt is None:
+            return
+        now = datetime.now(UTC)
+        for row in self._session.scalars(stmt):
+            if row.read_at is None:
+                row.read_at = now
+        self._session.flush()
+
     def list_case_creators(self, complaint_id: str) -> list[tuple[str, str]]:
         cid = _norm(complaint_id)
         if not cid:
@@ -285,9 +325,10 @@ def safe_work_badge_counts(
     *,
     actor_id: str,
     actor_is_pusat: bool,
-) -> tuple[int, int, int]:
+    owner_unit_id: str | None,
+) -> tuple[int, int, int, int]:
     if session is None:
-        return 0, 0, 0
+        return 0, 0, 0, 0
     try:
         repo = CaseInboxRepository(session)
         unread = 0 if actor_is_pusat else repo.count_unread(actor_id)
@@ -295,10 +336,34 @@ def safe_work_badge_counts(
         follow_up = (
             repo.count_pusat_follow_up_unread(actor_id) if actor_is_pusat else 0
         )
-        return unread, queue, follow_up
+        hq_schedule = (
+            0
+            if actor_is_pusat
+            else repo.count_unread_hq_scheduled(actor_id, owner_unit_id)
+        )
+        return unread, queue, follow_up, hq_schedule
     except Exception:
         logger.exception("case inbox badge count failed")
-        return 0, 0, 0
+        return 0, 0, 0, 0
+
+
+def safe_mark_hq_schedule_seen(
+    session: Session | None,
+    *,
+    user_id: str,
+    owner_unit_id: str | None,
+    actor_is_pusat: bool,
+) -> None:
+    """Cabang opened Jadwal Eskalasi — HQ_SCHEDULED receipts for this unit."""
+    if session is None or actor_is_pusat:
+        return
+    try:
+        with session.begin_nested():
+            CaseInboxRepository(session).mark_read_hq_scheduled(
+                user_id, owner_unit_id
+            )
+    except Exception:
+        logger.exception("hq schedule seen write failed")
 
 
 def complaint_needs_pusat_handling(

@@ -183,6 +183,7 @@ export {
   fetchCmCaseHistory,
   fetchCmCases,
   fetchCmWorkBadges,
+  ackCmHqScheduleSeen,
   recordCmCaseAcceptance,
   resolveCmCase,
   updateCmCaseStatus,

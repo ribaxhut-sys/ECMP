@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
+import { isPusatWorkAudience } from "@/features/complaints/cmBatch1ComplaintListIdentity";
 import {
   canCmBatch1HqReview,
   isHqScheduleDestinationUnitCode,
 } from "@/features/complaints/cmBatch1HqActions";
-import { fetchBranches } from "@/lib/api";
+import { fetchBranches, ackCmHqScheduleSeen } from "@/lib/api";
 import {
   createHqScheduleHoliday,
   deleteHqScheduleHoliday,
@@ -40,6 +41,7 @@ import { IconAlert, IconCheck, IconChevronRight } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
 import { toLocalDateKey } from "@/shared/utils/datetime";
 import { cn, pusatUnitShortCode } from "@/shared/utils";
+import { refreshWorkBadges } from "@/features/cases/workBadgesSignal";
 
 const RANGE_DAYS = 6; // one week, inclusive
 
@@ -632,6 +634,22 @@ export function HqScheduleView() {
     () => toLocalDateKey(addDays(weekStart, RANGE_DAYS)),
     [weekStart],
   );
+
+  useEffect(() => {
+    if (status !== "authenticated" || !canRead || !orgReady) return;
+    if (isPusatWorkAudience(unitCode) !== false) return;
+    let cancelled = false;
+    void ackCmHqScheduleSeen()
+      .then(() => {
+        if (!cancelled) refreshWorkBadges();
+      })
+      .catch(() => {
+        /* Fail-open: calendar still loads. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canRead, orgReady, status, unitCode]);
 
   useEffect(() => {
     if (status !== "authenticated" || !canRead || !orgReady) return;

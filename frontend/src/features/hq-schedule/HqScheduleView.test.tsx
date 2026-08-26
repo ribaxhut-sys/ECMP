@@ -12,6 +12,7 @@ const fetchHqScheduleAvailability = vi.fn();
 const fetchHqScheduleAvailabilityDetail = vi.fn();
 const fetchHqScheduleHolidays = vi.fn();
 const fetchBranches = vi.fn();
+const ackCmHqScheduleSeen = vi.fn();
 const createHqScheduleHoliday = vi.fn();
 const hasPermission = vi.fn<(permission: string) => boolean>(() => false);
 let mockRoles: string[] = [];
@@ -32,6 +33,7 @@ vi.mock("@/features/announcements/useOrgUnitCode", () => ({
 
 vi.mock("@/lib/api", () => ({
   fetchBranches: (...args: unknown[]) => fetchBranches(...args),
+  ackCmHqScheduleSeen: (...args: unknown[]) => ackCmHqScheduleSeen(...args),
 }));
 
 vi.mock("@/lib/api/hqSchedule", () => ({
@@ -154,6 +156,10 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailabilityDetail.mockReset();
     fetchHqScheduleHolidays.mockReset();
     fetchBranches.mockReset();
+    ackCmHqScheduleSeen.mockReset();
+    ackCmHqScheduleSeen.mockResolvedValue({
+      data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0, hqScheduleUnread: 0 },
+    });
     createHqScheduleHoliday.mockReset();
     hasPermission.mockReset().mockImplementation((permission: string) => {
       return permission === "complaints:read";
@@ -181,6 +187,18 @@ describe("HqScheduleView", () => {
     });
     expect(fetchHqScheduleAvailabilityDetail).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: /Taxpayer Escalation Schedule/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(ackCmHqScheduleSeen).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not ack HQ_SCHEDULED receipts for a Pusat officer", async () => {
+    mockOrgUnitCode = "PUSAT";
+    renderWithProviders(<HqScheduleView />);
+    await waitFor(() => {
+      expect(fetchHqScheduleAvailabilityDetail).toHaveBeenCalled();
+    });
+    expect(ackCmHqScheduleSeen).not.toHaveBeenCalled();
   });
 
   it("loads the Pusat detail grid for a PUSAT agent", async () => {

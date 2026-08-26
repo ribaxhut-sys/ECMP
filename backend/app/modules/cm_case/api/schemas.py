@@ -43,6 +43,7 @@ class WorkBadgeCountsResponse(BaseModel):
     unread_cases: int = Field(alias="unreadCases")
     pusat_queue: int = Field(alias="pusatQueue")
     pusat_follow_up: int = Field(default=0, alias="pusatFollowUp")
+    hq_schedule_unread: int = Field(default=0, alias="hqScheduleUnread")
 
 
 class CaseResolutionResponse(BaseModel):

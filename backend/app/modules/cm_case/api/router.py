@@ -65,6 +65,7 @@ from app.modules.cm_case.application.services import (
     CaseApplicationService,
 )
 from app.modules.cm_case.infrastructure.inbox_repository import (
+    safe_mark_hq_schedule_seen,
     safe_mark_pusat_queue_seen,
     safe_mark_read,
     safe_work_badge_counts,
@@ -416,6 +417,24 @@ def _enforce_case_mutation_scope(
     return dto
 
 
+def _work_badge_counts(
+    session: Session, principal: Principal
+) -> WorkBadgeCountsResponse:
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    unread, queue, follow_up, hq_schedule = safe_work_badge_counts(
+        session,
+        actor_id=str(principal.user_id),
+        actor_is_pusat=actor_is_pusat,
+        owner_unit_id=_actor_unit(principal, session),
+    )
+    return WorkBadgeCountsResponse(
+        unreadCases=unread,
+        pusatQueue=queue,
+        pusatFollowUp=follow_up,
+        hqScheduleUnread=hq_schedule,
+    )
+
+
 @router.get("/api/v1/cm/work-badges")
 def get_work_badges(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
@@ -426,18 +445,34 @@ def get_work_badges(
     Fail-open: repository errors return zeros so navigation stays up.
     Not CAP-005 email/SMS. Not a Mode B unlock.
     """
-    unread, queue, follow_up = safe_work_badge_counts(
+    return DataResponse(data=_work_badge_counts(session, principal))
+
+
+@router.post("/api/v1/cm/work-badges/hq-schedule-seen")
+def mark_hq_schedule_seen(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[WorkBadgeCountsResponse]:
+    """Cabang opened Jadwal Eskalasi — ack HQ_SCHEDULED receipts for this unit.
+
+    RETURNED inbox receipts are unchanged. Pusat is a no-op. Fail-open.
+    """
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    safe_mark_hq_schedule_seen(
         session,
-        actor_id=str(principal.user_id),
-        actor_is_pusat=_actor_is_pusat(principal, session),
+        user_id=str(principal.user_id),
+        owner_unit_id=_actor_unit(principal, session),
+        actor_is_pusat=actor_is_pusat,
     )
-    return DataResponse(
-        data=WorkBadgeCountsResponse(
-            unreadCases=unread,
-            pusatQueue=queue,
-            pusatFollowUp=follow_up,
-        )
-    )
+    try:
+        session.commit()
+    except Exception:
+        logger.exception("hq schedule seen commit failed")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    return DataResponse(data=_work_badge_counts(session, principal))
 
 
 @router.get("/api/v1/cm/cases/{case_id}")

@@ -614,7 +614,8 @@ function NavSections({
   const tCommon = useTranslations("common");
   const unreadCount = useUnreadAnnouncementCount();
   const hqScheduleTodayCount = useHqScheduleTodayCount();
-  const { unreadCases, pusatQueue, pusatFollowUp } = useCmWorkBadges();
+  const { unreadCases, pusatQueue, pusatFollowUp, hqScheduleUnread } =
+    useCmWorkBadges();
   const orgUnitBranch = useOrgUnitBranch();
   const orgUnitCode =
     orgUnitBranch === undefined ? undefined : (orgUnitBranch?.code ?? null);
@@ -628,7 +629,16 @@ function NavSections({
       announcements: { ...itemsWithBadges.announcements, badge: unreadCount },
     };
   }
-  if (hqScheduleTodayCount > 0 && itemsWithBadges.hqSchedule) {
+  if (isCabangInbox && hqScheduleUnread > 0 && itemsWithBadges.hqSchedule) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      hqSchedule: { ...itemsWithBadges.hqSchedule, badge: hqScheduleUnread },
+    };
+  } else if (
+    !isCabangInbox &&
+    hqScheduleTodayCount > 0 &&
+    itemsWithBadges.hqSchedule
+  ) {
     itemsWithBadges = {
       ...itemsWithBadges,
       hqSchedule: { ...itemsWithBadges.hqSchedule, badge: hqScheduleTodayCount },

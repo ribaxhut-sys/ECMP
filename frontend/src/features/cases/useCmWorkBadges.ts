@@ -16,6 +16,7 @@ export function useCmWorkBadges(): {
   unreadCases: number;
   pusatQueue: number;
   pusatFollowUp: number;
+  hqScheduleUnread: number;
 } {
   const pathname = usePathname();
   const { hasPermission } = useAuth();
@@ -23,6 +24,7 @@ export function useCmWorkBadges(): {
   const [unreadCases, setUnreadCases] = useState(0);
   const [pusatQueue, setPusatQueue] = useState(0);
   const [pusatFollowUp, setPusatFollowUp] = useState(0);
+  const [hqScheduleUnread, setHqScheduleUnread] = useState(0);
 
   const load = useCallback(
     (isCancelled: () => boolean) => {
@@ -30,6 +32,7 @@ export function useCmWorkBadges(): {
         setUnreadCases(0);
         setPusatQueue(0);
         setPusatFollowUp(0);
+        setHqScheduleUnread(0);
         return;
       }
       fetchCmWorkBadges()
@@ -48,15 +51,22 @@ export function useCmWorkBadges(): {
             res.data.pusatFollowUp > 0
               ? res.data.pusatFollowUp
               : 0;
+          const hqSchedule =
+            typeof res.data?.hqScheduleUnread === "number" &&
+            res.data.hqScheduleUnread > 0
+              ? res.data.hqScheduleUnread
+              : 0;
           setUnreadCases(unread);
           setPusatQueue(queue);
           setPusatFollowUp(followUp);
+          setHqScheduleUnread(hqSchedule);
         })
         .catch(() => {
           if (isCancelled()) return;
           setUnreadCases(0);
           setPusatQueue(0);
           setPusatFollowUp(0);
+          setHqScheduleUnread(0);
         });
     },
     [canRead],
@@ -74,5 +84,5 @@ export function useCmWorkBadges(): {
     };
   }, [load, pathname]);
 
-  return { unreadCases, pusatQueue, pusatFollowUp };
+  return { unreadCases, pusatQueue, pusatFollowUp, hqScheduleUnread };
 }

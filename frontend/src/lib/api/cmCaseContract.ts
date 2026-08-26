@@ -34,6 +34,7 @@ export function cmCasePaths() {
     history: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/history`,
     workBadges: `${CM_CASE_BASE}/work-badges`,
+    hqScheduleSeen: `${CM_CASE_BASE}/work-badges/hq-schedule-seen`,
   } as const;
 }
 

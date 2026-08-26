@@ -50,4 +50,18 @@ describe("useCmWorkBadges", () => {
     render(<Probe />);
     await waitFor(() => expect(screen.getByTestId("queue").textContent).toBe("0"));
   });
+
+  it("exposes Cabang HQ schedule unread", async () => {
+    fetchCmWorkBadges.mockResolvedValue({
+      data: { unreadCases: 1, pusatQueue: 0, hqScheduleUnread: 4 },
+    });
+
+    function HqProbe() {
+      const { hqScheduleUnread } = useCmWorkBadges();
+      return <span data-testid="hq">{hqScheduleUnread}</span>;
+    }
+
+    render(<HqProbe />);
+    await waitFor(() => expect(screen.getByTestId("hq").textContent).toBe("4"));
+  });
 });

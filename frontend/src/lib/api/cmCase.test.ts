@@ -31,6 +31,9 @@ describe("cmCasePaths", () => {
     );
     expect(paths.history("c/1")).toBe("/api/v1/cm/cases/c%2F1/history");
     expect(paths.workBadges).toBe("/api/v1/cm/work-badges");
+    expect(paths.hqScheduleSeen).toBe(
+      "/api/v1/cm/work-badges/hq-schedule-seen",
+    );
   });
 
   it("does not use foundation complaints base for create case", () => {

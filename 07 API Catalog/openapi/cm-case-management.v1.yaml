@@ -362,7 +362,9 @@ paths:
         Sidebar counts for Complaint work signals (Mode A, in-app only).
 
         Cabang (`actorIsPusat=false`): `unreadCases` = unread return / HQ-schedule
-        receipts for the caller. `pusatQueue` and `pusatFollowUp` are 0.
+        receipts for the caller. `hqScheduleUnread` = the HQ_SCHEDULED subset
+        whose Cases are owned by the caller's unit. `pusatQueue` and
+        `pusatFollowUp` are 0.
 
         Pusat: `pusatQueue` = Pengaduan intake rows the caller has not opened
         yet — the same rows `GET /api/v1/cm/complaints?needsPusatHandling=1`
@@ -374,7 +376,36 @@ paths:
 
         Fail-open: errors return zeros so navigation stays up.
         Not CAP-005 email/SMS. Not a Mode B unlock. Lab UX for API-536 / API-514.
+
+        `hqScheduleUnread` (Cabang only): HQ_SCHEDULED Case-inbox receipts for
+        Cases owned by the caller's unit that the caller has not acked. Opening
+        `/complaints/cm/hq-schedule` posts `hq-schedule-seen`. Pusat is 0 —
+        the sidebar uses today's arrival count instead.
       operationId: cmB2GetWorkBadges
+      tags: [CM-Case-List]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/WorkBadgeCounts"
+
+  /api/v1/cm/work-badges/hq-schedule-seen:
+    post:
+      summary: Ack Cabang Jadwal Eskalasi sidebar badge
+      description: |
+        Marks the caller's HQ_SCHEDULED Case-inbox receipts as read for Cases
+        owned by the caller's unit. RETURNED receipts are unchanged.
+        Pusat callers are a no-op. Returns the same WorkBadgeCounts as GET.
+        Fail-open. Not CAP-005. Not a Mode B unlock.
+      operationId: cmB2AckHqScheduleSeen
       tags: [CM-Case-List]
       security:
         - bearerAuth: []
@@ -1437,7 +1468,7 @@ components:
 
     WorkBadgeCounts:
       type: object
-      required: [unreadCases, pusatQueue, pusatFollowUp]
+      required: [unreadCases, pusatQueue, pusatFollowUp, hqScheduleUnread]
       properties:
         unreadCases:
           type: integer
@@ -1452,6 +1483,12 @@ components:
           description: >
             Pusat Tindak lanjut parents not yet opened by the caller since the
             last accept / schedule / status movement.
+        hqScheduleUnread:
+          type: integer
+          minimum: 0
+          description: >
+            Cabang: unread HQ_SCHEDULED receipts for Cases owned by the
+            caller's unit. Pusat: always 0.
 
     CaseAcceptance:
       type: object
