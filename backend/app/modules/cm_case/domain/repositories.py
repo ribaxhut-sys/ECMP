@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -22,6 +23,9 @@ class ParentComplaintRef:
         "created_by",
         "hq_accepted_at",
         "intake_disposition",
+        "hq_accepted_by",
+        "hq_destination_set_by",
+        "proposed_by",
     )
 
     def __init__(
@@ -37,6 +41,9 @@ class ParentComplaintRef:
         created_by: str | None = None,
         hq_accepted_at: datetime | None = None,
         intake_disposition: str | None = None,
+        hq_accepted_by: str | None = None,
+        hq_destination_set_by: str | None = None,
+        proposed_by: str | None = None,
     ) -> None:
         self.complaint_id = complaint_id
         self.complaint_number = complaint_number
@@ -51,6 +58,25 @@ class ParentComplaintRef:
         self.created_by = created_by
         self.hq_accepted_at = hq_accepted_at
         self.intake_disposition = intake_disposition
+        # Handover actors — who at Pusat took this, who at the branch
+        # proposed it. Source for the Case handler column.
+        self.hq_accepted_by = hq_accepted_by
+        self.hq_destination_set_by = hq_destination_set_by
+        self.proposed_by = proposed_by
+
+
+@dataclass(frozen=True)
+class ParentHandoff:
+    """Handover actors stamped on the parent Complaint (Batch-1 columns).
+
+    Read model for the Case handler column — see
+    ``application.current_handler.resolve_current_handler``.
+    """
+
+    intake_disposition: str | None = None
+    hq_accepted_by: str | None = None
+    hq_destination_set_by: str | None = None
+    proposed_by: str | None = None
 
 
 class CaseRepository(Protocol):
@@ -76,6 +102,12 @@ class CaseRepository(Protocol):
 
     def complaint_numbers_by_ids(self, complaint_ids: list[str]) -> dict[str, str]:
         """Map complaint UUID string → human complaint number."""
+        ...
+
+    def parent_handoffs_by_ids(
+        self, complaint_ids: list[str]
+    ) -> dict[str, ParentHandoff]:
+        """Map complaint UUID string → handover actors on that Complaint."""
         ...
 
     def list_summaries(

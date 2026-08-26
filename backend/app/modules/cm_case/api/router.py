@@ -47,6 +47,10 @@ from app.modules.cm_case.api.schemas import (
     WorkBadgeCountsResponse,
 )
 from app.modules.cm_case.application.authorization import assert_cm_case_visible
+from app.modules.cm_case.application.current_handler import (
+    CurrentHandler,
+    resolve_current_handler,
+)
 from app.modules.cm_case.application.dto import (
     AddCaseCommand,
     CancelEscalationToPusatCommand,
@@ -154,7 +158,30 @@ def _officer_labels(session: Session, *raw_ids: str | None) -> dict[str, str]:
         return {}
 
 
+def _current_handler(dto: CaseDTO, session: Session | None) -> CurrentHandler:
+    """Same rule as the Case list — one parent read, no timeline replay."""
+    parent = None
+    if session is not None:
+        handoffs = SqlAlchemyCaseRepository(session).parent_handoffs_by_ids(
+            [dto.complaint_id]
+        )
+        parent = handoffs.get(str(dto.complaint_id))
+    return resolve_current_handler(
+        handling_claimed_by=dto.handling_claimed_by,
+        created_by=dto.created_by,
+        escalated_to_pusat=bool(dto.escalated_to_pusat),
+        parent=parent,
+    )
+
+
 def _to_response(dto: CaseDTO, *, session: Session | None = None) -> CaseResponse:
+    handler = _current_handler(dto, session)
+    handler_names = (
+        _officer_labels(session, dto.handling_claimed_by, handler.actor_id)
+        if session
+        else {}
+    )
+
     def res(r):
         if r is None:
             return None
@@ -212,12 +239,15 @@ def _to_response(dto: CaseDTO, *, session: Session | None = None) -> CaseRespons
         createdBy=dto.created_by,
         handlingClaimedBy=dto.handling_claimed_by,
         handlingClaimedByName=(
-            _officer_labels(session, dto.handling_claimed_by).get(
-                (dto.handling_claimed_by or "").strip()
-            )
-            if session and dto.handling_claimed_by
+            handler_names.get((dto.handling_claimed_by or "").strip())
+            if dto.handling_claimed_by
             else None
         ),
+        currentHandlerId=handler.actor_id,
+        currentHandlerName=(
+            handler_names.get(handler.actor_id) if handler.actor_id else None
+        ),
+        currentHandlerScope=handler.scope,
         updatedAt=dto.updated_at,
         complaintStatusAfterCreate=dto.complaint_status_after_create,
         handlingUnitAcceptance=acc(dto.handling_unit_acceptance),
@@ -259,6 +289,7 @@ def list_cases(
     names = _officer_labels(
         session,
         *[i.handling_claimed_by for i in items],
+        *[i.current_handler_id for i in items],
     )
     return ListResponse(
         data=[
@@ -283,6 +314,13 @@ def list_cases(
                     if i.handling_claimed_by
                     else None
                 ),
+                currentHandlerId=i.current_handler_id,
+                currentHandlerName=(
+                    names.get(i.current_handler_id)
+                    if i.current_handler_id
+                    else None
+                ),
+                currentHandlerScope=i.current_handler_scope,
                 escalatedToPusat=i.escalated_to_pusat,
                 owningUnit=i.owning_unit,
                 escalationReason=i.escalation_reason,

@@ -30,6 +30,11 @@ class CaseSummaryResponse(BaseModel):
     handling_claimed_by_name: str | None = Field(
         default=None, alias="handlingClaimedByName"
     )
+    # Officer the Case sits with now — the claim when there is one, else the
+    # Pusat officer who took the escalation (see application.current_handler).
+    current_handler_id: str | None = Field(default=None, alias="currentHandlerId")
+    current_handler_name: str | None = Field(default=None, alias="currentHandlerName")
+    current_handler_scope: str = Field(default="BRANCH", alias="currentHandlerScope")
     escalated_to_pusat: bool = Field(default=False, alias="escalatedToPusat")
     owning_unit: str = Field(default="BRANCH", alias="owningUnit")
     escalation_reason: str | None = Field(default=None, alias="escalationReason")
@@ -109,6 +114,11 @@ class CaseResponse(BaseModel):
     handling_claimed_by_name: str | None = Field(
         default=None, alias="handlingClaimedByName"
     )
+    # Officer the Case sits with now — the claim when there is one, else the
+    # Pusat officer who took the escalation (see application.current_handler).
+    current_handler_id: str | None = Field(default=None, alias="currentHandlerId")
+    current_handler_name: str | None = Field(default=None, alias="currentHandlerName")
+    current_handler_scope: str = Field(default="BRANCH", alias="currentHandlerScope")
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
     complaint_status_after_create: str | None = Field(
         default=None, alias="complaintStatusAfterCreate"

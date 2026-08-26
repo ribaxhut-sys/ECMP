@@ -454,11 +454,14 @@ def test_repository_later_review_aging_and_hq_mutations(
     accepted = repo.accept_at_hq(
         created.complaint_id,
         hq_accepted_at=datetime.now(UTC),
+        accepted_by="hq-officer-1",
         description="Accepted at HQ",
         intake_disposition="ESCALATE_APPROVED",
     )
     assert accepted is not None
     assert accepted.hq_accepted_at is not None
+    # Accept without a schedule still names a handler for the work lists.
+    assert accepted.hq_accepted_by == "hq-officer-1"
 
     assert (
         repo.schedule_hq_arrival(
@@ -508,6 +511,7 @@ def test_repository_later_review_aging_and_hq_mutations(
     combo = repo.accept_and_schedule_at_hq(
         created.complaint_id,
         hq_accepted_at=datetime.now(UTC),
+        accepted_by="hq-officer-2",
         arrival_date=date(2026, 8, 11),
         arrival_time="10:00",
         description="Accept and schedule narrative",
@@ -515,6 +519,7 @@ def test_repository_later_review_aging_and_hq_mutations(
     assert combo is not None
     assert combo.intake_disposition == "HQ_SCHEDULED"
     assert combo.hq_arrival_time == "10:00"
+    assert combo.hq_accepted_by == "hq-officer-2"
     repo.commit()
 
 

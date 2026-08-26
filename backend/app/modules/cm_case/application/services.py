@@ -13,6 +13,7 @@ from uuid import UUID
 from app.core.authorization.principal import Principal
 from app.modules.audit.repository import AuditRepository
 from app.modules.audit.service import AuditService
+from app.modules.cm_case.application.current_handler import resolve_current_handler
 from app.modules.cm_case.application.dto import (
     AcceptanceDTO,
     AddCaseCommand,
@@ -534,9 +535,18 @@ class CaseApplicationService:
             page=page,
             page_size=page_size,
         )
-        numbers = self._repo.complaint_numbers_by_ids(
-            [row.complaint_id for row in rows]
-        )
+        complaint_ids = [row.complaint_id for row in rows]
+        numbers = self._repo.complaint_numbers_by_ids(complaint_ids)
+        handoffs = self._repo.parent_handoffs_by_ids(complaint_ids)
+        handlers = {
+            str(row.id): resolve_current_handler(
+                handling_claimed_by=row.handling_claimed_by,
+                created_by=row.created_by,
+                escalated_to_pusat=bool(row.escalated_to_pusat),
+                parent=handoffs.get(str(row.complaint_id)),
+            )
+            for row in rows
+        }
         items = [
             CaseSummaryDTO(
                 case_id=str(row.id),
@@ -557,6 +567,8 @@ class CaseApplicationService:
                 escalated_to_pusat=bool(row.escalated_to_pusat),
                 owning_unit="PUSAT" if row.escalated_to_pusat else "BRANCH",
                 escalation_reason=row.escalation_reason,
+                current_handler_id=handlers[str(row.id)].actor_id,
+                current_handler_scope=handlers[str(row.id)].scope,
             )
             for row in rows
         ]

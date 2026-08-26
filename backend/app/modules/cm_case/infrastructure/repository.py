@@ -18,7 +18,7 @@ from app.modules.cm_batch1.complaint_number import case_counter_name, resolve_un
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_batch1.sla import apply_complaint_status
 from app.modules.cm_case.domain.aggregate import CaseAggregate
-from app.modules.cm_case.domain.repositories import ParentComplaintRef
+from app.modules.cm_case.domain.repositories import ParentComplaintRef, ParentHandoff
 from app.modules.cm_case.domain.value_objects import CaseNumber
 from app.modules.cm_case.infrastructure import mappers
 from app.modules.cm_case.infrastructure.orm import (
@@ -57,6 +57,22 @@ def _apply_keyword_filter(session: Session, stmt, keyword: str | None):
     return stmt.where(or_(*clauses))
 
 
+def _unique_uuids(raw_ids: list[str]) -> list[UUID]:
+    """Parse + de-duplicate complaint ids, dropping anything that is not a UUID."""
+    uuids: list[UUID] = []
+    seen: set[UUID] = set()
+    for raw in raw_ids:
+        try:
+            uid = UUID(str(raw).strip())
+        except ValueError:
+            continue
+        if uid in seen:
+            continue
+        seen.add(uid)
+        uuids.append(uid)
+    return uuids
+
+
 class SqlAlchemyCaseRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -92,6 +108,9 @@ class SqlAlchemyCaseRepository:
             created_by=row.created_by,
             hq_accepted_at=row.hq_accepted_at,
             intake_disposition=row.intake_disposition,
+            hq_accepted_by=row.hq_accepted_by,
+            hq_destination_set_by=row.hq_destination_set_by,
+            proposed_by=row.proposed_by,
         )
 
     def count_cases(self, complaint_id: str) -> int:
@@ -194,18 +213,34 @@ class SqlAlchemyCaseRepository:
         )
         return mappers.case_from_orm(row, resolutions, acceptances)
 
+    def parent_handoffs_by_ids(
+        self, complaint_ids: list[str]
+    ) -> dict[str, ParentHandoff]:
+        """Handover actors per parent Complaint — one query for the whole page."""
+        uuids = _unique_uuids(complaint_ids)
+        if not uuids:
+            return {}
+        rows = self._session.execute(
+            select(
+                CmBatch1ComplaintORM.id,
+                CmBatch1ComplaintORM.intake_disposition,
+                CmBatch1ComplaintORM.hq_accepted_by,
+                CmBatch1ComplaintORM.hq_destination_set_by,
+                CmBatch1ComplaintORM.proposed_by,
+            ).where(CmBatch1ComplaintORM.id.in_(uuids))
+        ).all()
+        return {
+            str(row_id): ParentHandoff(
+                intake_disposition=disposition,
+                hq_accepted_by=accepted_by,
+                hq_destination_set_by=destination_set_by,
+                proposed_by=proposed_by,
+            )
+            for row_id, disposition, accepted_by, destination_set_by, proposed_by in rows
+        }
+
     def complaint_numbers_by_ids(self, complaint_ids: list[str]) -> dict[str, str]:
-        uuids: list[UUID] = []
-        seen: set[UUID] = set()
-        for raw in complaint_ids:
-            try:
-                uid = UUID(str(raw).strip())
-            except ValueError:
-                continue
-            if uid in seen:
-                continue
-            seen.add(uid)
-            uuids.append(uid)
+        uuids = _unique_uuids(complaint_ids)
         if not uuids:
             return {}
         rows = self._session.execute(
@@ -347,6 +382,7 @@ class SqlAlchemyCaseRepository:
             return
         row.intake_disposition = "RETURNED_TO_BRANCH"
         row.hq_accepted_at = None
+        row.hq_accepted_by = None
         row.hq_arrival_date = None
         row.hq_arrival_time = None
         row.hq_destination_unit_id = None

@@ -647,6 +647,20 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     handlerLabel,
   );
 
+  // Page-title copy stays claim-based; the meta row instead names whoever holds
+  // the Case now — after escalation that is the Pusat officer who took it, so
+  // detail and the Tindak lanjut column agree.
+  const currentHandlerName = officerDisplayName(
+    data?.currentHandlerName,
+    data?.handlingClaimedByName,
+    handlerLabel,
+  );
+  const currentHandlerDisplay = currentHandlerName
+    ? data?.currentHandlerScope === "PUSAT"
+      ? `${currentHandlerName} · ${tComplaints("penangananHandlerPusat")}`
+      : currentHandlerName
+    : null;
+
   const isCurrentHandler = canClaimHandling({
     handlingClaimedBy: data?.handlingClaimedBy,
     userId: user?.id,
@@ -1270,7 +1284,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                   <MetaItem label={t("customer")} value={customerDisplay} />
                   <MetaItem
                     label={tComplaints("penangananHandler")}
-                    value={handlerDisplay || tCommon("emDash")}
+                    value={currentHandlerDisplay || tCommon("emDash")}
                   />
                   <MetaItem label={t("createdBy")} value={creatorDisplay} />
                   <MetaItem label={t("createdAt")} value={whenCreated} />

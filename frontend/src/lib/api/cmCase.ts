@@ -81,6 +81,10 @@ export interface CmCaseSummary {
   createdBy?: string | null;
   handlingClaimedBy?: string | null;
   handlingClaimedByName?: string | null;
+  /** Officer the Case sits with now — the claim, else who took it at Pusat. */
+  currentHandlerId?: string | null;
+  currentHandlerName?: string | null;
+  currentHandlerScope?: "BRANCH" | "PUSAT" | string;
   escalatedToPusat?: boolean;
   owningUnit?: "BRANCH" | "PUSAT" | string;
   escalationReason?: string | null;
@@ -113,6 +117,10 @@ export interface CmCase {
   createdBy: string;
   handlingClaimedBy?: string | null;
   handlingClaimedByName?: string | null;
+  /** Officer the Case sits with now — the claim, else who took it at Pusat. */
+  currentHandlerId?: string | null;
+  currentHandlerName?: string | null;
+  currentHandlerScope?: "BRANCH" | "PUSAT" | string;
   updatedAt?: string | null;
   complaintStatusAfterCreate?: string | null;
   handlingUnitAcceptance?: CmCaseAcceptance | null;

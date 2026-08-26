@@ -49,7 +49,10 @@ export interface FollowUpRow {
   createdAt: string | null;
   hqArrivalDate: string | null;
   hqArrivalTime: string | null;
+  /** Officer the Case sits with now (API resolves claim → Pusat taker → creator). */
   handlerName: string | null;
+  /** Where that officer sits — Pusat names get a scope hint in the list. */
+  handlerScope: "BRANCH" | "PUSAT";
   /** Parent unread for this Pusat caller (`pusatUnread`); ignored on Cabang. */
   isUnread: boolean;
 }
@@ -144,7 +147,8 @@ function caseRow(
     createdAt: c.createdAt ?? null,
     hqArrivalDate: arrivalDate,
     hqArrivalTime: arrivalTime,
-    handlerName: officerDisplayName(c.handlingClaimedByName),
+    handlerName: officerDisplayName(c.currentHandlerName, c.handlingClaimedByName),
+    handlerScope: c.currentHandlerScope === "PUSAT" ? "PUSAT" : "BRANCH",
     isUnread: followUpRowIsUnread(c, parent, audience),
   };
 }

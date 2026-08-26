@@ -266,6 +266,7 @@ class CmBatch1StoreProtocol(Protocol):
         complaint_id: str,
         *,
         hq_accepted_at: datetime,
+        accepted_by: str | None = None,
         description: str | None = None,
         intake_disposition: str | None = None,
     ) -> ComplaintAggregate | None: ...
@@ -287,6 +288,7 @@ class CmBatch1StoreProtocol(Protocol):
         complaint_id: str,
         *,
         hq_accepted_at: datetime,
+        accepted_by: str | None = None,
         arrival_date: date,
         arrival_time: str,
         description: str,
@@ -1711,6 +1713,7 @@ class CmBatch1Service:
         updated = self._store.accept_at_hq(
             complaint_id,
             hq_accepted_at=accepted_at,
+            accepted_by=actor_id,
             description=next_description,
         )
         if updated is None:
@@ -1787,6 +1790,7 @@ class CmBatch1Service:
         updated = self._store.accept_and_schedule_at_hq(
             complaint_id,
             hq_accepted_at=accepted_at,
+            accepted_by=actor_id,
             arrival_date=body.arrival_date,
             arrival_time=arrival_time,
             description=next_description,

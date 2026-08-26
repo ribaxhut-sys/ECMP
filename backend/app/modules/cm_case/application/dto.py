@@ -174,6 +174,10 @@ class CaseSummaryDTO:
     escalation_reason: str | None = None
     is_read: bool | None = None
     unread_reason: str | None = None
+    #: Resolved by ``application.current_handler`` — id only; the router adds
+    #: the display name.
+    current_handler_id: str | None = None
+    current_handler_scope: str = "BRANCH"
 
 
 @dataclass

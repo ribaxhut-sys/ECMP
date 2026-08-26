@@ -333,7 +333,22 @@ export function FollowUpListView() {
     {
       key: "handler",
       header: t("columnHandler"),
-      cell: (row) => row.handlerName || tCommon("emDash"),
+      cell: (row) =>
+        row.handlerName ? (
+          <span className="block truncate">
+            {row.handlerName}
+            {row.handlerScope === "PUSAT" ? (
+              // The holder can be a Pusat officer — say so, or a branch CRO
+              // reads the name as a colleague in their own unit.
+              <span className="text-ecmp-text-secondary">
+                {" · "}
+                {t("handlerScopePusat")}
+              </span>
+            ) : null}
+          </span>
+        ) : (
+          tCommon("emDash")
+        ),
     },
     {
       key: "actions",

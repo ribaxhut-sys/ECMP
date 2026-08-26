@@ -2139,6 +2139,8 @@ def test_api_516_hq_accept_and_517_schedule(
     row = store.get(created.complaint_id)
     assert row is not None
     assert "Penerimaan Pusat:" in (row.description or "")
+    # Who accepted — the handler shown on the Case work lists.
+    assert row.hq_accepted_by == "hq-1"
     assert "Jadwal kedatangan:" in (row.description or "")
     assert row.intake_disposition == "HQ_SCHEDULED"
 

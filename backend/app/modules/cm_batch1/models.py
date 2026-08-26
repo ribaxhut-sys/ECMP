@@ -86,6 +86,9 @@ class CmBatch1ComplaintORM(Base):
     hq_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Pusat officer who accepted. Without it the "accepted, not yet scheduled"
+    # phase has no handler to show on the work lists.
+    hq_accepted_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Org unit key (Branch.code / "PUSAT") — list visibility SoT (DEC-024 pattern).
     owning_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Customer visit schedule at HQ (Batch-1 lab; not foundation Appointment).

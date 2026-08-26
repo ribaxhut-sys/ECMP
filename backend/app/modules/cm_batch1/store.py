@@ -474,6 +474,7 @@ class Batch1Store:
         complaint_id: str,
         *,
         hq_accepted_at: datetime,
+        accepted_by: str | None = None,
         description: str | None = None,
         intake_disposition: str | None = None,
     ) -> ComplaintAggregate | None:
@@ -482,6 +483,7 @@ class Batch1Store:
             if row is None:
                 return None
             row.hq_accepted_at = hq_accepted_at
+            row.hq_accepted_by = accepted_by
             if description is not None:
                 row.description = description
             if intake_disposition is not None:
@@ -522,6 +524,7 @@ class Batch1Store:
         complaint_id: str,
         *,
         hq_accepted_at: datetime,
+        accepted_by: str | None = None,
         arrival_date,
         arrival_time: str,
         description: str,
@@ -534,6 +537,7 @@ class Batch1Store:
             if row is None:
                 return None
             row.hq_accepted_at = hq_accepted_at
+            row.hq_accepted_by = accepted_by
             row.hq_arrival_date = arrival_date
             row.hq_arrival_time = arrival_time
             if destination_unit_id is not None:

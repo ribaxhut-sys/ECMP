@@ -140,6 +140,46 @@ describe("buildFollowUpRows", () => {
     expect(rows[0].hqArrivalDate).toBe("2026-08-20");
     expect(rows[0].hqArrivalTime).toBe("09:30");
     expect(rows[0].handlerName).toBe("Dewi Hidayat");
+    expect(rows[0].handlerScope).toBe("BRANCH");
+  });
+
+  it("names the Pusat officer once the escalation cleared the branch claim", () => {
+    const rows = buildFollowUpRows({
+      complaints: [
+        complaint({
+          intakeDisposition: "HQ_SCHEDULED",
+          hqArrivalDate: "2026-08-20",
+          hqArrivalTime: "09:30",
+        }),
+      ],
+      allCases: [
+        caseSummary({
+          status: "IN_PROGRESS",
+          escalatedToPusat: true,
+          handlingClaimedBy: null,
+          handlingClaimedByName: null,
+          currentHandlerId: "pusat-cro-9",
+          currentHandlerName: "Daffa",
+          currentHandlerScope: "PUSAT",
+        }),
+      ],
+    });
+    expect(rows[0].handlerName).toBe("Daffa");
+    expect(rows[0].handlerScope).toBe("PUSAT");
+  });
+
+  it("falls back to the claim name when the API sends no current handler", () => {
+    const rows = buildFollowUpRows({
+      complaints: [complaint()],
+      allCases: [
+        caseSummary({
+          status: "IN_PROGRESS",
+          handlingClaimedByName: "Dewi Hidayat",
+        }),
+      ],
+    });
+    expect(rows[0].handlerName).toBe("Dewi Hidayat");
+    expect(rows[0].handlerScope).toBe("BRANCH");
   });
 
   it("keeps one row per Case when a complaint has several Cases", () => {
