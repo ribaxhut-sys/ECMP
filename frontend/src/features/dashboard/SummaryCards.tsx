@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
-import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import {
+  CM_BATCH1_FOLLOW_UP_HREF,
+  CM_BATCH1_HQ_SCHEDULE_PAGE_HREF,
+  CM_BATCH1_HQ_SCHEDULED_HREF,
+  CM_BATCH1_OPEN_HREF,
+  CM_BATCH1_PUSAT_UNHANDLED_HREF,
+} from "@/features/complaints/cmBatch1ListFilters";
 import type {
   DashboardHeader,
   DashboardResolutionSla,
@@ -28,6 +34,7 @@ import {
   slaComplianceLevel,
   slaLevelToOpsTone,
   type OpsTone,
+  type PusatDashboardWork,
 } from "./dashboardUtils";
 import { TrendSparkline } from "./TrendSparkline";
 
@@ -97,12 +104,15 @@ export function SummaryCards({
   trend,
   sla,
   loading,
+  pusatWork = null,
 }: {
   header: DashboardHeader | null;
   byStatus: StatusCount[] | null;
   trend?: DashboardTrendItem[] | null;
   sla?: DashboardResolutionSla | null;
   loading: boolean;
+  /** When set, the hero zone is F4 Pusat work — not cabang assignment. */
+  pusatWork?: PusatDashboardWork | null;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
@@ -144,7 +154,12 @@ export function SummaryCards({
           description={t("noSummaryDescription")}
           primaryAction={{
             label: tCommon("goToComplaints"),
-            onClick: () => router.push("/complaints"),
+            onClick: () =>
+              router.push(
+                pusatWork
+                  ? CM_BATCH1_PUSAT_UNHANDLED_HREF
+                  : CM_BATCH1_OPEN_HREF,
+              ),
           }}
         />
       </div>
@@ -153,6 +168,7 @@ export function SummaryCards({
 
   const waitingAssignment = countByStatus(byStatus, "waitingAssignment") ?? 0;
   const escalated = countByStatus(byStatus, "escalatePending") ?? 0;
+  const hqScheduled = countByStatus(byStatus, "escalateScheduled") ?? 0;
   // DEC-031 Fase 1: the 30-day resolution clock is measured at read time.
   // This tile used to hard-code "not activated on Batch-1" even after the
   // rollup arrived — that leftover is what made SLA look switched off.
@@ -168,6 +184,79 @@ export function SummaryCards({
       : sla.warning > 0
         ? t("slaKpiWarning", { count: sla.warning })
         : t("slaKpiHealthy", { days: sla.targetDays });
+  const slaTile = (
+    <KpiBlock
+      title={t("slaBreached")}
+      value={
+        typeof slaValue === "number" ? (
+          <AnimatedCount value={slaValue} />
+        ) : (
+          slaValue
+        )
+      }
+      signal={slaSignal}
+      tone={slaTone}
+    />
+  );
+
+  if (pusatWork) {
+    return (
+      <section
+        data-testid="dashboard-header-cards"
+        aria-label={t("priorityKpi")}
+        className={`${DASHBOARD_TILE} flex h-full flex-col p-5`}
+      >
+        <h2 className="sr-only">{t("priorityKpi")}</h2>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+          <div className="sm:w-[260px] sm:shrink-0">
+            <KpiBlock
+              title={t("pusatIntakeQueue")}
+              value={<AnimatedCount value={pusatWork.queue} />}
+              signal={t("kpiPusatQueueDetail", { count: pusatWork.queue })}
+              tone={pusatWork.queue > 0 ? "attention" : "healthy"}
+              hero
+              onActivate={
+                canOpenComplaintList
+                  ? () => router.push(CM_BATCH1_PUSAT_UNHANDLED_HREF)
+                  : undefined
+              }
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ecmp-border/30 pt-4 sm:grid-cols-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+            {slaTile}
+            <KpiBlock
+              title={t("pusatFollowUpQueue")}
+              value={<AnimatedCount value={pusatWork.followUp} />}
+              signal={t("kpiPusatFollowUpDetail", { count: pusatWork.followUp })}
+              tone={pusatWork.followUp > 0 ? "attention" : "healthy"}
+              onActivate={() => router.push(CM_BATCH1_FOLLOW_UP_HREF)}
+            />
+            <KpiBlock
+              title={t("hqScheduleToday")}
+              value={<AnimatedCount value={pusatWork.hqScheduleToday} />}
+              signal={t("kpiHqScheduleTodayDetail", {
+                count: pusatWork.hqScheduleToday,
+              })}
+              tone={pusatWork.hqScheduleToday > 0 ? "attention" : "healthy"}
+              onActivate={() => router.push(CM_BATCH1_HQ_SCHEDULE_PAGE_HREF)}
+            />
+            <KpiBlock
+              title={t("escalationScheduled")}
+              value={<AnimatedCount value={hqScheduled} />}
+              signal={t("kpiHqScheduledDetail", { count: hqScheduled })}
+              tone={hqScheduled > 0 ? "attention" : "healthy"}
+              onActivate={
+                canOpenComplaintList
+                  ? () => router.push(CM_BATCH1_HQ_SCHEDULED_HREF)
+                  : undefined
+              }
+            />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const rate = resolutionRatePct(header);
   const openAccent = openBacklogAccent(
     header.openComplaints,
@@ -218,18 +307,7 @@ export function SummaryCards({
         </div>
 
         <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ecmp-border/30 pt-4 sm:grid-cols-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-          <KpiBlock
-            title={t("slaBreached")}
-            value={
-              typeof slaValue === "number" ? (
-                <AnimatedCount value={slaValue} />
-              ) : (
-                slaValue
-              )
-            }
-            signal={slaSignal}
-            tone={slaTone}
-          />
+          {slaTile}
           <KpiBlock
             title={t("escalationsPending")}
             value={<AnimatedCount value={escalated} />}

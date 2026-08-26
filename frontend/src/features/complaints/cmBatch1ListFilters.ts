@@ -46,6 +46,12 @@ export const CM_BATCH1_HQ_SCHEDULED_HREF =
 export const CM_BATCH1_PUSAT_UNHANDLED_HREF =
   "/complaints?needsPusatHandling=1";
 
+/** Pusat Tindak lanjut — same door as the sidebar item. */
+export const CM_BATCH1_FOLLOW_UP_HREF = "/tindak-lanjut";
+
+/** HQ arrival calendar — same door as the sidebar Jadwal Eskalasi item. */
+export const CM_BATCH1_HQ_SCHEDULE_PAGE_HREF = "/complaints/cm/hq-schedule";
+
 /** True when the Aggregate list is the Ditutup (CLOSED) archive. */
 export function isCmBatch1ClosedArchive(
   filters: Pick<CmBatch1ListFilters, "status">,
@@ -163,6 +169,29 @@ export function cmBatch1FiltersFromSearchParams(
         ? Math.floor(pageSize)
         : defaults.pageSize,
   };
+}
+
+/**
+ * Bare `/complaints` for Pusat pins the unhandled queue.
+ * Dashboard / SLA drill-downs already carry a filter — do not overwrite them.
+ */
+export function shouldDefaultPusatUnhandledQueue(
+  filters: Pick<
+    CmBatch1ListFilters,
+    | "needsPusatHandling"
+    | "intakeDisposition"
+    | "status"
+    | "keyword"
+    | "createdBy"
+    | "decidedBy"
+  >,
+): boolean {
+  if (filters.needsPusatHandling) return false;
+  if (filters.intakeDisposition) return false;
+  if (filters.status) return false;
+  if (filters.keyword.trim()) return false;
+  if (filters.createdBy.trim() || filters.decidedBy.trim()) return false;
+  return true;
 }
 
 export function cmBatch1FiltersToSearchParams(

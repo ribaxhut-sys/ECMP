@@ -19,14 +19,17 @@ import {
   OPS_TONE_RAIL,
   OPS_TONE_TEXT,
   visibleAlertSlice,
+  type PusatDashboardWork,
 } from "./dashboardUtils";
 
 export function CriticalAlerts({
   byStatus,
   loading,
+  pusatWork = null,
 }: {
   byStatus?: StatusCount[] | null;
   loading: boolean;
+  pusatWork?: PusatDashboardWork | null;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
@@ -59,6 +62,12 @@ export function CriticalAlerts({
     resolutionBreached: 0,
     escalated: countByStatus(byStatus, "escalatePending") ?? 0,
     escalationHref,
+    pusatQueue: pusatWork?.queue ?? 0,
+    pusatFollowUp: pusatWork?.followUp ?? 0,
+    hqScheduleToday: pusatWork?.hqScheduleToday ?? 0,
+    escalateScheduled: pusatWork
+      ? (countByStatus(byStatus, "escalateScheduled") ?? 0)
+      : 0,
   });
   const visible = visibleAlertSlice(alerts, expanded);
   const overflow = alerts.length > CRITICAL_ALERT_VISIBLE_LIMIT;

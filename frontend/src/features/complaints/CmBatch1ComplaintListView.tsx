@@ -45,6 +45,7 @@ import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
   defaultCmBatch1ListFilters,
+  shouldDefaultPusatUnhandledQueue,
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
 import { ComplaintSlaBadge } from "./ComplaintSlaBadge";
@@ -114,11 +115,12 @@ export function CmBatch1ComplaintListView() {
     setDraft(filters);
   }, [filters]);
 
-  // Pusat Pengaduan = unhandled queue. Ditutup is `/ditutup`, not this list.
+  // Pusat Pengaduan default = unhandled queue. Ditutup is `/ditutup`.
+  // Keep dashboard/SLA drill-downs (status, intakeDisposition, keyword).
   useEffect(() => {
     if (pusatAudience !== true) return;
     const parsed = cmBatch1FiltersFromSearchParams(searchParams);
-    if (parsed.needsPusatHandling) return;
+    if (!shouldDefaultPusatUnhandledQueue(parsed)) return;
     const params = cmBatch1FiltersToSearchParams({
       ...parsed,
       needsPusatHandling: true,

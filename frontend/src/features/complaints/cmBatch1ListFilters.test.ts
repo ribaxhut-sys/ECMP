@@ -4,6 +4,7 @@ import {
   cmBatch1FiltersToSearchParams,
   closedArchiveRedirectHrefFromRecord,
   defaultCmBatch1ListFilters,
+  shouldDefaultPusatUnhandledQueue,
 } from "./cmBatch1ListFilters";
 
 describe("cmBatch1ListFilters", () => {
@@ -79,6 +80,38 @@ describe("cmBatch1ListFilters", () => {
       defaultCmBatch1ListFilters({ pusatUnhandledQueue: true })
         .needsPusatHandling,
     ).toBe(true);
+  });
+
+  it("does not pin the unhandled queue over a dashboard drill-down", () => {
+    expect(
+      shouldDefaultPusatUnhandledQueue(
+        cmBatch1FiltersFromSearchParams(new URLSearchParams()),
+      ),
+    ).toBe(true);
+    expect(
+      shouldDefaultPusatUnhandledQueue(
+        cmBatch1FiltersFromSearchParams(
+          new URLSearchParams("needsPusatHandling=1"),
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      shouldDefaultPusatUnhandledQueue(
+        cmBatch1FiltersFromSearchParams(
+          new URLSearchParams("intakeDisposition=HQ_SCHEDULED"),
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      shouldDefaultPusatUnhandledQueue(
+        cmBatch1FiltersFromSearchParams(new URLSearchParams("status=OPEN")),
+      ),
+    ).toBe(false);
+    expect(
+      shouldDefaultPusatUnhandledQueue(
+        cmBatch1FiltersFromSearchParams(new URLSearchParams("keyword=TAB-1")),
+      ),
+    ).toBe(false);
   });
 
   it("defaults Cabang work list to OPEN and Ditutup to CLOSED", () => {

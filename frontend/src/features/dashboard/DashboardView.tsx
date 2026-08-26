@@ -4,6 +4,10 @@ import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
+import { useCmWorkBadges } from "@/features/cases/useCmWorkBadges";
+import { isPusatWorkAudience } from "@/features/complaints/cmBatch1ComplaintListIdentity";
+import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTodayCount";
 import {
   Empty,
   ErrorState,
@@ -37,6 +41,13 @@ export function DashboardView() {
   const { state, reload, updatedAt, isFetching } = useDashboardData();
   const loading = state.status === "loading";
   const data = state.status === "success" ? state.data : null;
+  const orgUnitCode = useOrgUnitCode();
+  const isPusat = isPusatWorkAudience(orgUnitCode) === true;
+  const { pusatQueue, pusatFollowUp } = useCmWorkBadges();
+  const hqScheduleToday = useHqScheduleTodayCount();
+  const pusatWork = isPusat
+    ? { queue: pusatQueue, followUp: pusatFollowUp, hqScheduleToday }
+    : null;
 
   useEffect(() => {
     if (!canRead) return;
@@ -87,6 +98,10 @@ export function DashboardView() {
         sla={data?.sla ?? null}
         waitingAssignment={countByStatus(data?.byStatus, "waitingAssignment") ?? 0}
         escalatePending={countByStatus(data?.byStatus, "escalatePending") ?? 0}
+        escalateScheduled={countByStatus(data?.byStatus, "escalateScheduled") ?? 0}
+        pusatQueue={pusatWork?.queue ?? 0}
+        pusatFollowUp={pusatWork?.followUp ?? 0}
+        hqScheduleToday={pusatWork?.hqScheduleToday ?? 0}
         loading={firstLoad}
         refreshing={isFetching}
         error={state.status === "error"}
@@ -124,12 +139,14 @@ export function DashboardView() {
                 trend={data?.trend ?? null}
                 sla={data?.sla ?? null}
                 loading={firstLoad}
+                pusatWork={pusatWork}
               />
             </div>
             <div className="xl:col-span-4">
               <CriticalAlerts
                 byStatus={data?.byStatus ?? null}
                 loading={firstLoad}
+                pusatWork={pusatWork}
               />
             </div>
           </div>
@@ -143,6 +160,7 @@ export function DashboardView() {
                 header={data?.header ?? null}
                 byStatus={data?.byStatus ?? null}
                 loading={firstLoad}
+                pusatWork={pusatWork}
               />
             </div>
             <div className="xl:col-span-4">

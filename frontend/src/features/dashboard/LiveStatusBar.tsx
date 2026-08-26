@@ -30,6 +30,10 @@ export function LiveStatusBar({
   sla,
   waitingAssignment = 0,
   escalatePending = 0,
+  escalateScheduled = 0,
+  pusatQueue = 0,
+  pusatFollowUp = 0,
+  hqScheduleToday = 0,
   loading,
   refreshing = false,
   error,
@@ -39,6 +43,10 @@ export function LiveStatusBar({
   sla: DashboardResolutionSla | null;
   waitingAssignment?: number;
   escalatePending?: number;
+  escalateScheduled?: number;
+  pusatQueue?: number;
+  pusatFollowUp?: number;
+  hqScheduleToday?: number;
   /** First-load only — drives skeleton + "syncing" health. */
   loading: boolean;
   /** Background / manual refresh — button label only, not health pulse. */
@@ -59,6 +67,10 @@ export function LiveStatusBar({
     sla,
     waitingAssignment,
     escalatePending,
+    escalateScheduled,
+    pusatQueue,
+    pusatFollowUp,
+    hqScheduleToday,
   });
   const env = dashboardEnvironmentLabel();
 

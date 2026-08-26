@@ -12,6 +12,7 @@ import {
   DASHBOARD_COMMAND_LABEL,
   DASHBOARD_HOVER_ROW,
   DASHBOARD_TILE,
+  dashboardStatusSliceHref,
 } from "./dashboardUtils";
 import { STATUS_CHART_COLORS, STATUS_CHART_FALLBACK } from "./statusPalette";
 
@@ -126,6 +127,9 @@ export function ComplaintByStatus({
               const label = slice.labelKey
                 ? t(slice.labelKey)
                 : tStatus(slice.status);
+              const href = canOpenComplaintList
+                ? dashboardStatusSliceHref(slice.status)
+                : null;
               return (
                 <li key={slice.status}>
                   <button
@@ -134,6 +138,7 @@ export function ComplaintByStatus({
                     onMouseLeave={() => setHighlight(null)}
                     onFocus={() => setHighlight(slice.status)}
                     onBlur={() => setHighlight(null)}
+                    onClick={href ? () => router.push(href) : undefined}
                     className={`${DASHBOARD_HOVER_ROW} flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-left ${
                       active ? "bg-ecmp-hover/50" : ""
                     }`}

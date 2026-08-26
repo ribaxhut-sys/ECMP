@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import { CM_BATCH1_HQ_SCHEDULED_HREF, CM_BATCH1_OPEN_HREF, CM_BATCH1_PUSAT_UNHANDLED_HREF } from "@/features/complaints/cmBatch1ListFilters";
 import { formatDateTime24 } from "@/shared/utils/datetime";
 import {
   actorInitials,
@@ -14,6 +14,7 @@ import {
   buildQueueHealthRows,
   CRITICAL_ALERT_VISIBLE_LIMIT,
   dashboardEmptyWorkCta,
+  dashboardStatusSliceHref,
   formatRelativeTime,
   resolveSystemHealth,
   slaComplianceLevel,
@@ -195,12 +196,44 @@ describe("buildQueueHealthRows", () => {
     });
     expect(rows.map((row) => row.count)).toEqual([1, 0, 0, 0]);
   });
+
+  it("replaces cabang assignment bars with Pusat work doors", () => {
+    const rows = buildQueueHealthRows({
+      byStatus,
+      waitingAssignmentHref: null,
+      escalationHref: null,
+      hqEscalationHref: "/complaints?intakeDisposition=ESCALATE_APPROVED",
+      hqScheduledHref: "/complaints?intakeDisposition=HQ_SCHEDULED",
+      audience: "pusat",
+      pusatQueue: 1,
+      pusatFollowUp: 3,
+      pusatQueueHref: "/complaints?needsPusatHandling=1",
+      pusatFollowUpHref: "/tindak-lanjut",
+    });
+    expect(rows.map((row) => row.id)).toEqual([
+      "pusat-intake",
+      "pusat-follow-up",
+      "waiting-hq-escalation",
+      "hq-scheduled",
+    ]);
+    expect(rows[0]?.count).toBe(1);
+    expect(rows[0]?.href).toBe("/complaints?needsPusatHandling=1");
+    expect(rows[1]?.count).toBe(3);
+    expect(rows[3]?.count).toBe(1);
+  });
 });
 
 describe("dashboardEmptyWorkCta (DEC-026)", () => {
   it("sends officers to the CM open list", () => {
     expect(dashboardEmptyWorkCta()).toEqual({
       href: CM_BATCH1_OPEN_HREF,
+      ctaKey: "goToComplaints",
+    });
+  });
+
+  it("sends Pusat officers to the unhandled queue", () => {
+    expect(dashboardEmptyWorkCta("pusat")).toEqual({
+      href: CM_BATCH1_PUSAT_UNHANDLED_HREF,
       ctaKey: "goToComplaints",
     });
   });
@@ -232,6 +265,26 @@ describe("buildCriticalAlerts", () => {
     expect(alerts.find((a) => a.id === "sla-assignment")?.href).toBe(
       "/complaints",
     );
+  });
+
+  it("surfaces Pusat work queues ahead of branch escalation-pending", () => {
+    const alerts = buildCriticalAlerts({
+      breached: 0,
+      assignmentBreached: 0,
+      resolutionBreached: 0,
+      escalated: 2,
+      escalationHref: "/complaints?intakeDisposition=ESCALATE_PENDING_APPROVAL",
+      pusatQueue: 1,
+      pusatFollowUp: 0,
+      hqScheduleToday: 10,
+      escalateScheduled: 12,
+    });
+    expect(alerts.map((alert) => alert.id)).toEqual([
+      "pusat-queue",
+      "hq-schedule-today",
+      "hq-scheduled",
+      "escalation",
+    ]);
   });
 });
 
@@ -280,6 +333,21 @@ describe("resolveSystemHealth", () => {
     ).toBe("healthy");
   });
 
+  it("asks for attention when Pusat HQ work is waiting", () => {
+    expect(
+      resolveSystemHealth({
+        loading: false,
+        error: false,
+        sla: null,
+        waitingAssignment: 0,
+        escalatePending: 0,
+        pusatQueue: 1,
+        hqScheduleToday: 10,
+        escalateScheduled: 12,
+      }),
+    ).toBe("attention");
+  });
+
   it("degrades on an overdue complaint even when the queue is empty", () => {
     // DEC-031: a broken 30-day promise outranks queue counts on this bar.
     expect(
@@ -303,6 +371,17 @@ describe("resolveSystemHealth", () => {
         escalatePending: 0,
       }),
     ).toBe("attention");
+  });
+});
+
+describe("dashboardStatusSliceHref", () => {
+  it("opens the HQ scheduled list without pinning Pusat intake", () => {
+    expect(dashboardStatusSliceHref("escalateScheduled")).toBe(
+      CM_BATCH1_HQ_SCHEDULED_HREF,
+    );
+    expect(dashboardStatusSliceHref("escalateScheduled")).not.toContain(
+      "needsPusatHandling",
+    );
   });
 });
 

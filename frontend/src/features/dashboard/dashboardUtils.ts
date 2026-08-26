@@ -1,4 +1,14 @@
-import { CM_BATCH1_OPEN_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import {
+  CM_BATCH1_CLOSED_HREF,
+  CM_BATCH1_ESCALATION_APPROVED_HREF,
+  CM_BATCH1_ESCALATION_PENDING_HREF,
+  CM_BATCH1_FOLLOW_UP_HREF,
+  CM_BATCH1_HQ_SCHEDULE_PAGE_HREF,
+  CM_BATCH1_HQ_SCHEDULED_HREF,
+  CM_BATCH1_OPEN_HREF,
+  CM_BATCH1_PUSAT_UNHANDLED_HREF,
+  CM_BATCH1_WAITING_ASSIGNMENT_HREF,
+} from "@/features/complaints/cmBatch1ListFilters";
 import { formatDateTime24 } from "@/shared/utils/datetime";
 import { nameInitials } from "@/shared/utils/initials";
 import type {
@@ -28,7 +38,18 @@ export type QueueHealthLabelKey =
   | "queueInProgress"
   | "waitingEscalationApproval"
   | "waitingHqEscalation"
-  | "escalationScheduled";
+  | "escalationScheduled"
+  | "pusatIntakeQueue"
+  | "pusatFollowUpQueue";
+
+export type QueueHealthAudience = "cabang" | "pusat";
+
+/** Sidebar-aligned Pusat work counts for the dashboard decision zone. */
+export type PusatDashboardWork = {
+  queue: number;
+  followUp: number;
+  hqScheduleToday: number;
+};
 
 export type QueueHealthRowSpec = {
   id: string;
@@ -44,12 +65,18 @@ export type DashboardEmptyWorkCta = {
 };
 
 /** Empty dashboard work door is always CM list (DEC-026). */
-export function dashboardEmptyWorkCta(): DashboardEmptyWorkCta {
+export function dashboardEmptyWorkCta(
+  audience: QueueHealthAudience = "cabang",
+): DashboardEmptyWorkCta {
+  if (audience === "pusat") {
+    return { href: CM_BATCH1_PUSAT_UNHANDLED_HREF, ctaKey: "goToComplaints" };
+  }
   return { href: CM_BATCH1_OPEN_HREF, ctaKey: "goToComplaints" };
 }
 
 /**
- * Queue-health bars for CM Aggregate work queues (assignment → HQ path).
+ * Queue-health bars. Cabang: assignment → HQ path. Pusat: the same three
+ * work doors as the sidebar (intake / follow-up / schedule) plus HQ slices.
  */
 export function buildQueueHealthRows(input: {
   byStatus: StatusCount[] | null;
@@ -57,11 +84,50 @@ export function buildQueueHealthRows(input: {
   escalationHref: string | null;
   hqEscalationHref: string | null;
   hqScheduledHref: string | null;
+  audience?: QueueHealthAudience;
+  pusatQueue?: number;
+  pusatFollowUp?: number;
+  pusatQueueHref?: string | null;
+  pusatFollowUpHref?: string | null;
 }): QueueHealthRowSpec[] {
   const waitingAssignment = countByStatus(input.byStatus, "waitingAssignment") ?? 0;
   const escalated = countByStatus(input.byStatus, "escalatePending") ?? 0;
   const waitingHq = countByStatus(input.byStatus, "escalateApproved") ?? 0;
   const hqScheduled = countByStatus(input.byStatus, "escalateScheduled") ?? 0;
+  if (input.audience === "pusat") {
+    const pusatQueue = input.pusatQueue ?? 0;
+    const pusatFollowUp = input.pusatFollowUp ?? 0;
+    return [
+      {
+        id: "pusat-intake",
+        queueKey: "pusatIntakeQueue",
+        count: pusatQueue,
+        tone: pusatQueue > 0 ? "attention" : "healthy",
+        href: input.pusatQueueHref ?? null,
+      },
+      {
+        id: "pusat-follow-up",
+        queueKey: "pusatFollowUpQueue",
+        count: pusatFollowUp,
+        tone: pusatFollowUp > 0 ? "attention" : "healthy",
+        href: input.pusatFollowUpHref ?? null,
+      },
+      {
+        id: "waiting-hq-escalation",
+        queueKey: "waitingHqEscalation",
+        count: waitingHq,
+        tone: waitingHq > 0 ? "attention" : "healthy",
+        href: input.hqEscalationHref,
+      },
+      {
+        id: "hq-scheduled",
+        queueKey: "escalationScheduled",
+        count: hqScheduled,
+        tone: hqScheduled > 0 ? "attention" : "healthy",
+        href: input.hqScheduledHref,
+      },
+    ];
+  }
   return [
     {
       id: "waiting-assignment",
@@ -103,7 +169,11 @@ export type CriticalAlertSpec = {
     | "alertSlaTitle"
     | "alertAssignmentSlaTitle"
     | "alertResolutionSlaTitle"
-    | "alertEscalationTitle";
+    | "alertEscalationTitle"
+    | "alertPusatQueueTitle"
+    | "alertPusatFollowUpTitle"
+    | "alertHqScheduleTodayTitle"
+    | "alertHqScheduledTitle";
   count: number;
   href: string | null;
 };
@@ -114,6 +184,14 @@ export function buildCriticalAlerts(input: {
   resolutionBreached: number;
   escalated: number;
   escalationHref: string | null;
+  pusatQueue?: number;
+  pusatQueueHref?: string | null;
+  pusatFollowUp?: number;
+  pusatFollowUpHref?: string | null;
+  hqScheduleToday?: number;
+  hqScheduleHref?: string | null;
+  escalateScheduled?: number;
+  hqScheduledHref?: string | null;
 }): CriticalAlertSpec[] {
   const alerts: CriticalAlertSpec[] = [];
   if (input.breached > 0) {
@@ -141,6 +219,42 @@ export function buildCriticalAlerts(input: {
       titleKey: "alertResolutionSlaTitle",
       count: input.resolutionBreached,
       href: "#sla-overview",
+    });
+  }
+  if ((input.pusatQueue ?? 0) > 0) {
+    alerts.push({
+      id: "pusat-queue",
+      tone: "attention",
+      titleKey: "alertPusatQueueTitle",
+      count: input.pusatQueue ?? 0,
+      href: input.pusatQueueHref ?? CM_BATCH1_PUSAT_UNHANDLED_HREF,
+    });
+  }
+  if ((input.pusatFollowUp ?? 0) > 0) {
+    alerts.push({
+      id: "pusat-follow-up",
+      tone: "attention",
+      titleKey: "alertPusatFollowUpTitle",
+      count: input.pusatFollowUp ?? 0,
+      href: input.pusatFollowUpHref ?? CM_BATCH1_FOLLOW_UP_HREF,
+    });
+  }
+  if ((input.hqScheduleToday ?? 0) > 0) {
+    alerts.push({
+      id: "hq-schedule-today",
+      tone: "attention",
+      titleKey: "alertHqScheduleTodayTitle",
+      count: input.hqScheduleToday ?? 0,
+      href: input.hqScheduleHref ?? CM_BATCH1_HQ_SCHEDULE_PAGE_HREF,
+    });
+  }
+  if ((input.escalateScheduled ?? 0) > 0) {
+    alerts.push({
+      id: "hq-scheduled",
+      tone: "attention",
+      titleKey: "alertHqScheduledTitle",
+      count: input.escalateScheduled ?? 0,
+      href: input.hqScheduledHref ?? CM_BATCH1_HQ_SCHEDULED_HREF,
     });
   }
   if (input.escalated > 0) {
@@ -251,6 +365,10 @@ export function resolveSystemHealth(input: {
   sla: DashboardResolutionSla | null;
   waitingAssignment?: number;
   escalatePending?: number;
+  escalateScheduled?: number;
+  pusatQueue?: number;
+  pusatFollowUp?: number;
+  hqScheduleToday?: number;
 }): SystemHealthKind {
   if (input.loading) return "syncing";
   if (input.error) return "degraded";
@@ -261,8 +379,46 @@ export function resolveSystemHealth(input: {
   const approaching = input.sla?.warning ?? 0;
   const waiting = input.waitingAssignment ?? 0;
   const escalate = input.escalatePending ?? 0;
-  if (approaching > 0 || waiting > 0 || escalate > 0) return "attention";
+  const scheduled = input.escalateScheduled ?? 0;
+  const pusatQueue = input.pusatQueue ?? 0;
+  const pusatFollowUp = input.pusatFollowUp ?? 0;
+  const hqToday = input.hqScheduleToday ?? 0;
+  if (
+    approaching > 0 ||
+    waiting > 0 ||
+    escalate > 0 ||
+    scheduled > 0 ||
+    pusatQueue > 0 ||
+    pusatFollowUp > 0 ||
+    hqToday > 0
+  ) {
+    return "attention";
+  }
   return "healthy";
+}
+
+/** Drill-down from the status donut — never adds needsPusatHandling. */
+export function dashboardStatusSliceHref(
+  status: StatusCountStatus,
+): string | null {
+  switch (status) {
+    case "waitingAssignment":
+      return CM_BATCH1_WAITING_ASSIGNMENT_HREF;
+    case "escalatePending":
+      return CM_BATCH1_ESCALATION_PENDING_HREF;
+    case "escalateApproved":
+      return CM_BATCH1_ESCALATION_APPROVED_HREF;
+    case "escalateScheduled":
+      return CM_BATCH1_HQ_SCHEDULED_HREF;
+    case "REGISTERED":
+      return "/complaints?status=REGISTERED";
+    case "IN_PROGRESS":
+      return "/complaints?status=IN_PROGRESS";
+    case "CLOSED":
+      return CM_BATCH1_CLOSED_HREF;
+    default:
+      return null;
+  }
 }
 
 export function dashboardEnvironmentLabel(): "lab" | "production" | "development" {

@@ -74,4 +74,21 @@ describe("SummaryCards SLA tile", () => {
     );
     expect(screen.getByText("Not activated on Batch-1")).toBeTruthy();
   });
+
+  it("shows Pusat work doors instead of cabang assignment KPIs", () => {
+    renderWithProviders(
+      <SummaryCards
+        header={header}
+        byStatus={[{ status: "escalateScheduled", count: 12 }]}
+        sla={null}
+        loading={false}
+        pusatWork={{ queue: 1, followUp: 0, hqScheduleToday: 10 }}
+      />,
+    );
+    expect(screen.getByText("HQ intake")).toBeTruthy();
+    expect(screen.getByText("Follow-up")).toBeTruthy();
+    expect(screen.getByText("Today's schedule")).toBeTruthy();
+    expect(screen.queryByText("Open Complaints")).toBeNull();
+    expect(screen.queryByText("Closure rate")).toBeNull();
+  });
 });

@@ -6,7 +6,9 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   CM_BATCH1_ESCALATION_APPROVED_HREF,
   CM_BATCH1_ESCALATION_PENDING_HREF,
+  CM_BATCH1_FOLLOW_UP_HREF,
   CM_BATCH1_HQ_SCHEDULED_HREF,
+  CM_BATCH1_PUSAT_UNHANDLED_HREF,
   CM_BATCH1_WAITING_ASSIGNMENT_HREF,
 } from "@/features/complaints/cmBatch1ListFilters";
 import type { DashboardHeader, StatusCount } from "@/lib/api/types";
@@ -25,6 +27,7 @@ import {
   OPS_TONE_TEXT,
   proportionalPct,
   type OpsTone,
+  type PusatDashboardWork,
 } from "./dashboardUtils";
 
 function QueueBar({
@@ -99,10 +102,12 @@ export function QueueHealth({
   header,
   byStatus,
   loading,
+  pusatWork = null,
 }: {
   header: DashboardHeader | null;
   byStatus: StatusCount[] | null;
   loading: boolean;
+  pusatWork?: PusatDashboardWork | null;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
@@ -126,6 +131,7 @@ export function QueueHealth({
     );
   }
 
+  const audience = pusatWork ? "pusat" : "cabang";
   const waitingAssignmentHref = canOpenComplaintList
     ? CM_BATCH1_WAITING_ASSIGNMENT_HREF
     : null;
@@ -145,11 +151,16 @@ export function QueueHealth({
     escalationHref,
     hqEscalationHref,
     hqScheduledHref,
+    audience,
+    pusatQueue: pusatWork?.queue ?? 0,
+    pusatFollowUp: pusatWork?.followUp ?? 0,
+    pusatQueueHref: canOpenComplaintList ? CM_BATCH1_PUSAT_UNHANDLED_HREF : null,
+    pusatFollowUpHref: canOpenComplaintList ? CM_BATCH1_FOLLOW_UP_HREF : null,
   });
 
   const max = Math.max(...rows.map((row) => row.count), 1);
   const emptyPortfolio = !header || header.totalComplaints === 0;
-  const emptyWorkCta = dashboardEmptyWorkCta();
+  const emptyWorkCta = dashboardEmptyWorkCta(audience);
 
   return (
     <section
@@ -160,7 +171,7 @@ export function QueueHealth({
       <div>
         <h2 className={DASHBOARD_COMMAND_LABEL}>{t("queueHealth")}</h2>
         <p className={`mt-1 ${DASHBOARD_CAPTION}`}>
-          {t("queueHealthOpsDescription")}
+          {t(audience === "pusat" ? "queueHealthPusatDescription" : "queueHealthOpsDescription")}
         </p>
       </div>
 
