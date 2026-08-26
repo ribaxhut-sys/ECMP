@@ -1142,7 +1142,7 @@
     "listCaseColumn": "Case",
     "listComplaintNumberColumn": "Complaint no.",
     "noCaseYet": "No case yet",
-    "aggregateSearchPlaceholder": "Case number, complaint number, subject…",
+    "aggregateSearchPlaceholder": "Complaint number, taxpayer name, subject…",
     "aggregateListEmpty": "No complaints yet",
     "aggregateListEmptyDescription": "Create a complaint from the form. Registered items appear here.",
     "aggregateListEmptyPusat": "No incoming complaints",

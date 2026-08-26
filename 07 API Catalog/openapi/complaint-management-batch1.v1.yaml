@@ -47,6 +47,10 @@ paths:
       description: |
         Read-only list of CM Batch-1 Aggregate complaints (DEC-020 coexistence).
         Not interchangeable with foundation GET /api/v1/complaints.
+        Optional `keyword` is a case-insensitive substring on complaint
+        number, subject, description, customerId, or local customer-cache
+        name / external id (ADR-002; not Customer Master SoR). Applied after
+        visibility — cannot leak rows outside DEC-024.
         Enables agents to reopen REGISTERED complaints (detail, attachments).
         Server applies DEC-024-style row visibility (SELF / UNIT / PUSAT / ALL):
         Agent sees own creates; branch supervisor/manager sees owningUnitId = unit;
@@ -69,7 +73,11 @@ paths:
         - name: keyword
           in: query
           required: false
-          description: Search complaint number, subject, or customerId (case-insensitive substring)
+          description: |
+            Case-insensitive substring on complaint number, subject,
+            description, customerId, or local customer cache full name /
+            external id (ADR-002 reference cache — not Customer Master SoR).
+            Max 200. Visibility still applies (DEC-024).
           schema:
             type: string
             maxLength: 200

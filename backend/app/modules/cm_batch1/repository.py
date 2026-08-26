@@ -20,6 +20,10 @@ from app.core.authorization.visibility import (
     DEFAULT_PUSAT_UNIT_CODES,
     pusat_unit_clause,
 )
+from app.integrations.customer.local_cache_search import (
+    customer_ids_for_keyword,
+    ilike_contains_pattern,
+)
 from app.modules.cm_batch1.complaint_number import (
     counter_name as complaint_counter_name,
 )
@@ -1186,16 +1190,17 @@ class CmBatch1Repository:
 
         kw = (keyword or "").strip()
         if kw:
-            escaped = (
-                kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            )
-            pattern = f"%{escaped}%"
-            keyword_clause = (
-                CmBatch1ComplaintORM.complaint_number.ilike(pattern, escape="\\")
-                | CmBatch1ComplaintORM.subject.ilike(pattern, escape="\\")
-                | CmBatch1ComplaintORM.description.ilike(pattern, escape="\\")
-                | CmBatch1ComplaintORM.customer_id.ilike(pattern, escape="\\")
-            )
+            pattern = ilike_contains_pattern(kw)
+            clauses = [
+                CmBatch1ComplaintORM.complaint_number.ilike(pattern, escape="\\"),
+                CmBatch1ComplaintORM.subject.ilike(pattern, escape="\\"),
+                CmBatch1ComplaintORM.description.ilike(pattern, escape="\\"),
+                CmBatch1ComplaintORM.customer_id.ilike(pattern, escape="\\"),
+            ]
+            customer_keys = customer_ids_for_keyword(self._session, kw)
+            if customer_keys:
+                clauses.append(CmBatch1ComplaintORM.customer_id.in_(customer_keys))
+            keyword_clause = or_(*clauses)
             stmt = stmt.where(keyword_clause)
             count_stmt = count_stmt.where(keyword_clause)
 

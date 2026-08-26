@@ -1700,7 +1700,7 @@
     "listCaseColumn": "Case",
     "listComplaintNumberColumn": "No. pengaduan",
     "noCaseYet": "Belum ada case",
-    "aggregateSearchPlaceholder": "Nomor case, nomor pengaduan, subjek…",
+    "aggregateSearchPlaceholder": "Nomor pengaduan, nama WP, subjek…",
     "aggregateListEmpty": "Belum ada pengaduan",
     "aggregateListEmptyDescription": "Buat pengaduan baru dari formulir. Setelah terdaftar, muncul di sini.",
     "aggregateListEmptyPusat": "Tidak ada pengaduan masuk",

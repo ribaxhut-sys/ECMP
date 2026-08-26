@@ -9,7 +9,10 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.authorization.visibility import pusat_unit_clause
-from app.models import Customer
+from app.integrations.customer.local_cache_search import (
+    customer_ids_for_keyword,
+    ilike_contains_pattern,
+)
 from app.modules.cm_batch1.complaint_number import case_counter_name, resolve_unit_code
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_batch1.sla import apply_complaint_status
@@ -24,45 +27,13 @@ from app.modules.cm_case.infrastructure.orm import (
     CmCaseResolutionORM,
 )
 
-_CUSTOMER_NAME_KEY_CAP = 500
-
-
-def _ilike_contains_pattern(keyword: str) -> str:
-    escaped = (
-        keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    )
-    return f"%{escaped}%"
-
-
-def _customer_keys_for_keyword(session: Session, pattern: str) -> list[str]:
-    """Local customer cache only (ADR-002) — not Customer Master SoR."""
-    rows = session.execute(
-        select(Customer.id, Customer.external_customer_id)
-        .where(
-            Customer.deleted_at.is_(None),
-            or_(
-                Customer.full_name.ilike(pattern, escape="\\"),
-                Customer.external_customer_id.ilike(pattern, escape="\\"),
-            ),
-        )
-        .limit(_CUSTOMER_NAME_KEY_CAP)
-    ).all()
-    keys: list[str] = []
-    seen: set[str] = set()
-    for cid, external_id in rows:
-        for raw in (str(cid) if cid is not None else "", (external_id or "").strip()):
-            if raw and raw not in seen:
-                seen.add(raw)
-                keys.append(raw)
-    return keys
-
 
 def _apply_keyword_filter(session: Session, stmt, keyword: str | None):
     """Substring match on Case fields, parent number, and local customer name."""
     kw = (keyword or "").strip()[:200]
     if not kw:
         return stmt
-    pattern = _ilike_contains_pattern(kw)
+    pattern = ilike_contains_pattern(kw)
     parent_ids = [
         str(row_id)
         for row_id in session.scalars(
@@ -79,7 +50,7 @@ def _apply_keyword_filter(session: Session, stmt, keyword: str | None):
     ]
     if parent_ids:
         clauses.append(CmCaseORM.complaint_id.in_(parent_ids))
-    customer_keys = _customer_keys_for_keyword(session, pattern)
+    customer_keys = customer_ids_for_keyword(session, kw)
     if customer_keys:
         clauses.append(CmCaseORM.customer_id.in_(customer_keys))
     return stmt.where(or_(*clauses))

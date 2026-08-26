@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.authorization.principal import Principal
 from app.db.base import Base
 from app.integrations.customer import StubCustomerProvider
+from app.models import Customer
 from app.modules.cm_batch1.enumeration import EnumerationGuard
 from app.modules.cm_batch1.models import (
     CmBatch1ChannelMessageORM,
@@ -43,6 +44,7 @@ _BATCH1_TABLES = [
     CmBatch1PusatQueueSeenORM.__table__,
     # Pusat visibility + the Case embed both read cm_cases.
     CmCaseORM.__table__,
+    Customer.__table__,
 ]
 
 
@@ -514,3 +516,69 @@ def test_repository_later_review_aging_and_hq_mutations(
     assert combo.intake_disposition == "HQ_SCHEDULED"
     assert combo.hq_arrival_time == "10:00"
     repo.commit()
+
+
+def test_list_complaints_keyword_matches_local_customer_name(
+    service: CmBatch1Service, db_session: Session
+) -> None:
+    """API-514 keyword matches WP name via local cache (ADR-002), including CLOSED."""
+    taxpayer = Customer(
+        id=uuid.uuid4(),
+        external_customer_id="CUST-10001",
+        full_name="Siti Rahayu Unik",
+    )
+    db_session.add(taxpayer)
+    db_session.commit()
+
+    named = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10001",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Closed billing for named WP",
+            description="Keluhan ditutup untuk uji cari nama.",
+            recordingUnitId="UPPPD-A",
+        ),
+        request_id="repo-kw-name-siti",
+        actor_id=str(uuid.uuid4()),
+    )
+    other = confirmed_create(
+        service,
+        CreateComplaintBatch1Request(
+            customerId="CUST-10002",
+            category="BILLING",
+            channel="BRANCH",
+            subject="Closed billing other WP",
+            description="Keluhan ditutup milik WP lain.",
+            recordingUnitId="UPPPD-A",
+        ),
+        request_id="repo-kw-name-other",
+        actor_id=str(uuid.uuid4()),
+    )
+    for cid in (named.complaint_id, other.complaint_id):
+        row = db_session.get(CmBatch1ComplaintORM, uuid.UUID(cid))
+        assert row is not None
+        row.status = "CLOSED"
+    db_session.commit()
+
+    admin = Principal(
+        user_id=uuid.uuid4(),
+        roles=("ADMIN",),
+        permissions=frozenset({"*"}),
+    )
+    hits, total = service.list_complaints(
+        principal=admin,
+        keyword="Siti Rahayu",
+        status="CLOSED",
+    )
+    assert total == 1
+    assert hits[0].complaint_id == named.complaint_id
+
+    miss, miss_total = service.list_complaints(
+        principal=admin,
+        keyword="zzznomatch999",
+        status="CLOSED",
+    )
+    assert miss_total == 0
+    assert miss == []
