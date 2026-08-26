@@ -1,4 +1,5 @@
 import { cleanup, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 
@@ -91,5 +92,45 @@ describe("CaseInboxListView title", () => {
       screen.getByRole("heading", { name: "Cases you are handling" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Permission denied")).toBeInTheDocument();
+  });
+});
+
+describe("CaseInboxListView search", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  beforeEach(() => {
+    fetchCmCases.mockReset();
+    fetchCustomers.mockReset();
+    fetchCmBatch1Customer360.mockReset();
+    hasPermission.mockImplementation((code: string) => code === "complaints:read");
+    orgUnitCode = "JKT-SELATAN";
+    fetchCmCases.mockResolvedValue({ data: [], meta: { totalItems: 0 } });
+    fetchCustomers.mockResolvedValue({ data: [] });
+  });
+
+  it("sends keyword to API-536 when filters are applied", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CaseInboxListView />);
+    await waitFor(() => {
+      expect(fetchCmCases).toHaveBeenCalled();
+    });
+    fetchCmCases.mockClear();
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search" }),
+      "TAB-2608-0001",
+    );
+    await user.click(screen.getByRole("button", { name: "Apply filters" }));
+
+    await waitFor(() => {
+      expect(fetchCmCases).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          keyword: "TAB-2608-0001",
+        }),
+      );
+    });
   });
 });

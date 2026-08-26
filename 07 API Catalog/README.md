@@ -237,7 +237,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-533 | API-CM-B2-004 | PATCH /api/v1/cm/cases/{caseId}/status | FR-004 Update Case Status | 🟢 Implemented (lab) |
 | API-534 | API-CM-B2-005 | POST /api/v1/cm/cases/{caseId}/resolve | FR-005 Resolve Case | 🟢 Implemented (lab) |
 | API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟢 Implemented (lab) |
-| API-536 | API-CM-B2-007 | GET /api/v1/cm/cases | DEC-024 Case list (visibility) | 🟢 Implemented (lab) |
+| API-536 | API-CM-B2-007 | GET /api/v1/cm/cases | DEC-024 Case list (visibility; optional keyword) | 🟢 Implemented (lab) |
 | API-537 | API-CM-B2-009 | GET /api/v1/cm/cases/{caseId}/history | FR-003 / UC-CAP02-07 Case Timeline (this Case + parent HQ path) | 🟢 Implemented (lab) |
 | API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 

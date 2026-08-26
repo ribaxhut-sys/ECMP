@@ -87,6 +87,7 @@ class CaseRepository(Protocol):
         pusat_unit_codes: frozenset[str],
         complaint_id: str | None = None,
         status: str | None = None,
+        keyword: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list, int]:

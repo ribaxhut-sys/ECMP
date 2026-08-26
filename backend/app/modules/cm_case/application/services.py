@@ -492,6 +492,7 @@ class CaseApplicationService:
         page_size: int = 20,
         complaint_id: str | None = None,
         status: str | None = None,
+        keyword: str | None = None,
     ) -> tuple[list[CaseSummaryDTO], int]:
         visibility = resolve_case_visibility(principal)
         rows, total = self._repo.list_summaries(
@@ -501,6 +502,7 @@ class CaseApplicationService:
             pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
             complaint_id=complaint_id,
             status=status,
+            keyword=keyword,
             page=page,
             page_size=page_size,
         )

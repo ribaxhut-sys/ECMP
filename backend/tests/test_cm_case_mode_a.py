@@ -19,7 +19,7 @@ from app.core.errors import ApiError
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
-from app.models import Branch, Role, User
+from app.models import Branch, Customer, Role, User
 from app.modules.cm_batch1.models import (
     CmBatch1ComplaintORM,
     CmBatch1PusatQueueSeenORM,
@@ -57,6 +57,7 @@ from app.modules.cm_case.infrastructure.orm import (
 from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseRepository
 
 _TABLES = [
+    Customer.__table__,
     CmBatch1ComplaintORM.__table__,
     CmBatch1PusatQueueSeenORM.__table__,
     CmCaseORM.__table__,
@@ -90,11 +91,12 @@ def _seed_complaint(
     *,
     status: str = "REGISTERED",
     owning_unit_id: str | None = None,
+    customer_id: str = "CUST-10001",
 ) -> str:
     row = CmBatch1ComplaintORM(
         id=uuid.uuid4(),
         complaint_number=f"CMP-{uuid.uuid4().hex[:8].upper()}",
-        customer_id="CUST-10001",
+        customer_id=customer_id,
         category="BILLING",
         channel="WALK_IN",
         subject="Seed complaint",
@@ -1293,6 +1295,101 @@ def test_api_536_list_visibility_self_unit_admin(db_session: Session) -> None:
         assert by_id[case_a.case_id]["complaintNumber"] == n1
         assert by_id[case_b.case_id]["complaintNumber"] == n2
         assert admin_list.json()["meta"]["totalItems"] >= 2
+
+    app.dependency_overrides.clear()
+
+
+def test_api_536_list_keyword_respects_visibility(db_session: Session) -> None:
+    """API-536 keyword is substring match and cannot leak outside DEC-024."""
+    from app.modules.cm_case.application.dto import CreateCaseCommand
+
+    agent_a = uuid.uuid4()
+    agent_b = uuid.uuid4()
+    repo = SqlAlchemyCaseRepository(db_session)
+    svc = CaseApplicationService(repo, side_effects=NoOpSideEffects())
+    taxpayer = Customer(
+        id=uuid.uuid4(),
+        external_customer_id="WP-SITI-9901",
+        full_name="Siti Rahayu Unik",
+    )
+    db_session.add(taxpayer)
+    db_session.commit()
+    c1 = _seed_complaint(db_session, customer_id=str(taxpayer.id))
+    c2 = _seed_complaint(db_session)
+    parent_a = db_session.get(CmBatch1ComplaintORM, uuid.UUID(c1))
+    assert parent_a is not None
+    parent_number = parent_a.complaint_number
+
+    case_a = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=c1,
+            case_type="BILLING",
+            subject="Alpha unique billing",
+            description="koreksi NPWP cabang",
+            priority="MEDIUM",
+            destination_unit_id="BR-A",
+            actor_id=str(agent_a),
+        )
+    )
+    case_b = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=c2,
+            case_type="BILLING",
+            subject="Zeta unique refund",
+            description="other",
+            priority="MEDIUM",
+            destination_unit_id="BR-B",
+            actor_id=str(agent_b),
+        )
+    )
+
+    app = create_app()
+    state: dict[str, Principal] = {
+        "principal": Principal(
+            user_id=agent_a,
+            roles=("AGENT",),
+            permissions=frozenset({"complaints:read"}),
+            org_unit_id="BR-A",
+        )
+    }
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: db_session
+    with TestClient(app) as client:
+        by_subject = client.get("/api/v1/cm/cases", params={"keyword": "alpha unique"})
+        assert by_subject.status_code == 200, by_subject.text
+        ids = {row["caseId"] for row in by_subject.json()["data"]}
+        assert ids == {case_a.case_id}
+
+        leaked = client.get("/api/v1/cm/cases", params={"keyword": "zeta unique"})
+        assert leaked.status_code == 200
+        assert leaked.json()["data"] == []
+        assert leaked.json()["meta"]["totalItems"] == 0
+
+        state["principal"] = Principal(
+            user_id=uuid.uuid4(),
+            roles=("ADMIN",),
+            permissions=frozenset({"complaints:read", "*"}),
+        )
+        by_number = client.get(
+            "/api/v1/cm/cases", params={"keyword": case_a.case_number}
+        )
+        assert {row["caseId"] for row in by_number.json()["data"]} == {case_a.case_id}
+
+        by_parent = client.get("/api/v1/cm/cases", params={"keyword": parent_number})
+        assert {row["caseId"] for row in by_parent.json()["data"]} == {case_a.case_id}
+
+        by_desc = client.get("/api/v1/cm/cases", params={"keyword": "npwp cabang"})
+        assert {row["caseId"] for row in by_desc.json()["data"]} == {case_a.case_id}
+
+        by_name = client.get("/api/v1/cm/cases", params={"keyword": "siti rahayu"})
+        assert {row["caseId"] for row in by_name.json()["data"]} == {case_a.case_id}
+
+        miss = client.get("/api/v1/cm/cases", params={"keyword": "no-such-case"})
+        assert miss.json()["data"] == []
+        assert case_b.case_id not in {
+            row["caseId"] for row in by_number.json()["data"]
+        }
 
     app.dependency_overrides.clear()
 

@@ -239,6 +239,7 @@ def list_cases(
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
     status: Annotated[str | None, Query()] = None,
+    keyword: Annotated[str | None, Query(max_length=200)] = None,
 ) -> ListResponse[CaseSummaryResponse]:
     """API-536 / DEC-024 — visibility-scoped Case list.
 
@@ -253,6 +254,7 @@ def list_cases(
         page_size=page_size,
         complaint_id=complaint_id,
         status=status,
+        keyword=keyword,
     )
     names = _officer_labels(
         session,

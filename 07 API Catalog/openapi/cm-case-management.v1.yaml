@@ -99,7 +99,13 @@ paths:
 
         Permission gate: `complaints:read` (DEC-024 OQ-4).
         Optional `complaintId` narrows to one parent after visibility filter.
-        Not interchangeable with foundation complaint lists. Not API-526 F4 unlock.
+        Optional `keyword` (max 200) is a case-insensitive substring match on
+        case number, subject, description, customerId, parent complaint
+        number, or local customer cache name / external id (ADR-002; not
+        Customer Master SoR). Applied **after** visibility — cannot leak rows
+        outside DEC-024.
+        Not full-text / search-engine (no Elasticsearch). Not API-526 F4 unlock.
+        Not interchangeable with foundation complaint lists.
       operationId: cmB2ListCases
       x-ear-id: API-536
       x-ecmp-logical-id: API-CM-B2-007
@@ -137,6 +143,17 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/CaseStatus"
+        - name: keyword
+          in: query
+          required: false
+          description: |
+            Case-insensitive substring on caseNumber, subject, description,
+            customerId, parent complaint number, or local customer cache
+            fullName / externalCustomerId (ADR-002 reference cache — not
+            Customer Master SoR). Max 200. Visibility still applies (DEC-024).
+          schema:
+            type: string
+            maxLength: 200
       responses:
         "200":
           description: Visibility-scoped Case page

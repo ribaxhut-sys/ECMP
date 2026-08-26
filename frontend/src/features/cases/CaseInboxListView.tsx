@@ -21,6 +21,7 @@ import {
   Button,
   Empty,
   ErrorState,
+  Input,
   PageContainer,
   PageHeader,
   Select,
@@ -119,6 +120,8 @@ export function CaseInboxListView() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
+  const [keywordFilter, setKeywordFilter] = useState("");
+  const [draftKeyword, setDraftKeyword] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [customerLabels, setCustomerLabels] = useState<
@@ -137,6 +140,7 @@ export function CaseInboxListView() {
         page,
         pageSize: PAGE_SIZE,
         status: statusFilter || undefined,
+        keyword: keywordFilter || undefined,
       });
       setRows(res.data ?? []);
       setTotal(res.meta?.totalItems ?? res.data?.length ?? 0);
@@ -151,7 +155,7 @@ export function CaseInboxListView() {
     } finally {
       setLoading(false);
     }
-  }, [canRead, page, statusFilter, t, tErrors, tCommon]);
+  }, [canRead, page, statusFilter, keywordFilter, t, tErrors, tCommon]);
 
   useEffect(() => {
     void load();
@@ -365,6 +369,7 @@ export function CaseInboxListView() {
           event.preventDefault();
           setPage(1);
           setStatusFilter(draftStatus);
+          setKeywordFilter(draftKeyword.trim());
         }}
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -381,6 +386,17 @@ export function CaseInboxListView() {
           </Button>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <div className="min-w-[12rem] flex-1 sm:max-w-sm">
+            <Input
+              name="keyword"
+              type="search"
+              aria-label={tCommon("search")}
+              placeholder={t("searchPlaceholder")}
+              value={draftKeyword}
+              onChange={(event) => setDraftKeyword(event.target.value)}
+              maxLength={200}
+            />
+          </div>
           <div className="w-[13rem] shrink-0">
             <Select
               name="status"
@@ -390,7 +406,7 @@ export function CaseInboxListView() {
               onChange={(event) => setDraftStatus(event.target.value)}
             />
           </div>
-          {statusFilter || draftStatus ? (
+          {statusFilter || draftStatus || keywordFilter || draftKeyword ? (
             <Button
               type="button"
               size="sm"
@@ -398,6 +414,8 @@ export function CaseInboxListView() {
               onClick={() => {
                 setDraftStatus("");
                 setStatusFilter("");
+                setDraftKeyword("");
+                setKeywordFilter("");
                 setPage(1);
               }}
             >
@@ -424,7 +442,7 @@ export function CaseInboxListView() {
         <Empty
           title={t("inboxEmpty")}
           description={
-            statusFilter
+            statusFilter || keywordFilter
               ? t("inboxEmptyFilterDescription")
               : t("inboxEmptyDescription")
           }

@@ -261,6 +261,7 @@ export function fetchCmCases(options?: {
   pageSize?: number;
   complaintId?: string;
   status?: string;
+  keyword?: string;
 }): Promise<ListResponse<CmCaseSummary>> {
   const params = new URLSearchParams();
   params.set("page", String(options?.page ?? 1));
@@ -270,6 +271,9 @@ export function fetchCmCases(options?: {
   }
   if (options?.status?.trim()) {
     params.set("status", options.status.trim());
+  }
+  if (options?.keyword?.trim()) {
+    params.set("keyword", options.keyword.trim().slice(0, 200));
   }
   return apiRequest(`${cmCasePaths().cases}?${params.toString()}`);
 }
