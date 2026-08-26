@@ -1224,7 +1224,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           <section className="space-y-[var(--ecmp-panel-gap)]">
             <Card>
               <CardBody>
-                <dl className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2">
+                <dl className="grid grid-cols-1 gap-x-[var(--ecmp-form-gap)] gap-y-[var(--ecmp-space-12)] md:grid-cols-2">
                   <MetaItem label={t("caseNumber")} value={data.caseNumber} />
                   <div className="space-y-1">
                     <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
