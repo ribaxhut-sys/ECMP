@@ -153,27 +153,47 @@ describe("buildQueueHealthRows", () => {
   const byStatus = [
     { status: "waitingAssignment" as const, count: 4 },
     { status: "escalatePending" as const, count: 4 },
+    { status: "escalateApproved" as const, count: 2 },
+    { status: "escalateScheduled" as const, count: 1 },
     { status: "CLOSED" as const, count: 6 },
-    { status: "escalateScheduled" as const, count: 0 },
     { status: "IN_PROGRESS" as const, count: 0 },
   ];
 
-  it("shows assignment + escalation bars from CM Aggregate", () => {
+  it("shows assignment + HQ-path bars from CM Aggregate", () => {
     const rows = buildQueueHealthRows({
       byStatus,
       waitingAssignmentHref:
         "/complaints?status=REGISTERED&intakeDisposition=UNESCALATED",
       escalationHref:
         "/complaints?intakeDisposition=ESCALATE_PENDING_APPROVAL",
+      hqEscalationHref: "/complaints?intakeDisposition=ESCALATE_APPROVED",
+      hqScheduledHref: "/complaints?intakeDisposition=HQ_SCHEDULED",
     });
 
     expect(rows.map((row) => row.id)).toEqual([
       "waiting-assignment",
       "waiting-escalation",
+      "waiting-hq-escalation",
+      "hq-scheduled",
     ]);
     expect(rows[0]?.count).toBe(4);
     expect(rows[1]?.count).toBe(4);
     expect(rows[1]?.queueKey).toBe("waitingEscalationApproval");
+    expect(rows[2]?.count).toBe(2);
+    expect(rows[2]?.queueKey).toBe("waitingHqEscalation");
+    expect(rows[3]?.count).toBe(1);
+    expect(rows[3]?.queueKey).toBe("escalationScheduled");
+  });
+
+  it("keeps HQ bars at zero when those slices are absent", () => {
+    const rows = buildQueueHealthRows({
+      byStatus: [{ status: "waitingAssignment" as const, count: 1 }],
+      waitingAssignmentHref: null,
+      escalationHref: null,
+      hqEscalationHref: null,
+      hqScheduledHref: null,
+    });
+    expect(rows.map((row) => row.count)).toEqual([1, 0, 0, 0]);
   });
 });
 

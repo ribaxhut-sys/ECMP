@@ -26,7 +26,9 @@ export type QueueHealthLabelKey =
   | "waitingAssignment"
   | "waitingReview"
   | "queueInProgress"
-  | "waitingEscalationApproval";
+  | "waitingEscalationApproval"
+  | "waitingHqEscalation"
+  | "escalationScheduled";
 
 export type QueueHealthRowSpec = {
   id: string;
@@ -47,15 +49,19 @@ export function dashboardEmptyWorkCta(): DashboardEmptyWorkCta {
 }
 
 /**
- * Queue-health bars for CM Aggregate: waiting-assignment + escalate-pending.
+ * Queue-health bars for CM Aggregate work queues (assignment → HQ path).
  */
 export function buildQueueHealthRows(input: {
   byStatus: StatusCount[] | null;
   waitingAssignmentHref: string | null;
   escalationHref: string | null;
+  hqEscalationHref: string | null;
+  hqScheduledHref: string | null;
 }): QueueHealthRowSpec[] {
   const waitingAssignment = countByStatus(input.byStatus, "waitingAssignment") ?? 0;
   const escalated = countByStatus(input.byStatus, "escalatePending") ?? 0;
+  const waitingHq = countByStatus(input.byStatus, "escalateApproved") ?? 0;
+  const hqScheduled = countByStatus(input.byStatus, "escalateScheduled") ?? 0;
   return [
     {
       id: "waiting-assignment",
@@ -70,6 +76,20 @@ export function buildQueueHealthRows(input: {
       count: escalated,
       tone: escalated > 0 ? "attention" : "healthy",
       href: input.escalationHref,
+    },
+    {
+      id: "waiting-hq-escalation",
+      queueKey: "waitingHqEscalation",
+      count: waitingHq,
+      tone: waitingHq > 0 ? "attention" : "healthy",
+      href: input.hqEscalationHref,
+    },
+    {
+      id: "hq-scheduled",
+      queueKey: "escalationScheduled",
+      count: hqScheduled,
+      tone: hqScheduled > 0 ? "attention" : "healthy",
+      href: input.hqScheduledHref,
     },
   ];
 }

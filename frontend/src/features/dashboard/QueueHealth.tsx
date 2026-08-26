@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
+  CM_BATCH1_ESCALATION_APPROVED_HREF,
   CM_BATCH1_ESCALATION_PENDING_HREF,
+  CM_BATCH1_HQ_SCHEDULED_HREF,
   CM_BATCH1_WAITING_ASSIGNMENT_HREF,
 } from "@/features/complaints/cmBatch1ListFilters";
 import type { DashboardHeader, StatusCount } from "@/lib/api/types";
@@ -130,11 +132,19 @@ export function QueueHealth({
   const escalationHref = canOpenComplaintList
     ? CM_BATCH1_ESCALATION_PENDING_HREF
     : null;
+  const hqEscalationHref = canOpenComplaintList
+    ? CM_BATCH1_ESCALATION_APPROVED_HREF
+    : null;
+  const hqScheduledHref = canOpenComplaintList
+    ? CM_BATCH1_HQ_SCHEDULED_HREF
+    : null;
 
   const rows = buildQueueHealthRows({
     byStatus,
     waitingAssignmentHref,
     escalationHref,
+    hqEscalationHref,
+    hqScheduledHref,
   });
 
   const max = Math.max(...rows.map((row) => row.count), 1);

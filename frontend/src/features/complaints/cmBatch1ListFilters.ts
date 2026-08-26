@@ -34,6 +34,14 @@ export const CM_BATCH1_WAITING_ASSIGNMENT_HREF =
 export const CM_BATCH1_ESCALATION_PENDING_HREF =
   "/complaints?intakeDisposition=ESCALATE_PENDING_APPROVAL";
 
+/** Aggregate list filtered to approved escalations waiting for HQ handling. */
+export const CM_BATCH1_ESCALATION_APPROVED_HREF =
+  "/complaints?intakeDisposition=ESCALATE_APPROVED";
+
+/** Aggregate list filtered to complaints scheduled at HQ. */
+export const CM_BATCH1_HQ_SCHEDULED_HREF =
+  "/complaints?intakeDisposition=HQ_SCHEDULED";
+
 /** Pusat Pengaduan default — Cases escalated to Pusat and never handled. */
 export const CM_BATCH1_PUSAT_UNHANDLED_HREF =
   "/complaints?needsPusatHandling=1";

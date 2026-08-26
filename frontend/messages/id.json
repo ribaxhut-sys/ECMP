@@ -1001,6 +1001,7 @@
     "waitingAssignment": "Menunggu penugasan",
     "waitingReview": "Menunggu peninjauan",
     "waitingEscalationApproval": "Menunggu persetujuan eskalasi",
+    "waitingHqEscalation": "Menunggu eskalasi pusat",
     "queueInProgress": "Sedang diproses",
     "overSla": "Melewati SLA",
     "escalationsPending": "Eskalasi tertunda",
