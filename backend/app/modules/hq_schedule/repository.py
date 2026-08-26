@@ -50,6 +50,8 @@ class ArrivalRow:
     # None while the branch proposal is still awaiting a Pusat decision, and
     # on rows scheduled before the destination column existed.
     hq_destination_unit_id: str | None = None
+    # Master Customer id — resolved to a display name in the service (not SoR).
+    customer_id: str | None = None
 
 
 class HqScheduleRepository:
@@ -161,6 +163,7 @@ class HqScheduleRepository:
                     and (r.intake_disposition or "").strip().upper() == "HQ_CLOSED"
                 ),
                 hq_destination_unit_id=r.hq_destination_unit_id,
+                customer_id=r.customer_id,
             )
             for r in rows
         ]

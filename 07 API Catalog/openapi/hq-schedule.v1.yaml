@@ -291,6 +291,15 @@ components:
             Pusat unit the taxpayer reports to (CRO / Sekretariat / Suban).
             Empty on pending proposals and on visits scheduled before the
             destination column existed — those visits occupy no unit's quota.
+        customerDisplayName:
+          type: string
+          nullable: true
+          description: >
+            Taxpayer display name from Master Customer (read-only; ECMP is
+            not Customer SoR). Pusat detail (`/availability/detail`) returns
+            names for every occupant. Branch aggregate (`/availability`)
+            returns the name only for the caller's own unit — other units
+            stay case-number-only because names are PII.
     SlotUnitAvailability:
       type: object
       description: Per-destination occupancy inside one slot.

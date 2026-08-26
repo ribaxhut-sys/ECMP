@@ -60,6 +60,14 @@ class ProposalSummary(BaseModel):
             "Empty on pending proposals — Pusat sets it when accepting."
         ),
     )
+    customer_display_name: str | None = Field(
+        default=None,
+        alias="customerDisplayName",
+        description=(
+            "Taxpayer display name from Master Customer (read-only). "
+            "Pusat detail: all occupants. Branch aggregate: caller's own unit only."
+        ),
+    )
 
 
 class SlotUnitAvailability(BaseModel):

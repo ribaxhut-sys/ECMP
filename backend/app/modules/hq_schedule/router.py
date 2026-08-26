@@ -10,8 +10,10 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import Principal, require_permissions
 from app.core.authorization.gates import require_hq_intake_action
+from app.core.config import Settings, get_settings
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
+from app.integrations.customer import build_customer_provider
 from app.modules.hq_schedule.repository import HqScheduleRepository
 from app.modules.hq_schedule.schemas import (
     AvailabilityResponse,
@@ -29,9 +31,16 @@ _DEFAULT_RANGE_DAYS = 6
 
 def get_hq_schedule_service(
     session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> HqScheduleService:
     return HqScheduleService(
-        HqScheduleRepository(session), SettingsService(SettingsRepository(session))
+        HqScheduleRepository(session),
+        SettingsService(SettingsRepository(session)),
+        customers=build_customer_provider(
+            settings.customer_provider,
+            enterprise_base_url=settings.customer_provider_enterprise_base_url,
+            session=session,
+        ),
     )
 
 
@@ -59,12 +68,17 @@ def get_availability(
 
     Case numbers for every branch are visible (so the board reads correctly);
     only the frontend gates the link to a complaint to the owning branch or
-    Pusat (see HqScheduleView.canOpenCase).
+    Pusat (see HqScheduleView.canOpenCase). Taxpayer names are PII — this
+    aggregate returns ``customerDisplayName`` only for the caller's own unit.
     """
-    _ = principal
     start, end = _default_range(date_from, date_to)
     return DataResponse(
-        data=service.get_availability(date_from=start, date_to=end, detail=False)
+        data=service.get_availability(
+            date_from=start,
+            date_to=end,
+            detail=False,
+            viewer_unit_id=principal.org_unit_id,
+        )
     )
 
 

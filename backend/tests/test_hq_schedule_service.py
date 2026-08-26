@@ -810,3 +810,94 @@ def test_branch_view_hides_units_but_keeps_summed_remaining() -> None:
     assert slot.available_count == 2
     assert slot.bookable is True
     assert slot.scheduled_cases[0].destination_unit_code == "PUSAT-CRO"
+
+
+def test_customer_display_name_pusat_sees_all_cabang_only_own_unit() -> None:
+    """Names are PII: detail (Pusat) sees every occupant; aggregate only own unit."""
+    from app.integrations.customer import StubCustomerProvider
+
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="TAB-1",
+            owning_unit_id="UPPPD-TANAH-ABANG",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:00",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            customer_id="CUST-10001",
+        ),
+        ArrivalRow(
+            complaint_id="c2",
+            complaint_number="GAM-1",
+            owning_unit_id="UPPPD-GAMBIR",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:15",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            customer_id="CUST-10002",
+        ),
+    ]
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals),
+        _settings_service(),
+        customers=StubCustomerProvider(),
+    )
+
+    pusat = service.get_availability(
+        date_from=future_monday, date_to=future_monday, detail=True
+    )
+    pusat_names = {
+        c.complaint_number: c.customer_display_name
+        for c in pusat.days[0].slots[0].scheduled_cases
+    }
+    assert pusat_names == {
+        "TAB-1": "Synthetic Customer One",
+        "GAM-1": "Synthetic Customer Two",
+    }
+
+    cabang = service.get_availability(
+        date_from=future_monday,
+        date_to=future_monday,
+        detail=False,
+        viewer_unit_id="UPPPD-TANAH-ABANG",
+    )
+    cabang_names = {
+        c.complaint_number: c.customer_display_name
+        for c in cabang.days[0].slots[0].scheduled_cases
+    }
+    assert cabang_names == {"TAB-1": "Synthetic Customer One", "GAM-1": None}
+
+
+def test_customer_display_name_omitted_when_lookup_fails() -> None:
+    from app.integrations.customer import StubCustomerProvider
+
+    future_monday = _next_monday(date.today()) + timedelta(days=7)
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="TAB-1",
+            owning_unit_id="UPPPD-A",
+            hq_arrival_date=future_monday,
+            hq_arrival_time="08:00",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            customer_id="CUST-MISSING",
+        ),
+    ]
+    service = HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals),
+        _settings_service(),
+        customers=StubCustomerProvider(),
+    )
+    slot = service.get_availability(
+        date_from=future_monday, date_to=future_monday, detail=True
+    ).days[0].slots[0]
+    assert slot.scheduled_cases[0].customer_display_name is None

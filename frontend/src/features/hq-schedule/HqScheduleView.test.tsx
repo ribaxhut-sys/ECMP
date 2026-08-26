@@ -98,6 +98,7 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
                 cases: [
                   { caseId: "id-case-2026-000001", caseNumber: "CASE-2026-000001" },
                 ],
+                customerDisplayName: "Ada Wijaya",
               },
               {
                 complaintId: "case-other",
@@ -107,6 +108,7 @@ function gridWithCases(): HqScheduleAvailabilityResponse {
                 cases: [
                   { caseId: "id-case-2026-000002", caseNumber: "CASE-2026-000002" },
                 ],
+                customerDisplayName: "Budi Lain",
               },
             ],
           },
@@ -224,6 +226,24 @@ describe("HqScheduleView", () => {
     expect(otherCase.closest("a")).toBeNull();
   });
 
+  it("shows the WP name under the case number only when the caller may open it", async () => {
+    fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    const ownLink = await screen.findByRole("link", { name: /CASE-2026-000001/ });
+    const ownRow = ownLink.closest("[data-completed]");
+    expect(ownRow).not.toBeNull();
+    expect(within(ownRow as HTMLElement).getByTestId("hq-schedule-wp-name")).toHaveTextContent(
+      "Ada Wijaya",
+    );
+
+    const otherCase = screen.getAllByText(/CASE-2026-000002/)[0];
+    const otherRow = otherCase.closest("[data-completed]");
+    expect(otherRow).not.toBeNull();
+    expect(within(otherRow as HTMLElement).queryByTestId("hq-schedule-wp-name")).toBeNull();
+    expect(screen.queryByText("Budi Lain")).not.toBeInTheDocument();
+  });
+
   it("links each Case number to its own Case, not to the parent complaint", async () => {
     const grid = gridWithCases();
     grid.days[0].slots[0].scheduledCases[0].cases = [
@@ -267,6 +287,8 @@ describe("HqScheduleView", () => {
     expect(
       await screen.findByRole("link", { name: /CASE-2026-000002/ }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Ada Wijaya")).toBeInTheDocument();
+    expect(screen.getByText("Budi Lain")).toBeInTheDocument();
   });
 
   it("renders scheduled cases on the day board without a duplicate weekly list", async () => {

@@ -359,28 +359,43 @@ function CaseLine({
   const plainClass = showOverdue
     ? "font-medium text-ecmp-danger-text"
     : "text-ecmp-text-secondary";
+  const customerName =
+    canOpen && proposal.customerDisplayName?.trim()
+      ? proposal.customerDisplayName.trim()
+      : null;
   return (
     <div
       data-completed={proposal.completed ? "true" : "false"}
       data-overdue={showOverdue ? "true" : "false"}
-      className="flex min-w-0 items-center gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight"
+      className="flex min-w-0 items-start gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight"
     >
-      <span className={cn("min-w-0 truncate", !canOpen && plainClass)}>
-        {refs.map((ref, index) => (
-          <span key={ref.href}>
-            {index > 0 ? ", " : null}
-            {canOpen ? (
-              <Link href={ref.href} className={linkClass}>
-                {ref.label}
-              </Link>
-            ) : (
-              ref.label
-            )}
+      <span className={cn("min-w-0", !canOpen && plainClass)}>
+        <span className="block min-w-0 truncate">
+          {refs.map((ref, index) => (
+            <span key={ref.href}>
+              {index > 0 ? ", " : null}
+              {canOpen ? (
+                <Link href={ref.href} className={linkClass}>
+                  {ref.label}
+                </Link>
+              ) : (
+                ref.label
+              )}
+            </span>
+          ))}
+          <span className={showOverdue ? "text-ecmp-danger-text" : "text-ecmp-text-secondary"}>
+            {` · ${destinationLabel(proposal, t("destinationUnassigned"))}`}
           </span>
-        ))}
-        <span className={showOverdue ? "text-ecmp-danger-text" : "text-ecmp-text-secondary"}>
-          {` · ${destinationLabel(proposal, t("destinationUnassigned"))}`}
         </span>
+        {customerName ? (
+          <span
+            className="mt-0.5 block min-w-0 truncate text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary"
+            title={customerName}
+            data-testid="hq-schedule-wp-name"
+          >
+            {customerName}
+          </span>
+        ) : null}
       </span>
       {proposal.completed ? (
         <Badge

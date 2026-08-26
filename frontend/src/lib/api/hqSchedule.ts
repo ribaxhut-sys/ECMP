@@ -25,6 +25,11 @@ export interface HqScheduleProposalSummary {
   completed?: boolean;
   /** Pusat unit the taxpayer reports to. Empty on pending proposals and legacy rows. */
   destinationUnitCode?: string | null;
+  /**
+   * Taxpayer display name (Master Customer, read-only). Pusat detail: all
+   * occupants. Branch aggregate: caller's own unit only — other units omit it.
+   */
+  customerDisplayName?: string | null;
 }
 
 export interface HqScheduleSlotAvailability {

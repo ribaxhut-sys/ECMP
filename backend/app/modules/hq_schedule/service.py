@@ -14,6 +14,8 @@ from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.core.errors import NotFoundError, ValidationAppError
+from app.integrations.customer.provider import CustomerProvider
+from app.integrations.customer.types import CustomerLookupStatus
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
 from app.modules.hq_schedule.repository import (
     ArrivalRow,
@@ -79,6 +81,31 @@ def _parse_capacity_by_unit(raw: object) -> dict[str, int]:
 
 def _same_unit(left: str | None, right: str | None) -> bool:
     return (left or "").strip().upper() == (right or "").strip().upper()
+
+
+def _visible_customer_name(
+    arrival: ArrivalRow,
+    names: Mapping[str, str],
+    *,
+    detail: bool,
+    viewer_unit_id: str | None,
+) -> str | None:
+    """WP display name — Pusat (detail) sees all; Cabang only own-unit rows.
+
+    Case numbers stay visible to every caller; names are PII so they follow
+    the same gate as canOpenCase (own unit or Pusat).
+    """
+    customer_id = (arrival.customer_id or "").strip()
+    if not customer_id:
+        return None
+    name = names.get(customer_id)
+    if not name:
+        return None
+    if detail:
+        return name
+    if viewer_unit_id and _same_unit(arrival.owning_unit_id, viewer_unit_id):
+        return name
+    return None
 
 
 def _parse_break_overrides(raw: object) -> dict[int, tuple[time, time] | None]:
@@ -168,10 +195,14 @@ class SlotSpec:
 
 class HqScheduleService:
     def __init__(
-        self, repository: HqScheduleRepository, settings_service: SettingsService
+        self,
+        repository: HqScheduleRepository,
+        settings_service: SettingsService,
+        customers: CustomerProvider | None = None,
     ) -> None:
         self._repo = repository
         self._settings = settings_service
+        self._customers = customers
 
     def _load_config(self) -> ScheduleConfig:
         start_raw = self._settings.get_string(
@@ -320,12 +351,39 @@ class HqScheduleService:
             return True, "WEEKEND", None
         return False, None, None
 
+    def _customer_display_names(
+        self, arrivals: list[ArrivalRow]
+    ) -> dict[str, str]:
+        """Resolve taxpayer names via Master Customer (read-only; not ECMP SoR)."""
+        if self._customers is None:
+            return {}
+        ids = {
+            (a.customer_id or "").strip()
+            for a in arrivals
+            if (a.customer_id or "").strip()
+        }
+        out: dict[str, str] = {}
+        for customer_id in ids:
+            try:
+                lookup = self._customers.get_minimal_customer(customer_id)
+            except Exception:
+                continue
+            if (
+                lookup.status == CustomerLookupStatus.FOUND
+                and lookup.customer is not None
+            ):
+                name = (lookup.customer.display_name or "").strip()
+                if name:
+                    out[customer_id] = name
+        return out
+
     def get_availability(
         self,
         *,
         date_from: date,
         date_to: date,
         detail: bool,
+        viewer_unit_id: str | None = None,
     ) -> AvailabilityResponse:
         if date_to < date_from:
             raise ValidationAppError(
@@ -349,6 +407,7 @@ class HqScheduleService:
         arrivals = self._repo.list_arrivals_in_range(
             date_from=date_from, date_to=date_to
         )
+        customer_names = self._customer_display_names(arrivals)
         # Pusat is not one door: CRO schedules the taxpayer into its own
         # counter, Sekretariat or a Suban, and each of those has its own quota.
         units = self._repo.list_pusat_units()
@@ -375,6 +434,8 @@ class HqScheduleService:
                     config=config,
                     detail=detail,
                     now=now,
+                    customer_names=customer_names,
+                    viewer_unit_id=viewer_unit_id,
                 )
             days.append(
                 DayAvailability(
@@ -407,7 +468,10 @@ class HqScheduleService:
         config: ScheduleConfig,
         detail: bool,
         now: datetime,
+        customer_names: Mapping[str, str] | None = None,
+        viewer_unit_id: str | None = None,
     ) -> list[SlotAvailability]:
+        names = customer_names or {}
         scheduled_for_day = [
             a for a in arrivals if a.hq_arrival_date == day and a.hq_arrival_time
         ]
@@ -508,12 +572,19 @@ class HqScheduleService:
                         unitCode=resolve_unit_code(a.owning_unit_id),
                         proposedBy=a.proposed_by,
                         proposedAt=a.proposed_at,
+                        customerDisplayName=_visible_customer_name(
+                            a,
+                            names,
+                            detail=detail,
+                            viewer_unit_id=viewer_unit_id,
+                        ),
                     )
                     for a in proposed
                 ]
             # Case numbers are visible to every caller (Pusat and all Cabang) so the
             # board reads correctly; only the frontend's canOpenCase gates the link
             # to the complaint (own unit or Pusat) — see HqScheduleView.canOpenCase.
+            # Taxpayer names are PII: Pusat (detail) sees all; Cabang only own unit.
             scheduled_cases = [
                 ProposalSummary(
                     complaintId=a.complaint_id,
@@ -528,6 +599,12 @@ class HqScheduleService:
                     # Where the taxpayer reports — set by CRO Pusat together
                     # with the final time; unitCode above is the origin branch.
                     destinationUnitCode=a.hq_destination_unit_id,
+                    customerDisplayName=_visible_customer_name(
+                        a,
+                        names,
+                        detail=detail,
+                        viewer_unit_id=viewer_unit_id,
+                    ),
                 )
                 for a in scheduled
             ]

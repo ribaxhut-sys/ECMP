@@ -22,6 +22,7 @@ from app.core.authorization.authentication import get_current_principal
 from app.core.authorization.principal import Principal
 from app.db.base import Base
 from app.db.session import get_db_session
+from app.integrations.customer import StubCustomerProvider
 from app.main import create_app
 from app.models import Branch, User
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
@@ -105,10 +106,11 @@ class _FakeHqScheduleRepository:
         return None
 
 
-def _service(*, arrivals: list | None = None) -> HqScheduleService:
+def _service(*, arrivals: list | None = None, customers=None) -> HqScheduleService:
     return HqScheduleService(
         _FakeHqScheduleRepository(arrivals=arrivals),
         SettingsService(_FakeSettingsRepository()),
+        customers=customers,
     )
 
 
@@ -211,6 +213,7 @@ def test_availability_shows_scheduled_cases_from_every_branch() -> None:
             proposed_arrival_time=None,
             proposed_by=None,
             proposed_at=None,
+            customer_id="CUST-10001",
         ),
         ArrivalRow(
             complaint_id="c2",
@@ -222,6 +225,7 @@ def test_availability_shows_scheduled_cases_from_every_branch() -> None:
             proposed_arrival_time=None,
             proposed_by=None,
             proposed_at=None,
+            customer_id="CUST-10002",
         ),
     ]
     principal = _principal(
@@ -229,23 +233,33 @@ def test_availability_shows_scheduled_cases_from_every_branch() -> None:
         permissions=frozenset({"complaints:read"}),
         org_unit_id="UPPPD-TANAH-ABANG",
     )
-    with _client_for(principal, service=_service(arrivals=arrivals)) as client:
+    with _client_for(
+        principal,
+        service=_service(arrivals=arrivals, customers=StubCustomerProvider()),
+    ) as client:
         resp = client.get(
             "/api/v1/hq-schedule/availability",
             params={"from": monday.isoformat(), "to": monday.isoformat()},
         )
     assert resp.status_code == 200, resp.text
     slots = resp.json()["data"]["days"][0]["slots"]
-    scheduled_numbers = {
-        case["complaintNumber"] for slot in slots for case in slot["scheduledCases"]
+    scheduled = {
+        case["complaintNumber"]: case
+        for slot in slots
+        for case in slot["scheduledCases"]
     }
-    assert scheduled_numbers == {"TAB-2608-0001", "GAM-2608-0001"}
+    assert set(scheduled) == {"TAB-2608-0001", "GAM-2608-0001"}
+    assert scheduled["TAB-2608-0001"]["customerDisplayName"] == "Synthetic Customer One"
+    assert scheduled["GAM-2608-0001"]["customerDisplayName"] is None
 
 
 def test_get_hq_schedule_service_wires_dependencies() -> None:
     from unittest.mock import MagicMock
 
-    svc = get_hq_schedule_service(MagicMock())
+    settings = MagicMock()
+    settings.customer_provider = "stub"
+    settings.customer_provider_enterprise_base_url = None
+    svc = get_hq_schedule_service(MagicMock(), settings)
     assert isinstance(svc, HqScheduleService)
 
 
