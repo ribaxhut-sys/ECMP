@@ -58,6 +58,22 @@ export function latestCaseHistoryEvent(
   );
 }
 
+/**
+ * Backend `history.event_code()` for Duplicate* timeline types (API-507).
+ * Complaint log badges must use these keys — never the raw `DUPLICATE_*` code.
+ */
+export const INTAKE_DUPLICATE_HISTORY_LABEL_KEYS: Record<string, string> = {
+  DUPLICATE_FOUND: "tagDuplicateFound",
+  DUPLICATE_OVERRIDDEN: "tagDuplicateOverridden",
+  DUPLICATE_LINKED: "tagDuplicateLinked",
+  DUPLICATE_REDIRECTED: "tagDuplicateRedirected",
+  DUPLICATE_RECOMMENDED: "tagDuplicateRecommended",
+  DUPLICATE_BLOCKED: "tagDuplicateBlocked",
+};
+
+/** Fallback when `IntakeDispositionRecorded` has an unmapped disposition. */
+export const INTAKE_RECORDED_HISTORY_LABEL_KEY = "tagIntakeRecorded";
+
 export const CASE_LAST_EVENT_LABEL_KEYS: Record<string, string> = {
   CASE_CREATED: "eventCaseCreated",
   CASE_WORK_STARTED: "eventCaseWorkStarted",

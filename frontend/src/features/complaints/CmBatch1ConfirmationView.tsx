@@ -84,7 +84,11 @@ import {
   hqPathCopyKeys,
   resolveHqPathPhase,
 } from "./penangananGroups";
-import { isCaseWorkDetailEvent } from "./complaintHistoryScope";
+import {
+  INTAKE_DUPLICATE_HISTORY_LABEL_KEYS,
+  INTAKE_RECORDED_HISTORY_LABEL_KEY,
+  isCaseWorkDetailEvent,
+} from "./complaintHistoryScope";
 
 const REJECT_NOTE_MIN = 20;
 const LOG_PAGE_SIZE = 10;
@@ -135,6 +139,13 @@ const HISTORY_TONES: Record<string, BadgeTone> = {
   CASE_ESCALATION_RETURNED: "warning",
   HANDLING_CONTINUED: "primary",
   HANDLING_TAKEN_OVER: "primary",
+  DUPLICATE_FOUND: "warning",
+  DUPLICATE_OVERRIDDEN: "info",
+  DUPLICATE_LINKED: "info",
+  DUPLICATE_REDIRECTED: "warning",
+  DUPLICATE_RECOMMENDED: "info",
+  DUPLICATE_BLOCKED: "danger",
+  INTAKE_RECORDED: "neutral",
   OTHER: "neutral",
 };
 
@@ -162,6 +173,8 @@ const HISTORY_LABEL_KEYS: Record<string, string> = {
   CASE_ESCALATION_RETURNED: "tagCaseEscalationReturned",
   HANDLING_CONTINUED: "tagHandlingContinued",
   HANDLING_TAKEN_OVER: "tagHandlingTakenOver",
+  ...INTAKE_DUPLICATE_HISTORY_LABEL_KEYS,
+  INTAKE_RECORDED: INTAKE_RECORDED_HISTORY_LABEL_KEY,
   OTHER: "tagHistoryOther",
 };
 

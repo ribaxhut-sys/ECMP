@@ -198,6 +198,13 @@ export type CmBatch1HistoryEventCode =
   | "HQ_RETURNED"
   | "HQ_ARRIVAL_SCHEDULED"
   | "HQ_COMPLETED"
+  | "DUPLICATE_FOUND"
+  | "DUPLICATE_OVERRIDDEN"
+  | "DUPLICATE_LINKED"
+  | "DUPLICATE_REDIRECTED"
+  | "DUPLICATE_RECOMMENDED"
+  | "DUPLICATE_BLOCKED"
+  | "INTAKE_RECORDED"
   | (string & {});
 
 export interface CmBatch1IntakeHistoryEntry {

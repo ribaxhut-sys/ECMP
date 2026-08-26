@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  INTAKE_DUPLICATE_HISTORY_LABEL_KEYS,
+  INTAKE_RECORDED_HISTORY_LABEL_KEY,
   isCaseSummaryEvent,
   isCaseWorkDetailEvent,
   latestCaseHistoryEvent,
@@ -63,5 +65,19 @@ describe("latestCaseHistoryEvent", () => {
         "TAB-2608-0001",
       ),
     ).toBeNull();
+  });
+});
+
+describe("INTAKE_DUPLICATE_HISTORY_LABEL_KEYS", () => {
+  it("maps every backend Duplicate* history code to a complaints i18n key", () => {
+    expect(INTAKE_DUPLICATE_HISTORY_LABEL_KEYS).toEqual({
+      DUPLICATE_FOUND: "tagDuplicateFound",
+      DUPLICATE_OVERRIDDEN: "tagDuplicateOverridden",
+      DUPLICATE_LINKED: "tagDuplicateLinked",
+      DUPLICATE_REDIRECTED: "tagDuplicateRedirected",
+      DUPLICATE_RECOMMENDED: "tagDuplicateRecommended",
+      DUPLICATE_BLOCKED: "tagDuplicateBlocked",
+    });
+    expect(INTAKE_RECORDED_HISTORY_LABEL_KEY).toBe("tagIntakeRecorded");
   });
 });

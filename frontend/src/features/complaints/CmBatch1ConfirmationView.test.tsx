@@ -165,6 +165,13 @@ const messages = {
     tagCaseEscalatedToPusat: "Case di-eskalasi ke Pusat",
     tagCaseEscalationToPusatCancelled: "Eskalasi Case ke Pusat dibatalkan",
     tagCaseEscalationReturned: "Case dikembalikan ke cabang",
+    tagDuplicateFound: "Duplikat terdeteksi",
+    tagDuplicateOverridden: "Duplikat diabaikan (lanjut daftar)",
+    tagDuplicateLinked: "Ditautkan ke pengaduan lain",
+    tagDuplicateRedirected: "Dialihkan ke pengaduan yang sudah ada",
+    tagDuplicateRecommended: "Rekomendasi: lanjutkan pengaduan yang ada",
+    tagDuplicateBlocked: "Pendaftaran diblokir (duplikat)",
+    tagIntakeRecorded: "Putusan intake tercatat",
     tagHandlingContinued: "Melanjutkan penanganan pengaduan",
     tagHandlingTakenOver: "Mengambil alih penanganan pengaduan",
     tagEscalationReRequested: "Ajuan ulang ke Pusat (pengaduan)",
@@ -868,5 +875,40 @@ describe("CmBatch1ConfirmationView — history event filter", () => {
     fireEvent.click(screen.getByText("Lihat catatan"));
     expect(screen.getByText("Bawa dokumen asli")).toBeInTheDocument();
     expect(screen.queryByText("Catatan terbaru")).not.toBeInTheDocument();
+  });
+
+  it("labels Duplicate* and INTAKE_RECORDED rows instead of raw codes", async () => {
+    fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
+    fetchCmBatch1ComplaintHistory.mockResolvedValue({
+      data: [
+        {
+          entryId: "d1",
+          eventCode: "DUPLICATE_FOUND",
+          eventType: "DuplicateFound",
+          occurredAt: "2026-08-10T01:00:00Z",
+          actorName: "Ani",
+        },
+        {
+          entryId: "d2",
+          eventCode: "DUPLICATE_OVERRIDDEN",
+          eventType: "DuplicateOverridden",
+          occurredAt: "2026-08-10T01:01:00Z",
+          actorName: "Ani",
+        },
+        {
+          entryId: "d3",
+          eventCode: "INTAKE_RECORDED",
+          eventType: "IntakeDispositionRecorded",
+          occurredAt: "2026-08-10T01:02:00Z",
+          actorName: "Ani",
+        },
+      ] satisfies CmBatch1IntakeHistoryEntry[],
+    });
+    renderView();
+    await waitFor(() => screen.getByText("Duplikat terdeteksi"));
+    expect(screen.getByText("Duplikat diabaikan (lanjut daftar)")).toBeInTheDocument();
+    expect(screen.getByText("Putusan intake tercatat")).toBeInTheDocument();
+    expect(screen.queryByText("DUPLICATE_FOUND")).not.toBeInTheDocument();
+    expect(screen.queryByText("INTAKE_RECORDED")).not.toBeInTheDocument();
   });
 });

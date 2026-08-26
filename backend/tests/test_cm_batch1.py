@@ -2741,6 +2741,29 @@ def test_history_maps_case_events_instead_of_other() -> None:
     assert event_code(taken) == "HANDLING_TAKEN_OVER"
 
 
+def test_history_maps_duplicate_events() -> None:
+    from app.modules.cm_batch1.history import event_code
+
+    mapping = {
+        "DuplicateFound": "DUPLICATE_FOUND",
+        "DuplicateOverridden": "DUPLICATE_OVERRIDDEN",
+        "DuplicateLinked": "DUPLICATE_LINKED",
+        "DuplicateRedirected": "DUPLICATE_REDIRECTED",
+        "DuplicateRecommended": "DUPLICATE_RECOMMENDED",
+        "DuplicateBlocked": "DUPLICATE_BLOCKED",
+    }
+    for event_type, code in mapping.items():
+        assert event_code(_timeline_entry(event_type, {}, minute=1, actor="a")) == code
+
+    recorded = _timeline_entry(
+        "IntakeDispositionRecorded",
+        {"intakeDisposition": "ESCALATE_APPROVED"},
+        minute=2,
+        actor="a",
+    )
+    assert event_code(recorded) == "INTAKE_RECORDED"
+
+
 def test_history_replaces_uuid_actor_name_from_directory() -> None:
     from app.modules.cm_batch1.history import CmBatch1HistoryService
 
