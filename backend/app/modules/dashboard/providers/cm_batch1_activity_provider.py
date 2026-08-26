@@ -68,6 +68,10 @@ _EVENT_TYPE_MAP: dict[str, str] = {
     "CaseOwnerAccepted": "complaint.owner_accepted",
     "CaseHandlingUnitRejected": "complaint.handling_unit_rejected",
     "CaseOwnerRejected": "complaint.owner_rejected",
+    "CaseEscalatedToPusat": "complaint.escalated_to_pusat",
+    "CaseEscalationToPusatCancelled": "complaint.escalation_to_pusat_cancelled",
+    "CaseEscalationReturned": "complaint.escalation_returned",
+    "SLABreached": "sla.resolution.breached",
 }
 _DECISION_EVENT_TYPE_MAP: dict[str, str] = {
     "APPROVE": "complaint.escalation_approved",
@@ -77,6 +81,9 @@ _DECISION_EVENT_TYPE_MAP: dict[str, str] = {
 }
 _DISPOSITION_EVENT_TYPE_MAP: dict[str, str] = {
     "ESCALATE_PENDING_APPROVAL": "complaint.escalation_requested",
+    "ESCALATE_APPROVED": "complaint.escalation_approved",
+    "HQ_SCHEDULED": "complaint.hq_arrival_scheduled",
+    "RETURNED_TO_BRANCH": "complaint.hq_returned",
     "BRANCH_CLOSED": "complaint.closed",
     "HQ_CLOSED": "complaint.closed",
 }
@@ -93,6 +100,7 @@ def _map_event_type(event_type: str, metadata: dict) -> str:
 
 
 # Attachment bind/upload/void is complaint history, not dashboard "Pembaruan".
+# Duplicate / SLA-threshold ticks belong on the complaint log, not the 10-row feed.
 _DASHBOARD_HIDDEN_EVENT_TYPES = frozenset(
     {
         "AttachmentUploaded",
@@ -101,6 +109,13 @@ _DASHBOARD_HIDDEN_EVENT_TYPES = frozenset(
         "AttachmentVoided",
         "AttachmentTransferred",
         "CaseWorkStarted",
+        "DuplicateFound",
+        "DuplicateOverridden",
+        "DuplicateLinked",
+        "DuplicateRedirected",
+        "DuplicateRecommended",
+        "DuplicateBlocked",
+        "ComplaintSlaThreshold",
     }
 )
 
@@ -246,6 +261,8 @@ class CmBatch1ActivityDashboardProvider:
             entry
             for entry in entries
             if entry.event_type not in _DASHBOARD_HIDDEN_EVENT_TYPES
+            and _map_event_type(entry.event_type, entry.metadata)
+            != _UNKNOWN_DASHBOARD_EVENT
         ]
         visible = _omit_close_path_precursors(visible)[:limit]
         if not visible:

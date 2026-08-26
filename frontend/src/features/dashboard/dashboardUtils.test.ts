@@ -411,6 +411,55 @@ describe("aggregateComplaintActivitySummaries", () => {
     });
   });
 
+  it("ignores complaint.other so the summary badge is a real work state", () => {
+    const summaries = aggregateComplaintActivitySummaries([
+      {
+        eventType: "complaint.other",
+        complaintNumber: "TAB-2608-0014",
+        caseNumber: "TAB-2608-0014",
+        timestamp: "2026-08-26T01:34:10.000Z",
+        actor: "Dewi Hidayat",
+      },
+      {
+        eventType: "complaint.handling_continued",
+        complaintNumber: "TAB-2608-0014",
+        caseNumber: "TAB-2608-0014",
+        timestamp: "2026-08-26T01:34:09.000Z",
+        actor: "Dewi Hidayat",
+      },
+      {
+        eventType: "complaint.escalated_to_pusat",
+        complaintNumber: "TAB-2608-0013",
+        caseNumber: "TAB-2608-0013",
+        timestamp: "2026-08-26T01:34:08.000Z",
+        actor: "Dewi Hidayat",
+      },
+    ]);
+
+    expect(summaries).toHaveLength(2);
+    expect(summaries[0]).toMatchObject({
+      complaintNumber: "TAB-2608-0014",
+      lastEventType: "complaint.handling_continued",
+    });
+    expect(summaries[1]).toMatchObject({
+      complaintNumber: "TAB-2608-0013",
+      lastEventType: "complaint.escalated_to_pusat",
+    });
+  });
+
+  it("drops a complaint that only has unknown activity", () => {
+    expect(
+      aggregateComplaintActivitySummaries([
+        {
+          eventType: "complaint.other",
+          complaintNumber: "TAB-2608-0000",
+          timestamp: "2026-08-26T01:00:00.000Z",
+          actor: "SYSTEM",
+        },
+      ]),
+    ).toEqual([]);
+  });
+
   it("prefers closed over created when timestamps are equal", () => {
     const summaries = aggregateComplaintActivitySummaries([
       {

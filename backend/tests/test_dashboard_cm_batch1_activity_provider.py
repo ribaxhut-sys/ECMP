@@ -176,6 +176,9 @@ def test_list_recent_maps_hq_and_case_ops_not_generic_update() -> None:
         _entry(
             event_type="IntakeEscalationDecided", metadata={"decision": "CANCEL"}
         ),
+        _entry(event_type="CaseEscalatedToPusat"),
+        _entry(event_type="CaseEscalationToPusatCancelled"),
+        _entry(event_type="CaseEscalationReturned"),
         _entry(event_type="DuplicateFound"),
     ]
     complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='CM-00000013': {i: _n for i in ids}
@@ -193,9 +196,60 @@ def test_list_recent_maps_hq_and_case_ops_not_generic_update() -> None:
         "complaint.closed",
         "complaint.case_cancelled",
         "complaint.escalation_cancelled",
-        "complaint.other",
+        "complaint.escalated_to_pusat",
+        "complaint.escalation_to_pusat_cancelled",
+        "complaint.escalation_returned",
     ]
     assert "complaint.updated" not in {item.event_type for item in items}
+    assert "complaint.other" not in {item.event_type for item in items}
+
+
+def test_list_recent_omits_unmapped_events_instead_of_other() -> None:
+    provider, timeline, complaints, directory = _provider()
+    created = _entry(event_type="ComplaintRegistered")
+    unknown = _entry(event_type="NotADashboardEvent")
+    timeline.list_recent.return_value = [unknown, created]
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='TAB-2608-0014': {i: _n for i in ids}
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == ["complaint.created"]
+    assert "complaint.other" not in {item.event_type for item in items}
+
+
+def test_list_recent_maps_case_escalated_to_pusat_after_handling() -> None:
+    """Intake escalate-to-Pusat writes CaseEscalatedToPusat last — not 'Lain'."""
+    provider, timeline, complaints, directory = _provider()
+    timeline.list_recent.return_value = [
+        _entry(event_type="HandlingContinued"),
+        _entry(event_type="CaseEscalatedToPusat", metadata={"caseNumber": "TAB-2608-0014"}),
+    ]
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='TAB-2608-0014': {i: _n for i in ids}
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == [
+        "complaint.handling_continued",
+        "complaint.escalated_to_pusat",
+    ]
+    assert items[1].case_number == "TAB-2608-0014"
+
+
+def test_list_recent_maps_approved_intake_disposition() -> None:
+    provider, timeline, complaints, directory = _provider()
+    entry = _entry(
+        event_type="IntakeDispositionRecorded",
+        metadata={"intakeDisposition": "ESCALATE_APPROVED"},
+    )
+    timeline.list_recent.return_value = [entry]
+    complaints.complaint_numbers_by_ids.side_effect = lambda ids, _n='TAB-2608-0015': {i: _n for i in ids}
+    directory.display_names.return_value = {}
+
+    items = provider.list_recent(limit=10)
+
+    assert [item.event_type for item in items] == ["complaint.escalation_approved"]
 
 
 def test_list_recent_collapses_resolve_accept_into_closed() -> None:

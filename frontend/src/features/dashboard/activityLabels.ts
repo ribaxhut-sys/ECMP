@@ -20,6 +20,9 @@ export type ActivityLabelKey =
   | "activityCaseCreated"
   | "activityCaseStatusChanged"
   | "activityCaseCancelled"
+  | "activityCaseEscalatedToPusat"
+  | "activityCaseEscalationToPusatCancelled"
+  | "activityCaseEscalationReturned"
   | "activityResolutionUpdated"
   | "activityHandlingUnitAccepted"
   | "activityOwnerAccepted"
@@ -131,6 +134,21 @@ const EVENT_MAP: Record<string, ActivityMeta> = {
     labelKey: "activityHqArrivalScheduled",
     badgeKey: "activityBadgeAppointment",
     statusTone: "info",
+  },
+  "complaint.escalated_to_pusat": {
+    labelKey: "activityCaseEscalatedToPusat",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "warning",
+  },
+  "complaint.escalation_to_pusat_cancelled": {
+    labelKey: "activityCaseEscalationToPusatCancelled",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "neutral",
+  },
+  "complaint.escalation_returned": {
+    labelKey: "activityCaseEscalationReturned",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "warning",
   },
   "complaint.case_created": {
     labelKey: "activityCaseCreated",

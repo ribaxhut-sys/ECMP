@@ -25,6 +25,7 @@ import {
   DASHBOARD_SECTION_TITLE,
   DASHBOARD_SURFACE_QUIET,
   formatRelativeTime,
+  isUnknownDashboardActivity,
   sortBranchesHeadOfficeFirst,
 } from "./dashboardUtils";
 
@@ -94,8 +95,9 @@ export function RecentActivity() {
 
   const visibleRows = useMemo(() => {
     if (!rows) return [];
-    if (!selectedNumber) return rows;
-    return rows.filter((row) => row.complaintNumber === selectedNumber);
+    const known = rows.filter((row) => !isUnknownDashboardActivity(row.eventType));
+    if (!selectedNumber) return known;
+    return known.filter((row) => row.complaintNumber === selectedNumber);
   }, [rows, selectedNumber]);
 
   const branchOptions = [
@@ -106,7 +108,9 @@ export function RecentActivity() {
     })),
   ];
 
-  const empty = !loading && (!rows || rows.length === 0);
+  const empty =
+    !loading &&
+    (!rows || rows.filter((row) => !isUnknownDashboardActivity(row.eventType)).length === 0);
 
   return (
     <section

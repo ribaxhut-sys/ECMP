@@ -478,6 +478,9 @@ const ACTIVITY_OUTCOME_RANK: Record<string, number> = {
   "complaint.escalation_approved": 60,
   "complaint.escalation_rejected": 60,
   "complaint.escalation_cancelled": 60,
+  "complaint.escalated_to_pusat": 65,
+  "complaint.escalation_to_pusat_cancelled": 60,
+  "complaint.escalation_returned": 60,
   "complaint.handling_continued": 40,
   "complaint.handling_taken_over": 40,
   "complaint.case_created": 20,
@@ -488,11 +491,17 @@ function activityOutcomeRank(eventType: string): number {
   return ACTIVITY_OUTCOME_RANK[eventType] ?? 30;
 }
 
+/** Fallback `complaint.other` is not an operator-facing work state. */
+export function isUnknownDashboardActivity(eventType: string): boolean {
+  return eventType === "complaint.other";
+}
+
 export function aggregateComplaintActivitySummaries(
   rows: readonly DashboardRecentActivityItem[],
 ): ComplaintActivitySummary[] {
   const byNumber = new Map<string, DashboardRecentActivityItem[]>();
   for (const row of rows) {
+    if (isUnknownDashboardActivity(row.eventType)) continue;
     const list = byNumber.get(row.complaintNumber) ?? [];
     list.push(row);
     byNumber.set(row.complaintNumber, list);

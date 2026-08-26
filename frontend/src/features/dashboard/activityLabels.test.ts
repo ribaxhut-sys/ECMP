@@ -33,6 +33,18 @@ describe("resolveActivityMeta", () => {
     expect(resolveActivityMeta("complaint.case_status_changed").labelKey).toBe(
       "activityCaseStatusChanged",
     );
+    expect(resolveActivityMeta("complaint.escalated_to_pusat").labelKey).toBe(
+      "activityCaseEscalatedToPusat",
+    );
+    expect(resolveActivityMeta("complaint.escalated_to_pusat").badgeKey).toBe(
+      "activityBadgeEscalation",
+    );
+    expect(
+      resolveActivityMeta("complaint.escalation_to_pusat_cancelled").labelKey,
+    ).toBe("activityCaseEscalationToPusatCancelled");
+    expect(resolveActivityMeta("complaint.escalation_returned").labelKey).toBe(
+      "activityCaseEscalationReturned",
+    );
     expect(resolveActivityMeta("complaint.other").labelKey).toBe("activityOther");
   });
 });
