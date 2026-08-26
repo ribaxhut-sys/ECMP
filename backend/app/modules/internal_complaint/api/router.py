@@ -146,6 +146,30 @@ def _enforce_internal_org_scope(
     enforce_org_scope(principal, resource_org_unit_id, settings)
 
 
+def _require_visible_internal_complaint(
+    *,
+    complaint_id: str,
+    principal: Principal,
+    service: InternalComplaintApplicationService,
+    session: Session,
+    settings: Settings,
+) -> InternalComplaintDTO:
+    """Load by id and apply the domain visibility floor (404, no leak).
+
+    ``enforce_org_scope*`` is a no-op in Mode A (``ECMP_AUTH_MODE=dev``).
+    This assert is mode-independent so a branch cannot mutate another
+    unit's ticket by id — same contract as GET.
+    """
+    dto = service.get(complaint_id)
+    assert_internal_complaint_visible(
+        principal,
+        dto,
+        actor_unit_id=_actor_unit(principal, session),
+        settings=settings,
+    )
+    return dto
+
+
 def _display_names_for_dto(
     session: Session, dto: InternalComplaintDTO
 ) -> dict[str, str]:
@@ -483,7 +507,13 @@ def request_internal_transfer(
     Same permission as create (Agent-family) — Supervisor/Manager/Admin use
     /transfer directly and never need this endpoint.
     """
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     enforce_org_scope(principal, current.owner_unit_id, settings)
     dto = service.request_transfer(
         RequestTransferCommand(
@@ -512,7 +542,13 @@ def decide_internal_transfer_request(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
     """Supervisor / Manager / Admin decides a pending Agent transfer request."""
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     _enforce_internal_org_scope(principal, current.owner_unit_id, settings)
     dto = service.decide_transfer_request(
         DecideTransferRequestCommand(
@@ -537,11 +573,11 @@ def get_internal_complaint(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    dto = service.get(complaint_id)
-    assert_internal_complaint_visible(
-        principal,
-        dto,
-        actor_unit_id=_actor_unit(principal, session),
+    dto = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
         settings=settings,
     )
     return DataResponse(data=_to_response(dto, session=session))
@@ -558,7 +594,13 @@ def transfer_internal_complaint(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     enforce_org_scope_any(
         principal,
         (current.handling_unit_id, current.owner_unit_id),
@@ -588,7 +630,13 @@ def receive_internal_complaint(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     actor_unit = _actor_unit(principal, session)
     enforce_org_scope(principal, current.handling_unit_id, settings)
     dto = service.start_handling(
@@ -614,7 +662,13 @@ def return_internal_complaint_for_completion(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
     """Pusat handling unit returns the ticket to the owner branch."""
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     actor_unit = _actor_unit(principal, session)
     enforce_org_scope(principal, current.handling_unit_id, settings)
     if not _units_match(actor_unit, current.handling_unit_id):
@@ -642,7 +696,13 @@ def resend_internal_complaint_to_pusat(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
     """Owner unit resends to Pusat after completing documents."""
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     actor_unit = _actor_unit(principal, session)
     enforce_org_scope(principal, current.owner_unit_id, settings)
     if not _units_match(actor_unit, current.owner_unit_id):
@@ -670,7 +730,13 @@ def withdraw_internal_complaint(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
     """Owner-unit cancel before Pusat receives — no Pusat notification."""
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     enforce_org_scope(principal, current.owner_unit_id, settings)
     if not _may_owner_withdraw(principal, current, session):
         raise PermissionDeniedError(m("internal.withdraw_not_allowed"))
@@ -696,7 +762,13 @@ def request_internal_withdraw(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     enforce_org_scope(principal, current.owner_unit_id, settings)
     if not _may_owner_withdraw(principal, current, session):
         raise PermissionDeniedError(m("internal.withdraw_not_allowed"))
@@ -722,7 +794,13 @@ def decide_internal_withdraw_request(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     can_decide = (
         _actor_is_admin(principal)
         or principal.has_permission("complaints:assign")
@@ -754,7 +832,13 @@ def update_internal_complaint_status(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     enforce_org_scope_any(
         principal,
         (current.handling_unit_id, current.owner_unit_id),
@@ -796,7 +880,13 @@ def resolve_internal_complaint(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     actor_unit = _actor_unit(principal, session)
     action = (body.action or "").strip().upper()
     if action == "PROPOSE":
@@ -834,8 +924,15 @@ def record_internal_acceptance(
         InternalComplaintApplicationService, Depends(get_internal_complaint_service)
     ],
     session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     actor_unit = _actor_unit(principal, session)
     assert_case_acceptance_authorized(
         principal,
@@ -869,7 +966,13 @@ def close_internal_complaint(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[InternalComplaintResponse]:
-    current = service.get(complaint_id)
+    current = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
     enforce_org_scope_any(
         principal,
         (current.handling_unit_id, current.owner_unit_id),

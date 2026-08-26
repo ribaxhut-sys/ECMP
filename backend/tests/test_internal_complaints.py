@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -959,16 +959,28 @@ def test_http_create_ignores_forged_owner_unit(
 _DECIDE_PERMS = frozenset({*_PERMS, "internal:escalate-decide"})
 
 
+def _dev_settings() -> Settings:
+    return Settings(
+        environment="development",
+        ecmp_auth_mode="dev",
+        ecmp_env="local",
+        jwt_secret_key="test-secret-key-for-internal-complaints-mode-a",
+        jwt_algorithm="HS256",
+    )
+
+
 def _app_client(
     db_session: Session,
     service: InternalComplaintApplicationService,
     principal: Principal,
+    *,
+    settings_factory: Callable[[], Settings] = _jwt_settings,
 ) -> TestClient:
     app = create_app()
     app.dependency_overrides[get_current_principal] = lambda: principal
     app.dependency_overrides[get_db_session] = lambda: db_session
     app.dependency_overrides[get_internal_complaint_service] = lambda: service
-    app.dependency_overrides[get_settings] = _jwt_settings
+    app.dependency_overrides[get_settings] = settings_factory
     return TestClient(app)
 
 
@@ -2028,4 +2040,79 @@ def test_http_pusat_returns_and_branch_resends(
         assert data["handlingUnitId"] == "PUSAT"
         assert data["completionRequestStatus"] is None
         assert data["status"] == "ASSIGNED"
+
+
+def test_mode_a_cross_unit_internal_mutations_denied_404(
+    db_session: Session, service: InternalComplaintApplicationService
+) -> None:
+    """SEC-CMP-005 — Mode A org-scope is a no-op; domain floor must 404.
+
+    Branch B knowing Branch A's complaint id must not GET, transfer, receive,
+    close, or request-transfer that ticket.
+    """
+    from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
+
+    assert org_scope_enforcement_enabled(_dev_settings()) is False
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    attacker = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-TANAH-ABANG",
+        permissions=_PERMS,
+    )
+    with _app_client(
+        db_session, service, attacker, settings_factory=_dev_settings
+    ) as client:
+        assert client.get(f"/api/v1/internal/complaints/{cid}").status_code == 404
+        transfer = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer",
+            json={"destinationUnitId": "PUSAT"},
+        )
+        assert transfer.status_code == 404
+        receive = client.post(
+            f"/api/v1/internal/complaints/{cid}/receive", json={}
+        )
+        assert receive.status_code == 404
+        close = client.post(
+            f"/api/v1/internal/complaints/{cid}/close", json={}
+        )
+        assert close.status_code == 404
+        request_tr = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer-request",
+            json={"destinationUnitId": "PUSAT", "reason": "cross-unit"},
+        )
+        assert request_tr.status_code == 404
+        status = client.patch(
+            f"/api/v1/internal/complaints/{cid}/status",
+            json={"toStatus": "IN_PROGRESS"},
+        )
+        assert status.status_code == 404
+    still = service.get(cid)
+    assert still.owner_unit_id == "UPPPD-GAMBIR"
+    assert still.handling_unit_id == "UPPPD-GAMBIR"
+    assert still.status == "CREATED"
+
+
+def test_mode_a_same_unit_internal_transfer_allowed(
+    db_session: Session, service: InternalComplaintApplicationService
+) -> None:
+    """Owning-unit Supervisor may still transfer their own ticket in Mode A."""
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    owner = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    with _app_client(
+        db_session, service, owner, settings_factory=_dev_settings
+    ) as client:
+        got = client.get(f"/api/v1/internal/complaints/{cid}")
+        assert got.status_code == 200, got.text
+        transfer = client.post(
+            f"/api/v1/internal/complaints/{cid}/transfer",
+            json={"destinationUnitId": "PUSAT"},
+        )
+        assert transfer.status_code == 200, transfer.text
+        assert transfer.json()["data"]["handlingUnitId"] == "PUSAT"
 
