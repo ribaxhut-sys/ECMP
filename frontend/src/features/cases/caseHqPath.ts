@@ -48,6 +48,35 @@ export function actorMayHandleEscalatedCase(input: {
   return input.roles.some((role) => ADMIN_ROLES.has((role || "").toUpperCase()));
 }
 
+const CASE_ESCALATION_CYCLE_CODES = new Set([
+  "CASE_ESCALATED_TO_PUSAT",
+  "CASE_ESCALATION_RETURNED",
+  "CASE_ESCALATION_TO_PUSAT_CANCELLED",
+]);
+
+/**
+ * True when THIS Case is back at the branch after Pusat returned it (API-521).
+ * History wins over a stale parent still on ESCALATE_APPROVED / HQ_SCHEDULED.
+ */
+export function isCaseCurrentlyReturnedFromPusat(input: {
+  escalatedToPusat?: boolean | null;
+  intakeDisposition?: string | null;
+  historyEventCodes?: readonly (string | null | undefined)[] | null;
+}): boolean {
+  if (input.escalatedToPusat) return false;
+  let last: string | null = null;
+  for (const raw of input.historyEventCodes ?? []) {
+    const code = (raw || "").trim().toUpperCase();
+    if (CASE_ESCALATION_CYCLE_CODES.has(code)) last = code;
+  }
+  if (last === "CASE_ESCALATION_RETURNED") return true;
+  if (last === "CASE_ESCALATED_TO_PUSAT") return false;
+  if (last === "CASE_ESCALATION_TO_PUSAT_CANCELLED") return false;
+  return (
+    (input.intakeDisposition || "").trim().toUpperCase() === "RETURNED_TO_BRANCH"
+  );
+}
+
 /** Hide cabang resolve/reassign/claim while this Case is with Pusat
  * or the parent is still on the HQ path (and not already returned). */
 export function hideCaseBranchWorkActions(
@@ -56,9 +85,13 @@ export function hideCaseBranchWorkActions(
   escalatedToPusat = false,
   actorIsPusat = false,
   parentReturnedToBranch = false,
+  caseReturnedFromPusat = false,
 ): boolean {
   const status = (caseStatus || "").trim().toUpperCase();
   if (status === "RESOLVED" || status === "CLOSED" || status === "CANCELLED") {
+    return false;
+  }
+  if (caseReturnedFromPusat && !escalatedToPusat) {
     return false;
   }
   if (parentReturnedToBranch) {

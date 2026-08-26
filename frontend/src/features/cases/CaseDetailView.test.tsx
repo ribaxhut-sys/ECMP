@@ -418,6 +418,76 @@ describe("CaseDetailView HQ path", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("uses returned copy when parent HQ path is stale after Pusat returned this Case", async () => {
+    hasPermission.mockImplementation(
+      (code: string) =>
+        code === "complaints:read" ||
+        code === "complaints:update" ||
+        code === "complaints:create" ||
+        code === "complaints:escalate",
+    );
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: false,
+      }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ intakeDisposition: "ESCALATE_APPROVED" }),
+    });
+    fetchCmCaseHistory.mockResolvedValue({
+      data: [
+        {
+          entryId: "1",
+          eventCode: "CASE_CREATED",
+          eventType: "CaseCreated",
+          occurredAt: "2026-08-26T02:37:59Z",
+          actorName: "Dewi Hidayat",
+        },
+        {
+          entryId: "2",
+          eventCode: "CASE_ESCALATED_TO_PUSAT",
+          eventType: "CaseEscalatedToPusat",
+          occurredAt: "2026-08-26T02:37:59Z",
+          actorName: "Dewi Hidayat",
+        },
+        {
+          entryId: "3",
+          eventCode: "CASE_ESCALATION_RETURNED",
+          eventType: "CaseEscalationReturned",
+          occurredAt: "2026-08-26T02:39:58Z",
+          actorName: "Daffa",
+          note: "[INCOMPLETE_CHRONOLOGY] Pendaftaran dapat dilakukan di kantor upppd",
+        },
+      ],
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Returned to branch" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("heading", { name: "Escalation approved" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("case-returned-from-pusat-chip")).toHaveTextContent(
+      "Returned by HQ",
+    );
+    expect(
+      screen.getByText(
+        /Incomplete chronology — Pendaftaran dapat dilakukan di kantor upppd/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Request re-escalation to HQ" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Resolve at branch" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel escalation" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders HQ accept and return actions on the Case page for Pusat reviewers", async () => {
     orgUnitCode = "PUSAT";
     authState.userId = "pusat-reviewer";

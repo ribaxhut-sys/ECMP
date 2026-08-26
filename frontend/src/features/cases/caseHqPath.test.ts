@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hideCaseBranchWorkActions,
+  isCaseCurrentlyReturnedFromPusat,
   resolveCaseHqPath,
   showCaseCancelEscalation,
   showCaseLevelCancelEscalation,
@@ -61,6 +62,12 @@ describe("hideCaseBranchWorkActions", () => {
   it("lets the branch work again after Pusat returned the Case", () => {
     expect(
       hideCaseBranchWorkActions(true, "IN_PROGRESS", false, false, true),
+    ).toBe(false);
+  });
+
+  it("lets the branch work when this Case was returned even if parent HQ path is stale", () => {
+    expect(
+      hideCaseBranchWorkActions(true, "IN_PROGRESS", false, false, false, true),
     ).toBe(false);
   });
 
@@ -225,5 +232,57 @@ describe("actorMayHandleEscalatedCase", () => {
         unitCode: "JKT-SELATAN",
       }),
     ).toBe(false);
+  });
+});
+
+describe("isCaseCurrentlyReturnedFromPusat", () => {
+  it("follows the last Case-level return even when the parent is still approved", () => {
+    expect(
+      isCaseCurrentlyReturnedFromPusat({
+        escalatedToPusat: false,
+        intakeDisposition: "ESCALATE_APPROVED",
+        historyEventCodes: [
+          "CASE_CREATED",
+          "CASE_ESCALATED_TO_PUSAT",
+          "CASE_ESCALATION_RETURNED",
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("is false after the Case is sent to Pusat again", () => {
+    expect(
+      isCaseCurrentlyReturnedFromPusat({
+        escalatedToPusat: true,
+        intakeDisposition: "RETURNED_TO_BRANCH",
+        historyEventCodes: [
+          "CASE_ESCALATION_RETURNED",
+          "CASE_ESCALATED_TO_PUSAT",
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when the branch cancelled the escalation", () => {
+    expect(
+      isCaseCurrentlyReturnedFromPusat({
+        escalatedToPusat: false,
+        intakeDisposition: "ESCALATE_APPROVED",
+        historyEventCodes: [
+          "CASE_ESCALATED_TO_PUSAT",
+          "CASE_ESCALATION_TO_PUSAT_CANCELLED",
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("falls back to parent RETURNED_TO_BRANCH when history has no cycle event", () => {
+    expect(
+      isCaseCurrentlyReturnedFromPusat({
+        escalatedToPusat: false,
+        intakeDisposition: "RETURNED_TO_BRANCH",
+        historyEventCodes: ["CASE_CREATED"],
+      }),
+    ).toBe(true);
   });
 });

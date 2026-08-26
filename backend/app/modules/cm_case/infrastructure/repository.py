@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from app.core.authorization.visibility import pusat_unit_clause
@@ -356,6 +357,42 @@ class SqlAlchemyCaseRepository:
         row.proposed_by = None
         row.proposed_at = None
         self._session.flush()
+
+    def latest_case_escalation_event(
+        self, *, case_id: str, complaint_id: str
+    ) -> str | None:
+        """Latest Case-level escalate / return / cancel event for this Case."""
+        key = (case_id or "").strip()
+        if not key:
+            return None
+        try:
+            cid = UUID((complaint_id or "").strip())
+        except ValueError:
+            return None
+        bind = self._session.get_bind()
+        if bind is None or not sa_inspect(bind).has_table("timeline_entries"):
+            return None
+        from app.modules.timeline.models import TimelineEntryORM
+
+        rows = self._session.scalars(
+            select(TimelineEntryORM)
+            .where(
+                TimelineEntryORM.aggregate_id == cid,
+                TimelineEntryORM.event_type.in_(
+                    (
+                        "CaseEscalatedToPusat",
+                        "CaseEscalationReturned",
+                        "CaseEscalationToPusatCancelled",
+                    )
+                ),
+            )
+            .order_by(TimelineEntryORM.created_at.desc())
+        ).all()
+        for row in rows:
+            meta = row.metadata_json or {}
+            if str(meta.get("caseId") or "") == key:
+                return str(row.event_type)
+        return None
 
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         try:

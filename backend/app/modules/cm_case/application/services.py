@@ -482,7 +482,35 @@ class CaseApplicationService:
                     "CASE_COMPLAINT_MEMBERSHIP_MISMATCH",
                     "CaseId is not a member of the supplied Complaint context.",
                 )
+        self._repair_parent_after_case_return(case)
         return to_case_dto(case)
+
+    def _repair_parent_after_case_return(self, case: CaseAggregate) -> None:
+        """Heal stale HQ disposition after API-521 when siblings are not at Pusat.
+
+        Lab rows returned before mark_parent_returned_to_branch can leave the
+        parent on ESCALATE_APPROVED. GET is the operator's next read.
+        """
+        if case.escalated_to_pusat:
+            return
+        if self._repo.has_open_escalated_cases(case.complaint_id):
+            return
+        last = self._repo.latest_case_escalation_event(
+            case_id=str(case.case_id),
+            complaint_id=case.complaint_id,
+        )
+        if last != "CaseEscalationReturned":
+            return
+        parent = self._repo.get_parent_complaint(case.complaint_id)
+        if parent is None:
+            return
+        disposition = (parent.intake_disposition or "").strip().upper()
+        if disposition not in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
+            return
+        if (parent.status or "").strip().upper() == "CLOSED":
+            return
+        self._repo.mark_parent_returned_to_branch(case.complaint_id)
+        self._repo.commit()
 
     def list_cases(
         self,

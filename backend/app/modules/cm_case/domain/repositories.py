@@ -101,6 +101,12 @@ class CaseRepository(Protocol):
         """API-521 — set parent ``RETURNED_TO_BRANCH`` and clear HQ accept/slot."""
         ...
 
+    def latest_case_escalation_event(
+        self, *, case_id: str, complaint_id: str
+    ) -> str | None:
+        """Latest CaseEscalatedToPusat / Returned / Cancelled event name, if any."""
+        ...
+
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         """First Case effect: Complaint REGISTERED → IN_PROGRESS; case_created=True."""
 

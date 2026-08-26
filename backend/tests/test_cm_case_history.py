@@ -532,3 +532,62 @@ def test_api_537_history_after_write_is_chronological_and_case_scoped(
         assert hq["note"] == "Bawa dokumen asli"
     finally:
         client.app.dependency_overrides.clear()
+
+
+def test_get_case_repairs_stale_parent_after_pusat_return(db_session: Session) -> None:
+    from app.modules.cm_case.application.services import NoOpSideEffects
+
+    complaint_id = uuid.uuid4()
+    case_id = uuid.uuid4()
+    db_session.add(
+        CmBatch1ComplaintORM(
+            id=complaint_id,
+            complaint_number="CMTAB-2608-0099",
+            customer_id="CUST-10001",
+            category="BILLING",
+            channel="WALK_IN",
+            subject="Seed",
+            description="Seed",
+            priority="MEDIUM",
+            status="IN_PROGRESS",
+            case_created=True,
+            created_by="officer-1",
+            owning_unit_id="TAB",
+            intake_disposition="ESCALATE_APPROVED",
+        )
+    )
+    db_session.add(
+        CmCaseORM(
+            id=case_id,
+            case_number="TAB-2608-0099",
+            complaint_id=str(complaint_id),
+            customer_id="CUST-10001",
+            status="IN_PROGRESS",
+            case_type="BILLING",
+            subject="Returned case",
+            description="Need branch work again",
+            priority="MEDIUM",
+            created_by="officer-1",
+            owning_unit_id="TAB",
+            owner_unit_id="TAB",
+            escalated_to_pusat=False,
+        )
+    )
+    db_session.add(
+        TimelineEntryORM(
+            aggregate_type="Complaint",
+            aggregate_id=complaint_id,
+            event_type="CaseEscalationReturned",
+            title="Case escalation returned to branch",
+            metadata_json={"caseId": str(case_id)},
+        )
+    )
+    db_session.commit()
+    service = CaseApplicationService(
+        SqlAlchemyCaseRepository(db_session),
+        side_effects=NoOpSideEffects(),
+    )
+    service.get_case(str(case_id))
+    parent = db_session.get(CmBatch1ComplaintORM, complaint_id)
+    assert parent is not None
+    assert parent.intake_disposition == "RETURNED_TO_BRANCH"

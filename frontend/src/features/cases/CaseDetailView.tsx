@@ -87,11 +87,13 @@ import {
 import {
   actorMayHandleEscalatedCase,
   hideCaseBranchWorkActions,
+  isCaseCurrentlyReturnedFromPusat,
   resolveCaseHqPath,
   showCaseCancelEscalation,
   showCaseLevelCancelEscalation,
   showCaseReturnEscalation,
 } from "./caseHqPath";
+import { HQ_RETURN_REASON_CODES } from "./hqReturnNote";
 import {
   canCmBatch1HqReview,
   hqCroDestinationDisplayLabel,
@@ -174,14 +176,6 @@ const HQ_ACCEPT_SCHEDULE_PRESET_KEY = "cm_batch1.hq_accept_schedule_note_presets
 const HQ_RETURN_PRESET_KEY = "cm_batch1.hq_return_note_presets";
 const HQ_SCHEDULE_PRESET_KEY = "cm_batch1.hq_schedule_note_presets";
 const HQ_COMPLETE_PRESET_KEY = "cm_batch1.hq_complete_note_presets";
-const HQ_RETURN_REASON_CODES: CmBatch1HqReturnReasonCode[] = [
-  "MISSING_ATTACHMENT",
-  "INCOMPLETE_CHRONOLOGY",
-  "UNCLEAR_CUSTOMER_DATA",
-  "WRONG_CATEGORY_OR_ROUTING",
-  "ADDITIONAL_EVIDENCE_REQUIRED",
-  "OTHER",
-];
 
 function nextStepKey(
   status: CmCaseStatus,
@@ -192,6 +186,7 @@ function nextStepKey(
     onHqPath: boolean;
     escalatedToPusat: boolean;
     actorIsPusat: boolean;
+    caseReturnedFromPusat: boolean;
   },
 ): string {
   if (opts.escalatedToPusat && !opts.actorIsPusat) return "nextStepPusat";
@@ -205,6 +200,7 @@ function nextStepKey(
   }
   if (
     opts.onHqPath &&
+    !opts.caseReturnedFromPusat &&
     status !== "RESOLVED" &&
     status !== "CLOSED" &&
     status !== "CANCELLED"
@@ -336,7 +332,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [resolvePreparing, setResolvePreparing] = useState(false);
 
   const history = useCmCaseHistory(
-    canRead && data ? data.caseId : "",
+    canRead ? caseId.trim() : "",
     data?.updatedAt ?? data?.status ?? null,
   );
   const descriptionNarrative = caseDescriptionNarrative(data?.description);
@@ -503,19 +499,27 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const parentReturnedToBranch =
     (complaintIntakeDisposition || "").trim().toUpperCase() ===
     "RETURNED_TO_BRANCH";
+  const caseReturnedFromPusat = isCaseCurrentlyReturnedFromPusat({
+    escalatedToPusat: Boolean(data?.escalatedToPusat),
+    intakeDisposition: complaintIntakeDisposition,
+    historyEventCodes: history.entries.map((entry) => entry.eventCode),
+  });
   const hideBranchActions = hideCaseBranchWorkActions(
     hqPath.onHqPath,
     data?.status,
     Boolean(data?.escalatedToPusat),
     Boolean(orgReady && actorIsPusat),
     parentReturnedToBranch,
+    caseReturnedFromPusat,
   );
-  const showParentCancelEscalation = showCaseCancelEscalation({
-    canDecideEscalation,
-    complaintStatus,
-    intakeDisposition: complaintIntakeDisposition,
-    hqAcceptedAt: complaintHqAcceptedAt,
-  });
+  const showParentCancelEscalation =
+    !caseReturnedFromPusat &&
+    showCaseCancelEscalation({
+      canDecideEscalation,
+      complaintStatus,
+      intakeDisposition: complaintIntakeDisposition,
+      hqAcceptedAt: complaintHqAcceptedAt,
+    });
   const showCaseLevelCancel = Boolean(
     orgReady &&
       data &&
@@ -706,14 +710,14 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     data &&
       (canCreate || canDecideEscalation) &&
       !data.escalatedToPusat &&
-      (!hqPath.onHqPath || parentReturnedToBranch) &&
+      (!hqPath.onHqPath || parentReturnedToBranch || caseReturnedFromPusat) &&
       !caseFinished &&
       data.status !== "RESOLVED" &&
       (data.status === "CREATED" ||
         data.status === "ASSIGNED" ||
         data.status === "IN_PROGRESS"),
   );
-  const returnedToBranch = parentReturnedToBranch;
+  const returnedToBranch = parentReturnedToBranch || caseReturnedFromPusat;
   const escalateReasonOk = escalateReason.trim().length >= ESCALATE_REASON_MIN;
   const handleConfirmIsCreator = Boolean(
     user?.id?.trim() &&
@@ -1122,6 +1126,10 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         : t("pageTitleEscalatedToPusat")
     : null;
 
+  const returnedPageTitle = caseReturnedFromPusat
+    ? t("pageTitleReturnedFromPusat")
+    : null;
+
   // Case status is authoritative for finished states — CLOSED and CANCELLED
   // are distinct outcomes and must not share copy.
   const pageTitle = !data
@@ -1132,15 +1140,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         ? t("pageTitleClosed")
         : data.status === "RESOLVED"
           ? t("pageTitleResolved")
-          : hqPhaseTitle
-            ? hqPhaseTitle
-            : escalationPageTitle
-              ? escalationPageTitle
-              : hqPageTitle
-                ? hqPageTitle
-                : handlerDisplay
-                  ? t("pageTitleInProgress", { name: handlerDisplay })
-                  : t("pageTitleOpen");
+          : returnedPageTitle
+            ? returnedPageTitle
+            : hqPhaseTitle
+              ? hqPhaseTitle
+              : escalationPageTitle
+                ? escalationPageTitle
+                : hqPageTitle
+                  ? hqPageTitle
+                  : handlerDisplay
+                    ? t("pageTitleInProgress", { name: handlerDisplay })
+                    : t("pageTitleOpen");
 
   // Scheduled-slot copy only applies while the case is still waiting on the
   // HQ visit — once RESOLVED, the resolution copy below must win instead.
@@ -1150,29 +1160,32 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       ? t("pageDescriptionCancelled")
       : caseFinished
         ? t("pageDescriptionClosed")
-        : hqPath.phase === "scheduled" &&
-            scheduledSlotLabel &&
-            data.status !== "RESOLVED"
-          ? scheduledSlotLabel
-          : hqPageDescription
-            ? hqPageDescription
-            : t(
-                nextStepKey(data.status, {
-                  canUpdate,
-                  showResolve,
-                  showClose,
-                  onHqPath: hqPath.onHqPath,
-                  escalatedToPusat: Boolean(data.escalatedToPusat),
-                  actorIsPusat,
-                }) as
-                  | "nextStepStart"
-                  | "nextStepResolveOrEscalate"
-                  | "nextStepClose"
-                  | "nextStepDone"
-                  | "nextStepReadOnly"
-                  | "nextStepHqPath"
-                  | "nextStepPusat",
-              );
+        : caseReturnedFromPusat
+          ? t("pageDescriptionReturnedFromPusat")
+          : hqPath.phase === "scheduled" &&
+              scheduledSlotLabel &&
+              data.status !== "RESOLVED"
+            ? scheduledSlotLabel
+            : hqPageDescription
+              ? hqPageDescription
+              : t(
+                  nextStepKey(data.status, {
+                    canUpdate,
+                    showResolve,
+                    showClose,
+                    onHqPath: hqPath.onHqPath,
+                    escalatedToPusat: Boolean(data.escalatedToPusat),
+                    actorIsPusat,
+                    caseReturnedFromPusat,
+                  }) as
+                    | "nextStepStart"
+                    | "nextStepResolveOrEscalate"
+                    | "nextStepClose"
+                    | "nextStepDone"
+                    | "nextStepReadOnly"
+                    | "nextStepHqPath"
+                    | "nextStepPusat",
+                );
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -1219,6 +1232,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                     </dt>
                     <dd className="flex flex-wrap items-center gap-2">
                       <CaseStatusBadge status={data.status} />
+                      {caseReturnedFromPusat ? (
+                        <Badge tone="warning" data-testid="case-returned-from-pusat-chip">
+                          {t("returnedFromPusatChip")}
+                        </Badge>
+                      ) : null}
                       <Badge tone={priorityTone(data.priority)} variant="outline">
                         {priorityLabel(data.priority)}
                       </Badge>

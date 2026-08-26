@@ -6,6 +6,7 @@ export { CaseDetailView } from "./CaseDetailView";
 export {
   actorMayHandleEscalatedCase,
   hideCaseBranchWorkActions,
+  isCaseCurrentlyReturnedFromPusat,
   resolveCaseHqPath,
   showCaseCancelEscalation,
   showCaseLevelCancelEscalation,

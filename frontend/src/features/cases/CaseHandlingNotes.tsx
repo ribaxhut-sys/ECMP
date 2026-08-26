@@ -9,6 +9,7 @@ import {
   groupCaseHandlingNotes,
   type CaseHandlingNote,
 } from "./caseHandlingNotes";
+import { formatHqReturnNoteDisplay } from "./hqReturnNote";
 
 function HandlingNoteBlock({
   note,
@@ -18,6 +19,7 @@ function HandlingNoteBlock({
   nested?: boolean;
 }) {
   const t = useTranslations("cases");
+  const tComplaints = useTranslations("complaints");
   const locale = useLocale();
   const label = t.has(note.labelKey as "handlingNotesTitle")
     ? t(note.labelKey as "handlingNotesTitle")
@@ -27,6 +29,14 @@ function HandlingNoteBlock({
     ? formatDateTime24(note.occurredAt, locale)
     : null;
   const meta = [actor, when].filter(Boolean).join(" · ");
+  const body =
+    (note.eventCode || "").trim().toUpperCase() === "CASE_ESCALATION_RETURNED"
+      ? formatHqReturnNoteDisplay(note.text, (code) =>
+          tComplaints.has(`hqReturnReason_${code}` as never)
+            ? tComplaints(`hqReturnReason_${code}` as never)
+            : undefined,
+        )
+      : note.text;
 
   return (
     <div className="space-y-1">
@@ -50,7 +60,7 @@ function HandlingNoteBlock({
         data-note-role="body"
         className="whitespace-pre-wrap text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-primary"
       >
-        <KnowledgeReferenceText text={note.text} />
+        <KnowledgeReferenceText text={body} />
       </div>
     </div>
   );
