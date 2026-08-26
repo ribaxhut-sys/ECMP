@@ -109,7 +109,7 @@ export function CaseHistoryPanel({
           ) : null}
           {!loading && !error && visibleEntries.length > 0 ? (
             <>
-              <ol className="space-y-[var(--ecmp-form-gap)]">
+              <ol className="space-y-[var(--ecmp-space-4)]">
                 {paged.map((entry, index) => {
                   const number = (safeLogPage - 1) * LOG_PAGE_SIZE + index + 1;
                   const arrivalSlotParts =
@@ -143,7 +143,7 @@ export function CaseHistoryPanel({
                           : "bg-ecmp-surface-sunken"
                       }`}
                     >
-                      <div className="flex w-full items-start gap-3 rounded-[var(--ecmp-radius-md)] p-3">
+                      <div className="flex w-full items-center gap-3 rounded-[var(--ecmp-radius-md)] px-3 py-1.5">
                         <span
                           aria-hidden
                           className="min-w-6 shrink-0 text-[length:var(--ecmp-font-body-size)] font-[number:var(--ecmp-font-overline-weight)] tabular-nums text-ecmp-text-secondary"
