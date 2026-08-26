@@ -713,10 +713,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         data.status === "ASSIGNED" ||
         data.status === "IN_PROGRESS"),
   );
-  const returnedToBranch = Boolean(
-    parentReturnedToBranch ||
-      (data?.unreadReason || "").trim().toUpperCase() === "RETURNED",
-  );
+  const returnedToBranch = parentReturnedToBranch;
   const escalateReasonOk = escalateReason.trim().length >= ESCALATE_REASON_MIN;
   const handleConfirmIsCreator = Boolean(
     user?.id?.trim() &&

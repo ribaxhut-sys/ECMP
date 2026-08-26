@@ -399,7 +399,6 @@ describe("CaseDetailView HQ path", () => {
     fetchCmCase.mockResolvedValue({
       data: baseCase({
         escalatedToPusat: false,
-        unreadReason: "RETURNED",
       }),
     });
     fetchCmBatch1Complaint.mockResolvedValue({
