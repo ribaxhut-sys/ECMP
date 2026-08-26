@@ -1009,7 +1009,7 @@
     "waitingAssignment": "Waiting for assignment",
     "waitingReview": "Waiting for review",
     "waitingEscalationApproval": "Waiting for escalation approval",
-    "waitingHqEscalation": "Waiting for HQ escalation",
+    "waitingHqEscalation": "Waiting for HQ schedule",
     "pusatIntakeQueue": "HQ intake",
     "pusatFollowUpQueue": "Follow-up",
     "hqScheduleToday": "Today's schedule",
