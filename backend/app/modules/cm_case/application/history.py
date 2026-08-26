@@ -35,11 +35,15 @@ _EXTRA_EVENT_CODES = {
 
 # Complaint-scoped HQ path — no caseId on the timeline row, but Penanganan
 # groups every open Case of this parent under Pusat once these fire.
+# HqCompleted is included so the HQ completion note (the Case's actual
+# outcome when closed via the HQ path, with no cm_case_resolutions row)
+# reaches the Case's own Catatan/Riwayat instead of vanishing.
 _PARENT_HQ_EVENT_TYPES = frozenset(
     {
         "HqAccepted",
         "HqReturned",
         "HqArrivalScheduled",
+        "HqCompleted",
     }
 )
 

@@ -3082,6 +3082,7 @@
     "customerNumber": "Taxpayer ID",
     "contextTitle": "Context",
     "noResolutionDescription": "No resolution yet. It will appear here once the Case is resolved.",
+    "noResolutionHqCompleted": "This Case was closed via HQ completion, not the branch resolution flow — see Catatan above for the outcome.",
     "noCases": "No branch work for this complaint yet",
     "noCasesDescription": "Start a Case on your branch unit. Resolve at the branch when you can; if HQ is needed, escalate with Staff KaSatPel/KaSatPel approval.",
     "create": "Start branch work",

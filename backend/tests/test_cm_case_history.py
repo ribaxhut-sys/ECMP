@@ -99,6 +99,18 @@ def test_belongs_to_case_includes_parent_hq_schedule() -> None:
     assert belongs_to_case(accepted, case_id=CASE_ID, case_number="CASE-1") is True
 
 
+def test_belongs_to_case_includes_parent_hq_completion() -> None:
+    """A Case closed via the HQ path never gets a cm_case_resolutions row —
+    the completion note is the only record of the outcome, so it must reach
+    the Case's own Catatan/Riwayat like the other parent HQ-path events."""
+    completed = _entry(
+        "HqCompleted",
+        {"note": "Wp sudah kami arahkan ke bidang peraturan"},
+    )
+    assert belongs_to_case(completed, case_id=CASE_ID, case_number="CASE-1") is True
+    assert case_event_code(completed) == "HQ_COMPLETED"
+
+
 class _FakeTimeline:
     def __init__(self, entries: list[TimelineEntry]) -> None:
         self.entries = entries

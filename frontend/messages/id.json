@@ -3082,6 +3082,7 @@
     "customerNumber": "No. WP",
     "contextTitle": "Konteks",
     "noResolutionDescription": "Belum ada resolusi. Resolusi akan tampil di sini setelah Case diselesaikan.",
+    "noResolutionHqCompleted": "Case ini ditutup melalui penyelesaian di Pusat, bukan alur resolusi cabang — lihat Catatan di atas untuk hasilnya.",
     "noCases": "Belum ada pekerjaan cabang untuk pengaduan ini",
     "noCasesDescription": "Mulai Case di unit cabang Anda. Selesaikan di cabang bila bisa; jika perlu Pusat, ajukan eskalasi dengan persetujuan Staff KaSatPel/KaSatPel.",
     "create": "Mulai kerja di cabang",

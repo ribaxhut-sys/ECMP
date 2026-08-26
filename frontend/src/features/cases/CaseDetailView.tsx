@@ -354,6 +354,15 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     Boolean(resolutionCommentText) &&
     resolutionCommentText.toLowerCase() !==
       resolutionSummaryText.toLowerCase();
+  /**
+   * Closed via the HQ path (complete_at_hq on the parent Complaint) never
+   * writes a cm_case_resolutions row — the outcome lives only in the
+   * HQ_COMPLETED Catatan entry. "Belum ada resolusi… akan tampil setelah
+   * Case diselesaikan" is wrong once the Case is already CLOSED this way.
+   */
+  const closedViaHqCompletion =
+    data?.status === "CLOSED" &&
+    handlingNotes.some((note) => note.eventCode === "HQ_COMPLETED");
 
   const reload = useCallback(async () => {
     if (!canRead || !caseId.trim()) {
@@ -1417,7 +1426,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                       </>
                     ) : (
                       <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                        {t("noResolutionDescription")}
+                        {closedViaHqCompletion
+                          ? t("noResolutionHqCompleted")
+                          : t("noResolutionDescription")}
                       </p>
                     )}
                   </div>
