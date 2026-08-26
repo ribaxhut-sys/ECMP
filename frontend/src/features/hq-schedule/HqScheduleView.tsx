@@ -367,7 +367,7 @@ function CaseLine({
     <div
       data-completed={proposal.completed ? "true" : "false"}
       data-overdue={showOverdue ? "true" : "false"}
-      className="flex min-w-0 items-start gap-1.5 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight"
+      className="flex min-w-0 items-start gap-1.5 py-1.5 first:pt-0 last:pb-0 text-left text-[length:var(--ecmp-font-helper-size)] leading-tight"
     >
       <span className={cn("min-w-0", !canOpen && plainClass)}>
         <span className="block min-w-0 truncate">
@@ -423,6 +423,37 @@ function CaseLine({
   );
 }
 
+function SlotCaseList({
+  cases,
+  date,
+  canOpenCase,
+  nowMs,
+  slotEndTime,
+}: {
+  cases: HqScheduleProposalSummary[];
+  date: string;
+  canOpenCase: (owningUnitId: string | null | undefined) => boolean;
+  nowMs: number;
+  slotEndTime: string;
+}) {
+  if (cases.length === 0) return null;
+  return (
+    <div
+      className="mt-1.5 divide-y divide-ecmp-border/60"
+      data-testid="hq-schedule-slot-cases"
+    >
+      {cases.map((proposal) => (
+        <CaseLine
+          key={proposal.complaintId}
+          proposal={proposal}
+          canOpen={canOpenCase(proposal.owningUnitId)}
+          overdue={isArrivalOverdue(date, slotEndTime, nowMs)}
+        />
+      ))}
+    </div>
+  );
+}
+
 function SlotCard({
   slot,
   date,
@@ -452,24 +483,18 @@ function SlotCard({
         <p className="text-center font-bold italic">
           {slot.startTime}–{slot.endTime} · {breakLabel}
         </p>
-        {visibleCases.length > 0 ? (
-          <div className="mt-1.5 space-y-1">
-            {visibleCases.map((proposal) => (
-              <CaseLine
-                key={proposal.complaintId}
-                proposal={proposal}
-                canOpen={canOpenCase(proposal.owningUnitId)}
-                overdue={isArrivalOverdue(date, slot.endTime, nowMs)}
-              />
-            ))}
-          </div>
-        ) : null}
+        <SlotCaseList
+          cases={visibleCases}
+          date={date}
+          canOpenCase={canOpenCase}
+          nowMs={nowMs}
+          slotEndTime={slot.endTime}
+        />
       </div>
     );
   }
 
   const counts = slotCountsForFilter(slot, unitFilter);
-  const listed = visibleCases.length > 0;
   const occupancy = slotOccupancy(counts.scheduled, counts.capacity);
   const isPast = isSlotPast(date, slot.endTime, nowMs);
   return (
@@ -499,18 +524,13 @@ function SlotCard({
           {slotRatioLabel}
         </p>
       </div>
-      {listed ? (
-        <div className="mt-1.5 space-y-1">
-          {visibleCases.map((proposal) => (
-            <CaseLine
-              key={proposal.complaintId}
-              proposal={proposal}
-              canOpen={canOpenCase(proposal.owningUnitId)}
-              overdue={isArrivalOverdue(date, slot.endTime, nowMs)}
-            />
-          ))}
-        </div>
-      ) : null}
+      <SlotCaseList
+        cases={visibleCases}
+        date={date}
+        canOpenCase={canOpenCase}
+        nowMs={nowMs}
+        slotEndTime={slot.endTime}
+      />
     </article>
   );
 }

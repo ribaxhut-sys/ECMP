@@ -244,6 +244,16 @@ describe("HqScheduleView", () => {
     expect(screen.queryByText("Budi Lain")).not.toBeInTheDocument();
   });
 
+  it("separates multiple visits in a slot with a divider between rows", async () => {
+    fetchHqScheduleAvailability.mockResolvedValue({ data: gridWithCases() });
+    renderWithProviders(<HqScheduleView />);
+
+    const slot = await screen.findByTestId("hq-schedule-slot-2026-08-17-08:00");
+    const list = within(slot).getByTestId("hq-schedule-slot-cases");
+    expect(list).toHaveClass("divide-y");
+    expect(list.children).toHaveLength(2);
+  });
+
   it("links each Case number to its own Case, not to the parent complaint", async () => {
     const grid = gridWithCases();
     grid.days[0].slots[0].scheduledCases[0].cases = [
