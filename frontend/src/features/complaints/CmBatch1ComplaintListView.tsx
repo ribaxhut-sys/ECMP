@@ -54,12 +54,6 @@ import {
   type CmBatch1ComplaintListCases,
   type CmBatch1ComplaintListRow,
 } from "./cmBatch1ComplaintListRows";
-import {
-  hqPathCopyKeys,
-  penangananCountsFromCases,
-  resolveHqPathPhase,
-  resolvePenangananContextKind,
-} from "./penangananGroups";
 import { complaintWorkListIsUnread, keepPusatPengaduanListRow } from "./pusatWorkQueues";
 
 const NUMBER_LINK_BASE =
@@ -461,64 +455,6 @@ export function CmBatch1ComplaintListView() {
       header: t("createdAt"),
       cell: (row) =>
         formatDateTime24(row.complaint.createdAt, locale, tCommon("emDash")),
-    },
-    {
-      key: "penanganan",
-      header: t("penangananColumn"),
-      cell: (row) => {
-        const entry = casesByComplaint[row.complaint.complaintId];
-        if (entry === undefined || entry === "loading") {
-          return (
-            <span className="text-ecmp-text-secondary">
-              {tCommon("emDash")}
-            </span>
-          );
-        }
-        if (entry === "error") {
-          return (
-            <span className="text-ecmp-text-secondary">
-              {t("penangananListUnavailable")}
-            </span>
-          );
-        }
-        if (row.caseItem?.escalatedToPusat) {
-          return (
-            <Badge tone="warning">{t("penangananListHqWaiting")}</Badge>
-          );
-        }
-        const counts = penangananCountsFromCases(
-          entry,
-          row.complaint.intakeDisposition,
-        );
-        const kind = resolvePenangananContextKind({
-          complaintStatus: row.complaint.status,
-          intakeDisposition: row.complaint.intakeDisposition,
-          counts,
-        });
-        if (kind === "closed") {
-          return <Badge tone="success">{t("penangananListClosed")}</Badge>;
-        }
-        if (kind === "hq_waiting") {
-          const phase = resolveHqPathPhase({
-            intakeDisposition: row.complaint.intakeDisposition,
-            hqAcceptedAt: row.complaint.hqAcceptedAt,
-          });
-          const copy = phase
-            ? hqPathCopyKeys(phase)
-            : hqPathCopyKeys("pending_approval");
-          return (
-            <Badge tone={phase === "scheduled" ? "info" : "warning"}>
-              {t(copy.list as "penangananListHqWaiting")}
-            </Badge>
-          );
-        }
-        if (kind === "none") {
-          return (
-            <Badge tone="warning">{t("penangananListNone")}</Badge>
-          );
-        }
-        return <Badge tone="info">{t("penangananInProgress")}</Badge>;
-      },
     },
   ];
 
