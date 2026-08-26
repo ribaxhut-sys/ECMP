@@ -197,7 +197,7 @@ describe("buildQueueHealthRows", () => {
     expect(rows.map((row) => row.count)).toEqual([1, 0, 0, 0]);
   });
 
-  it("replaces cabang assignment bars with Pusat work doors", () => {
+  it("replaces cabang bars with a Pusat pipeline and drops empty stages", () => {
     const rows = buildQueueHealthRows({
       byStatus,
       waitingAssignmentHref: null,
@@ -206,20 +206,29 @@ describe("buildQueueHealthRows", () => {
       hqScheduledHref: "/complaints?intakeDisposition=HQ_SCHEDULED",
       audience: "pusat",
       pusatQueue: 1,
-      pusatFollowUp: 3,
+      hqScheduleToday: 0,
       pusatQueueHref: "/complaints?needsPusatHandling=1",
-      pusatFollowUpHref: "/tindak-lanjut",
+      hqScheduleTodayHref: "/complaints/cm/hq-schedule",
     });
-    expect(rows.map((row) => row.id)).toEqual([
-      "pusat-intake",
-      "pusat-follow-up",
-      "waiting-hq-escalation",
-      "hq-scheduled",
-    ]);
+    expect(rows.map((row) => row.id)).toEqual(["pusat-intake", "hq-scheduled"]);
     expect(rows[0]?.count).toBe(1);
     expect(rows[0]?.href).toBe("/complaints?needsPusatHandling=1");
-    expect(rows[1]?.count).toBe(3);
-    expect(rows[3]?.count).toBe(1);
+    expect(rows[1]?.count).toBe(1);
+    expect(rows[1]?.href).toBe("/complaints?intakeDisposition=HQ_SCHEDULED");
+  });
+
+  it("returns an empty Pusat pipeline when every stage is clear", () => {
+    const rows = buildQueueHealthRows({
+      byStatus: [{ status: "waitingAssignment" as const, count: 5 }],
+      waitingAssignmentHref: null,
+      escalationHref: null,
+      hqEscalationHref: null,
+      hqScheduledHref: "/complaints?intakeDisposition=HQ_SCHEDULED",
+      audience: "pusat",
+      pusatQueue: 0,
+      hqScheduleToday: 0,
+    });
+    expect(rows).toEqual([]);
   });
 });
 

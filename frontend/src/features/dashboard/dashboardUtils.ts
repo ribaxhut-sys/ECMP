@@ -40,7 +40,8 @@ export type QueueHealthLabelKey =
   | "waitingHqEscalation"
   | "escalationScheduled"
   | "pusatIntakeQueue"
-  | "pusatFollowUpQueue";
+  | "pusatFollowUpQueue"
+  | "hqScheduleToday";
 
 export type QueueHealthAudience = "cabang" | "pusat";
 
@@ -75,8 +76,11 @@ export function dashboardEmptyWorkCta(
 }
 
 /**
- * Queue-health bars. Cabang: assignment → HQ path. Pusat: the same three
- * work doors as the sidebar (intake / follow-up / schedule) plus HQ slices.
+ * Queue-health bars.
+ * Cabang: assignment → HQ path (proportional meters).
+ * Pusat: work pipeline only — intake → today → all scheduled. Zero rows
+ * are omitted so empty stages do not look "healthy"; no shared bar scale
+ * (counts are different grains and must not compete visually).
  */
 export function buildQueueHealthRows(input: {
   byStatus: StatusCount[] | null;
@@ -86,9 +90,9 @@ export function buildQueueHealthRows(input: {
   hqScheduledHref: string | null;
   audience?: QueueHealthAudience;
   pusatQueue?: number;
-  pusatFollowUp?: number;
+  hqScheduleToday?: number;
   pusatQueueHref?: string | null;
-  pusatFollowUpHref?: string | null;
+  hqScheduleTodayHref?: string | null;
 }): QueueHealthRowSpec[] {
   const waitingAssignment = countByStatus(input.byStatus, "waitingAssignment") ?? 0;
   const escalated = countByStatus(input.byStatus, "escalatePending") ?? 0;
@@ -96,37 +100,31 @@ export function buildQueueHealthRows(input: {
   const hqScheduled = countByStatus(input.byStatus, "escalateScheduled") ?? 0;
   if (input.audience === "pusat") {
     const pusatQueue = input.pusatQueue ?? 0;
-    const pusatFollowUp = input.pusatFollowUp ?? 0;
-    return [
+    const hqToday = input.hqScheduleToday ?? 0;
+    const rows: QueueHealthRowSpec[] = [
       {
         id: "pusat-intake",
         queueKey: "pusatIntakeQueue",
         count: pusatQueue,
-        tone: pusatQueue > 0 ? "attention" : "healthy",
+        tone: "attention",
         href: input.pusatQueueHref ?? null,
       },
       {
-        id: "pusat-follow-up",
-        queueKey: "pusatFollowUpQueue",
-        count: pusatFollowUp,
-        tone: pusatFollowUp > 0 ? "attention" : "healthy",
-        href: input.pusatFollowUpHref ?? null,
-      },
-      {
-        id: "waiting-hq-escalation",
-        queueKey: "waitingHqEscalation",
-        count: waitingHq,
-        tone: waitingHq > 0 ? "attention" : "healthy",
-        href: input.hqEscalationHref,
+        id: "hq-schedule-today",
+        queueKey: "hqScheduleToday",
+        count: hqToday,
+        tone: "attention",
+        href: input.hqScheduleTodayHref ?? null,
       },
       {
         id: "hq-scheduled",
         queueKey: "escalationScheduled",
         count: hqScheduled,
-        tone: hqScheduled > 0 ? "attention" : "healthy",
+        tone: "attention",
         href: input.hqScheduledHref,
       },
     ];
+    return rows.filter((row) => row.count > 0);
   }
   return [
     {
