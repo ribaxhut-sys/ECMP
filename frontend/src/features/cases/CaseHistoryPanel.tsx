@@ -20,6 +20,7 @@ import {
   caseHistoryDisplayLabelKey,
   filterWpCaseHistoryEntries,
   isCaseCloseEvent,
+  shouldShowCaseHistoryPriority,
 } from "./caseHistoryMeta";
 
 const LOG_PAGE_SIZE = 10;
@@ -134,12 +135,19 @@ export function CaseHistoryPanel({
                   const actor =
                     officerDisplayName(entry.actorName, entry.actorId) ||
                     tCommon("emDash");
+                  const visibleIndex =
+                    (safeLogPage - 1) * LOG_PAGE_SIZE + index;
                   const priorityKey = entry.priority?.trim().toUpperCase() ?? "";
-                  const priorityLabel = priorityKey
-                    ? isKnownPriority(priorityKey)
-                      ? tPriority(priorityKey)
-                      : entry.priority
-                    : null;
+                  const showPriority = shouldShowCaseHistoryPriority(
+                    visibleEntries,
+                    visibleIndex,
+                  );
+                  const priorityLabel =
+                    showPriority && priorityKey
+                      ? isKnownPriority(priorityKey)
+                        ? tPriority(priorityKey)
+                        : entry.priority
+                      : null;
                   return (
                     <li
                       key={entry.entryId}

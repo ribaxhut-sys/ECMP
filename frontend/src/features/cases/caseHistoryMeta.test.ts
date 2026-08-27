@@ -3,6 +3,7 @@ import {
   caseHistoryDisplayLabelKey,
   filterWpCaseHistoryEntries,
   isWpCaseHistoryHidden,
+  shouldShowCaseHistoryPriority,
 } from "./caseHistoryMeta";
 
 describe("filterWpCaseHistoryEntries", () => {
@@ -39,5 +40,33 @@ describe("caseHistoryDisplayLabelKey", () => {
         "CASE_ESCALATION_RETURNED",
       ]),
     ).toBe("eventCaseReEscalatedToPusat");
+  });
+});
+
+describe("shouldShowCaseHistoryPriority", () => {
+  const rows = [
+    { priority: "HIGH" },
+    { priority: "HIGH" },
+    { priority: null },
+    { priority: "HIGH" },
+    { priority: "MEDIUM" },
+    { priority: "medium" },
+    { priority: "HIGH" },
+  ];
+
+  it("shows the first tag, then only when the value changes", () => {
+    expect(shouldShowCaseHistoryPriority(rows, 0)).toBe(true);
+    expect(shouldShowCaseHistoryPriority(rows, 1)).toBe(false);
+    expect(shouldShowCaseHistoryPriority(rows, 2)).toBe(false);
+    expect(shouldShowCaseHistoryPriority(rows, 3)).toBe(false);
+    expect(shouldShowCaseHistoryPriority(rows, 4)).toBe(true);
+    expect(shouldShowCaseHistoryPriority(rows, 5)).toBe(false);
+    expect(shouldShowCaseHistoryPriority(rows, 6)).toBe(true);
+  });
+
+  it("shows the first non-empty priority when earlier rows omit it", () => {
+    expect(
+      shouldShowCaseHistoryPriority([{ priority: null }, { priority: "LOW" }], 1),
+    ).toBe(true);
   });
 });

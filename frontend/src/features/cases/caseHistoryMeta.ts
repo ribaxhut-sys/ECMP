@@ -110,3 +110,26 @@ export function filterWpCaseHistoryEntries<T extends { eventCode: string }>(
 ): T[] {
   return entries.filter((entry) => !isWpCaseHistoryHidden(entry.eventCode));
 }
+
+export function normalizeCaseHistoryPriority(
+  priority: string | null | undefined,
+): string {
+  return (priority || "").trim().toUpperCase();
+}
+
+/**
+ * Priority already sits on the Case header. The log shows it once, then
+ * only again when the value actually changes.
+ */
+export function shouldShowCaseHistoryPriority(
+  entries: readonly { priority?: string | null }[],
+  index: number,
+): boolean {
+  const current = normalizeCaseHistoryPriority(entries[index]?.priority);
+  if (!current) return false;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const prior = normalizeCaseHistoryPriority(entries[i]?.priority);
+    if (prior) return prior !== current;
+  }
+  return true;
+}

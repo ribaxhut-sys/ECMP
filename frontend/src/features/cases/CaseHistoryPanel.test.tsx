@@ -180,6 +180,43 @@ describe("CaseHistoryPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a priority tag once, then again only after it changes", async () => {
+    renderWithProviders(
+      <CaseHistoryPanel
+        loading={false}
+        error={null}
+        entries={[
+          entry({
+            entryId: "1",
+            eventCode: "CASE_CREATED",
+            priority: "HIGH",
+          }),
+          entry({
+            entryId: "2",
+            eventCode: "CASE_WORK_STARTED",
+            priority: "HIGH",
+          }),
+          entry({
+            entryId: "3",
+            eventCode: "CASE_ESCALATED_TO_PUSAT",
+            priority: "HIGH",
+          }),
+          entry({
+            entryId: "4",
+            eventCode: "CASE_RESOLVED",
+            actorName: "Budi",
+            priority: "MEDIUM",
+          }),
+        ]}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Case created")).toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("High")).toHaveLength(1);
+    expect(screen.getAllByText("Medium")).toHaveLength(1);
+  });
+
   it("shows empty copy inside the card", async () => {
     renderWithProviders(
       <CaseHistoryPanel loading={false} error={null} entries={[]} />,
