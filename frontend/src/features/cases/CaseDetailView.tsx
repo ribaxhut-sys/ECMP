@@ -473,8 +473,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       setHandlerLabel(null);
       setComplaintNumber(null);
       setComplaintStatus(null);
-      setComplaintCreatedBy(null);
-      setComplaintCreatedByName(null);
       setComplaintIntakeDisposition(null);
       setComplaintHqAcceptedAt(null);
       setComplaintHqArrivalDate(null);
