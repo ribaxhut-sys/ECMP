@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.core.authorization.visibility import pusat_unit_clause
@@ -27,6 +26,24 @@ from app.modules.cm_case.infrastructure.orm import (
     CmCaseORM,
     CmCaseResolutionORM,
 )
+
+
+def _has_timeline_table(session: Session) -> bool:
+    """Same-transaction table check — Inspector.has_table() can break SQLite txs."""
+    bind = session.get_bind()
+    if bind is None:
+        return False
+    dialect = getattr(bind.dialect, "name", "") or ""
+    if dialect == "sqlite":
+        return bool(
+            session.scalar(
+                text(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                    "AND name = 'timeline_entries'"
+                )
+            )
+        )
+    return bool(session.scalar(text("SELECT to_regclass('timeline_entries')")))
 
 
 def _apply_keyword_filter(session: Session, stmt, keyword: str | None):
@@ -394,6 +411,89 @@ class SqlAlchemyCaseRepository:
         row.proposed_at = None
         self._session.flush()
 
+    def mark_parent_awaiting_hq_schedule(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date | None = None,
+        proposed_time: str | None = None,
+        proposed_by: str | None = None,
+    ) -> None:
+        """Case-level escalate (API-520) — parent waits for Terima & jadwalkan.
+
+        Does not rewind an already-accepted HQ_SCHEDULED slot. Sibling Cases are
+        not flagged; only this parent door opens so Pusat can schedule.
+        """
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return
+        if (row.status or "").strip().upper() == "CLOSED":
+            return
+        current = (row.intake_disposition or "").strip().upper()
+        if current == "HQ_SCHEDULED" and row.hq_accepted_at is not None:
+            return
+        row.intake_disposition = "ESCALATE_APPROVED"
+        if current == "RETURNED_TO_BRANCH":
+            row.hq_accepted_at = None
+            row.hq_accepted_by = None
+            row.hq_arrival_date = None
+            row.hq_arrival_time = None
+            row.hq_destination_unit_id = None
+            row.hq_destination_set_by = None
+            row.hq_destination_set_at = None
+        if proposed_date is not None:
+            row.proposed_arrival_date = proposed_date
+            row.proposed_arrival_time = (proposed_time or "").strip() or None
+            row.proposed_by = proposed_by
+            row.proposed_at = datetime.now(UTC)
+        self._session.flush()
+
+    def close_parent_hq_schedule_door_if_idle(self, complaint_id: str) -> None:
+        """Drop ``ESCALATE_APPROVED`` when no Case remains at Pusat and HQ has not accepted."""
+        if self.has_open_escalated_cases(complaint_id):
+            return
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return
+        if (row.status or "").strip().upper() == "CLOSED":
+            return
+        if (row.intake_disposition or "").strip().upper() != "ESCALATE_APPROVED":
+            return
+        if row.hq_accepted_at is not None:
+            return
+        if self._complaint_has_case_return_event(uid):
+            self.mark_parent_returned_to_branch(complaint_id)
+            return
+        row.intake_disposition = None
+        row.proposed_arrival_date = None
+        row.proposed_arrival_time = None
+        row.proposed_by = None
+        row.proposed_at = None
+        self._session.flush()
+
+    def _complaint_has_case_return_event(self, complaint_uuid: UUID) -> bool:
+        if not _has_timeline_table(self._session):
+            return False
+        from app.modules.timeline.models import TimelineEntryORM
+
+        found = self._session.scalar(
+            select(TimelineEntryORM.id)
+            .where(
+                TimelineEntryORM.aggregate_id == complaint_uuid,
+                TimelineEntryORM.event_type == "CaseEscalationReturned",
+            )
+            .limit(1)
+        )
+        return found is not None
+
     def latest_case_escalation_event(
         self, *, case_id: str, complaint_id: str
     ) -> str | None:
@@ -405,8 +505,7 @@ class SqlAlchemyCaseRepository:
             cid = UUID((complaint_id or "").strip())
         except ValueError:
             return None
-        bind = self._session.get_bind()
-        if bind is None or not sa_inspect(bind).has_table("timeline_entries"):
+        if not _has_timeline_table(self._session):
             return None
         from app.modules.timeline.models import TimelineEntryORM
 

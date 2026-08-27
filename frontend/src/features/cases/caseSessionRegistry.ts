@@ -71,7 +71,7 @@ export function markCaseHandleViewed(caseId: string): void {
   window.sessionStorage.setItem(handleKey(id), "viewed");
 }
 
-/** Direct URL / sidebar: ask unless terminal, no permission, or already decided this session. */
+/** Offer the handle-claim CTA unless terminal, no permission, or already claimed. */
 export function shouldAskHandleClaim(opts: {
   status: string | null | undefined;
   canAct: boolean;

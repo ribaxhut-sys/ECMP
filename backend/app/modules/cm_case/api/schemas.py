@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -204,6 +204,16 @@ class EscalateToPusatRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     reason: str
+    proposed_arrival_date: date | None = Field(
+        default=None,
+        alias="proposedArrivalDate",
+        description="Optional branch-proposed HQ visit date. Advisory; Pusat decides.",
+    )
+    proposed_arrival_time: str | None = Field(
+        default=None,
+        alias="proposedArrivalTime",
+        description="Optional HH:MM paired with proposedArrivalDate.",
+    )
 
 
 class CancelEscalationToPusatRequest(BaseModel):

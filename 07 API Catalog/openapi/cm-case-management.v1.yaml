@@ -932,8 +932,10 @@ paths:
       description: |
         DEC-029 / API-520 lab (FR-CM-010 slice). Escalates **this Case only**.
         Does not set status `ESCALATED` (BQ-009). Does not overwrite originating
-        `owningUnitId` (DEC-028). Does not move sibling Cases or parent
-        `intakeDisposition`.
+        `owningUnitId` (DEC-028). Does not escalate sibling Cases. Opens the
+        parent HQ schedule door (`intakeDisposition=ESCALATE_APPROVED`) so Pusat
+        can **Terima & jadwalkan**. Optional `proposedArrivalDate` /
+        `proposedArrivalTime` are advisory; Pusat still decides the slot.
 
         Reason minimum 20 characters after trim.
       operationId: cmB2EscalateToPusat
@@ -1928,7 +1930,9 @@ components:
 
     EscalateToPusatRequest:
       type: object
-      description: DEC-029 / API-520 lab — escalate this Case to Pusat.
+      description: >
+        DEC-029 / API-520 lab — escalate this Case to Pusat and open the parent
+        HQ schedule door (ESCALATE_APPROVED). Sibling Cases stay at the branch.
       required:
         - reason
       properties:
@@ -1936,6 +1940,17 @@ components:
           type: string
           minLength: 20
           description: Free-text reason; minimum 20 characters after trim.
+        proposedArrivalDate:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            Optional branch-proposed HQ visit date (YYYY-MM-DD). Advisory only.
+            Must be paired with proposedArrivalTime.
+        proposedArrivalTime:
+          type: string
+          nullable: true
+          description: Optional HH:MM (24h), paired with proposedArrivalDate.
 
     CancelEscalationToPusatRequest:
       type: object

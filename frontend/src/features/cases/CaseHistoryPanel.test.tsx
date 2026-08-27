@@ -145,6 +145,41 @@ describe("CaseHistoryPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("labels a later send after HQ return as re-escalation", async () => {
+    renderWithProviders(
+      <CaseHistoryPanel
+        loading={false}
+        error={null}
+        entries={[
+          entry({
+            entryId: "e1",
+            eventCode: "CASE_ESCALATED_TO_PUSAT",
+            actorName: "Dewi",
+          }),
+          entry({
+            entryId: "r1",
+            eventCode: "CASE_ESCALATION_RETURNED",
+            actorName: "Daffa",
+          }),
+          entry({
+            entryId: "e2",
+            eventCode: "CASE_ESCALATED_TO_PUSAT",
+            actorName: "Dewi",
+            note: "Dokumen sudah dilengkapi.",
+          }),
+        ]}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Sent back to HQ")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Sent to HQ")).toBeInTheDocument();
+    expect(screen.getByText("Returned by HQ")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Dokumen sudah dilengkapi."),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows empty copy inside the card", async () => {
     renderWithProviders(
       <CaseHistoryPanel loading={false} error={null} entries={[]} />,

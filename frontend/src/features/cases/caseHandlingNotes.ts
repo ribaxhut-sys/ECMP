@@ -1,6 +1,6 @@
 import type { CmCaseHistoryEntry } from "@/lib/api";
 import { parseCmBatch1Description } from "@/features/complaints/createComplaintForm";
-import { caseHistoryLabelKey } from "./caseHistoryMeta";
+import { caseHistoryDisplayLabelKey } from "./caseHistoryMeta";
 
 export type CaseHandlingNoteSource = "blob" | "history";
 
@@ -127,7 +127,10 @@ function historyNotes(
     notes.push({
       key: entry.entryId || `history-${index}`,
       source: "history",
-      labelKey: caseHistoryLabelKey(entry.eventCode),
+      labelKey: caseHistoryDisplayLabelKey(
+        entry.eventCode,
+        entries.slice(0, index).map((row) => row.eventCode),
+      ),
       eventCode: code,
       text,
       actorName: entry.actorName,

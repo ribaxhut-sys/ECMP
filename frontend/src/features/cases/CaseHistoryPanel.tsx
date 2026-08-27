@@ -17,7 +17,7 @@ import {
 } from "@/shared/ui";
 import {
   CASE_HISTORY_TONES,
-  caseHistoryLabelKey,
+  caseHistoryDisplayLabelKey,
   filterWpCaseHistoryEntries,
   isCaseCloseEvent,
 } from "./caseHistoryMeta";
@@ -66,8 +66,8 @@ export function CaseHistoryPanel({
     setLogPage(1);
   }, [entries]);
 
-  function eventLabel(code: string): string {
-    const key = caseHistoryLabelKey(code);
+  function eventLabel(code: string, priorEventCodes: readonly string[]): string {
+    const key = caseHistoryDisplayLabelKey(code, priorEventCodes);
     return t.has(key as "eventOther") ? t(key as "eventOther") : code;
   }
 
@@ -112,6 +112,12 @@ export function CaseHistoryPanel({
               <ol className="space-y-[var(--ecmp-space-4)]">
                 {paged.map((entry, index) => {
                   const number = (safeLogPage - 1) * LOG_PAGE_SIZE + index + 1;
+                  const originalIndex = entries.findIndex(
+                    (row) => row.entryId === entry.entryId,
+                  );
+                  const priorEventCodes = (
+                    originalIndex >= 0 ? entries.slice(0, originalIndex) : []
+                  ).map((row) => row.eventCode);
                   const arrivalSlotParts =
                     entry.eventCode === "HQ_ARRIVAL_SCHEDULED" &&
                     entry.arrivalDate?.trim() &&
@@ -154,7 +160,7 @@ export function CaseHistoryPanel({
                           <Badge
                             tone={CASE_HISTORY_TONES[entry.eventCode] ?? "neutral"}
                           >
-                            {eventLabel(entry.eventCode)}
+                            {eventLabel(entry.eventCode, priorEventCodes)}
                           </Badge>
                           {arrivalSlotLabel ? (
                             <span className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">

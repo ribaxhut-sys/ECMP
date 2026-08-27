@@ -10,6 +10,7 @@ const fetchCmBatch1Customer360 = vi.fn();
 const fetchUsers = vi.fn();
 const fetchBranches = vi.fn();
 const fetchCmCaseHistory = vi.fn();
+const updateCmCaseStatus = vi.fn();
 const decideCmBatch1IntakeEscalation = vi.fn();
 const escalateCmCaseToPusat = vi.fn();
 const cancelCmCaseEscalationToPusat = vi.fn();
@@ -58,6 +59,7 @@ vi.mock("@/lib/api", async () => {
     fetchUsers: (...args: unknown[]) => fetchUsers(...args),
     fetchBranches: (...args: unknown[]) => fetchBranches(...args),
     fetchCmCaseHistory: (...args: unknown[]) => fetchCmCaseHistory(...args),
+    updateCmCaseStatus: (...args: unknown[]) => updateCmCaseStatus(...args),
     decideCmBatch1IntakeEscalation: (...args: unknown[]) =>
       decideCmBatch1IntakeEscalation(...args),
     escalateCmCaseToPusat: (...args: unknown[]) =>
@@ -136,6 +138,7 @@ describe("CaseDetailView HQ path", () => {
     fetchUsers.mockReset();
     fetchBranches.mockReset();
     fetchCmCaseHistory.mockReset();
+    updateCmCaseStatus.mockReset();
     decideCmBatch1IntakeEscalation.mockReset();
     escalateCmCaseToPusat.mockReset();
     cancelCmCaseEscalationToPusat.mockReset();
@@ -589,6 +592,9 @@ describe("CaseDetailView HQ path", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Request escalation to HQ" }),
     );
+    expect(
+      screen.getByText(/proposed schedule \(optional\)|usulan jadwal \(opsional\)/i),
+    ).toBeInTheDocument();
     await userEvent.type(
       screen.getByLabelText(/escalation reason/i),
       "Case cabang tidak bisa diselesaikan di unit ini.",
@@ -622,7 +628,7 @@ describe("CaseDetailView HQ path", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lets a Pusat officer claim an escalated Case instead of cancel", async () => {
+  it("lets a Pusat officer schedule an escalated Case instead of claiming first", async () => {
     orgUnitCode = "PUSAT";
     authState.userId = "pusat-1";
     authState.roles = ["AGENT"];
@@ -634,10 +640,13 @@ describe("CaseDetailView HQ path", () => {
         handlingClaimedByName: null,
       }),
     });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({ intakeDisposition: "ESCALATE_APPROVED" }),
+    });
     renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
     await waitFor(() => {
       expect(screen.getByTestId("case-with-pusat-note")).toHaveTextContent(
-        /claim handling/i,
+        /accept & schedule|terima & jadwalkan/i,
       );
     });
     expect(
@@ -649,14 +658,59 @@ describe("CaseDetailView HQ path", () => {
     expect(
       screen.queryByRole("button", { name: "Request escalation to HQ" }),
     ).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Take this Case for HQ handling\?|Ambil Case ini untuk ditangani Pusat\?/i),
-      ).toBeInTheDocument();
-    });
+    expect(
+      screen.getByRole("button", { name: "Accept & schedule" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Accept complaint" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Take this Case for HQ handling\?|Ambil Case ini untuk ditangani Pusat\?/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText(/Registered by|Didaftarkan/i),
     ).not.toBeInTheDocument();
+  });
+
+  it("claims HQ handling from the accept button without a confirm modal", async () => {
+    orgUnitCode = "PUSAT";
+    authState.userId = "pusat-1";
+    authState.roles = ["AGENT"];
+    const unclaimed = baseCase({
+      escalatedToPusat: true,
+      owningUnit: "PUSAT",
+      handlingClaimedBy: null,
+      handlingClaimedByName: null,
+    });
+    const claimed = baseCase({
+      escalatedToPusat: true,
+      owningUnit: "PUSAT",
+      handlingClaimedBy: "pusat-1",
+      handlingClaimedByName: "Teguh Prasetyo",
+    });
+    fetchCmCase
+      .mockResolvedValueOnce({ data: unclaimed })
+      .mockResolvedValue({ data: claimed });
+    updateCmCaseStatus.mockResolvedValue({ data: claimed });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Accept complaint" }),
+    );
+    await waitFor(() => {
+      expect(updateCmCaseStatus).toHaveBeenCalledWith(CASE_ID, {
+        toStatus: "IN_PROGRESS",
+        reason: "HANDLE_CLAIM",
+      });
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Accept complaint" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("shows one return button when parent HQ path and Case DEC-029 return overlap", async () => {

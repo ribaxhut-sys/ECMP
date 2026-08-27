@@ -77,6 +77,29 @@ export function caseHistoryLabelKey(eventCode: string): string {
   return CASE_HISTORY_LABEL_KEYS[eventCode] ?? "eventOther";
 }
 
+const RE_ESCALATION_PRIOR_CODES = new Set([
+  "CASE_ESCALATED_TO_PUSAT",
+  "CASE_ESCALATION_RETURNED",
+  "CASE_ESCALATION_TO_PUSAT_CANCELLED",
+]);
+
+/** Same API event as the first send; later sends after return/cancel are re-escalation. */
+export function caseHistoryDisplayLabelKey(
+  eventCode: string,
+  priorEventCodes: readonly string[] = [],
+): string {
+  const code = eventCode.trim().toUpperCase();
+  if (
+    code === "CASE_ESCALATED_TO_PUSAT" &&
+    priorEventCodes.some((prior) =>
+      RE_ESCALATION_PRIOR_CODES.has((prior || "").trim().toUpperCase()),
+    )
+  ) {
+    return "eventCaseReEscalatedToPusat";
+  }
+  return caseHistoryLabelKey(eventCode);
+}
+
 export function isWpCaseHistoryHidden(eventCode: string): boolean {
   return WP_CASE_HISTORY_HIDDEN_CODES.has(eventCode.trim().toUpperCase());
 }

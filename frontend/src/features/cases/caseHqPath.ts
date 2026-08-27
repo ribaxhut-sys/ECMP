@@ -86,6 +86,7 @@ export function hideCaseBranchWorkActions(
   actorIsPusat = false,
   parentReturnedToBranch = false,
   caseReturnedFromPusat = false,
+  openCaseCount = 1,
 ): boolean {
   const status = (caseStatus || "").trim().toUpperCase();
   if (status === "RESOLVED" || status === "CLOSED" || status === "CANCELLED") {
@@ -97,7 +98,11 @@ export function hideCaseBranchWorkActions(
   if (parentReturnedToBranch) {
     return escalatedToPusat && !actorIsPusat;
   }
-  if (onHqPath) return true;
+  if (onHqPath) {
+    if (openCaseCount > 1 && !escalatedToPusat) return false;
+    if (actorIsPusat) return false;
+    return true;
+  }
   if (escalatedToPusat && !actorIsPusat) return true;
   return false;
 }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Generator
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -2087,7 +2087,7 @@ def test_dec029_escalate_to_pusat_from_case_not_parent(
 
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
-    assert parent.intake_disposition is None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
 
     other = service.get_case(sibling.case_id)
     assert other.escalated_to_pusat is False
@@ -2113,6 +2113,87 @@ def test_dec029_escalate_to_pusat_from_case_not_parent(
             )
         )
     assert frozen.value.code == "CASE_WITH_PUSAT"
+
+
+def test_get_case_reopens_hq_schedule_door_when_parent_left_hq_path(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Re-ajuan lab: Case still at Pusat but parent was left RETURNED_TO_BRANCH."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    parent.intake_disposition = "RETURNED_TO_BRANCH"
+    db_session.commit()
+
+    dto = service.get_case(created.case_id)
+    assert dto.escalated_to_pusat is True
+    db_session.refresh(parent)
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+
+
+def test_escalate_to_pusat_stores_optional_proposed_arrival(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+            proposed_arrival_date=date(2099, 8, 20),
+            proposed_arrival_time="09:30",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+    assert parent.proposed_arrival_date == date(2099, 8, 20)
+    assert parent.proposed_arrival_time == "09:30"
 
 
 def test_api_escalate_to_pusat(api_client: TestClient, db_session: Session) -> None:
@@ -2146,6 +2227,9 @@ def test_api_escalate_to_pusat(api_client: TestClient, db_session: Session) -> N
     assert "ESCALATED" not in body["status"]
     assert body["owningUnitId"] == "UNIT-API"
     assert not (body.get("handlingClaimedBy") or "").strip()
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
 
 
 def test_cancel_escalation_to_pusat_before_claim(
@@ -2191,6 +2275,10 @@ def test_cancel_escalation_to_pusat_before_claim(
     assert cancelled.escalated_to_pusat is False
     assert cancelled.owning_unit == "BRANCH"
     assert cancelled.handling_claimed_by == "officer-1"
+
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition is None
 
     with pytest.raises(ApiError) as missing:
         service.cancel_escalation_to_pusat(
@@ -2402,6 +2490,18 @@ def test_pusat_returns_escalated_case_with_note(
     assert parent.intake_disposition == "RETURNED_TO_BRANCH"
     assert parent.hq_accepted_at is None
     assert parent.hq_arrival_date is None
+
+    again = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Dokumen sudah dilengkapi, mohon jadwal penyelesaian di Pusat.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert again.escalated_to_pusat is True
+    db_session.refresh(parent)
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
 
 
 def test_return_escalation_keeps_parent_hq_path_while_sibling_still_at_pusat(

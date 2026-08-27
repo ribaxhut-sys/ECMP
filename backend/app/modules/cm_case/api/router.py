@@ -732,6 +732,9 @@ def escalate_case_to_pusat(
             reason=body.reason,
             actor_id=str(principal.user_id),
             actor_unit_id=_actor_unit(principal, session),
+            proposed_arrival_date=body.proposed_arrival_date,
+            proposed_arrival_time=(body.proposed_arrival_time or "").strip()
+            or None,
         )
     )
     return DataResponse(data=_to_response(dto, session=session))

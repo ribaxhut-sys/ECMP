@@ -78,9 +78,7 @@ import {
 import { useCmCaseHistory } from "./useCmCaseHistory";
 import { ResolveCaseDialog } from "./ResolveCaseDialog";
 import {
-  getCaseHandleDecision,
   markCaseHandleClaimed,
-  markCaseHandleViewed,
   rememberCaseId,
   shouldAskHandleClaim,
 } from "./caseSessionRegistry";
@@ -262,12 +260,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [reassigning, setReassigning] = useState(false);
   const [complaintNumber, setComplaintNumber] = useState<string | null>(null);
   const [complaintStatus, setComplaintStatus] = useState<string | null>(null);
-  const [complaintCreatedBy, setComplaintCreatedBy] = useState<string | null>(
-    null,
-  );
-  const [complaintCreatedByName, setComplaintCreatedByName] = useState<
-    string | null
-  >(null);
   const [complaintIntakeDisposition, setComplaintIntakeDisposition] = useState<
     string | null
   >(null);
@@ -294,7 +286,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     null,
   );
   const [complaintSla, setComplaintSla] = useState<ComplaintSla | null>(null);
-  const [handlePromptOpen, setHandlePromptOpen] = useState(false);
+  const [complaintCaseCount, setComplaintCaseCount] = useState(1);
   const [handleClaiming, setHandleClaiming] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -307,6 +299,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   const [cancellingEscalation, setCancellingEscalation] = useState(false);
   const [escalateOpen, setEscalateOpen] = useState(false);
   const [escalateReason, setEscalateReason] = useState("");
+  const [escalateProposed, setEscalateProposed] =
+    useState<HqArrivalSlotValue | null>(null);
   const [escalating, setEscalating] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnNote, setReturnNote] = useState("");
@@ -392,8 +386,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       const complaint = complaintRes?.data ?? null;
       setComplaintNumber(complaint?.complaintNumber?.trim() || null);
       setComplaintStatus(complaint?.status ?? null);
-      setComplaintCreatedBy(complaint?.createdBy?.trim() || null);
-      setComplaintCreatedByName(complaint?.createdByName?.trim() || null);
       setComplaintIntakeDisposition(complaint?.intakeDisposition ?? null);
       setComplaintHqAcceptedAt(complaint?.hqAcceptedAt ?? null);
       setComplaintHqArrivalDate(complaint?.hqArrivalDate ?? null);
@@ -407,6 +399,11 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
           intakeNoteFromDescription(complaint?.description),
       );
       setComplaintSla(complaint?.sla ?? null);
+      setComplaintCaseCount(
+        Array.isArray(complaint?.cases) && complaint.cases.length > 0
+          ? complaint.cases.length
+          : 1,
+      );
       setBranches(branchesRes?.data ?? []);
 
       const fromComplaint = complaint?.customerDisplayName?.trim() || null;
@@ -520,6 +517,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     Boolean(orgReady && actorIsPusat),
     parentReturnedToBranch,
     caseReturnedFromPusat,
+    complaintCaseCount,
   );
   const showParentCancelEscalation =
     !caseReturnedFromPusat &&
@@ -606,20 +604,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   }, [cancelNoteCaretTick]);
-
-  useEffect(() => {
-    if (loading || !data) return;
-    setHandlePromptOpen(
-      !hideBranchActions &&
-        shouldAskHandleClaim({
-          status: data.status,
-          canAct,
-          decision: getCaseHandleDecision(data.caseId),
-          handlingClaimedBy: data.handlingClaimedBy,
-          userId: user?.id,
-        }),
-    );
-  }, [loading, data, canAct, user?.id, hideBranchActions]);
 
   function showSuccess(message: string) {
     setToastTone("success");
@@ -742,27 +726,28 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   );
   const returnedToBranch = parentReturnedToBranch || caseReturnedFromPusat;
   const escalateReasonOk = escalateReason.trim().length >= ESCALATE_REASON_MIN;
-  const handleConfirmIsCreator = Boolean(
-    user?.id?.trim() &&
-      complaintCreatedBy?.trim() &&
-      user.id.trim().toLowerCase() === complaintCreatedBy.trim().toLowerCase(),
-  );
   const handleConfirmIsPusatClaim = Boolean(
     data?.escalatedToPusat &&
       actorIsPusat &&
       !(data.handlingClaimedBy || "").trim(),
   );
-
-  function declineHandleClaim(): void {
-    if (data) markCaseHandleViewed(data.caseId);
-    setHandlePromptOpen(false);
-  }
+  const showHandleClaimButton = Boolean(
+    data &&
+      !hideBranchActions &&
+      !showHqAcceptAndSchedule &&
+      shouldAskHandleClaim({
+        status: data.status,
+        canAct,
+        decision: null,
+        handlingClaimedBy: data.handlingClaimedBy,
+        userId: user?.id,
+      }),
+  );
 
   async function acceptHandleClaim(): Promise<void> {
     if (!data || handleClaiming) return;
     if (sameUserId(data.handlingClaimedBy, user?.id)) {
       markCaseHandleClaimed(data.caseId);
-      setHandlePromptOpen(false);
       return;
     }
     setHandleClaiming(true);
@@ -772,8 +757,8 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         reason: "HANDLE_CLAIM",
       });
       markCaseHandleClaimed(data.caseId);
-      setHandlePromptOpen(false);
       await reload();
+      showSuccess(t("handleClaimSuccess"));
     } catch (err) {
       showErrorToast(
         err instanceof ApiError
@@ -865,10 +850,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     try {
       const res = await escalateCmCaseToPusat(data.caseId, {
         reason: escalateReason.trim(),
+        ...(escalateProposed?.date.trim() && escalateProposed.time.trim()
+          ? {
+              proposedArrivalDate: escalateProposed.date.trim(),
+              proposedArrivalTime: escalateProposed.time.trim(),
+            }
+          : {}),
       });
       setData(res.data);
       setEscalateOpen(false);
       setEscalateReason("");
+      setEscalateProposed(null);
       showSuccess(t("escalateToPusatSuccess"));
       await reload();
     } catch (err) {
@@ -1135,7 +1127,9 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     : null;
 
   const hqPhaseTitle =
-    hqPath.phase === "scheduled" || hqPath.phase === "accepted_unscheduled"
+    hqPath.phase === "scheduled" ||
+    hqPath.phase === "accepted_unscheduled" ||
+    (hqPath.phase === "awaiting_accept" && !data?.escalatedToPusat)
       ? hqPageTitle
       : null;
 
@@ -1549,12 +1543,28 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
                 {tComplaints("hqReturn")}
               </Button>
             ) : null}
+            {showHandleClaimButton ? (
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="case-handle-claim"
+                onClick={() => void acceptHandleClaim()}
+                loading={handleClaiming}
+              >
+                {handleConfirmIsPusatClaim
+                  ? t("handleClaimPusat")
+                  : t("handleClaim")}
+              </Button>
+            ) : null}
             {showEscalateToPusat ? (
               <Button
                 type="button"
                 variant="outline"
                 data-testid="case-escalate-to-pusat"
-                onClick={() => setEscalateOpen(true)}
+                onClick={() => {
+                  setEscalateProposed(null);
+                  setEscalateOpen(true);
+                }}
                 disabled={escalating}
               >
                 {returnedToBranch
@@ -1877,48 +1887,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         tone={toastTone}
       />
       <Modal
-        open={handlePromptOpen}
-        onClose={declineHandleClaim}
-        title={
-          handleConfirmIsPusatClaim
-            ? tComplaints("handleConfirmPusatClaimTitle")
-            : tComplaints("handleConfirmTitle")
-        }
-        size="sm"
-        footer={
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={declineHandleClaim}
-              disabled={handleClaiming}
-            >
-              {tCommon("no")}
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void acceptHandleClaim()}
-              loading={handleClaiming}
-            >
-              {tCommon("yes")}
-            </Button>
-          </div>
-        }
-      >
-        <p className="text-ecmp-text-primary">
-          {handleConfirmIsPusatClaim
-            ? tComplaints("handleConfirmPusatClaimBody")
-            : handleConfirmIsCreator
-              ? tComplaints("handleConfirmContinueBody")
-              : tComplaints("handleConfirmTakeoverBody", {
-                  name:
-                    complaintCreatedByName?.trim() ||
-                    createdByLabel?.trim() ||
-                    tCommon("emDash"),
-                })}
-        </p>
-      </Modal>
-      <Modal
         open={reassignOpen}
         onClose={() => setReassignOpen(false)}
         title={tComplaints("penangananReassignTitle")}
@@ -1968,6 +1936,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
         onClose={() => {
           if (escalating) return;
           setEscalateOpen(false);
+          setEscalateProposed(null);
         }}
         title={t("escalateToPusatTitle")}
         size="md"
@@ -2013,6 +1982,19 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
             disabled={escalating}
             required
           />
+          <div className="space-y-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border p-3">
+            <p className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
+              {t("escalateProposedArrivalTitle")}
+            </p>
+            <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+              {t("escalateProposedArrivalHint")}
+            </p>
+            <HqArrivalSlotPicker
+              value={escalateProposed}
+              onChange={setEscalateProposed}
+              disabled={escalating}
+            />
+          </div>
         </div>
       </Modal>
       <Modal

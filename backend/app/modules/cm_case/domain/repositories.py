@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 
 from app.modules.cm_case.domain.aggregate import CaseAggregate
@@ -131,6 +131,21 @@ class CaseRepository(Protocol):
 
     def mark_parent_returned_to_branch(self, complaint_id: str) -> None:
         """API-521 — set parent ``RETURNED_TO_BRANCH`` and clear HQ accept/slot."""
+        ...
+
+    def mark_parent_awaiting_hq_schedule(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date | None = None,
+        proposed_time: str | None = None,
+        proposed_by: str | None = None,
+    ) -> None:
+        """Open the parent HQ schedule door (``ESCALATE_APPROVED``) for this Case."""
+        ...
+
+    def close_parent_hq_schedule_door_if_idle(self, complaint_id: str) -> None:
+        """If no Case remains at Pusat, drop the unused ``ESCALATE_APPROVED`` door."""
         ...
 
     def latest_case_escalation_event(

@@ -158,6 +158,32 @@ describe("collectCaseHandlingNotes", () => {
     ]);
     expect(notes.map((row) => row.text)).toEqual(["Catatan buat case"]);
   });
+
+  it("labels a later escalate note as re-escalation after HQ return", () => {
+    const notes = collectCaseHandlingNotes("Keluhan", [
+      entry({
+        entryId: "1",
+        eventCode: "CASE_ESCALATED_TO_PUSAT",
+        note: "Perlu bantuan Pusat",
+      }),
+      entry({
+        entryId: "2",
+        eventCode: "CASE_ESCALATION_RETURNED",
+        note: "Bukan kewenangan Pusat",
+      }),
+      entry({
+        entryId: "3",
+        eventCode: "CASE_ESCALATED_TO_PUSAT",
+        note: "Dokumen sudah dilengkapi",
+      }),
+    ]);
+    expect(notes.map((row) => row.labelKey)).toEqual([
+      "eventCaseEscalatedToPusat",
+      "eventCaseEscalationReturned",
+      "eventCaseReEscalatedToPusat",
+    ]);
+    expect(notes[2]?.text).toBe("Dokumen sudah dilengkapi");
+  });
 });
 
 describe("groupCaseHandlingNotes", () => {

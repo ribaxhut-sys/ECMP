@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(frozen=True)
@@ -100,6 +100,8 @@ class EscalateToPusatCommand:
     reason: str
     actor_id: str
     actor_unit_id: str | None = None
+    proposed_arrival_date: date | None = None
+    proposed_arrival_time: str | None = None
 
 
 @dataclass(frozen=True)

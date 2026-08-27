@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  caseHistoryDisplayLabelKey,
   filterWpCaseHistoryEntries,
   isWpCaseHistoryHidden,
 } from "./caseHistoryMeta";
@@ -21,5 +22,22 @@ describe("filterWpCaseHistoryEntries", () => {
       "CASE_RESOLVED",
       "CASE_CLOSED",
     ]);
+  });
+});
+
+describe("caseHistoryDisplayLabelKey", () => {
+  it("keeps the first send-to-HQ label", () => {
+    expect(caseHistoryDisplayLabelKey("CASE_ESCALATED_TO_PUSAT", [])).toBe(
+      "eventCaseEscalatedToPusat",
+    );
+  });
+
+  it("labels a later send after HQ return as re-escalation", () => {
+    expect(
+      caseHistoryDisplayLabelKey("CASE_ESCALATED_TO_PUSAT", [
+        "CASE_ESCALATED_TO_PUSAT",
+        "CASE_ESCALATION_RETURNED",
+      ]),
+    ).toBe("eventCaseReEscalatedToPusat");
   });
 });

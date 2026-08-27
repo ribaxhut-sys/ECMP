@@ -59,6 +59,12 @@ describe("hideCaseBranchWorkActions", () => {
     expect(hideCaseBranchWorkActions(false, "RESOLVED", true)).toBe(false);
   });
 
+  it("lets a sibling Case stay at the branch while another Case requested HQ schedule", () => {
+    expect(
+      hideCaseBranchWorkActions(true, "IN_PROGRESS", false, false, false, false, 2),
+    ).toBe(false);
+  });
+
   it("lets the branch work again after Pusat returned the Case", () => {
     expect(
       hideCaseBranchWorkActions(true, "IN_PROGRESS", false, false, true),
@@ -75,6 +81,12 @@ describe("hideCaseBranchWorkActions", () => {
     expect(hideCaseBranchWorkActions(false, "IN_PROGRESS", true, true)).toBe(
       false,
     );
+  });
+
+  it("lets Pusat keep Case work while the parent waits for Accept & schedule", () => {
+    expect(
+      hideCaseBranchWorkActions(true, "IN_PROGRESS", true, true),
+    ).toBe(false);
   });
 });
 

@@ -6,9 +6,12 @@ No Notification / Assignment / SLA / Event engines. Audit + Complaint Timeline o
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import replace
+from datetime import date, datetime
 from typing import Protocol
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from app.core.authorization.principal import Principal
 from app.modules.audit.repository import AuditRepository
@@ -68,6 +71,8 @@ def _intake_action(raw: str | None) -> str | None:
 
 HANDLE_CLAIM_REASON = "HANDLE_CLAIM"
 HANDLE_REASSIGN_REASON = "HANDLE_REASSIGN"
+_OPERATOR_TZ = ZoneInfo("Asia/Jakarta")
+_HHMM = re.compile(r"^\d{2}:\d{2}$")
 
 
 def _normalize_actor_id(value: str | None) -> str:
@@ -90,6 +95,28 @@ def _ids_equal(left: str | None, right: str | None) -> bool:
     a = _normalize_actor_id(left)
     b = _normalize_actor_id(right)
     return bool(a) and a == b
+
+
+def _validate_proposed_arrival(
+    proposed_date: date | None, proposed_time: str | None
+) -> None:
+    if proposed_date is None and not (proposed_time or "").strip():
+        return
+    if proposed_date is None or not (proposed_time or "").strip():
+        raise err.validation(
+            "proposedArrivalDate and proposedArrivalTime must be provided together",
+            details={"field": "proposedArrivalDate"},
+        )
+    if _HHMM.match((proposed_time or "").strip()) is None:
+        raise err.validation(
+            "proposedArrivalTime must be HH:MM",
+            details={"field": "proposedArrivalTime"},
+        )
+    if proposed_date < datetime.now(_OPERATOR_TZ).date():
+        raise err.validation(
+            "proposedArrivalDate cannot be in the past",
+            details={"field": "proposedArrivalDate"},
+        )
 
 
 def _assert_current_handler(case: CaseAggregate, actor_id: str) -> None:
@@ -484,6 +511,7 @@ class CaseApplicationService:
                     "CaseId is not a member of the supplied Complaint context.",
                 )
         self._repair_parent_after_case_return(case)
+        self._repair_parent_hq_schedule_door(case)
         return to_case_dto(case)
 
     def _repair_parent_after_case_return(self, case: CaseAggregate) -> None:
@@ -511,6 +539,25 @@ class CaseApplicationService:
         if (parent.status or "").strip().upper() == "CLOSED":
             return
         self._repo.mark_parent_returned_to_branch(case.complaint_id)
+        self._repo.commit()
+
+    def _repair_parent_hq_schedule_door(self, case: CaseAggregate) -> None:
+        """Open Terima & jadwalkan when a Case is at Pusat but the parent left HQ path."""
+        if not case.escalated_to_pusat:
+            return
+        if case.status in (
+            CaseStatus.CLOSED,
+            CaseStatus.CANCELLED,
+            CaseStatus.RESOLVED,
+        ):
+            return
+        parent = self._repo.get_parent_complaint(case.complaint_id)
+        if parent is None or (parent.status or "").strip().upper() == "CLOSED":
+            return
+        disposition = (parent.intake_disposition or "").strip().upper()
+        if disposition in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
+            return
+        self._repo.mark_parent_awaiting_hq_schedule(case.complaint_id)
         self._repo.commit()
 
     def list_cases(
@@ -826,12 +873,22 @@ class CaseApplicationService:
         return to_case_dto(case)
 
     def escalate_to_pusat(self, cmd: EscalateToPusatCommand) -> CaseDTO:
-        """DEC-029 / API-520 lab — this Case only; parent intakeDisposition unchanged."""
+        """DEC-029 / API-520 lab — this Case only; parent opens HQ schedule door."""
+        _validate_proposed_arrival(
+            cmd.proposed_arrival_date, cmd.proposed_arrival_time
+        )
         case = self._require(cmd.case_id)
         before = case.to_snapshot()
         origin_unit = case.owning_unit_id
         case.escalate_to_pusat(reason=cmd.reason)
         self._repo.save(case)
+        proposed_time = (cmd.proposed_arrival_time or "").strip() or None
+        self._repo.mark_parent_awaiting_hq_schedule(
+            case.complaint_id,
+            proposed_date=cmd.proposed_arrival_date,
+            proposed_time=proposed_time,
+            proposed_by=cmd.actor_id if cmd.proposed_arrival_date else None,
+        )
         self._effects.record_case_event(
             case=case,
             event_name="CaseEscalatedToPusat",
@@ -880,6 +937,8 @@ class CaseApplicationService:
             after=case.to_snapshot(),
             note=(cmd.reason or "").strip() or None,
         )
+        if not self._repo.has_open_escalated_cases(case.complaint_id):
+            self._repo.close_parent_hq_schedule_door_if_idle(case.complaint_id)
         self._repo.commit()
         return to_case_dto(case)
 

@@ -183,6 +183,8 @@ export interface CloseCmCaseRequest {
 
 export interface EscalateCmCaseToPusatRequest {
   reason: string;
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
 }
 
 export type CancelCmCaseEscalationToPusatRequest = EscalateCmCaseToPusatRequest;
