@@ -39,6 +39,7 @@ export type QueueHealthLabelKey =
   | "waitingEscalationApproval"
   | "waitingHqEscalation"
   | "escalationScheduled"
+  | "returnedToBranch"
   | "pusatIntakeQueue"
   | "pusatFollowUpQueue"
   | "hqScheduleToday";
@@ -77,7 +78,10 @@ export function dashboardEmptyWorkCta(
 
 /**
  * Queue-health bars.
- * Cabang: assignment → HQ path (proportional meters).
+ * Cabang: remaining branch work (returned → assignment → approval →
+ * handling). Zero rows and the HQ pipeline are omitted — those belong on
+ * the donut, not the work meter. Handling subtracts returned so the two
+ * rows do not double-count IN_PROGRESS + RETURNED_TO_BRANCH.
  * Pusat: work pipeline only — intake → today → all scheduled. Zero rows
  * are omitted so empty stages do not look "healthy"; no shared bar scale
  * (counts are different grains and must not compete visually).
@@ -93,10 +97,12 @@ export function buildQueueHealthRows(input: {
   hqScheduleToday?: number;
   pusatQueueHref?: string | null;
   hqScheduleTodayHref?: string | null;
+  returnedToBranch?: number;
+  inProgressHref?: string | null;
+  returnedToBranchHref?: string | null;
 }): QueueHealthRowSpec[] {
   const waitingAssignment = countByStatus(input.byStatus, "waitingAssignment") ?? 0;
   const escalated = countByStatus(input.byStatus, "escalatePending") ?? 0;
-  const waitingHq = countByStatus(input.byStatus, "escalateApproved") ?? 0;
   const hqScheduled = countByStatus(input.byStatus, "escalateScheduled") ?? 0;
   if (input.audience === "pusat") {
     const pusatQueue = input.pusatQueue ?? 0;
@@ -126,36 +132,40 @@ export function buildQueueHealthRows(input: {
     ];
     return rows.filter((row) => row.count > 0);
   }
-  return [
+  const returned = Math.max(0, input.returnedToBranch ?? 0);
+  const inProgress = countByStatus(input.byStatus, "IN_PROGRESS") ?? 0;
+  const handling = Math.max(0, inProgress - returned);
+  const rows: QueueHealthRowSpec[] = [
+    {
+      id: "returned-to-branch",
+      queueKey: "returnedToBranch",
+      count: returned,
+      tone: "attention",
+      href: input.returnedToBranchHref ?? null,
+    },
     {
       id: "waiting-assignment",
       queueKey: "waitingAssignment",
       count: waitingAssignment,
-      tone: waitingAssignment > 0 ? "attention" : "healthy",
+      tone: "attention",
       href: input.waitingAssignmentHref,
     },
     {
       id: "waiting-escalation",
       queueKey: "waitingEscalationApproval",
       count: escalated,
-      tone: escalated > 0 ? "attention" : "healthy",
+      tone: "attention",
       href: input.escalationHref,
     },
     {
-      id: "waiting-hq-escalation",
-      queueKey: "waitingHqEscalation",
-      count: waitingHq,
-      tone: waitingHq > 0 ? "attention" : "healthy",
-      href: input.hqEscalationHref,
-    },
-    {
-      id: "hq-scheduled",
-      queueKey: "escalationScheduled",
-      count: hqScheduled,
-      tone: hqScheduled > 0 ? "attention" : "healthy",
-      href: input.hqScheduledHref,
+      id: "in-progress",
+      queueKey: "queueInProgress",
+      count: handling,
+      tone: "attention",
+      href: input.inProgressHref ?? null,
     },
   ];
+  return rows.filter((row) => row.count > 0);
 }
 
 export const CRITICAL_ALERT_VISIBLE_LIMIT = 4;
@@ -364,6 +374,8 @@ export function resolveSystemHealth(input: {
   waitingAssignment?: number;
   escalatePending?: number;
   escalateScheduled?: number;
+  inProgress?: number;
+  returnedToBranch?: number;
   pusatQueue?: number;
   pusatFollowUp?: number;
   hqScheduleToday?: number;
@@ -378,6 +390,8 @@ export function resolveSystemHealth(input: {
   const waiting = input.waitingAssignment ?? 0;
   const escalate = input.escalatePending ?? 0;
   const scheduled = input.escalateScheduled ?? 0;
+  const inProgress = input.inProgress ?? 0;
+  const returned = input.returnedToBranch ?? 0;
   const pusatQueue = input.pusatQueue ?? 0;
   const pusatFollowUp = input.pusatFollowUp ?? 0;
   const hqToday = input.hqScheduleToday ?? 0;
@@ -386,6 +400,8 @@ export function resolveSystemHealth(input: {
     waiting > 0 ||
     escalate > 0 ||
     scheduled > 0 ||
+    inProgress > 0 ||
+    returned > 0 ||
     pusatQueue > 0 ||
     pusatFollowUp > 0 ||
     hqToday > 0

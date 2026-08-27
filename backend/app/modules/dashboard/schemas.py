@@ -206,6 +206,10 @@ class DashboardAggregateKpiResponse(BaseModel):
     #: ``HQ_SCHEDULED``). Cabang dashboard drops these from its work book;
     #: Pusat keeps them. Does not change DEC-025 ``open + closed == total``.
     hq_accepted_open: int = Field(default=0, alias="hqAcceptedOpen")
+    #: Open and returned to the branch (``RETURNED_TO_BRANCH``). Extra KPI
+    #: for cabang queue health — not a donut slice; those rows stay in
+    #: ``waitingAssignment`` / ``inProgress`` so the partition still sums.
+    returned_to_branch: int = Field(default=0, alias="returnedToBranch")
     in_progress: int = Field(default=0, alias="inProgress")
     sla: DashboardResolutionSla | None = Field(
         default=None,

@@ -1974,6 +1974,7 @@ paths:
                   escalateApproved: 1
                   escalateScheduled: 0
                   hqAcceptedOpen: 0
+                  returnedToBranch: 0
                   inProgress: 2
         "401":
           $ref: "#/components/responses/Unauthenticated"
@@ -5257,6 +5258,7 @@ components:
         - escalateApproved
         - escalateScheduled
         - hqAcceptedOpen
+        - returnedToBranch
         - inProgress
       properties:
         total: { type: integer, minimum: 0 }
@@ -5294,6 +5296,14 @@ components:
             intakeDisposition=HQ_SCHEDULED). Cabang dashboard excludes
             these from its work book; Pusat keeps them. DEC-025
             open+closed=total is unchanged on this wire.
+        returnedToBranch:
+          type: integer
+          minimum: 0
+          description: >
+            Open and intakeDisposition=RETURNED_TO_BRANCH. Cabang queue
+            health uses this as its own work row. Not a donut slice —
+            those rows stay in waitingAssignment / inProgress so the
+            partition still sums to total.
         inProgress:
           type: integer
           minimum: 0

@@ -235,6 +235,11 @@ export interface DashboardAggregateKpis {
    * Cabang dashboard drops these from its work book; Pusat keeps them.
    */
   hqAcceptedOpen?: number;
+  /**
+   * Open and returned to the branch (`RETURNED_TO_BRANCH`). Cabang queue
+   * health shows this as its own work row; not a donut slice.
+   */
+  returnedToBranch?: number;
   inProgress: number;
   /** DEC-031 rollup; null when SLA measurement is switched off. */
   sla?: DashboardResolutionSla | null;

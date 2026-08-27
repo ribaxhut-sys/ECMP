@@ -31,6 +31,8 @@ export function LiveStatusBar({
   waitingAssignment = 0,
   escalatePending = 0,
   escalateScheduled = 0,
+  inProgress = 0,
+  returnedToBranch = 0,
   pusatQueue = 0,
   pusatFollowUp = 0,
   hqScheduleToday = 0,
@@ -44,6 +46,8 @@ export function LiveStatusBar({
   waitingAssignment?: number;
   escalatePending?: number;
   escalateScheduled?: number;
+  inProgress?: number;
+  returnedToBranch?: number;
   pusatQueue?: number;
   pusatFollowUp?: number;
   hqScheduleToday?: number;
@@ -68,6 +72,8 @@ export function LiveStatusBar({
     waitingAssignment,
     escalatePending,
     escalateScheduled,
+    inProgress,
+    returnedToBranch,
     pusatQueue,
     pusatFollowUp,
     hqScheduleToday,

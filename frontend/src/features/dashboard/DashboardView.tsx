@@ -30,7 +30,10 @@ import { RecentActivity } from "./RecentActivity";
 import { SlaAlertsPanel } from "./SlaAlertsPanel";
 import { SlaCards } from "./SlaCards";
 import { SummaryCards } from "./SummaryCards";
-import { toCabangDashboardBook } from "./loadDashboardData";
+import {
+  dashboardStatusDonutRows,
+  toCabangDashboardBook,
+} from "./loadDashboardData";
 import { useDashboardData } from "./useDashboardData";
 
 export function DashboardView() {
@@ -108,6 +111,8 @@ export function DashboardView() {
             ? (countByStatus(book?.byStatus, "escalateScheduled") ?? 0)
             : 0
         }
+        inProgress={countByStatus(book?.byStatus, "IN_PROGRESS") ?? 0}
+        returnedToBranch={book?.returnedToBranch ?? 0}
         pusatQueue={pusatWork?.queue ?? 0}
         pusatFollowUp={pusatWork?.followUp ?? 0}
         hqScheduleToday={pusatWork?.hqScheduleToday ?? 0}
@@ -170,11 +175,16 @@ export function DashboardView() {
                 byStatus={book?.byStatus ?? null}
                 loading={firstLoad}
                 pusatWork={pusatWork}
+                returnedToBranch={book?.returnedToBranch ?? 0}
               />
             </div>
             <div className="xl:col-span-4">
               <ComplaintByStatus
-                rows={book?.byStatus ?? null}
+                rows={
+                  data && book
+                    ? dashboardStatusDonutRows(data, book, isPusat)
+                    : null
+                }
                 loading={firstLoad}
               />
             </div>

@@ -368,6 +368,7 @@ class CmBatch1ActivityDashboardProvider:
                     escalateApproved=0,
                     escalateScheduled=0,
                     hqAcceptedOpen=0,
+                    returnedToBranch=0,
                     inProgress=0,
                     sla=_empty_sla(target_days),
                 )
@@ -416,6 +417,10 @@ class CmBatch1ActivityDashboardProvider:
                 "hq_accepted_open",
             ),
             _tally(
+                and_(is_open, disposition == "RETURNED_TO_BRANCH"),
+                "returned_to_branch",
+            ),
+            _tally(
                 and_(
                     status_col == "IN_PROGRESS",
                     or_(disposition.is_(None), disposition != HQ_SCHEDULED),
@@ -446,6 +451,7 @@ class CmBatch1ActivityDashboardProvider:
             escalateApproved=int(row.escalate_approved or 0),
             escalateScheduled=int(row.escalate_scheduled or 0),
             hqAcceptedOpen=int(row.hq_accepted_open or 0),
+            returnedToBranch=int(row.returned_to_branch or 0),
             inProgress=int(row.in_progress or 0),
             sla=_sla_from_row(row, target_days) if measuring else None,
         )

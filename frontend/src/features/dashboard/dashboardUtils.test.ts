@@ -157,10 +157,10 @@ describe("buildQueueHealthRows", () => {
     { status: "escalateApproved" as const, count: 2 },
     { status: "escalateScheduled" as const, count: 1 },
     { status: "CLOSED" as const, count: 6 },
-    { status: "IN_PROGRESS" as const, count: 0 },
+    { status: "IN_PROGRESS" as const, count: 3 },
   ];
 
-  it("shows assignment + HQ-path bars from CM Aggregate", () => {
+  it("shows remaining cabang work and drops the HQ pipeline plus zeros", () => {
     const rows = buildQueueHealthRows({
       byStatus,
       waitingAssignmentHref:
@@ -169,24 +169,52 @@ describe("buildQueueHealthRows", () => {
         "/complaints?intakeDisposition=ESCALATE_PENDING_APPROVAL",
       hqEscalationHref: "/complaints?intakeDisposition=ESCALATE_APPROVED",
       hqScheduledHref: "/complaints?intakeDisposition=HQ_SCHEDULED",
+      returnedToBranch: 1,
+      inProgressHref: "/complaints?status=IN_PROGRESS",
+      returnedToBranchHref: "/complaints?intakeDisposition=RETURNED_TO_BRANCH",
     });
 
     expect(rows.map((row) => row.id)).toEqual([
+      "returned-to-branch",
       "waiting-assignment",
       "waiting-escalation",
-      "waiting-hq-escalation",
-      "hq-scheduled",
+      "in-progress",
     ]);
-    expect(rows[0]?.count).toBe(4);
+    expect(rows[0]?.count).toBe(1);
+    expect(rows[0]?.queueKey).toBe("returnedToBranch");
     expect(rows[1]?.count).toBe(4);
-    expect(rows[1]?.queueKey).toBe("waitingEscalationApproval");
-    expect(rows[2]?.count).toBe(2);
-    expect(rows[2]?.queueKey).toBe("waitingHqEscalation");
-    expect(rows[3]?.count).toBe(1);
-    expect(rows[3]?.queueKey).toBe("escalationScheduled");
+    expect(rows[2]?.count).toBe(4);
+    expect(rows[3]?.count).toBe(2);
+    expect(rows[3]?.queueKey).toBe("queueInProgress");
+    expect(rows.some((row) => row.id === "hq-scheduled")).toBe(false);
+    expect(rows.some((row) => row.id === "waiting-hq-escalation")).toBe(false);
   });
 
-  it("keeps HQ bars at zero when those slices are absent", () => {
+  it("splits returned-to-branch out of in-progress so the cabang meter matches the work book", () => {
+    const rows = buildQueueHealthRows({
+      byStatus: [
+        { status: "waitingAssignment" as const, count: 0 },
+        { status: "escalatePending" as const, count: 0 },
+        { status: "escalateApproved" as const, count: 0 },
+        { status: "escalateScheduled" as const, count: 0 },
+        { status: "IN_PROGRESS" as const, count: 7 },
+        { status: "CLOSED" as const, count: 11 },
+      ],
+      waitingAssignmentHref: null,
+      escalationHref: null,
+      hqEscalationHref: null,
+      hqScheduledHref: null,
+      returnedToBranch: 3,
+      inProgressHref: "/complaints?status=IN_PROGRESS",
+      returnedToBranchHref: "/complaints?intakeDisposition=RETURNED_TO_BRANCH",
+    });
+    expect(rows.map((row) => [row.id, row.count])).toEqual([
+      ["returned-to-branch", 3],
+      ["in-progress", 4],
+    ]);
+  });
+
+  it("omits empty cabang stages including a zeroed HQ-scheduled slice", () => {
     const rows = buildQueueHealthRows({
       byStatus: [{ status: "waitingAssignment" as const, count: 1 }],
       waitingAssignmentHref: null,
@@ -194,7 +222,8 @@ describe("buildQueueHealthRows", () => {
       hqEscalationHref: null,
       hqScheduledHref: null,
     });
-    expect(rows.map((row) => row.count)).toEqual([1, 0, 0, 0]);
+    expect(rows.map((row) => row.id)).toEqual(["waiting-assignment"]);
+    expect(rows.map((row) => row.count)).toEqual([1]);
   });
 
   it("replaces cabang bars with a Pusat pipeline and drops empty stages", () => {
@@ -340,6 +369,20 @@ describe("resolveSystemHealth", () => {
         escalatePending: 0,
       }),
     ).toBe("healthy");
+  });
+
+  it("asks for attention when cabang still has in-progress or returned work", () => {
+    expect(
+      resolveSystemHealth({
+        loading: false,
+        error: false,
+        sla: null,
+        waitingAssignment: 0,
+        escalatePending: 0,
+        inProgress: 7,
+        returnedToBranch: 3,
+      }),
+    ).toBe("attention");
   });
 
   it("asks for attention when Pusat HQ work is waiting", () => {

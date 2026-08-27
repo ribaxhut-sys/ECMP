@@ -22,6 +22,8 @@ export type AggregateDashboardKpis = {
   escalateScheduled: number;
   /** Open rows already accepted by Pusat — cabang book subtracts these. */
   hqAcceptedOpen: number;
+  /** Open rows HQ returned to the branch — cabang queue health only. */
+  returnedToBranch: number;
   inProgress: number;
   /** Mutually exclusive operational slices — sum equals total. */
   byStatus: StatusCount[];
@@ -46,6 +48,8 @@ export type DashboardData = {
    * work book; Pusat leaves the raw Aggregate counts alone.
    */
   hqAcceptedOpen: number;
+  /** Open + returned to the branch. Cabang queue health, not the donut. */
+  returnedToBranch: number;
 };
 
 export function buildAggregateKpis(input: {
@@ -57,12 +61,14 @@ export function buildAggregateKpis(input: {
   escalateApproved?: number;
   escalateScheduled?: number;
   hqAcceptedOpen?: number;
+  returnedToBranch?: number;
   inProgress?: number;
   sla?: DashboardResolutionSla | null;
 }): AggregateDashboardKpis {
   const escalateApproved = input.escalateApproved ?? 0;
   const escalateScheduled = input.escalateScheduled ?? 0;
   const hqAcceptedOpen = input.hqAcceptedOpen ?? 0;
+  const returnedToBranch = input.returnedToBranch ?? 0;
   const inProgress = input.inProgress ?? 0;
   const waitingAssignment =
     input.waitingAssignment ??
@@ -117,6 +123,7 @@ export function buildAggregateKpis(input: {
     escalateApproved,
     escalateScheduled,
     hqAcceptedOpen,
+    returnedToBranch,
     inProgress,
     byStatus,
     header: {
@@ -140,6 +147,7 @@ async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
     escalateApproved: data.escalateApproved,
     escalateScheduled: data.escalateScheduled,
     hqAcceptedOpen: data.hqAcceptedOpen ?? 0,
+    returnedToBranch: data.returnedToBranch ?? 0,
     inProgress: data.inProgress,
     sla: data.sla ?? null,
   });
@@ -163,7 +171,9 @@ function sliceCount(
  *
  * DEC-025 `open + closed == total` stays on the wire. This is a dashboard
  * presentation partition so branch closure-rate / queue health / status bar
- * are not dragged by HQ-owned work. Pusat dashboard must not call this.
+ * are not dragged by HQ-owned work. The status donut must NOT use this
+ * book — cabang still needs to see origin rows that Pusat already accepted
+ * (`dashboardStatusDonutRows`). Pusat dashboard must not call this.
  */
 export function toCabangDashboardBook(data: DashboardData): DashboardData {
   const scheduled = sliceCount(data.byStatus, "escalateScheduled");
@@ -203,6 +213,19 @@ export function toCabangDashboardBook(data: DashboardData): DashboardData {
 }
 
 /**
+ * Status donut rows. Cabang uses the unpartitioned Aggregate slices so
+ * `HQ_SCHEDULED` / accepted-by-Pusat remain visible; the work book still
+ * hides them from rate and queue health. Pusat is already unpartitioned.
+ */
+export function dashboardStatusDonutRows(
+  origin: DashboardData,
+  workBook: DashboardData,
+  isPusat: boolean,
+): StatusCount[] | null {
+  return isPusat ? workBook.byStatus : origin.byStatus;
+}
+
+/**
  * Dashboard payload (DEC-026): CM Aggregate is the only complaint SoT.
  * The SLA rollup rides on the aggregate-KPI response (DEC-031) — no extra
  * round trip, and no scheduler behind it.
@@ -223,5 +246,6 @@ export async function loadDashboardData(): Promise<DashboardData> {
     byStatus: aggregate.value.byStatus,
     trend: trends.status === "fulfilled" ? trends.value.data.items : null,
     hqAcceptedOpen: aggregate.value.hqAcceptedOpen,
+    returnedToBranch: aggregate.value.returnedToBranch,
   };
 }

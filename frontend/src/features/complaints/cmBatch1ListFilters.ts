@@ -42,6 +42,13 @@ export const CM_BATCH1_ESCALATION_APPROVED_HREF =
 export const CM_BATCH1_HQ_SCHEDULED_HREF =
   "/complaints?intakeDisposition=HQ_SCHEDULED";
 
+/** Aggregate list filtered to complaints HQ returned to the branch. */
+export const CM_BATCH1_RETURNED_TO_BRANCH_HREF =
+  "/complaints?intakeDisposition=RETURNED_TO_BRANCH";
+
+/** Aggregate list filtered to in-progress complaints. */
+export const CM_BATCH1_IN_PROGRESS_HREF = "/complaints?status=IN_PROGRESS";
+
 /** Pusat Pengaduan default — Cases escalated to Pusat and never handled. */
 export const CM_BATCH1_PUSAT_UNHANDLED_HREF =
   "/complaints?needsPusatHandling=1";

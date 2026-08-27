@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildAggregateKpis, toCabangDashboardBook } from "./loadDashboardData";
+import {
+  buildAggregateKpis,
+  dashboardStatusDonutRows,
+  toCabangDashboardBook,
+} from "./loadDashboardData";
 
 describe("buildAggregateKpis", () => {
   it("maps Aggregate totals into dashboard header and status chips", () => {
@@ -90,7 +94,7 @@ describe("buildAggregateKpis", () => {
 });
 
 describe("toCabangDashboardBook", () => {
-  it("drops HQ-accepted open rows from cabang totals, rate book, and donut", () => {
+  it("drops HQ-accepted open rows from cabang totals, rate, and queue book", () => {
     const kpis = buildAggregateKpis({
       total: 30,
       open: 19,
@@ -108,6 +112,7 @@ describe("toCabangDashboardBook", () => {
       byStatus: kpis.byStatus,
       trend: null,
       hqAcceptedOpen: 12,
+      returnedToBranch: kpis.returnedToBranch,
     });
     expect(book.header).toEqual({
       totalComplaints: 18,
@@ -147,6 +152,7 @@ describe("toCabangDashboardBook", () => {
       byStatus: kpis.byStatus,
       trend: null,
       hqAcceptedOpen: 0,
+      returnedToBranch: kpis.returnedToBranch,
     };
     expect(toCabangDashboardBook(data)).toBe(data);
   });
@@ -169,6 +175,7 @@ describe("toCabangDashboardBook", () => {
       byStatus: kpis.byStatus,
       trend: null,
       hqAcceptedOpen: 3,
+      returnedToBranch: kpis.returnedToBranch,
     });
     expect(book.header).toEqual({
       totalComplaints: 2,
@@ -181,5 +188,59 @@ describe("toCabangDashboardBook", () => {
     expect(
       book.byStatus?.find((row) => row.status === "IN_PROGRESS")?.count,
     ).toBe(1);
+  });
+});
+
+describe("dashboardStatusDonutRows", () => {
+  it("keeps HQ-scheduled on the cabang donut while the work book drops them", () => {
+    const kpis = buildAggregateKpis({
+      total: 30,
+      open: 19,
+      closed: 11,
+      escalatePending: 0,
+      waitingAssignment: 0,
+      escalateApproved: 0,
+      escalateScheduled: 12,
+      hqAcceptedOpen: 12,
+      inProgress: 7,
+    });
+    const origin = {
+      header: kpis.header,
+      sla: null,
+      byStatus: kpis.byStatus,
+      trend: null,
+      hqAcceptedOpen: 12,
+      returnedToBranch: kpis.returnedToBranch,
+    };
+    const book = toCabangDashboardBook(origin);
+    const donut = dashboardStatusDonutRows(origin, book, false);
+    expect(
+      donut?.find((row) => row.status === "escalateScheduled")?.count,
+    ).toBe(12);
+    expect(donut?.reduce((sum, row) => sum + row.count, 0)).toBe(30);
+    expect(
+      book.byStatus?.find((row) => row.status === "escalateScheduled")?.count,
+    ).toBe(0);
+  });
+
+  it("uses the unpartitioned book for Pusat", () => {
+    const kpis = buildAggregateKpis({
+      total: 3,
+      open: 3,
+      closed: 0,
+      escalatePending: 0,
+      escalateScheduled: 3,
+      hqAcceptedOpen: 3,
+      inProgress: 0,
+    });
+    const origin = {
+      header: kpis.header,
+      sla: null,
+      byStatus: kpis.byStatus,
+      trend: null,
+      hqAcceptedOpen: 3,
+      returnedToBranch: kpis.returnedToBranch,
+    };
+    expect(dashboardStatusDonutRows(origin, origin, true)).toBe(origin.byStatus);
   });
 });

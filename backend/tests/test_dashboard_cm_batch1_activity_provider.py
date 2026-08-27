@@ -510,6 +510,7 @@ def _kpi_row(**overrides: int) -> SimpleNamespace:
         "escalate_approved": 1,
         "escalate_scheduled": 2,
         "hq_accepted_open": 2,
+        "returned_to_branch": 0,
         "in_progress": 0,
     }
     base.update(overrides)
@@ -537,6 +538,7 @@ def test_complaint_kpis_unrestricted_counts() -> None:
     assert kpis.escalate_approved == 1
     assert kpis.escalate_scheduled == 2
     assert kpis.hq_accepted_open == 2
+    assert kpis.returned_to_branch == 0
     assert kpis.in_progress == 0
     # Slices partition the set: 3 + 4 + 1 + 2 + 0 + 6 = 16
     assert (
@@ -550,6 +552,25 @@ def test_complaint_kpis_unrestricted_counts() -> None:
     )
     # One statement, not one per slice — this endpoint is polled every 60s.
     assert execute.call_count == 1
+
+
+def test_complaint_kpis_exposes_returned_to_branch() -> None:
+    provider, *_ = _provider()
+    _stub_kpi_execute(provider, _kpi_row(returned_to_branch=3))
+
+    kpis = provider.complaint_kpis(branch_id=None)
+
+    assert kpis.returned_to_branch == 3
+    # Extra KPI — must not enter the donut partition.
+    assert (
+        kpis.waiting_assignment
+        + kpis.escalate_pending
+        + kpis.escalate_approved
+        + kpis.escalate_scheduled
+        + kpis.in_progress
+        + kpis.closed
+        == kpis.total
+    )
 
 
 def test_complaint_kpis_omits_sla_when_measurement_is_off() -> None:
@@ -631,6 +652,7 @@ def test_complaint_kpis_branch_with_unknown_unit_is_zero() -> None:
     assert kpis.escalate_pending == 0
     assert kpis.escalate_scheduled == 0
     assert kpis.hq_accepted_open == 0
+    assert kpis.returned_to_branch == 0
     execute.assert_not_called()
 
 

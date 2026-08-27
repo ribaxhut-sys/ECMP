@@ -8,7 +8,9 @@ import {
   CM_BATCH1_ESCALATION_PENDING_HREF,
   CM_BATCH1_HQ_SCHEDULE_PAGE_HREF,
   CM_BATCH1_HQ_SCHEDULED_HREF,
+  CM_BATCH1_IN_PROGRESS_HREF,
   CM_BATCH1_PUSAT_UNHANDLED_HREF,
+  CM_BATCH1_RETURNED_TO_BRANCH_HREF,
   CM_BATCH1_WAITING_ASSIGNMENT_HREF,
 } from "@/features/complaints/cmBatch1ListFilters";
 import type { DashboardHeader, StatusCount } from "@/lib/api/types";
@@ -123,11 +125,13 @@ export function QueueHealth({
   byStatus,
   loading,
   pusatWork = null,
+  returnedToBranch = 0,
 }: {
   header: DashboardHeader | null;
   byStatus: StatusCount[] | null;
   loading: boolean;
   pusatWork?: PusatDashboardWork | null;
+  returnedToBranch?: number;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
@@ -147,7 +151,7 @@ export function QueueHealth({
       >
         <h2 className={DASHBOARD_COMMAND_LABEL}>{t("queueHealth")}</h2>
         <div className="mt-5" aria-busy="true">
-          <Skeleton rows={showMeter ? 5 : 3} />
+          <Skeleton rows={showMeter ? 4 : 3} />
         </div>
       </section>
     );
@@ -179,13 +183,17 @@ export function QueueHealth({
     hqScheduleTodayHref: canOpenComplaintList
       ? CM_BATCH1_HQ_SCHEDULE_PAGE_HREF
       : null,
+    returnedToBranch,
+    inProgressHref: canOpenComplaintList ? CM_BATCH1_IN_PROGRESS_HREF : null,
+    returnedToBranchHref: canOpenComplaintList
+      ? CM_BATCH1_RETURNED_TO_BRANCH_HREF
+      : null,
   });
 
   const max = Math.max(...rows.map((row) => row.count), 1);
   const emptyPortfolio =
-    audience === "pusat"
-      ? rows.length === 0
-      : !header || header.totalComplaints === 0;
+    audience !== "pusat" && (!header || header.totalComplaints === 0);
+  const emptyWork = rows.length === 0;
   const emptyWorkCta = dashboardEmptyWorkCta(audience);
 
   return (
@@ -207,32 +215,36 @@ export function QueueHealth({
 
       {emptyPortfolio ? (
         <div className="mt-5 flex-1">
-          {audience === "pusat" ? (
-            <div className="flex items-center gap-2.5 py-4">
-              <IconCheck
-                className="size-4 shrink-0 text-ecmp-success-text"
-                aria-hidden
-              />
-              <p className="text-[13px] text-ecmp-text-primary">
-                {t("queueHealthPusatClear")}
-              </p>
-            </div>
-          ) : (
-            <Empty
-              className="py-8"
-              icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
-              title={t("noSummaryYet")}
-              description={t("noSummaryDescription")}
-              primaryAction={
-                canOpenComplaintList
-                  ? {
-                      label: tCommon(emptyWorkCta.ctaKey),
-                      onClick: () => router.push(emptyWorkCta.href),
-                    }
-                  : undefined
-              }
+          <Empty
+            className="py-8"
+            icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
+            title={t("noSummaryYet")}
+            description={t("noSummaryDescription")}
+            primaryAction={
+              canOpenComplaintList
+                ? {
+                    label: tCommon(emptyWorkCta.ctaKey),
+                    onClick: () => router.push(emptyWorkCta.href),
+                  }
+                : undefined
+            }
+          />
+        </div>
+      ) : emptyWork ? (
+        <div className="mt-5 flex-1">
+          <div className="flex items-center gap-2.5 py-4">
+            <IconCheck
+              className="size-4 shrink-0 text-ecmp-success-text"
+              aria-hidden
             />
-          )}
+            <p className="text-[13px] text-ecmp-text-primary">
+              {t(
+                audience === "pusat"
+                  ? "queueHealthPusatClear"
+                  : "queueHealthCabangClear",
+              )}
+            </p>
+          </div>
         </div>
       ) : (
         <ul className="mt-5 flex-1 space-y-1">
