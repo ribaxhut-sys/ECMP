@@ -197,7 +197,7 @@ Future batch per DEC-F4 / FRD-CM-002 Draft.
 |---|---|---|---|---|
 | TD-CM-001 | Confirm lock not enforced on create | Known gap (S1/S2) | Medium | **Closed (Mode A lab)** — create requires confirm lock matching `customerId` (2026-07-31) |
 | TD-CM-002 | EnumerationGuard in-process only | Soft limit | Medium | Exception or shared-store epic |
-| TD-CM-003 | Antivirus `STUB_ONLY` default | Integration gap | Medium | Exception until AV adapter approved |
+| TD-CM-003 | Antivirus `STUB_ONLY` default | Integration gap | Medium | Exception until AV adapter approved; calendar re-review **GOV-EX-CM-B1-EXC-RR-001** (2026-08-26) pending countersign |
 | TD-CM-004 | Enterprise CustomerProvider UNAVAILABLE | Integration gap / approved stub | High for real-customer prod | Separate integration epic after approval |
 | TD-CM-005 | Create→attachment bind split TX / later-review path | Known design residual | Low–Medium | Visibility API-513 + `complaintId` (M3b/M3d); TX harden only if approved |
 | TD-OPS-001 | Compose backend image lag vs DB head after local migrate | Operational | High on container restart | Mitigated by TASK-OPS-01 rebuild |

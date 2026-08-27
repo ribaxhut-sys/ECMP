@@ -42,6 +42,7 @@ Proses dan formulir review arsitektur ECMP. Bagian dari Governance (`18`), bukan
 - `ECMP_CM_Batch1_S3_Operational_Migrate_Gate_v1.0.md` (GOV-S3-CM-B1-MIG-001) — local Docker `ecmp` Alembic `0040→0043` + CM smoke
 - `ECMP_CM_Batch1_S3_OPS01_Redeploy_Gate_v1.0.md` (GOV-S3-CM-B1-OPS01-001) — backend rebuild + HTTP CM smoke (supervisor) COMPLETE
 - `ECMP_CM_Batch1_S3_Release_Exception_Pack_v1.0.md` (GOV-EX-CM-B1-S3-001 / EX-20260729-01) — Batch 1 residual exceptions **countersigned lab/synthetic-only**
+- `ECMP_CM_Batch1_EXC_Antivirus_Stub_Rereview_v1.0.md` (GOV-EX-CM-B1-EXC-RR-001 / EX-20260826-01) — EX-C AV `STUB_ONLY` calendar re-review; **pending countersign**; does not exit EX-C / does not authorize AV engine
 - `ECMP_CM_Batch1_S3_OPS03_Customer_Provider_Stance_v1.0.md` (GOV-S3-CM-B1-OPS03-001) — CUSTOMER_PROVIDER=stub stance for lab/synthetic
 - `ECMP_PLATFORM_TD_OPS_003_Admin_RBAC_Repair_v1.0.md` (GOV-PLATFORM-OPS-SEED-001) — ADMIN matrix repair (`0044`)
 - `ECMP_PLATFORM_CI_COV_001_Coverage_Gate_v1.0.md` (GOV-PLATFORM-CI-COV-001) — restore CI coverage gate ≥90%
