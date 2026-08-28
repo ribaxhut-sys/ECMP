@@ -9,9 +9,20 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.errors import ValidationAppError
-from app.modules.reports.pdf import format_report_stamp, report_pdf_filename
+from app.modules.reports.pdf import (
+    format_count,
+    format_period_window,
+    format_report_stamp,
+    format_unit_label,
+    printable_status_rows,
+    report_pdf_filename,
+)
 from app.modules.reports.repository import ReportRepository
-from app.modules.reports.schemas import AggregateComplaintStatus, ReportPrintCategory
+from app.modules.reports.schemas import (
+    AggregateComplaintStatus,
+    ReportPrintCategory,
+    StatusCount,
+)
 from app.modules.reports.service import ReportService
 
 
@@ -178,9 +189,10 @@ def test_cycle_time_forwards_normalized_window_to_repository() -> None:
 def test_print_pdf_all_category_queries_every_metric() -> None:
     repo = MagicMock()
     repo.count_total.return_value = 7
-    repo.count_by_status.return_value = [("REGISTERED", 3), ("CLOSED", 4)]
     repo.count_resolved.return_value = 4
     repo.count_escalated.return_value = 2
+    repo.count_in_progress_at_branch.return_value = 1
+    repo.closed_case_durations_days.return_value = [1.0, 3.0]
 
     pdf_bytes = ReportService(repo).print_pdf(
         category=ReportPrintCategory.ALL, period_label="Bulan ini"
@@ -188,10 +200,11 @@ def test_print_pdf_all_category_queries_every_metric() -> None:
 
     assert pdf_bytes.startswith(b"%PDF")
     repo.count_total.assert_called_once()
-    repo.count_by_status.assert_called_once()
+    repo.count_by_status.assert_not_called()
     repo.count_resolved.assert_called_once()
     repo.count_escalated.assert_called_once()
-    repo.closed_case_durations_days.assert_not_called()
+    repo.count_in_progress_at_branch.assert_called_once()
+    repo.closed_case_durations_days.assert_called_once()
 
 
 def test_print_pdf_escalated_category_skips_unrelated_queries() -> None:
@@ -209,6 +222,7 @@ def test_print_pdf_escalated_category_skips_unrelated_queries() -> None:
     repo.count_total.assert_not_called()
     repo.count_by_status.assert_not_called()
     repo.count_resolved.assert_not_called()
+    repo.count_in_progress_at_branch.assert_not_called()
     repo.closed_case_durations_days.assert_not_called()
 
 
@@ -225,6 +239,7 @@ def test_print_pdf_other_category_renders_without_any_query() -> None:
     repo.count_by_status.assert_not_called()
     repo.count_resolved.assert_not_called()
     repo.count_escalated.assert_not_called()
+    repo.count_in_progress_at_branch.assert_not_called()
 
 
 def test_report_stamp_converts_utc_to_jakarta() -> None:
@@ -237,3 +252,35 @@ def test_report_pdf_filename_uses_jakarta_date() -> None:
         ReportPrintCategory.ALL, datetime(2026, 8, 27, 17, 30, tzinfo=UTC)
     )
     assert name == "laporan-pengaduan-all-2026-08-28.pdf"
+
+
+def test_printable_status_rows_omits_registered() -> None:
+    rows = [
+        StatusCount(status=AggregateComplaintStatus.REGISTERED, count=4),
+        StatusCount(status=AggregateComplaintStatus.IN_PROGRESS, count=9),
+        StatusCount(status=AggregateComplaintStatus.CLOSED, count=30),
+    ]
+    visible = printable_status_rows(rows)
+    assert [row.status for row in visible] == [
+        AggregateComplaintStatus.IN_PROGRESS,
+        AggregateComplaintStatus.CLOSED,
+    ]
+
+
+def test_format_count_includes_unit() -> None:
+    assert format_count(39) == "39 pengaduan"
+    assert format_count(10, "kasus") == "10 kasus"
+
+
+def test_format_unit_label_strips_upppd_and_defaults_all_units() -> None:
+    assert format_unit_label(None) == "Semua unit"
+    assert format_unit_label("UPPPD Tanah Abang") == "Tanah Abang"
+
+
+def test_format_period_window_uses_jakarta_dates() -> None:
+    assert format_period_window(None, None) == "Tidak dibatasi"
+    window = format_period_window(
+        datetime(2026, 7, 31, 17, 0, tzinfo=UTC),
+        datetime(2026, 8, 27, 16, 59, tzinfo=UTC),
+    )
+    assert window == "01-08-2026 - 27-08-2026"

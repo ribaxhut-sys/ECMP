@@ -231,27 +231,32 @@ class ReportService:
         by_status: list[StatusCount] = []
         resolved = 0
         escalated = 0
+        in_progress_at_branch = 0
         cycle_time: CycleTimeData | None = None
 
         if category in (ReportPrintCategory.ALL, ReportPrintCategory.CREATED):
             total_created = self._repo.count_total(
                 branch_id=branch_id, date_from=date_from, date_to=date_to
             )
-            by_status = _status_counts(
-                self._repo.count_by_status(
-                    branch_id=branch_id, date_from=date_from, date_to=date_to
+            if category == ReportPrintCategory.CREATED:
+                by_status = _status_counts(
+                    self._repo.count_by_status(
+                        branch_id=branch_id, date_from=date_from, date_to=date_to
+                    )
                 )
-            )
         if category in (ReportPrintCategory.ALL, ReportPrintCategory.RESOLVED):
             resolved = self._repo.count_resolved(
                 branch_id=branch_id, date_from=date_from, date_to=date_to
             )
-            if category == ReportPrintCategory.RESOLVED:
-                cycle_time = self.cycle_time(
-                    branch_id=branch_id, date_from=date_from, date_to=date_to
-                )
+            cycle_time = self.cycle_time(
+                branch_id=branch_id, date_from=date_from, date_to=date_to
+            )
         if category in (ReportPrintCategory.ALL, ReportPrintCategory.ESCALATED):
             escalated = self._repo.count_escalated(
+                branch_id=branch_id, date_from=date_from, date_to=date_to
+            )
+        if category == ReportPrintCategory.ALL:
+            in_progress_at_branch = self._repo.count_in_progress_at_branch(
                 branch_id=branch_id, date_from=date_from, date_to=date_to
             )
 
@@ -260,10 +265,13 @@ class ReportService:
             period_label=period_label,
             branch_label=branch_label,
             generated_at=generated_at or datetime.now(UTC),
+            date_from=date_from,
+            date_to=date_to,
             total_created=total_created,
             by_status=by_status,
             resolved=resolved,
             escalated=escalated,
+            in_progress_at_branch=in_progress_at_branch,
             cycle_time=cycle_time,
         )
         return build_report_pdf(payload)

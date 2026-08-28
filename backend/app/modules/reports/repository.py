@@ -115,6 +115,37 @@ class ReportRepository:
         ).where(*filters)
         return int(self._session.scalar(stmt) or 0)
 
+    def count_in_progress_at_branch(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> int:
+        """Open complaints created in the window that are not on the live HQ path.
+
+        Includes ``RETURNED_TO_BRANCH``: the complaint is still running at the
+        branch, so the operator PDF counts it as masih diproses — not a hole
+        between closed and escalated.
+        """
+        filters = self._base_filters(
+            branch_id=branch_id, date_from=date_from, date_to=date_to
+        )
+        if filters is None:
+            return 0
+        filters = [
+            *filters,
+            CmBatch1ComplaintORM.status != CLOSED_STATUS,
+            or_(
+                CmBatch1ComplaintORM.intake_disposition.is_(None),
+                ~CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_ACTIVE),
+            ),
+        ]
+        stmt: Select[tuple[int]] = select(func.count()).select_from(
+            CmBatch1ComplaintORM
+        ).where(*filters)
+        return int(self._session.scalar(stmt) or 0)
+
     def count_by_status(
         self,
         *,
