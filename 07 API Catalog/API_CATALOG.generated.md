@@ -17,9 +17,9 @@
 |---|---|---|---|
 | `case-actions.v1.yaml` | ECMP Case Service API — Case Lifecycle Actions (SUPERSEDED) | 1.0.0 | 0 |
 | `case-service.v1.yaml` | ECMP Case Service API | 1.7.0 | 12 |
-| `cm-case-management.v1.yaml` | ECMP Case Management Batch-2 Mode A API | 1.0.0 | 9 |
+| `cm-case-management.v1.yaml` | ECMP Case Management Batch-2 Mode A API | 1.0.0 | 15 |
 | `complaint-domain-service.v1.yaml` | ECMP Complaint Domain Service API | 1.4.0 | 23 |
-| `complaint-management-batch1.v1.yaml` | ECMP Complaint Management Batch 1 API | 1.0.0-planned | 22 |
+| `complaint-management-batch1.v1.yaml` | ECMP Complaint Management Batch 1 API | 1.0.0-planned | 23 |
 | `complaint-management-esc-res.v1.yaml` | ECMP Complaint Management Escalation & Resolution API (DEC-F4) | 1.0.0-planned | 7 |
 | `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 104 |
 | `dashboard-queues.v1.yaml` | ECMP Dashboard Queues API | 1.0.0 | 1 |
@@ -56,12 +56,17 @@
 | API-536 | `GET /api/v1/cm/cases` | List Cases (visibility-scoped) |
 | API-530 | `POST /api/v1/cm/cases` | Create Case |
 | API-531 | `POST /api/v1/cm/complaints/{complaintId}/cases` | Add Case to Existing Complaint |
+| — | `GET /api/v1/cm/work-badges` | Mode A work badges (Cabang unread + Pusat queues) |
+| — | `POST /api/v1/cm/work-badges/hq-schedule-seen` | Ack Cabang Jadwal Eskalasi sidebar badge |
 | API-532 | `GET /api/v1/cm/cases/{caseId}` | View Case |
 | API-537 | `GET /api/v1/cm/cases/{caseId}/history` | View Case history (this Case, plus parent HQ path) |
-| API-538 | `POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat` | Cancel Case escalation to Pusat (before Pusat claims) |
+| API-539 | `GET /api/v1/cm/cases/{caseId}/export` | Download Case snapshot PDF (internal) |
 | API-533 | `PATCH /api/v1/cm/cases/{caseId}/status` | Update Case Status |
 | API-534 | `POST /api/v1/cm/cases/{caseId}/resolve` | Resolve Case |
 | — | `POST /api/v1/cm/cases/{caseId}/acceptance` | Record Handling Unit / Owner closure acceptance |
+| API-520 | `POST /api/v1/cm/cases/{caseId}/escalate-to-pusat` | Escalate this Case to Pusat |
+| API-538 | `POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat` | Cancel this Case's escalation to Pusat |
+| API-521 | `POST /api/v1/cm/cases/{caseId}/return-escalation` | Return this Case's escalation to the originating branch |
 | API-535 | `POST /api/v1/cm/cases/{caseId}/close` | Close Case |
 
 ## `complaint-domain-service.v1.yaml`

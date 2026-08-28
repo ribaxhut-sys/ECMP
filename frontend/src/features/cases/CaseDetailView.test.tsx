@@ -10,6 +10,7 @@ const fetchCmBatch1Customer360 = vi.fn();
 const fetchUsers = vi.fn();
 const fetchBranches = vi.fn();
 const fetchCmCaseHistory = vi.fn();
+const downloadCmCasePdf = vi.fn();
 const updateCmCaseStatus = vi.fn();
 const decideCmBatch1IntakeEscalation = vi.fn();
 const escalateCmCaseToPusat = vi.fn();
@@ -59,6 +60,7 @@ vi.mock("@/lib/api", async () => {
     fetchUsers: (...args: unknown[]) => fetchUsers(...args),
     fetchBranches: (...args: unknown[]) => fetchBranches(...args),
     fetchCmCaseHistory: (...args: unknown[]) => fetchCmCaseHistory(...args),
+    downloadCmCasePdf: (...args: unknown[]) => downloadCmCasePdf(...args),
     updateCmCaseStatus: (...args: unknown[]) => updateCmCaseStatus(...args),
     decideCmBatch1IntakeEscalation: (...args: unknown[]) =>
       decideCmBatch1IntakeEscalation(...args),
@@ -138,6 +140,7 @@ describe("CaseDetailView HQ path", () => {
     fetchUsers.mockReset();
     fetchBranches.mockReset();
     fetchCmCaseHistory.mockReset();
+    downloadCmCasePdf.mockReset();
     updateCmCaseStatus.mockReset();
     decideCmBatch1IntakeEscalation.mockReset();
     escalateCmCaseToPusat.mockReset();
@@ -163,6 +166,7 @@ describe("CaseDetailView HQ path", () => {
       data: [{ id: "branch-pusat-cro", code: "PUSAT-CRO", name: "CRO Pusat" }],
     });
     fetchCmCaseHistory.mockResolvedValue({ data: [] });
+    downloadCmCasePdf.mockResolvedValue({ filename: "UNI-2608-0001_20260828.pdf" });
   });
 
   it("keeps resolve and handler title while the parent is still at the branch", async () => {
@@ -192,6 +196,17 @@ describe("CaseDetailView HQ path", () => {
       "href",
       `/complaints/cm/${COMPLAINT_ID}?focus=penanganan`,
     );
+  });
+
+  it("downloads the Case snapshot PDF from the server", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    const button = await screen.findByTestId("case-download-pdf");
+    expect(button).toHaveTextContent("Download PDF");
+    await user.click(button);
+    await waitFor(() => {
+      expect(downloadCmCasePdf).toHaveBeenCalledWith(CASE_ID);
+    });
   });
 
   it("hides resolve and uses HQ schedule copy once the parent is HQ_SCHEDULED", async () => {

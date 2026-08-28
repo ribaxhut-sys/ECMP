@@ -524,6 +524,7 @@ Actor opens a Case from Complaint detail, aging queue, or operational search.
 | A1 | View from multi-Case Complaint list |
 | A2 | Sensitive-field masking for limited roles |
 | A3 | Timeline filter / drill-down (UC-CAP02-07) |
+| A4 | Authorized actor downloads an **internal** Case snapshot PDF (API-539). Same visibility as View. Does not mutate Case. Attachment bytes are not embedded (manifest only). Not customer-safe. Not parent-Complaint dump. Not KPI/reporting. |
 
 #### Exception Flow
 
@@ -555,6 +556,7 @@ None. View Case **MUST NOT** change Case status.
 1. AC-06: Authorized View shows at least Case Number, status, parent Complaint, CustomerId, priority/type (as available).
 2. AC-07: Cross-membership View rejected.
 3. AC-08: After a successful Case write, Timeline shows related events in time order and user cannot rewrite history.
+4. AC-09: Authorized export (API-539) returns `application/pdf` with Case Number through Case history; unauthorized / cross-membership behave as View (AC-07); Case status is unchanged.
 
 #### Referenced Business Rules
 
@@ -576,10 +578,10 @@ DEC-BQ001 O3 (Aggregate Case vocabulary on display); DEC-020 (do not confuse wit
 | UC | UC-CAP02-03 / UC-CAP02-07 |
 | BR | BR-017; BR-004; BR-012 (read) |
 | DEC/BQ | DEC-BQ001 O3; DEC-020 |
-| AC | AC-06, AC-07, AC-08 |
-| API | API-532 View Case; **API-537** Case history (Mode A CAP-008). Do **not** equate to API-525/526 Planned (FRD-CM-002) or Sprint API-006 |
+| AC | AC-06, AC-07, AC-08, AC-09 |
+| API | API-532 View Case; **API-537** Case history; **API-539** internal Case snapshot PDF (Mode A CAP-008). Do **not** equate to API-525/526 Planned (FRD-CM-002) or Sprint API-006 |
 | EVT | **NOT SPECIFIED** |
-| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); formal TC-catalog IDs deferred |
+| TC | Lab suite `backend/tests/test_cm_case_mode_a.py` (REL-RC-001); `test_cm_case_export.py` (API-539); formal TC-catalog IDs deferred |
 
 ---
 
@@ -1036,7 +1038,7 @@ Catalog from CAP-008 BCS §9 + Mode A locks (cross-FR).
 |---|---|---|---|---|
 | FR-001 Create Case | FR-CM-B2-001 | API-530 | **NOT SPECIFIED** | `backend/tests/test_cm_case_mode_a.py` (REL-RC-001) |
 | FR-002 Add Case | FR-CM-B2-002 | API-531 | **NOT SPECIFIED** | same lab suite |
-| FR-003 View Case | FR-CM-B2-003 | API-532, API-537 | **NOT SPECIFIED** | same lab suite |
+| FR-003 View Case | FR-CM-B2-003 | API-532, API-537, API-539 | **NOT SPECIFIED** | same lab suite + `test_cm_case_export.py` |
 | FR-004 Update Case Status | FR-CM-B2-004 | API-533 | **NOT SPECIFIED** | same lab suite |
 | FR-005 Resolve Case | FR-CM-B2-005 | API-534 | **NOT SPECIFIED** | same lab suite |
 | FR-006 Close Case | FR-CM-B2-006 | API-535 | **NOT SPECIFIED** | same lab suite |
@@ -1152,3 +1154,4 @@ See FR-006 Preconditions. Normative minimum = #1–#4. Items #5–#8 = **NOT SPE
 | 1.0 LOCKED | 2026-08-01 | Architecture Review Board (SoT Closure) | Status → **LOCKED**. Sync API-530…535 + lab test suite refs to match RC-validated implementation. EVT IDs remain NOT SPECIFIED. No FR redesign; no BR/BCS/scope/Mode B change. Evidence: `deploy/evidence/CAP-008_SoT_Closure_20260801.md`. |
 | 1.0 LOCKED + BC/BW align | 2026-08-05 | Documentation Architect | Alignment P-03/P-06/P-07/P-08: BC/BW precedence; persona → Complaint Officer + Manager; BQ-002 working day wording; Regional OOS note. **No FR redesign.** |
 | 1.0 LOCKED + DEC-028 | 2026-08-22 | Product Owner | BQ-004 format string only: `UNIT-YYMM-NNNN` / `CM{UNIT}-YYMM-NNNN`. Independensi tidak dibuka. **No FR redesign.** |
+| 1.0 LOCKED + API-539 | 2026-08-28 | ECMP Engineering | Lab companion: internal Case snapshot PDF (FR-003 A4 / AC-09). FRD remains **LOCKED**. Not customer-safe export. Not reporting. |

@@ -33,10 +33,11 @@ info:
     implemented here: escalate **this Case** to Pusat without exposing
     status `ESCALATED`. API-538 (cancel while Pusat has not claimed) and
     API-521 lab (Pusat return with reason code + note) are implemented here.
+    API-539 is the internal Case snapshot PDF (FR-003 companion; not reporting).
     API-522…526 remain Planned.
 
     **Out of scope:** Notification Engine · Assignment Engine · SLA Engine · Identity
-    redesign · Mode B · Customer Merge · Dashboard · Reporting · AI.
+    redesign · Mode B · Customer Merge · Dashboard · Reporting (KPI/Excel/bulk) · AI.
 
     **AuthZ permission codes for CAP-008:** NOT SPECIFIED in repository beyond
     ECMP-internal authorization and FRD actor matrix. Security scheme reuses
@@ -73,6 +74,8 @@ tags:
     description: FR-003 View Case
   - name: CM-Case-History
     description: FR-003 / UC-CAP02-07 Case Timeline (this Case + parent HQ path)
+  - name: CM-Case-Export
+    description: FR-003 companion — internal Case snapshot PDF (API-539)
   - name: CM-Case-Status
     description: FR-004 Update Case Status (Mode A Delivery Transition Subset)
   - name: CM-Case-Resolve
@@ -581,6 +584,84 @@ paths:
                       $ref: "#/components/schemas/CaseHistoryEntry"
                   meta:
                     $ref: "#/components/schemas/PageMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                notFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    code: CASE_NOT_FOUND
+                    detail: Case does not exist.
+        "409":
+          description: Membership mismatch with complaintId context
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/cm/cases/{caseId}/export:
+    get:
+      summary: Download Case snapshot PDF (internal)
+      description: |
+        Server-rendered internal snapshot of **this Case** (FR-003 companion).
+
+        Same authorization and org-scope as View Case (API-532). Does **not**
+        mutate Case status. Attachment **bytes are not embedded** — the PDF
+        lists a manifest (name, type, size, checksum). History is the full
+        API-537 projection (this Case + parent HQ path), not the UI page of 10.
+
+        **Not** customer-safe timeline export. **Not** KPI/reporting (DEC-015).
+        **Not** a dump of the parent Complaint's other Cases.
+      operationId: cmB2ExportCasePdf
+      x-ear-id: API-539
+      x-ecmp-logical-id: API-CM-B2-011
+      x-ecmp-fr: FR-003
+      x-ecmp-br:
+        - BR-017
+        - BR-016
+        - BR-012
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-03
+      x-ecmp-dec:
+        - DEC-BQ001
+        - DEC-020
+        - DEC-MODEA-B2-001
+      tags: [CM-Case-Export]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: complaintId
+          in: query
+          required: false
+          description: Optional Complaint context for Aggregate membership validation (AC-07).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Internal Case snapshot PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="{caseNumber}_{YYYYMMDD}.pdf"
+                (YYYYMMDD in Asia/Jakarta)
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

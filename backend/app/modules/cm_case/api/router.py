@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi.responses import Response
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
@@ -24,10 +27,16 @@ from app.core.authorization.case_acceptance import (
 from app.core.authorization.org_unit_guard import enforce_org_scope_any
 from app.core.authorization.visibility import VisibilityClass, resolve_case_visibility
 from app.core.config import Settings, get_settings
+from app.core.enums import AuditAction
 from app.core.errors import PermissionDeniedError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
+from app.integrations.customer import build_customer_provider
+from app.integrations.customer.types import CustomerLookupStatus
 from app.integrations.directory.local_adapter import LocalUserDirectory
+from app.models import Branch
+from app.modules.audit.hooks import resolve_actor_name, write_audit
+from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.api.schemas import (
     AddCaseRequest,
@@ -47,6 +56,13 @@ from app.modules.cm_case.api.schemas import (
     WorkBadgeCountsResponse,
 )
 from app.modules.cm_case.application.authorization import assert_cm_case_visible
+from app.modules.cm_case.application.case_pdf import (
+    CasePdfAttachment,
+    CasePdfSnapshot,
+    case_pdf_filename,
+    render_case_snapshot_pdf,
+)
+from app.modules.cm_case.application.case_work_card import intake_note_from_description
 from app.modules.cm_case.application.current_handler import (
     CurrentHandler,
     resolve_current_handler,
@@ -146,6 +162,123 @@ def _complaint_creator_id(session: Session, complaint_id: str | None) -> str | N
     if row is None:
         return None
     return (row.created_by or "").strip() or None
+
+
+def _parent_complaint(
+    session: Session, complaint_id: str | None
+) -> CmBatch1ComplaintORM | None:
+    key = (complaint_id or "").strip()
+    if not key:
+        return None
+    try:
+        return session.get(CmBatch1ComplaintORM, uuid.UUID(key))
+    except ValueError:
+        return None
+
+
+def _created_unit_display_name(session: Session, dto: CaseDTO) -> str | None:
+    """Display name of the unit that created the Case (F4 owner, not handling)."""
+    unit_id = (dto.owner_unit_id or "").strip()
+    if not unit_id:
+        return None
+    try:
+        try:
+            branch_uuid = uuid.UUID(unit_id)
+        except ValueError:
+            branch = session.scalar(
+                select(Branch).where(
+                    func.upper(Branch.code) == unit_id.upper(),
+                    Branch.deleted_at.is_(None),
+                )
+            )
+        else:
+            branch = session.get(Branch, branch_uuid)
+            if branch is not None and branch.deleted_at is not None:
+                branch = None
+    except Exception:
+        logger.exception("case pdf created-unit name lookup failed")
+        return unit_id
+    if branch is None:
+        return unit_id
+    return (branch.name or "").strip() or unit_id
+
+
+def _customer_display_name(
+    session: Session, settings: Settings, customer_id: str | None
+) -> str | None:
+    """WP display name from Master Customer (read-only). Not the internal id."""
+    key = (customer_id or "").strip()
+    if not key:
+        return None
+    try:
+        lookup = build_customer_provider(
+            settings.customer_provider,
+            enterprise_base_url=settings.customer_provider_enterprise_base_url,
+            session=session,
+        ).get_minimal_customer(key)
+    except Exception:
+        logger.exception("case pdf customer name lookup failed")
+        return None
+    if lookup.status != CustomerLookupStatus.FOUND or lookup.customer is None:
+        return None
+    return (lookup.customer.display_name or "").strip() or None
+
+
+def _case_attachment_manifest(
+    session: Session, dto: CaseDTO
+) -> list[CasePdfAttachment]:
+    try:
+        rows = CmBatch1AttachmentRepository(session).list_by_complaint(dto.complaint_id)
+    except Exception:
+        logger.exception("case pdf attachment list failed")
+        return []
+    wanted = (dto.case_id or "").strip()
+    items: list[CasePdfAttachment] = []
+    for row in rows:
+        pin = (row.case_id or "").strip()
+        if pin and pin != wanted:
+            continue
+        items.append(
+            CasePdfAttachment(
+                original_name=row.original_name or "",
+                mime_type=row.mime_type or "",
+                size_bytes=int(row.size_bytes or 0),
+                checksum_sha256=row.checksum_sha256 or "",
+                status=row.status or "",
+                classification=row.classification or "",
+                case_id=row.case_id,
+            )
+        )
+    return items
+
+
+def _audit_case_export(
+    session: Session,
+    *,
+    request: Request,
+    principal: Principal,
+    case_id: str,
+    case_number: str,
+    filename: str,
+) -> None:
+    try:
+        entity_uuid: uuid.UUID | None
+        try:
+            entity_uuid = uuid.UUID(case_id)
+        except ValueError:
+            entity_uuid = None
+        write_audit(
+            session,
+            request=request,
+            principal=principal,
+            event_type="cm_case.exported",
+            entity_type="Case",
+            action=AuditAction.EXPORT,
+            entity_id=entity_uuid,
+            metadata={"caseNumber": case_number, "filename": filename},
+        )
+    except Exception:
+        logger.exception("case pdf export audit failed")
 
 
 def _officer_labels(session: Session, *raw_ids: str | None) -> dict[str, str]:
@@ -600,6 +733,94 @@ def get_case_history(
         )
     items = history.list_for_case(dto)
     return _history_list_response(items)
+
+
+@router.get("/api/v1/cm/cases/{case_id}/export")
+def export_case_pdf(
+    case_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    history: Annotated[CaseHistoryService, Depends(get_case_history_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
+) -> Response:
+    """API-539 — internal Case snapshot PDF (FR-003 companion)."""
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
+    dto = service.get_case(case_id, complaint_id_context=complaint_id)
+    if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
+        enforce_org_scope_any(
+            principal,
+            (units.handling_unit_id, units.owner_unit_id),
+            settings,
+        )
+        assert_cm_case_visible(
+            principal,
+            dto,
+            settings=settings,
+            actor_unit_id=actor_unit_id,
+            complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+        )
+
+    handler = _current_handler(dto, session)
+    names = _officer_labels(
+        session,
+        dto.created_by,
+        dto.handling_claimed_by,
+        dto.assigned_user_id,
+        handler.actor_id,
+        str(principal.user_id),
+    )
+    parent = _parent_complaint(session, dto.complaint_id)
+    exported_at = datetime.now(UTC)
+    actor_name: str | None = names.get(str(principal.user_id))
+    if not actor_name:
+        try:
+            actor_name = resolve_actor_name(session, principal.user_id)
+        except Exception:
+            actor_name = None
+    exporter = actor_name or str(principal.user_id)
+    snapshot = CasePdfSnapshot(
+        case=dto,
+        complaint_number=(parent.complaint_number if parent else None),
+        customer_label=_customer_display_name(session, settings, dto.customer_id),
+        created_by_name=names.get(dto.created_by or ""),
+        handler_name=names.get(handler.actor_id or "")
+        or names.get(dto.handling_claimed_by or ""),
+        assigned_name=names.get(dto.assigned_user_id or ""),
+        hq_arrival_date=parent.hq_arrival_date if parent else None,
+        hq_arrival_time=parent.hq_arrival_time if parent else None,
+        hq_destination_unit_id=parent.hq_destination_unit_id if parent else None,
+        history=history.list_for_case(dto),
+        attachments=_case_attachment_manifest(session, dto),
+        parent_intake_note=(
+            intake_note_from_description(parent.description) if parent else None
+        ),
+        created_unit_name=_created_unit_display_name(session, dto),
+        exported_by=exporter,
+        exported_at=exported_at,
+    )
+    payload = render_case_snapshot_pdf(snapshot)
+    filename = case_pdf_filename(dto.case_number, exported_at)
+    _audit_case_export(
+        session,
+        request=request,
+        principal=principal,
+        case_id=dto.case_id,
+        case_number=dto.case_number,
+        filename=filename,
+    )
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.patch("/api/v1/cm/cases/{case_id}/status")

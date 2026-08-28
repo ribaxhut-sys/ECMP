@@ -20,6 +20,7 @@ import {
   fetchCmBatch1Complaint,
   fetchCmBatch1Customer360,
   fetchCmCase,
+  downloadCmCasePdf,
   fetchUsers,
   updateCmCaseStatus,
   type CmCase,
@@ -297,6 +298,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   /** Bumped when a preset tag fills the note, to hand the caret back. */
   const [cancelNoteCaretTick, setCancelNoteCaretTick] = useState(0);
   const [cancellingEscalation, setCancellingEscalation] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [escalateOpen, setEscalateOpen] = useState(false);
   const [escalateReason, setEscalateReason] = useState("");
   const [escalateProposed, setEscalateProposed] =
@@ -800,6 +802,22 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     router.push(
       `/complaints/cm/${encodeURIComponent(data.complaintId)}?${params.toString()}`,
     );
+  }
+
+  async function submitDownloadPdf(): Promise<void> {
+    if (!data || downloadingPdf) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadCmCasePdf(data.caseId);
+    } catch (err) {
+      showErrorToast(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("downloadPdfFailed"),
+      );
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   async function submitCancelEscalation(): Promise<void> {
@@ -1455,6 +1473,15 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
               {showParentContinueLabel
                 ? t("continueToParentComplaint")
                 : t("backToComplaint")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="case-download-pdf"
+              onClick={() => void submitDownloadPdf()}
+              disabled={downloadingPdf}
+            >
+              {t("downloadPdf")}
             </Button>
             {showCancelEscalation ? (
               <Button

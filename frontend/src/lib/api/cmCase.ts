@@ -4,7 +4,7 @@
  * Dual SoT Aggregate `/api/v1/cm/cases`. Not interchangeable with foundation
  * complaints or Sprint case-service.
  */
-import { apiRequest } from "./client";
+import { apiRequest, apiRequestBlob } from "./client";
 import {
   buildCmCaseMutateHeaders,
   cmCasePaths,
@@ -414,4 +414,39 @@ export function fetchCmCaseHistory(
   caseId: string,
 ): Promise<ListResponse<CmCaseHistoryEntry>> {
   return apiRequest(cmCasePaths().history(caseId));
+}
+
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  const plainMatch = /filename="([^"]+)"/i.exec(header);
+  const raw = utfMatch?.[1] ?? plainMatch?.[1];
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function saveBlob(blob: Blob, filename: string): void {
+  if (typeof document === "undefined") return;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** API-539 — GET /api/v1/cm/cases/{caseId}/export (internal snapshot PDF). */
+export async function downloadCmCasePdf(
+  caseId: string,
+): Promise<{ filename: string }> {
+  const result = await apiRequestBlob(cmCasePaths().exportPdf(caseId));
+  const filename = filenameFromDisposition(result.contentDisposition) ?? "case.pdf";
+  saveBlob(result.blob, filename);
+  return { filename };
 }
