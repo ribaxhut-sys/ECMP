@@ -22,6 +22,10 @@ from app.modules.cm_case.application.case_work_card import (
     resolution_card_text,
 )
 from app.modules.cm_case.application.dto import CaseDTO
+from app.modules.cm_case.application.pdf_dates import (
+    format_pdf_datetime,
+    rewrite_iso_dates_in_text,
+)
 
 _OPERATOR_TZ = ZoneInfo("Asia/Jakarta")
 _PAGE_W = 595
@@ -32,24 +36,13 @@ _MARGIN_BOTTOM = 48
 _BODY_SIZE = 10
 _HEAD_SIZE = 13
 _TITLE_SIZE = 16
+_AGENCY_SIZE = 16
+_MASTHEAD_UNIT_SIZE = 11
+_SUBJECT_SIZE = 10
 _LINE = 13
 _WRAP = 92
+_RULE_WIDTH = 0.6
 
-_MONTHS_ID = (
-    "",
-    "Januari",
-    "Februari",
-    "Maret",
-    "April",
-    "Mei",
-    "Juni",
-    "Juli",
-    "Agustus",
-    "September",
-    "Oktober",
-    "November",
-    "Desember",
-)
 _UNICODE_ASCII = str.maketrans(
     {
         "\u2014": "-",
@@ -78,6 +71,16 @@ _HELVETICA_BOLD_ASCII = (
     278, 333, 584, 556, 278, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278,
     556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556,
     500, 389, 280, 389, 584,
+)
+# Adobe Helvetica AFM widths for ASCII 32-126 (units / 1000 em).
+_HELVETICA_ASCII = (
+    278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278,
+    278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584,
+    584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556,
+    833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278,
+    278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222,
+    500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500,
+    500, 334, 260, 334, 584,
 )
 
 
@@ -157,18 +160,13 @@ def case_pdf_filename(case_number: str, when: datetime | None = None) -> str:
 
 
 def format_operator_dt(value: datetime | None) -> str:
-    if value is None:
-        return "-"
-    local = value.astimezone(_OPERATOR_TZ) if value.tzinfo else value
-    return local.strftime("%d/%m/%Y %H:%M")
+    return format_pdf_datetime(value)
 
 
 def format_catatan_dt(value: datetime | None) -> str | None:
     if value is None:
         return None
-    local = value.astimezone(_OPERATOR_TZ) if value.tzinfo else value
-    month = _MONTHS_ID[local.month] if 1 <= local.month <= 12 else ""
-    return f"{local.day:02d} {month} {local.year}, {local.strftime('%H.%M')}"
+    return format_pdf_datetime(value)
 
 
 def render_case_snapshot_pdf(snapshot: CasePdfSnapshot) -> bytes:
@@ -211,9 +209,8 @@ def _write_snapshot(doc: _PdfDoc, snapshot: CasePdfSnapshot, exported_at: dateti
             case_number=case.case_number,
             customer_name=snapshot.customer_label,
         ),
+        subject=case.subject,
     )
-    if case.subject.strip():
-        doc.muted(case.subject.strip())
     doc.blank()
 
     doc.heading("Identitas")
@@ -240,6 +237,7 @@ def _write_snapshot(doc: _PdfDoc, snapshot: CasePdfSnapshot, exported_at: dateti
         doc.kv("Alasan batal", case.cancel_reason)
     doc.kv("Eskalasi ke Pusat", "Ya" if case.escalated_to_pusat else "Tidak")
     doc.blank()
+    doc.rule()
 
     doc.heading("Deskripsi")
     if narrative:
@@ -273,6 +271,7 @@ def _write_snapshot(doc: _PdfDoc, snapshot: CasePdfSnapshot, exported_at: dateti
     for line in resolusi_lines:
         doc.pre(line)
     doc.blank()
+    doc.rule()
 
     doc.heading("Lampiran")
     if not snapshot.attachments:
@@ -302,7 +301,7 @@ def _write_snapshot(doc: _PdfDoc, snapshot: CasePdfSnapshot, exported_at: dateti
             label = event_label(entry.event_code, prior)
             doc.para(f"{when}  |  {label}  |  {actor}")
             if entry.note:
-                doc.para(f"    {entry.note}")
+                doc.para(f"    {rewrite_iso_dates_in_text(entry.note)}")
             prior.append(entry.event_code)
     doc.blank()
     doc.muted(f"Dibuat {format_operator_dt(exported_at)} (Asia/Jakarta).")
@@ -323,7 +322,7 @@ def _write_handling_note(
     doc.para(f"{prefix}{head}")
     body = format_schedule_body(note, destination_unit_id=destination_unit_id)
     if body:
-        for line in body.split("\n"):
+        for line in rewrite_iso_dates_in_text(body).split("\n"):
             doc.para(f"{prefix}    {line}" if nested else f"    {line}")
 
 
@@ -346,15 +345,44 @@ class _PdfDoc:
         self._text(text, size=_TITLE_SIZE, bold=True)
         self._y -= 20
 
-    def letterhead_centered(self, agency: str, unit_line: str) -> None:
-        self._ensure(52)
-        for line in _wrap_to_width(agency, max_pt=_CONTENT_WIDTH, size=_HEAD_SIZE):
-            self._text(line, size=_HEAD_SIZE, bold=True, align="center")
-            self._y -= 16
-        self._y -= 2
-        for line in _wrap_to_width(unit_line, max_pt=_CONTENT_WIDTH, size=_TITLE_SIZE):
-            self._text(line, size=_TITLE_SIZE, bold=True, align="center")
+    def letterhead_centered(
+        self,
+        agency: str,
+        unit_line: str,
+        *,
+        subject: str | None = None,
+    ) -> None:
+        self._ensure(72)
+        for line in _wrap_to_width(
+            agency, max_pt=_CONTENT_WIDTH, size=_AGENCY_SIZE, bold=True
+        ):
+            self._text(line, size=_AGENCY_SIZE, bold=True, align="center")
             self._y -= 20
+        self._y -= 2
+        for line in _wrap_to_width(
+            unit_line, max_pt=_CONTENT_WIDTH, size=_MASTHEAD_UNIT_SIZE, bold=True
+        ):
+            self._text(line, size=_MASTHEAD_UNIT_SIZE, bold=True, align="center")
+            self._y -= 15
+        topic = (subject or "").strip()
+        if topic:
+            self._y -= 2
+            for line in _wrap_to_width(
+                topic, max_pt=_CONTENT_WIDTH, size=_SUBJECT_SIZE, bold=False
+            ):
+                self._text(line, size=_SUBJECT_SIZE, align="center")
+                self._y -= 13
+
+    def rule(self) -> None:
+        self._ensure(14)
+        self._y -= 4
+        y = self._y
+        x1 = _MARGIN_X
+        x2 = _PAGE_W - _MARGIN_X
+        self._pages[-1].append(
+            f"{_RULE_WIDTH} w {x1:.2f} {y:.2f} m {x2:.2f} {y:.2f} l S"
+        )
+        self._y -= 10
 
     def heading(self, text: str) -> None:
         self._ensure(24)
@@ -409,7 +437,7 @@ class _PdfDoc:
         font = "F2" if bold else "F3" if italic else "F1"
         x = float(_MARGIN_X)
         if align == "center":
-            width = _helvetica_bold_width(text, size)
+            width = _helvetica_width(text, size, bold=bold)
             x = max((_PAGE_W - width) / 2.0, _MARGIN_X / 2.0)
         cmd = (
             f"BT /{font} {size} Tf {x:.2f} {self._y} Td "
@@ -468,18 +496,21 @@ class _PdfDoc:
         return _finalize_pdf(objects)
 
 
-def _helvetica_bold_width(text: str, size: int) -> float:
+def _helvetica_width(text: str, size: int, *, bold: bool) -> float:
+    table = _HELVETICA_BOLD_ASCII if bold else _HELVETICA_ASCII
     total = 0
     for ch in text.translate(_UNICODE_ASCII):
         o = ord(ch)
         if 32 <= o <= 126:
-            total += _HELVETICA_BOLD_ASCII[o - 32]
+            total += table[o - 32]
         else:
             total += 600
     return total * size / 1000.0
 
 
-def _wrap_to_width(text: str, *, max_pt: float, size: int) -> list[str]:
+def _wrap_to_width(
+    text: str, *, max_pt: float, size: int, bold: bool = True
+) -> list[str]:
     raw = (text or "").strip()
     if not raw:
         return [""]
@@ -488,14 +519,17 @@ def _wrap_to_width(text: str, *, max_pt: float, size: int) -> list[str]:
     current = ""
     for word in words:
         trial = f"{current} {word}".strip() if current else word
-        if _helvetica_bold_width(trial, size) <= max_pt:
+        if _helvetica_width(trial, size, bold=bold) <= max_pt:
             current = trial
             continue
         if current:
             lines.append(current)
         current = word
-        while _helvetica_bold_width(current, size) > max_pt and len(current) > 1:
-            cut = max(1, int(len(current) * max_pt / _helvetica_bold_width(current, size)))
+        while (
+            _helvetica_width(current, size, bold=bold) > max_pt and len(current) > 1
+        ):
+            width_now = _helvetica_width(current, size, bold=bold)
+            cut = max(1, int(len(current) * max_pt / width_now))
             lines.append(current[:cut])
             current = current[cut:]
     if current:

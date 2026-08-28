@@ -31,10 +31,15 @@ from app.modules.cm_case.application.case_pdf import (
     CasePdfSnapshot,
     case_pdf_filename,
     case_pdf_masthead,
+    format_operator_dt,
     render_case_snapshot_pdf,
     strip_up3d_unit_prefix,
 )
 from app.modules.cm_case.application.dto import CaseDTO
+from app.modules.cm_case.application.pdf_dates import (
+    format_pdf_date_and_time,
+    rewrite_iso_dates_in_text,
+)
 from app.modules.cm_case.application.services import (
     AuditTimelineSideEffects,
     CaseApplicationService,
@@ -183,6 +188,17 @@ def test_case_pdf_filename_uses_jakarta_date() -> None:
     assert case_pdf_filename("UNI-2608-0001", when) == "UNI-2608-0001_20260828.pdf"
 
 
+def test_pdf_dates_are_dmy_with_comma_before_time() -> None:
+    assert format_pdf_date_and_time("2026-08-27", "11:00") == "27-08-2026, 11:00"
+    assert format_pdf_date_and_time("2026-08-27", None) == "27-08-2026"
+    assert (
+        rewrite_iso_dates_in_text("Catatan: 2026-08-27 11:00")
+        == "Catatan: 27-08-2026, 11:00"
+    )
+    when = datetime(2026, 8, 27, 4, 0, tzinfo=UTC)  # 11:00 WIB
+    assert format_operator_dt(when) == "27-08-2026, 11:00"
+
+
 def test_case_pdf_masthead_is_created_unit_and_number() -> None:
     assert strip_up3d_unit_prefix("UPPPD Gambir") == "Gambir"
     assert strip_up3d_unit_prefix("UP3D Tanah Abang") == "Tanah Abang"
@@ -243,18 +259,30 @@ def test_render_case_snapshot_pdf_contains_identity_through_history() -> None:
     assert b"Gambir - UNI-2608-0001 \\( Budi Santoso \\)" in pdf
     assert b"UPPPD Gambir - UNI-2608-0001" not in pdf
     assert b"Snapshot Case" not in pdf
-    agency_td = re.search(
-        rb"Tf ([\d.]+) [\d.]+ Td \(Unit Pelayanan Pemungutan Pajak Daerah\)",
+    agency_tf = re.search(
+        rb"/F2 (\d+) Tf ([\d.]+) [\d.]+ Td \(Unit Pelayanan Pemungutan Pajak Daerah\)",
         pdf,
     )
-    assert agency_td is not None
-    assert float(agency_td.group(1)) > 80
-    unit_td = re.search(
-        rb"Tf ([\d.]+) [\d.]+ Td \(Gambir - UNI-2608-0001 \\\( Budi Santoso \\\)\)",
+    assert agency_tf is not None
+    assert agency_tf.group(1) == b"16"
+    assert float(agency_tf.group(2)) > 80
+    unit_tf = re.search(
+        rb"/F2 (\d+) Tf ([\d.]+) [\d.]+ Td \(Gambir - UNI-2608-0001 \\\( Budi Santoso \\\)\)",
         pdf,
     )
-    assert unit_td is not None
-    assert float(unit_td.group(1)) > 80
+    assert unit_tf is not None
+    assert unit_tf.group(1) == b"11"
+    assert float(unit_tf.group(2)) > 80
+    subject_tf = re.search(
+        rb"/F1 (\d+) Tf ([\d.]+) [\d.]+ Td \(Antrian panjang\)",
+        pdf,
+    )
+    assert subject_tf is not None
+    assert subject_tf.group(1) == b"10"
+    assert float(subject_tf.group(2)) > 80
+    assert pdf.count(b"0.6 w") == 2
+    assert pdf.find(b"Identitas") < pdf.find(b"0.6 w") < pdf.find(b"Deskripsi")
+    assert pdf.find(b"Resolusi") < pdf.rfind(b"0.6 w") < pdf.find(b"Lampiran")
     assert b"UNI-2608-0001" in pdf
     assert b"CMP-0001" in pdf
     assert b"Antrian panjang" in pdf

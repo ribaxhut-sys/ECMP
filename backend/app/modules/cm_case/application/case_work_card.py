@@ -13,6 +13,10 @@ from datetime import datetime
 from app.modules.cm_batch1.intake_narrative import parse_intake_description
 from app.modules.cm_case.api.schemas import CaseHistoryEntry
 from app.modules.cm_case.application.dto import CaseDTO, ResolutionDTO
+from app.modules.cm_case.application.pdf_dates import (
+    format_pdf_date_and_time,
+    rewrite_iso_dates_in_text,
+)
 
 INTAKE_PARENT_CODES = frozenset({"CASE_CREATED", "CASE_ESCALATED_TO_PUSAT"})
 HISTORY_NOTE_EXCLUDED_CODES = frozenset(
@@ -246,15 +250,11 @@ def format_schedule_body(
 ) -> str:
     lines: list[str] = []
     code = (note.event_code or "").strip().upper()
-    raw_text = (note.text or "").strip()
+    raw_text = rewrite_iso_dates_in_text((note.text or "").strip())
     if code == "CASE_ESCALATION_RETURNED":
         raw_text = format_hq_return_note_display(raw_text)
     if code in {"HQ_ARRIVAL_SCHEDULED"} or note.label == RESCHEDULED_LABEL:
-        slot = " ".join(
-            part
-            for part in ((note.arrival_date or "").strip(), (note.arrival_time or "").strip())
-            if part
-        )
+        slot = format_pdf_date_and_time(note.arrival_date, note.arrival_time)
         if slot and slot not in raw_text:
             lines.append(slot)
         dest = (destination_unit_id or "").strip()

@@ -301,6 +301,7 @@ def test_format_schedule_body_adds_slot_and_unit() -> None:
         ),
         destination_unit_id="UNIT-HQ",
     )
-    assert "2026-08-20 10:00" in body
+    assert "20-08-2026, 10:00" in body
+    assert "2026-08-20 10:00" not in body
     assert "Unit tujuan: UNIT-HQ" in body
     assert "Bawa dokumen asli" in body
