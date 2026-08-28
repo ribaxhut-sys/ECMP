@@ -5,8 +5,6 @@ import { renderWithProviders } from "@/test/harness";
 import { PrintReportDialog } from "./PrintReportDialog";
 
 const printReportPdf = vi.fn();
-const openBlankAttachmentTab = vi.fn();
-const showAttachmentInTab = vi.fn();
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -16,27 +14,20 @@ vi.mock("@/lib/api", async () => {
   };
 });
 
-vi.mock("@/features/complaints/cmBatch1Attachments", async () => {
-  const actual = await vi.importActual<
-    typeof import("@/features/complaints/cmBatch1Attachments")
-  >("@/features/complaints/cmBatch1Attachments");
-  return {
-    ...actual,
-    openBlankAttachmentTab: () => openBlankAttachmentTab(),
-    showAttachmentInTab: (...args: unknown[]) => showAttachmentInTab(...args),
-  };
-});
-
 describe("PrintReportDialog", () => {
+  let clickSpy: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     printReportPdf.mockReset();
-    openBlankAttachmentTab.mockReset();
-    showAttachmentInTab.mockReset();
     vi.stubGlobal("URL", {
       ...URL,
       createObjectURL: vi.fn(() => "blob:mock-url"),
       revokeObjectURL: vi.fn(),
     });
+    clickSpy = vi.fn();
+    // jsdom does not implement anchor.click() navigation — spy on it so the
+    // download trigger is observable without actually downloading anything.
+    HTMLAnchorElement.prototype.click = clickSpy;
   });
 
   afterEach(() => {
@@ -44,10 +35,8 @@ describe("PrintReportDialog", () => {
     vi.unstubAllGlobals();
   });
 
-  it("requests the selected category and period, then opens the PDF in the reserved tab", async () => {
+  it("requests the selected category and period, then downloads the PDF", async () => {
     const user = userEvent.setup();
-    const fakeTab = { close: vi.fn() } as unknown as Window;
-    openBlankAttachmentTab.mockReturnValue(fakeTab);
     printReportPdf.mockResolvedValue({
       blob: new Blob(["%PDF"], { type: "application/pdf" }),
       filename: "laporan-pengaduan-escalated.pdf",
@@ -67,35 +56,22 @@ describe("PrintReportDialog", () => {
     expect(call.dateFrom).toBeTruthy();
     expect(call.dateTo).toBeTruthy();
 
-    await waitFor(() => expect(showAttachmentInTab).toHaveBeenCalledWith(fakeTab, "blob:mock-url"));
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a popup-blocked message and never calls the API when the tab cannot open", async () => {
+  it("shows an error and does not close when the export fails", async () => {
     const user = userEvent.setup();
-    openBlankAttachmentTab.mockReturnValue(null);
-
-    renderWithProviders(<PrintReportDialog open onClose={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: "Print" }));
-
-    expect(
-      await screen.findByText(/blocked the popup/i),
-    ).toBeInTheDocument();
-    expect(printReportPdf).not.toHaveBeenCalled();
-  });
-
-  it("closes the reserved tab and surfaces an error when the export fails", async () => {
-    const user = userEvent.setup();
-    const fakeTab = { close: vi.fn() } as unknown as Window;
-    openBlankAttachmentTab.mockReturnValue(fakeTab);
     printReportPdf.mockRejectedValue(new Error("boom"));
+    const onClose = vi.fn();
 
-    renderWithProviders(<PrintReportDialog open onClose={vi.fn()} />);
+    renderWithProviders(<PrintReportDialog open onClose={onClose} />);
     await user.click(screen.getByRole("button", { name: "Print" }));
 
-    await waitFor(() => expect(fakeTab.close).toHaveBeenCalledTimes(1));
     expect(
       await screen.findByText("Could not generate the report PDF. Try again."),
     ).toBeInTheDocument();
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

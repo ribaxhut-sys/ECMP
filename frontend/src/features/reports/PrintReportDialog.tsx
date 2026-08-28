@@ -3,10 +3,6 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, printReportPdf, type ReportPrintCategory } from "@/lib/api";
-import {
-  openBlankAttachmentTab,
-  showAttachmentInTab,
-} from "@/features/complaints/cmBatch1Attachments";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { Alert, Button, Modal, ModalSection, RadioGroup } from "@/shared/ui";
 import { REPORT_PERIOD_LABEL_KEY, reportPeriodRange } from "./reportPeriods";
@@ -50,13 +46,6 @@ export function PrintReportDialog({
 
   async function submit() {
     if (submitting) return;
-    // Reserve the tab during the click gesture — after the await, browsers
-    // no longer treat window.open as user-initiated and will block it.
-    const tab = openBlankAttachmentTab();
-    if (!tab) {
-      setError(t("printPopupBlocked"));
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
@@ -69,15 +58,15 @@ export function PrintReportDialog({
         branchId,
       });
       const url = URL.createObjectURL(result.blob);
-      showAttachmentInTab(tab, url);
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
       onClose();
     } catch (err) {
-      try {
-        tab.close();
-      } catch {
-        /* ignore */
-      }
       setError(
         err instanceof ApiError
           ? resolveApiErrorMessage(err, tErrors, tCommon)

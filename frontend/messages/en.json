@@ -2385,7 +2385,6 @@
     "printAction": "Print",
     "printGenerating": "Preparing PDF…",
     "printFailed": "Could not generate the report PDF. Try again.",
-    "printPopupBlocked": "The browser blocked the popup. Allow popups for this site and try again.",
     "exportCsv": "Download CSV",
     "csvGeneratedAt": "Generated at",
     "csvMetric": "Metric",
