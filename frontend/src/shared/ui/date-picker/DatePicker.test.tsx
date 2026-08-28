@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DatePicker, formatDateDDMMYYYY } from "./DatePicker";
 
 describe("formatDateDDMMYYYY", () => {
-  it("formats ISO yyyy-mm-dd as dd/mm/yyyy", () => {
-    expect(formatDateDDMMYYYY("2026-09-16")).toBe("16/09/2026");
+  it("formats ISO yyyy-mm-dd as dd-mm-yyyy", () => {
+    expect(formatDateDDMMYYYY("2026-09-16")).toBe("16-09-2026");
   });
 
   it("returns empty string for an empty/invalid value", () => {
@@ -18,16 +18,16 @@ describe("DatePicker", () => {
     cleanup();
   });
 
-  it("shows dd/mm/yyyy on the trigger, not the browser locale format", () => {
+  it("shows dd-mm-yyyy on the trigger, not the browser locale format", () => {
     render(
       <DatePicker label="Tanggal" value="2026-09-16" onChange={() => {}} />,
     );
-    expect(screen.getByText("16/09/2026")).toBeInTheDocument();
+    expect(screen.getByText("16-09-2026")).toBeInTheDocument();
   });
 
   it("shows the placeholder when no value is set", () => {
     render(<DatePicker label="Tanggal" value="" onChange={() => {}} />);
-    expect(screen.getByText("dd/mm/yyyy")).toBeInTheDocument();
+    expect(screen.getByText("dd-mm-yyyy")).toBeInTheDocument();
   });
 
   it("opens the calendar and reports the picked day as ISO", async () => {
@@ -47,7 +47,7 @@ describe("DatePicker", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("September 2026")).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "20/09/2026" }));
+    await user.click(within(dialog).getByRole("button", { name: "20-09-2026" }));
     expect(onChange).toHaveBeenCalledWith("2026-09-20");
   });
 
@@ -65,8 +65,8 @@ describe("DatePicker", () => {
     await user.click(screen.getByRole("button", { name: "Tanggal" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("September 2026")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "05/09/2026" })).toBeDisabled();
-    expect(within(dialog).getByRole("button", { name: "15/09/2026" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "05-09-2026" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "15-09-2026" })).toBeEnabled();
   });
 
   it("disables Saturdays and Sundays when disabledWeekdays is set", async () => {
@@ -81,9 +81,9 @@ describe("DatePicker", () => {
     );
     await user.click(screen.getByRole("button", { name: "Tanggal" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("button", { name: "05/09/2026" })).toBeDisabled();
-    expect(within(dialog).getByRole("button", { name: "06/09/2026" })).toBeDisabled();
-    expect(within(dialog).getByRole("button", { name: "08/09/2026" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "05-09-2026" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "06-09-2026" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "08-09-2026" })).toBeEnabled();
   });
 
   it("flips the calendar above the trigger when there isn't room below", async () => {

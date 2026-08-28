@@ -133,14 +133,14 @@ describe("HqArrivalSlotPicker", () => {
     renderWithProviders(<HqArrivalSlotPicker value={null} onChange={() => {}} />);
 
     await user.click(screen.getByRole("button", { name: "Arrival date" }));
-    const holidayCell = await screen.findByRole("button", { name: "25/08/2026" });
+    const holidayCell = await screen.findByRole("button", { name: "25-08-2026" });
     expect(holidayCell).toBeDisabled();
 
     await user.click(holidayCell);
     expect(fetchHqScheduleAvailability).not.toHaveBeenCalled();
   });
 
-  it("fetches only the picked day and always shows dd/mm/yyyy regardless of browser locale", async () => {
+  it("fetches only the picked day and always shows dd-mm-yyyy regardless of browser locale", async () => {
     renderWithProviders(
       <HqArrivalSlotPicker
         value={{ date: "2026-08-18", time: "" }}
@@ -153,7 +153,7 @@ describe("HqArrivalSlotPicker", () => {
         "2026-08-18",
       );
     });
-    expect(await screen.findByText("18/08/2026")).toBeInTheDocument();
+    expect(await screen.findByText("18-08-2026")).toBeInTheDocument();
   });
 
   it("excludes the break slot from the time dropdown", async () => {

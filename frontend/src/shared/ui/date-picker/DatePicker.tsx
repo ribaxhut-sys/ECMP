@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/shared/utils";
+import { formatShortDate } from "@/shared/utils/datetime";
 import {
   FormField,
   controlSurfaceClass,
@@ -28,11 +29,9 @@ function toISO(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** "2026-09-16" -> "16/09/2026" — app-controlled, not the browser's locale. */
+/** "2026-09-16" -> "16-09-2026" — app-controlled, not the browser's locale. */
 export function formatDateDDMMYYYY(iso: string): string {
-  const date = parseISO(iso);
-  if (!date) return "";
-  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+  return formatShortDate(iso);
 }
 
 function startOfMonth(date: Date): Date {
@@ -112,7 +111,7 @@ export interface DatePickerProps {
 const POPOVER_ESTIMATED_HEIGHT = 320;
 
 /**
- * App-controlled date picker — always renders dd/mm/yyyy, regardless of the
+ * App-controlled date picker — always renders dd-mm-yyyy, regardless of the
  * browser/OS locale (native `<input type="date">` cannot guarantee that).
  * Value in/out is ISO `yyyy-mm-dd`, matching the rest of the API surface.
  */
@@ -132,7 +131,7 @@ export function DatePicker({
   max,
   disabledWeekdays,
   disabledDates,
-  placeholder = "dd/mm/yyyy",
+  placeholder = "dd-mm-yyyy",
 }: DatePickerProps) {
   const inputId = id ?? name ?? "date-picker";
   const describedBy = formFieldDescribedBy(inputId, { description, helper, error });

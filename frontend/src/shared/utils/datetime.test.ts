@@ -3,6 +3,7 @@ import {
   formatDateTime24,
   formatHqArrivalSlot,
   formatHqArrivalSlotList,
+  formatShortDate,
   parseHqArrivalScheduleBlob,
   resolveHqArrivalDisplay,
   toLocalDateKey,
@@ -30,6 +31,30 @@ describe("formatDateTime24", () => {
   it("returns the empty placeholder for blank values", () => {
     expect(formatDateTime24(null, "id", "—")).toBe("—");
     expect(formatDateTime24("", "id", "—")).toBe("—");
+  });
+});
+
+describe("formatShortDate", () => {
+  it("splits a bare calendar date as-is", () => {
+    expect(formatShortDate("2026-09-16")).toBe("16-09-2026");
+  });
+
+  it("converts a full instant through Asia/Jakarta, not UTC", () => {
+    // 17:00 UTC 16 Aug = 00:00 WIB 17 Aug — the Jakarta calendar day wins.
+    expect(formatShortDate("2026-08-16T17:00:00.000Z")).toBe("17-08-2026");
+  });
+
+  it("accepts a Date instance", () => {
+    expect(formatShortDate(new Date("2026-08-16T16:59:59.000Z"))).toBe(
+      "16-08-2026",
+    );
+  });
+
+  it("returns empty string for missing or unparseable values", () => {
+    expect(formatShortDate(null)).toBe("");
+    expect(formatShortDate(undefined)).toBe("");
+    expect(formatShortDate("")).toBe("");
+    expect(formatShortDate("not a date")).toBe("");
   });
 });
 

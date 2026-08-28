@@ -569,7 +569,7 @@ describe("CaseDetailView HQ path", () => {
         screen.getByText(/Branch proposed 2099-08-20 at 09:30/i),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText("20/08/2099")).toBeInTheDocument();
+    expect(screen.getByText("20-08-2099")).toBeInTheDocument();
     expect(
       screen.getByText(/Destination unit: PUSAT-CRO/i),
     ).toBeInTheDocument();

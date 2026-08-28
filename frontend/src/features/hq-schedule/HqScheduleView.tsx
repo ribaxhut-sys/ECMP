@@ -39,7 +39,7 @@ import {
 } from "@/shared/ui";
 import { IconAlert, IconCheck, IconChevronRight } from "@/shared/icons";
 import { useToast } from "@/shared/providers";
-import { toLocalDateKey } from "@/shared/utils/datetime";
+import { formatShortDate, toLocalDateKey } from "@/shared/utils/datetime";
 import { cn, pusatUnitShortCode } from "@/shared/utils";
 import { refreshWorkBadges } from "@/features/cases/workBadgesSignal";
 
@@ -78,12 +78,6 @@ function addDays(date: Date, days: number): Date {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + days);
   return copy;
-}
-
-/** "2026-08-20" -> "20-08-2026" for display; API params/inputs stay ISO. */
-function formatDateDMY(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  return year && month && day ? `${day}-${month}-${year}` : isoDate;
 }
 
 export type SlotOccupancy = "empty" | "partial" | "full";
@@ -592,7 +586,7 @@ function DayColumn({
             isToday ? "text-ecmp-primary" : "text-ecmp-text-secondary",
           )}
         >
-          {formatDateDMY(day.date)}
+          {formatShortDate(day.date)}
         </p>
         {isToday ? (
           <Badge tone="info" variant="solid">
@@ -1083,7 +1077,7 @@ export function HqScheduleView() {
                           className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border px-3 py-2"
                         >
                           <span className="min-w-0 flex-1 break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                            {formatDateDMY(holiday.holidayDate)} — {holiday.label}
+                            {formatShortDate(holiday.holidayDate)} — {holiday.label}
                           </span>
                           {canManageHolidays ? (
                             <Button

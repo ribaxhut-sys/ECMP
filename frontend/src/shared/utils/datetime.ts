@@ -94,6 +94,33 @@ export function toLocalDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * `DD-MM-YYYY` — the one short-date format shown everywhere in the app,
+ * regardless of locale. `Intl.DateTimeFormat` picks field order from the
+ * locale (e.g. `en` renders MM/DD), which is not what this Indonesian
+ * back-office wants even for an English-language operator — dates here are
+ * operational data, not narrative prose. A bare `YYYY-MM-DD` calendar date
+ * is split as-is; anything else is read as an instant and converted through
+ * Asia/Jakarta, matching every other date-only value in this app. Returns
+ * `""` when the value is missing or unparseable.
+ */
+export function formatShortDate(
+  value: string | Date | null | undefined,
+): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (dateOnly) {
+      const [, year, month, day] = dateOnly;
+      return `${day}-${month}-${year}`;
+    }
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const [year, month, day] = toLocalDateKey(date).split("-");
+  return `${day}-${month}-${year}`;
+}
+
 const HQ_ARRIVAL_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HQ_ARRIVAL_TIME_RE = /^\d{2}:\d{2}$/;
 /** Calendar line written into older HQ-arrival notes: `YYYY-MM-DD HH:MM` plus optional WP note. */
