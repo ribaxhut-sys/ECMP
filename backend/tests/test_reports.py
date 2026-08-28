@@ -10,7 +10,7 @@ import pytest
 
 from app.core.errors import ValidationAppError
 from app.modules.reports.repository import ReportRepository
-from app.modules.reports.schemas import AggregateComplaintStatus
+from app.modules.reports.schemas import AggregateComplaintStatus, ReportPrintCategory
 from app.modules.reports.service import ReportService
 
 
@@ -172,3 +172,55 @@ def test_cycle_time_forwards_normalized_window_to_repository() -> None:
     repo.closed_case_durations_days.assert_called_once_with(
         branch_id=None, date_from=datetime(2026, 8, 1, tzinfo=UTC), date_to=None
     )
+
+
+def test_print_pdf_all_category_queries_every_metric() -> None:
+    repo = MagicMock()
+    repo.count_total.return_value = 7
+    repo.count_by_status.return_value = [("REGISTERED", 3), ("CLOSED", 4)]
+    repo.count_resolved.return_value = 4
+    repo.count_escalated.return_value = 2
+
+    pdf_bytes = ReportService(repo).print_pdf(
+        category=ReportPrintCategory.ALL, period_label="Bulan ini"
+    )
+
+    assert pdf_bytes.startswith(b"%PDF")
+    repo.count_total.assert_called_once()
+    repo.count_by_status.assert_called_once()
+    repo.count_resolved.assert_called_once()
+    repo.count_escalated.assert_called_once()
+    repo.closed_case_durations_days.assert_not_called()
+
+
+def test_print_pdf_escalated_category_skips_unrelated_queries() -> None:
+    """A single-category export must not pay for counts it will not print —
+    also guards against the PDF silently showing stale/zero data as real."""
+    repo = MagicMock()
+    repo.count_escalated.return_value = 5
+
+    pdf_bytes = ReportService(repo).print_pdf(
+        category=ReportPrintCategory.ESCALATED, period_label="Minggu ini"
+    )
+
+    assert pdf_bytes.startswith(b"%PDF")
+    repo.count_escalated.assert_called_once()
+    repo.count_total.assert_not_called()
+    repo.count_by_status.assert_not_called()
+    repo.count_resolved.assert_not_called()
+    repo.closed_case_durations_days.assert_not_called()
+
+
+def test_print_pdf_other_category_renders_without_any_query() -> None:
+    """OTHER has no predicate yet — the PDF must say so, not invent a count."""
+    repo = MagicMock()
+
+    pdf_bytes = ReportService(repo).print_pdf(
+        category=ReportPrintCategory.OTHER, period_label="Tahun ini"
+    )
+
+    assert pdf_bytes.startswith(b"%PDF")
+    repo.count_total.assert_not_called()
+    repo.count_by_status.assert_not_called()
+    repo.count_resolved.assert_not_called()
+    repo.count_escalated.assert_not_called()

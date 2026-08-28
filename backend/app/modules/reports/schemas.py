@@ -17,6 +17,20 @@ class AggregateComplaintStatus(StrEnum):
     CLOSED = "CLOSED"
 
 
+class ReportPrintCategory(StrEnum):
+    """Which slice of the window the printed PDF covers.
+
+    ``OTHER`` has no predicate yet — it is a placeholder slot for a future
+    complaint status/disposition and always renders as pending in the PDF.
+    """
+
+    ALL = "all"
+    CREATED = "created"
+    RESOLVED = "resolved"
+    ESCALATED = "escalated"
+    OTHER = "other"
+
+
 class ReportFilters(BaseModel):
     """Optional shared report filters (query params)."""
 

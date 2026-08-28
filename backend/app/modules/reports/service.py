@@ -8,12 +8,14 @@ from datetime import UTC, datetime
 from app.core.errors import ValidationAppError
 from app.core.user_messages import m
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
+from app.modules.reports.pdf import ReportPrintData, build_report_pdf
 from app.modules.reports.repository import ReportRepository
 from app.modules.reports.schemas import (
     AggregateComplaintStatus,
     BranchCount,
     CycleTimeBucket,
     CycleTimeData,
+    ReportPrintCategory,
     ReportSummaryData,
     StatusCount,
 )
@@ -209,3 +211,59 @@ class ReportService:
             slowestDays=_round_days(days[-1]),
             buckets=_cycle_time_buckets(days),
         )
+
+    def print_pdf(
+        self,
+        *,
+        category: ReportPrintCategory,
+        period_label: str,
+        branch_id: uuid.UUID | None = None,
+        branch_label: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        generated_at: datetime | None = None,
+    ) -> bytes:
+        """Export-to-PDF for /reports — same filters/predicates as the screen,
+        rendered server-side so the file looks the same on every browser."""
+        date_from, date_to = _validate_filters(date_from=date_from, date_to=date_to)
+
+        total_created = 0
+        by_status: list[StatusCount] = []
+        resolved = 0
+        escalated = 0
+        cycle_time: CycleTimeData | None = None
+
+        if category in (ReportPrintCategory.ALL, ReportPrintCategory.CREATED):
+            total_created = self._repo.count_total(
+                branch_id=branch_id, date_from=date_from, date_to=date_to
+            )
+            by_status = _status_counts(
+                self._repo.count_by_status(
+                    branch_id=branch_id, date_from=date_from, date_to=date_to
+                )
+            )
+        if category in (ReportPrintCategory.ALL, ReportPrintCategory.RESOLVED):
+            resolved = self._repo.count_resolved(
+                branch_id=branch_id, date_from=date_from, date_to=date_to
+            )
+            if category == ReportPrintCategory.RESOLVED:
+                cycle_time = self.cycle_time(
+                    branch_id=branch_id, date_from=date_from, date_to=date_to
+                )
+        if category in (ReportPrintCategory.ALL, ReportPrintCategory.ESCALATED):
+            escalated = self._repo.count_escalated(
+                branch_id=branch_id, date_from=date_from, date_to=date_to
+            )
+
+        payload = ReportPrintData(
+            category=category,
+            period_label=period_label,
+            branch_label=branch_label,
+            generated_at=generated_at or datetime.now(UTC),
+            total_created=total_created,
+            by_status=by_status,
+            resolved=resolved,
+            escalated=escalated,
+            cycle_time=cycle_time,
+        )
+        return build_report_pdf(payload)

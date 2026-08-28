@@ -267,6 +267,54 @@ def test_report_by_status_emits_aggregate_lifecycle_not_foundation_labels(
 
 
 @_PG
+def test_report_count_escalated_matches_active_path(seeded: Session) -> None:
+    """Print-to-PDF's "dieskalasi" count must use the same ESCALATION_ACTIVE
+    predicate as the dashboard/donut — not a re-derived list of dispositions."""
+    repo = ReportRepository(seeded)
+    with_seed = repo.count_escalated()
+    seeded.execute(
+        delete(CmBatch1ComplaintORM).where(CmBatch1ComplaintORM.created_by == _ACTOR)
+    )
+    seeded.commit()
+    baseline = repo.count_escalated()
+    # HQ_SCHEDULED (IN_PROGRESS) + ESCALATE_PENDING_APPROVAL + HQ_SCHEDULED (REGISTERED);
+    # the REJECTED row is not on the active path.
+    assert with_seed - baseline == 3
+
+
+@_PG
+def test_report_count_resolved_windows_on_closed_at(seeded: Session) -> None:
+    """"Diselesaikan" for a period is a closure-date question — a complaint
+    created long ago but closed today belongs to today's window."""
+    repo = ReportRepository(seeded)
+    now = datetime.now(UTC)
+    long_ago = now.replace(year=now.year - 2)
+    seeded.add(
+        CmBatch1ComplaintORM(
+            id=uuid.uuid4(),
+            complaint_number=f"PRED-2608-{uuid.uuid4().hex[:6].upper()}",
+            customer_id="CUST-PRED",
+            category="BILLING",
+            channel="WEB",
+            subject="predicate resolved window",
+            description="predicate seed",
+            priority="HIGH",
+            status="CLOSED",
+            intake_disposition="BRANCH_CLOSED",
+            case_created=False,
+            created_by=_ACTOR,
+            created_at=long_ago,
+            updated_at=now,
+            closed_at=now,
+        )
+    )
+    seeded.commit()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    assert repo.count_resolved(date_from=today_start) >= 1
+    assert repo.count_resolved(date_from=long_ago, date_to=long_ago) == 0
+
+
+@_PG
 def test_aggregate_kpi_slices_partition_and_count_hq_scheduled(
     seeded: Session,
 ) -> None:

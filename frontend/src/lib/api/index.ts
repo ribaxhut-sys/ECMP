@@ -32,7 +32,9 @@ export type { RoleRef } from "./roles";
 export {
   fetchReportByBranch,
   fetchReportCycleTime,
+  printReportPdf,
 } from "./reports";
+export type { ReportPrintResult } from "./reports";
 export {
   fetchDashboardAggregateKpis,
   fetchDashboardRecentActivity,
@@ -182,6 +184,7 @@ export {
   fetchCmCase,
   fetchCmCaseHistory,
   fetchCmCases,
+  downloadCmCasePdf,
   fetchCmWorkBadges,
   ackCmHqScheduleSeen,
   recordCmCaseAcceptance,

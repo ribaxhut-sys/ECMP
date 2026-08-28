@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
@@ -17,6 +17,7 @@ import { cycleTimeBucketRows } from "./cycleTimeStats";
 import { CycleTimePanel } from "./CycleTimePanel";
 import { InsightsPanel } from "./InsightsPanel";
 import { OperationalHealthPanel } from "./OperationalHealthPanel";
+import { PrintReportDialog } from "./PrintReportDialog";
 import {
   buildReportCsv,
   downloadCsv,
@@ -47,6 +48,7 @@ export function ReportsWorkspace() {
   const { state, reload, period, setPeriod } = useReportsData();
   const loading = state.status === "loading" || state.status === "idle";
   const data = state.status === "success" ? state.data : null;
+  const [printOpen, setPrintOpen] = useState(false);
 
   useEffect(() => {
     if (!canRead) return;
@@ -121,6 +123,13 @@ export function ReportsWorkspace() {
         className="min-h-[var(--ecmp-touch-min)]"
       >
         {t("exportCsv")}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => setPrintOpen(true)}
+        className="min-h-[var(--ecmp-touch-min)]"
+      >
+        {t("printReport")}
       </Button>
       <Button
         variant="outline"
@@ -204,6 +213,8 @@ export function ReportsWorkspace() {
           />
         </div>
       )}
+
+      <PrintReportDialog open={printOpen} onClose={() => setPrintOpen(false)} />
     </PageContainer>
   );
 }

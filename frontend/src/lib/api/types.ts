@@ -112,6 +112,14 @@ export interface ReportSummary {
   byStatus: StatusCount[];
 }
 
+/** GET /api/v1/reports/print — which slice of the window the PDF covers. */
+export type ReportPrintCategory =
+  | "all"
+  | "created"
+  | "resolved"
+  | "escalated"
+  | "other";
+
 /** API-318 KPI Foundation summary (live aggregates; never persisted). */
 export interface ComplaintKpiCounts {
   total: number;

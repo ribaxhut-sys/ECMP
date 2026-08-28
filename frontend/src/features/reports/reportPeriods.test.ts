@@ -15,6 +15,24 @@ describe("reportPeriodRange", () => {
     expect(reportPeriodRange("all", NOW)).toEqual({});
   });
 
+  it("spans the current Jakarta week (Monday start) up to the end of today WIB", () => {
+    // 18 Aug 2026 WIB is a Tuesday — the week started Monday 17 Aug.
+    expect(reportPeriodRange("thisWeek", NOW)).toEqual({
+      dateFrom: "2026-08-16T17:00:00.000Z",
+      dateTo: "2026-08-18T16:59:59.999Z",
+    });
+  });
+
+  it("rolls the week start across a month boundary", () => {
+    // 1 Sep 2026 WIB is a Tuesday — the week started Monday 31 Aug.
+    const range = reportPeriodRange(
+      "thisWeek",
+      new Date("2026-08-31T19:00:00.000Z"),
+    );
+    expect(range.dateFrom).toBe("2026-08-30T17:00:00.000Z");
+    expect(range.dateTo).toBe("2026-09-01T16:59:59.999Z");
+  });
+
   it("spans the current Jakarta month up to the end of today WIB", () => {
     expect(reportPeriodRange("thisMonth", NOW)).toEqual({
       dateFrom: "2026-07-31T17:00:00.000Z",

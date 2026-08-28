@@ -63,6 +63,58 @@ class ReportRepository:
             stmt = stmt.where(*filters)
         return int(self._session.scalar(stmt) or 0)
 
+    def count_resolved(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> int:
+        """Complaints CLOSED within the window, keyed on ``closed_at``.
+
+        Mirrors ``closed_case_durations_days``: "resolved this period" is a
+        closure-date question, not a creation-date one — a complaint opened
+        in June and closed in August belongs to August's report.
+        """
+        filters: list[object] = [CmBatch1ComplaintORM.status == CLOSED_STATUS]
+        if branch_id is not None:
+            unit = owning_unit_for_branch(self._session, branch_id)
+            if not unit:
+                return 0
+            filters.append(CmBatch1ComplaintORM.owning_unit_id == unit)
+        if date_from is not None:
+            filters.append(CmBatch1ComplaintORM.closed_at >= date_from)
+        if date_to is not None:
+            filters.append(CmBatch1ComplaintORM.closed_at <= date_to)
+        stmt: Select[tuple[int]] = select(func.count()).select_from(
+            CmBatch1ComplaintORM
+        ).where(*filters)
+        return int(self._session.scalar(stmt) or 0)
+
+    def count_escalated(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> int:
+        """Complaints still travelling the escalation path (DEC-025 §3.3),
+        created within the window — same predicate as the by-branch column."""
+        filters = self._base_filters(
+            branch_id=branch_id, date_from=date_from, date_to=date_to
+        )
+        if filters is None:
+            return 0
+        filters = [
+            *filters,
+            CmBatch1ComplaintORM.status != CLOSED_STATUS,
+            CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_ACTIVE),
+        ]
+        stmt: Select[tuple[int]] = select(func.count()).select_from(
+            CmBatch1ComplaintORM
+        ).where(*filters)
+        return int(self._session.scalar(stmt) or 0)
+
     def count_by_status(
         self,
         *,

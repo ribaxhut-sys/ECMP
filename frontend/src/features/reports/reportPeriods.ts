@@ -10,6 +10,7 @@ import { hqArrivalInstant, toLocalDateKey } from "@/shared/utils/datetime";
 
 export const REPORT_PERIOD_KEYS = [
   "all",
+  "thisWeek",
   "thisMonth",
   "lastMonth",
   "last90",
@@ -77,6 +78,19 @@ export function reportPeriodRange(
 
   const today = jakartaYmd(now);
 
+  if (key === "thisWeek") {
+    // ISO week — Monday start. getUTCDay(): 0=Sun..6=Sat.
+    const dow = new Date(
+      Date.UTC(today.year, today.month - 1, today.day),
+    ).getUTCDay();
+    const daysSinceMonday = (dow + 6) % 7;
+    const monday = addCalendarDays(today, -daysSinceMonday);
+    return {
+      dateFrom: startIso(monday),
+      dateTo: inclusiveEndIso(today),
+    };
+  }
+
   if (key === "thisMonth") {
     return {
       dateFrom: startIso({ year: today.year, month: today.month, day: 1 }),
@@ -114,6 +128,7 @@ export function reportPeriodRange(
 /** Message key per preset — keeps message ids camelCase like the rest. */
 export const REPORT_PERIOD_LABEL_KEY: Record<ReportPeriodKey, string> = {
   all: "periodAll",
+  thisWeek: "periodThisWeek",
   thisMonth: "periodThisMonth",
   lastMonth: "periodLastMonth",
   last90: "periodLast90",
