@@ -47,7 +47,7 @@ describe("PrintReportDialog", () => {
 
     await user.click(screen.getByRole("radio", { name: "Complaints Escalated" }));
     await user.click(screen.getByRole("radio", { name: "This week" }));
-    await user.click(screen.getByRole("button", { name: "Print" }));
+    await user.click(screen.getByRole("button", { name: "Download" }));
 
     await waitFor(() => expect(printReportPdf).toHaveBeenCalledTimes(1));
     const call = printReportPdf.mock.calls[0][0];
@@ -66,7 +66,7 @@ describe("PrintReportDialog", () => {
     const onClose = vi.fn();
 
     renderWithProviders(<PrintReportDialog open onClose={onClose} />);
-    await user.click(screen.getByRole("button", { name: "Print" }));
+    await user.click(screen.getByRole("button", { name: "Download" }));
 
     expect(
       await screen.findByText("Could not generate the report PDF. Try again."),
