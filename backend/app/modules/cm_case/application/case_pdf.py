@@ -62,6 +62,11 @@ _UUID = re.compile(
 )
 CASE_PDF_AGENCY = "Unit Pelayanan Pemungutan Pajak Daerah"
 _CONTENT_WIDTH = _PAGE_W - 2 * _MARGIN_X
+#: Note/body inset (spaces were stripped by wrapping, so this is a real x-shift).
+_NOTE_BODY_INDENT = 24
+_NESTED_HEAD_INDENT = 12
+_KV_COLON_GAP = 10
+_KV_VALUE_GAP = 8
 # Adobe Helvetica-Bold AFM widths for ASCII 32-126 (units / 1000 em).
 _HELVETICA_BOLD_ASCII = (
     278, 333, 474, 556, 556, 889, 722, 278, 333, 333, 389, 584, 278, 333, 278,
@@ -214,28 +219,39 @@ def _write_snapshot(doc: _PdfDoc, snapshot: CasePdfSnapshot, exported_at: dateti
     doc.blank()
 
     doc.heading("Identitas")
-    doc.kv("Nomor case", case.case_number)
-    doc.kv("Status", case.status)
-    doc.kv("Prioritas", case.priority)
-    doc.kv("Jenis", case.case_type)
+    identity: list[tuple[str, str | None]] = [
+        ("Nomor case", case.case_number),
+        ("Status", case.status),
+        ("Prioritas", case.priority),
+        ("Jenis", case.case_type),
+    ]
     if case.category:
-        doc.kv("Kategori", case.category)
-    doc.kv("No. pengaduan", snapshot.complaint_number)
-    doc.kv("Unit pemilik", case.owner_unit_id or case.owning_unit_id)
-    doc.kv("Unit penanganan", case.owning_unit_id)
-    doc.kv("Pelanggan", operator_visible_name(snapshot.customer_label))
-    doc.kv("Petugas", snapshot.handler_name or case.handling_claimed_by)
+        identity.append(("Kategori", case.category))
+    identity.extend(
+        [
+            ("No. pengaduan", snapshot.complaint_number),
+            ("Unit pemilik", case.owner_unit_id or case.owning_unit_id),
+            ("Unit penanganan", case.owning_unit_id),
+            ("Pelanggan", operator_visible_name(snapshot.customer_label)),
+            ("Petugas", snapshot.handler_name or case.handling_claimed_by),
+        ]
+    )
     if snapshot.assigned_name or case.assigned_user_id:
-        doc.kv("Ditugaskan ke", snapshot.assigned_name or case.assigned_user_id)
-    doc.kv("Dibuat oleh", snapshot.created_by_name or case.created_by)
-    doc.kv("Dibuat pada", format_operator_dt(case.created_at))
+        identity.append(
+            ("Ditugaskan ke", snapshot.assigned_name or case.assigned_user_id)
+        )
+    identity.append(("Dibuat oleh", snapshot.created_by_name or case.created_by))
+    identity.append(("Dibuat pada", format_operator_dt(case.created_at)))
     if case.updated_at:
-        doc.kv("Diubah pada", format_operator_dt(case.updated_at))
+        identity.append(("Diubah pada", format_operator_dt(case.updated_at)))
     if case.closed_at:
-        doc.kv("Ditutup pada", format_operator_dt(case.closed_at))
+        identity.append(("Ditutup pada", format_operator_dt(case.closed_at)))
     if case.cancel_reason:
-        doc.kv("Alasan batal", case.cancel_reason)
-    doc.kv("Eskalasi ke Pusat", "Ya" if case.escalated_to_pusat else "Tidak")
+        identity.append(("Alasan batal", case.cancel_reason))
+    identity.append(
+        ("Eskalasi ke Pusat", "Ya" if case.escalated_to_pusat else "Tidak")
+    )
+    doc.kv_block(identity)
     doc.blank()
     doc.rule()
 
@@ -301,7 +317,10 @@ def _write_snapshot(doc: _PdfDoc, snapshot: CasePdfSnapshot, exported_at: dateti
             label = event_label(entry.event_code, prior)
             doc.para(f"{when}  |  {label}  |  {actor}")
             if entry.note:
-                doc.para(f"    {rewrite_iso_dates_in_text(entry.note)}")
+                doc.para(
+                    rewrite_iso_dates_in_text(entry.note),
+                    indent=_NOTE_BODY_INDENT,
+                )
             prior.append(entry.event_code)
     doc.blank()
     doc.muted(f"Dibuat {format_operator_dt(exported_at)} (Asia/Jakarta).")
@@ -315,15 +334,18 @@ def _write_handling_note(
     destination_unit_id: str | None = None,
 ) -> None:
     meta_parts = [p for p in (note.actor_name, format_catatan_dt(note.occurred_at)) if p]
-    prefix = "    " if nested else ""
+    head_indent = _NESTED_HEAD_INDENT if nested else 0
     head = note.label
     if meta_parts:
         head = f"{head}  |  {' | '.join(meta_parts)}"
-    doc.para(f"{prefix}{head}")
+    doc.para(head, indent=head_indent)
     body = format_schedule_body(note, destination_unit_id=destination_unit_id)
     if body:
         for line in rewrite_iso_dates_in_text(body).split("\n"):
-            doc.para(f"{prefix}    {line}" if nested else f"    {line}")
+            text = line.strip()
+            if not text:
+                continue
+            doc.para(text, indent=head_indent + _NOTE_BODY_INDENT)
 
 
 def _format_bytes(size: int) -> str:
@@ -397,7 +419,31 @@ class _PdfDoc:
             self._y -= _LINE
 
     def kv(self, label: str, value: str | None) -> None:
-        self.para(f"{label}: {_dash(value)}")
+        self.kv_block([(label, value)])
+
+    def kv_block(self, rows: list[tuple[str, str | None]]) -> None:
+        """Identity-style rows: labels left, colons aligned, values in a column."""
+        if not rows:
+            return
+        label_width = max(
+            _helvetica_width(label, _BODY_SIZE, bold=False) for label, _ in rows
+        )
+        colon_x = _MARGIN_X + label_width + _KV_COLON_GAP
+        value_x = colon_x + _helvetica_width(":", _BODY_SIZE, bold=False) + _KV_VALUE_GAP
+        value_max = max(_CONTENT_WIDTH - (value_x - _MARGIN_X), 80)
+        for label, value in rows:
+            lines = _wrap_to_width(
+                _dash(value), max_pt=value_max, size=_BODY_SIZE, bold=False
+            )
+            self._ensure(_LINE)
+            self._text(label, size=_BODY_SIZE, x=_MARGIN_X)
+            self._text(":", size=_BODY_SIZE, x=colon_x)
+            self._text(lines[0], size=_BODY_SIZE, x=value_x)
+            self._y -= _LINE
+            for extra in lines[1:]:
+                self._ensure(_LINE)
+                self._text(extra, size=_BODY_SIZE, x=value_x)
+                self._y -= _LINE
 
     def block(self, label: str, value: str | None) -> None:
         self.para(f"{label}:")
@@ -411,7 +457,16 @@ class _PdfDoc:
             self._text(line, size=_BODY_SIZE)
             self._y -= _LINE
 
-    def para(self, text: str) -> None:
+    def para(self, text: str, *, indent: float = 0) -> None:
+        if indent > 0:
+            max_pt = max(_CONTENT_WIDTH - indent, 80)
+            for line in _wrap_to_width(
+                text, max_pt=max_pt, size=_BODY_SIZE, bold=False
+            ):
+                self._ensure(_LINE)
+                self._text(line, size=_BODY_SIZE, x=_MARGIN_X + indent)
+                self._y -= _LINE
+            return
         for line in _wrap(text, _WRAP):
             self._ensure(_LINE)
             self._text(line, size=_BODY_SIZE)
@@ -433,14 +488,15 @@ class _PdfDoc:
         bold: bool = False,
         italic: bool = False,
         align: str = "left",
+        x: float | None = None,
     ) -> None:
         font = "F2" if bold else "F3" if italic else "F1"
-        x = float(_MARGIN_X)
+        draw_x = float(_MARGIN_X) if x is None else float(x)
         if align == "center":
             width = _helvetica_width(text, size, bold=bold)
-            x = max((_PAGE_W - width) / 2.0, _MARGIN_X / 2.0)
+            draw_x = max((_PAGE_W - width) / 2.0, _MARGIN_X / 2.0)
         cmd = (
-            f"BT /{font} {size} Tf {x:.2f} {self._y} Td "
+            f"BT /{font} {size} Tf {draw_x:.2f} {self._y} Td "
             f"({_pdf_escape(text)}) Tj ET"
         )
         self._pages[-1].append(cmd)

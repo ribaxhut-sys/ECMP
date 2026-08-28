@@ -8,8 +8,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.core.authorization.principal import Principal
 from app.core.errors import ValidationAppError
 from app.modules.reports.pdf import (
+    _styles,
+    _user_activity_table,
     format_count,
     format_period_window,
     format_report_stamp,
@@ -17,12 +20,16 @@ from app.modules.reports.pdf import (
     printable_status_rows,
     report_pdf_filename,
 )
-from app.modules.reports.repository import ReportRepository
+from app.modules.reports.pdf_copy import copy_for, normalize_report_lang
+from app.modules.reports.repository import ReportRepository, UserActivityAgg
+from app.modules.reports.router import get_report_summary, print_report
 from app.modules.reports.schemas import (
     AggregateComplaintStatus,
     ReportPrintCategory,
     StatusCount,
+    UserActivityCount,
 )
+from app.modules.reports.scope import effective_report_branch_id
 from app.modules.reports.service import ReportService
 
 
@@ -193,6 +200,7 @@ def test_print_pdf_all_category_queries_every_metric() -> None:
     repo.count_escalated.return_value = 2
     repo.count_in_progress_at_branch.return_value = 1
     repo.closed_case_durations_days.return_value = [1.0, 3.0]
+    repo.activity_by_user.return_value = []
 
     pdf_bytes = ReportService(repo).print_pdf(
         category=ReportPrintCategory.ALL, period_label="Bulan ini"
@@ -205,6 +213,7 @@ def test_print_pdf_all_category_queries_every_metric() -> None:
     repo.count_escalated.assert_called_once()
     repo.count_in_progress_at_branch.assert_called_once()
     repo.closed_case_durations_days.assert_called_once()
+    repo.activity_by_user.assert_called_once()
 
 
 def test_print_pdf_escalated_category_skips_unrelated_queries() -> None:
@@ -224,6 +233,7 @@ def test_print_pdf_escalated_category_skips_unrelated_queries() -> None:
     repo.count_resolved.assert_not_called()
     repo.count_in_progress_at_branch.assert_not_called()
     repo.closed_case_durations_days.assert_not_called()
+    repo.activity_by_user.assert_not_called()
 
 
 def test_print_pdf_other_category_renders_without_any_query() -> None:
@@ -270,10 +280,12 @@ def test_printable_status_rows_omits_registered() -> None:
 def test_format_count_includes_unit() -> None:
     assert format_count(39) == "39 pengaduan"
     assert format_count(10, "kasus") == "10 kasus"
+    assert format_count(39, lang="en") == "39 complaints"
 
 
 def test_format_unit_label_strips_upppd_and_defaults_all_units() -> None:
     assert format_unit_label(None) == "Semua unit"
+    assert format_unit_label(None, "en") == "All units"
     assert format_unit_label("UPPPD Tanah Abang") == "Tanah Abang"
 
 
@@ -284,3 +296,248 @@ def test_format_period_window_uses_jakarta_dates() -> None:
         datetime(2026, 8, 27, 16, 59, tzinfo=UTC),
     )
     assert window == "01-08-2026 - 27-08-2026"
+    assert format_period_window(None, None, "en") == "Not limited"
+
+
+def test_normalize_report_lang() -> None:
+    assert normalize_report_lang(None) == "id"
+    assert normalize_report_lang("id") == "id"
+    assert normalize_report_lang("en") == "en"
+    assert normalize_report_lang("en-US") == "en"
+
+
+def test_effective_report_branch_id_locks_cabang() -> None:
+    own = uuid.uuid4()
+    other = uuid.uuid4()
+    session = MagicMock()
+    session.scalar.side_effect = [own, "UPPPD-TANAH-ABANG"]
+    principal = Principal(user_id=uuid.uuid4(), roles=("MANAGER",))
+
+    assert effective_report_branch_id(session, principal, other) == own
+
+    session.scalar.side_effect = [own, "UPPPD-TANAH-ABANG"]
+    assert effective_report_branch_id(session, principal, None) == own
+
+
+def test_effective_report_branch_id_head_office_honors_request() -> None:
+    requested = uuid.uuid4()
+    session = MagicMock()
+    session.scalar.return_value = None
+    principal = Principal(user_id=uuid.uuid4(), roles=("ADMIN",))
+
+    assert effective_report_branch_id(session, principal, requested) == requested
+    session.scalar.assert_called_once()
+
+    session.scalar.return_value = None
+    assert effective_report_branch_id(session, principal, None) is None
+
+
+def test_effective_report_branch_id_pusat_home_honors_request() -> None:
+    own = uuid.uuid4()
+    requested = uuid.uuid4()
+    session = MagicMock()
+    session.scalar.side_effect = [own, "PUSAT"]
+    principal = Principal(user_id=uuid.uuid4(), roles=("HO_SCHEDULER",))
+
+    assert effective_report_branch_id(session, principal, requested) == requested
+
+    session.scalar.side_effect = [own, "PUSAT-CRO"]
+    assert effective_report_branch_id(session, principal, None) is None
+
+
+def test_summary_route_uses_effective_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    own = uuid.uuid4()
+    other = uuid.uuid4()
+    monkeypatch.setattr(
+        "app.modules.reports.router.effective_report_branch_id",
+        lambda _session, _principal, _requested: own,
+    )
+    svc = MagicMock()
+    svc.summary.return_value = MagicMock()
+    principal = Principal(user_id=uuid.uuid4(), roles=("MANAGER",))
+
+    get_report_summary(
+        service=svc,
+        principal=principal,
+        session=MagicMock(),
+        branch_id=other,
+    )
+
+    svc.summary.assert_called_once()
+    assert svc.summary.call_args.kwargs["branch_id"] == own
+
+
+def test_print_route_loads_label_for_effective_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    effective = uuid.uuid4()
+    monkeypatch.setattr(
+        "app.modules.reports.router.effective_report_branch_id",
+        lambda _session, _principal, _requested: effective,
+    )
+    svc = MagicMock()
+    svc.print_pdf.return_value = b"%PDF-mock"
+    session = MagicMock()
+    session.scalar.return_value = "UPPPD Tanah Abang"
+    principal = Principal(user_id=uuid.uuid4(), roles=("MANAGER",))
+
+    response = print_report(
+        service=svc,
+        session=session,
+        principal=principal,
+        branch_id=uuid.uuid4(),
+    )
+
+    assert response.media_type == "application/pdf"
+    assert svc.print_pdf.call_args.kwargs["branch_id"] == effective
+    assert svc.print_pdf.call_args.kwargs["branch_label"] == "UPPPD Tanah Abang"
+
+
+def test_print_pdf_english_renders() -> None:
+    repo = MagicMock()
+    repo.count_total.return_value = 7
+    repo.count_resolved.return_value = 4
+    repo.count_escalated.return_value = 2
+    repo.count_in_progress_at_branch.return_value = 1
+    repo.closed_case_durations_days.return_value = [1.0, 3.0]
+    repo.activity_by_user.return_value = []
+
+    pdf_bytes = ReportService(repo).print_pdf(
+        category=ReportPrintCategory.ALL,
+        period_label="This month",
+        lang="en-US",
+    )
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_print_pdf_comparison_queries_previous_window() -> None:
+    repo = MagicMock()
+    repo.count_total.return_value = 7
+    repo.count_resolved.return_value = 4
+    repo.count_escalated.return_value = 2
+    repo.count_in_progress_at_branch.return_value = 1
+    repo.closed_case_durations_days.return_value = [1.0]
+    repo.activity_by_user.return_value = []
+
+    pdf_bytes = ReportService(repo).print_pdf(
+        category=ReportPrintCategory.ALL,
+        period_label="Bulan ini",
+        date_from=datetime(2026, 8, 1, tzinfo=UTC),
+        date_to=datetime(2026, 8, 18, tzinfo=UTC),
+        compare_from=datetime(2026, 7, 1, tzinfo=UTC),
+        compare_to=datetime(2026, 7, 18, tzinfo=UTC),
+    )
+
+    assert pdf_bytes.startswith(b"%PDF")
+    assert repo.count_total.call_count == 2
+    assert repo.count_resolved.call_count == 2
+    assert repo.count_escalated.call_count == 2
+    assert repo.count_in_progress_at_branch.call_count == 2
+    repo.activity_by_user.assert_called_once()
+
+
+def test_by_user_maps_repository_rows() -> None:
+    actor = uuid.uuid4()
+    stamp = datetime(2026, 8, 18, 10, tzinfo=UTC)
+    repo = MagicMock()
+    repo.activity_by_user.return_value = [
+        UserActivityAgg(
+            user_id=str(actor),
+            display_name="Ani Petugas",
+            username="ani",
+            branch_id=actor,
+            branch_name="UPPPD Tanah Abang",
+            created_count=3,
+            decided_count=1,
+            closed_count=2,
+            activity_count=9,
+            last_activity_at=stamp,
+        )
+    ]
+
+    result = ReportService(repo).by_user()
+
+    assert len(result) == 1
+    assert result[0].display_name == "Ani Petugas"
+    assert result[0].username == "ani"
+    assert result[0].created_count == 3
+    assert result[0].decided_count == 1
+    assert result[0].closed_count == 2
+    assert result[0].activity_count == 9
+    assert result[0].last_activity_at == stamp
+    repo.activity_by_user.assert_called_once()
+
+
+def test_by_user_rejects_inverted_window() -> None:
+    repo = MagicMock()
+    with pytest.raises(ValidationAppError):
+        ReportService(repo).by_user(
+            date_from=datetime(2026, 8, 31, tzinfo=UTC),
+            date_to=datetime(2026, 8, 1, tzinfo=UTC),
+        )
+    repo.activity_by_user.assert_not_called()
+
+
+def test_activity_by_user_unknown_branch_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = MagicMock()
+    repo = ReportRepository(session)
+    monkeypatch.setattr(
+        "app.modules.reports.repository.owning_unit_for_branch",
+        lambda *_a, **_k: None,
+    )
+    assert repo.activity_by_user(branch_id=uuid.uuid4()) == []
+    session.execute.assert_not_called()
+
+
+def test_print_pdf_all_renders_when_officer_activity_present() -> None:
+    stamp = datetime(2026, 8, 18, 10, tzinfo=UTC)
+    repo = MagicMock()
+    repo.count_total.return_value = 3
+    repo.count_resolved.return_value = 1
+    repo.count_escalated.return_value = 0
+    repo.count_in_progress_at_branch.return_value = 2
+    repo.closed_case_durations_days.return_value = []
+    repo.activity_by_user.return_value = [
+        UserActivityAgg(
+            user_id="u-ani",
+            display_name="Ani Petugas",
+            username="ani",
+            branch_id=None,
+            branch_name="UPPPD Tanah Abang",
+            created_count=2,
+            decided_count=0,
+            closed_count=1,
+            activity_count=5,
+            last_activity_at=stamp,
+        )
+    ]
+
+    pdf_bytes = ReportService(repo).print_pdf(
+        category=ReportPrintCategory.ALL, period_label="Bulan ini"
+    )
+
+    assert pdf_bytes.startswith(b"%PDF")
+    repo.activity_by_user.assert_called_once()
+
+
+def test_user_activity_table_lists_officer_name() -> None:
+    table = _user_activity_table(
+        [
+            UserActivityCount(
+                userId="u-ani",
+                displayName="Ani Petugas",
+                username="ani",
+                createdCount=2,
+                decidedCount=0,
+                closedCount=1,
+                activityCount=5,
+            )
+        ],
+        _styles(),
+        copy_for("id"),
+    )
+    assert "Ani Petugas" in table._cellvalues[1][0].getPlainText()
+    assert "2" in table._cellvalues[1][2].getPlainText()

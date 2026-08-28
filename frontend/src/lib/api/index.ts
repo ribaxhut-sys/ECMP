@@ -31,6 +31,7 @@ export { fetchRoles } from "./roles";
 export type { RoleRef } from "./roles";
 export {
   fetchReportByBranch,
+  fetchReportByUser,
   fetchReportCycleTime,
   printReportPdf,
 } from "./reports";

@@ -9,7 +9,7 @@ from app.core.errors import ValidationAppError
 from app.core.user_messages import m
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
 from app.modules.reports.pdf import ReportPrintData, build_report_pdf
-from app.modules.reports.repository import ReportRepository
+from app.modules.reports.repository import ReportRepository, UserActivityAgg
 from app.modules.reports.schemas import (
     AggregateComplaintStatus,
     BranchCount,
@@ -18,6 +18,7 @@ from app.modules.reports.schemas import (
     ReportPrintCategory,
     ReportSummaryData,
     StatusCount,
+    UserActivityCount,
 )
 
 
@@ -91,6 +92,21 @@ def _cycle_time_buckets(days: list[float]) -> list[CycleTimeBucket]:
 
 def _round_days(value: float) -> float:
     return round(value, 1)
+
+
+def _user_activity_count(row: UserActivityAgg) -> UserActivityCount:
+    return UserActivityCount(
+        userId=row.user_id,
+        displayName=row.display_name,
+        username=row.username,
+        branchId=row.branch_id,
+        branchName=row.branch_name,
+        createdCount=row.created_count,
+        decidedCount=row.decided_count,
+        closedCount=row.closed_count,
+        activityCount=row.activity_count,
+        lastActivityAt=row.last_activity_at,
+    )
 
 
 def _completion_ratio(closed: int, total: int) -> float:
@@ -212,6 +228,21 @@ class ReportService:
             buckets=_cycle_time_buckets(days),
         )
 
+    def by_user(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> list[UserActivityCount]:
+        date_from, date_to = _validate_filters(date_from=date_from, date_to=date_to)
+        return [
+            _user_activity_count(row)
+            for row in self._repo.activity_by_user(
+                branch_id=branch_id, date_from=date_from, date_to=date_to
+            )
+        ]
+
     def print_pdf(
         self,
         *,
@@ -222,10 +253,17 @@ class ReportService:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         generated_at: datetime | None = None,
+        lang: str = "id",
+        compare_from: datetime | None = None,
+        compare_to: datetime | None = None,
     ) -> bytes:
         """Export-to-PDF for /reports — same filters/predicates as the screen,
         rendered server-side so the file looks the same on every browser."""
         date_from, date_to = _validate_filters(date_from=date_from, date_to=date_to)
+        compare_from, compare_to = _validate_filters(
+            date_from=compare_from, date_to=compare_to
+        )
+        has_comparison = compare_from is not None and compare_to is not None
 
         total_created = 0
         by_status: list[StatusCount] = []
@@ -233,6 +271,11 @@ class ReportService:
         escalated = 0
         in_progress_at_branch = 0
         cycle_time: CycleTimeData | None = None
+        previous_total_created = 0
+        previous_resolved = 0
+        previous_escalated = 0
+        previous_in_progress_at_branch = 0
+        user_activity: list[UserActivityCount] = []
 
         if category in (ReportPrintCategory.ALL, ReportPrintCategory.CREATED):
             total_created = self._repo.count_total(
@@ -244,6 +287,12 @@ class ReportService:
                         branch_id=branch_id, date_from=date_from, date_to=date_to
                     )
                 )
+            if has_comparison:
+                previous_total_created = self._repo.count_total(
+                    branch_id=branch_id,
+                    date_from=compare_from,
+                    date_to=compare_to,
+                )
         if category in (ReportPrintCategory.ALL, ReportPrintCategory.RESOLVED):
             resolved = self._repo.count_resolved(
                 branch_id=branch_id, date_from=date_from, date_to=date_to
@@ -251,14 +300,40 @@ class ReportService:
             cycle_time = self.cycle_time(
                 branch_id=branch_id, date_from=date_from, date_to=date_to
             )
+            if has_comparison:
+                previous_resolved = self._repo.count_resolved(
+                    branch_id=branch_id,
+                    date_from=compare_from,
+                    date_to=compare_to,
+                )
         if category in (ReportPrintCategory.ALL, ReportPrintCategory.ESCALATED):
             escalated = self._repo.count_escalated(
                 branch_id=branch_id, date_from=date_from, date_to=date_to
             )
+            if has_comparison:
+                previous_escalated = self._repo.count_escalated(
+                    branch_id=branch_id,
+                    date_from=compare_from,
+                    date_to=compare_to,
+                )
         if category == ReportPrintCategory.ALL:
             in_progress_at_branch = self._repo.count_in_progress_at_branch(
                 branch_id=branch_id, date_from=date_from, date_to=date_to
             )
+            if has_comparison:
+                previous_in_progress_at_branch = (
+                    self._repo.count_in_progress_at_branch(
+                        branch_id=branch_id,
+                        date_from=compare_from,
+                        date_to=compare_to,
+                    )
+                )
+            user_activity = [
+                _user_activity_count(row)
+                for row in self._repo.activity_by_user(
+                    branch_id=branch_id, date_from=date_from, date_to=date_to
+                )
+            ]
 
         payload = ReportPrintData(
             category=category,
@@ -273,5 +348,12 @@ class ReportService:
             escalated=escalated,
             in_progress_at_branch=in_progress_at_branch,
             cycle_time=cycle_time,
+            lang=lang,
+            has_comparison=has_comparison,
+            previous_total_created=previous_total_created,
+            previous_resolved=previous_resolved,
+            previous_escalated=previous_escalated,
+            previous_in_progress_at_branch=previous_in_progress_at_branch,
+            user_activity=user_activity,
         )
         return build_report_pdf(payload)

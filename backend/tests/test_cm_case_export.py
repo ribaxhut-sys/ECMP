@@ -308,7 +308,7 @@ def test_pdf_hides_internal_uuids_for_pelanggan_and_footer() -> None:
     )
     assert customer_uuid.encode("ascii") not in pdf
     assert case_uuid.encode("ascii") not in pdf
-    assert b"Pelanggan: -" in pdf
+    assert b"Pelanggan" in pdf
     assert b"UNI-2608-0001" in pdf
 
 
@@ -458,3 +458,55 @@ def test_api_539_export_cross_unit_denied(db_session: Session) -> None:
         assert allowed.content.startswith(b"%PDF-1.4")
     finally:
         client.app.dependency_overrides.clear()
+
+
+def _pdf_x(pdf: bytes, snippet: bytes) -> float:
+    pattern = (
+        rb"/F1 (\d+) Tf ([\d.]+) [\d.]+ Td \((?:\\.|[^\\)])*" + re.escape(snippet)
+    )
+    match = re.search(pattern, pdf)
+    assert match is not None, snippet
+    return float(match.group(2))
+
+
+def test_pdf_identity_colons_align() -> None:
+    pdf = render_case_snapshot_pdf(
+        CasePdfSnapshot(
+            case=_snapshot_case(),
+            complaint_number="CMP-0001",
+            exported_by="Dewi Hidayat",
+            exported_at=datetime(2026, 8, 28, 1, 0, tzinfo=UTC),
+        )
+    )
+    assert _pdf_x(pdf, b"Nomor case") == _pdf_x(pdf, b"Status")
+    colon_xs = [
+        float(x)
+        for x in re.findall(rb"/F1 10 Tf ([\d.]+) [\d.]+ Td \(:\) Tj", pdf)
+    ]
+    assert colon_xs
+    assert len(set(colon_xs)) == 1
+    assert colon_xs[0] > _pdf_x(pdf, b"Nomor case")
+    assert _pdf_x(pdf, b"UNI-2608-0001") > colon_xs[0]
+
+
+def test_pdf_note_body_is_inset_from_event_head() -> None:
+    pdf = render_case_snapshot_pdf(
+        CasePdfSnapshot(
+            case=_snapshot_case(),
+            history=[
+                CaseHistoryEntry(
+                    entryId="e1",
+                    eventCode="CASE_CREATED",
+                    eventType="CaseCreated",
+                    occurredAt=datetime(2026, 8, 1, 3, 0, tzinfo=UTC),
+                    actorName="Dewi",
+                    note="Catatan awal",
+                )
+            ],
+            exported_by="Dewi Hidayat",
+            exported_at=datetime(2026, 8, 28, 1, 0, tzinfo=UTC),
+        )
+    )
+    head_x = _pdf_x(pdf, b"Case dibuat")
+    body_x = _pdf_x(pdf, b"Catatan awal")
+    assert body_x >= head_x + 20

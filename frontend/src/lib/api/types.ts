@@ -91,6 +91,20 @@ export interface CycleTimeSummary {
   buckets: CycleTimeBucket[];
 }
 
+/** GET /api/v1/reports/by-user — one operator's work in the report window. */
+export interface UserActivityCount {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  branchId: string | null;
+  branchName: string | null;
+  createdCount: number;
+  decidedCount: number;
+  closedCount: number;
+  activityCount: number;
+  lastActivityAt: string | null;
+}
+
 export interface BranchCount {
   branchId: string | null;
   branchCode: string | null;

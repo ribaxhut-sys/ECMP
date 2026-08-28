@@ -3549,6 +3549,8 @@ paths:
         Intake path (HQ scheduled, escalate-pending, …) is not collapsed into
         Foundation labels here — use `GET /api/v1/dashboard/aggregate-kpis`.
         Date filters apply to complaint `createdAt`. Requires `reports:read`.
+        Cabang callers are locked to their home unit regardless of `branchId`.
+        Pusat / Head Office may omit `branchId` (every unit) or pick one.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
         - $ref: "#/components/parameters/ReportDateFrom"
@@ -3580,7 +3582,8 @@ paths:
         SQL `COUNT` grouped onto Aggregate lifecycle
         (`REGISTERED | IN_PROGRESS | CLOSED`). One row per status (zero when
         absent). Date filters apply to complaint `createdAt`.
-        Requires permission `reports:read`.
+        Requires permission `reports:read`. Cabang callers are locked to their
+        home unit; Pusat / Head Office may omit `branchId` or pick one.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
         - $ref: "#/components/parameters/ReportDateFrom"
@@ -3611,8 +3614,8 @@ paths:
       description: |
         SQL `COUNT` + `GROUP BY` owning unit. Sorted by branch-resolution
         percent (caseClosed/caseTotal) descending, then complaint volume.
-        All callers with `reports:read` see every unit; optional `branchId`
-        still filters one unit.
+        Cabang callers are locked to their home unit. Pusat / Head Office may
+        omit `branchId` (every unit) or pick one.
         Each row includes complaint totals and CM case metrics so Kesehatan
         Cabang can show total cases, resolved-at-branch, and open escalations.
         `caseClosed` = CLOSED cases not escalated to Pusat (plus no-Case
@@ -3655,7 +3658,8 @@ paths:
         August. Complaints carry no `closedAt`, so cycle time is measured on
         Cases — the unit that records closure time.
         An empty window returns `closedCases: 0` with zeroed buckets, not 404.
-        Requires permission `reports:read`.
+        Requires permission `reports:read`. Cabang callers are locked to their
+        home unit; Pusat / Head Office may omit `branchId` or pick one.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
         - $ref: "#/components/parameters/ReportDateFrom"
@@ -3688,6 +3692,58 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/reports/by-user:
+    get:
+      summary: Complaint work counts by user
+      operationId: getReportByUser
+      x-ear-id: API-547
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        Per-officer operational activity in the report window (BR-020
+        workload handler). Not a login or identity-directory dump.
+        Each row is an actor who registered a complaint, decided an
+        intake escalation, closed a case, or wrote a CAPABILITY-010
+        timeline event — scoped to the same owning unit as API-210.
+        Cabang callers are locked to their home unit; Pusat / Head
+        Office may omit `branchId` (every unit) or pick one.
+        Created counts filter on complaint `createdAt`; decided on
+        `decidedAt`; closed on case `closedAt`; activity on timeline
+        `createdAt`. SYSTEM / empty actors are omitted. At most 200
+        rows, ordered by activity then created volume.
+        Requires permission `reports:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Per-user activity rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserActivityCountListDataResponse"
+              example:
+                data:
+                  - userId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    displayName: "Ani Petugas"
+                    username: "ani"
+                    branchId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    branchName: "UPPPD Tanah Abang"
+                    createdCount: 3
+                    decidedCount: 1
+                    closedCount: 2
+                    activityCount: 9
+                    lastActivityAt: "2026-08-18T03:00:00Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/reports/print:
     get:
       summary: Export report to PDF
@@ -3698,14 +3754,23 @@ paths:
         - bearerAuth: []
       description: |
         Server-rendered PDF of the `/reports` window (not a Case snapshot —
-        that is API-539). Same `reports:read` gate and optional `branchId` /
-        `dateFrom` / `dateTo` filters as API-210.
+        that is API-539). Same `reports:read` gate as API-210. Cabang callers
+        are locked to their home unit regardless of `branchId`; Pusat / Head
+        Office may omit `branchId` (every unit) or pick one. Optional
+        `dateFrom` / `dateTo` filters match API-210.
         `category` selects the slice: `all`, `created`, `resolved`,
         `escalated`. `other` is a reserved placeholder with no predicate
         yet and renders a pending notice rather than inventing a count.
         `periodLabel` is display-only (copied into the PDF header).
         Created/escalated counts filter on complaint `createdAt`;
         resolved counts filter on `closedAt`.
+        Category `all` also prints the API-547 officer-activity table
+        (top 15 rows of the same window).
+        Optional `lang` is `id` (default) or `en` and selects PDF copy;
+        `periodLabel` is still supplied by the client in the operator language.
+        Optional `compareDateFrom`/`compareDateTo` add a previous-window
+        delta line (same predicates as the selected category). Omit both
+        for all-time reports that have no predecessor.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
         - $ref: "#/components/parameters/ReportDateFrom"
@@ -3720,6 +3785,21 @@ paths:
           required: false
           description: Operator-facing period caption copied into the PDF header
           schema: { type: string, maxLength: 80, default: "Seluruh periode" }
+        - name: lang
+          in: query
+          required: false
+          description: PDF copy language (`id` default; `en` / `en-*` → English)
+          schema: { type: string, maxLength: 16, default: "id" }
+        - name: compareDateFrom
+          in: query
+          required: false
+          description: Inclusive start of the previous window for delta copy
+          schema: { type: string, format: date-time }
+        - name: compareDateTo
+          in: query
+          required: false
+          description: Inclusive end of the previous window for delta copy
+          schema: { type: string, format: date-time }
       responses:
         "200":
           description: Report PDF
@@ -4246,6 +4326,9 @@ components:
       name: branchId
       in: query
       required: false
+      description: >
+        Optional unit filter. Some principals are locked to their home unit
+        server-side regardless of this value.
       schema: { type: string, format: uuid }
     ReportDateFrom:
       name: dateFrom
@@ -6081,6 +6164,50 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/CycleTime" }
+    UserActivityCount:
+      type: object
+      required:
+        - userId
+        - displayName
+        - createdCount
+        - decidedCount
+        - closedCount
+        - activityCount
+      properties:
+        userId:
+          type: string
+          description: Actor key (directory UUID or legacy created_by string)
+        displayName: { type: string }
+        username: { type: string, nullable: true }
+        branchId: { type: string, format: uuid, nullable: true }
+        branchName: { type: string, nullable: true }
+        createdCount:
+          type: integer
+          minimum: 0
+          description: Complaints registered by this actor in the window
+        decidedCount:
+          type: integer
+          minimum: 0
+          description: Intake-escalation decisions by this actor in the window
+        closedCount:
+          type: integer
+          minimum: 0
+          description: Cases closed by this actor in the window
+        activityCount:
+          type: integer
+          minimum: 0
+          description: CAPABILITY-010 timeline events authored in the window
+        lastActivityAt:
+          type: string
+          format: date-time
+          nullable: true
+    UserActivityCountListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/UserActivityCount" }
     BranchCountListDataResponse:
       type: object
       required: [data]

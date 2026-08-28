@@ -69,6 +69,19 @@ function startIso(parts: Ymd): string {
   return jakartaDayStart(parts).toISOString();
 }
 
+function lastDayOfMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function shiftMonth(parts: Ymd, delta: number): Ymd {
+  const utc = new Date(Date.UTC(parts.year, parts.month - 1 + delta, 1));
+  return {
+    year: utc.getUTCFullYear(),
+    month: utc.getUTCMonth() + 1,
+    day: 1,
+  };
+}
+
 /** Resolve a preset into the query window sent to the Aggregate KPI. */
 export function reportPeriodRange(
   key: ReportPeriodKey,
@@ -122,6 +135,72 @@ export function reportPeriodRange(
   return {
     dateFrom: startIso({ year: today.year, month: 1, day: 1 }),
     dateTo: inclusiveEndIso(today),
+  };
+}
+
+/**
+ * Like-for-like window immediately before the selected preset.
+ *
+ * `all` has no predecessor. Partial windows (this week / month / year) compare
+ * the same days in the previous period, not a full previous month or week.
+ */
+export function previousReportPeriodRange(
+  key: ReportPeriodKey,
+  now: Date = new Date(),
+): ReportPeriodRange | null {
+  if (key === "all") return null;
+
+  const today = jakartaYmd(now);
+
+  if (key === "thisWeek") {
+    const current = reportPeriodRange("thisWeek", now);
+    const from = jakartaYmd(new Date(current.dateFrom as string));
+    const to = jakartaYmd(new Date(current.dateTo as string));
+    return {
+      dateFrom: startIso(addCalendarDays(from, -7)),
+      dateTo: inclusiveEndIso(addCalendarDays(to, -7)),
+    };
+  }
+
+  if (key === "thisMonth") {
+    const prev = shiftMonth({ ...today, day: 1 }, -1);
+    const day = Math.min(today.day, lastDayOfMonth(prev.year, prev.month));
+    return {
+      dateFrom: startIso({ ...prev, day: 1 }),
+      dateTo: inclusiveEndIso({ ...prev, day }),
+    };
+  }
+
+  if (key === "lastMonth") {
+    const current = reportPeriodRange("lastMonth", now);
+    const first = jakartaYmd(new Date(current.dateFrom as string));
+    const prev = shiftMonth(first, -1);
+    const last = addCalendarDays(shiftMonth(prev, 1), -1);
+    return {
+      dateFrom: startIso(prev),
+      dateTo: inclusiveEndIso(last),
+    };
+  }
+
+  if (key === "last90") {
+    const current = reportPeriodRange("last90", now);
+    const from = jakartaYmd(new Date(current.dateFrom as string));
+    const prevTo = addCalendarDays(from, -1);
+    return {
+      dateFrom: startIso(addCalendarDays(prevTo, -89)),
+      dateTo: inclusiveEndIso(prevTo),
+    };
+  }
+
+  const prevYear = today.year - 1;
+  const day = Math.min(today.day, lastDayOfMonth(prevYear, today.month));
+  return {
+    dateFrom: startIso({ year: prevYear, month: 1, day: 1 }),
+    dateTo: inclusiveEndIso({
+      year: prevYear,
+      month: today.month,
+      day,
+    }),
   };
 }
 

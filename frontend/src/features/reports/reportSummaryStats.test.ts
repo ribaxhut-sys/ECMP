@@ -4,6 +4,7 @@ import {
   operationalHealthFromRate,
   reportHeadlineCounts,
   resolutionBuckets,
+  resolutionMixRows,
   resolutionRatePercent,
 } from "./reportSummaryStats";
 
@@ -64,6 +65,40 @@ describe("resolutionBuckets", () => {
       escalationScheduled: 1,
       inProgress: 3,
     });
+  });
+});
+
+describe("resolutionMixRows", () => {
+  it("returns nothing when the window has no work", () => {
+    expect(
+      resolutionMixRows({
+        resolved: 0,
+        waiting: 0,
+        escalated: 0,
+        escalationApproved: 0,
+        escalationScheduled: 0,
+        inProgress: 0,
+      }),
+    ).toEqual([]);
+  });
+
+  it("keeps shares summing to 100", () => {
+    const rows = resolutionMixRows({
+      resolved: 7,
+      waiting: 1,
+      escalated: 4,
+      escalationApproved: 2,
+      escalationScheduled: 1,
+      inProgress: 3,
+    });
+    expect(rows.map((row) => row.key)).toEqual([
+      "resolved",
+      "inProgress",
+      "waiting",
+      "escalated",
+    ]);
+    expect(rows.reduce((sum, row) => sum + row.share, 0)).toBe(100);
+    expect(rows.find((row) => row.key === "escalated")?.count).toBe(7);
   });
 });
 

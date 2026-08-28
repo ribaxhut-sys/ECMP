@@ -21,7 +21,7 @@
 | `complaint-domain-service.v1.yaml` | ECMP Complaint Domain Service API | 1.4.0 | 23 |
 | `complaint-management-batch1.v1.yaml` | ECMP Complaint Management Batch 1 API | 1.0.0-planned | 23 |
 | `complaint-management-esc-res.v1.yaml` | ECMP Complaint Management Escalation & Resolution API (DEC-F4) | 1.0.0-planned | 7 |
-| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 105 |
+| `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 106 |
 | `dashboard-queues.v1.yaml` | ECMP Dashboard Queues API | 1.0.0 | 1 |
 | `hq-schedule.v1.yaml` | ECMP HQ Arrival Schedule API | 1.0.0-lab | 5 |
 | `internal-complaints.v1.yaml` | ECMP Pengaduan Internal API | 1.1.0 | 18 |
@@ -232,6 +232,7 @@
 | API-211 | `GET /api/v1/reports/by-status` | Complaint counts by status |
 | API-212 | `GET /api/v1/reports/by-branch` | Complaint and case counts by branch |
 | API-545 | `GET /api/v1/reports/cycle-time` | Cycle time of closed cases |
+| API-547 | `GET /api/v1/reports/by-user` | Complaint work counts by user |
 | API-546 | `GET /api/v1/reports/print` | Export report to PDF |
 | API-222 | `GET /api/v1/customers` | List customer references |
 | API-222 | `PATCH /api/v1/customers/{customerId}` | Update local customer reference phone (Mode A cache) |

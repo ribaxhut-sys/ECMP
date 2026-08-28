@@ -96,6 +96,23 @@ class CycleTimeData(BaseModel):
     buckets: list[CycleTimeBucket] = Field(default_factory=list)
 
 
+class UserActivityCount(BaseModel):
+    """One operator's complaint-module work in the report window (API-547)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_id: str = Field(alias="userId")
+    display_name: str = Field(alias="displayName")
+    username: str | None = None
+    branch_id: uuid.UUID | None = Field(default=None, alias="branchId")
+    branch_name: str | None = Field(default=None, alias="branchName")
+    created_count: int = Field(default=0, ge=0, alias="createdCount")
+    decided_count: int = Field(default=0, ge=0, alias="decidedCount")
+    closed_count: int = Field(default=0, ge=0, alias="closedCount")
+    activity_count: int = Field(default=0, ge=0, alias="activityCount")
+    last_activity_at: datetime | None = Field(default=None, alias="lastActivityAt")
+
+
 class ReportSummaryData(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

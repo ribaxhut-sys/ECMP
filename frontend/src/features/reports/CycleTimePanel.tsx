@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import type { CycleTimeSummary } from "@/lib/api/types";
+import { cn } from "@/shared/utils";
 import {
   Card,
   CardBody,
@@ -13,6 +14,13 @@ import {
   StatCard,
 } from "@/shared/ui";
 import { cycleTimeBucketRows } from "./cycleTimeStats";
+
+const CYCLE_BAR_CLASS: Record<string, string> = {
+  sameDay: "bg-ecmp-success",
+  upTo3Days: "bg-ecmp-primary",
+  upTo7Days: "bg-ecmp-warning",
+  over7Days: "bg-ecmp-danger",
+};
 
 export function CycleTimePanel({
   summary,
@@ -110,7 +118,10 @@ export function CycleTimePanel({
                       aria-label={t(row.labelKey)}
                     >
                       <div
-                        className="h-full rounded-[var(--ecmp-radius-full)] bg-ecmp-info transition-[width] duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-hover)]"
+                        className={cn(
+                          "h-full rounded-[var(--ecmp-radius-full)] transition-[width] duration-[var(--ecmp-duration-normal)] ease-[var(--ecmp-ease-hover)]",
+                          CYCLE_BAR_CLASS[row.key] ?? "bg-ecmp-info",
+                        )}
                         style={{ width: `${row.share}%` }}
                       />
                     </div>

@@ -16,6 +16,7 @@ from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.models import Branch
 from app.modules.reports.pdf import report_pdf_filename
+from app.modules.reports.pdf_copy import normalize_report_lang
 from app.modules.reports.repository import ReportRepository
 from app.modules.reports.schemas import (
     BranchCount,
@@ -23,7 +24,9 @@ from app.modules.reports.schemas import (
     ReportPrintCategory,
     ReportSummaryData,
     StatusCount,
+    UserActivityCount,
 )
+from app.modules.reports.scope import effective_report_branch_id
 from app.modules.reports.service import ReportService
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
@@ -44,11 +47,12 @@ def get_report_service(
 def get_report_summary(
     service: Annotated[ReportService, Depends(get_report_service)],
     principal: Annotated[Principal, Depends(require_permissions("reports:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[ReportSummaryData]:
-    _ = principal
+    branch_id = effective_report_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.summary(
             branch_id=branch_id, date_from=date_from, date_to=date_to
@@ -65,11 +69,12 @@ def get_report_summary(
 def get_report_by_status(
     service: Annotated[ReportService, Depends(get_report_service)],
     principal: Annotated[Principal, Depends(require_permissions("reports:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[list[StatusCount]]:
-    _ = principal
+    branch_id = effective_report_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.by_status(
             branch_id=branch_id, date_from=date_from, date_to=date_to
@@ -86,13 +91,36 @@ def get_report_by_status(
 def get_report_by_branch(
     service: Annotated[ReportService, Depends(get_report_service)],
     principal: Annotated[Principal, Depends(require_permissions("reports:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[list[BranchCount]]:
-    _ = principal
+    branch_id = effective_report_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.by_branch(
+            branch_id=branch_id, date_from=date_from, date_to=date_to
+        )
+        )
+
+
+@router.get(
+    "/by-user",
+    response_model=DataResponse[list[UserActivityCount]],
+    status_code=status.HTTP_200_OK,
+    summary="Complaint work counts by user",
+)
+def get_report_by_user(
+    service: Annotated[ReportService, Depends(get_report_service)],
+    principal: Annotated[Principal, Depends(require_permissions("reports:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+    branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
+    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
+) -> DataResponse[list[UserActivityCount]]:
+    branch_id = effective_report_branch_id(session, principal, branch_id)
+    return DataResponse(
+        data=service.by_user(
             branch_id=branch_id, date_from=date_from, date_to=date_to
         )
     )
@@ -107,11 +135,12 @@ def get_report_by_branch(
 def get_report_cycle_time(
     service: Annotated[ReportService, Depends(get_report_service)],
     principal: Annotated[Principal, Depends(require_permissions("reports:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
 ) -> DataResponse[CycleTimeData]:
-    _ = principal
+    branch_id = effective_report_branch_id(session, principal, branch_id)
     return DataResponse(
         data=service.cycle_time(
             branch_id=branch_id, date_from=date_from, date_to=date_to
@@ -134,8 +163,11 @@ def print_report(
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
     period_label: Annotated[str, Query(alias="periodLabel")] = "Seluruh periode",
+    lang: Annotated[str, Query()] = "id",
+    compare_from: Annotated[datetime | None, Query(alias="compareDateFrom")] = None,
+    compare_to: Annotated[datetime | None, Query(alias="compareDateTo")] = None,
 ) -> Response:
-    _ = principal
+    branch_id = effective_report_branch_id(session, principal, branch_id)
     branch_label: str | None = None
     if branch_id is not None:
         branch_label = session.scalar(select(Branch.name).where(Branch.id == branch_id))
@@ -149,6 +181,9 @@ def print_report(
         date_from=date_from,
         date_to=date_to,
         generated_at=generated_at,
+        lang=normalize_report_lang(lang),
+        compare_from=compare_from,
+        compare_to=compare_to,
     )
     filename = report_pdf_filename(category, generated_at)
     return Response(

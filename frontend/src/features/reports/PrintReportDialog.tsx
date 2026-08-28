@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ApiError, printReportPdf, type ReportPrintCategory } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { Alert, Button, Modal, ModalSection, RadioGroup, Select } from "@/shared/ui";
@@ -9,6 +9,7 @@ import {
   DEFAULT_REPORT_PERIOD,
   REPORT_PERIOD_KEYS,
   REPORT_PERIOD_LABEL_KEY,
+  previousReportPeriodRange,
   reportPeriodRange,
   type ReportPeriodKey,
 } from "./reportPeriods";
@@ -37,6 +38,7 @@ export function PrintReportDialog({
   const t = useTranslations("reports");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const [category, setCategory] = useState<ReportPrintCategory>("all");
   const [periodKey, setPeriodKey] = useState<ReportPeriodKey>(period);
   const [submitting, setSubmitting] = useState(false);
@@ -60,12 +62,16 @@ export function PrintReportDialog({
     setError(null);
     try {
       const range = reportPeriodRange(periodKey);
+      const previous = previousReportPeriodRange(periodKey);
       const result = await printReportPdf({
         category,
         periodLabel: t(REPORT_PERIOD_LABEL_KEY[periodKey]),
         dateFrom: range.dateFrom,
         dateTo: range.dateTo,
         branchId,
+        lang: locale,
+        compareDateFrom: previous?.dateFrom,
+        compareDateTo: previous?.dateTo,
       });
       const url = URL.createObjectURL(result.blob);
       const anchor = document.createElement("a");

@@ -84,6 +84,48 @@ export function resolutionBuckets(
   };
 }
 
+export type ResolutionMixKey =
+  | "resolved"
+  | "inProgress"
+  | "waiting"
+  | "escalated";
+
+export type ResolutionMixRow = {
+  key: ResolutionMixKey;
+  count: number;
+  share: number;
+};
+
+/** Composition of the window — shares sum to 100 when any work exists. */
+export function resolutionMixRows(
+  buckets: ResolutionBuckets,
+): ResolutionMixRow[] {
+  const parts: { key: ResolutionMixKey; count: number }[] = [
+    { key: "resolved", count: buckets.resolved },
+    { key: "inProgress", count: buckets.inProgress },
+    { key: "waiting", count: buckets.waiting },
+    { key: "escalated", count: escalationTotal(buckets) },
+  ];
+  const total = parts.reduce((sum, part) => sum + part.count, 0);
+  if (total <= 0) return [];
+  const rows = parts.map((part) => ({
+    ...part,
+    share: Math.round((part.count / total) * 100),
+  }));
+  const drift = 100 - rows.reduce((sum, row) => sum + row.share, 0);
+  if (drift !== 0) {
+    const richest = rows.reduce(
+      (best, row, index) => (row.count > rows[best].count ? index : best),
+      0,
+    );
+    rows[richest] = {
+      ...rows[richest],
+      share: rows[richest].share + drift,
+    };
+  }
+  return rows;
+}
+
 /** Every live escalation slice, including HQ_SCHEDULED. */
 export function escalationTotal(
   buckets: ResolutionBuckets | null | undefined,

@@ -3,6 +3,7 @@ import {
   DEFAULT_REPORT_PERIOD,
   REPORT_PERIOD_KEYS,
   REPORT_PERIOD_LABEL_KEY,
+  previousReportPeriodRange,
   reportPeriodRange,
 } from "./reportPeriods";
 
@@ -79,5 +80,46 @@ describe("reportPeriodRange", () => {
     for (const key of REPORT_PERIOD_KEYS) {
       expect(REPORT_PERIOD_LABEL_KEY[key]).toBeTruthy();
     }
+  });
+});
+
+describe("previousReportPeriodRange", () => {
+  it("has no predecessor for all-time", () => {
+    expect(previousReportPeriodRange("all", NOW)).toBeNull();
+  });
+
+  it("shifts this week back seven Jakarta days", () => {
+    expect(previousReportPeriodRange("thisWeek", NOW)).toEqual({
+      dateFrom: "2026-08-09T17:00:00.000Z",
+      dateTo: "2026-08-11T16:59:59.999Z",
+    });
+  });
+
+  it("compares this month to the same days last month", () => {
+    expect(previousReportPeriodRange("thisMonth", NOW)).toEqual({
+      dateFrom: "2026-06-30T17:00:00.000Z",
+      dateTo: "2026-07-18T16:59:59.999Z",
+    });
+  });
+
+  it("compares last month to the full month before it", () => {
+    expect(previousReportPeriodRange("lastMonth", NOW)).toEqual({
+      dateFrom: "2026-05-31T17:00:00.000Z",
+      dateTo: "2026-06-30T16:59:59.999Z",
+    });
+  });
+
+  it("places the prior 90 days immediately before the current 90", () => {
+    expect(previousReportPeriodRange("last90", NOW)).toEqual({
+      dateFrom: "2026-02-19T17:00:00.000Z",
+      dateTo: "2026-05-20T16:59:59.999Z",
+    });
+  });
+
+  it("compares this year to the same calendar date last year", () => {
+    expect(previousReportPeriodRange("thisYear", NOW)).toEqual({
+      dateFrom: "2024-12-31T17:00:00.000Z",
+      dateTo: "2025-08-18T16:59:59.999Z",
+    });
   });
 });

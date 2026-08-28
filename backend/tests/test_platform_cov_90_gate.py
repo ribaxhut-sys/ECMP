@@ -290,9 +290,11 @@ def test_appointments_and_reports_routers() -> None:
     report_service.by_branch.return_value = [
         BranchCount(branchId=uuid.uuid4(), branchName="B1", total=1)
     ]
-    reports_router_mod.get_report_summary(report_service, principal)
-    reports_router_mod.get_report_by_status(report_service, principal)
-    reports_router_mod.get_report_by_branch(report_service, principal)
+    report_session = MagicMock()
+    report_session.scalar.return_value = None
+    reports_router_mod.get_report_summary(report_service, principal, report_session)
+    reports_router_mod.get_report_by_status(report_service, principal, report_session)
+    reports_router_mod.get_report_by_branch(report_service, principal, report_session)
     assert isinstance(
         reports_router_mod.get_report_service(MagicMock()),
         type(reports_router_mod.ReportService(MagicMock())),

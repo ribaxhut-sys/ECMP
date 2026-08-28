@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import type { ReportSummary } from "@/lib/api/types";
+import { cn } from "@/shared/utils";
 import {
   Card,
   CardBody,
@@ -71,7 +72,14 @@ export function OperationalHealthPanel({
                     {t("healthStory")}
                   </p>
                 </div>
-                <p className="tabular-nums text-[length:var(--ecmp-font-display-size)] font-[number:var(--ecmp-font-page-title-weight)] leading-none text-ecmp-text-primary">
+                <p
+                  className={cn(
+                    "tabular-nums text-[length:var(--ecmp-font-display-size)] font-[number:var(--ecmp-font-page-title-weight)] leading-none",
+                    health.tone === "healthy" && "text-ecmp-success-text",
+                    health.tone === "attention" && "text-ecmp-warning-text",
+                    health.tone === "critical" && "text-ecmp-danger-text",
+                  )}
+                >
                   {health.score}%
                 </p>
               </div>

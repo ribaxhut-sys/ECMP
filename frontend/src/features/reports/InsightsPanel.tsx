@@ -28,7 +28,7 @@ function InsightTile({
   emptyDescription: string;
 }) {
   return (
-    <Card className="h-full">
+    <Card className="h-full border-l-4 border-l-ecmp-warning">
       <CardHeader>
         <PanelHeader title={title} className="mb-0 border-0 pb-0" />
       </CardHeader>

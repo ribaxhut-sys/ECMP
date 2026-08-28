@@ -57,6 +57,10 @@ describe("PrintReportDialog", () => {
     expect(call.periodLabel).toBe("This week");
     expect(call.dateFrom).toBeTruthy();
     expect(call.dateTo).toBeTruthy();
+    expect(call.branchId).toBeUndefined();
+    expect(call.lang).toBe("en");
+    expect(call.compareDateFrom).toBeTruthy();
+    expect(call.compareDateTo).toBeTruthy();
 
     await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -85,6 +89,31 @@ describe("PrintReportDialog", () => {
     expect(call.periodLabel).toBe("All time");
     expect(call.dateFrom).toBeUndefined();
     expect(call.dateTo).toBeUndefined();
+    expect(call.lang).toBe("en");
+    expect(call.compareDateFrom).toBeUndefined();
+    expect(call.compareDateTo).toBeUndefined();
+  });
+
+  it("forwards the page unit into the PDF request", async () => {
+    const user = userEvent.setup();
+    printReportPdf.mockResolvedValue({
+      blob: new Blob(["%PDF"], { type: "application/pdf" }),
+      filename: "laporan-pengaduan-all.pdf",
+    });
+
+    renderWithProviders(
+      <PrintReportDialog
+        open
+        onClose={vi.fn()}
+        period="all"
+        branchId="branch-tab"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Download" }));
+
+    await waitFor(() => expect(printReportPdf).toHaveBeenCalledTimes(1));
+    expect(printReportPdf.mock.calls[0][0].branchId).toBe("branch-tab");
   });
 
   it("shows an error and does not close when the export fails", async () => {

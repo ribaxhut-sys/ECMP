@@ -275,6 +275,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-212 | GET /api/v1/reports/by-branch | Counts by branch (pengaduan + case; urut % selesai; semua unit) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-545 | GET /api/v1/reports/cycle-time | Umur penyelesaian kasus tertutup (rata-rata/median/p90 + sebaran; window pada `closedAt`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-546 | GET /api/v1/reports/print | Export PDF laporan `/reports` (server-side; kategori all/created/resolved/escalated) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-547 | GET /api/v1/reports/by-user | Aktivitas operasional per petugas (dibuat / diputus / ditutup / peristiwa riwayat) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-213 | POST /api/v1/users | Create user (unique username/email/initials; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
 | API-214 | GET /api/v1/users | List users (paginated) | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-215 | GET /api/v1/users/{id} | Get user by id | bearerAuth, permission `users:read` | 🟢 Implemented |
@@ -296,6 +297,22 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > `NEW` / `ASSIGNED` / `PENDING` / `ESCALATED` / `RESOLVED` tidak lagi di kawat
 > laporan. Irisan operasional (menunggu, eskalasi, jadwal Pusat) tetap di
 > `GET /api/v1/dashboard/aggregate-kpis`.
+
+> **2026-08-28 (Laporan aktivitas petugas):** API-547
+> `GET /api/v1/reports/by-user` — satu baris per aktor yang mendaftar
+> pengaduan, memutus eskalasi, menutup kasus, atau menulis riwayat pada
+> jendela laporan. Scope unit sama dengan API-210 (cabang terkunci; Pusat
+> boleh semua unit atau satu). Bukan audit login / directory identitas.
+
+> **2026-08-28 (Laporan briefing + PDF dwibahasa):** API-546 menerima
+> `lang` (`id`|`en`) dan `compareDateFrom`/`compareDateTo` untuk selisih
+> vs periode sebelumnya. Kop memakai lockup tipografi UPPPD (bukan lambang
+> resmi). Halaman `/reports` menampilkan bacaan singkat dan delta kartu.
+
+> **2026-08-28 (Laporan per unit):** API-210…212, API-545, API-546 —
+> pemanggil cabang dikunci ke unit sendiri; Pusat / Head Office boleh
+> mengosongkan `branchId` (semua unit) atau memilih satu. Kunci ini
+> ditegakkan di server, bukan hanya di UI `/reports`.
 
 > **2026-08-28 (Unduh Laporan PDF):** complaint-service — API-546
 > `GET /api/v1/reports/print` (PDF server-side untuk `/reports`; filter

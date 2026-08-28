@@ -9,7 +9,14 @@ import {
   Skeleton,
   StatCard,
   type StatAccent,
+  type StatTrend,
 } from "@/shared/ui";
+import {
+  countDelta,
+  previousRateFromSummary,
+  rateDelta,
+  signedCount,
+} from "./reportBriefing";
 import {
   reportHeadlineCounts,
   resolutionRatePercent,
@@ -21,11 +28,28 @@ function openAccentFromRate(openRate: number): StatAccent {
   return "healthy";
 }
 
+function vsPrevious(
+  label: string,
+  delta: number | null,
+  higherIsBetter: boolean | null,
+): { trend?: StatTrend; delta?: string } {
+  if (delta == null) return {};
+  const trend: StatTrend =
+    higherIsBetter == null || delta === 0
+      ? "neutral"
+      : (delta > 0) === higherIsBetter
+        ? "up"
+        : "down";
+  return { trend, delta: label };
+}
+
 export function ReportSummaryCards({
   summary,
+  previousSummary,
   loading,
 }: {
   summary: ReportSummary | null;
+  previousSummary?: ReportSummary | null;
   loading: boolean;
 }) {
   const t = useTranslations("reports");
@@ -82,6 +106,29 @@ export function ReportSummaryCards({
           ? "attention"
           : "critical";
 
+  const previousHeadlines = reportHeadlineCounts(previousSummary);
+  const openDelta = countDelta(headlines.open, previousHeadlines?.open);
+  const totalDelta = countDelta(headlines.total, previousHeadlines?.total);
+  const rateChange = rateDelta(
+    resolutionRate,
+    previousRateFromSummary(previousSummary),
+  );
+  const openVs = vsPrevious(
+    t("vsPreviousDelta", { delta: signedCount(openDelta ?? 0) }),
+    openDelta,
+    false,
+  );
+  const totalVs = vsPrevious(
+    t("vsPreviousDelta", { delta: signedCount(totalDelta ?? 0) }),
+    totalDelta,
+    null,
+  );
+  const rateVs = vsPrevious(
+    t("vsPreviousRateDelta", { delta: signedCount(rateChange ?? 0) }),
+    rateChange,
+    true,
+  );
+
   return (
     <section
       data-testid="reports-summary-cards"
@@ -115,6 +162,7 @@ export function ReportSummaryCards({
           }
           subtitle={t("openStory")}
           description={`${openRate}% ${t("openRate").toLowerCase()}`}
+          {...openVs}
         />
 
         <StatCard
@@ -127,6 +175,7 @@ export function ReportSummaryCards({
             closed: headlines.closed,
             total: headlines.total,
           })}
+          {...totalVs}
         />
 
         <StatCard
@@ -155,6 +204,7 @@ export function ReportSummaryCards({
           }
           subtitle={t("resolutionRateStory")}
           description={t("closedStory")}
+          {...rateVs}
         />
       </div>
     </section>
