@@ -64,6 +64,9 @@ _UNICODE_ASCII = str.maketrans(
 )
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 _UNIT_PREFIX = re.compile(r"^(?:UPPPD|UP3D)[\s.\-]+", re.IGNORECASE)
+_UUID = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 CASE_PDF_AGENCY = "Unit Pelayanan Pemungutan Pajak Daerah"
 _CONTENT_WIDTH = _PAGE_W - 2 * _MARGIN_X
 # Adobe Helvetica-Bold AFM widths for ASCII 32-126 (units / 1000 em).
@@ -117,6 +120,14 @@ def strip_up3d_unit_prefix(name: str | None) -> str:
     return stripped or raw
 
 
+def operator_visible_name(value: str | None) -> str | None:
+    """Operator-facing label — never an internal UUID."""
+    text = (value or "").strip()
+    if not text or _UUID.match(text):
+        return None
+    return text
+
+
 def case_pdf_masthead(
     *,
     unit_name: str | None,
@@ -130,7 +141,7 @@ def case_pdf_masthead(
         head = f"{unit} - {number}"
     else:
         head = number or unit or "Case"
-    wp = (customer_name or "").strip()
+    wp = operator_visible_name(customer_name)
     if wp:
         return f"{head} ( {wp} )"
     return head
@@ -164,7 +175,7 @@ def render_case_snapshot_pdf(snapshot: CasePdfSnapshot) -> bytes:
     """Render an internal snapshot. Does not mutate Case state."""
     exported_at = snapshot.exported_at or datetime.now(_OPERATOR_TZ)
     footer = (
-        f"INTERNAL  |  {snapshot.case.case_id}  |  "
+        f"INTERNAL  |  {snapshot.case.case_number}  |  "
         f"diunduh {format_operator_dt(exported_at)}  |  "
         f"{snapshot.exported_by or '-'}"
     )
@@ -215,7 +226,7 @@ def _write_snapshot(doc: _PdfDoc, snapshot: CasePdfSnapshot, exported_at: dateti
     doc.kv("No. pengaduan", snapshot.complaint_number)
     doc.kv("Unit pemilik", case.owner_unit_id or case.owning_unit_id)
     doc.kv("Unit penanganan", case.owning_unit_id)
-    doc.kv("Pelanggan", snapshot.customer_label or case.customer_id)
+    doc.kv("Pelanggan", operator_visible_name(snapshot.customer_label))
     doc.kv("Petugas", snapshot.handler_name or case.handling_claimed_by)
     if snapshot.assigned_name or case.assigned_user_id:
         doc.kv("Ditugaskan ke", snapshot.assigned_name or case.assigned_user_id)

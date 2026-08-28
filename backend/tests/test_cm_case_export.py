@@ -198,9 +198,11 @@ def test_case_pdf_masthead_is_created_unit_and_number() -> None:
         )
         == "Gambir - UNI-2608-0001 ( Budi Santoso )"
     )
-    assert case_pdf_masthead(unit_name=None, case_number="UNI-2608-0001") == (
-        "UNI-2608-0001"
-    )
+    assert case_pdf_masthead(
+        unit_name="UPPPD Gambir",
+        case_number="UNI-2608-0001",
+        customer_name="9e79e188-f126-44ce-9f3a-b08c789e8e33",
+    ) == "Gambir - UNI-2608-0001"
 
 
 def test_render_case_snapshot_pdf_contains_identity_through_history() -> None:
@@ -264,6 +266,22 @@ def test_render_case_snapshot_pdf_contains_identity_through_history() -> None:
     assert b"bukti.pdf" in pdf
     assert b"INTERNAL" in pdf
     assert b"%%EOF" in pdf
+
+
+def test_pdf_hides_internal_uuids_for_pelanggan_and_footer() -> None:
+    customer_uuid = "9e79e188-f126-44ce-9f3a-b08c789e8e33"
+    case_uuid = "05715ca3-bfb7-4db6-bfe4-532483967b2a"
+    pdf = render_case_snapshot_pdf(
+        CasePdfSnapshot(
+            case=_snapshot_case(case_id=case_uuid, customer_id=customer_uuid),
+            exported_by="Dewi Hidayat",
+            exported_at=datetime(2026, 8, 28, 1, 0, tzinfo=UTC),
+        )
+    )
+    assert customer_uuid.encode("ascii") not in pdf
+    assert case_uuid.encode("ascii") not in pdf
+    assert b"Pelanggan: -" in pdf
+    assert b"UNI-2608-0001" in pdf
 
 
 def test_render_case_pdf_mirrors_work_card_deskripsi_catatan_resolusi() -> None:

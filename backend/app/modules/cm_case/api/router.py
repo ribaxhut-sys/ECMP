@@ -34,7 +34,7 @@ from app.db.session import get_db_session
 from app.integrations.customer import build_customer_provider
 from app.integrations.customer.types import CustomerLookupStatus
 from app.integrations.directory.local_adapter import LocalUserDirectory
-from app.models import Branch
+from app.models import Branch, Customer
 from app.modules.audit.hooks import resolve_actor_name, write_audit
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
@@ -203,13 +203,37 @@ def _created_unit_display_name(session: Session, dto: CaseDTO) -> str | None:
     return (branch.name or "").strip() or unit_id
 
 
+def _human_name(value: str | None) -> str | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        uuid.UUID(text)
+    except ValueError:
+        return text
+    return None
+
+
 def _customer_display_name(
     session: Session, settings: Settings, customer_id: str | None
 ) -> str | None:
-    """WP display name from Master Customer (read-only). Not the internal id."""
+    """WP display name from the lab customer cache / Master Customer. Never a UUID."""
     key = (customer_id or "").strip()
     if not key:
         return None
+    try:
+        uid = uuid.UUID(key)
+    except ValueError:
+        uid = None
+    if uid is not None:
+        try:
+            row = session.get(Customer, uid)
+        except Exception:
+            row = None
+        if row is not None and row.deleted_at is None:
+            name = _human_name(row.full_name)
+            if name:
+                return name
     try:
         lookup = build_customer_provider(
             settings.customer_provider,
@@ -221,7 +245,7 @@ def _customer_display_name(
         return None
     if lookup.status != CustomerLookupStatus.FOUND or lookup.customer is None:
         return None
-    return (lookup.customer.display_name or "").strip() or None
+    return _human_name(lookup.customer.display_name)
 
 
 def _case_attachment_manifest(
