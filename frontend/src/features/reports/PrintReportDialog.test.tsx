@@ -43,10 +43,12 @@ describe("PrintReportDialog", () => {
     });
     const onClose = vi.fn();
 
-    renderWithProviders(<PrintReportDialog open onClose={onClose} />);
+    renderWithProviders(
+      <PrintReportDialog open onClose={onClose} period="thisMonth" />,
+    );
 
     await user.click(screen.getByRole("radio", { name: "Complaints Escalated" }));
-    await user.click(screen.getByRole("radio", { name: "This week" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Period" }), "thisWeek");
     await user.click(screen.getByRole("button", { name: "Download" }));
 
     await waitFor(() => expect(printReportPdf).toHaveBeenCalledTimes(1));
@@ -58,6 +60,31 @@ describe("PrintReportDialog", () => {
 
     await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("inherits the page period, including all-time with no date window", async () => {
+    const user = userEvent.setup();
+    printReportPdf.mockResolvedValue({
+      blob: new Blob(["%PDF"], { type: "application/pdf" }),
+      filename: "laporan-pengaduan-all.pdf",
+    });
+
+    renderWithProviders(
+      <PrintReportDialog open onClose={vi.fn()} period="all" />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Period" })).toHaveValue("all");
+    expect(screen.getAllByRole("option")).toHaveLength(6);
+    expect(screen.queryByRole("radio", { name: "Other" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Download" }));
+
+    await waitFor(() => expect(printReportPdf).toHaveBeenCalledTimes(1));
+    const call = printReportPdf.mock.calls[0][0];
+    expect(call.category).toBe("all");
+    expect(call.periodLabel).toBe("All time");
+    expect(call.dateFrom).toBeUndefined();
+    expect(call.dateTo).toBeUndefined();
   });
 
   it("shows an error and does not close when the export fails", async () => {

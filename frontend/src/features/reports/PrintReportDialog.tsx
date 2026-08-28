@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, printReportPdf, type ReportPrintCategory } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
-import { Alert, Button, Modal, ModalSection, RadioGroup } from "@/shared/ui";
-import { REPORT_PERIOD_LABEL_KEY, reportPeriodRange } from "./reportPeriods";
-
-const PRINT_PERIOD_KEYS = ["thisWeek", "thisMonth", "thisYear"] as const;
-type PrintPeriodKey = (typeof PRINT_PERIOD_KEYS)[number];
+import { Alert, Button, Modal, ModalSection, RadioGroup, Select } from "@/shared/ui";
+import {
+  DEFAULT_REPORT_PERIOD,
+  REPORT_PERIOD_KEYS,
+  REPORT_PERIOD_LABEL_KEY,
+  reportPeriodRange,
+  type ReportPeriodKey,
+} from "./reportPeriods";
 
 const PRINT_CATEGORIES: readonly {
   value: ReportPrintCategory;
@@ -18,25 +21,32 @@ const PRINT_CATEGORIES: readonly {
   { value: "created", labelKey: "printCategoryCreated" },
   { value: "resolved", labelKey: "printCategoryResolved" },
   { value: "escalated", labelKey: "printCategoryEscalated" },
-  { value: "other", labelKey: "printCategoryOther" },
 ];
 
 export function PrintReportDialog({
   open,
   onClose,
+  period = DEFAULT_REPORT_PERIOD,
   branchId,
 }: {
   open: boolean;
   onClose: () => void;
+  period?: ReportPeriodKey;
   branchId?: string;
 }) {
   const t = useTranslations("reports");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
   const [category, setCategory] = useState<ReportPrintCategory>("all");
-  const [periodKey, setPeriodKey] = useState<PrintPeriodKey>("thisMonth");
+  const [periodKey, setPeriodKey] = useState<ReportPeriodKey>(period);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setPeriodKey(period);
+    setError(null);
+  }, [open, period]);
 
   function handleClose() {
     if (submitting) return;
@@ -111,19 +121,13 @@ export function PrintReportDialog({
             label: t(item.labelKey),
           }))}
         />
-        {category === "other" ? (
-          <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-            {t("printCategoryOtherHint")}
-          </p>
-        ) : null}
-        <RadioGroup
+        <Select
           name="printReportPeriod"
           label={t("printPeriodLabel")}
           value={periodKey}
-          onChange={(value) => setPeriodKey(value as PrintPeriodKey)}
           disabled={submitting}
-          orientation="horizontal"
-          options={PRINT_PERIOD_KEYS.map((key) => ({
+          onChange={(e) => setPeriodKey(e.target.value as ReportPeriodKey)}
+          options={REPORT_PERIOD_KEYS.map((key) => ({
             value: key,
             label: t(REPORT_PERIOD_LABEL_KEY[key]),
           }))}

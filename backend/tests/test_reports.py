@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.errors import ValidationAppError
+from app.modules.reports.pdf import format_report_stamp, report_pdf_filename
 from app.modules.reports.repository import ReportRepository
 from app.modules.reports.schemas import AggregateComplaintStatus, ReportPrintCategory
 from app.modules.reports.service import ReportService
@@ -224,3 +225,15 @@ def test_print_pdf_other_category_renders_without_any_query() -> None:
     repo.count_by_status.assert_not_called()
     repo.count_resolved.assert_not_called()
     repo.count_escalated.assert_not_called()
+
+
+def test_report_stamp_converts_utc_to_jakarta() -> None:
+    stamp = format_report_stamp(datetime(2026, 8, 27, 17, 30, tzinfo=UTC))
+    assert stamp == "28-08-2026, 00:30 WIB"
+
+
+def test_report_pdf_filename_uses_jakarta_date() -> None:
+    name = report_pdf_filename(
+        ReportPrintCategory.ALL, datetime(2026, 8, 27, 17, 30, tzinfo=UTC)
+    )
+    assert name == "laporan-pengaduan-all-2026-08-28.pdf"

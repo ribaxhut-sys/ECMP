@@ -2373,7 +2373,7 @@
     "periodThisYear": "Tahun ini",
     "printReport": "Unduh Laporan",
     "printReportTitle": "Unduh Laporan",
-    "printReportDescription": "Unduh PDF laporan pengaduan. File dibuat oleh server agar hasilnya konsisten di semua peramban.",
+    "printReportDescription": "Unduh PDF laporan pengaduan. Periode mengikuti pilihan di halaman; file dibuat oleh server agar hasilnya konsisten di semua peramban.",
     "printCategoryLabel": "Kategori laporan",
     "printCategoryAll": "Semua Pengaduan",
     "printCategoryCreated": "Pengaduan Dibuat",

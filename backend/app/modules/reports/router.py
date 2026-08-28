@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -15,6 +15,7 @@ from app.core.auth import Principal, require_permissions
 from app.core.schemas import DataResponse
 from app.db.session import get_db_session
 from app.models import Branch
+from app.modules.reports.pdf import report_pdf_filename
 from app.modules.reports.repository import ReportRepository
 from app.modules.reports.schemas import (
     BranchCount,
@@ -121,7 +122,7 @@ def get_report_cycle_time(
 @router.get(
     "/print",
     status_code=status.HTTP_200_OK,
-    summary="Export report to PDF",
+    summary="Export report to PDF (API-546)",
     response_class=Response,
 )
 def print_report(
@@ -132,13 +133,14 @@ def print_report(
     branch_id: Annotated[uuid.UUID | None, Query(alias="branchId")] = None,
     date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
-    period_label: Annotated[str, Query(alias="periodLabel")] = "Semua periode",
+    period_label: Annotated[str, Query(alias="periodLabel")] = "Seluruh periode",
 ) -> Response:
     _ = principal
     branch_label: str | None = None
     if branch_id is not None:
         branch_label = session.scalar(select(Branch.name).where(Branch.id == branch_id))
 
+    generated_at = datetime.now(UTC)
     pdf_bytes = service.print_pdf(
         category=category,
         period_label=period_label,
@@ -146,10 +148,14 @@ def print_report(
         branch_label=branch_label,
         date_from=date_from,
         date_to=date_to,
+        generated_at=generated_at,
     )
-    filename = f"laporan-pengaduan-{category.value}.pdf"
+    filename = report_pdf_filename(category, generated_at)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
     )

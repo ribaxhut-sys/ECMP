@@ -3688,6 +3688,63 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/reports/print:
+    get:
+      summary: Export report to PDF
+      operationId: printReport
+      x-ear-id: API-546
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        Server-rendered PDF of the `/reports` window (not a Case snapshot —
+        that is API-539). Same `reports:read` gate and optional `branchId` /
+        `dateFrom` / `dateTo` filters as API-210.
+        `category` selects the slice: `all`, `created`, `resolved`,
+        `escalated`. `other` is a reserved placeholder with no predicate
+        yet and renders a pending notice rather than inventing a count.
+        `periodLabel` is display-only (copied into the PDF header).
+        Created/escalated counts filter on complaint `createdAt`;
+        resolved counts filter on `closedAt`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ReportPrintCategory"
+        - name: periodLabel
+          in: query
+          required: false
+          description: Operator-facing period caption copied into the PDF header
+          schema: { type: string, maxLength: 80, default: "Seluruh periode" }
+      responses:
+        "200":
+          description: Report PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="laporan-pengaduan-{category}-{YYYY-MM-DD}.pdf"
+                (YYYY-MM-DD in Asia/Jakarta)
+              schema: { type: string }
+            Cache-Control:
+              description: no-store
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/customers:
     get:
       summary: List customer references
@@ -4246,6 +4303,13 @@ components:
         CM Aggregate complaint lifecycle (DEC-025 §3.3). API-210 and API-211
         emit only these values. Foundation `ComplaintStatus` (NEW, ASSIGNED,
         PENDING, ESCALATED, RESOLVED) is not used on the report wire.
+    ReportPrintCategory:
+      type: string
+      enum: [all, created, resolved, escalated, other]
+      default: all
+      description: |
+        Slice of the `/reports` PDF window (API-546). `other` is reserved
+        (no predicate yet) and renders a pending notice.
     Priority:
       type: string
       enum: [LOW, MEDIUM, HIGH, CRITICAL]

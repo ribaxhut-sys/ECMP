@@ -274,6 +274,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-211 | GET /api/v1/reports/by-status | Counts by Aggregate status (`REGISTERED\|IN_PROGRESS\|CLOSED`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-212 | GET /api/v1/reports/by-branch | Counts by branch (pengaduan + case; urut % selesai; semua unit) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-545 | GET /api/v1/reports/cycle-time | Umur penyelesaian kasus tertutup (rata-rata/median/p90 + sebaran; window pada `closedAt`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-546 | GET /api/v1/reports/print | Export PDF laporan `/reports` (server-side; kategori all/created/resolved/escalated) | bearerAuth, permission `reports:read` | 🟢 Implemented |
 | API-213 | POST /api/v1/users | Create user (unique username/email/initials; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
 | API-214 | GET /api/v1/users | List users (paginated) | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-215 | GET /api/v1/users/{id} | Get user by id | bearerAuth, permission `users:read` | 🟢 Implemented |
@@ -295,6 +296,11 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > `NEW` / `ASSIGNED` / `PENDING` / `ESCALATED` / `RESOLVED` tidak lagi di kawat
 > laporan. Irisan operasional (menunggu, eskalasi, jadwal Pusat) tetap di
 > `GET /api/v1/dashboard/aggregate-kpis`.
+
+> **2026-08-28 (Unduh Laporan PDF):** complaint-service — API-546
+> `GET /api/v1/reports/print` (PDF server-side untuk `/reports`; filter
+> cabang/tanggal sama dengan API-210; `category` memilih irisan). Stempel
+> waktu operator Asia/Jakarta; `Content-Disposition: attachment`.
 
 > **2026-08-18 (Laporan periode + umur penyelesaian):** complaint-service —
 > API-545 `GET /api/v1/reports/cycle-time` (rata-rata/median/p90 + sebaran umur

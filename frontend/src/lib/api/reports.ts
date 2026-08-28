@@ -37,7 +37,7 @@ export interface ReportPrintResult {
   filename: string;
 }
 
-/** GET /api/v1/reports/print — export-to-PDF, rendered server-side. */
+/** GET /api/v1/reports/print (API-546) — export-to-PDF, rendered server-side. */
 export async function printReportPdf(options: {
   category: ReportPrintCategory;
   periodLabel: string;

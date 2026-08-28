@@ -127,6 +127,7 @@ export function ReportsWorkspace() {
       <Button
         variant="outline"
         onClick={() => setPrintOpen(true)}
+        disabled={loading}
         className="min-h-[var(--ecmp-touch-min)]"
       >
         {t("printReport")}
@@ -214,7 +215,11 @@ export function ReportsWorkspace() {
         </div>
       )}
 
-      <PrintReportDialog open={printOpen} onClose={() => setPrintOpen(false)} />
+      <PrintReportDialog
+        open={printOpen}
+        onClose={() => setPrintOpen(false)}
+        period={period}
+      />
     </PageContainer>
   );
 }

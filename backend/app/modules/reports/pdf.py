@@ -7,7 +7,8 @@ WeasyPrint route, so the runtime image needs no changes to grow this feature.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -22,6 +23,8 @@ from reportlab.platypus import (
 )
 
 from app.modules.reports.schemas import CycleTimeData, ReportPrintCategory, StatusCount
+
+_OPERATOR_TZ = ZoneInfo("Asia/Jakarta")
 
 _STATUS_LABELS: dict[str, str] = {
     "REGISTERED": "Terdaftar",
@@ -109,6 +112,22 @@ def _status_table(rows: list[StatusCount]) -> Table:
     return table
 
 
+def _as_jakarta(value: datetime) -> datetime:
+    aware = value if value.tzinfo else value.replace(tzinfo=UTC)
+    return aware.astimezone(_OPERATOR_TZ)
+
+
+def format_report_stamp(value: datetime) -> str:
+    """Operator-facing download stamp: DD-MM-YYYY, HH:MM WIB (never raw UTC)."""
+    local = _as_jakarta(value)
+    return f"{local.strftime('%d-%m-%Y')}, {local.strftime('%H:%M')} WIB"
+
+
+def report_pdf_filename(category: ReportPrintCategory, generated_at: datetime) -> str:
+    day = _as_jakarta(generated_at).strftime("%Y-%m-%d")
+    return f"laporan-pengaduan-{category.value}-{day}.pdf"
+
+
 def _cycle_time_rows(data: CycleTimeData) -> list[tuple[str, str]]:
     def fmt(value: float | None) -> str:
         return f"{value:.1f} hari" if value is not None else "-"
@@ -143,7 +162,7 @@ def build_report_pdf(data: ReportPrintData) -> bytes:
     meta_bits = [f"Periode: {data.period_label}"]
     if data.branch_label:
         meta_bits.append(f"Cabang: {data.branch_label}")
-    meta_bits.append(f"Dicetak: {data.generated_at.strftime('%d %B %Y, %H:%M')} WIB")
+    meta_bits.append(f"Diunduh: {format_report_stamp(data.generated_at)}")
     story.append(Paragraph(" · ".join(meta_bits), styles["muted"]))
     story.append(Spacer(1, 10 * mm))
 
@@ -155,6 +174,14 @@ def build_report_pdf(data: ReportPrintData) -> bytes:
                     ("Diselesaikan", str(data.resolved)),
                     ("Dieskalasi ke Pusat", str(data.escalated)),
                 ]
+            )
+        )
+        story.append(Spacer(1, 3 * mm))
+        story.append(
+            Paragraph(
+                "Jumlah dibuat dan dieskalasi memakai tanggal pengaduan dibuat; "
+                "jumlah diselesaikan memakai tanggal penutupan.",
+                styles["muted"],
             )
         )
         story.append(Spacer(1, 8 * mm))
@@ -170,6 +197,13 @@ def build_report_pdf(data: ReportPrintData) -> bytes:
             story.append(_status_table(data.by_status))
     elif data.category == ReportPrintCategory.RESOLVED:
         story.append(_headline_table([("Total pengaduan diselesaikan", str(data.resolved))]))
+        story.append(Spacer(1, 3 * mm))
+        story.append(
+            Paragraph(
+                "Dihitung dari tanggal penutupan, bukan tanggal pengaduan dibuat.",
+                styles["muted"],
+            )
+        )
         if data.cycle_time is not None and data.cycle_time.closed_cases > 0:
             story.append(Spacer(1, 8 * mm))
             story.append(Paragraph("Waktu penyelesaian", styles["heading"]))

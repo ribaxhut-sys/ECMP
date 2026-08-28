@@ -2373,7 +2373,7 @@
     "periodThisYear": "This year",
     "printReport": "Download Report",
     "printReportTitle": "Download Report",
-    "printReportDescription": "Download the complaint report as a PDF. The file is rendered server-side so it looks the same in every browser.",
+    "printReportDescription": "Download the complaint report as a PDF. The period follows the page selection; the file is rendered server-side so it looks the same in every browser.",
     "printCategoryLabel": "Report category",
     "printCategoryAll": "All Complaints",
     "printCategoryCreated": "Complaints Created",
