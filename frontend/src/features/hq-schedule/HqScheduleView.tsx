@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { isPusatWorkAudience } from "@/features/complaints/cmBatch1ComplaintListIdentity";
@@ -16,10 +16,14 @@ import {
   deleteHqScheduleHoliday,
   fetchHqScheduleAvailability,
   fetchHqScheduleAvailabilityDetail,
+  fetchHqScheduleHolidayCatalog,
   fetchHqScheduleHolidays,
+  importHqScheduleHolidays,
   type HqScheduleAvailabilityResponse,
   type HqScheduleDayAvailability,
   type HqScheduleHoliday,
+  type HqScheduleHolidayCatalog,
+  type HqScheduleHolidayKind,
   type HqScheduleProposalSummary,
   type HqScheduleSlotAvailability,
 } from "@/lib/api/hqSchedule";
@@ -28,6 +32,7 @@ import {
   Button,
   Card,
   CardBody,
+  Checkbox,
   Empty,
   ErrorState,
   Input,
@@ -45,25 +50,32 @@ import { refreshWorkBadges } from "@/features/cases/workBadgesSignal";
 
 const RANGE_DAYS = 6; // one week, inclusive
 
-/**
- * Fixed-date national holidays only (same calendar date every year, set by
- * law) — Idul Fitri, Nyepi, Waisak, and cuti bersama move every year and
- * are only confirmed once the government publishes that year's SKB 3
- * Menteri, so they must still be added manually.
- */
-const FIXED_NATIONAL_HOLIDAYS: readonly { month: number; day: number; labelKey: string }[] = [
-  { month: 1, day: 1, labelKey: "holidayFixedNewYear" },
-  { month: 5, day: 1, labelKey: "holidayFixedLabourDay" },
-  { month: 6, day: 1, labelKey: "holidayFixedPancasilaDay" },
-  { month: 8, day: 17, labelKey: "holidayFixedIndependenceDay" },
-  { month: 12, day: 25, labelKey: "holidayFixedChristmas" },
-];
-
 function importYearOptions(centerYear: number): { value: string; label: string }[] {
   return [centerYear - 1, centerYear, centerYear + 1, centerYear + 2].map((year) => ({
     value: String(year),
     label: String(year),
   }));
+}
+
+function holidayChipDate(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date(`${iso}T00:00:00+07:00`));
+}
+
+function holidayKindLabel(
+  kind: HqScheduleHolidayKind | null | undefined,
+  t: (key: string) => string,
+): string | null {
+  if (kind === "CUTI_BERSAMA") return t("holidayKindCollective");
+  if (kind === "LIBUR_NASIONAL") return t("holidayKindNational");
+  return null;
+}
+
+function isPastHolidayDate(iso: string, todayIso: string): boolean {
+  return iso < todayIso;
 }
 
 function startOfWeek(date: Date): Date {
@@ -624,6 +636,7 @@ function DayColumn({
 export function HqScheduleView() {
   const t = useTranslations("hqSchedule");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
   const { hasPermission, roles, status } = useAuth();
   const unitCode = useOrgUnitCode();
   const canRead = hasPermission("complaints:read");
@@ -650,6 +663,13 @@ export function HqScheduleView() {
   );
   const [importYear, setImportYear] = useState(() => String(new Date().getFullYear()));
   const [importing, setImporting] = useState(false);
+  const [catalogPreview, setCatalogPreview] = useState<HqScheduleHolidayCatalog | null>(
+    null,
+  );
+  const [selectedImportDates, setSelectedImportDates] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [showPastHolidays, setShowPastHolidays] = useState(false);
   const todayColumnRef = useRef<HTMLElement>(null);
   // Drives the "overdue" tag only — ticks slowly since it's a visual hint, not a stored fact.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -730,15 +750,18 @@ export function HqScheduleView() {
     [canSeeDetail, unitCode],
   );
 
+  const holidayRangeFrom = `${importYear}-01-01`;
+  const holidayRangeTo = `${importYear}-12-31`;
+
   const reloadHolidays = useCallback(() => {
     if (!showHolidayPanel) {
       setHolidays([]);
       return;
     }
-    fetchHqScheduleHolidays(rangeFrom, rangeTo)
+    fetchHqScheduleHolidays(holidayRangeFrom, holidayRangeTo)
       .then((res) => setHolidays(res.data ?? []))
       .catch(() => setHolidays([]));
-  }, [rangeFrom, rangeTo, showHolidayPanel]);
+  }, [holidayRangeFrom, holidayRangeTo, showHolidayPanel]);
 
   useEffect(() => {
     reloadHolidays();
@@ -787,18 +810,60 @@ export function HqScheduleView() {
     }
   }
 
-  async function submitImportHolidays(): Promise<void> {
+  async function openImportPreview(): Promise<void> {
     const year = Number(importYear);
     if (!Number.isInteger(year)) return;
     setImporting(true);
     try {
-      for (const holiday of FIXED_NATIONAL_HOLIDAYS) {
-        const holidayDate = `${year}-${String(holiday.month).padStart(2, "0")}-${String(
-          holiday.day,
-        ).padStart(2, "0")}`;
-        await createHqScheduleHoliday({ holidayDate, label: t(holiday.labelKey) });
-      }
-      pushSuccess(t("holidayImportedToast", { count: FIXED_NATIONAL_HOLIDAYS.length, year }));
+      const res = await fetchHqScheduleHolidayCatalog(year);
+      const catalog = res.data;
+      setCatalogPreview(catalog);
+      setSelectedImportDates(
+        new Set(
+          catalog.entries
+            .filter(
+              (entry) =>
+                entry.defaultSelected &&
+                !isPastHolidayDate(entry.holidayDate, toLocalDateKey(new Date())),
+            )
+            .map((entry) => entry.holidayDate),
+        ),
+      );
+    } catch (err) {
+      setCatalogPreview(null);
+      setSelectedImportDates(new Set());
+      pushError(err, t("holidayImportUnavailable", { year: importYear }));
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function toggleImportDate(holidayDate: string, checked: boolean): void {
+    setSelectedImportDates((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(holidayDate);
+      else next.delete(holidayDate);
+      return next;
+    });
+  }
+
+  async function submitImportHolidays(): Promise<void> {
+    const year = Number(importYear);
+    if (!Number.isInteger(year) || selectedImportDates.size === 0) return;
+    setImporting(true);
+    try {
+      const res = await importHqScheduleHolidays({
+        year,
+        dates: [...selectedImportDates].sort(),
+      });
+      pushSuccess(
+        t("holidayImportedToast", {
+          count: res.data.importedCount,
+          year,
+        }),
+      );
+      setCatalogPreview(null);
+      setSelectedImportDates(new Set());
       reloadHolidays();
     } catch (err) {
       pushError(err, t("holidayImportFailed"));
@@ -817,6 +882,15 @@ export function HqScheduleView() {
     [data],
   );
   const todayIso = toLocalDateKey(new Date());
+  const upcomingHolidays = useMemo(
+    () => holidays.filter((holiday) => !isPastHolidayDate(holiday.holidayDate, todayIso)),
+    [holidays, todayIso],
+  );
+  const pastHolidays = useMemo(
+    () => holidays.filter((holiday) => isPastHolidayDate(holiday.holidayDate, todayIso)),
+    [holidays, todayIso],
+  );
+  const visibleHolidays = showPastHolidays ? holidays : upcomingHolidays;
   const weekStats = summarizeHqWeek(visibleDays, todayIso, unitFilter);
   const destinationCodesThisWeek = useMemo(() => {
     const codes = new Set<string>();
@@ -1060,71 +1134,243 @@ export function HqScheduleView() {
               data-testid="hq-schedule-holiday-panel"
               className="rounded-[var(--ecmp-radius-card)] border border-ecmp-border/80 bg-ecmp-surface shadow-ecmp-raised"
             >
-              <summary className="cursor-pointer px-[var(--ecmp-card-padding)] py-2 text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
-                {t("holidayManageTitle")}
+              <summary className="flex cursor-pointer items-center justify-between gap-3 px-[var(--ecmp-card-padding)] py-3 text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  {t("holidayManageTitle")}
+                  <Badge tone="info">
+                    {t("holidayCountBadge", {
+                      count: upcomingHolidays.length,
+                      year: importYear,
+                    })}
+                  </Badge>
+                </span>
               </summary>
               <Card className="rounded-none border-0 shadow-none" padding={false}>
-                <CardBody className="space-y-[var(--ecmp-panel-gap)] border-t border-ecmp-border">
+                <CardBody className="space-y-4 border-t border-ecmp-border px-[var(--ecmp-card-padding)] py-[var(--ecmp-panel-gap)]">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="w-[9.5rem] shrink-0">
+                      <Select
+                        label={t("holidayImportYearLabel")}
+                        value={importYear}
+                        onChange={(e) => {
+                          setImportYear(e.target.value);
+                          setCatalogPreview(null);
+                          setSelectedImportDates(new Set());
+                          setShowPastHolidays(false);
+                        }}
+                        options={importYearOptions(new Date().getFullYear())}
+                        disabled={importing}
+                      />
+                    </div>
+                    {pastHolidays.length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="px-3"
+                        onClick={() => setShowPastHolidays((prev) => !prev)}
+                      >
+                        {showPastHolidays
+                          ? t("holidayHidePast")
+                          : t("holidayShowPast", { count: pastHolidays.length })}
+                      </Button>
+                    ) : null}
+                  </div>
+
                   {holidays.length === 0 ? (
                     <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
-                      {t("holidayEmpty")}
+                      {t("holidayEmpty", { year: importYear })}
+                    </p>
+                  ) : visibleHolidays.length === 0 ? (
+                    <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
+                      {t("holidayEmptyUpcoming", { year: importYear })}
                     </p>
                   ) : (
-                    <ul className="space-y-2">
-                      {holidays.map((holiday) => (
-                        <li
-                          key={holiday.holidayDate}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border px-3 py-2"
-                        >
-                          <span className="min-w-0 flex-1 break-words text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                            {formatShortDate(holiday.holidayDate)} — {holiday.label}
-                          </span>
-                          {canManageHolidays ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              loading={holidayDeletingDate === holiday.holidayDate}
-                              disabled={holidayDeletingDate !== null}
-                              onClick={() =>
-                                void submitDeleteHoliday(holiday.holidayDate)
-                              }
-                            >
-                              {t("holidayDeleteButton")}
-                            </Button>
-                          ) : null}
-                        </li>
-                      ))}
+                    <ul className="overflow-hidden rounded-[var(--ecmp-radius-md)] border border-ecmp-border/80">
+                      {visibleHolidays.map((holiday) => {
+                        const kindLabel = holidayKindLabel(holiday.kind, t);
+                        const past = isPastHolidayDate(holiday.holidayDate, todayIso);
+                        return (
+                          <li
+                            key={holiday.holidayDate}
+                            className={cn(
+                              "flex flex-wrap items-center gap-3 border-b border-ecmp-border/60 px-3.5 py-2.5 last:border-b-0",
+                              past && "opacity-60",
+                            )}
+                          >
+                            <span className="inline-flex min-w-[3.25rem] justify-center rounded-[var(--ecmp-radius-sm)] bg-ecmp-primary-muted px-2 py-1 text-[length:var(--ecmp-font-caption-size)] font-semibold tabular-nums text-ecmp-primary">
+                              {holidayChipDate(holiday.holidayDate, locale)}
+                            </span>
+                            <span className="min-w-0 flex-1 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                              <span className="capitalize text-ecmp-text-secondary">
+                                {weekdayFormatterLong.format(
+                                  new Date(`${holiday.holidayDate}T00:00:00`),
+                                )}
+                              </span>
+                              {" · "}
+                              {holiday.label}
+                              {kindLabel ? (
+                                <Badge
+                                  tone={
+                                    holiday.kind === "CUTI_BERSAMA"
+                                      ? "warning"
+                                      : "info"
+                                  }
+                                  className="ml-2 align-middle"
+                                >
+                                  {kindLabel}
+                                </Badge>
+                              ) : null}
+                            </span>
+                            {canManageHolidays ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="px-3"
+                                loading={holidayDeletingDate === holiday.holidayDate}
+                                disabled={holidayDeletingDate !== null}
+                                onClick={() =>
+                                  void submitDeleteHoliday(holiday.holidayDate)
+                                }
+                              >
+                                {t("holidayDeleteButton")}
+                              </Button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
 
                   {canManageHolidays ? (
-                    <div className="space-y-2 border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                    <div className="space-y-3 rounded-[var(--ecmp-radius-md)] border border-ecmp-border/70 bg-[color-mix(in_srgb,var(--ecmp-color-text-primary)_3%,var(--ecmp-color-surface))] p-4">
                       <p className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
                         {t("holidayImportHint")}
                       </p>
-                      <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)]">
-                        <Select
-                          label={t("holidayImportYearLabel")}
-                          value={importYear}
-                          onChange={(e) => setImportYear(e.target.value)}
-                          options={importYearOptions(new Date().getFullYear())}
-                          disabled={importing}
-                        />
+                      <p className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border/60 bg-ecmp-surface px-3 py-2 text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
+                        {t("holidayImportNote")}
+                      </p>
+                      {catalogPreview == null ? (
                         <Button
                           type="button"
                           variant="secondary"
+                          className="px-5"
                           loading={importing}
-                          onClick={() => void submitImportHolidays()}
+                          onClick={() => void openImportPreview()}
                         >
-                          {t("holidayImportButton")}
+                          {t("holidayImportButton", { year: importYear })}
                         </Button>
-                      </div>
+                      ) : (
+                        <div
+                          className="space-y-3"
+                          data-testid="hq-schedule-holiday-import-preview"
+                        >
+                          <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-primary">
+                            {t("holidayImportPreviewTitle")}
+                            {catalogPreview.sourceName
+                              ? ` · ${catalogPreview.sourceName}`
+                              : ""}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="px-3"
+                              onClick={() =>
+                                setSelectedImportDates(
+                                  new Set(
+                                    catalogPreview.entries
+                                      .filter(
+                                        (entry) =>
+                                          !isPastHolidayDate(
+                                            entry.holidayDate,
+                                            todayIso,
+                                          ),
+                                      )
+                                      .map((entry) => entry.holidayDate),
+                                  ),
+                                )
+                              }
+                            >
+                              {t("holidaySelectAll")}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="px-3"
+                              onClick={() => setSelectedImportDates(new Set())}
+                            >
+                              {t("holidaySelectNone")}
+                            </Button>
+                          </div>
+                          <ul className="max-h-80 space-y-1 overflow-y-auto">
+                            {catalogPreview.entries
+                              .filter(
+                                (entry) =>
+                                  showPastHolidays ||
+                                  !isPastHolidayDate(entry.holidayDate, todayIso),
+                              )
+                              .map((entry) => (
+                              <li key={entry.holidayDate}>
+                                <Checkbox
+                                  id={`import-${entry.holidayDate}`}
+                                  checked={selectedImportDates.has(entry.holidayDate)}
+                                  onChange={(event) =>
+                                    toggleImportDate(
+                                      entry.holidayDate,
+                                      event.target.checked,
+                                    )
+                                  }
+                                  labelContent={
+                                    <span>
+                                      {holidayChipDate(entry.holidayDate, locale)}{" "}
+                                      {entry.label}
+                                      {entry.alreadyExists ? (
+                                        <span className="ml-2 text-ecmp-text-secondary">
+                                          ({t("holidayAlreadyExists")})
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  }
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              className="px-5"
+                              loading={importing}
+                              disabled={selectedImportDates.size === 0}
+                              onClick={() => void submitImportHolidays()}
+                            >
+                              {t("holidayImportConfirm", {
+                                count: selectedImportDates.size,
+                              })}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="px-4"
+                              disabled={importing}
+                              onClick={() => {
+                                setCatalogPreview(null);
+                                setSelectedImportDates(new Set());
+                              }}
+                            >
+                              {t("holidayImportCancel")}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
                   {canManageHolidays ? (
-                    <div className="flex flex-wrap items-end gap-[var(--ecmp-form-gap)] border-t border-ecmp-border pt-[var(--ecmp-panel-gap)]">
+                    <div className="grid grid-cols-1 items-end gap-3 rounded-[var(--ecmp-radius-md)] border border-dashed border-ecmp-border px-4 py-3 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_auto]">
                       <Input
                         type="date"
                         label={t("holidayDateLabel")}
@@ -1142,6 +1388,7 @@ export function HqScheduleView() {
                       />
                       <Button
                         type="button"
+                        className="px-5"
                         loading={holidaySaving}
                         disabled={!holidayDate.trim() || !holidayLabel.trim()}
                         onClick={() => void submitCreateHoliday()}

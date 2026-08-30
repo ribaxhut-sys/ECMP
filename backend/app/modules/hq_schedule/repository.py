@@ -73,11 +73,21 @@ class HqScheduleRepository:
         return self._session.get(CmHqHolidayORM, holiday_date)
 
     def create_holiday(
-        self, *, holiday_date: date, label: str, created_by: str | None
+        self,
+        *,
+        holiday_date: date,
+        label: str,
+        created_by: str | None,
+        kind: str | None = None,
+        source: str | None = None,
+        imported_at: datetime | None = None,
     ) -> CmHqHolidayORM:
         row = CmHqHolidayORM(
             holiday_date=holiday_date,
             label=label,
+            kind=kind,
+            source=source,
+            imported_at=imported_at,
             created_by=created_by,
             created_at=datetime.now(UTC),
         )

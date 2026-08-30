@@ -29,7 +29,8 @@ id: TRC-DATA-001
 # 2026-08-01 (B2-14 CAP-007 Engineering): TRC-L-008 Planned → Approved — API-040
 # implemented in implementation/backend + Queue Dashboard FE (API-040 only).
 # No new TRC links invented.
-# 2026-08-17 (HQ arrival advisory lab): TRC-L-017 added for API-540…544
+# 2026-08-28 (HQ holiday SKB import lab): API-548/549 added to TRC-L-017
+# (vendored catalog preview + selected-date import; no live third-party fetch).
 # (hq-schedule.v1.yaml). Advisory slot grid + holiday CRUD; Pusat remains SoT
 # for hqArrivalDate/Time. Formal TC-catalog IDs deferred — lab pytest cited.
 # 2026-08-18 (CAP-008 Case Timeline lab): API-537 added to TRC-L-013
@@ -253,14 +254,14 @@ links:
     bp: BP-001
     br: BR-001
     fr: FR-001
-    api: [API-540, API-541, API-542, API-543, API-544]
+    api: [API-540, API-541, API-542, API-543, API-544, API-548, API-549]
     events: []
     tests: []
     sprint: Mode-A-CM-B1
     status: Approved
     description: >-
       HQ arrival advisory grid + holiday calendar (lab). OpenAPI
-      hq-schedule.v1.yaml API-540…544. Does not write hqArrivalDate/Time
+      hq-schedule.v1.yaml API-540…544 and API-548…549. Does not write hqArrivalDate/Time
       (Pusat SoT remains accept-and-schedule / schedule). Lab evidence:
       tests/test_hq_schedule_api.py, test_hq_schedule_service.py,
       test_hq_schedule_repository.py, test_cm_batch1_proposed_arrival.py.
@@ -346,6 +347,8 @@ artifacts:
     API-542: GET /api/v1/hq-schedule/holidays
     API-543: POST /api/v1/hq-schedule/holidays
     API-544: DELETE /api/v1/hq-schedule/holidays/{holidayDate}
+    API-548: GET /api/v1/hq-schedule/holidays/catalog (vendored SKB preview)
+    API-549: POST /api/v1/hq-schedule/holidays/import (selected dates)
     API-CM-B1-025: POST /api/v1/cm/complaints/{complaintId}/hq-complete (HQ visit complete → HQ_CLOSED, Mode A lab)
   events:
     EVT-001: CaseCreated

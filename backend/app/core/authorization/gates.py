@@ -69,14 +69,7 @@ _ESCALATION_REVIEW_ROLES = (
     "SCHEDULER",
     "ADMIN",
     "ADMINISTRATOR",
-)
-
-# Lab persona "Agent Pusat" = AGENT-family on unit PUSAT (not HO_SCHEDULER).
-_PUSAT_AGENT_ROLES = (
-    "AGENT",
-    "CS_AGENT",
-    "HANDLER",
-    "BRANCH_OFFICER",
+    "SUPER_ADMIN",
 )
 
 
@@ -89,15 +82,17 @@ def principal_may_perform_hq_intake_action(
 
     Mirrors ``require_hq_intake_action`` without I/O so FE/UI and tests can
     stay aligned without inventing a second AuthZ rule.
+
+    Cabang vs Pusat: the same AGENT/SUPERVISOR role at a branch unit is
+    denied. Any officer whose membership unit is Pusat (or HO Scheduler /
+    Admin / Super Admin with escalations:review) may accept-and-schedule.
     """
     if principal.has_permission("escalations:review") and principal.has_any_role(
         *_ESCALATION_REVIEW_ROLES
     ):
         return True
-    if principal.has_permission("complaints:read") and principal.has_any_role(
-        *_PUSAT_AGENT_ROLES
-    ):
-        return is_pusat_unit(org_unit_id)
+    if principal.has_permission("complaints:read") and is_pusat_unit(org_unit_id):
+        return True
     return False
 
 
@@ -120,14 +115,13 @@ def require_hq_intake_action(
 ) -> Principal:
     """CM Batch-1 HQ accept / return / schedule (lab).
 
-    Allows classic ``escalations:review`` + HO Scheduler/Admin, **or** Agent
-    (family) whose membership unit is Pusat — Mode A lab "Agent Pusat".
+    Allows classic ``escalations:review`` + HO Scheduler/Admin/Super Admin,
+    **or** any officer whose membership unit is Pusat (Mode A lab "user
+    Pusat" — Agent, Supervisor, …). Cabang membership never unlocks this.
     """
     resolver = OrgUnitResolver(session)
     org = resolver.normalize(principal.org_unit_id) or (
         resolver.resolve_principal_membership(principal.user_id)
-        if principal.has_any_role(*_PUSAT_AGENT_ROLES)
-        else None
     )
     if principal_may_perform_hq_intake_action(principal, org_unit_id=org):
         return principal

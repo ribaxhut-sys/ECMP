@@ -110,6 +110,7 @@ export function hideCaseBranchWorkActions(
 /**
  * Case-page entry for Batalkan Eskalasi — same API-515 gate as confirmation.
  * Cancels the parent complaint HQ path, not this Case alone.
+ * Cabang only: Pusat returns the Case instead of cancelling the branch request.
  * Do not pass hasBoundCase: this page is the CTA once a Case exists.
  */
 export function showCaseCancelEscalation(input: {
@@ -117,7 +118,9 @@ export function showCaseCancelEscalation(input: {
   complaintStatus?: string | null;
   intakeDisposition?: string | null;
   hqAcceptedAt?: string | null;
+  actorIsPusat?: boolean;
 }): boolean {
+  if (input.actorIsPusat) return false;
   return resolveCmBatch1BranchEscalationCtas({
     status: input.complaintStatus,
     intakeDisposition: input.intakeDisposition,
@@ -169,5 +172,23 @@ export function showCaseReturnEscalation(input: {
   if (status === "CLOSED" || status === "CANCELLED" || status === "RESOLVED") {
     return false;
   }
+  return true;
+}
+
+/**
+ * HANDLE_CLAIM ("Terima pengaduan" / "Tangani pengaduan").
+ * Cabang: claim on a Case that is still at the branch.
+ * Pusat: never — Case at Pusat is Terima & jadwalkan / Kembalikan
+ * (first send and re-escalation).
+ */
+export function showCaseHandleClaimButton(input: {
+  hideBranchActions: boolean;
+  showHqAcceptAndSchedule: boolean;
+  escalatedToPusat: boolean;
+  shouldAsk: boolean;
+}): boolean {
+  if (!input.shouldAsk || input.hideBranchActions) return false;
+  if (input.showHqAcceptAndSchedule) return false;
+  if (input.escalatedToPusat) return false;
   return true;
 }

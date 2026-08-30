@@ -228,6 +228,8 @@ Business Rule
 | API-542 | API-CM-HQ-003 | `GET /api/v1/hq-schedule/holidays` | FR-001 | Implemented (lab) |
 | API-543 | API-CM-HQ-004 | `POST /api/v1/hq-schedule/holidays` | FR-001 | Implemented (lab; upsert 200) |
 | API-544 | API-CM-HQ-005 | `DELETE /api/v1/hq-schedule/holidays/{holidayDate}` | FR-001 | Implemented (lab) |
+| API-548 | API-CM-HQ-006 | `GET /api/v1/hq-schedule/holidays/catalog` | FR-001 | Implemented (lab; vendored SKB) |
+| API-549 | API-CM-HQ-007 | `POST /api/v1/hq-schedule/holidays/import` | FR-001 | Implemented (lab; selected dates) |
 
 ### 7.3 Lab addendum (2026-08-20) — HQ complete visit (Penyelesaian Pusat)
 

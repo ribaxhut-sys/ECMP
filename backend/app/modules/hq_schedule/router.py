@@ -17,7 +17,10 @@ from app.integrations.customer import build_customer_provider
 from app.modules.hq_schedule.repository import HqScheduleRepository
 from app.modules.hq_schedule.schemas import (
     AvailabilityResponse,
+    HolidayCatalogResponse,
     HolidayCreateRequest,
+    HolidayImportRequest,
+    HolidayImportResponse,
     HolidayResponse,
 )
 from app.modules.hq_schedule.service import HqScheduleService
@@ -132,6 +135,37 @@ def create_holiday(
 ) -> DataResponse[HolidayResponse]:
     return DataResponse(
         data=service.create_holiday(payload, actor_id=str(principal.user_id))
+    )
+
+
+@router.get(
+    "/holidays/catalog",
+    response_model=DataResponse[HolidayCatalogResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Preview vendored national holiday catalog for a year",
+)
+def holiday_catalog(
+    service: Annotated[HqScheduleService, Depends(get_hq_schedule_service)],
+    principal: Annotated[Principal, Depends(require_permissions("settings:read"))],
+    year: Annotated[int, Query(ge=2000, le=2100)],
+) -> DataResponse[HolidayCatalogResponse]:
+    _ = principal
+    return DataResponse(data=service.holiday_catalog(year=year))
+
+
+@router.post(
+    "/holidays/import",
+    response_model=DataResponse[HolidayImportResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Import selected vendored holidays for a year",
+)
+def import_holidays(
+    payload: HolidayImportRequest,
+    service: Annotated[HqScheduleService, Depends(get_hq_schedule_service)],
+    principal: Annotated[Principal, Depends(require_permissions("settings:update"))],
+) -> DataResponse[HolidayImportResponse]:
+    return DataResponse(
+        data=service.import_holidays(payload, actor_id=str(principal.user_id))
     )
 
 

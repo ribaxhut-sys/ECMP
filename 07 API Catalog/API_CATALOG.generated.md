@@ -263,6 +263,8 @@
 | API-542 | `GET /api/v1/hq-schedule/holidays` | List HQ schedule holidays in range |
 | API-543 | `POST /api/v1/hq-schedule/holidays` | Create or relabel an HQ schedule holiday |
 | API-544 | `DELETE /api/v1/hq-schedule/holidays/{holidayDate}` | Remove an HQ schedule holiday |
+| API-548 | `GET /api/v1/hq-schedule/holidays/catalog` | Preview vendored national holiday catalog for a year |
+| API-549 | `POST /api/v1/hq-schedule/holidays/import` | Import selected vendored holidays for a year |
 
 ## `internal-complaints.v1.yaml`
 

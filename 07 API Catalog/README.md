@@ -215,7 +215,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ### hq-schedule v1 — [`openapi/hq-schedule.v1.yaml`](./openapi/hq-schedule.v1.yaml) **1.0.0-lab** — Advisory HQ arrival slot availability + holiday calendar
 
-> Read-mostly grid over CM Batch 1 Aggregate arrival data (`hqArrivalDate/Time`, `proposedArrivalDate/Time`). Pusat stays the sole SoT for the schedule itself — this module never writes a complaint's `hqArrivalDate`/`hqArrivalTime` (see API-500…513 accept-and-schedule / schedule). Branch-proposed slots are advisory only and never reduce `availableCount`. `/availability/detail` is gated by the existing Mode A `require_hq_intake_action` lab gate (mirrors `principal_may_perform_hq_intake_action`) — not a new permission, not SSO/OIDC, not a Mode B unlock. Holiday calendar is minimal CRUD only — no national calendar import/sync.
+> Read-mostly grid over CM Batch 1 Aggregate arrival data (`hqArrivalDate/Time`, `proposedArrivalDate/Time`). Pusat stays the sole SoT for the schedule itself — this module never writes a complaint's `hqArrivalDate`/`hqArrivalTime` (see API-500…513 accept-and-schedule / schedule). Branch-proposed slots are advisory only and never reduce `availableCount`. `/availability/detail` is gated by the existing Mode A `require_hq_intake_action` lab gate (mirrors `principal_may_perform_hq_intake_action`) — not a new permission, not SSO/OIDC, not a Mode B unlock. Holiday calendar is CRUD plus vendored SKB import (API-548/549) — no live third-party fetch.
 
 | API ID | Logical ID | Method & Endpoint | Auth | Status |
 |---|---|---|---|---|
@@ -224,6 +224,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-542 | API-CM-HQ-003 | GET /api/v1/hq-schedule/holidays | bearerAuth, permission `settings:read` | 🟢 Implemented (lab) |
 | API-543 | API-CM-HQ-004 | POST /api/v1/hq-schedule/holidays | bearerAuth, permission `settings:update` | 🟢 Implemented (lab; upsert by holidayDate, always 200) |
 | API-544 | API-CM-HQ-005 | DELETE /api/v1/hq-schedule/holidays/{holidayDate} | bearerAuth, permission `settings:update` | 🟢 Implemented (lab) |
+| API-548 | API-CM-HQ-006 | GET /api/v1/hq-schedule/holidays/catalog | bearerAuth, permission `settings:read` | 🟢 Implemented (lab; vendored SKB JSON) |
+| API-549 | API-CM-HQ-007 | POST /api/v1/hq-schedule/holidays/import | bearerAuth, permission `settings:update` | 🟢 Implemented (lab; selected dates, idempotent) |
 
 ### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0** — FRD-CM-B2-001 🔒 LOCKED / CAP-008 Mode A
 

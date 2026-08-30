@@ -68,6 +68,9 @@ class _FakeHoliday:
     def __init__(self, holiday_date: date, label: str) -> None:
         self.holiday_date = holiday_date
         self.label = label
+        self.kind = None
+        self.source = None
+        self.imported_at = None
         self.created_by = "hq-1"
         self.created_at = datetime(2026, 8, 17, tzinfo=UTC)
 
@@ -90,10 +93,20 @@ class _FakeHqScheduleRepository:
         return next((h for h in self._holidays if h.holiday_date == holiday_date), None)
 
     def create_holiday(
-        self, *, holiday_date: date, label: str, created_by: str | None
+        self,
+        *,
+        holiday_date: date,
+        label: str,
+        created_by: str | None,
+        kind: str | None = None,
+        source: str | None = None,
+        imported_at: datetime | None = None,
     ) -> _FakeHoliday:
         row = _FakeHoliday(holiday_date, label)
         row.created_by = created_by or "hq-1"
+        row.kind = kind
+        row.source = source
+        row.imported_at = imported_at
         self._holidays.append(row)
         return row
 
@@ -288,3 +301,42 @@ def test_holiday_routes_require_settings_permissions() -> None:
         assert created.json()["data"]["label"] == "Cuti"
         deleted = client.delete(f"/api/v1/hq-schedule/holidays/{day}")
         assert deleted.status_code == 204
+
+
+def test_holiday_catalog_and_import_routes() -> None:
+    reader = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read"})
+    )
+    writer = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read", "settings:update"})
+    )
+    with _client_for(reader) as client:
+        catalog = client.get("/api/v1/hq-schedule/holidays/catalog", params={"year": 2026})
+        assert catalog.status_code == 200, catalog.text
+        payload = catalog.json()["data"]
+        assert payload["year"] == 2026
+        assert any(row["holidayDate"] == "2026-08-17" for row in payload["entries"])
+        denied = client.post(
+            "/api/v1/hq-schedule/holidays/import",
+            json={"year": 2026, "dates": ["2026-08-17"]},
+        )
+        assert denied.status_code == 403
+        missing = client.get(
+            "/api/v1/hq-schedule/holidays/catalog", params={"year": 2099}
+        )
+        assert missing.status_code == 400
+    with _client_for(writer) as client:
+        imported = client.post(
+            "/api/v1/hq-schedule/holidays/import",
+            json={"year": 2026, "dates": ["2026-08-17", "2026-12-24"]},
+        )
+        assert imported.status_code == 200, imported.text
+        body = imported.json()["data"]
+        assert body["importedCount"] == 2
+        listed = client.get(
+            "/api/v1/hq-schedule/holidays",
+            params={"from": "2026-01-01", "to": "2026-12-31"},
+        )
+        assert listed.status_code == 200
+        dates = {row["holidayDate"] for row in listed.json()["data"]}
+        assert {"2026-08-17", "2026-12-24"} <= dates

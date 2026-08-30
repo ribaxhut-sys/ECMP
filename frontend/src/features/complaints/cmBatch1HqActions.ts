@@ -22,9 +22,10 @@ export const CM_BATCH1_HQ_REVIEW_ROLES = [
   "SCHEDULER",
   "ADMIN",
   "ADMINISTRATOR",
+  "SUPER_ADMIN",
 ] as const;
 
-/** Matches backend gates._PUSAT_AGENT_ROLES */
+/** Lab Agent-family roles — HQ intake is unit-based (Pusat vs cabang). */
 export const CM_BATCH1_PUSAT_AGENT_ROLES = [
   "AGENT",
   "CS_AGENT",
@@ -36,7 +37,6 @@ export const CM_BATCH1_PUSAT_AGENT_ROLES = [
 export const CM_BATCH1_PUSAT_UNIT_CODES = PUSAT_UNIT_ROOT_CODES;
 
 const HQ_REVIEW_ROLE_SET = new Set<string>(CM_BATCH1_HQ_REVIEW_ROLES);
-const PUSAT_AGENT_ROLE_SET = new Set<string>(CM_BATCH1_PUSAT_AGENT_ROLES);
 
 /** Root or Pusat sub-unit (PUSAT-CRO, PUSAT-SUBAN-…) — see shared helper. */
 export const isCmBatch1PusatUnitCode = isPusatUnitCode;
@@ -60,9 +60,9 @@ export function canCmBatch1HqReview(input: {
   ) {
     return true;
   }
+  // Same AGENT/SUPERVISOR role at a branch stays denied — unit is the split.
   if (
     input.hasPermission("complaints:read") &&
-    roles.some((r) => PUSAT_AGENT_ROLE_SET.has(r)) &&
     isCmBatch1PusatUnitCode(input.unitCode)
   ) {
     return true;
@@ -76,6 +76,9 @@ export interface CmBatch1HqActionSnapshot {
   hqAcceptedAt: string | null | undefined;
   hqArrivalDate: string | null | undefined;
   caseCreated: boolean | null | undefined;
+  /** DEC-029 Case still at Pusat — first send or re-escalation. */
+  escalatedToPusat?: boolean | null;
+  caseStatus?: string | null;
 }
 
 export interface CmBatch1HqActionVisibility {
@@ -89,9 +92,14 @@ export interface CmBatch1HqActionVisibility {
 }
 
 const HQ_OPEN_STATUSES = new Set(["REGISTERED", "IN_PROGRESS"]);
+const HQ_OPEN_CASE_STATUSES = new Set(["CREATED", "ASSIGNED", "IN_PROGRESS"]);
 
 function isHqOpenStatus(status: string | null | undefined): boolean {
   return HQ_OPEN_STATUSES.has((status || "").trim().toUpperCase());
+}
+
+function isHqOpenCaseStatus(status: string | null | undefined): boolean {
+  return HQ_OPEN_CASE_STATUSES.has((status || "").trim().toUpperCase());
 }
 
 export function resolveCmBatch1HqActionVisibility(
@@ -104,13 +112,20 @@ export function resolveCmBatch1HqActionVisibility(
   const approvedEscalation =
     isHqOpenStatus(status) && disposition === "ESCALATE_APPROVED";
   const hqScheduled = isHqOpenStatus(status) && disposition === "HQ_SCHEDULED";
+  // Case at Pusat (including re-escalation) even if the parent snapshot
+  // has not loaded yet — GET Case already reopens the parent door.
+  const caseAwaitingHqSchedule =
+    Boolean(snapshot.escalatedToPusat) &&
+    !hqAccepted &&
+    isHqOpenCaseStatus(snapshot.caseStatus);
+  const awaitingHqSchedule = approvedEscalation || caseAwaitingHqSchedule;
   const showHqReschedule =
     canHqReview && hqAccepted && (approvedEscalation || hqScheduled);
   return {
     approvedEscalation,
     hqScheduled,
-    showHqAcceptAndSchedule: approvedEscalation && canHqReview && !hqAccepted,
-    showHqReturn: approvedEscalation && canHqReview && !hqAccepted,
+    showHqAcceptAndSchedule: awaitingHqSchedule && canHqReview && !hqAccepted,
+    showHqReturn: awaitingHqSchedule && canHqReview && !hqAccepted,
     showHqReschedule,
     showHqComplete: showHqReschedule,
     // Slot copy lives on PageHeader + Penanganan card — do not repeat a banner.
@@ -158,6 +173,8 @@ export function resolveCmBatch1BranchEscalationCtas(
   const onHqPath = isHqIntakeDisposition(disposition);
   const showCancelEscalation =
     input.canDecideEscalation &&
+    !input.isHqReviewer &&
+    !input.isPusatUnitMember &&
     disposition === "ESCALATE_APPROVED" &&
     !hqAccepted &&
     status !== "CLOSED" &&

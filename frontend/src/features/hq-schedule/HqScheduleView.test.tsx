@@ -11,9 +11,11 @@ import type { HqScheduleAvailabilityResponse } from "@/lib/api/hqSchedule";
 const fetchHqScheduleAvailability = vi.fn();
 const fetchHqScheduleAvailabilityDetail = vi.fn();
 const fetchHqScheduleHolidays = vi.fn();
+const fetchHqScheduleHolidayCatalog = vi.fn();
 const fetchBranches = vi.fn();
 const ackCmHqScheduleSeen = vi.fn();
 const createHqScheduleHoliday = vi.fn();
+const importHqScheduleHolidays = vi.fn();
 const hasPermission = vi.fn<(permission: string) => boolean>(() => false);
 let mockRoles: string[] = [];
 let mockOrgUnitCode: string | null | undefined = "UPPPD-A";
@@ -42,7 +44,10 @@ vi.mock("@/lib/api/hqSchedule", () => ({
   fetchHqScheduleAvailabilityDetail: (...args: unknown[]) =>
     fetchHqScheduleAvailabilityDetail(...args),
   fetchHqScheduleHolidays: (...args: unknown[]) => fetchHqScheduleHolidays(...args),
+  fetchHqScheduleHolidayCatalog: (...args: unknown[]) =>
+    fetchHqScheduleHolidayCatalog(...args),
   createHqScheduleHoliday: (...args: unknown[]) => createHqScheduleHoliday(...args),
+  importHqScheduleHolidays: (...args: unknown[]) => importHqScheduleHolidays(...args),
   deleteHqScheduleHoliday: vi.fn(),
 }));
 
@@ -157,12 +162,14 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailability.mockReset();
     fetchHqScheduleAvailabilityDetail.mockReset();
     fetchHqScheduleHolidays.mockReset();
+    fetchHqScheduleHolidayCatalog.mockReset();
     fetchBranches.mockReset();
     ackCmHqScheduleSeen.mockReset();
     ackCmHqScheduleSeen.mockResolvedValue({
       data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0, hqScheduleUnread: 0 },
     });
     createHqScheduleHoliday.mockReset();
+    importHqScheduleHolidays.mockReset();
     hasPermission.mockReset().mockImplementation((permission: string) => {
       return permission === "complaints:read";
     });
@@ -171,6 +178,33 @@ describe("HqScheduleView", () => {
     fetchHqScheduleAvailability.mockResolvedValue({ data: emptyGrid });
     fetchHqScheduleAvailabilityDetail.mockResolvedValue({ data: emptyGrid });
     fetchHqScheduleHolidays.mockResolvedValue({ data: [] });
+    fetchHqScheduleHolidayCatalog.mockResolvedValue({
+      data: {
+        year: 2026,
+        source: "skb-3-menteri-2026",
+        sourceName: "SKB 3 Menteri 2026",
+        availableYears: [2026],
+        entries: [
+          {
+            holidayDate: "2026-08-17",
+            label: "Proklamasi Kemerdekaan",
+            kind: "LIBUR_NASIONAL",
+            defaultSelected: true,
+            alreadyExists: false,
+          },
+          {
+            holidayDate: "2026-04-05",
+            label: "Paskah",
+            kind: "LIBUR_NASIONAL",
+            defaultSelected: false,
+            alreadyExists: false,
+          },
+        ],
+      },
+    });
+    importHqScheduleHolidays.mockResolvedValue({
+      data: { year: 2026, importedCount: 1, holidays: [] },
+    });
     fetchBranches.mockResolvedValue({
       data: [
         { id: "b1", code: "UPPPD-A", name: "Cabang Tanah Abang" },
@@ -607,29 +641,75 @@ describe("HqScheduleView", () => {
     expect(screen.getAllByText(/Break/)).toHaveLength(1);
   });
 
-  it("imports the fixed-date national holidays for the selected year", async () => {
+  it("previews the vendored calendar and imports checked dates", async () => {
     hasPermission.mockImplementation((permission: string) =>
       ["complaints:read", "settings:read", "settings:update"].includes(permission),
     );
     const user = userEvent.setup();
     renderWithProviders(<HqScheduleView />);
 
-    await user.click(await screen.findByText("Holidays this week"));
+    await user.click(await screen.findByText("Holidays & collective leave"));
     const importButton = await screen.findByRole("button", {
-      name: /Import fixed-date holidays/i,
+      name: /Import 2026 calendar/i,
     });
     await user.click(importButton);
 
+    expect(
+      await screen.findByTestId("hq-schedule-holiday-import-preview"),
+    ).toBeInTheDocument();
+    expect(fetchHqScheduleHolidayCatalog).toHaveBeenCalledWith(2026);
+    expect(screen.getByLabelText(/Proklamasi Kemerdekaan/)).toBeChecked();
+    expect(screen.queryByLabelText(/Paskah/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Save 1 dates/i }));
     await waitFor(() => {
-      expect(createHqScheduleHoliday).toHaveBeenCalledTimes(5);
+      expect(importHqScheduleHolidays).toHaveBeenCalledWith({
+        year: 2026,
+        dates: ["2026-08-17"],
+      });
     });
-    const currentYear = new Date().getFullYear();
-    expect(createHqScheduleHoliday).toHaveBeenCalledWith(
-      expect.objectContaining({ holidayDate: `${currentYear}-01-01` }),
+  });
+
+  it("lists holidays for the selected year, not the visible week", async () => {
+    hasPermission.mockImplementation((permission: string) =>
+      ["complaints:read", "settings:read", "settings:update"].includes(permission),
     );
-    expect(createHqScheduleHoliday).toHaveBeenCalledWith(
-      expect.objectContaining({ holidayDate: `${currentYear}-08-17` }),
+    renderWithProviders(<HqScheduleView />);
+    await screen.findByText("Holidays & collective leave");
+    await waitFor(() => {
+      expect(fetchHqScheduleHolidays).toHaveBeenCalledWith("2026-01-01", "2026-12-31");
+    });
+  });
+
+  it("hides past holidays until the operator shows them", async () => {
+    hasPermission.mockImplementation((permission: string) =>
+      ["complaints:read", "settings:read", "settings:update"].includes(permission),
     );
+    fetchHqScheduleHolidays.mockResolvedValue({
+      data: [
+        {
+          holidayDate: "2026-01-01",
+          label: "Tahun Baru Masehi",
+          kind: "LIBUR_NASIONAL",
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+        {
+          holidayDate: "2026-12-25",
+          label: "Hari Natal",
+          kind: "LIBUR_NASIONAL",
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<HqScheduleView />);
+    await user.click(await screen.findByText("Holidays & collective leave"));
+
+    expect(await screen.findByText(/Hari Natal/)).toBeInTheDocument();
+    expect(screen.queryByText(/Tahun Baru Masehi/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Show 1 past dates/i }));
+    expect(await screen.findByText(/Tahun Baru Masehi/)).toBeInTheDocument();
   });
 
   it("summarizes scheduled, today, and bookable slot counts from visible weekdays", () => {

@@ -17,6 +17,11 @@ class CmHqHolidayORM(Base):
 
     holiday_date: Mapped[date] = mapped_column(Date, primary_key=True)
     label: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    imported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

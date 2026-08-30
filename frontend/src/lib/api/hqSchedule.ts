@@ -90,11 +90,42 @@ export interface HqScheduleAvailabilityResponse {
   days: HqScheduleDayAvailability[];
 }
 
+export type HqScheduleHolidayKind = "LIBUR_NASIONAL" | "CUTI_BERSAMA";
+
 export interface HqScheduleHoliday {
   holidayDate: string;
   label: string;
+  kind?: HqScheduleHolidayKind | null;
+  source?: string | null;
+  importedAt?: string | null;
   createdBy?: string | null;
   createdAt: string;
+}
+
+export interface HqScheduleHolidayCatalogEntry {
+  holidayDate: string;
+  label: string;
+  kind: HqScheduleHolidayKind;
+  defaultSelected: boolean;
+  alreadyExists: boolean;
+  existingLabel?: string | null;
+}
+
+export interface HqScheduleHolidayCatalog {
+  year: number;
+  source: string;
+  sourceName: string;
+  sourceUrl?: string | null;
+  lastUpdated?: string | null;
+  notes?: string | null;
+  availableYears: number[];
+  entries: HqScheduleHolidayCatalogEntry[];
+}
+
+export interface HqScheduleHolidayImportResult {
+  year: number;
+  importedCount: number;
+  holidays: HqScheduleHoliday[];
 }
 
 function rangeQuery(dateFrom?: string, dateTo?: string): string {
@@ -148,5 +179,26 @@ export function deleteHqScheduleHoliday(holidayDate: string): Promise<void> {
   return apiRequest<void>(
     `/api/v1/hq-schedule/holidays/${encodeURIComponent(holidayDate)}`,
     { method: "DELETE" },
+  );
+}
+
+export function fetchHqScheduleHolidayCatalog(
+  year: number,
+): Promise<DataResponse<HqScheduleHolidayCatalog>> {
+  return apiRequest<DataResponse<HqScheduleHolidayCatalog>>(
+    `/api/v1/hq-schedule/holidays/catalog?year=${encodeURIComponent(String(year))}`,
+  );
+}
+
+export function importHqScheduleHolidays(body: {
+  year: number;
+  dates: string[];
+}): Promise<DataResponse<HqScheduleHolidayImportResult>> {
+  return apiRequest<DataResponse<HqScheduleHolidayImportResult>>(
+    "/api/v1/hq-schedule/holidays/import",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
   );
 }

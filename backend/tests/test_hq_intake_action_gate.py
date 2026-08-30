@@ -71,6 +71,31 @@ def test_agent_pusat_may_hq_intake() -> None:
     )
 
 
+def test_super_admin_may_hq_intake() -> None:
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPER_ADMIN",),
+        permissions=frozenset({"escalations:review", "*"}),
+    )
+    assert (
+        principal_may_perform_hq_intake_action(principal, org_unit_id=None)
+        is True
+    )
+
+
+def test_pusat_supervisor_may_hq_intake() -> None:
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:read", "complaints:escalate"}),
+        org_unit_id="PUSAT",
+    )
+    assert (
+        principal_may_perform_hq_intake_action(principal, org_unit_id="PUSAT")
+        is True
+    )
+
+
 def test_branch_agent_denied_hq_intake() -> None:
     principal = Principal(
         user_id=uuid.uuid4(),

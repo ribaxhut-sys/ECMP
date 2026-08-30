@@ -8,6 +8,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 ClosedReasonLiteral = Literal["WEEKEND", "HOLIDAY"]
+HolidayKindLiteral = Literal["LIBUR_NASIONAL", "CUTI_BERSAMA"]
+
+SOURCE_MANUAL = "manual"
 
 
 class HolidayCreateRequest(BaseModel):
@@ -15,6 +18,7 @@ class HolidayCreateRequest(BaseModel):
 
     holiday_date: date = Field(alias="holidayDate")
     label: str = Field(min_length=1, max_length=200)
+    kind: HolidayKindLiteral | None = None
 
 
 class HolidayResponse(BaseModel):
@@ -22,8 +26,50 @@ class HolidayResponse(BaseModel):
 
     holiday_date: date = Field(alias="holidayDate")
     label: str
+    kind: HolidayKindLiteral | None = None
+    source: str | None = None
+    imported_at: datetime | None = Field(default=None, alias="importedAt")
     created_by: str | None = Field(default=None, alias="createdBy")
     created_at: datetime = Field(alias="createdAt")
+
+
+class HolidayCatalogEntry(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    holiday_date: date = Field(alias="holidayDate")
+    label: str
+    kind: HolidayKindLiteral
+    default_selected: bool = Field(alias="defaultSelected")
+    already_exists: bool = Field(alias="alreadyExists")
+    existing_label: str | None = Field(default=None, alias="existingLabel")
+
+
+class HolidayCatalogResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    year: int
+    source: str
+    source_name: str = Field(alias="sourceName")
+    source_url: str | None = Field(default=None, alias="sourceUrl")
+    last_updated: str | None = Field(default=None, alias="lastUpdated")
+    notes: str | None = None
+    available_years: list[int] = Field(alias="availableYears")
+    entries: list[HolidayCatalogEntry]
+
+
+class HolidayImportRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    year: int = Field(ge=2000, le=2100)
+    dates: list[date] = Field(min_length=1)
+
+
+class HolidayImportResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    year: int
+    imported_count: int = Field(alias="importedCount")
+    holidays: list[HolidayResponse]
 
 
 class CaseRefResponse(BaseModel):

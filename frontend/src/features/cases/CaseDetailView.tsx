@@ -89,12 +89,12 @@ import {
   isCaseCurrentlyReturnedFromPusat,
   resolveCaseHqPath,
   showCaseCancelEscalation,
+  showCaseHandleClaimButton,
   showCaseLevelCancelEscalation,
   showCaseReturnEscalation,
 } from "./caseHqPath";
 import { HQ_RETURN_REASON_CODES } from "./hqReturnNote";
 import {
-  canCmBatch1HqReview,
   hqCroDestinationDisplayLabel,
   isCmBatch1HqAcceptScheduleReady,
   isCmBatch1HqNoteReady,
@@ -520,12 +520,15 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
     complaintCaseCount,
   );
   const showParentCancelEscalation =
+    orgReady &&
+    !actorIsPusat &&
     !caseReturnedFromPusat &&
     showCaseCancelEscalation({
       canDecideEscalation,
       complaintStatus,
       intakeDisposition: complaintIntakeDisposition,
       hqAcceptedAt: complaintHqAcceptedAt,
+      actorIsPusat,
     });
   const showCaseLevelCancel = Boolean(
     orgReady &&
@@ -554,7 +557,6 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   );
   const cancelNoteOk = cancelNote.trim().length >= CANCEL_NOTE_MIN;
   const returnNoteOk = returnNote.trim().length >= RETURN_NOTE_MIN;
-  const canHqReview = canCmBatch1HqReview({ roles, hasPermission, unitCode });
   const hqActions = resolveCmBatch1HqActionVisibility(
     {
       status: complaintStatus,
@@ -562,8 +564,10 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
       hqAcceptedAt: complaintHqAcceptedAt,
       hqArrivalDate: complaintHqArrivalDate,
       caseCreated: Boolean(data?.caseId),
+      escalatedToPusat: Boolean(data?.escalatedToPusat),
+      caseStatus: data?.status,
     },
-    canHqReview,
+    Boolean(orgReady && actorIsPusat),
   );
   const {
     showHqAcceptAndSchedule,
@@ -715,6 +719,7 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   );
   const showEscalateToPusat = Boolean(
     data &&
+      !actorIsPusat &&
       (canCreate || canDecideEscalation) &&
       !data.escalatedToPusat &&
       (!hqPath.onHqPath || parentReturnedToBranch || caseReturnedFromPusat) &&
@@ -733,14 +738,17 @@ export function CaseDetailView({ caseId }: { caseId: string }) {
   );
   const showHandleClaimButton = Boolean(
     data &&
-      !hideBranchActions &&
-      !showHqAcceptAndSchedule &&
-      shouldAskHandleClaim({
-        status: data.status,
-        canAct,
-        decision: null,
-        handlingClaimedBy: data.handlingClaimedBy,
-        userId: user?.id,
+      showCaseHandleClaimButton({
+        hideBranchActions,
+        showHqAcceptAndSchedule,
+        escalatedToPusat: Boolean(data.escalatedToPusat),
+        shouldAsk: shouldAskHandleClaim({
+          status: data.status,
+          canAct,
+          decision: null,
+          handlingClaimedBy: data.handlingClaimedBy,
+          userId: user?.id,
+        }),
       }),
   );
 

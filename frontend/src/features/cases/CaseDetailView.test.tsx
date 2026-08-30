@@ -690,21 +690,81 @@ describe("CaseDetailView HQ path", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("claims HQ handling from the accept button without a confirm modal", async () => {
+  it("lets a Pusat officer schedule after re-escalation even if the parent snapshot is empty", async () => {
     orgUnitCode = "PUSAT";
     authState.userId = "pusat-1";
     authState.roles = ["AGENT"];
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        handlingClaimedBy: null,
+        handlingClaimedByName: null,
+      }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({ data: baseComplaint() });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Accept & schedule" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Accept complaint" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request escalation to HQ" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Cancel escalation for Pusat even when the officer has complaints:escalate", async () => {
+    orgUnitCode = "PUSAT";
+    authState.userId = "pusat-admin";
+    authState.roles = ["ADMIN"];
+    hasPermission.mockImplementation(
+      (code: string) =>
+        code === "complaints:read" ||
+        code === "complaints:update" ||
+        code === "complaints:create" ||
+        code === "complaints:escalate" ||
+        code === "escalations:review",
+    );
+    fetchCmCase.mockResolvedValue({
+      data: baseCase({
+        escalatedToPusat: true,
+        owningUnit: "PUSAT",
+        handlingClaimedBy: null,
+        handlingClaimedByName: null,
+      }),
+    });
+    fetchCmBatch1Complaint.mockResolvedValue({
+      data: baseComplaint({
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+      }),
+    });
+    renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Accept & schedule" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Cancel escalation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /return to branch|kembalikan/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("lets a branch officer claim an unescalated Case", async () => {
     const unclaimed = baseCase({
-      escalatedToPusat: true,
-      owningUnit: "PUSAT",
       handlingClaimedBy: null,
       handlingClaimedByName: null,
     });
     const claimed = baseCase({
-      escalatedToPusat: true,
-      owningUnit: "PUSAT",
-      handlingClaimedBy: "pusat-1",
-      handlingClaimedByName: "Teguh Prasetyo",
+      handlingClaimedBy: "officer-dewi",
+      handlingClaimedByName: "Dewi Hidayat",
     });
     fetchCmCase
       .mockResolvedValueOnce({ data: unclaimed })
@@ -712,7 +772,7 @@ describe("CaseDetailView HQ path", () => {
     updateCmCaseStatus.mockResolvedValue({ data: claimed });
     renderWithProviders(<CaseDetailView caseId={CASE_ID} />);
     await userEvent.click(
-      await screen.findByRole("button", { name: "Accept complaint" }),
+      await screen.findByRole("button", { name: "Handle complaint" }),
     );
     await waitFor(() => {
       expect(updateCmCaseStatus).toHaveBeenCalledWith(CASE_ID, {
@@ -723,7 +783,7 @@ describe("CaseDetailView HQ path", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: "Accept complaint" }),
+        screen.queryByRole("button", { name: "Handle complaint" }),
       ).not.toBeInTheDocument();
     });
   });

@@ -4,6 +4,7 @@ import {
   isCaseCurrentlyReturnedFromPusat,
   resolveCaseHqPath,
   showCaseCancelEscalation,
+  showCaseHandleClaimButton,
   showCaseLevelCancelEscalation,
   showCaseReturnEscalation,
   actorMayHandleEscalatedCase,
@@ -100,6 +101,12 @@ describe("showCaseCancelEscalation", () => {
 
   it("shows while parent is approved and HQ has not accepted", () => {
     expect(showCaseCancelEscalation(approved)).toBe(true);
+  });
+
+  it("hides for a Pusat actor even with complaints:escalate", () => {
+    expect(
+      showCaseCancelEscalation({ ...approved, actorIsPusat: true }),
+    ).toBe(false);
   });
 
   it("hides without complaints:escalate", () => {
@@ -222,6 +229,37 @@ describe("showCaseReturnEscalation", () => {
     expect(showCaseReturnEscalation({ ...open, caseStatus: "RESOLVED" })).toBe(
       false,
     );
+  });
+});
+
+describe("showCaseHandleClaimButton", () => {
+  const ask = {
+    hideBranchActions: false,
+    showHqAcceptAndSchedule: false,
+    escalatedToPusat: false,
+    shouldAsk: true,
+  };
+
+  it("shows for a branch officer on an unescalated Case", () => {
+    expect(showCaseHandleClaimButton(ask)).toBe(true);
+  });
+
+  it("hides while the Case is with Pusat (first send or re-escalation)", () => {
+    expect(
+      showCaseHandleClaimButton({ ...ask, escalatedToPusat: true }),
+    ).toBe(false);
+  });
+
+  it("hides when Terima & jadwalkan is already the CTA", () => {
+    expect(
+      showCaseHandleClaimButton({ ...ask, showHqAcceptAndSchedule: true }),
+    ).toBe(false);
+  });
+
+  it("hides when branch work is already suppressed", () => {
+    expect(
+      showCaseHandleClaimButton({ ...ask, hideBranchActions: true }),
+    ).toBe(false);
   });
 });
 

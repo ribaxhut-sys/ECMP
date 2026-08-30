@@ -53,6 +53,26 @@ describe("canCmBatch1HqReview", () => {
     ).toBe(true);
   });
 
+  it("allows Supervisor on PUSAT with complaints:read (same role as cabang, unit splits)", () => {
+    expect(
+      canCmBatch1HqReview({
+        roles: ["SUPERVISOR"],
+        hasPermission: (p) => p === "complaints:read",
+        unitCode: "PUSAT",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows Super Admin with escalations:review even without a branch", () => {
+    expect(
+      canCmBatch1HqReview({
+        roles: ["SUPER_ADMIN"],
+        hasPermission: (p) => p === "escalations:review",
+        unitCode: null,
+      }),
+    ).toBe(true);
+  });
+
   it("denies Agent on branch unit", () => {
     expect(
       canCmBatch1HqReview({
@@ -113,6 +133,41 @@ describe("resolveCmBatch1HqActionVisibility", () => {
     expect(v.showHqAcceptAndSchedule).toBe(false);
     expect(v.showHqReturn).toBe(false);
     expect(v.showHqComplete).toBe(false);
+  });
+
+  it("shows accept-and-schedule for a Case at Pusat even if parent snapshot is empty", () => {
+    const v = resolveCmBatch1HqActionVisibility(
+      {
+        status: null,
+        intakeDisposition: null,
+        hqAcceptedAt: null,
+        hqArrivalDate: null,
+        caseCreated: true,
+        escalatedToPusat: true,
+        caseStatus: "IN_PROGRESS",
+      },
+      true,
+    );
+    expect(v.showHqAcceptAndSchedule).toBe(true);
+    expect(v.showHqReturn).toBe(true);
+    expect(v.showHqReschedule).toBe(false);
+  });
+
+  it("does not treat a re-escalated Case as claimable — still accept-and-schedule", () => {
+    const v = resolveCmBatch1HqActionVisibility(
+      {
+        status: "IN_PROGRESS",
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: null,
+        hqArrivalDate: null,
+        caseCreated: true,
+        escalatedToPusat: true,
+        caseStatus: "IN_PROGRESS",
+      },
+      true,
+    );
+    expect(v.showHqAcceptAndSchedule).toBe(true);
+    expect(v.showHqReschedule).toBe(false);
   });
 
   it("shows reschedule after HQ_SCHEDULED + accepted", () => {
@@ -411,6 +466,17 @@ describe("resolveCmBatch1BranchEscalationCtas", () => {
       intakeDisposition: "ESCALATE_APPROVED",
       hqAcceptedAt: null,
       hasBoundCase: true,
+    });
+    expect(v.showCancelEscalation).toBe(false);
+  });
+
+  it("hides Batalkan Eskalasi for a Pusat unit officer", () => {
+    const v = resolveCmBatch1BranchEscalationCtas({
+      ...branch,
+      status: "IN_PROGRESS",
+      intakeDisposition: "ESCALATE_APPROVED",
+      hqAcceptedAt: null,
+      isPusatUnitMember: true,
     });
     expect(v.showCancelEscalation).toBe(false);
   });

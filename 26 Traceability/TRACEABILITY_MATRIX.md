@@ -31,7 +31,7 @@
 | TRC-L-014 | ECMF | BP-001 | BR-001 | FR-CM-B2-004 | API-533 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-015 | ECMF | BP-001 | BR-008 | FR-CM-B2-005 | API-534 | — | — | Mode-A-CAP-008 | Approved |
 | TRC-L-016 | ECMF | BP-001 | BR-008 | FR-CM-B2-006 | API-535 | — | — | Mode-A-CAP-008 | Approved |
-| TRC-L-017 | ECMF | BP-001 | BR-001 | FR-001 | API-540, API-541, API-542, API-543, API-544 | — | — | Mode-A-CM-B1 | Approved |
+| TRC-L-017 | ECMF | BP-001 | BR-001 | FR-001 | API-540, API-541, API-542, API-543, API-544, API-548, API-549 | — | — | Mode-A-CM-B1 | Approved |
 | TRC-L-018 | ECMF | BP-001 | BR-001 | FR-001 | API-CM-B1-025 | EVT-CM-045 | — | Mode-A-CM-B1 | Approved |
 
 ## Artifact Dictionary
@@ -99,6 +99,8 @@
 - `API-542`: GET /api/v1/hq-schedule/holidays
 - `API-543`: POST /api/v1/hq-schedule/holidays
 - `API-544`: DELETE /api/v1/hq-schedule/holidays/{holidayDate}
+- `API-548`: GET /api/v1/hq-schedule/holidays/catalog (vendored SKB preview)
+- `API-549`: POST /api/v1/hq-schedule/holidays/import
 - `API-CM-B1-025`: POST /api/v1/cm/complaints/{complaintId}/hq-complete (HQ visit complete → HQ_CLOSED, Mode A lab)
 
 ### EVENTS

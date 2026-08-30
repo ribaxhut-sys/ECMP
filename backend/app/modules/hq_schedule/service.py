@@ -10,23 +10,33 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.core.errors import NotFoundError, ValidationAppError
 from app.integrations.customer.provider import CustomerProvider
 from app.integrations.customer.types import CustomerLookupStatus
 from app.modules.cm_batch1.complaint_number import resolve_unit_code
+from app.modules.hq_schedule.holiday_catalog import (
+    available_years,
+    catalog_by_date,
+    load_year_catalog,
+)
 from app.modules.hq_schedule.repository import (
     ArrivalRow,
     HqScheduleRepository,
     PusatUnit,
 )
 from app.modules.hq_schedule.schemas import (
+    SOURCE_MANUAL,
     AvailabilityResponse,
     CaseRefResponse,
     DayAvailability,
+    HolidayCatalogEntry,
+    HolidayCatalogResponse,
     HolidayCreateRequest,
+    HolidayImportRequest,
+    HolidayImportResponse,
     HolidayResponse,
     ProposalSummary,
     SlotAvailability,
@@ -639,7 +649,12 @@ class HqScheduleService:
         ]
 
     def create_holiday(
-        self, body: HolidayCreateRequest, *, actor_id: str | None
+        self,
+        body: HolidayCreateRequest,
+        *,
+        actor_id: str | None,
+        source: str | None = None,
+        imported_at: datetime | None = None,
     ) -> HolidayResponse:
         label = body.label.strip()
         if not label:
@@ -650,13 +665,105 @@ class HqScheduleService:
         if existing is not None:
             existing.label = label
             existing.created_by = actor_id
+            if body.kind is not None:
+                existing.kind = body.kind
+            if source is not None:
+                existing.source = source
+            if imported_at is not None:
+                existing.imported_at = imported_at
             self._repo.commit()
             return HolidayResponse.model_validate(existing)
         row = self._repo.create_holiday(
-            holiday_date=body.holiday_date, label=label, created_by=actor_id
+            holiday_date=body.holiday_date,
+            label=label,
+            created_by=actor_id,
+            kind=body.kind,
+            source=source if source is not None else SOURCE_MANUAL,
+            imported_at=imported_at,
         )
         self._repo.commit()
         return HolidayResponse.model_validate(row)
+
+    def holiday_catalog(self, *, year: int) -> HolidayCatalogResponse:
+        catalog = load_year_catalog(year)
+        years = available_years()
+        if catalog is None:
+            raise ValidationAppError(
+                f"no vendored holiday catalog for {year}",
+                details={"field": "year", "availableYears": years},
+            )
+        existing = {
+            row.holiday_date: row.label
+            for row in self._repo.list_holidays(
+                date_from=date(year, 1, 1),
+                date_to=date(year, 12, 31),
+            )
+        }
+        entries = [
+            HolidayCatalogEntry(
+                holidayDate=entry.holiday_date,
+                label=entry.label,
+                kind=entry.kind,
+                defaultSelected=entry.default_selected,
+                alreadyExists=entry.holiday_date in existing,
+                existingLabel=existing.get(entry.holiday_date),
+            )
+            for entry in catalog.entries
+        ]
+        return HolidayCatalogResponse(
+            year=catalog.year,
+            source=catalog.source,
+            sourceName=catalog.source_name,
+            sourceUrl=catalog.source_url,
+            lastUpdated=catalog.last_updated,
+            notes=catalog.notes,
+            availableYears=years,
+            entries=entries,
+        )
+
+    def import_holidays(
+        self, body: HolidayImportRequest, *, actor_id: str | None
+    ) -> HolidayImportResponse:
+        catalog = load_year_catalog(body.year)
+        if catalog is None:
+            raise ValidationAppError(
+                f"no vendored holiday catalog for {body.year}",
+                details={"field": "year", "availableYears": available_years()},
+            )
+        by_date = catalog_by_date(body.year)
+        unique_dates = list(dict.fromkeys(body.dates))
+        unknown = [d for d in unique_dates if d not in by_date]
+        if unknown:
+            raise ValidationAppError(
+                "dates must belong to the vendored catalog for that year",
+                details={
+                    "field": "dates",
+                    "unknown": [d.isoformat() for d in unknown],
+                },
+            )
+        imported_at = datetime.now(UTC)
+        holidays: list[HolidayResponse] = []
+        for holiday_date in unique_dates:
+            entry = by_date[holiday_date]
+            holidays.append(
+                self.create_holiday(
+                    HolidayCreateRequest.model_validate(
+                        {
+                            "holidayDate": holiday_date.isoformat(),
+                            "label": entry.label,
+                            "kind": entry.kind,
+                        }
+                    ),
+                    actor_id=actor_id,
+                    source=catalog.source,
+                    imported_at=imported_at,
+                )
+            )
+        return HolidayImportResponse(
+            year=body.year,
+            importedCount=len(holidays),
+            holidays=holidays,
+        )
 
     def delete_holiday(self, holiday_date: date) -> None:
         deleted = self._repo.delete_holiday(holiday_date)

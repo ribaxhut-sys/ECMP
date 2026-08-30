@@ -34,6 +34,9 @@ class _FakeSettingsRepository:
 class _FakeHoliday:
     holiday_date: date
     label: str
+    kind: str | None = None
+    source: str | None = None
+    imported_at: datetime | None = None
     created_by: str | None = None
     created_at: datetime = datetime(2026, 8, 17, tzinfo=UTC)
 
@@ -58,11 +61,21 @@ class _FakeHqScheduleRepository:
         return next((h for h in self._holidays if h.holiday_date == holiday_date), None)
 
     def create_holiday(
-        self, *, holiday_date: date, label: str, created_by: str | None
+        self,
+        *,
+        holiday_date: date,
+        label: str,
+        created_by: str | None,
+        kind: str | None = None,
+        source: str | None = None,
+        imported_at: datetime | None = None,
     ) -> _FakeHoliday:
         row = _FakeHoliday(
             holiday_date=holiday_date,
             label=label,
+            kind=kind,
+            source=source,
+            imported_at=imported_at,
             created_by=created_by,
             created_at=datetime.now(UTC),
         )
@@ -901,3 +914,60 @@ def test_customer_display_name_omitted_when_lookup_fails() -> None:
         date_from=future_monday, date_to=future_monday, detail=True
     ).days[0].slots[0]
     assert slot.scheduled_cases[0].customer_display_name is None
+
+
+def test_holiday_catalog_2026_unchecks_easter_and_flags_existing() -> None:
+    repo = _FakeHqScheduleRepository(
+        holidays=[
+            _FakeHoliday(
+                holiday_date=date(2026, 8, 17),
+                label="Lama",
+            )
+        ]
+    )
+    service = HqScheduleService(repo, _settings_service())
+    catalog = service.holiday_catalog(year=2026)
+    assert catalog.year == 2026
+    assert catalog.source == "skb-3-menteri-2026"
+    assert 2026 in catalog.available_years
+    by_date = {row.holiday_date: row for row in catalog.entries}
+    assert by_date[date(2026, 4, 5)].default_selected is False
+    assert by_date[date(2026, 8, 17)].already_exists is True
+    assert by_date[date(2026, 8, 17)].existing_label == "Lama"
+    assert by_date[date(2026, 2, 16)].kind == "CUTI_BERSAMA"
+    with pytest.raises(ValidationAppError):
+        service.holiday_catalog(year=1999)
+
+
+def test_import_holidays_upserts_selected_catalog_dates() -> None:
+    repo = _FakeHqScheduleRepository()
+    service = HqScheduleService(repo, _settings_service())
+    from app.modules.hq_schedule.schemas import HolidayImportRequest
+
+    imported = service.import_holidays(
+        HolidayImportRequest.model_validate(
+            {"year": 2026, "dates": ["2026-08-17", "2026-12-24"]}
+        ),
+        actor_id="hq-1",
+    )
+    assert imported.imported_count == 2
+    assert imported.holidays[0].kind == "LIBUR_NASIONAL"
+    assert imported.holidays[1].kind == "CUTI_BERSAMA"
+    assert imported.holidays[0].source == "skb-3-menteri-2026"
+    assert imported.holidays[0].imported_at is not None
+
+    again = service.import_holidays(
+        HolidayImportRequest.model_validate(
+            {"year": 2026, "dates": ["2026-08-17"]}
+        ),
+        actor_id="hq-2",
+    )
+    assert again.holidays[0].label == "Proklamasi Kemerdekaan"
+
+    with pytest.raises(ValidationAppError):
+        service.import_holidays(
+            HolidayImportRequest.model_validate(
+                {"year": 2026, "dates": ["2026-04-04"]}
+            ),
+            actor_id="hq-1",
+        )

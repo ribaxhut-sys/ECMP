@@ -727,7 +727,7 @@ export function CmBatch1ConfirmationView({
       hqArrivalDate: data?.hqArrivalDate,
       caseCreated: data?.caseCreated,
     },
-    canHqReview,
+    canHqReview || isPusatUnitMember,
   );
   const {
     showHqAcceptAndSchedule,
