@@ -11,6 +11,9 @@ import pytest
 from app.core.authorization.principal import Principal
 from app.core.errors import ValidationAppError
 from app.modules.reports.pdf import (
+    ReportPrintData,
+    _comparison_line,
+    _signed,
     _styles,
     _user_activity_table,
     format_count,
@@ -21,7 +24,13 @@ from app.modules.reports.pdf import (
     report_pdf_filename,
 )
 from app.modules.reports.pdf_copy import copy_for, normalize_report_lang
-from app.modules.reports.repository import ReportRepository, UserActivityAgg
+from app.modules.reports.repository import (
+    ReportRepository,
+    UserActivityAgg,
+    _complaint_unit_filters,
+    _is_human_actor,
+    _later,
+)
 from app.modules.reports.router import get_report_summary, print_report
 from app.modules.reports.schemas import (
     AggregateComplaintStatus,
@@ -541,3 +550,262 @@ def test_user_activity_table_lists_officer_name() -> None:
     )
     assert "Ani Petugas" in table._cellvalues[1][0].getPlainText()
     assert "2" in table._cellvalues[1][2].getPlainText()
+
+
+def test_human_actor_and_later_helpers() -> None:
+    assert _is_human_actor(None) is False
+    assert _is_human_actor("  ") is False
+    assert _is_human_actor("system") is False
+    assert _is_human_actor("SYSTEM") is False
+    assert _is_human_actor("u-1") is True
+    stamp = datetime(2026, 8, 1, tzinfo=UTC)
+    later = datetime(2026, 8, 2, tzinfo=UTC)
+    assert _later(None, stamp) is stamp
+    assert _later(stamp, None) is stamp
+    assert _later(stamp, later) is later
+    assert _later(later, stamp) is later
+    assert _complaint_unit_filters(None) == []
+    assert _complaint_unit_filters("TAB")
+
+
+def test_report_counts_unknown_branch_are_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = MagicMock()
+    repo = ReportRepository(session)
+    monkeypatch.setattr(
+        "app.modules.reports.repository.owning_unit_for_branch",
+        lambda *_a, **_k: None,
+    )
+    branch_id = uuid.uuid4()
+    assert repo.count_total(branch_id=branch_id) == 0
+    assert repo.count_resolved(branch_id=branch_id) == 0
+    assert repo.count_escalated(branch_id=branch_id) == 0
+    assert repo.count_in_progress_at_branch(branch_id=branch_id) == 0
+    assert repo.count_by_status(branch_id=branch_id) == []
+    assert repo._case_counts_by_unit(branch_id=branch_id, date_from=None, date_to=None) == {}
+    assert repo._implied_case_counts_by_unit(
+        branch_id=branch_id, date_from=None, date_to=None
+    ) == {}
+    assert repo.count_by_branch(branch_id=branch_id) == []
+    assert repo.closed_case_durations_days(branch_id=branch_id) == []
+    session.execute.assert_not_called()
+
+
+def test_report_count_paths_with_unit_and_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = MagicMock()
+    session.scalar.return_value = 4
+    session.execute.return_value.all.return_value = [("IN_PROGRESS", 4)]
+    repo = ReportRepository(session)
+    monkeypatch.setattr(
+        "app.modules.reports.repository.owning_unit_for_branch",
+        lambda *_a, **_k: "TAB",
+    )
+    date_from = datetime(2026, 8, 1, tzinfo=UTC)
+    date_to = datetime(2026, 8, 31, tzinfo=UTC)
+    branch_id = uuid.uuid4()
+    assert repo.count_in_progress_at_branch(
+        branch_id=branch_id, date_from=date_from, date_to=date_to
+    ) == 4
+    assert repo.count_resolved(
+        branch_id=branch_id, date_from=date_from, date_to=date_to
+    ) == 4
+    assert repo.count_escalated(
+        branch_id=branch_id, date_from=date_from, date_to=date_to
+    ) == 4
+    assert repo.count_by_status(
+        branch_id=branch_id, date_from=date_from, date_to=date_to
+    ) == [("IN_PROGRESS", 4)]
+
+
+def test_closed_case_durations_skips_null_and_clamps_negative(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = MagicMock()
+    created = datetime(2026, 8, 10, tzinfo=UTC)
+    closed = datetime(2026, 8, 8, tzinfo=UTC)
+    session.execute.return_value.all.return_value = [
+        (None, closed),
+        (created, None),
+        (created, closed),
+    ]
+    repo = ReportRepository(session)
+    monkeypatch.setattr(
+        "app.modules.reports.repository.owning_unit_for_branch",
+        lambda *_a, **_k: "TAB",
+    )
+    days = repo.closed_case_durations_days(
+        branch_id=uuid.uuid4(),
+        date_from=datetime(2026, 8, 1, tzinfo=UTC),
+        date_to=datetime(2026, 8, 31, tzinfo=UTC),
+    )
+    assert days == [0.0]
+
+
+def test_activity_by_user_merges_actor_buckets() -> None:
+    session = MagicMock()
+    repo = ReportRepository(session)
+    actor = str(uuid.uuid4())
+    other = "bukan-uuid"
+    early = datetime(2026, 8, 1, tzinfo=UTC)
+    late = datetime(2026, 8, 18, tzinfo=UTC)
+    repo._actor_counts = MagicMock(  # type: ignore[method-assign]
+        side_effect=[
+            {actor: (2, early), "system": (9, late)},
+            {actor: (1, late)},
+        ]
+    )
+    repo._closed_case_actor_counts = MagicMock(  # type: ignore[method-assign]
+        return_value={actor: (3, None)}
+    )
+    repo._timeline_actor_counts = MagicMock(  # type: ignore[method-assign]
+        return_value={actor: (4, late, "Ani"), other: (1, early, None)}
+    )
+    branch_id = uuid.uuid4()
+    repo._directory_rows = MagicMock(  # type: ignore[method-assign]
+        return_value={
+            actor: ("Ani Petugas", "ani", branch_id, "UPPPD Tanah Abang"),
+        }
+    )
+    rows = repo.activity_by_user(
+        date_from=early,
+        date_to=late,
+    )
+    by_id = {row.user_id: row for row in rows}
+    assert by_id[actor].created_count == 2
+    assert by_id[actor].decided_count == 1
+    assert by_id[actor].closed_count == 3
+    assert by_id[actor].activity_count == 4
+    assert by_id[actor].display_name == "Ani Petugas"
+    assert by_id[actor].last_activity_at == late
+    assert by_id[other].display_name == other
+    assert by_id[other].username is None
+
+
+def test_actor_and_directory_sql_helpers() -> None:
+    from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+
+    session = MagicMock()
+    actor = uuid.uuid4()
+    stamp = datetime(2026, 8, 18, tzinfo=UTC)
+    session.execute.return_value.all.side_effect = [
+        [(str(actor), 2, stamp), ("system", 1, stamp), ("", 1, stamp)],
+        [(str(actor), 3, stamp, "Ani")],
+        [(actor, "Ani Petugas", "ani", uuid.uuid4(), "Cabang")],
+        [(str(actor), 1, stamp)],
+    ]
+    repo = ReportRepository(session)
+    counts = repo._actor_counts(
+        CmBatch1ComplaintORM.created_by,
+        CmBatch1ComplaintORM.created_at,
+        extra=[],
+        date_from=stamp,
+        date_to=stamp,
+    )
+    assert counts[str(actor)] == (2, stamp)
+    assert "system" not in counts
+    timeline = repo._timeline_actor_counts(
+        "TAB",
+        date_from=stamp,
+        date_to=stamp,
+    )
+    assert timeline[str(actor)][0] == 3
+    directory = repo._directory_rows({str(actor), "bukan-uuid"})
+    assert directory[str(actor)][0] == "Ani Petugas"
+    assert repo._directory_rows(set()) == {}
+    closed = repo._closed_case_actor_counts("TAB", stamp, stamp)
+    assert isinstance(closed, dict)
+
+
+def test_case_count_helpers_execute_grouped_sql(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = MagicMock()
+    session.execute.return_value.all.return_value = [("TAB", 5, 2, 1)]
+    repo = ReportRepository(session)
+    monkeypatch.setattr(
+        "app.modules.reports.repository.owning_unit_for_branch",
+        lambda *_a, **_k: "TAB",
+    )
+    date_from = datetime(2026, 8, 1, tzinfo=UTC)
+    date_to = datetime(2026, 8, 31, tzinfo=UTC)
+    branch_id = uuid.uuid4()
+    actual = repo._case_counts_by_unit(
+        branch_id=branch_id, date_from=date_from, date_to=date_to
+    )
+    implied = repo._implied_case_counts_by_unit(
+        branch_id=branch_id, date_from=date_from, date_to=date_to
+    )
+    assert actual["TAB"] == (5, 3, 1)
+    assert implied["TAB"] == (5, 3, 1)
+
+
+@pytest.mark.parametrize(
+    "category",
+    [
+        ReportPrintCategory.CREATED,
+        ReportPrintCategory.RESOLVED,
+        ReportPrintCategory.ESCALATED,
+    ],
+)
+def test_print_pdf_category_variants_with_comparison(
+    category: ReportPrintCategory,
+) -> None:
+    repo = MagicMock()
+    repo.count_total.return_value = 7
+    repo.count_by_status.return_value = [("REGISTERED", 4), ("IN_PROGRESS", 3)]
+    repo.count_resolved.return_value = 4
+    repo.count_escalated.return_value = 2
+    repo.count_in_progress_at_branch.return_value = 1
+    repo.closed_case_durations_days.return_value = [1.0, 4.0]
+    repo.activity_by_user.return_value = []
+    pdf_bytes = ReportService(repo).print_pdf(
+        category=category,
+        period_label="Agustus 2026",
+        lang="id",
+        date_from=datetime(2026, 8, 1, tzinfo=UTC),
+        date_to=datetime(2026, 8, 31, tzinfo=UTC),
+        compare_from=datetime(2026, 7, 1, tzinfo=UTC),
+        compare_to=datetime(2026, 7, 31, tzinfo=UTC),
+    )
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_comparison_line_per_category() -> None:
+    copy = copy_for("id")
+    base = dict(
+        period_label="Agustus",
+        branch_label=None,
+        generated_at=datetime(2026, 8, 18, tzinfo=UTC),
+        total_created=5,
+        resolved=2,
+        escalated=1,
+        in_progress_at_branch=2,
+        previous_total_created=3,
+        previous_resolved=4,
+        previous_escalated=0,
+        previous_in_progress_at_branch=1,
+        has_comparison=True,
+    )
+    created = ReportPrintData(category=ReportPrintCategory.CREATED, **base)
+    resolved = ReportPrintData(category=ReportPrintCategory.RESOLVED, **base)
+    escalated = ReportPrintData(category=ReportPrintCategory.ESCALATED, **base)
+    other = ReportPrintData(category=ReportPrintCategory.OTHER, **base)
+    assert _signed(2) == "+2"
+    assert _signed(-1) == "-1"
+    assert _comparison_line(created, copy)
+    assert _comparison_line(resolved, copy)
+    assert _comparison_line(escalated, copy)
+    assert _comparison_line(other, copy) is None
+    assert _comparison_line(
+        ReportPrintData(
+            category=ReportPrintCategory.ALL,
+            period_label="x",
+            branch_label=None,
+            generated_at=datetime(2026, 8, 18, tzinfo=UTC),
+            has_comparison=False,
+        ),
+        copy,
+    ) is None

@@ -971,3 +971,53 @@ def test_import_holidays_upserts_selected_catalog_dates() -> None:
             ),
             actor_id="hq-1",
         )
+
+
+def test_holiday_catalog_missing_year_and_import_reject() -> None:
+    from app.modules.hq_schedule.holiday_catalog import (
+        available_years,
+        catalog_by_date,
+        load_year_catalog,
+    )
+    from app.modules.hq_schedule.schemas import HolidayImportRequest
+
+    load_year_catalog.cache_clear()
+    assert load_year_catalog(2099) is None
+    assert catalog_by_date(2099) == {}
+    assert 2026 in available_years()
+    service = HqScheduleService(_FakeHqScheduleRepository(), _settings_service())
+    with pytest.raises(ValidationAppError, match="no vendored holiday catalog"):
+        service.import_holidays(
+            HolidayImportRequest.model_validate(
+                {"year": 2099, "dates": ["2099-01-01"]}
+            ),
+            actor_id="hq-1",
+        )
+
+
+def test_capacity_and_break_override_parsers_skip_bad_entries() -> None:
+    from app.modules.hq_schedule.service import (
+        _parse_break_overrides,
+        _parse_capacity_by_unit,
+    )
+
+    assert _parse_capacity_by_unit("bukan-dict") == {}
+    assert _parse_capacity_by_unit(
+        {"": 1, "PUSAT-CRO": "x", "PUSAT-SEKRETARIAT": -1, "PUSAT-SUBAN": 3}
+    ) == {"PUSAT-SUBAN": 3}
+    assert _parse_break_overrides("bukan-dict") == {}
+    parsed = _parse_break_overrides(
+        {
+            "x": {"start": "11:00", "end": "12:00"},
+            "0": {"start": "11:00", "end": "12:00"},
+            "5": None,
+            "4": "bukan",
+            "3": {"start": "", "end": "12:00"},
+            "2": {"start": "11:00", "end": "not-a-time"},
+            "1": {"start": "11:30", "end": "13:00"},
+        }
+    )
+    assert parsed[5] is None
+    assert parsed[3] is None
+    assert parsed[1][0].hour == 11
+    assert 2 not in parsed
