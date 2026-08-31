@@ -1,32 +1,18 @@
-# ECMP edge — dual host (Opsi A / DEC-023)
-# - Apex ($ECMP_APEX_DOMAIN): static landing → link ke modul
-# - Modul ($ECMP_DOMAIN): Next.js + API (Mode A)
-# TLS via Let's Encrypt (DNS A untuk kedua host → VPS dulu).
+# ECMP edge — canonical host layanan.tech (module = apex).
+# www + pengaduan → canonical. Bukan Mode B / SSO.
+# Domain lama layanankami.tech tidak dilayani di VPS ini.
 
 {
 	email {$CADDY_ACME_EMAIL}
-	# Force HTTP/1.1 + HTTP/2. Chrome Alt-Svc HTTP/3 stuck after a 502
-	# produces ERR_CONNECTION_TIMED_OUT (UDP/QUIC never falls back).
 	servers {
 		protocols h1 h2
 	}
 }
 
-# --- Portal sementara (apex + www) — bukan SSO / bukan modul ---
-{$ECMP_APEX_DOMAIN}, www.{$ECMP_APEX_DOMAIN} {
-	encode gzip
-
-	root * /srv/apex-landing
-	file_server
-
-	header {
-		X-Content-Type-Options nosniff
-		Referrer-Policy strict-origin-when-cross-origin
-		-Server
-	}
+www.{$ECMP_DOMAIN}, pengaduan.{$ECMP_DOMAIN} {
+	redir https://{$ECMP_DOMAIN}{uri} permanent
 }
 
-# --- Modul Pengaduan ---
 {$ECMP_DOMAIN} {
 	encode gzip
 
@@ -40,7 +26,6 @@
 	handle /health* {
 		reverse_proxy backend:8000
 	}
-	# W-S04: do not expose /docs /redoc /openapi.json on public edge
 
 	handle {
 		reverse_proxy frontend:3000

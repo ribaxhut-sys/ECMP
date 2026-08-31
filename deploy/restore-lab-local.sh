@@ -84,6 +84,9 @@ for i in $(seq 1 60); do
 done
 
 DUMP="$(ls -1 "$PACK/data"/ecmp_*.sql.gz | head -1)"
+echo "==> kosongkan skema (init compose + dump --clean sering bentrok FK)"
+docker compose --env-file .env exec -T postgres psql -U ecmp -d ecmp -v ON_ERROR_STOP=1 \
+  -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO ecmp; GRANT ALL ON SCHEMA public TO public;"
 echo "==> restore SQL $DUMP"
 gzip -dc "$DUMP" | docker compose --env-file .env exec -T postgres psql -U ecmp -d ecmp -v ON_ERROR_STOP=1 >/tmp/ecmp-restore-psql.log
 tail -5 /tmp/ecmp-restore-psql.log
