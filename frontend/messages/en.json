@@ -2490,6 +2490,9 @@
     "userActivityClosed": "Closed",
     "userActivityEvents": "Activity",
     "userActivityLast": "Last",
+    "userActivityFilterLabel": "Branch",
+    "userActivityAllBranches": "All branches",
+    "userActivityPageSizeLabel": "Per page",
     "noUserActivity": "No officer activity",
     "noUserActivityDescription": "No officer registered, decided, closed, or wrote complaint history in this period."
   },

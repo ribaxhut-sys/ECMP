@@ -1,14 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { UserActivityCount } from "@/lib/api/types";
 import { formatDateTime24 } from "@/shared/utils/datetime";
 import {
+  Pagination,
   SectionHeader,
+  Select,
   Table,
   type TableColumn,
 } from "@/shared/ui";
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
+const ALL_BRANCHES = "";
+const NO_BRANCH = "__none__";
 
 export function UserActivityPanel({
   rows,
@@ -18,7 +25,57 @@ export function UserActivityPanel({
   loading: boolean;
 }) {
   const t = useTranslations("reports");
+  const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
   const locale = useLocale();
+
+  const allRows = useMemo(() => rows ?? [], [rows]);
+
+  const [branchFilter, setBranchFilter] = useState(ALL_BRANCHES);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+
+  // A reload (period/unit change on the page above) swaps `rows` for a new
+  // array — any branch picked against the previous set may no longer exist,
+  // so start over rather than silently show a stale, now-empty filter.
+  useEffect(() => {
+    setBranchFilter(ALL_BRANCHES);
+    setPage(1);
+  }, [allRows]);
+
+  const branchOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const row of allRows) {
+      const key = row.branchId ?? NO_BRANCH;
+      if (!seen.has(key)) seen.set(key, row.branchName || tCommon("emDash"));
+    }
+    return [
+      { value: ALL_BRANCHES, label: t("userActivityAllBranches") },
+      ...Array.from(seen, ([value, label]) => ({ value, label })).sort((a, b) =>
+        a.label.localeCompare(b.label, locale),
+      ),
+    ];
+  }, [allRows, locale, t, tCommon]);
+
+  const filteredRows = useMemo(
+    () =>
+      branchFilter === ALL_BRANCHES
+        ? allRows
+        : allRows.filter((row) => (row.branchId ?? NO_BRANCH) === branchFilter),
+    [allRows, branchFilter],
+  );
+
+  const totalItems = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  const pageRows = useMemo(
+    () => filteredRows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
+    [filteredRows, page, pageSize],
+  );
 
   const columns = useMemo<TableColumn<UserActivityCount>[]>(
     () => [
@@ -82,6 +139,15 @@ export function UserActivityPanel({
     [locale, t],
   );
 
+  const pageSizeOptions = useMemo(
+    () =>
+      PAGE_SIZE_OPTIONS.map((count) => ({
+        value: String(count),
+        label: tTable("perPage", { count }),
+      })),
+    [tTable],
+  );
+
   return (
     <section
       className="space-y-[var(--ecmp-panel-gap)]"
@@ -93,14 +159,60 @@ export function UserActivityPanel({
       />
       <Table
         columns={columns}
-        rows={rows ?? []}
+        rows={pageRows}
         getRowKey={(row) => row.userId}
         loading={loading}
         caption={t("userActivity")}
         density="compact"
         emptyTitle={t("noUserActivity")}
         emptyMessage={t("noUserActivityDescription")}
+        toolbar={
+          branchOptions.length > 2 ? (
+            <div className="w-[14rem]">
+              <Select
+                name="userActivityBranchFilter"
+                label={t("userActivityFilterLabel")}
+                options={branchOptions}
+                value={branchFilter}
+                disabled={loading}
+                onChange={(e) => {
+                  setBranchFilter(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </div>
+          ) : undefined
+        }
       />
+      {!loading && totalItems > 0 ? (
+        <Pagination
+          summary={tCommon("showingItems", {
+            from: (page - 1) * pageSize + 1,
+            to: Math.min(page * pageSize, totalItems),
+            total: totalItems,
+          })}
+          pageSizeSlot={
+            <div className="w-[9rem]">
+              <Select
+                name="userActivityPageSize"
+                aria-label={t("userActivityPageSizeLabel")}
+                options={pageSizeOptions}
+                value={String(pageSize)}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value) || DEFAULT_PAGE_SIZE);
+                  setPage(1);
+                }}
+              />
+            </div>
+          }
+          previousLabel={tCommon("previous")}
+          nextLabel={tCommon("next")}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          previousDisabled={page <= 1}
+          nextDisabled={page >= totalPages}
+        />
+      ) : null}
     </section>
   );
 }

@@ -2490,6 +2490,9 @@
     "userActivityClosed": "Ditutup",
     "userActivityEvents": "Aktivitas",
     "userActivityLast": "Terakhir",
+    "userActivityFilterLabel": "Cabang",
+    "userActivityAllBranches": "Semua cabang",
+    "userActivityPageSizeLabel": "Per halaman",
     "noUserActivity": "Belum ada aktivitas petugas",
     "noUserActivityDescription": "Tidak ada petugas yang mendaftar, memutus, menutup, atau menulis riwayat pengaduan pada periode ini."
   },
