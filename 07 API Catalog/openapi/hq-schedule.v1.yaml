@@ -546,9 +546,10 @@ components:
           allOf:
             - $ref: "#/components/schemas/HolidayKind"
           nullable: true
+        source:
           type: string
           nullable: true
-          description: `manual` or vendored catalog id (e.g. `skb-3-menteri-2026`)
+          description: "`manual` or vendored catalog id (e.g. `skb-3-menteri-2026`)"
         importedAt:
           type: string
           format: date-time
