@@ -484,9 +484,9 @@ function SlotCard({
     return (
       <div
         data-testid={`hq-schedule-slot-${date}-${slot.startTime}`}
-        className="rounded-[var(--ecmp-radius-md)] bg-ecmp-surface-sunken px-2.5 py-3 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
+        className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken px-2.5 py-3 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary"
       >
-        <p className="text-center font-bold italic">
+        <p className="text-center font-bold italic text-ecmp-text-primary">
           {slot.startTime}–{slot.endTime} · {breakLabel}
         </p>
         <SlotCaseList
