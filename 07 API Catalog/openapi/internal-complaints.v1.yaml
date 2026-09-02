@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.2.2
+  version: 1.2.3
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -271,11 +271,12 @@ paths:
     post:
       operationId: receiveInternalComplaint
       tags: [Internal-Complaints]
-      summary: Receive / start handling (→ IN_PROGRESS)
+      summary: Optional claim (→ IN_PROGRESS)
       description: >
+        Locks branch unilateral withdraw while Pusat reviews. Not required
+        before return-for-completion. PROPOSE from CREATED/ASSIGNED auto-claims.
         Cabang: only the handling branch. Pusat: any Pusat login (PUSAT family
-        or Admin) may receive a ticket whose handling unit is Pusat. Canonical
-        handling code is `PUSAT` (not `PUSAT-CRO`).
+        or Admin). Canonical handling code is `PUSAT` (not `PUSAT-CRO`).
       parameters:
         - name: complaintId
           in: path
@@ -414,10 +415,10 @@ paths:
       tags: [Internal-Complaints]
       summary: Propose / accept / reject resolution
       description: >
-        PROPOSE = handling unit only; ticket stays IN_PROGRESS with
-        PENDING_APPROVAL. ACCEPT/REJECT = owner unit only and require a pending
-        proposal; the proposer cannot decide their own proposal. ACCEPT without
-        a pending proposal is rejected (no resolve-now shortcut).
+        PROPOSE = handling unit only; CREATED/ASSIGNED auto-claims (receive)
+        then stays IN_PROGRESS with PENDING_APPROVAL. ACCEPT/REJECT = owner
+        unit only and require a pending proposal; the proposer cannot decide
+        their own proposal. ACCEPT without a pending proposal is rejected.
       parameters:
         - name: complaintId
           in: path

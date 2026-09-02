@@ -271,6 +271,46 @@ def test_transfer_to_pusat_subunit_collapses_to_pusat(
     assert dto.handling_unit_id == "PUSAT"
 
 
+def test_propose_from_assigned_auto_receives(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            reason="to HQ",
+        )
+    )
+    with pytest.raises(ApiError):
+        service.resolve(
+            ResolveCommand(
+                complaint_id=cid,
+                action="PROPOSE",
+                comment="bukan unit penanganan",
+                summary="Tidak boleh",
+                actor_id="cabang-1",
+                actor_unit_id="UPPPD-GAMBIR",
+            )
+        )
+    dto = service.resolve(
+        ResolveCommand(
+            complaint_id=cid,
+            action="PROPOSE",
+            comment="Berkas lengkap",
+            summary="Selesai ditinjau",
+            actor_id="pusat-1",
+            actor_unit_id="PUSAT",
+        )
+    )
+    assert dto.status == "IN_PROGRESS"
+    types = [e.event_type for e in dto.history]
+    assert "RECEIVED" in types
+    assert "RESOLUTION" in types
+
+
 # --- TRANSFER / VISIBILITY --------------------------------------------------
 
 
@@ -1177,6 +1217,48 @@ def test_http_pusat_family_can_receive_and_cabang_cannot(
             f"/api/v1/internal/complaints/{cid2_holder['id']}/receive", json={}
         )
         assert admin_recv.status_code == 200, admin_recv.text
+
+
+def test_http_pusat_propose_from_assigned_without_receive(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Usulan langsung",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        assert created.status_code == 201, created.text
+        cid = created.json()["data"]["complaintId"]
+        assert created.json()["data"]["status"] == "ASSIGNED"
+
+    with _app_client(db_session, service, pusat) as client:
+        proposed = client.post(
+            f"/api/v1/internal/complaints/{cid}/resolve",
+            json={
+                "action": "PROPOSE",
+                "comment": "Berkas lengkap",
+                "summary": "Selesai ditinjau",
+            },
+        )
+        assert proposed.status_code == 200, proposed.text
+        data = proposed.json()["data"]
+        assert data["status"] == "IN_PROGRESS"
 
 
 def test_http_manager_create_with_dest_transfers_directly(

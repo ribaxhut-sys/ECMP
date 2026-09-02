@@ -423,6 +423,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     actorUserId: userId ?? "",
     proposedBy: complaint.resolutionProposedBy,
     resolutionStatus: complaint.resolutionStatus,
+    completionRequestStatus: complaint.completionRequestStatus,
   });
   const showResolve = resolutionActions.showToolbar;
   const acceptanceActions = visibleInternalAcceptanceActions({

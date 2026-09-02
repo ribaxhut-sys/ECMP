@@ -901,11 +901,6 @@ class InternalComplaintAggregate:
         actor_unit_id: str | None = None,
         actor_is_admin: bool = False,
     ) -> None:
-        if self.status != InternalStatus.IN_PROGRESS:
-            raise err.invalid_state(
-                "Resolve requires status IN_PROGRESS.",
-                details={"status": self.status.value},
-            )
         comment_text = (comment or "").strip()
         now = _utcnow()
         if action == ResolveAction.PROPOSE:
@@ -920,6 +915,17 @@ class InternalComplaintAggregate:
                 raise err.validation(
                     "summary is required for PROPOSE",
                     details={"fields": ["summary"]},
+                )
+            if self.status in (InternalStatus.CREATED, InternalStatus.ASSIGNED):
+                self.start_handling(
+                    actor_id=actor_id,
+                    actor_unit_id=actor_unit_id,
+                    note="Diterima saat usulan penyelesaian",
+                )
+            if self.status != InternalStatus.IN_PROGRESS:
+                raise err.invalid_state(
+                    "Resolve requires status IN_PROGRESS.",
+                    details={"status": self.status.value},
                 )
             record = ResolutionRecord(
                 resolution_id=str(uuid4()),
@@ -942,6 +948,11 @@ class InternalComplaintAggregate:
                 payload={"action": "PROPOSE", "resolutionCode": code},
             )
         elif action == ResolveAction.ACCEPT:
+            if self.status != InternalStatus.IN_PROGRESS:
+                raise err.invalid_state(
+                    "Resolve requires status IN_PROGRESS.",
+                    details={"status": self.status.value},
+                )
             pending = self._pending_resolution()
             if pending is None:
                 raise err.conflict(
@@ -1007,6 +1018,11 @@ class InternalComplaintAggregate:
                 note="Persetujuan unit penanganan tercatat otomatis saat penyelesaian diterima",
             )
         elif action == ResolveAction.REJECT:
+            if self.status != InternalStatus.IN_PROGRESS:
+                raise err.invalid_state(
+                    "Resolve requires status IN_PROGRESS.",
+                    details={"status": self.status.value},
+                )
             pending = self._pending_resolution()
             if pending is None:
                 raise err.conflict(

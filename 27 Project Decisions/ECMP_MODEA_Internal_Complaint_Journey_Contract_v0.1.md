@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | ECMP-MODEA-INT-001 |
-| Version | 0.6 |
+| Version | 0.7 |
 | Owner | Product Owner / Domain PO |
 | Reviewer | Solution Architect |
 | Approver | Business Owner (Mode A lab) |
-| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19); v0.5 snapshot PDF (2026-09-02); v0.6 handling kanonik PUSAT (2026-09-02) |
+| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19); v0.5 snapshot PDF (2026-09-02); v0.6 handling kanonik PUSAT (2026-09-02); v0.7 klaim otomatis usulan (2026-09-02) |
 | Date | 2026-09-02 |
 | Type | Mode A lab contract (non-ADR, non-DEC) |
 | Related | DEC-025 §14.1 D (`/internal/*` bukan Dual-SoT WP); OpenAPI `internal-complaints.v1.yaml` |
@@ -47,14 +47,14 @@ Setelah Terima: `IN_PROGRESS` + permintaan PENDING; Setujui → `WITHDRAWN`; Tol
 | Buat (Cabang) | — | `ASSIGNED` di Pusat | Semua peran cabang; Handling langsung Pusat; tanpa gerbang transfer-request |
 | Pindah Handling | `CREATED` / `ASSIGNED` / `IN_PROGRESS` | `ASSIGNED` | Hanya Cabang ↔ Pusat; bukan `RESOLVED`/`CLOSED`/`WITHDRAWN` |
 | Petugas Pusat ajukan pindah | `CREATED` (masih lokal Pusat) | tetap `CREATED` + permintaan PENDING | Alasan wajib; APPROVE = pindah ke cabang; REJECT = tetap lokal, boleh ajukan ulang |
-| Terima / mulai kerja | `CREATED` atau `ASSIGNED` | `IN_PROGRESS` | **Login Cabang:** aktor di unit penanganan cabang itu. **Login Pusat** (unit keluarga Pusat atau Admin): tiket handling Pusat. Cabang pembuat tidak melihat Terima pada tiket yang sudah di Pusat. Diblokir saat menunggu kelengkapan (`completionRequestStatus=PENDING`) |
-| Kembalikan ke cabang (berkas kurang) | `ASSIGNED` atau `IN_PROGRESS` | `ASSIGNED` di unit pemilik | Owner cabang, handling Pusat; aktor di unit penanganan; alasan wajib. **Bukan** Tolak/`WITHDRAWN`. Handling kembali ke cabang; tiket tetap hidup |
-| Cabang kirim ulang ke Pusat | `ASSIGNED` + PENDING kelengkapan | `ASSIGNED` di Pusat | Aktor di unit pemilik; **catatan wajib**; lampiran boleh ditambah dulu. Pusat **Terima** lagi |
+| Terima / mulai kerja | `CREATED` atau `ASSIGNED` | `IN_PROGRESS` | Opsional (**Ambil tiket**): kunci batal sepihak Cabang sambil berkas masih dibaca. **Login Cabang:** aktor di unit penanganan cabang. **Login Pusat** (unit keluarga Pusat atau Admin): tiket handling Pusat. Diblokir saat `completionRequestStatus=PENDING`. Tidak wajib sebelum Kembalikan atau Usulkan |
+| Kembalikan ke cabang (berkas kurang) | `ASSIGNED` atau `IN_PROGRESS` | `ASSIGNED` di unit pemilik | Owner cabang, handling Pusat; aktor di unit penanganan; alasan wajib. Boleh tanpa Ambil tiket |
+| Usulkan penyelesaian | `CREATED` / `ASSIGNED` / `IN_PROGRESS` | `IN_PROGRESS` | Hanya **unit penanganan**. Dari antrian (`CREATED`/`ASSIGNED`) **mengklaim otomatis** lalu usulan `PENDING_APPROVAL`. Mengganti usulan PENDING sebelumnya. Kode mesin `IC_DONE` tidak ditampilkan |
+| Cabang kirim ulang ke Pusat | `ASSIGNED` + PENDING kelengkapan | `ASSIGNED` di Pusat | Aktor di unit pemilik; **catatan wajib**; lampiran boleh ditambah dulu. Pusat **Ambil tiket**, kembalikan, atau usulkan |
 | Cabang batal sepihak | `ASSIGNED` (handling Pusat, belum Terima) **atau** menunggu kelengkapan | `WITHDRAWN` | Pembuat atau Supervisor unit pemilik; alasan wajib; **tanpa notifikasi ke Pusat**; tiket hilang dari antrean Terima |
 | Cabang minta batal | `IN_PROGRESS` (owner cabang, handling Pusat) | tetap `IN_PROGRESS` + PENDING | Alasan wajib; satu PENDING; tiket tetap dikerjakan |
 | Pusat setujui batal | `IN_PROGRESS` + PENDING | `WITHDRAWN` | Supervisor/Admin unit penanganan (Pusat) |
 | Pusat tolak batal | `IN_PROGRESS` + PENDING | `IN_PROGRESS` | Alasan wajib; cabang boleh minta lagi |
-| Usulkan penyelesaian | `IN_PROGRESS` | tetap `IN_PROGRESS` | Hanya **unit penanganan**. `PROPOSE` (komentar + ringkasan; kode mesin `IC_DONE`, tidak ditampilkan). Mengganti usulan PENDING sebelumnya |
 | Terima usulan | `IN_PROGRESS` | `RESOLVED` | Hanya **unit pemilik**; wajib ada usulan `PENDING_APPROVAL`; pengusul **tidak** boleh menerima sendiri. Tidak ada pintasan ACCEPT tanpa usulan. Cap otomatis unit penanganan memakai pengusul; kode mesin `IC_DONE` bila klien tidak mengirim kode |
 | Tolak usulan | `IN_PROGRESS` | `IN_PROGRESS` | Hanya **unit pemilik**; alasan wajib; pengusul tidak boleh menolak sendiri |
 | Setuju penutup | `RESOLVED` | `CLOSED` | Kedua pihak setuju (lihat §4) |
@@ -108,3 +108,4 @@ Menyalin alur WP (Case, intake HQ, BQ-007). Izin `internal:*` penuh. Laporan/KPI
 - Domain/API: ACCEPT tanpa usulan PENDING ditolak; Terima/Tolak usulan hanya unit pemilik (v0.4)
 - Lampiran Internal: CAP-011 `aggregateType=InternalComplaint` (bukan `cm_batch1_attachments`). Gambar + ZIP; ZIP tidak diekstrak.
 - v0.6: tujuan handling Pusat selalu `PUSAT` (bukan `PUSAT-CRO`). **Login Pusat** (termasuk Admin lab tanpa cabang) boleh Terima antrian Pusat. Jadwal kedatangan WP tetap CRO.
+- v0.7: **Ambil tiket** opsional (kunci batal sepihak). **Kembalikan ke cabang** dan **Usulkan penyelesaian** dari antrian tanpa klik Ambil tiket; usulan mengklaim otomatis.

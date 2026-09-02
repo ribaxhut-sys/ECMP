@@ -35,9 +35,19 @@ export function mayProposeResolution(input: {
   handlingUnitId: string;
   hasUpdatePermission: boolean;
   roles: readonly string[];
+  completionRequestStatus?: string | null;
 }): boolean {
   if (!input.hasUpdatePermission) return false;
-  if (input.status !== "IN_PROGRESS") return false;
+  if ((input.completionRequestStatus || "").trim().toUpperCase() === "PENDING") {
+    return false;
+  }
+  if (
+    input.status !== "IN_PROGRESS" &&
+    input.status !== "CREATED" &&
+    input.status !== "ASSIGNED"
+  ) {
+    return false;
+  }
   if (isAdminFamily(input.roles)) return true;
   return actorMatchesInternalHandlingUnit(
     input.actorUnitCode,
@@ -96,6 +106,7 @@ export function visibleInternalResolutionActions(input: {
   actorUserId: string;
   proposedBy: string | null | undefined;
   resolutionStatus: string | null | undefined;
+  completionRequestStatus?: string | null;
 }): {
   showToolbar: boolean;
   mayPropose: boolean;
