@@ -1,6 +1,6 @@
 """Collapse Internal handling sub-units (PUSAT-CRO, …) to canonical PUSAT.
 
-Revision ID: 0110_internal_canonical_pusat_handling
+Revision ID: 0110_internal_pusat_canonical
 Revises: 0109_cm_hq_holiday_kind
 Create Date: 2026-09-02
 
@@ -14,7 +14,7 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "0110_internal_canonical_pusat_handling"
+revision: str = "0110_internal_pusat_canonical"
 down_revision: Union[str, None] = "0109_cm_hq_holiday_kind"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
