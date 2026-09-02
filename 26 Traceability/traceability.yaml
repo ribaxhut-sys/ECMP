@@ -36,6 +36,7 @@ id: TRC-DATA-001
 # 2026-08-18 (CAP-008 Case Timeline lab): API-537 added to TRC-L-013
 # 2026-09-02 (Pengaduan Internal snapshot PDF): API-550 GET /api/v1/internal/complaints/{id}/export
 # 2026-09-02 (Internal inbox sidebar badge): API-551 GET /api/v1/internal/complaints/inbox/pending-count
+# 2026-09-02 (Internal canonical PUSAT handling): create/transfer collapse PUSAT-CRO → PUSAT; receive = all Pusat logins
 # (GET /api/v1/cm/cases/{caseId}/history — this Case only; UC-CAP02-07).
 # 2026-08-20 (HQ complete visit lab): TRC-L-018 added for API-CM-B1-025 /
 # EVT-CM-045 (POST /api/v1/cm/complaints/{id}/hq-complete → HQ_CLOSED).

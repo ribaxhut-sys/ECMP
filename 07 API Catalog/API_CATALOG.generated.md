@@ -24,7 +24,7 @@
 | `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 106 |
 | `dashboard-queues.v1.yaml` | ECMP Dashboard Queues API | 1.0.0 | 1 |
 | `hq-schedule.v1.yaml` | ECMP HQ Arrival Schedule API | 1.0.0-lab | 7 |
-| `internal-complaints.v1.yaml` | ECMP Pengaduan Internal API | 1.2.1 | 20 |
+| `internal-complaints.v1.yaml` | ECMP Pengaduan Internal API | 1.2.2 | 20 |
 | `queue-service.v1.yaml` | ECMP Queue Service API | 1.1.0 | 22 |
 
 ## `case-actions.v1.yaml`

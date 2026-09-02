@@ -32,6 +32,7 @@ import {
   InternalTransferRequestBadge,
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
+import { displayInternalUnitCode } from "./transferDirection";
 
 /** Badge tone → progress-bar tone. Internal statuses only use these four. */
 const BADGE_TONE_TO_METER_TONE: Record<string, ProgressMeterTone> = {
@@ -81,7 +82,7 @@ export function InternalReportsView() {
       ),
     },
     { key: "title", header: t("titleField"), cell: (row) => row.title },
-    { key: "handling", header: t("handlingUnit"), cell: (row) => row.handlingUnitId },
+    { key: "handling", header: t("handlingUnit"), cell: (row) => displayInternalUnitCode(row.handlingUnitId) },
     {
       key: "status",
       header: t("status"),

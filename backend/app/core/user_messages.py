@@ -226,6 +226,10 @@ MESSAGES: dict[str, str] = {
     "internal.return_reason_required": (
         "Alasan wajib diisi saat mengembalikan pengaduan ke cabang."
     ),
+    "internal.receive_not_allowed": (
+        "Hanya unit penanganan yang dapat menerima pengaduan ini. "
+        "Tiket di Pusat dapat diterima oleh semua login Pusat."
+    ),
     "internal.return_not_allowed": (
         "Hanya unit penanganan Pusat yang dapat mengembalikan pengaduan ke cabang."
     ),

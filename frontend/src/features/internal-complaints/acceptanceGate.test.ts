@@ -22,9 +22,23 @@ describe("mayRecordInternalAcceptance", () => {
     expect(
       mayRecordInternalAcceptance({ ...base, party: "HANDLING_UNIT" }),
     ).toBe(true);
-    expect(mayRecordInternalAcceptance({ ...base, party: "OWNER" })).toBe(
-      false,
-    );
+    expect(
+      mayRecordInternalAcceptance({ ...base, party: "OWNER" }),
+    ).toBe(false);
+  });
+
+  it("lets a Pusat agent accept handling on a legacy CRO unit", () => {
+    expect(
+      mayRecordInternalAcceptance({
+        roles: ["AGENT"],
+        actorUnitCode: "PUSAT",
+        actorUserId: "user-31206",
+        ownerUnitId: "UPPPD-TANAH-ABANG",
+        handlingUnitId: "PUSAT-CRO",
+        creatorUserId: "user-3102",
+        party: "HANDLING_UNIT",
+      }),
+    ).toBe(true);
   });
 
   it("allows agent owner only when actor unit is owner", () => {

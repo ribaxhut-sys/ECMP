@@ -23,6 +23,15 @@ describe("completionGate", () => {
         actorUnitCode: "UPPPD-TANAH-ABANG",
       }),
     ).toBe(false);
+    expect(
+      mayReturnForCompletion({
+        ...base,
+        status: "IN_PROGRESS",
+        actorUnitCode: "PUSAT",
+        handlingUnitId: "PUSAT-CRO",
+        roles: ["AGENT"],
+      }),
+    ).toBe(true);
   });
 
   it("hides return once already awaiting completion", () => {

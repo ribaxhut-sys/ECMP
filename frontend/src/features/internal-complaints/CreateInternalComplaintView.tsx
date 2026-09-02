@@ -56,6 +56,7 @@ import {
   filterTransferDestinations,
   formatUnitOptionLabel,
   isAdminFamily,
+  isPusatRootUnitCode,
   isPusatUnitCode,
   resolveCreateSourceUnitCode,
 } from "./transferDirection";
@@ -197,7 +198,14 @@ export function CreateInternalComplaintView() {
   const fromPusat = isPusatUnitCode(sourceUnitCode);
 
   const pusatBranch = useMemo(
-    () => branches.find((b) => isPusatUnitCode(b.code)) ?? null,
+    () =>
+      branches.find(
+        (b) =>
+          isPusatRootUnitCode(b.code) &&
+          b.code.trim().toUpperCase() === CANONICAL_PUSAT_UNIT_CODE,
+      ) ??
+      branches.find((b) => isPusatRootUnitCode(b.code)) ??
+      null,
     [branches],
   );
   const pusatDestinationCode =

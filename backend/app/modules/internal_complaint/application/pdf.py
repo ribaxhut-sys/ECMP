@@ -27,6 +27,9 @@ from app.modules.internal_complaint.application.dto import (
     InternalComplaintDTO,
     ResolutionDTO,
 )
+from app.modules.internal_complaint.domain.aggregate import (
+    canonicalize_internal_handling_unit,
+)
 
 _OPERATOR_TZ = ZoneInfo("Asia/Jakarta")
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -186,8 +189,11 @@ def _write_snapshot(
         ("Status", _label(_STATUS_LABEL, dto.status)),
         ("Prioritas", _label(_PRIORITY_LABEL, dto.priority)),
         ("Kategori", _label(_CATEGORY_LABEL, dto.category)),
-        ("Unit pemilik", dto.owner_unit_id),
-        ("Unit penanganan", dto.handling_unit_id),
+        ("Unit pemilik", canonicalize_internal_handling_unit(dto.owner_unit_id)),
+        (
+            "Unit penanganan",
+            canonicalize_internal_handling_unit(dto.handling_unit_id),
+        ),
         ("Pengaduan WP terkait", dto.related_complaint_number),
         ("Dibuat oleh", snapshot.created_by_name or dto.created_by),
         ("Dibuat pada", format_pdf_datetime(dto.created_at)),
@@ -326,12 +332,14 @@ def _write_history_entry(
     label = _label(_EVENT_LABEL, entry.event_type)
     doc.para(f"{when}  |  {label}  |  {actor}")
     unit_move = ""
-    if (
-        entry.source_unit_id
-        and entry.target_unit_id
-        and entry.source_unit_id != entry.target_unit_id
-    ):
-        unit_move = f"{entry.source_unit_id} -> {entry.target_unit_id}"
+    source = canonicalize_internal_handling_unit(entry.source_unit_id) or (
+        entry.source_unit_id or ""
+    ).strip()
+    target = canonicalize_internal_handling_unit(entry.target_unit_id) or (
+        entry.target_unit_id or ""
+    ).strip()
+    if source and target and source != target:
+        unit_move = f"{source} -> {target}"
     if unit_move:
         doc.para(unit_move, indent=_NOTE_INDENT)
     if entry.note:

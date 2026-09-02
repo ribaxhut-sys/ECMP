@@ -1,6 +1,9 @@
 /** Branch → Pusat withdraw / receive UI gate (ECMP-MODEA-INT-001). */
 
-import { isPusatUnitCode } from "./transferDirection";
+import {
+  actorMatchesInternalHandlingUnit,
+  isPusatUnitCode,
+} from "./transferDirection";
 
 const ADMIN_ROLES = new Set(["ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"]);
 
@@ -67,13 +70,18 @@ export function mayReceiveInternal(input: {
   handlingUnitId: string;
   hasUpdatePermission: boolean;
   completionRequestStatus?: string | null;
+  roles?: readonly string[];
 }): boolean {
   if (!input.hasUpdatePermission) return false;
   if ((input.completionRequestStatus || "").trim().toUpperCase() === "PENDING") {
     return false;
   }
   if (input.status !== "CREATED" && input.status !== "ASSIGNED") return false;
-  return unitsEqual(input.actorUnitCode, input.handlingUnitId);
+  return actorMatchesInternalHandlingUnit(
+    input.actorUnitCode,
+    input.handlingUnitId,
+    input.roles ?? [],
+  );
 }
 
 export function mayRequestWithdraw(input: {
@@ -109,5 +117,9 @@ export function mayDecideWithdraw(input: {
   const canDecide =
     input.hasAssignPermission || input.hasEscalateDecidePermission;
   if (!canDecide) return false;
-  return unitsEqual(input.actorUnitCode, input.handlingUnitId);
+  return actorMatchesInternalHandlingUnit(
+    input.actorUnitCode,
+    input.handlingUnitId,
+    input.roles,
+  );
 }

@@ -53,6 +53,36 @@ describe("withdrawGate", () => {
     ).toBe(false);
   });
 
+  it("lets any Pusat login Terima even when handling is a legacy sub-unit", () => {
+    expect(
+      mayReceiveInternal({
+        status: "ASSIGNED",
+        actorUnitCode: "PUSAT",
+        handlingUnitId: "PUSAT-CRO",
+        hasUpdatePermission: true,
+        roles: ["AGENT"],
+      }),
+    ).toBe(true);
+    expect(
+      mayReceiveInternal({
+        status: "ASSIGNED",
+        actorUnitCode: null,
+        handlingUnitId: "PUSAT",
+        hasUpdatePermission: true,
+        roles: ["ADMIN"],
+      }),
+    ).toBe(true);
+    expect(
+      mayReceiveInternal({
+        status: "ASSIGNED",
+        actorUnitCode: null,
+        handlingUnitId: "PUSAT",
+        hasUpdatePermission: true,
+        roles: ["AGENT"],
+      }),
+    ).toBe(false);
+  });
+
   it("allows creator or owner-unit supervisor to withdraw", () => {
     expect(
       mayOwnerWithdraw({
@@ -119,5 +149,15 @@ describe("withdrawGate", () => {
         hasEscalateDecidePermission: false,
       }),
     ).toBe(false);
+    expect(
+      mayDecideWithdraw({
+        withdrawRequestStatus: "PENDING",
+        roles: ["SUPERVISOR"],
+        actorUnitCode: "PUSAT",
+        handlingUnitId: "PUSAT-CRO",
+        hasAssignPermission: true,
+        hasEscalateDecidePermission: false,
+      }),
+    ).toBe(true);
   });
 });

@@ -1,6 +1,9 @@
 /** Two-party resolution proposal (ECMP-MODEA-INT-001 v0.4). */
 
-import { isAdminFamily } from "./transferDirection";
+import {
+  actorMatchesInternalHandlingUnit,
+  isAdminFamily,
+} from "./transferDirection";
 
 function unitsEqual(
   left: string | null | undefined,
@@ -36,7 +39,11 @@ export function mayProposeResolution(input: {
   if (!input.hasUpdatePermission) return false;
   if (input.status !== "IN_PROGRESS") return false;
   if (isAdminFamily(input.roles)) return true;
-  return unitsEqual(input.actorUnitCode, input.handlingUnitId);
+  return actorMatchesInternalHandlingUnit(
+    input.actorUnitCode,
+    input.handlingUnitId,
+    input.roles,
+  );
 }
 
 export function mayDecideResolutionProposal(input: {
@@ -72,7 +79,11 @@ export function isWaitingOnResolutionProposal(input: {
   if (!isPendingResolutionProposal(input.resolutionStatus)) return false;
   if (idsEqual(input.actorUserId, input.proposedBy)) return true;
   if (isAdminFamily(input.roles)) return false;
-  return unitsEqual(input.actorUnitCode, input.handlingUnitId);
+  return actorMatchesInternalHandlingUnit(
+    input.actorUnitCode,
+    input.handlingUnitId,
+    input.roles,
+  );
 }
 
 export function visibleInternalResolutionActions(input: {

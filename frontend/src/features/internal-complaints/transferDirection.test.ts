@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  actorMatchesInternalHandlingUnit,
+  displayInternalUnitCode,
   filterInternalTransferDestinations,
   filterTransferDestinations,
   formatRelatedComplaintOptionLabel,
@@ -15,9 +17,10 @@ describe("transferDirection", () => {
     expect(isPusatUnitCode("UPPPD-GAMBIR")).toBe(false);
   });
 
-  it("from cabang only allows pusat destinations", () => {
+  it("from cabang only allows the canonical Pusat root, not CRO sub-units", () => {
     const branches = [
       { code: "PUSAT", name: "Kantor Pusat" },
+      { code: "PUSAT-CRO", name: "CRO" },
       { code: "UPPPD-GAMBIR", name: "Gambir" },
       { code: "UPPPD-MENTENG", name: "Menteng" },
     ];
@@ -108,6 +111,33 @@ describe("transferDirection", () => {
     expect(
       resolveCreateSourceUnitCode(null, { treatMissingAsPusat: false }),
     ).toBeNull();
+  });
+
+  it("matches any Pusat login to Pusat handling, not Cabang", () => {
+    expect(
+      actorMatchesInternalHandlingUnit("PUSAT", "PUSAT-CRO", ["AGENT"]),
+    ).toBe(true);
+    expect(
+      actorMatchesInternalHandlingUnit(null, "PUSAT", ["ADMIN"]),
+    ).toBe(true);
+    expect(
+      actorMatchesInternalHandlingUnit(null, "PUSAT", ["AGENT"]),
+    ).toBe(false);
+    expect(
+      actorMatchesInternalHandlingUnit("UPPPD-GAMBIR", "PUSAT", ["AGENT"]),
+    ).toBe(false);
+    expect(
+      actorMatchesInternalHandlingUnit("UPPPD-GAMBIR", "UPPPD-GAMBIR", [
+        "AGENT",
+      ]),
+    ).toBe(true);
+  });
+
+  it("displays Pusat sub-units as canonical PUSAT", () => {
+    expect(displayInternalUnitCode("PUSAT-CRO")).toBe("PUSAT");
+    expect(displayInternalUnitCode("HO-CRO")).toBe("PUSAT");
+    expect(displayInternalUnitCode("UPPPD-GAMBIR")).toBe("UPPPD-GAMBIR");
+    expect(displayInternalUnitCode("")).toBe("");
   });
 
   it("formats unit labels for compact native selects", () => {

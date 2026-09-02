@@ -35,6 +35,21 @@ describe("resolutionGate", () => {
         roles: ["AGENT"],
       }),
     ).toBe(false);
+    expect(
+      mayProposeResolution({
+        ...transferred,
+        actorUnitCode: "PUSAT",
+        handlingUnitId: "PUSAT-CRO",
+        roles: ["AGENT"],
+      }),
+    ).toBe(true);
+    expect(
+      mayProposeResolution({
+        ...transferred,
+        actorUnitCode: null,
+        roles: ["ADMIN"],
+      }),
+    ).toBe(true);
   });
 
   it("lets the owner unit accept a pending proposal, not the proposer", () => {

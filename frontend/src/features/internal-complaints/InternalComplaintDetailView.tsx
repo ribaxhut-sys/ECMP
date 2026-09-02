@@ -66,6 +66,7 @@ import {
   InternalStatusBadge,
 } from "./components/InternalBadges";
 import {
+  displayInternalUnitCode,
   filterInternalTransferDestinations,
   formatUnitOptionLabel,
   isAdminFamily,
@@ -201,7 +202,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           event.sourceUnitId &&
           event.targetUnitId &&
           event.sourceUnitId !== event.targetUnitId
-            ? `${event.sourceUnitId} → ${event.targetUnitId}`
+            ? `${displayInternalUnitCode(event.sourceUnitId)} → ${displayInternalUnitCode(event.targetUnitId)}`
             : null;
         const showNote =
           event.note &&
@@ -364,6 +365,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     handlingUnitId: complaint.handlingUnitId,
     hasUpdatePermission: canUpdate,
     completionRequestStatus: complaint.completionRequestStatus,
+    roles,
   });
   const awaitingCompletion = isAwaitingCompletion(
     complaint.completionRequestStatus,
@@ -375,6 +377,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     handlingUnitId: complaint.handlingUnitId,
     hasUpdatePermission: canUpdate,
     completionRequestStatus: complaint.completionRequestStatus,
+    roles,
   });
   const showResend = mayResendToPusat({
     status: complaint.status,
@@ -755,9 +758,11 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
               <MetaItem label={t("relatedComplaint")}>
                 {complaint.relatedComplaintNumber || tCommon("emDash")}
               </MetaItem>
-              <MetaItem label={t("ownerUnit")}>{complaint.ownerUnitId}</MetaItem>
+              <MetaItem label={t("ownerUnit")}>
+                {displayInternalUnitCode(complaint.ownerUnitId)}
+              </MetaItem>
               <MetaItem label={t("handlingUnit")}>
-                {complaint.handlingUnitId}
+                {displayInternalUnitCode(complaint.handlingUnitId)}
               </MetaItem>
               {complaint.status === "RESOLVED" ||
               complaint.status === "CLOSED" ? (

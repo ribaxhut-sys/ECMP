@@ -1,6 +1,9 @@
 /** Pusat → cabang return for incomplete documents (ECMP-MODEA-INT-001 v0.2). */
 
-import { isPusatUnitCode } from "./transferDirection";
+import {
+  actorMatchesInternalHandlingUnit,
+  isPusatUnitCode,
+} from "./transferDirection";
 
 function unitsEqual(
   left: string | null | undefined,
@@ -24,6 +27,7 @@ export function mayReturnForCompletion(input: {
   handlingUnitId: string;
   hasUpdatePermission: boolean;
   completionRequestStatus: string | null | undefined;
+  roles?: readonly string[];
 }): boolean {
   if (!input.hasUpdatePermission) return false;
   if (isAwaitingCompletion(input.completionRequestStatus)) return false;
@@ -31,7 +35,11 @@ export function mayReturnForCompletion(input: {
   if (isPusatUnitCode(input.ownerUnitId) || !isPusatUnitCode(input.handlingUnitId)) {
     return false;
   }
-  return unitsEqual(input.actorUnitCode, input.handlingUnitId);
+  return actorMatchesInternalHandlingUnit(
+    input.actorUnitCode,
+    input.handlingUnitId,
+    input.roles ?? [],
+  );
 }
 
 export function mayResendToPusat(input: {

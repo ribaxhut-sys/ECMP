@@ -1,4 +1,5 @@
 /** Pure aggregation helpers for the Pengaduan Internal "Ringkasan" analytics panel. */
+import { displayInternalUnitCode } from "./transferDirection";
 import {
   INTERNAL_STATUSES,
   STATUS_LABEL_KEY,
@@ -56,7 +57,7 @@ export function countByHandlingUnit(
 ): InternalUnitBucket[] {
   const counts = new Map<string, number>();
   for (const row of rows) {
-    const key = row.handlingUnitId || "—";
+    const key = displayInternalUnitCode(row.handlingUnitId) || "—";
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return [...counts.entries()]

@@ -1,14 +1,16 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.2.1
+  version: 1.2.2
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
     berubah saat transfer; CLOSED hanya setelah dual acceptance. Nomor:
     `PI-{UNIT}-{YYMM}-{NNN}` (mis. `PI-TAB-2608-001`), counter per unit per
     bulan; lebar seq melebar otomatis di atas 999. Cabang create selalu
-    mengirim Handling ke Pusat (`ASSIGNED`) tanpa gerbang transfer-request.
+    mengirim Handling ke Pusat kanonik `PUSAT` (`ASSIGNED`) — bukan sub-unit
+    `PUSAT-CRO` (itu pintu jadwal kedatangan WP). Semua login Pusat (unit
+    keluarga Pusat atau Admin) boleh `/receive` tiket di antrian Pusat.
     Agent Pusat yang memilih cabang tetap memakai permintaan (`requestReason`
     wajib), diputus oleh Supervisor/Manager/Admin via `/transfer-request/decision`.
     Cabang boleh membatalkan sebelum Pusat menerima (`WITHDRAWN`, tanpa
@@ -70,9 +72,10 @@ paths:
       tags: [Internal-Complaints]
       summary: Create Pengaduan Internal (Owner = creator unit)
       description: >
-        Cabang create always transfers Handling to Pusat (`ASSIGNED`);
-        `requestReason` is not used. Pusat create: Supervisor/Manager with
-        `complaints:assign` → direct initial transfer. Pusat Agent-family
+        Cabang create always transfers Handling to canonical `PUSAT`
+        (`ASSIGNED`); `requestReason` is not used. Sub-unit codes such as
+        `PUSAT-CRO` are collapsed to `PUSAT`. Pusat create: Supervisor/Manager
+        with `complaints:assign` → direct initial transfer. Pusat Agent-family
         (no `complaints:assign`) + `handlingUnitId` → PENDING transfer
         request; `requestReason` is then required.
       requestBody:
@@ -269,6 +272,10 @@ paths:
       operationId: receiveInternalComplaint
       tags: [Internal-Complaints]
       summary: Receive / start handling (→ IN_PROGRESS)
+      description: >
+        Cabang: only the handling branch. Pusat: any Pusat login (PUSAT family
+        or Admin) may receive a ticket whose handling unit is Pusat. Canonical
+        handling code is `PUSAT` (not `PUSAT-CRO`).
       parameters:
         - name: complaintId
           in: path
@@ -480,8 +487,9 @@ components:
           type: string
           nullable: true
           description: >
-            Cabang create always goes to Pusat. Pusat create: direct transfer
-            under complaints:assign; Pusat Agent becomes a pending request.
+            Cabang create always goes to canonical PUSAT (not PUSAT-CRO).
+            Pusat create: direct transfer under complaints:assign; Pusat Agent
+            becomes a pending request.
         requestReason:
           type: string
           nullable: true

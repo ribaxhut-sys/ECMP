@@ -29,6 +29,7 @@ import {
   InternalTransferRequestBadge,
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
+import { displayInternalUnitCode } from "./transferDirection";
 
 function FilteredList({
   title,
@@ -72,7 +73,7 @@ function FilteredList({
       ),
     },
     { key: "title", header: t("titleField"), cell: (row) => row.title },
-    { key: "handling", header: t("handlingUnit"), cell: (row) => row.handlingUnitId },
+    { key: "handling", header: t("handlingUnit"), cell: (row) => displayInternalUnitCode(row.handlingUnitId) },
     {
       key: "status",
       header: t("status"),

@@ -46,6 +46,7 @@ import {
   InternalTransferRequestBadge,
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
+import { displayInternalUnitCode } from "./transferDirection";
 
 /** Client-side page window over the filtered rows. */
 const LIST_PAGE_SIZE = 20;
@@ -167,12 +168,12 @@ export function InternalComplaintListView() {
     {
       key: "owner",
       header: t("ownerUnit"),
-      cell: (row) => row.ownerUnitId,
+      cell: (row) => displayInternalUnitCode(row.ownerUnitId),
     },
     {
       key: "handling",
       header: t("handlingUnit"),
-      cell: (row) => row.handlingUnitId,
+      cell: (row) => displayInternalUnitCode(row.handlingUnitId),
     },
     {
       key: "status",

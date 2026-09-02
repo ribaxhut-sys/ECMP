@@ -84,6 +84,10 @@ from app.modules.internal_complaint.application.services import (
 from app.modules.internal_complaint.application.visibility import (
     assert_internal_complaint_visible,
 )
+from app.modules.internal_complaint.domain.aggregate import (
+    actor_matches_internal_handling,
+    canonicalize_internal_handling_unit,
+)
 from app.modules.internal_complaint.infrastructure.repository import (
     SqlAlchemyInternalComplaintRepository,
 )
@@ -129,6 +133,16 @@ def _units_match(left: str | None, right: str | None) -> bool:
     a = OrgUnitResolver.normalize(left)
     b = OrgUnitResolver.normalize(right)
     return bool(a) and bool(b) and a == b
+
+
+def _actor_matches_handling(
+    actor_unit: str | None, handling_unit: str, principal: Principal
+) -> bool:
+    return actor_matches_internal_handling(
+        actor_unit,
+        handling_unit,
+        actor_is_admin=_actor_is_admin(principal),
+    )
 
 
 def _may_owner_withdraw(
@@ -539,9 +553,10 @@ def create_internal_complaint(
             ),
         )
     )
-    dest = OrgUnitResolver.normalize(body.handling_unit_id)
+    raw_dest = OrgUnitResolver.normalize(body.handling_unit_id)
+    dest = canonicalize_internal_handling_unit(raw_dest) if raw_dest else None
     if not is_pusat_unit(owner_unit):
-        dest = dest if dest and is_pusat_unit(dest) else "PUSAT"
+        dest = "PUSAT"
         if dest != OrgUnitResolver.normalize(dto.handling_unit_id):
             dto = service.transfer(
                 TransferCommand(
@@ -794,7 +809,10 @@ def receive_internal_complaint(
         settings=settings,
     )
     actor_unit = _actor_unit(principal, session)
-    enforce_org_scope(principal, current.handling_unit_id, settings)
+    if not _actor_matches_handling(actor_unit, current.handling_unit_id, principal):
+        raise PermissionDeniedError(m("internal.receive_not_allowed"))
+    if not is_pusat_unit(current.handling_unit_id):
+        enforce_org_scope(principal, current.handling_unit_id, settings)
     dto = service.start_handling(
         StartHandlingCommand(
             complaint_id=complaint_id,
@@ -826,9 +844,10 @@ def return_internal_complaint_for_completion(
         settings=settings,
     )
     actor_unit = _actor_unit(principal, session)
-    enforce_org_scope(principal, current.handling_unit_id, settings)
-    if not _units_match(actor_unit, current.handling_unit_id):
+    if not _actor_matches_handling(actor_unit, current.handling_unit_id, principal):
         raise PermissionDeniedError(m("internal.return_not_allowed"))
+    if not is_pusat_unit(current.handling_unit_id):
+        enforce_org_scope(principal, current.handling_unit_id, settings)
     dto = service.return_for_completion(
         ReturnForCompletionCommand(
             complaint_id=complaint_id,

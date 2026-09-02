@@ -10,6 +10,7 @@
  */
 
 import type { InternalAcceptanceParty } from "./types";
+import { isPusatUnitCode } from "./transferDirection";
 
 const ADMIN_ROLES = new Set(["ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"]);
 const UNIT_APPROVER_ROLES = new Set([
@@ -79,7 +80,10 @@ export function mayRecordInternalAcceptance(input: {
     input.party === "OWNER"
       ? normalizeAcceptanceUnit(input.ownerUnitId)
       : normalizeAcceptanceUnit(input.handlingUnitId);
-  const ownUnit = Boolean(required) && actorUnit === required;
+  const ownUnit =
+    input.party === "HANDLING_UNIT" && isPusatUnitCode(required)
+      ? isPusatUnitCode(actorUnit)
+      : Boolean(required) && actorUnit === required;
 
   if (isCreator && !(isAgent || (isUnitApprover && ownUnit))) {
     return false;

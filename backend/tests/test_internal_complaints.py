@@ -255,6 +255,22 @@ def test_owner_immutable_after_transfer(service: InternalComplaintApplicationSer
     assert dto.status == "ASSIGNED"
 
 
+def test_transfer_to_pusat_subunit_collapses_to_pusat(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    dto = service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT-CRO",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            reason="to HQ CRO",
+        )
+    )
+    assert dto.handling_unit_id == "PUSAT"
+
+
 # --- TRANSFER / VISIBILITY --------------------------------------------------
 
 
@@ -1071,6 +1087,96 @@ def test_http_branch_agent_create_with_dest_assigns_to_pusat(
         assert data["transferRequestStatus"] is None
         assert data["complaintNumber"].startswith("PI-TAB-")
         assert data["complaintNumber"].endswith("-001")
+
+
+def test_http_branch_create_pusat_cro_collapses_to_pusat(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-TANAH-ABANG",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, agent) as client:
+        resp = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "CRO dest",
+                "description": "should land on PUSAT",
+                "category": "OPERATIONAL",
+                "handlingUnitId": "PUSAT-CRO",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["data"]["handlingUnitId"] == "PUSAT"
+
+
+def test_http_pusat_family_can_receive_and_cabang_cannot(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    admin = Principal(
+        user_id=uuid.uuid4(),
+        roles=("ADMIN",),
+        org_unit_id=None,
+        permissions=frozenset({"complaints:read", "complaints:update", "*"}),
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Antrian Pusat",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        assert created.status_code == 201, created.text
+        cid = created.json()["data"]["complaintId"]
+        denied = client.post(f"/api/v1/internal/complaints/{cid}/receive", json={})
+        assert denied.status_code == 403, denied.text
+
+    row = db_session.get(InternalComplaintORM, uuid.UUID(cid))
+    assert row is not None
+    row.handling_unit_id = "PUSAT-CRO"
+    db_session.commit()
+
+    with _app_client(db_session, service, pusat) as client:
+        received = client.post(
+            f"/api/v1/internal/complaints/{cid}/receive", json={}
+        )
+        assert received.status_code == 200, received.text
+        assert received.json()["data"]["status"] == "IN_PROGRESS"
+
+    cid2_holder: dict[str, str] = {}
+    with _app_client(db_session, service, cabang) as client:
+        created2 = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Admin Terima",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        assert created2.status_code == 201, created2.text
+        cid2_holder["id"] = created2.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, admin) as client:
+        admin_recv = client.post(
+            f"/api/v1/internal/complaints/{cid2_holder['id']}/receive", json={}
+        )
+        assert admin_recv.status_code == 200, admin_recv.text
 
 
 def test_http_manager_create_with_dest_transfers_directly(

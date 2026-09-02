@@ -27,6 +27,7 @@ import {
   InternalTransferRequestBadge,
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
+import { displayInternalUnitCode } from "./transferDirection";
 
 function ClickableStat({
   href,
@@ -175,7 +176,7 @@ export function InternalDashboardView() {
                       {row.title}
                     </div>
                     <div className="text-[length:var(--ecmp-font-caption-size)] text-ecmp-text-secondary">
-                      {row.handlingUnitId}
+                      {displayInternalUnitCode(row.handlingUnitId)}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">

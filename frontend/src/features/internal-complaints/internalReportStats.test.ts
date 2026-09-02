@@ -118,6 +118,14 @@ describe("countByHandlingUnit", () => {
       { unitId: "UPPPD-B", count: 1 },
     ]);
   });
+
+  it("collapses Pusat sub-units into PUSAT", () => {
+    const rows = [
+      row({ handlingUnitId: "PUSAT-CRO" }),
+      row({ handlingUnitId: "PUSAT" }),
+    ];
+    expect(countByHandlingUnit(rows)).toEqual([{ unitId: "PUSAT", count: 2 }]);
+  });
 });
 
 describe("maxCount", () => {

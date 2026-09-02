@@ -244,7 +244,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 | API-539 | API-CM-B2-011 | GET /api/v1/cm/cases/{caseId}/export | FR-003 companion — internal Case snapshot PDF (not customer-safe; not reporting) | 🟢 Implemented (lab) |
 
-### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.1** — ECMP-MODEA-INT-001
+### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.2** — ECMP-MODEA-INT-001
 
 > Domain Pengaduan Internal (`/api/v1/internal/complaints`). **Bukan** Dual-SoT WP / Case Aggregate. Satu tiket = satu aggregate.
 
@@ -256,6 +256,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > **2026-09-02 (Pengaduan Internal snapshot PDF):** API-550 — visibilitas sama GET; Cabang & Pusat yang boleh lihat boleh unduh.
 
 > **2026-09-02 (Internal inbox sidebar badge):** API-551 — Cabang = tiket menunggu Terima di cabang (kembalikan berkas / transfer masuk); Pusat = tiket menunggu Terima di Pusat (create/resend Cabang, tiket lokal belum diterima). Bukan CAP-005. Bukan unread receipt.
+
+> **2026-09-02 (Handling kanonik PUSAT):** Cabang create/transfer ke Pusat selalu `PUSAT` (bukan `PUSAT-CRO`). `/receive` diizinkan untuk semua login Pusat. Jadwal kedatangan WP tetap CRO.
 
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 

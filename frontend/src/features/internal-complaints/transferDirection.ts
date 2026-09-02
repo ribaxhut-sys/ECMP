@@ -3,12 +3,13 @@
 import {
   CANONICAL_PUSAT_UNIT_CODE,
   PUSAT_UNIT_ROOT_CODES,
+  isPusatRootUnitCode,
   isPusatUnitCode,
 } from "@/shared/utils";
 
 export const PUSAT_UNIT_CODES = new Set<string>(PUSAT_UNIT_ROOT_CODES);
 
-export { CANONICAL_PUSAT_UNIT_CODE, isPusatUnitCode };
+export { CANONICAL_PUSAT_UNIT_CODE, isPusatRootUnitCode, isPusatUnitCode };
 
 /**
  * Source unit for create-form transfer rules.
@@ -43,7 +44,7 @@ export function filterTransferDestinations<T extends { code: string }>(
   return branches.filter((b) => {
     const code = (b.code || "").trim();
     if (!code || code.toUpperCase() === source.toUpperCase()) return false;
-    return fromPusat ? !isPusatUnitCode(code) : isPusatUnitCode(code);
+    return fromPusat ? !isPusatUnitCode(code) : isPusatRootUnitCode(code);
   });
 }
 
@@ -57,6 +58,33 @@ export function isAdminFamily(roles: readonly string[]): boolean {
   return roles.some((role) =>
     ADMIN_FAMILY_ROLES.has(role.trim().toUpperCase()),
   );
+}
+
+/**
+ * Cabang: exact handling unit. Pusat handling: any Pusat login or Admin.
+ * Missing unit is not treated as Pusat unless the actor is Admin (avoids a
+ * Terima flash while a Cabang session is still loading membership).
+ */
+export function actorMatchesInternalHandlingUnit(
+  actorUnitCode: string | null | undefined,
+  handlingUnitId: string,
+  roles: readonly string[] = [],
+): boolean {
+  if (isPusatUnitCode(handlingUnitId)) {
+    return isAdminFamily(roles) || isPusatUnitCode(actorUnitCode);
+  }
+  const a = (actorUnitCode || "").trim().toUpperCase();
+  const b = (handlingUnitId || "").trim().toUpperCase();
+  return Boolean(a) && Boolean(b) && a === b;
+}
+
+/** Pengaduan Internal never displays Pusat sub-units (PUSAT-CRO → PUSAT). */
+export function displayInternalUnitCode(
+  code: string | null | undefined,
+): string {
+  const raw = (code || "").trim();
+  if (!raw) return "";
+  return isPusatUnitCode(raw) ? CANONICAL_PUSAT_UNIT_CODE : raw;
 }
 
 /**

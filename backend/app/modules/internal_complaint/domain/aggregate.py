@@ -27,6 +27,26 @@ from app.modules.internal_complaint.domain.value_objects import (
 _CANONICAL_PUSAT_UNIT = "PUSAT"
 
 
+def canonicalize_internal_handling_unit(unit_id: str | None) -> str:
+    """Pengaduan Internal has one Pusat door: PUSAT (never PUSAT-CRO / HO-*)."""
+    target = (unit_id or "").strip()
+    if is_pusat_unit(target):
+        return _CANONICAL_PUSAT_UNIT
+    return target
+
+
+def actor_matches_internal_handling(
+    actor_unit_id: str | None,
+    handling_unit_id: str,
+    *,
+    actor_is_admin: bool = False,
+) -> bool:
+    """Cabang: exact handling unit. Pusat: any Pusat login (or Admin) may act."""
+    if is_pusat_unit(handling_unit_id):
+        return actor_is_admin or is_pusat_unit(actor_unit_id)
+    return _unit_ids_equal(actor_unit_id, handling_unit_id)
+
+
 def is_branch_pusat_transfer(source_unit_id: str, target_unit_id: str) -> bool:
     """True only for Cabang ↔ Pusat (XOR). Forbids Cabang↔Cabang and Pusat↔Pusat."""
     source_is_pusat = is_pusat_unit(source_unit_id)
@@ -295,7 +315,7 @@ class InternalComplaintAggregate:
                 "Cannot transfer a RESOLVED/CLOSED/WITHDRAWN complaint.",
                 details={"status": self.status.value},
             )
-        target = (destination_unit_id or "").strip()
+        target = canonicalize_internal_handling_unit(destination_unit_id)
         if not target:
             raise err.validation(
                 "destinationUnitId is required for transfer",
@@ -368,7 +388,7 @@ class InternalComplaintAggregate:
                 "TRANSFER_REQUEST_PENDING",
                 "A transfer request is already pending decision.",
             )
-        target = (destination_unit_id or "").strip()
+        target = canonicalize_internal_handling_unit(destination_unit_id)
         if not target:
             raise err.validation(
                 "destinationUnitId is required",
@@ -828,15 +848,20 @@ class InternalComplaintAggregate:
     ) -> None:
         if actor_is_admin:
             return
-        if not _unit_ids_equal(actor_unit_id, self.handling_unit_id):
-            raise err.conflict(
-                "RESOLUTION_HANDLING_UNIT_REQUIRED",
-                "Only the handling unit may propose a resolution.",
-                details={
-                    "actorUnitId": actor_unit_id,
-                    "handlingUnitId": self.handling_unit_id,
-                },
-            )
+        if actor_matches_internal_handling(
+            actor_unit_id,
+            self.handling_unit_id,
+            actor_is_admin=False,
+        ):
+            return
+        raise err.conflict(
+            "RESOLUTION_HANDLING_UNIT_REQUIRED",
+            "Only the handling unit may propose a resolution.",
+            details={
+                "actorUnitId": actor_unit_id,
+                "handlingUnitId": self.handling_unit_id,
+            },
+        )
 
     def _assert_owner_decision_unit(
         self, *, actor_unit_id: str | None, actor_is_admin: bool
