@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | ECMP-MODEA-INT-001 |
-| Version | 0.4 |
+| Version | 0.5 |
 | Owner | Product Owner / Domain PO |
 | Reviewer | Solution Architect |
 | Approver | Business Owner (Mode A lab) |
-| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19) |
-| Date | 2026-08-19 |
+| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19); v0.5 snapshot PDF (2026-09-02) |
+| Date | 2026-09-02 |
 | Type | Mode A lab contract (non-ADR, non-DEC) |
 | Related | DEC-025 §14.1 D (`/internal/*` bukan Dual-SoT WP); OpenAPI `internal-complaints.v1.yaml` |
 
@@ -23,7 +23,7 @@
 - **Unit pemilik** = unit pembuat, tidak pernah berubah.
 - **Unit penanganan** mulai sama dengan unit pemilik; hanya berubah saat transfer Cabang ↔ Pusat.
 - Tautan `relatedComplaintId` ke pengaduan WP bersifat opsional. Tutup Internal **tidak** menutup WP.
-- API: `/api/v1/internal/complaints`. UI: `/internal/*` (flag `NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI`, default off).
+- API: `/api/v1/internal/complaints` (snapshot PDF: `.../{id}/export`, API-550). UI: `/internal/*` (flag `NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI`, default off).
 
 ## 2. Aktor (Mode A)
 
@@ -92,6 +92,14 @@ Pusat melihat `WITHDRAWN` **hanya jika Pusat sudah menangani**: pernah Terima, p
 ## 6. Dilarang di slice ini
 
 Menyalin alur WP (Case, intake HQ, BQ-007). Izin `internal:*` penuh. Laporan/KPI sungguhan. `CANCELLED` katalog WP. Mode B / SSO. Katalog resolusi bisnis (selain sentinel `IC_DONE`). Notifikasi ke Pusat saat cabang batal sepihak sebelum Terima.
+
+## 7. Snapshot PDF (v0.5)
+
+`GET /api/v1/internal/complaints/{id}/export` (**API-550**). Salinan PDF **satu tiket** pada saat diunduh — analog API-539 Case WP, bukan dump Case, bukan laporan agregat.
+
+- Tombol **Unduh PDF** di detail tiket. **Cabang dan Pusat** yang sudah boleh `GET` tiket itu boleh mengunduh (visibilitas `WITHDRAWN` sama dengan GET).
+- Tidak mengubah status. Byte lampiran tidak tertanam (hanya daftar nama). Bukan dokumen untuk WP.
+- Bukan laporan/KPI (tetap dilarang §6).
 
 ## Follow-up
 

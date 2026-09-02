@@ -172,6 +172,7 @@ class SqlAlchemyInternalComplaintRepository:
         page_size: int = 20,
         pending_transfer_request: bool | None = None,
         pending_withdraw_request: bool | None = None,
+        needs_receive: bool | None = None,
     ) -> tuple[list[InternalComplaintORM], int]:
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
@@ -184,6 +185,25 @@ class SqlAlchemyInternalComplaintRepository:
             stmt = stmt.where(InternalComplaintORM.transfer_request_status == "PENDING")
         if pending_withdraw_request:
             stmt = stmt.where(InternalComplaintORM.withdraw_request_status == "PENDING")
+        if needs_receive:
+            # Incoming queue: not yet received at the actor's handling unit.
+            # Cabang: handling == unit. Pusat: handling is any Pusat unit.
+            # No unit (lab admin without membership) → empty, not a global count.
+            unit = (org_unit_id or "").strip()
+            if not unit:
+                return [], 0
+            stmt = stmt.where(
+                InternalComplaintORM.status.in_(("CREATED", "ASSIGNED"))
+            )
+            if is_pusat_unit(unit, pusat_unit_codes=pusat_unit_codes):
+                stmt = stmt.where(
+                    pusat_unit_clause(
+                        InternalComplaintORM.handling_unit_id,
+                        pusat_unit_codes=pusat_unit_codes,
+                    )
+                )
+            else:
+                stmt = stmt.where(InternalComplaintORM.handling_unit_id == unit)
 
         vis = (visibility or "").upper()
         if vis == "ALL":

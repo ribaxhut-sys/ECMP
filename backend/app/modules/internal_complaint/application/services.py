@@ -202,6 +202,7 @@ class InternalComplaintApplicationService:
         org_unit_id: str | None = None,
         pending_transfer_request: bool | None = None,
         pending_withdraw_request: bool | None = None,
+        needs_receive: bool | None = None,
     ) -> tuple[list[InternalComplaintSummaryDTO], int]:
         visibility = resolve_internal_visibility(principal, org_unit_id=org_unit_id)
         rows, total = self._repo.list_summaries(
@@ -214,6 +215,7 @@ class InternalComplaintApplicationService:
             page_size=page_size,
             pending_transfer_request=pending_transfer_request,
             pending_withdraw_request=pending_withdraw_request,
+            needs_receive=needs_receive,
         )
         items = [
             InternalComplaintSummaryDTO(
@@ -236,6 +238,19 @@ class InternalComplaintApplicationService:
             for r in rows
         ]
         return items, total
+
+    def count_pending_inbox(
+        self, principal: Principal, *, org_unit_id: str | None = None
+    ) -> int:
+        """Sidebar badge — tickets awaiting receive at the caller's handling unit."""
+        _, total = self.list_complaints(
+            principal,
+            page=1,
+            page_size=1,
+            org_unit_id=org_unit_id,
+            needs_receive=True,
+        )
+        return total
 
     def count_pending_transfer_requests(
         self, principal: Principal, *, org_unit_id: str | None = None

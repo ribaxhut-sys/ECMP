@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.auth import OrgUnitResolver, Principal, require_permissions
@@ -19,11 +23,15 @@ from app.core.authorization.org_unit_guard import (
 )
 from app.core.authorization.visibility import is_pusat_unit
 from app.core.config import Settings, get_settings
+from app.core.enums import AuditAction
 from app.core.errors import PermissionDeniedError, ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.core.user_messages import m
 from app.db.session import get_db_session
 from app.integrations.directory import LocalUserDirectory
+from app.modules.attachment.domain.enums import AggregateType
+from app.modules.attachment.repository import AttachmentRepository
+from app.modules.audit.hooks import resolve_actor_name, write_audit
 from app.modules.internal_complaint.api.schemas import (
     AcceptanceResponse,
     CloseRequest,
@@ -61,6 +69,12 @@ from app.modules.internal_complaint.application.dto import (
     UpdateStatusCommand,
     WithdrawCommand,
 )
+from app.modules.internal_complaint.application.pdf import (
+    InternalPdfAttachment,
+    InternalPdfSnapshot,
+    internal_pdf_filename,
+    render_internal_snapshot_pdf,
+)
 from app.modules.internal_complaint.application.related_aggregate import (
     resolve_related_aggregate,
 )
@@ -75,6 +89,7 @@ from app.modules.internal_complaint.infrastructure.repository import (
 )
 
 router = APIRouter(tags=["Internal-Complaints"])
+logger = logging.getLogger(__name__)
 
 
 def get_internal_complaint_service(
@@ -320,6 +335,63 @@ def _to_response(
     )
 
 
+def _internal_attachment_manifest(
+    session: Session, complaint_id: str
+) -> list[InternalPdfAttachment]:
+    try:
+        aggregate_id = uuid.UUID(complaint_id)
+    except ValueError:
+        return []
+    try:
+        rows, _ = AttachmentRepository(session).list_by_aggregate(
+            aggregate_type=AggregateType.INTERNAL_COMPLAINT.value,
+            aggregate_id=aggregate_id,
+            page=1,
+            page_size=100,
+        )
+    except Exception:
+        logger.exception("internal complaint pdf attachment list failed")
+        return []
+    return [
+        InternalPdfAttachment(
+            original_name=row.original_name or row.file_name or "",
+            mime_type=row.mime_type or "",
+            size_bytes=int(row.size_bytes or 0),
+            checksum_sha256=row.checksum_sha256 or "",
+            status=row.status or "",
+        )
+        for row in rows
+    ]
+
+
+def _audit_internal_export(
+    session: Session,
+    *,
+    request: Request,
+    principal: Principal,
+    complaint_id: str,
+    complaint_number: str,
+    filename: str,
+) -> None:
+    try:
+        try:
+            entity_uuid = uuid.UUID(complaint_id)
+        except ValueError:
+            entity_uuid = None
+        write_audit(
+            session,
+            request=request,
+            principal=principal,
+            event_type="internal_complaint.exported",
+            entity_type="InternalComplaint",
+            action=AuditAction.EXPORT,
+            entity_id=entity_uuid,
+            metadata={"complaintNumber": complaint_number, "filename": filename},
+        )
+    except Exception:
+        logger.exception("internal complaint pdf export audit failed")
+
+
 @router.get("/api/v1/internal/complaints")
 def list_internal_complaints(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
@@ -336,6 +408,7 @@ def list_internal_complaints(
     pending_withdraw_request: Annotated[
         bool | None, Query(alias="pendingWithdrawRequest")
     ] = None,
+    needs_receive: Annotated[bool | None, Query(alias="needsReceive")] = None,
 ) -> ListResponse[InternalComplaintSummaryResponse]:
     items, total = service.list_complaints(
         principal,
@@ -345,6 +418,7 @@ def list_internal_complaints(
         org_unit_id=_actor_unit(principal, session),
         pending_transfer_request=pending_transfer_request,
         pending_withdraw_request=pending_withdraw_request,
+        needs_receive=needs_receive,
     )
     creator_ids = {i.created_by for i in items if i.created_by}
     names = (
@@ -376,6 +450,26 @@ def list_internal_complaints(
         ],
         meta=PageMeta(page=page, pageSize=page_size, totalItems=total),
     )
+
+
+@router.get("/api/v1/internal/complaints/inbox/pending-count")
+def get_pending_inbox_count(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[int]:
+    """Sidebar badge — incoming tickets awaiting receive at the caller's unit.
+
+    Cabang: CREATED/ASSIGNED whose handling unit is the branch.
+    Pusat: CREATED/ASSIGNED whose handling unit is a Pusat unit.
+    Tickets the caller sent away (handling elsewhere) do not count.
+    """
+    count = service.count_pending_inbox(
+        principal, org_unit_id=_actor_unit(principal, session)
+    )
+    return DataResponse(data=count)
 
 
 @router.get("/api/v1/internal/complaints/transfer-requests/pending-count")
@@ -581,6 +675,68 @@ def get_internal_complaint(
         settings=settings,
     )
     return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.get("/api/v1/internal/complaints/{complaint_id}/export")
+def export_internal_complaint_pdf(
+    complaint_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """API-550 — snapshot PDF of this Pengaduan Internal ticket.
+
+    Same visibility as GET. Does not mutate status. Attachment bytes are not
+    embedded. Cabang and Pusat who may view the ticket may download.
+    """
+    dto = _require_visible_internal_complaint(
+        complaint_id=complaint_id,
+        principal=principal,
+        service=service,
+        session=session,
+        settings=settings,
+    )
+    names = _display_names_for_dto(session, dto)
+    exported_at = datetime.now(UTC)
+    actor_name = names.get(str(principal.user_id))
+    if not actor_name:
+        try:
+            actor_name = resolve_actor_name(session, principal.user_id)
+        except Exception:
+            actor_name = None
+    exporter = actor_name or str(principal.user_id)
+    snapshot = InternalPdfSnapshot(
+        complaint=dto,
+        created_by_name=names.get(dto.created_by) if dto.created_by else None,
+        closed_by_name=names.get(dto.closed_by) if dto.closed_by else None,
+        withdrawn_by_name=names.get(dto.withdrawn_by) if dto.withdrawn_by else None,
+        actor_names=names,
+        attachments=_internal_attachment_manifest(session, dto.complaint_id),
+        exported_by=exporter,
+        exported_at=exported_at,
+    )
+    payload = render_internal_snapshot_pdf(snapshot)
+    filename = internal_pdf_filename(dto.complaint_number, exported_at)
+    _audit_internal_export(
+        session,
+        request=request,
+        principal=principal,
+        complaint_id=dto.complaint_id,
+        complaint_number=dto.complaint_number,
+        filename=filename,
+    )
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.post("/api/v1/internal/complaints/{complaint_id}/transfer")

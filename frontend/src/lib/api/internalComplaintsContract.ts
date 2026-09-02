@@ -37,5 +37,8 @@ export function internalComplaintPaths() {
     withdrawRequestDecision: (id: string) =>
       `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/withdraw-request/decision`,
     pendingWithdrawRequestCount: `${INTERNAL_COMPLAINTS_BASE}/withdraw-requests/pending-count`,
+    pendingInboxCount: `${INTERNAL_COMPLAINTS_BASE}/inbox/pending-count`,
+    exportPdf: (id: string) =>
+      `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/export`,
   } as const;
 }

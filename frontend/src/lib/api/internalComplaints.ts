@@ -1,7 +1,7 @@
 /**
  * Pengaduan Internal API client — domain terpisah dari F4 / Batch-1.
  */
-import { apiRequest } from "./client";
+import { apiRequest, apiRequestBlob } from "./client";
 import { internalComplaintPaths } from "./internalComplaintsContract";
 import type { DataResponse, ListResponse } from "./types";
 
@@ -223,6 +223,7 @@ export function fetchInternalComplaints(options?: {
   status?: string;
   pendingTransferRequest?: boolean;
   pendingWithdrawRequest?: boolean;
+  needsReceive?: boolean;
 }): Promise<ListResponse<InternalComplaintSummary>> {
   const params = new URLSearchParams({
     page: String(options?.page ?? 1),
@@ -235,8 +236,18 @@ export function fetchInternalComplaints(options?: {
   if (options?.pendingWithdrawRequest !== undefined) {
     params.set("pendingWithdrawRequest", String(options.pendingWithdrawRequest));
   }
+  if (options?.needsReceive !== undefined) {
+    params.set("needsReceive", String(options.needsReceive));
+  }
   return apiRequest<ListResponse<InternalComplaintSummary>>(
     `${internalComplaintPaths().list}?${params.toString()}`,
+  );
+}
+
+/** Sidebar badge — incoming tickets awaiting receive at the caller's unit. */
+export function fetchPendingInboxCount(): Promise<DataResponse<number>> {
+  return apiRequest<DataResponse<number>>(
+    internalComplaintPaths().pendingInboxCount,
   );
 }
 
@@ -385,4 +396,41 @@ export function decideInternalWithdrawRequest(
     internalComplaintPaths().withdrawRequestDecision(id),
     { method: "POST", body: JSON.stringify(body) },
   );
+}
+
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  const plainMatch = /filename="([^"]+)"/i.exec(header);
+  const raw = utfMatch?.[1] ?? plainMatch?.[1];
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function saveBlob(blob: Blob, filename: string): void {
+  if (typeof document === "undefined") return;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** API-550 — GET /api/v1/internal/complaints/{id}/export (operator snapshot PDF). */
+export async function downloadInternalComplaintPdf(
+  id: string,
+): Promise<{ filename: string }> {
+  const result = await apiRequestBlob(internalComplaintPaths().exportPdf(id));
+  const filename =
+    filenameFromDisposition(result.contentDisposition) ??
+    "pengaduan-internal.pdf";
+  saveBlob(result.blob, filename);
+  return { filename };
 }

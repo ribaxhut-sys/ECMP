@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Alert,
@@ -23,6 +23,7 @@ import {
   type TableColumn,
 } from "@/shared/ui";
 import { formatDate } from "@/i18n/formatting";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import { useInternalComplaints } from "./mock/useInternalComplaints";
 import {
   defaultInternalListFilters,
@@ -51,10 +52,13 @@ const LIST_PAGE_SIZE = 20;
 
 export function InternalComplaintListView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const t = useTranslations("internalComplaints");
   const tCommon = useTranslations("common");
   const tPriority = useTranslations("priority");
   const locale = useLocale();
+  const orgUnitCode = useOrgUnitCode();
+  const needsReceiveFromUrl = searchParams.get("needsReceive") === "1";
   const {
     rows: allRows,
     total,
@@ -64,15 +68,32 @@ export function InternalComplaintListView() {
     reload,
   } = useInternalComplaints();
 
-  const [filters, setFilters] = useState<InternalListFilters>(
-    defaultInternalListFilters(),
-  );
+  const [filters, setFilters] = useState<InternalListFilters>(() => ({
+    ...defaultInternalListFilters(),
+    needsReceive: needsReceiveFromUrl,
+  }));
   const [draft, setDraft] = useState<InternalListFilters>(filters);
   const [page, setPage] = useState(1);
 
+  useEffect(() => {
+    setFilters((current) =>
+      current.needsReceive === needsReceiveFromUrl
+        ? current
+        : { ...current, needsReceive: needsReceiveFromUrl },
+    );
+    setDraft((current) =>
+      current.needsReceive === needsReceiveFromUrl
+        ? current
+        : { ...current, needsReceive: needsReceiveFromUrl },
+    );
+  }, [needsReceiveFromUrl]);
+
   const rows = useMemo(
-    () => sortByMostRecent(filterInternalComplaints(allRows, filters)),
-    [allRows, filters],
+    () =>
+      sortByMostRecent(
+        filterInternalComplaints(allRows, filters, orgUnitCode),
+      ),
+    [allRows, filters, orgUnitCode],
   );
   // Filters are client-side (the API filters status only), so the page window
   // is applied after filtering — same shape as the attachment catalog.
@@ -95,6 +116,9 @@ export function InternalComplaintListView() {
     setDraft(next);
     setFilters(next);
     setPage(1);
+    if (needsReceiveFromUrl) {
+      router.replace("/internal/complaints");
+    }
   }
 
   const statusOptions: SelectOption[] = [
@@ -253,6 +277,10 @@ export function InternalComplaintListView() {
               tone="warning"
               title={t("partialDataWarning", { loaded: allRows.length, total })}
             />
+          ) : null}
+
+          {filters.needsReceive ? (
+            <Alert tone="info" title={t("inboxFilterNotice")} />
           ) : null}
 
           <WorkspaceToolbar

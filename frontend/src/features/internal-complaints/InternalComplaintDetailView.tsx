@@ -34,6 +34,7 @@ import { KnowledgeReferenceText } from "@/features/complaints/KnowledgeReference
 import {
   decideInternalTransferRequest,
   decideInternalWithdrawRequest,
+  downloadInternalComplaintPdf,
   receiveInternalComplaint,
   recordInternalAcceptance,
   requestInternalTransfer,
@@ -45,6 +46,7 @@ import {
   withdrawInternalComplaint,
 } from "@/lib/api/internalComplaints";
 import { useInternalComplaint } from "./mock/useInternalComplaints";
+import { refreshInternalInboxBadges } from "./inboxBadgesSignal";
 import { InternalComplaintAttachmentsPanel } from "./InternalComplaintAttachments";
 import {
   isBlockedBySelfApproval,
@@ -174,6 +176,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const [completionReason, setCompletionReason] = useState("");
   const presets = useReasonPresets(PRESET_KEYS);
   const [busy, setBusy] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -287,6 +290,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       setModal(null);
       setToastMessage(okMessage);
       reload();
+      refreshInternalInboxBadges();
     } catch (err) {
       setActionError(
         err instanceof ApiError
@@ -295,6 +299,23 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function submitDownloadPdf(): Promise<void> {
+    if (downloadingPdf) return;
+    setDownloadingPdf(true);
+    setActionError(null);
+    try {
+      await downloadInternalComplaintPdf(complaint.id);
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("downloadPdfFailed"),
+      );
+    } finally {
+      setDownloadingPdf(false);
     }
   }
 
@@ -462,6 +483,15 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="internal-download-pdf"
+              onClick={() => void submitDownloadPdf()}
+              disabled={busy || downloadingPdf}
+            >
+              {t("downloadPdf")}
+            </Button>
             {showRequestTransfer ? (
               <Button
                 type="button"

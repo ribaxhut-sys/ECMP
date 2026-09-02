@@ -163,6 +163,49 @@ describe("internalComplaintsFilters", () => {
     );
   });
 
+  it("filters the incoming receive queue by actor unit", () => {
+    const rows = [
+      row({
+        id: "1",
+        number: "PI-1",
+        status: "ASSIGNED",
+        handlingUnitId: "PUSAT",
+      }),
+      row({
+        id: "2",
+        number: "PI-2",
+        status: "ASSIGNED",
+        handlingUnitId: "UPPPD-GAMBIR",
+      }),
+      row({
+        id: "3",
+        number: "PI-3",
+        status: "IN_PROGRESS",
+        handlingUnitId: "PUSAT",
+      }),
+    ];
+    expect(
+      filterInternalComplaints(
+        rows,
+        { ...defaultInternalListFilters(), needsReceive: true },
+        "PUSAT",
+      ).map((r) => r.id),
+    ).toEqual(["1"]);
+    expect(
+      filterInternalComplaints(
+        rows,
+        { ...defaultInternalListFilters(), needsReceive: true },
+        "UPPPD-GAMBIR",
+      ).map((r) => r.id),
+    ).toEqual(["2"]);
+    expect(
+      hasActiveInternalFilters({
+        ...defaultInternalListFilters(),
+        needsReceive: true,
+      }),
+    ).toBe(true);
+  });
+
   it("sorts rows needing attention before the rest, newest first within each group", () => {
     const rows = [
       row({

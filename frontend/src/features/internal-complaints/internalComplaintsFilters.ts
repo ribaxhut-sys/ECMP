@@ -1,5 +1,6 @@
 /** Pure filter helpers for Pengaduan Internal list. */
 import type { InternalComplaint } from "./types";
+import { isIncomingInternalComplaint } from "./internalInbox";
 
 export interface InternalListFilters {
   q: string;
@@ -8,6 +9,8 @@ export interface InternalListFilters {
   priority: string;
   ownerUnitId: string;
   handlingUnitId: string;
+  /** Incoming queue at the caller's handling unit (sidebar badge door). */
+  needsReceive: boolean;
 }
 
 export function defaultInternalListFilters(): InternalListFilters {
@@ -18,19 +21,33 @@ export function defaultInternalListFilters(): InternalListFilters {
     priority: "",
     ownerUnitId: "",
     handlingUnitId: "",
+    needsReceive: false,
   };
 }
 
 export function hasActiveInternalFilters(filters: InternalListFilters): boolean {
-  return Object.values(filters).some((v) => Boolean(v && String(v).trim()));
+  return (
+    Boolean(filters.q && filters.q.trim()) ||
+    Boolean(filters.status && filters.status.trim()) ||
+    Boolean(filters.category && filters.category.trim()) ||
+    Boolean(filters.priority && filters.priority.trim()) ||
+    Boolean(filters.ownerUnitId && filters.ownerUnitId.trim()) ||
+    Boolean(filters.handlingUnitId && filters.handlingUnitId.trim()) ||
+    filters.needsReceive
+  );
 }
 
 export function filterInternalComplaints(
   rows: readonly InternalComplaint[],
   filters: InternalListFilters,
+  actorUnitCode?: string | null,
 ): InternalComplaint[] {
   const q = filters.q.trim().toLowerCase();
   return rows.filter((row) => {
+    if (filters.needsReceive) {
+      if (actorUnitCode === undefined) return true;
+      if (!isIncomingInternalComplaint(row, actorUnitCode)) return false;
+    }
     if (filters.status && row.status !== filters.status) return false;
     if (filters.category && row.category !== filters.category) return false;
     if (filters.priority && row.priority !== filters.priority) return false;

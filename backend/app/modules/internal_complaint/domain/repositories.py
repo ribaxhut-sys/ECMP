@@ -25,6 +25,8 @@ class InternalComplaintRepository(Protocol):
         page: int = 1,
         page_size: int = 20,
         pending_transfer_request: bool | None = None,
+        pending_withdraw_request: bool | None = None,
+        needs_receive: bool | None = None,
     ) -> tuple[list, int]: ...
 
     def commit(self) -> None: ...

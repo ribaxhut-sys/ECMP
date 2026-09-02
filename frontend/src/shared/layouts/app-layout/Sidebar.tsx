@@ -16,8 +16,10 @@ import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
 import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
 import { useCmWorkBadges } from "@/features/cases/useCmWorkBadges";
 import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTodayCount";
+import { usePendingInboxCount } from "@/features/internal-complaints/usePendingInboxCount";
 import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
 import { usePendingWithdrawRequestCount } from "@/features/internal-complaints/usePendingWithdrawRequestCount";
+import { INTERNAL_INBOX_HREF } from "@/features/internal-complaints/internalInbox";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
@@ -437,6 +439,16 @@ function NavSubgroupSection({
   const panelId = `nav-subgroup-panel-${subgroup.id}`;
   const label = t(subgroup.labelKey);
   const chrome = resolveDomainChrome(subgroup.id);
+  const subgroupBadge = items.reduce((sum, item) => {
+    return sum + (typeof item.badge === "number" && item.badge > 0 ? item.badge : 0);
+  }, 0);
+
+  const headingBadge =
+    subgroupBadge > 0 ? (
+      <span aria-hidden>
+        <NavBadge value={subgroupBadge} />
+      </span>
+    ) : null;
 
   return (
     <div
@@ -471,13 +483,19 @@ function NavSubgroupSection({
             )}
           />
           <span className="min-w-0 truncate text-left !font-[600]">{label}</span>
+          {headingBadge}
         </button>
       ) : (
         <p
           id={headingId}
-          className={cn(SUBGROUP_HEADING_BASE_CLASS, chrome.label)}
+          className={cn(
+            SUBGROUP_HEADING_BASE_CLASS,
+            chrome.label,
+            "flex items-center gap-1.5",
+          )}
         >
           {label}
+          {headingBadge}
         </p>
       )}
       <div
@@ -622,6 +640,7 @@ function NavSections({
   const isCabangInbox = prefersComplaintNumberIdentity(orgUnitCode);
   const pendingTransferRequestCount = usePendingTransferRequestCount();
   const pendingWithdrawRequestCount = usePendingWithdrawRequestCount();
+  const pendingInboxCount = usePendingInboxCount();
   let itemsWithBadges = itemsById;
   if (unreadCount > 0 && itemsWithBadges.announcements) {
     itemsWithBadges = {
@@ -659,6 +678,16 @@ function NavSections({
       internalFollowUp: {
         ...itemsWithBadges.internalFollowUp,
         badge: pendingWithdrawRequestCount,
+      },
+    };
+  }
+  if (orgUnitCode !== undefined && itemsWithBadges.internalComplaints) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      internalComplaints: {
+        ...itemsWithBadges.internalComplaints,
+        href: INTERNAL_INBOX_HREF,
+        ...(pendingInboxCount > 0 ? { badge: pendingInboxCount } : {}),
       },
     };
   }

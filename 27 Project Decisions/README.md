@@ -50,7 +50,7 @@ Draft
 | **DEC-027** | Label persona CRO / Staff KaSatPel / KaSatPel + Viewer ALL | 🟢 **Accepted (lab)** (2026-08-20) | Kode IAM tidak diganti; Viewer baca-semua; bukan Mode B |
 | **DEC-028** | Format nomor Case/pengaduan (BQ-004 opsi C) + unit tujuan eskalasi Pusat | 🟢 **Accepted (lab)** (2026-08-22) | Independensi BQ-004 tetap; format `TAB-2608-0001` / `CMTAB-2608-0001`; Pusat tetapkan jam+unit tujuan dan mengabari WP |
 | **DEC-MODEA-B2-001** | Mode A Delivery Baseline BQ Lock (CAP-008) | **Accepted** | BQ-002…014 LOCKED; Residual BQ ZERO; FRD Batch-2 prerequisite READY |
-| **ECMP-MODEA-INT-001** | Pengaduan Internal Journey Contract | **Accepted (Mode A UI)** | `/internal/*` copy + gerbang tutup; **bukan** Dual-SoT WP / bukan ADR |
+| **ECMP-MODEA-INT-001** | Pengaduan Internal Journey Contract | **Accepted (Mode A UI)** | `/internal/*` copy + gerbang tutup + snapshot PDF (API-550); **bukan** Dual-SoT WP / bukan ADR |
 
 > DEC-020 (SoT remapping) closes **OQ-CM-B1-001**. It does **not** Accept ADR-014/015, unlock Mode B, or real-customer production.
 > **DEC-MODEA-B2-001** locks Batch-2 Mode A Case Management BQs and registers capability **CAP-008** (former working ID CAP-02 retired). Pack: `../18 Architecture Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md`.

@@ -19,6 +19,9 @@ describe("internalComplaintPaths", () => {
     );
     expect(paths.close("id")).toBe("/api/v1/internal/complaints/id/close");
     expect(paths.withdraw("id")).toBe("/api/v1/internal/complaints/id/withdraw");
+    expect(paths.exportPdf("id")).toBe(
+      "/api/v1/internal/complaints/id/export",
+    );
     expect(paths.returnForCompletion("id")).toBe(
       "/api/v1/internal/complaints/id/return-for-completion",
     );
@@ -30,6 +33,9 @@ describe("internalComplaintPaths", () => {
     );
     expect(paths.pendingWithdrawRequestCount).toBe(
       "/api/v1/internal/complaints/withdraw-requests/pending-count",
+    );
+    expect(paths.pendingInboxCount).toBe(
+      "/api/v1/internal/complaints/inbox/pending-count",
     );
     expect(INTERNAL_COMPLAINTS_BASE.startsWith(FOUNDATION_COMPLAINTS_BASE)).toBe(
       false,

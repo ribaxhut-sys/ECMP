@@ -27,6 +27,7 @@ import { fetchCmBatch1Complaints } from "@/lib/api/cmBatch1";
 import {
   createInternalComplaint,
 } from "@/lib/api/internalComplaints";
+import { refreshInternalInboxBadges } from "./inboxBadgesSignal";
 import { uploadAttachment } from "@/lib/api/attachments";
 import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import { PresetTextField } from "@/features/complaints/PresetTextField";
@@ -244,6 +245,7 @@ export function CreateInternalComplaintView() {
   }
 
   function goToCreatedTicket(id: string): void {
+    refreshInternalInboxBadges();
     router.push(`/internal/complaints/${encodeURIComponent(id)}`);
   }
 

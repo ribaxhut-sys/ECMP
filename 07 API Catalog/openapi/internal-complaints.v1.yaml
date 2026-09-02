@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.1.0
+  version: 1.2.1
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -21,7 +21,9 @@ info:
     bersama CAPABILITY-011 (`POST/GET /api/v1/attachments`) dengan
     `aggregateType=InternalComplaint` — bukan staging Batch-1 / FR-004.
     Tipe yang diizinkan untuk Internal: gambar (JPEG/PNG/GIF/WebP) dan ZIP
-    utuh (tidak diekstrak di server).
+    utuh (tidak diekstrak di server). Snapshot PDF per tiket: API-550
+    `GET /api/v1/internal/complaints/{complaintId}/export` (bukan API-539 Case,
+    bukan laporan agregat).
 servers:
   - url: /
 paths:
@@ -53,6 +55,13 @@ paths:
           in: query
           schema: { type: boolean }
           description: Filter to complaints with a PENDING branch withdraw request.
+        - name: needsReceive
+          in: query
+          schema: { type: boolean }
+          description: >
+            Incoming queue at the caller's handling unit (CREATED or ASSIGNED).
+            Cabang: handling unit is the branch. Pusat: handling unit is a Pusat
+            unit. Tickets sent away (handling elsewhere) are excluded.
       responses:
         "200":
           description: Paginated list
@@ -77,6 +86,27 @@ paths:
           description: Created
         "400":
           description: requestReason missing when Pusat Agent-family sets handlingUnitId
+  /api/v1/internal/complaints/inbox/pending-count:
+    get:
+      operationId: getPendingInboxCount
+      x-ear-id: API-551
+      tags: [Internal-Complaints]
+      summary: Sidebar badge — incoming tickets awaiting receive at the caller's unit
+      description: >
+        Cabang: count of CREATED/ASSIGNED whose handling unit is the branch
+        (return-for-completion, transfer in). Pusat: count of CREATED/ASSIGNED
+        whose handling unit is a Pusat unit (Cabang create/resend, Pusat-local
+        not yet received). Not CAP-005. Not unread receipts — queue count drops
+        after Terima. Fail-open on the client.
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: integer }
   /api/v1/internal/complaints/transfer-requests/pending-count:
     get:
       operationId: getPendingTransferRequestCount
@@ -125,6 +155,44 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/InternalComplaint"
+  /api/v1/internal/complaints/{complaintId}/export:
+    get:
+      operationId: exportInternalComplaintPdf
+      tags: [Internal-Complaints]
+      summary: Download Pengaduan Internal snapshot PDF
+      description: >
+        Server-rendered snapshot of **this** Pengaduan Internal ticket (API-550).
+        Same authorization and visibility as GET detail. Does not mutate status.
+        Attachment bytes are not embedded — the PDF lists a filename manifest.
+        Cabang and Pusat callers who may view the ticket may download.
+        Not customer-safe. Not KPI/reporting. Not API-539 Case snapshot.
+      x-ear-id: API-550
+      x-ecmp-logical-id: API-INT-001
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Operator snapshot PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="{complaintNumber}_{YYYYMMDD}.pdf"
+                (YYYYMMDD in Asia/Jakarta)
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not visible to caller (same floor as GET)
   /api/v1/internal/complaints/{complaintId}/transfer:
     post:
       operationId: transferInternalComplaint

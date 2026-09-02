@@ -2064,6 +2064,8 @@ def test_mode_a_cross_unit_internal_mutations_denied_404(
         db_session, service, attacker, settings_factory=_dev_settings
     ) as client:
         assert client.get(f"/api/v1/internal/complaints/{cid}").status_code == 404
+        export = client.get(f"/api/v1/internal/complaints/{cid}/export")
+        assert export.status_code == 404
         transfer = client.post(
             f"/api/v1/internal/complaints/{cid}/transfer",
             json={"destinationUnitId": "PUSAT"},
@@ -2115,4 +2117,175 @@ def test_mode_a_same_unit_internal_transfer_allowed(
         )
         assert transfer.status_code == 200, transfer.text
         assert transfer.json()["data"]["handlingUnitId"] == "PUSAT"
+
+
+def test_http_export_pdf_same_visibility_as_get(
+    db_session: Session, service: InternalComplaintApplicationService
+) -> None:
+    """Cabang pemilik dan Pusat handling boleh unduh; cabang lain 404."""
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR", subject="PDF ticket")
+    owner = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    with _app_client(
+        db_session, service, owner, settings_factory=_dev_settings
+    ) as client:
+        resp = client.get(f"/api/v1/internal/complaints/{cid}/export")
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("application/pdf")
+        assert resp.content.startswith(b"%PDF")
+        assert "attachment;" in resp.headers.get("content-disposition", "")
+        assert b"PDF ticket" in resp.content
+        assert b"Pelanggan" not in resp.content
+
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            actor_id="creator-1",
+            reason="Kirim ke Pusat",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(
+        db_session, service, pusat, settings_factory=_dev_settings
+    ) as client:
+        pusat_pdf = client.get(f"/api/v1/internal/complaints/{cid}/export")
+        assert pusat_pdf.status_code == 200, pusat_pdf.text
+        assert pusat_pdf.content.startswith(b"%PDF")
+
+    outsider = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-TANAH-ABANG",
+        permissions=_PERMS,
+    )
+    with _app_client(
+        db_session, service, outsider, settings_factory=_dev_settings
+    ) as client:
+        hidden = client.get(f"/api/v1/internal/complaints/{cid}/export")
+        assert hidden.status_code == 404
+        still = client.get(f"/api/v1/internal/complaints/{cid}")
+        assert still.status_code == 404
+
+
+def test_http_inbox_pending_count_cabang_create_lands_on_pusat(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Cabang create → badge Pusat; Cabang pengirim tidak dihitung."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    other_cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-TANAH-ABANG",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Masuk Pusat",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        assert created.status_code == 201, created.text
+        cid = created.json()["data"]["complaintId"]
+        own = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert own.status_code == 200
+        assert own.json()["data"] == 0
+
+    with _app_client(db_session, service, other_cabang) as client:
+        other = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert other.status_code == 200
+        assert other.json()["data"] == 0
+
+    inbox, inbox_total = service.list_complaints(
+        pusat, page=1, page_size=20, org_unit_id="PUSAT", needs_receive=True
+    )
+    assert inbox_total == 1
+    assert inbox[0].complaint_id == cid
+
+    with _app_client(db_session, service, pusat) as client:
+        count = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert count.status_code == 200
+        assert count.json()["data"] == 1
+        receive = client.post(f"/api/v1/internal/complaints/{cid}/receive", json={})
+        assert receive.status_code == 200, receive.text
+        after = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert after.json()["data"] == 0
+    remaining, remaining_total = service.list_complaints(
+        pusat, page=1, page_size=20, org_unit_id="PUSAT", needs_receive=True
+    )
+    assert remaining_total == 0
+    assert cid not in [row.complaint_id for row in remaining]
+
+
+def test_http_inbox_pending_count_return_for_completion_lands_on_cabang(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Pusat kembalikan berkas → badge Cabang pemilik; Pusat tidak dihitung."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Berkas kurang",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, pusat) as client:
+        returned = client.post(
+            f"/api/v1/internal/complaints/{cid}/return-for-completion",
+            json={"reason": "Lengkapi lampiran pendukung"},
+        )
+        assert returned.status_code == 200, returned.text
+        assert returned.json()["data"]["status"] == "ASSIGNED"
+        assert returned.json()["data"]["handlingUnitId"] == "UPPPD-GAMBIR"
+        pusat_count = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert pusat_count.json()["data"] == 0
+
+    with _app_client(db_session, service, cabang) as client:
+        cabang_count = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert cabang_count.status_code == 200
+        assert cabang_count.json()["data"] == 1
+    items, total = service.list_complaints(
+        cabang, page=1, page_size=20, org_unit_id="UPPPD-GAMBIR", needs_receive=True
+    )
+    assert total == 1
+    assert items[0].complaint_id == cid
 

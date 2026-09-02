@@ -8,5 +8,6 @@ export { InternalFollowUpCaseView } from "./InternalFollowUpCaseView";
 export { InternalVerificationListView } from "./InternalVerificationListView";
 export { InternalVerificationCaseView } from "./InternalVerificationCaseView";
 export { InternalReportsView } from "./InternalReportsView";
+export { usePendingInboxCount } from "./usePendingInboxCount";
 export { usePendingTransferRequestCount } from "./usePendingTransferRequestCount";
 export { usePendingWithdrawRequestCount } from "./usePendingWithdrawRequestCount";

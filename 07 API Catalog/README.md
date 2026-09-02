@@ -244,6 +244,19 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 | API-539 | API-CM-B2-011 | GET /api/v1/cm/cases/{caseId}/export | FR-003 companion — internal Case snapshot PDF (not customer-safe; not reporting) | 🟢 Implemented (lab) |
 
+### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.1** — ECMP-MODEA-INT-001
+
+> Domain Pengaduan Internal (`/api/v1/internal/complaints`). **Bukan** Dual-SoT WP / Case Aggregate. Satu tiket = satu aggregate.
+
+| API ID | Logical ID | Method & Endpoint | Description | Status |
+|---|---|---|---|---|
+| API-550 | API-INT-001 | GET /api/v1/internal/complaints/{complaintId}/export | Snapshot PDF satu tiket Internal (bukan API-539; bukan laporan) | 🟢 Implemented (lab) |
+| API-551 | API-INT-002 | GET /api/v1/internal/complaints/inbox/pending-count | Badge sidebar antrian masuk (CREATED/ASSIGNED di unit penanganan pemanggil) | 🟢 Implemented (lab) |
+
+> **2026-09-02 (Pengaduan Internal snapshot PDF):** API-550 — visibilitas sama GET; Cabang & Pusat yang boleh lihat boleh unduh.
+
+> **2026-09-02 (Internal inbox sidebar badge):** API-551 — Cabang = tiket menunggu Terima di cabang (kembalikan berkas / transfer masuk); Pusat = tiket menunggu Terima di Pusat (create/resend Cabang, tiket lokal belum diterima). Bukan CAP-005. Bukan unread receipt.
+
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 
 > Aggregate `/api/v1/cm/` escalation & resolution. Separate from foundation API-207/301 under **DEC-020** coexistence (not remapped/merged). Catalog IDs **API-520…526**. Not unlocked by DEC-020. **Path overlap** with CAP-008 Mode A API-532/534 on GET Case / POST resolve — see `cm-case-management.v1.yaml` for Mode A semantics.

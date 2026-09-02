@@ -27,6 +27,9 @@ let mockOrgUnitBranch: { code: string } | null | undefined = null;
 const unreadCountApi = vi.fn();
 const hqScheduleDetailApi = vi.fn();
 const workBadgesApi = vi.fn();
+const inboxCountApi = vi.fn();
+const transferCountApi = vi.fn();
+const withdrawCountApi = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -87,6 +90,14 @@ vi.mock("@/lib/api", async () => {
   };
 });
 
+vi.mock("@/lib/api/internalComplaints", () => ({
+  fetchPendingInboxCount: (...args: unknown[]) => inboxCountApi(...args),
+  fetchPendingTransferRequestCount: (...args: unknown[]) =>
+    transferCountApi(...args),
+  fetchPendingWithdrawRequestCount: (...args: unknown[]) =>
+    withdrawCountApi(...args),
+}));
+
 vi.mock("@/shared/config/internalComplaintsUi", () => ({
   isInternalComplaintsUiEnabled: () => true,
 }));
@@ -141,6 +152,12 @@ beforeEach(() => {
   workBadgesApi.mockResolvedValue({
     data: { unreadCases: 0, pusatQueue: 0, pusatFollowUp: 0, hqScheduleUnread: 0 },
   });
+  inboxCountApi.mockReset();
+  inboxCountApi.mockResolvedValue({ data: 0 });
+  transferCountApi.mockReset();
+  transferCountApi.mockResolvedValue({ data: 0 });
+  withdrawCountApi.mockReset();
+  withdrawCountApi.mockResolvedValue({ data: 0 });
 });
 
 afterEach(() => {
@@ -579,3 +596,69 @@ describe("Mode A work badges — Cabang Cases / Pusat Complaints", () => {
     expect(within(complaintsLink).getByText("2")).toBeInTheDocument();
   });
 });
+
+describe("Mode A Internal inbox badges — Cabang / Pusat", () => {
+  it("shows incoming badge on Internal heading and Pengaduan for Cabang", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "UPPPD-TANAH-ABANG" };
+    inboxCountApi.mockResolvedValue({ data: 4 });
+    const { sidebar } = renderSidebar();
+
+    const internalToggle = sidebar.getByRole("button", { name: /^Internal$/i });
+    await waitFor(() => {
+      expect(within(internalToggle).getByText("4")).toBeInTheDocument();
+    });
+
+    act(() => {
+      fireEvent.click(internalToggle);
+    });
+    const panel = document.getElementById(
+      internalToggle.getAttribute("aria-controls")!,
+    )!;
+    const complaintsLink = within(panel).getByRole("link", {
+      name: /^Complaints/i,
+    });
+    expect(complaintsLink).toHaveAttribute(
+      "href",
+      "/internal/complaints?needsReceive=1",
+    );
+    await waitFor(() => {
+      expect(within(complaintsLink).getByText("4")).toBeInTheDocument();
+    });
+  });
+
+  it("shows incoming badge on Internal heading for Pusat and does not mix with WP queue", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "PUSAT" };
+    workBadgesApi.mockResolvedValue({
+      data: { unreadCases: 0, pusatQueue: 7, pusatFollowUp: 0 },
+    });
+    inboxCountApi.mockResolvedValue({ data: 2 });
+    const { sidebar } = renderSidebar();
+
+    const taxpayerComplaints = await waitFor(() =>
+      sidebar.getByRole("link", { name: /^Complaints$/i }),
+    );
+    await waitFor(() => {
+      expect(within(taxpayerComplaints).getByText("7")).toBeInTheDocument();
+    });
+
+    const internalToggle = sidebar.getByRole("button", { name: /^Internal$/i });
+    await waitFor(() => {
+      expect(within(internalToggle).getByText("2")).toBeInTheDocument();
+    });
+    expect(within(internalToggle).queryByText("7")).not.toBeInTheDocument();
+  });
+
+  it("hides the Internal inbox badge when the queue is empty", async () => {
+    mockPermissions = COMPLAINT_PERMISSIONS;
+    mockOrgUnitBranch = { code: "PUSAT" };
+    inboxCountApi.mockResolvedValue({ data: 0 });
+    const { sidebar } = renderSidebar();
+    const internalToggle = await waitFor(() =>
+      sidebar.getByRole("button", { name: /^Internal$/i }),
+    );
+    expect(within(internalToggle).queryByText(/^\d+$/)).not.toBeInTheDocument();
+  });
+});
+
