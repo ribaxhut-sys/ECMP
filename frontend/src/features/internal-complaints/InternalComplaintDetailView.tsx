@@ -303,7 +303,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   }
 
   async function submitDownloadPdf(): Promise<void> {
-    if (downloadingPdf) return;
+    if (downloadingPdf || !complaint) return;
     setDownloadingPdf(true);
     setActionError(null);
     try {
