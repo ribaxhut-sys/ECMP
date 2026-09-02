@@ -7,7 +7,7 @@ import {
   sortByMostRecent,
   sortForDashboardAction,
 } from "./internalComplaintsFilters";
-import type { InternalComplaint } from "./types";
+import { isInternalTerminalStatus, type InternalComplaint } from "./types";
 
 function row(
   partial: Partial<InternalComplaint> & Pick<InternalComplaint, "id" | "number">,
@@ -239,5 +239,14 @@ describe("internalComplaintsFilters", () => {
       "new-normal",
       "old-normal",
     ]);
+  });
+});
+
+describe("isInternalTerminalStatus", () => {
+  it("treats CLOSED and WITHDRAWN as finished", () => {
+    expect(isInternalTerminalStatus("CLOSED")).toBe(true);
+    expect(isInternalTerminalStatus("WITHDRAWN")).toBe(true);
+    expect(isInternalTerminalStatus("IN_PROGRESS")).toBe(false);
+    expect(isInternalTerminalStatus("RESOLVED")).toBe(false);
   });
 });

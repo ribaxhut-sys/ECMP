@@ -43,7 +43,7 @@ CRO **Cabang dan Pusat** tidak merekam gerbang tutup (tiket sendiri maupun orang
 
 `CREATED → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED`  
 Cabang → Pusat, selama masih antrian: `ASSIGNED → WITHDRAWN` (batal sepihak).  
-Setelah usulan (`IN_PROGRESS`) + permintaan PENDING; Setujui → `WITHDRAWN`; Tolak → tetap `IN_PROGRESS`.
+Setelah usulan (`IN_PROGRESS`) + permintaan PENDING; **login Pusat** Setujui → `WITHDRAWN` (**pengaduan ditutup karena batal**, label UI: Ditutup — dibatalkan); Tolak → tetap `IN_PROGRESS`. Bukan status `CLOSED` (itu gerbang tutup penyelesaian).
 
 | Langkah | Dari | Ke | Syarat |
 |---|---|---|---|

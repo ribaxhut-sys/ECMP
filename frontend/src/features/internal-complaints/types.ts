@@ -145,6 +145,12 @@ export const STATUS_LABEL_KEY: Record<InternalStatus, string> = {
   WITHDRAWN: "statusWITHDRAWN",
 };
 
+/** Operationally finished: dual-acceptance close or approved/unilateral withdraw. */
+export function isInternalTerminalStatus(status: string): boolean {
+  const key = (status || "").trim().toUpperCase();
+  return key === "CLOSED" || key === "WITHDRAWN";
+}
+
 export const CATEGORY_LABEL_KEY: Record<InternalCategory, string> = {
   PERFORMANCE: "categoryPERFORMANCE",
   PROCESS_SOP: "categoryPROCESS_SOP",

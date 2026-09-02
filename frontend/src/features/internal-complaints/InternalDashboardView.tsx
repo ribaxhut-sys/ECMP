@@ -28,6 +28,7 @@ import {
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
 import { displayInternalUnitCode } from "./transferDirection";
+import { isInternalTerminalStatus } from "./types";
 
 function ClickableStat({
   href,
@@ -58,9 +59,9 @@ export function InternalDashboardView() {
     [rows],
   );
 
-  const openCount = rows.filter((r) => r.status !== "CLOSED").length;
+  const openCount = rows.filter((r) => !isInternalTerminalStatus(r.status)).length;
   const resolvedCount = rows.filter((r) => r.status === "RESOLVED").length;
-  const closedCount = rows.filter((r) => r.status === "CLOSED").length;
+  const closedCount = rows.filter((r) => isInternalTerminalStatus(r.status)).length;
   const pendingRequests = pendingTransfer + pendingWithdraw;
 
   const resolvedAccent: StatAccent = resolvedCount > 0 ? "attention" : "healthy";

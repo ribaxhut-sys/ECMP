@@ -720,8 +720,15 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
           }
         />
       ) : null}
-      {showSelfApprovalBlockedHint ? (
-        <Alert tone="warning" title={t("closureHintSelfApprovalBlocked")} />
+      {complaint.status === "WITHDRAWN" ? (
+        <Alert
+          tone="info"
+          title={
+            complaint.withdrawRequestStatus === "APPROVED"
+              ? t("withdrawnClosedHint")
+              : t("withdrawnUnilateralClosedHint")
+          }
+        />
       ) : null}
 
       <div className="space-y-4">
