@@ -1,4 +1,8 @@
-/** Branch → Pusat withdraw / receive UI gate (ECMP-MODEA-INT-001). */
+/** Branch → Pusat withdraw UI gate (ECMP-MODEA-INT-001).
+
+``mayReceiveInternal`` remains the AuthZ of lab ``POST /receive``.
+Mode A UI does not show a claim button — propose auto-claims; return does not.
+*/
 
 import {
   actorMatchesInternalHandlingUnit,

@@ -35,7 +35,6 @@ import {
   decideInternalTransferRequest,
   decideInternalWithdrawRequest,
   downloadInternalComplaintPdf,
-  receiveInternalComplaint,
   recordInternalAcceptance,
   requestInternalTransfer,
   requestInternalWithdraw,
@@ -81,7 +80,6 @@ import {
   isWaitingForPusatReceive,
   mayDecideWithdraw,
   mayOwnerWithdraw,
-  mayReceiveInternal,
   mayRequestWithdraw,
 } from "./withdrawGate";
 
@@ -358,14 +356,6 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     ownerUnitId: complaint.ownerUnitId,
     hasAssignPermission: canAssign,
   });
-  const showReceive = mayReceiveInternal({
-    status: complaint.status,
-    actorUnitCode: actorUnitCode ?? null,
-    handlingUnitId: complaint.handlingUnitId,
-    hasUpdatePermission: canUpdate,
-    completionRequestStatus: complaint.completionRequestStatus,
-    roles,
-  });
   const awaitingCompletion = isAwaitingCompletion(
     complaint.completionRequestStatus,
   );
@@ -600,20 +590,6 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
                   {t("rejectWithdrawRequest")}
                 </Button>
               </>
-            ) : null}
-            {showReceive ? (
-              <Button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  run(
-                    () => receiveInternalComplaint(complaint.id),
-                    t("receivedOk"),
-                  )
-                }
-              >
-                {t("receive")}
-              </Button>
             ) : null}
             {showReturn ? (
               <Button

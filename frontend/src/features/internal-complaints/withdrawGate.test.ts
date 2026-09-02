@@ -25,7 +25,7 @@ describe("withdrawGate", () => {
     ).toBe(false);
   });
 
-  it("hides Terima from the branch owner", () => {
+  it("does not let the branch owner call /receive on a Pusat ticket", () => {
     expect(
       mayReceiveInternal({
         status: "ASSIGNED",
@@ -53,7 +53,7 @@ describe("withdrawGate", () => {
     ).toBe(false);
   });
 
-  it("lets any Pusat login Terima even when handling is a legacy sub-unit", () => {
+  it("lets any Pusat login /receive even when handling is a legacy sub-unit", () => {
     expect(
       mayReceiveInternal({
         status: "ASSIGNED",
@@ -106,7 +106,7 @@ describe("withdrawGate", () => {
     ).toBe(true);
   });
 
-  it("allows a withdraw request only after Pusat received", () => {
+  it("allows a withdraw request only after the ticket is IN_PROGRESS", () => {
     const base = {
       ownerUnitId: "UPPPD-GAMBIR",
       handlingUnitId: "PUSAT",

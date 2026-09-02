@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.2.3
+  version: 1.2.4
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -10,15 +10,17 @@ info:
     bulan; lebar seq melebar otomatis di atas 999. Cabang create selalu
     mengirim Handling ke Pusat kanonik `PUSAT` (`ASSIGNED`) — bukan sub-unit
     `PUSAT-CRO` (itu pintu jadwal kedatangan WP). Semua login Pusat (unit
-    keluarga Pusat atau Admin) boleh `/receive` tiket di antrian Pusat.
+    keluarga Pusat atau Admin) boleh `/receive` (lab/tes; **UI Internal tidak
+    menampilkan tombol klaim**). Langkah kerja antrian Pusat: kembalikan ke
+    cabang atau usulkan penyelesaian (usulan mengklaim otomatis).
     Agent Pusat yang memilih cabang tetap memakai permintaan (`requestReason`
     wajib), diputus oleh Supervisor/Manager/Admin via `/transfer-request/decision`.
-    Cabang boleh membatalkan sebelum Pusat menerima (`WITHDRAWN`, tanpa
+    Cabang boleh membatalkan selama tiket masih antrian (`WITHDRAWN`, tanpa
     notifikasi ke Pusat — tiket itu tidak tampil di daftar/GET Pusat kecuali
-    Pusat sudah pernah menangani); setelah Terima, cabang mengajukan pembatalan dan
+    Pusat sudah pernah menangani); setelah usulan (`IN_PROGRESS`), cabang mengajukan pembatalan dan
     Pusat memutus via `/withdraw-request/decision`. Pusat boleh mengembalikan
     ke cabang jika berkas kurang (`/return-for-completion`, alasan wajib) —
-    sebelum atau sesudah Terima; cabang mengirim ulang via `/resend-to-pusat`.
+    dari antrian tanpa klaim; cabang mengirim ulang via `/resend-to-pusat`.
     Bukan Tolak/`WITHDRAWN`. Lampiran memakai mesin
     bersama CAPABILITY-011 (`POST/GET /api/v1/attachments`) dengan
     `aggregateType=InternalComplaint` — bukan staging Batch-1 / FR-004.
@@ -100,7 +102,8 @@ paths:
         (return-for-completion, transfer in). Pusat: count of CREATED/ASSIGNED
         whose handling unit is a Pusat unit (Cabang create/resend, Pusat-local
         not yet received). Not CAP-005. Not unread receipts — queue count drops
-        after Terima. Fail-open on the client.
+        when status leaves CREATED/ASSIGNED (propose auto-claim or return).
+        Fail-open on the client.
       responses:
         "200":
           description: Count
@@ -271,10 +274,10 @@ paths:
     post:
       operationId: receiveInternalComplaint
       tags: [Internal-Complaints]
-      summary: Optional claim (→ IN_PROGRESS)
+      summary: Lab/API claim (→ IN_PROGRESS); not shown in Mode A UI
       description: >
-        Locks branch unilateral withdraw while Pusat reviews. Not required
-        before return-for-completion. PROPOSE from CREATED/ASSIGNED auto-claims.
+        Optional claim. Mode A UI does not expose this button. PROPOSE from
+        CREATED/ASSIGNED auto-claims; return-for-completion does not claim.
         Cabang: only the handling branch. Pusat: any Pusat login (PUSAT family
         or Admin). Canonical handling code is `PUSAT` (not `PUSAT-CRO`).
       parameters:
@@ -293,7 +296,8 @@ paths:
       description: >
         Handling Unit (Pusat) returns Handling to the owner branch because
         attachments or information are incomplete. Allowed in ASSIGNED
-        (before receive) or IN_PROGRESS (after receive). Reason required.
+        (before a propose auto-claim) or IN_PROGRESS (after propose / lab
+        `/receive`). Reason required.
         Status stays ASSIGNED at the owner unit; completionRequestStatus
         becomes PENDING. Ticket remains alive. Branch then uses
         `/resend-to-pusat`.

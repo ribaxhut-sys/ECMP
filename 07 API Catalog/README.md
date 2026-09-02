@@ -244,7 +244,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 | API-539 | API-CM-B2-011 | GET /api/v1/cm/cases/{caseId}/export | FR-003 companion — internal Case snapshot PDF (not customer-safe; not reporting) | 🟢 Implemented (lab) |
 
-### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.3** — ECMP-MODEA-INT-001
+### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.4** — ECMP-MODEA-INT-001
 
 > Domain Pengaduan Internal (`/api/v1/internal/complaints`). **Bukan** Dual-SoT WP / Case Aggregate. Satu tiket = satu aggregate.
 
@@ -259,7 +259,9 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 > **2026-09-02 (Handling kanonik PUSAT):** Cabang create/transfer ke Pusat selalu `PUSAT` (bukan `PUSAT-CRO`). `/receive` diizinkan untuk semua login Pusat. Jadwal kedatangan WP tetap CRO.
 
-> **2026-09-02 (Klaim otomatis usulan):** `POST .../resolve` action=PROPOSE dari CREATED/ASSIGNED mengklaim otomatis. `/receive` opsional (Ambil tiket).
+> **2026-09-02 (Klaim otomatis usulan):** `POST .../resolve` action=PROPOSE dari CREATED/ASSIGNED mengklaim otomatis. UI Internal tidak menampilkan `/receive`.
+
+> **2026-09-02 (Tanpa tombol Ambil tiket):** Langkah antrian Pusat = kembalikan atau usulkan. `/receive` lab/API only.
 
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 

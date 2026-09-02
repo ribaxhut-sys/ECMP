@@ -24,7 +24,7 @@
 | `complaint-service.v1.yaml` | ECMP Complaint Service API | 1.0.0 | 106 |
 | `dashboard-queues.v1.yaml` | ECMP Dashboard Queues API | 1.0.0 | 1 |
 | `hq-schedule.v1.yaml` | ECMP HQ Arrival Schedule API | 1.0.0-lab | 7 |
-| `internal-complaints.v1.yaml` | ECMP Pengaduan Internal API | 1.2.3 | 20 |
+| `internal-complaints.v1.yaml` | ECMP Pengaduan Internal API | 1.2.4 | 20 |
 | `queue-service.v1.yaml` | ECMP Queue Service API | 1.1.0 | 22 |
 
 ## `case-actions.v1.yaml`
@@ -280,7 +280,7 @@
 | — | `POST //api/v1/internal/complaints/{complaintId}/transfer` | Transfer Handling Unit (Owner unchanged) |
 | — | `POST //api/v1/internal/complaints/{complaintId}/transfer-request` | Agent-family — (re-)submit a transfer request (first submit, or after REJECTED) |
 | — | `POST //api/v1/internal/complaints/{complaintId}/transfer-request/decision` | Supervisor / Manager / Admin decides a PENDING transfer request |
-| — | `POST //api/v1/internal/complaints/{complaintId}/receive` | Optional claim (→ IN_PROGRESS) |
+| — | `POST //api/v1/internal/complaints/{complaintId}/receive` | Lab/API claim (→ IN_PROGRESS); not shown in Mode A UI |
 | — | `POST //api/v1/internal/complaints/{complaintId}/return-for-completion` | Pusat returns ticket to branch — documents incomplete (not WITHDRAWN) |
 | — | `POST //api/v1/internal/complaints/{complaintId}/resend-to-pusat` | Branch resends to Pusat after completing documents |
 | — | `POST //api/v1/internal/complaints/{complaintId}/withdraw` | Branch cancels before Pusat receives (→ WITHDRAWN, no Pusat notify) |

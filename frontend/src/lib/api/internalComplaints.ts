@@ -276,6 +276,7 @@ export function transferInternalComplaint(
   );
 }
 
+/** Lab/API only — Mode A Internal UI does not call this. */
 export function receiveInternalComplaint(
   id: string,
   body?: { note?: string | null },

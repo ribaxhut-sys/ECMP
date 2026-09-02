@@ -1,6 +1,6 @@
 import { isPusatUnitCode } from "@/shared/utils/pusatUnits";
 
-/** Tickets waiting for Terima at the current handling unit. */
+/** Incoming queue at the current handling unit (CREATED/ASSIGNED). */
 export const INTERNAL_INBOX_STATUSES = ["CREATED", "ASSIGNED"] as const;
 
 /** Sidebar work door — incoming queue at the caller's handling unit. */
