@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allowedInternalAcceptanceParties,
+  isBlockedBySelfApproval,
   mayRecordInternalAcceptance,
   visibleInternalAcceptanceActions,
 } from "./acceptanceGate";
@@ -12,7 +13,7 @@ const ticket = {
 };
 
 describe("mayRecordInternalAcceptance", () => {
-  it("allows agent only on own handling unit", () => {
+  it("does not let CRO close — Staff KaSatPel/KaSatPel must approve", () => {
     const base = {
       roles: ["AGENT"],
       actorUnitCode: "PUSAT",
@@ -21,16 +22,36 @@ describe("mayRecordInternalAcceptance", () => {
     };
     expect(
       mayRecordInternalAcceptance({ ...base, party: "HANDLING_UNIT" }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       mayRecordInternalAcceptance({ ...base, party: "OWNER" }),
     ).toBe(false);
-  });
-
-  it("lets a Pusat agent accept handling on a legacy CRO unit", () => {
     expect(
       mayRecordInternalAcceptance({
         roles: ["AGENT"],
+        actorUnitCode: "UPPPD-TANAH-ABANG",
+        actorUserId: "user-3101",
+        ...ticket,
+        party: "OWNER",
+      }),
+    ).toBe(false);
+    expect(
+      mayRecordInternalAcceptance({
+        roles: ["AGENT"],
+        actorUnitCode: "PUSAT",
+        actorUserId: "creator-agent",
+        ownerUnitId: "UPPPD-TANAH-ABANG",
+        handlingUnitId: "PUSAT",
+        creatorUserId: "creator-agent",
+        party: "HANDLING_UNIT",
+      }),
+    ).toBe(false);
+  });
+
+  it("lets Staff KaSatPel Pusat accept handling on a legacy CRO unit", () => {
+    expect(
+      mayRecordInternalAcceptance({
+        roles: ["SUPERVISOR"],
         actorUnitCode: "PUSAT",
         actorUserId: "user-31206",
         ownerUnitId: "UPPPD-TANAH-ABANG",
@@ -41,22 +62,19 @@ describe("mayRecordInternalAcceptance", () => {
     ).toBe(true);
   });
 
-  it("allows agent owner only when actor unit is owner", () => {
-    const base = {
-      roles: ["AGENT"],
-      actorUnitCode: "UPPPD-TANAH-ABANG",
-      actorUserId: "user-3101",
-      ...ticket,
-    };
-    expect(mayRecordInternalAcceptance({ ...base, party: "OWNER" })).toBe(
-      true,
-    );
+  it("lets Staff KaSatPel owner accept when actor unit is owner", () => {
     expect(
-      mayRecordInternalAcceptance({ ...base, party: "HANDLING_UNIT" }),
-    ).toBe(false);
+      mayRecordInternalAcceptance({
+        roles: ["SUPERVISOR"],
+        actorUnitCode: "UPPPD-TANAH-ABANG",
+        actorUserId: "user-3101",
+        ...ticket,
+        party: "OWNER",
+      }),
+    ).toBe(true);
   });
 
-  it("allows both parties when owner and handling are the same unit", () => {
+  it("does not let CRO close a local ticket they created", () => {
     expect(
       allowedInternalAcceptanceParties({
         roles: ["AGENT"],
@@ -64,9 +82,9 @@ describe("mayRecordInternalAcceptance", () => {
         actorUserId: "u1",
         ownerUnitId: "PUSAT",
         handlingUnitId: "PUSAT",
-        creatorUserId: "other",
+        creatorUserId: "u1",
       }),
-    ).toEqual(["HANDLING_UNIT", "OWNER"]);
+    ).toEqual([]);
   });
 
   it("allows admin any party without a branch", () => {
@@ -102,18 +120,18 @@ describe("mayRecordInternalAcceptance", () => {
     ).toEqual([]);
   });
 
-  it("allows agent to accept own-unit even if they created it", () => {
+  it("blocks CRO from accepting even if they created it", () => {
     expect(
       mayRecordInternalAcceptance({
         roles: ["AGENT"],
-        actorUnitCode: "PUSAT",
+        actorUnitCode: "UPPPD-TANAH-ABANG",
         actorUserId: "creator-agent",
         ownerUnitId: "UPPPD-TANAH-ABANG",
         handlingUnitId: "PUSAT",
         creatorUserId: "creator-agent",
-        party: "HANDLING_UNIT",
+        party: "OWNER",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 
@@ -121,7 +139,7 @@ describe("visibleInternalAcceptanceActions", () => {
   const actor = {
     hasUpdatePermission: true,
     actorUnitReady: true,
-    roles: ["AGENT"],
+    roles: ["SUPERVISOR"],
     actorUnitCode: "PUSAT",
     actorUserId: "user-31206",
     ...ticket,
@@ -130,7 +148,7 @@ describe("visibleInternalAcceptanceActions", () => {
     ownerAcceptance: null as string | null,
   };
 
-  it("shows only handling accept for Pusat agent before they accept", () => {
+  it("shows only handling accept for Pusat Staff KaSatPel before they accept", () => {
     expect(visibleInternalAcceptanceActions(actor)).toEqual({
       acceptHandling: true,
       acceptOwner: false,
@@ -149,6 +167,20 @@ describe("visibleInternalAcceptanceActions", () => {
       acceptHandling: false,
       acceptOwner: false,
       rejectParties: ["HANDLING_UNIT"],
+      gate: "transferred",
+    });
+  });
+
+  it("hides close actions for CRO Pusat", () => {
+    expect(
+      visibleInternalAcceptanceActions({
+        ...actor,
+        roles: ["AGENT"],
+      }),
+    ).toEqual({
+      acceptHandling: false,
+      acceptOwner: false,
+      rejectParties: [],
       gate: "transferred",
     });
   });
@@ -208,5 +240,57 @@ describe("visibleInternalAcceptanceActions", () => {
       rejectParties: [],
       gate: "local",
     });
+  });
+
+  it("local gate: Staff KaSatPel who created the ticket may close it", () => {
+    expect(
+      visibleInternalAcceptanceActions({
+        hasUpdatePermission: true,
+        actorUnitReady: true,
+        roles: ["SUPERVISOR"],
+        actorUnitCode: "UPPPD-TANAH-ABANG",
+        actorUserId: "sv-creator",
+        ownerUnitId: "UPPPD-TANAH-ABANG",
+        handlingUnitId: "UPPPD-TANAH-ABANG",
+        creatorUserId: "sv-creator",
+        status: "RESOLVED",
+        handlingUnitAcceptance: "ACCEPT",
+        ownerAcceptance: null,
+      }),
+    ).toEqual({
+      acceptHandling: false,
+      acceptOwner: true,
+      rejectParties: ["OWNER"],
+      gate: "local",
+    });
+  });
+});
+
+describe("isBlockedBySelfApproval", () => {
+  const base = {
+    status: "RESOLVED",
+    hasUpdatePermission: true,
+    actorUnitReady: true,
+    actorUserId: "creator-1",
+    creatorUserId: "creator-1",
+    actorUnitCode: "UPPPD-TANAH-ABANG",
+    ownerUnitId: "UPPPD-TANAH-ABANG",
+  };
+
+  it("does not block Staff KaSatPel or KaSatPel on their own owner unit", () => {
+    expect(isBlockedBySelfApproval({ ...base, roles: ["SUPERVISOR"] })).toBe(
+      false,
+    );
+    expect(isBlockedBySelfApproval({ ...base, roles: ["MANAGER"] })).toBe(
+      false,
+    );
+  });
+
+  it("blocks Admin creators", () => {
+    expect(isBlockedBySelfApproval({ ...base, roles: ["ADMIN"] })).toBe(true);
+  });
+
+  it("blocks CRO creators — they need Staff KaSatPel/KaSatPel to close", () => {
+    expect(isBlockedBySelfApproval({ ...base, roles: ["AGENT"] })).toBe(true);
   });
 });

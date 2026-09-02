@@ -32,6 +32,13 @@ describe("completionGate", () => {
         roles: ["AGENT"],
       }),
     ).toBe(true);
+    expect(
+      mayReturnForCompletion({
+        ...base,
+        status: "IN_PROGRESS",
+        withdrawRequestStatus: "PENDING",
+      }),
+    ).toBe(false);
   });
 
   it("hides return once already awaiting completion", () => {

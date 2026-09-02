@@ -244,7 +244,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 | API-539 | API-CM-B2-011 | GET /api/v1/cm/cases/{caseId}/export | FR-003 companion — internal Case snapshot PDF (not customer-safe; not reporting) | 🟢 Implemented (lab) |
 
-### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.4** — ECMP-MODEA-INT-001
+### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.5** — ECMP-MODEA-INT-001
 
 > Domain Pengaduan Internal (`/api/v1/internal/complaints`). **Bukan** Dual-SoT WP / Case Aggregate. Satu tiket = satu aggregate.
 

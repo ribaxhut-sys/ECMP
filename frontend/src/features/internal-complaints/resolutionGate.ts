@@ -4,6 +4,7 @@ import {
   actorMatchesInternalHandlingUnit,
   isAdminFamily,
 } from "./transferDirection";
+import { isPendingWithdrawRequest } from "./withdrawGate";
 
 function unitsEqual(
   left: string | null | undefined,
@@ -36,8 +37,10 @@ export function mayProposeResolution(input: {
   hasUpdatePermission: boolean;
   roles: readonly string[];
   completionRequestStatus?: string | null;
+  withdrawRequestStatus?: string | null;
 }): boolean {
   if (!input.hasUpdatePermission) return false;
+  if (isPendingWithdrawRequest(input.withdrawRequestStatus)) return false;
   if ((input.completionRequestStatus || "").trim().toUpperCase() === "PENDING") {
     return false;
   }
@@ -65,8 +68,10 @@ export function mayDecideResolutionProposal(input: {
   actorUserId: string;
   proposedBy: string | null | undefined;
   resolutionStatus: string | null | undefined;
+  withdrawRequestStatus?: string | null;
 }): boolean {
   if (!input.hasUpdatePermission) return false;
+  if (isPendingWithdrawRequest(input.withdrawRequestStatus)) return false;
   if (input.status !== "IN_PROGRESS") return false;
   if (!isPendingResolutionProposal(input.resolutionStatus)) return false;
   if (idsEqual(input.actorUserId, input.proposedBy)) return false;
@@ -83,8 +88,10 @@ export function isWaitingOnResolutionProposal(input: {
   actorUserId: string;
   proposedBy: string | null | undefined;
   resolutionStatus: string | null | undefined;
+  withdrawRequestStatus?: string | null;
 }): boolean {
   if (!input.hasUpdatePermission) return false;
+  if (isPendingWithdrawRequest(input.withdrawRequestStatus)) return false;
   if (input.status !== "IN_PROGRESS") return false;
   if (!isPendingResolutionProposal(input.resolutionStatus)) return false;
   if (idsEqual(input.actorUserId, input.proposedBy)) return true;
@@ -107,6 +114,7 @@ export function visibleInternalResolutionActions(input: {
   proposedBy: string | null | undefined;
   resolutionStatus: string | null | undefined;
   completionRequestStatus?: string | null;
+  withdrawRequestStatus?: string | null;
 }): {
   showToolbar: boolean;
   mayPropose: boolean;

@@ -788,6 +788,46 @@ def test_agent_may_final_acceptance_on_own_unit():
     )
 
 
+def test_internal_cro_cannot_record_close_gate():
+    """Internal: CRO Cabang/Pusat need Staff KaSatPel/KaSatPel to close."""
+    cabang = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
+    with pytest.raises(PermissionDeniedError):
+        assert_case_acceptance_authorized(
+            cabang,
+            party="OWNER",
+            owner_unit_id="UPPPD-GAMBIR",
+            handling_unit_id="PUSAT",
+            actor_unit_id="UPPPD-GAMBIR",
+            complaint_creator_id="someone-else",
+            agent_may_accept=False,
+        )
+    creator_id = uuid.uuid4()
+    creator = _principal(
+        user_id=creator_id, roles=("AGENT",), org_unit_id="UPPPD-GAMBIR"
+    )
+    with pytest.raises(PermissionDeniedError):
+        assert_case_acceptance_authorized(
+            creator,
+            party="OWNER",
+            owner_unit_id="UPPPD-GAMBIR",
+            handling_unit_id="PUSAT",
+            actor_unit_id="UPPPD-GAMBIR",
+            complaint_creator_id=str(creator_id),
+            agent_may_accept=False,
+        )
+    pusat = _principal(roles=("AGENT",), org_unit_id="PUSAT")
+    with pytest.raises(PermissionDeniedError):
+        assert_case_acceptance_authorized(
+            pusat,
+            party="HANDLING_UNIT",
+            owner_unit_id="UPPPD-GAMBIR",
+            handling_unit_id="PUSAT",
+            actor_unit_id="PUSAT",
+            complaint_creator_id="someone-else",
+            agent_may_accept=False,
+        )
+
+
 def test_agent_cannot_final_acceptance_cross_unit():
     agent = _principal(roles=("AGENT",), org_unit_id="UPPPD-GAMBIR")
     with pytest.raises(PermissionDeniedError):
@@ -2010,6 +2050,56 @@ def test_request_withdraw_approve_and_reject(
     assert dto.withdraw_request_status == "APPROVED"
 
 
+def test_pending_withdraw_blocks_return_and_propose(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="PUSAT",
+            actor_id="sv-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            reason="to pusat",
+        )
+    )
+    service.start_handling(
+        StartHandlingCommand(
+            complaint_id=cid, actor_id="pusat-sv", actor_unit_id="PUSAT"
+        )
+    )
+    service.request_withdraw(
+        RequestWithdrawCommand(
+            complaint_id=cid,
+            actor_id="creator-1",
+            reason="Sudah selesai di cabang",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    with pytest.raises(ApiError) as blocked_return:
+        service.return_for_completion(
+            ReturnForCompletionCommand(
+                complaint_id=cid,
+                actor_id="pusat-sv",
+                actor_unit_id="PUSAT",
+                reason="Scan tidak terbaca",
+            )
+        )
+    assert blocked_return.value.code == "WITHDRAW_REQUEST_PENDING"
+    with pytest.raises(ApiError) as blocked_propose:
+        service.resolve(
+            ResolveCommand(
+                complaint_id=cid,
+                action="PROPOSE",
+                comment="Selesai ditangani",
+                summary="Selesai ditangani",
+                actor_id="pusat-sv",
+                actor_unit_id="PUSAT",
+            )
+        )
+    assert blocked_propose.value.code == "WITHDRAW_REQUEST_PENDING"
+
+
 def test_http_branch_withdraw_before_receive(
     db_session: Session, service: InternalComplaintApplicationService
 ):
@@ -2121,6 +2211,87 @@ def test_http_withdraw_request_then_pusat_decides(
         )
         assert decided.status_code == 200, decided.text
         assert decided.json()["data"]["status"] == "WITHDRAWN"
+
+
+def test_http_pusat_agent_decides_withdraw(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    pusat_agent = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="PUSAT",
+        permissions=agent_perms,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Minta batal agent Pusat",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, pusat_agent) as client:
+        receive = client.post(
+            f"/api/v1/internal/complaints/{cid}/receive", json={}
+        )
+        assert receive.status_code == 200, receive.text
+
+    with _app_client(db_session, service, cabang) as client:
+        requested = client.post(
+            f"/api/v1/internal/complaints/{cid}/withdraw-request",
+            json={"reason": "Sudah selesai di cabang"},
+        )
+        assert requested.status_code == 200, requested.text
+
+    with _app_client(db_session, service, pusat_agent) as client:
+        decided = client.post(
+            f"/api/v1/internal/complaints/{cid}/withdraw-request/decision",
+            json={"decision": "APPROVE"},
+        )
+        assert decided.status_code == 200, decided.text
+        assert decided.json()["data"]["status"] == "WITHDRAWN"
+
+
+def test_http_cro_cannot_close_own_internal_complaint(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    agent_perms = frozenset(p for p in _PERMS if p != "complaints:assign")
+    creator_id = uuid.uuid4()
+    cabang = Principal(
+        user_id=creator_id,
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=agent_perms,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "CRO tidak tutup sendiri",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        assert created.status_code == 201, created.text
+        cid = created.json()["data"]["complaintId"]
+
+    _to_resolved(service, cid, actor_id="pusat-sv", unit="PUSAT")
+    with _app_client(db_session, service, cabang) as client:
+        denied = client.post(
+            f"/api/v1/internal/complaints/{cid}/acceptance",
+            json={"party": "OWNER", "decision": "ACCEPT"},
+        )
+        assert denied.status_code == 403, denied.text
 
 
 def test_return_for_completion_before_and_after_receive(

@@ -100,11 +100,17 @@ export function mayRequestWithdraw(input: {
   hasAssignPermission: boolean;
 }): boolean {
   if (input.status !== "IN_PROGRESS") return false;
-  if (input.withdrawRequestStatus === "PENDING") return false;
+  if (isPendingWithdrawRequest(input.withdrawRequestStatus)) return false;
   if (isPusatUnitCode(input.ownerUnitId) || !isPusatUnitCode(input.handlingUnitId)) {
     return false;
   }
   return mayOwnerWithdraw(input);
+}
+
+export function isPendingWithdrawRequest(
+  status: string | null | undefined,
+): boolean {
+  return (status || "").trim().toUpperCase() === "PENDING";
 }
 
 export function mayDecideWithdraw(input: {
@@ -112,15 +118,12 @@ export function mayDecideWithdraw(input: {
   roles: readonly string[];
   actorUnitCode: string | null;
   handlingUnitId: string;
-  hasAssignPermission: boolean;
-  hasEscalateDecidePermission: boolean;
+  hasUpdatePermission: boolean;
 }): boolean {
-  if (input.withdrawRequestStatus !== "PENDING") return false;
+  if (!input.hasUpdatePermission) return false;
+  if (!isPendingWithdrawRequest(input.withdrawRequestStatus)) return false;
   const roles = roleSet(input.roles);
   if (hasAny(roles, ADMIN_ROLES)) return true;
-  const canDecide =
-    input.hasAssignPermission || input.hasEscalateDecidePermission;
-  if (!canDecide) return false;
   return actorMatchesInternalHandlingUnit(
     input.actorUnitCode,
     input.handlingUnitId,

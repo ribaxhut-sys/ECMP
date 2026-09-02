@@ -133,4 +133,27 @@ describe("resolutionGate", () => {
     expect(actions.waiting).toBe(true);
     expect(actions.showToolbar).toBe(true);
   });
+
+  it("hides propose and review while a withdraw request is pending", () => {
+    expect(
+      mayProposeResolution({
+        ...transferred,
+        actorUnitCode: "PUSAT",
+        roles: ["AGENT"],
+        withdrawRequestStatus: "PENDING",
+      }),
+    ).toBe(false);
+    const actions = visibleInternalResolutionActions({
+      ...transferred,
+      actorUnitCode: "PUSAT",
+      actorUserId: "handler-1",
+      proposedBy: "handler-1",
+      resolutionStatus: "PENDING_APPROVAL",
+      roles: ["AGENT"],
+      withdrawRequestStatus: "PENDING",
+    });
+    expect(actions.showToolbar).toBe(false);
+    expect(actions.mayPropose).toBe(false);
+    expect(actions.waiting).toBe(false);
+  });
 });

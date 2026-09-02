@@ -976,14 +976,13 @@ def decide_internal_withdraw_request(
         session=session,
         settings=settings,
     )
-    can_decide = (
-        _actor_is_admin(principal)
-        or principal.has_permission("complaints:assign")
-        or principal.has_permission("internal:escalate-decide")
+    can_decide = _actor_matches_handling(
+        _actor_unit(principal, session),
+        current.handling_unit_id,
+        principal,
     )
     if not can_decide:
         raise PermissionDeniedError(m("internal.withdraw_decide_denied"))
-    _enforce_internal_org_scope(principal, current.handling_unit_id, settings)
     dto = service.decide_withdraw_request(
         DecideWithdrawRequestCommand(
             complaint_id=complaint_id,
@@ -1116,6 +1115,7 @@ def record_internal_acceptance(
         handling_unit_id=current.handling_unit_id,
         actor_unit_id=actor_unit,
         complaint_creator_id=current.created_by,
+        agent_may_accept=False,
     )
     dto = service.record_acceptance(
         RecordAcceptanceCommand(

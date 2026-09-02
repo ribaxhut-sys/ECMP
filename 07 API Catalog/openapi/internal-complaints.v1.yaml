@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.2.4
+  version: 1.2.5
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -12,16 +12,19 @@ info:
     `PUSAT-CRO` (itu pintu jadwal kedatangan WP). Semua login Pusat (unit
     keluarga Pusat atau Admin) boleh `/receive` (lab/tes; **UI Internal tidak
     menampilkan tombol klaim**). Langkah kerja antrian Pusat: kembalikan ke
-    cabang atau usulkan penyelesaian (usulan mengklaim otomatis).
-    Agent Pusat yang memilih cabang tetap memakai permintaan (`requestReason`
-    wajib), diputus oleh Supervisor/Manager/Admin via `/transfer-request/decision`.
+    cabang atau usulkan penyelesaian (usulan mengklaim otomatis) — **kecuali**
+    ada permintaan batal PENDING: kerja dibekukan; semua login Pusat
+    (CRO / Staff KaSatPel / KaSatPel / Admin) memutus via
+    `/withdraw-request/decision`. Agent Pusat yang memilih cabang tetap memakai
+    permintaan (`requestReason` wajib), diputus oleh Supervisor/Manager/Admin
+    via `/transfer-request/decision`.
     Cabang boleh membatalkan selama tiket masih antrian (`WITHDRAWN`, tanpa
     notifikasi ke Pusat — tiket itu tidak tampil di daftar/GET Pusat kecuali
     Pusat sudah pernah menangani); setelah usulan (`IN_PROGRESS`), cabang mengajukan pembatalan dan
     Pusat memutus via `/withdraw-request/decision`. Pusat boleh mengembalikan
     ke cabang jika berkas kurang (`/return-for-completion`, alasan wajib) —
     dari antrian tanpa klaim; cabang mengirim ulang via `/resend-to-pusat`.
-    Bukan Tolak/`WITHDRAWN`. Lampiran memakai mesin
+    Diblokir saat withdraw request PENDING. Bukan Tolak/`WITHDRAWN`. Lampiran memakai mesin
     bersama CAPABILITY-011 (`POST/GET /api/v1/attachments`) dengan
     `aggregateType=InternalComplaint` — bukan staging Batch-1 / FR-004.
     Tipe yang diizinkan untuk Internal: gambar (JPEG/PNG/GIF/WebP) dan ZIP
@@ -366,7 +369,7 @@ paths:
     post:
       operationId: requestInternalWithdraw
       tags: [Internal-Complaints]
-      summary: After Pusat received — branch asks Pusat to withdraw (stays IN_PROGRESS)
+      summary: After Pusat received — branch asks Pusat to withdraw (work at HQ frozen)
       parameters:
         - name: complaintId
           in: path
@@ -385,7 +388,7 @@ paths:
     post:
       operationId: decideInternalWithdrawRequest
       tags: [Internal-Complaints]
-      summary: Pusat Supervisor / Manager / Admin decides a PENDING withdraw request
+      summary: Any Pusat login (CRO / Staff KaSatPel / KaSatPel / Admin) decides a PENDING withdraw request
       parameters:
         - name: complaintId
           in: path

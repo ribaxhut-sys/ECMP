@@ -135,8 +135,34 @@ describe("withdrawGate", () => {
         roles: ["SUPERVISOR"],
         actorUnitCode: "PUSAT",
         handlingUnitId: "PUSAT",
-        hasAssignPermission: true,
-        hasEscalateDecidePermission: false,
+        hasUpdatePermission: true,
+      }),
+    ).toBe(true);
+    expect(
+      mayDecideWithdraw({
+        withdrawRequestStatus: "PENDING",
+        roles: ["AGENT"],
+        actorUnitCode: "PUSAT",
+        handlingUnitId: "PUSAT",
+        hasUpdatePermission: true,
+      }),
+    ).toBe(true);
+    expect(
+      mayDecideWithdraw({
+        withdrawRequestStatus: "PENDING",
+        roles: ["AGENT"],
+        actorUnitCode: "PUSAT",
+        handlingUnitId: "PUSAT-CRO",
+        hasUpdatePermission: true,
+      }),
+    ).toBe(true);
+    expect(
+      mayDecideWithdraw({
+        withdrawRequestStatus: "PENDING",
+        roles: ["ADMIN"],
+        actorUnitCode: null,
+        handlingUnitId: "PUSAT",
+        hasUpdatePermission: true,
       }),
     ).toBe(true);
     expect(
@@ -145,19 +171,17 @@ describe("withdrawGate", () => {
         roles: ["SUPERVISOR"],
         actorUnitCode: "UPPPD-GAMBIR",
         handlingUnitId: "PUSAT",
-        hasAssignPermission: true,
-        hasEscalateDecidePermission: false,
+        hasUpdatePermission: true,
       }),
     ).toBe(false);
     expect(
       mayDecideWithdraw({
         withdrawRequestStatus: "PENDING",
-        roles: ["SUPERVISOR"],
+        roles: ["AGENT"],
         actorUnitCode: "PUSAT",
-        handlingUnitId: "PUSAT-CRO",
-        hasAssignPermission: true,
-        hasEscalateDecidePermission: false,
+        handlingUnitId: "PUSAT",
+        hasUpdatePermission: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

@@ -14,6 +14,10 @@ and Supervisor/Manager acting on their own unit may accept/close a case they
 authored themselves — a second Supervisor/Manager is not required in that
 case. Admin creators remain blocked unconditionally (Admin has no home-unit
 scoping to anchor the exemption to).
+
+Internal Complaints pass ``agent_may_accept=False``: CRO (Cabang or Pusat)
+never records the close gate. Staff KaSatPel/KaSatPel close, including a
+ticket they authored on their own unit.
 """
 
 from __future__ import annotations
@@ -66,17 +70,22 @@ def assert_case_acceptance_authorized(
     handling_unit_id: str | None,
     actor_unit_id: str | None,
     complaint_creator_id: str | None,
+    agent_may_accept: bool = True,
 ) -> None:
-    """Authorize F4 Handling Unit / Owner acceptance for the acting principal.
+    """Authorize Handling Unit / Owner acceptance for the acting principal.
+
+    F4 (default ``agent_may_accept=True``): Agent may ACCEPT on own unit,
+    including a case they authored. Internal Complaints pass
+    ``agent_may_accept=False``: CRO never records the close gate — Staff
+    KaSatPel / KaSatPel of the unit must approve.
 
     Checks (all required):
-    - role is Agent (own-unit only) or Supervisor / Manager / Admin;
+    - role is Agent (own-unit only, F4) or Supervisor / Manager / Admin;
     - actor unit matches the party unit (Owner → owner_unit_id,
       HANDLING_UNIT → current handling / owning_unit_id), unless Admin;
-    - creator SoD: complaint creator cannot be the sole approver, unless
-      acting on their own unit (Agent Mode A Tutup, or Supervisor/Manager
-      closing a case they authored within their own unit — 2026-08-19).
-      Admin creators are always blocked (no home-unit anchor).
+    - creator SoD: Admin creators always blocked. Staff KaSatPel/KaSatPel
+      may close a ticket they authored on their own unit. CRO creators are
+      blocked when ``agent_may_accept`` is false.
     """
     party_key = (party or "").strip().upper()
     if party_key not in {"OWNER", "HANDLING_UNIT"}:
@@ -86,6 +95,8 @@ def assert_case_acceptance_authorized(
     is_approver = principal_may_give_case_acceptance(principal)
     if not is_agent and not is_approver:
         raise PermissionDeniedError(m("case.acceptance_role_denied"))
+    if is_agent and not agent_may_accept:
+        raise PermissionDeniedError(m("internal.acceptance_cro_needs_approver"))
 
     is_unit_approver = principal.has_any_role(*_UNIT_APPROVER_ROLES)
     is_creator = _ids_equal(str(principal.user_id), complaint_creator_id)
@@ -99,7 +110,9 @@ def assert_case_acceptance_authorized(
         mismatch_message = "case.acceptance_handling_unit_mismatch"
     own_unit = bool(required) and actor_unit == required
 
-    if is_creator and not (is_agent or (is_unit_approver and own_unit)):
+    if is_creator and not (
+        (is_agent and agent_may_accept) or (is_unit_approver and own_unit)
+    ):
         raise PermissionDeniedError(m("case.acceptance_creator_conflict"))
 
     if principal.has_any_role(*_ADMIN_ROLES):

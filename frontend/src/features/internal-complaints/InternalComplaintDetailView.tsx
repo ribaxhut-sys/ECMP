@@ -58,6 +58,7 @@ import {
   canRequestTransfer,
   canTransfer,
   hasPendingTransferRequest,
+  hasPendingWithdrawRequest,
   sortInternalHistoryNewestFirst,
 } from "./types";
 import {
@@ -359,6 +360,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   const awaitingCompletion = isAwaitingCompletion(
     complaint.completionRequestStatus,
   );
+  const pendingWithdraw = hasPendingWithdrawRequest(complaint);
   const showReturn = mayReturnForCompletion({
     status: complaint.status,
     actorUnitCode: actorUnitCode ?? null,
@@ -366,6 +368,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     handlingUnitId: complaint.handlingUnitId,
     hasUpdatePermission: canUpdate,
     completionRequestStatus: complaint.completionRequestStatus,
+    withdrawRequestStatus: complaint.withdrawRequestStatus,
     roles,
   });
   const showResend = mayResendToPusat({
@@ -394,14 +397,14 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     roles,
     actorUnitCode: actorUnitCode ?? null,
     handlingUnitId: complaint.handlingUnitId,
-    hasAssignPermission: canAssign,
-    hasEscalateDecidePermission: canDecideTransferRequest,
+    hasUpdatePermission: canUpdate,
   });
   const showTransfer =
     canTransfer(complaint.status) &&
     canAssign &&
     unitOptions.length > 0 &&
-    !awaitingCompletion;
+    !awaitingCompletion &&
+    !pendingWithdraw;
   const resolutionActions = visibleInternalResolutionActions({
     status: complaint.status,
     actorUnitCode: actorUnitCode ?? null,
@@ -413,6 +416,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     proposedBy: complaint.resolutionProposedBy,
     resolutionStatus: complaint.resolutionStatus,
     completionRequestStatus: complaint.completionRequestStatus,
+    withdrawRequestStatus: complaint.withdrawRequestStatus,
   });
   const showResolve = resolutionActions.showToolbar;
   const acceptanceActions = visibleInternalAcceptanceActions({
@@ -446,6 +450,8 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       roles,
       actorUserId: userId ?? "",
       creatorUserId: complaint.createdBy,
+      actorUnitCode: actorUnitCode ?? null,
+      ownerUnitId: complaint.ownerUnitId,
     });
   // Agent-family: request instead of direct transfer, and may re-apply after reject.
   const showRequestTransfer =
@@ -699,6 +705,9 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       ) : null}
       {showDecideWithdraw ? (
         <Alert tone="warning" title={t("pendingWithdrawRequestHint")} />
+      ) : null}
+      {pendingWithdraw && !showDecideWithdraw ? (
+        <Alert tone="info" title={t("pendingWithdrawRequestWaitingHint")} />
       ) : null}
       {showRequestWithdraw && complaint.withdrawRequestStatus === "REJECTED" ? (
         <Alert tone="info" title={t("requestWithdrawHint")} />

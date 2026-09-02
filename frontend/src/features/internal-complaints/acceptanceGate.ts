@@ -1,12 +1,12 @@
 /**
  * Internal-complaint dual-acceptance UI gate (ECMP-MODEA-INT-001).
- * Mirrors backend `assert_case_acceptance_authorized` (Mode A):
- * Agent may accept only on own unit; Supervisor/Manager on matching unit;
- * Admin any party; creator SoD unless acting on own unit (Agent, or
- * Supervisor/Manager — 2026-08-19). Admin creators stay blocked.
+ * Close gate is Staff KaSatPel / KaSatPel / Admin — not CRO.
+ * Staff KaSatPel/KaSatPel may close a ticket they authored on their own unit.
+ * CRO (Cabang or Pusat) never records closure; they need Staff KaSatPel/KaSatPel.
+ * Admin creators stay blocked.
  *
- * Local (owner = handling): remaining close gate is Supervisor of the owner
- * unit. Handling is already stamped on resolve ACCEPT.
+ * Local (owner = handling): remaining close gate is Staff KaSatPel/KaSatPel of
+ * the owner unit. Handling is already stamped on resolve ACCEPT.
  */
 
 import type { InternalAcceptanceParty } from "./types";
@@ -70,7 +70,8 @@ export function mayRecordInternalAcceptance(input: {
   const roles = roleSet(input.roles);
   const isApprover = hasAny(roles, APPROVER_ROLES);
   const isAgent = !isApprover && hasAny(roles, AGENT_ROLES);
-  if (!isAgent && !isApprover) return false;
+  if (isAgent) return false;
+  if (!isApprover) return false;
 
   const isUnitApprover = hasAny(roles, UNIT_APPROVER_ROLES);
   const isCreator = idsEqual(input.actorUserId, input.creatorUserId);
@@ -85,7 +86,7 @@ export function mayRecordInternalAcceptance(input: {
       ? isPusatUnitCode(actorUnit)
       : Boolean(required) && actorUnit === required;
 
-  if (isCreator && !(isAgent || (isUnitApprover && ownUnit))) {
+  if (isCreator && !(isUnitApprover && ownUnit)) {
     return false;
   }
   if (hasAny(roles, ADMIN_ROLES)) return true;
@@ -106,6 +107,8 @@ export function isBlockedBySelfApproval(input: {
   roles: readonly string[];
   actorUserId: string;
   creatorUserId: string | null;
+  actorUnitCode: string | null;
+  ownerUnitId: string;
 }): boolean {
   if (
     !input.hasUpdatePermission ||
@@ -114,10 +117,20 @@ export function isBlockedBySelfApproval(input: {
   ) {
     return false;
   }
+  if (!idsEqual(input.actorUserId, input.creatorUserId)) return false;
   const roles = roleSet(input.roles);
+  if (hasAny(roles, ADMIN_ROLES)) return true;
   const isApprover = hasAny(roles, APPROVER_ROLES);
-  if (!isApprover) return false;
-  return idsEqual(input.actorUserId, input.creatorUserId);
+  const isAgent = !isApprover && hasAny(roles, AGENT_ROLES);
+  if (isAgent) return true;
+  if (!hasAny(roles, UNIT_APPROVER_ROLES)) return false;
+  const actorUnit = normalizeAcceptanceUnit(input.actorUnitCode);
+  const owner = normalizeAcceptanceUnit(input.ownerUnitId);
+  const ownOwnerUnit =
+    Boolean(owner) &&
+    (actorUnit === owner ||
+      (isPusatUnitCode(owner) && isPusatUnitCode(actorUnit)));
+  return !ownOwnerUnit;
 }
 
 export function allowedInternalAcceptanceParties(input: {

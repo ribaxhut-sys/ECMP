@@ -353,6 +353,7 @@ class InternalComplaintAggregate:
                 actor_is_admin=actor_is_admin,
                 destination_unit_id=target,
             )
+        self._assert_no_pending_withdraw_request()
         self.handling_unit_id = target
         self.status = InternalStatus.ASSIGNED
         if is_pusat_unit(target):
@@ -554,16 +555,12 @@ class InternalComplaintAggregate:
                 target_unit_id=self.handling_unit_id,
             )
 
-    def _clear_pending_withdraw_request(self) -> None:
-        if self.withdraw_request_status != WithdrawRequestStatus.PENDING:
-            return
-        self.withdraw_request_status = None
-        self.withdraw_request_reason = None
-        self.withdraw_requested_by = None
-        self.withdraw_requested_at = None
-        self.withdraw_decided_by = None
-        self.withdraw_decided_at = None
-        self.withdraw_decision_reason = None
+    def _assert_no_pending_withdraw_request(self) -> None:
+        if self.withdraw_request_status == WithdrawRequestStatus.PENDING:
+            raise err.conflict(
+                "WITHDRAW_REQUEST_PENDING",
+                "A withdraw request is already pending decision.",
+            )
 
     def return_for_completion(
         self,
@@ -592,6 +589,7 @@ class InternalComplaintAggregate:
                 "COMPLETION_REQUEST_PENDING",
                 "Documents were already requested from the branch.",
             )
+        self._assert_no_pending_withdraw_request()
         reason_text = (reason or "").strip()
         if not reason_text:
             raise err.validation(
@@ -600,7 +598,6 @@ class InternalComplaintAggregate:
             )
         now = _utcnow()
         source = self.handling_unit_id
-        self._clear_pending_withdraw_request()
         self.handling_unit_id = self.owner_unit_id
         self.status = InternalStatus.ASSIGNED
         self.completion_request_status = CompletionRequestStatus.PENDING
@@ -918,6 +915,7 @@ class InternalComplaintAggregate:
         actor_unit_id: str | None = None,
         actor_is_admin: bool = False,
     ) -> None:
+        self._assert_no_pending_withdraw_request()
         comment_text = (comment or "").strip()
         now = _utcnow()
         if action == ResolveAction.PROPOSE:

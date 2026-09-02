@@ -192,6 +192,10 @@ MESSAGES: dict[str, str] = {
         "Pembuat pengaduan tidak boleh menjadi satu-satunya pemberi persetujuan "
         "untuk pengaduan yang sama (pemisahan tugas)."
     ),
+    "internal.acceptance_cro_needs_approver": (
+        "CRO tidak dapat menutup pengaduan. Minta Staff KaSatPel atau KaSatPel "
+        "di unit pemilik."
+    ),
     "case.acceptance_party_invalid": "Pihak persetujuan Case tidak valid.",
     "case.resolve_accept_role_denied": (
         "Peran Anda tidak boleh menyelesaikan penerimaan Case di unit ini. "
