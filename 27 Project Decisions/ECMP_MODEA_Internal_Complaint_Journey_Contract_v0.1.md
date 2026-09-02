@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | ECMP-MODEA-INT-001 |
-| Version | 0.7 |
+| Version | 0.8 |
 | Owner | Product Owner / Domain PO |
 | Reviewer | Solution Architect |
 | Approver | Business Owner (Mode A lab) |
-| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19); v0.5 snapshot PDF (2026-09-02); v0.6 handling kanonik PUSAT (2026-09-02); v0.7 klaim otomatis usulan (2026-09-02) |
+| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19); v0.5 snapshot PDF (2026-09-02); v0.6 handling kanonik PUSAT (2026-09-02); v0.7 klaim otomatis usulan (2026-09-02); v0.8 urutan riwayat klaim+usulan (2026-09-02) |
 | Date | 2026-09-02 |
 | Type | Mode A lab contract (non-ADR, non-DEC) |
 | Related | DEC-025 §14.1 D (`/internal/*` bukan Dual-SoT WP); OpenAPI `internal-complaints.v1.yaml` |
@@ -109,3 +109,4 @@ Menyalin alur WP (Case, intake HQ, BQ-007). Izin `internal:*` penuh. Laporan/KPI
 - Lampiran Internal: CAP-011 `aggregateType=InternalComplaint` (bukan `cm_batch1_attachments`). Gambar + ZIP; ZIP tidak diekstrak.
 - v0.6: tujuan handling Pusat selalu `PUSAT` (bukan `PUSAT-CRO`). **Login Pusat** (termasuk Admin lab tanpa cabang) boleh Terima antrian Pusat. Jadwal kedatangan WP tetap CRO.
 - v0.7: **Ambil tiket** opsional (kunci batal sepihak). **Kembalikan ke cabang** dan **Usulkan penyelesaian** dari antrian tanpa klik Ambil tiket; usulan mengklaim otomatis.
+- v0.8: usulan dari antrian menulis riwayat **RECEIVED → RESOLUTION** (tanpa REVIEW di tengah); `occurred_at` monotonik. UI detail tetap terbaru di atas.

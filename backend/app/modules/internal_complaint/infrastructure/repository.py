@@ -155,7 +155,10 @@ class SqlAlchemyInternalComplaintRepository:
             self._session.scalars(
                 select(InternalComplaintEventORM)
                 .where(InternalComplaintEventORM.complaint_id == row.id)
-                .order_by(InternalComplaintEventORM.occurred_at.asc())
+                .order_by(
+                    InternalComplaintEventORM.occurred_at.asc(),
+                    InternalComplaintEventORM.created_at.asc(),
+                )
             )
         )
         return mappers.complaint_from_orm(row, resolutions, acceptances, events)

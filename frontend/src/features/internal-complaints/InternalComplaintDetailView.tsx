@@ -59,6 +59,7 @@ import {
   canRequestTransfer,
   canTransfer,
   hasPendingTransferRequest,
+  sortInternalHistoryNewestFirst,
 } from "./types";
 import {
   InternalCategoryBadge,
@@ -189,10 +190,8 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
 
   const activityItems: TimelineItem[] = useMemo(() => {
     const unknown = t("unknownUser");
-    return (complaint?.history ?? [])
-      .slice()
-      .reverse()
-      .map((event) => {
+    return sortInternalHistoryNewestFirst(complaint?.history ?? []).map(
+      (event) => {
         const actorName = displayPersonName(
           event.actorName,
           event.actorId,
@@ -228,9 +227,9 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
   }, [complaint, t, locale]);
 
   const latestResendNote = useMemo(() => {
-    const events = complaint?.history ?? [];
-    for (let i = events.length - 1; i >= 0; i -= 1) {
-      const event = events[i];
+    for (const event of sortInternalHistoryNewestFirst(
+      complaint?.history ?? [],
+    )) {
       if (event.eventType === "RESENT_TO_PUSAT" && event.note) {
         return event.note;
       }

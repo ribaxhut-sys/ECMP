@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -90,6 +90,12 @@ def assert_actor_may_transfer_to(
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _unit_ids_equal(left: str | None, right: str | None) -> bool:
@@ -210,13 +216,18 @@ class InternalComplaintAggregate:
         target_unit_id: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> None:
+        occurred = _utcnow()
+        if self.history:
+            last = _as_utc(self.history[-1].occurred_at)
+            if occurred <= last:
+                occurred = last + timedelta(milliseconds=1)
         self.history.append(
             HistoryEvent(
                 event_id=str(uuid4()),
                 event_type=event_type,
                 actor_id=actor_id,
                 actor_unit_id=actor_unit_id,
-                occurred_at=_utcnow(),
+                occurred_at=occurred,
                 note=(note or "").strip() or None,
                 source_unit_id=source_unit_id,
                 target_unit_id=target_unit_id,
@@ -504,8 +515,13 @@ class InternalComplaintAggregate:
         actor_id: str,
         actor_unit_id: str | None = None,
         note: str | None = None,
+        emit_review: bool = True,
     ) -> None:
-        """Receive / start review — CREATED or ASSIGNED → IN_PROGRESS."""
+        """Receive / start review — CREATED or ASSIGNED → IN_PROGRESS.
+
+        ``emit_review=False`` when receive is bundled into another action
+        (auto-claim on PROPOSE) so history stays RECEIVED → RESOLUTION.
+        """
         if self.status not in (InternalStatus.CREATED, InternalStatus.ASSIGNED):
             raise err.invalid_state(
                 "Receive/handle requires CREATED or ASSIGNED.",
@@ -528,14 +544,15 @@ class InternalComplaintAggregate:
             source_unit_id=self.handling_unit_id,
             target_unit_id=self.handling_unit_id,
         )
-        self._append_history(
-            event_type=HistoryEventType.REVIEW,
-            actor_id=actor_id,
-            actor_unit_id=actor_unit_id,
-            note="Peninjauan dimulai",
-            source_unit_id=self.handling_unit_id,
-            target_unit_id=self.handling_unit_id,
-        )
+        if emit_review:
+            self._append_history(
+                event_type=HistoryEventType.REVIEW,
+                actor_id=actor_id,
+                actor_unit_id=actor_unit_id,
+                note="Peninjauan dimulai",
+                source_unit_id=self.handling_unit_id,
+                target_unit_id=self.handling_unit_id,
+            )
 
     def _clear_pending_withdraw_request(self) -> None:
         if self.withdraw_request_status != WithdrawRequestStatus.PENDING:
@@ -921,6 +938,7 @@ class InternalComplaintAggregate:
                     actor_id=actor_id,
                     actor_unit_id=actor_unit_id,
                     note="Diterima saat usulan penyelesaian",
+                    emit_review=False,
                 )
             if self.status != InternalStatus.IN_PROGRESS:
                 raise err.invalid_state(

@@ -177,6 +177,21 @@ export const HISTORY_LABEL_KEY: Record<string, string> = {
   RESENT_TO_PUSAT: "activityRESENT_TO_PUSAT",
 };
 
+/** Newest first. Equal timestamps keep API append order (later event on top). */
+export function sortInternalHistoryNewestFirst<T extends { occurredAt: string }>(
+  events: T[],
+): T[] {
+  return events
+    .slice()
+    .sort((a, b) => {
+      const ta = Date.parse(a.occurredAt) || 0;
+      const tb = Date.parse(b.occurredAt) || 0;
+      if (ta !== tb) return ta - tb;
+      return 0;
+    })
+    .reverse();
+}
+
 export const STATUS_TONE: Record<InternalStatus, BadgeTone> = {
   CREATED: "info",
   ASSIGNED: "primary",

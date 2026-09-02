@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Generator
+from datetime import UTC, datetime
+from itertools import pairwise
 
 import pytest
 from fastapi.testclient import TestClient
@@ -105,6 +107,12 @@ def service(db_session: Session) -> InternalComplaintApplicationService:
     return InternalComplaintApplicationService(
         SqlAlchemyInternalComplaintRepository(db_session)
     )
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _principal(
@@ -306,9 +314,11 @@ def test_propose_from_assigned_auto_receives(
         )
     )
     assert dto.status == "IN_PROGRESS"
-    types = [e.event_type for e in dto.history]
-    assert "RECEIVED" in types
-    assert "RESOLUTION" in types
+    types = [str(e.event_type) for e in dto.history]
+    assert types.index("RECEIVED") < types.index("RESOLUTION")
+    assert "REVIEW" not in types
+    stamps = [_as_utc(e.occurred_at) for e in dto.history]
+    assert all(a < b for a, b in pairwise(stamps))
 
 
 # --- TRANSFER / VISIBILITY --------------------------------------------------
@@ -1259,6 +1269,15 @@ def test_http_pusat_propose_from_assigned_without_receive(
         assert proposed.status_code == 200, proposed.text
         data = proposed.json()["data"]
         assert data["status"] == "IN_PROGRESS"
+        types = [e["eventType"] for e in data["history"]]
+        assert types.index("RECEIVED") < types.index("RESOLUTION")
+        assert "REVIEW" not in types
+
+        reloaded = client.get(f"/api/v1/internal/complaints/{cid}")
+        assert reloaded.status_code == 200, reloaded.text
+        again = [e["eventType"] for e in reloaded.json()["data"]["history"]]
+        assert again.index("RECEIVED") < again.index("RESOLUTION")
+        assert "REVIEW" not in again
 
 
 def test_http_manager_create_with_dest_transfers_directly(
