@@ -35,6 +35,10 @@ id: TRC-DATA-001
 # for hqArrivalDate/Time. Formal TC-catalog IDs deferred — lab pytest cited.
 # 2026-08-18 (CAP-008 Case Timeline lab): API-537 added to TRC-L-013
 # 2026-09-02 (Pengaduan Internal snapshot PDF): API-550 GET /api/v1/internal/complaints/{id}/export
+# 2026-09-04 (Internal action-needed sidebar badge): API-551 counts unit work
+# (incoming + live latest PENDING_APPROVAL usulan + handling rebound after
+# REJECTED/return-to-work + handling withdraw + RESOLVED), list `needsAction`.
+# Historical PENDING rows after ACCEPT are excluded on the owner side.
 # 2026-09-02 (Internal inbox sidebar badge): API-551 GET /api/v1/internal/complaints/inbox/pending-count
 # 2026-09-02 (Internal canonical PUSAT handling): create/transfer collapse PUSAT-CRO → PUSAT; receive = all Pusat logins
 # 2026-09-02 (Internal auto-claim on PROPOSE): ASSIGNED/CREATED propose receives then proposes; UI has no Ambil tiket button

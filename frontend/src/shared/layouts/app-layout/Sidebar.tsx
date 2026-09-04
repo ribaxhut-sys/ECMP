@@ -19,7 +19,7 @@ import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTod
 import { usePendingInboxCount } from "@/features/internal-complaints/usePendingInboxCount";
 import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
 import { usePendingWithdrawRequestCount } from "@/features/internal-complaints/usePendingWithdrawRequestCount";
-import { INTERNAL_INBOX_HREF } from "@/features/internal-complaints/internalInbox";
+import { internalComplaintsNavHref } from "@/features/internal-complaints/internalInbox";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
@@ -686,7 +686,7 @@ function NavSections({
       ...itemsWithBadges,
       internalComplaints: {
         ...itemsWithBadges.internalComplaints,
-        href: INTERNAL_INBOX_HREF,
+        href: internalComplaintsNavHref(pendingInboxCount),
         ...(pendingInboxCount > 0 ? { badge: pendingInboxCount } : {}),
       },
     };

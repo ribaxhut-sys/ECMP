@@ -2667,3 +2667,399 @@ def test_http_inbox_pending_count_return_for_completion_lands_on_cabang(
     assert total == 1
     assert items[0].complaint_id == cid
 
+
+def test_http_inbox_pending_count_resend_restores_pusat_badge(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Cabang kirim ulang → badge penerima (login Pusat) muncul lagi."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Kirim ulang",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, pusat) as client:
+        returned = client.post(
+            f"/api/v1/internal/complaints/{cid}/return-for-completion",
+            json={"reason": "Lengkapi lampiran pendukung"},
+        )
+        assert returned.status_code == 200, returned.text
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 0
+
+    with _app_client(db_session, service, cabang) as client:
+        resent = client.post(
+            f"/api/v1/internal/complaints/{cid}/resend-to-pusat",
+            json={"note": "Lampiran sudah dilengkapi"},
+        )
+        assert resent.status_code == 200, resent.text
+        assert resent.json()["data"]["handlingUnitId"] == "PUSAT"
+        assert resent.json()["data"]["status"] == "ASSIGNED"
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 0
+
+    with _app_client(db_session, service, pusat) as client:
+        pusat_count = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert pusat_count.status_code == 200
+        assert pusat_count.json()["data"] == 1
+    inbox, inbox_total = service.list_complaints(
+        pusat, page=1, page_size=20, org_unit_id="PUSAT", needs_receive=True
+    )
+    assert inbox_total == 1
+    assert inbox[0].complaint_id == cid
+
+
+def test_http_pending_count_proposal_badges_owner_cabang_not_pusat(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Usulan Pusat → badge login Cabang pemilik; login Pusat tidak dihitung."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Usulan menunggu",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, pusat) as client:
+        proposed = client.post(
+            f"/api/v1/internal/complaints/{cid}/resolve",
+            json={"action": "PROPOSE", "comment": "Selesai", "summary": "Fixed"},
+        )
+        assert proposed.status_code == 200, proposed.text
+        assert proposed.json()["data"]["status"] == "IN_PROGRESS"
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 0
+
+    with _app_client(db_session, service, cabang) as client:
+        cabang_count = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert cabang_count.status_code == 200
+        assert cabang_count.json()["data"] == 1
+    items, total = service.list_complaints(
+        cabang,
+        page=1,
+        page_size=20,
+        org_unit_id="UPPPD-GAMBIR",
+        needs_action=True,
+    )
+    assert total == 1
+    assert items[0].complaint_id == cid
+    assert items[0].resolution_status == "PENDING_APPROVAL"
+
+
+def test_http_pending_count_reject_proposal_rebounds_to_handling_pusat(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Cabang tolak usulan → badge login Pusat; login Cabang turun. Usulan ulang → Cabang naik lagi."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Usulan akan ditolak",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, pusat) as client:
+        proposed = client.post(
+            f"/api/v1/internal/complaints/{cid}/resolve",
+            json={"action": "PROPOSE", "comment": "Selesai", "summary": "Fixed"},
+        )
+        assert proposed.status_code == 200, proposed.text
+
+    rejected = service.resolve(
+        ResolveCommand(
+            complaint_id=cid,
+            action="REJECT",
+            comment="Belum lengkap",
+            rejection_reason="Belum lengkap",
+            actor_id=str(cabang.user_id),
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert rejected.status == "IN_PROGRESS"
+    assert rejected.resolution is not None
+    assert rejected.resolution.status == "REJECTED"
+
+    with _app_client(db_session, service, cabang) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 0
+    with _app_client(db_session, service, pusat) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+    items, total = service.list_complaints(
+        pusat,
+        page=1,
+        page_size=20,
+        org_unit_id="PUSAT",
+        needs_action=True,
+    )
+    assert total == 1
+    assert items[0].complaint_id == cid
+    assert items[0].resolution_status == "REJECTED"
+
+    with _app_client(db_session, service, pusat) as client:
+        again = client.post(
+            f"/api/v1/internal/complaints/{cid}/resolve",
+            json={
+                "action": "PROPOSE",
+                "comment": "Dilengkapi",
+                "summary": "Fixed v2",
+            },
+        )
+        assert again.status_code == 200, again.text
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 0
+    with _app_client(db_session, service, cabang) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+
+
+def test_http_pending_count_return_to_work_rebounds_to_handling_pusat(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Kembalikan ke pengerjaan → badge login Pusat; login Cabang tidak."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Kembalikan ke pengerjaan",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    _to_resolved(
+        service,
+        cid,
+        actor_id=str(pusat.user_id),
+        unit="PUSAT",
+        owner_id=str(cabang.user_id),
+    )
+    returned = service.record_acceptance(
+        RecordAcceptanceCommand(
+            complaint_id=cid,
+            party="OWNER",
+            decision="REJECT",
+            note="Kembalikan ke pengerjaan",
+            actor_id=str(cabang.user_id),
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert returned.status == "IN_PROGRESS"
+    assert returned.resolution is not None
+    assert returned.resolution.status == "ACCEPTED"
+
+    with _app_client(db_session, service, cabang) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 0
+    with _app_client(db_session, service, pusat) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+    items, total = service.list_complaints(
+        pusat,
+        page=1,
+        page_size=20,
+        org_unit_id="PUSAT",
+        needs_action=True,
+    )
+    assert total == 1
+    assert items[0].complaint_id == cid
+    assert items[0].resolution_status == "ACCEPTED"
+
+
+def test_http_pending_count_ignores_historical_pending_proposal(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Badge = daftar: PENDING lama setelah ACCEPT + kembalikan tidak dihitung."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        live = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Usulan masih hidup",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        live_id = live.json()["data"]["complaintId"]
+        stale = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Usulan sudah diterima lalu dikembalikan",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        stale_id = stale.json()["data"]["complaintId"]
+
+    with _app_client(db_session, service, pusat) as client:
+        proposed = client.post(
+            f"/api/v1/internal/complaints/{live_id}/resolve",
+            json={"action": "PROPOSE", "comment": "Selesai", "summary": "Fixed"},
+        )
+        assert proposed.status_code == 200, proposed.text
+
+    _to_resolved(
+        service,
+        stale_id,
+        actor_id=str(pusat.user_id),
+        unit="PUSAT",
+        owner_id=str(cabang.user_id),
+    )
+    returned = service.record_acceptance(
+        RecordAcceptanceCommand(
+            complaint_id=stale_id,
+            party="OWNER",
+            decision="REJECT",
+            note="Kembalikan ke pengerjaan",
+            actor_id=str(cabang.user_id),
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert returned.status == "IN_PROGRESS"
+    assert returned.resolution is not None
+    assert returned.resolution.status == "ACCEPTED"
+
+    with _app_client(db_session, service, cabang) as client:
+        cabang_count = client.get("/api/v1/internal/complaints/inbox/pending-count")
+        assert cabang_count.status_code == 200
+        assert cabang_count.json()["data"] == 1
+    with _app_client(db_session, service, pusat) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+    items, total = service.list_complaints(
+        cabang,
+        page=1,
+        page_size=20,
+        org_unit_id="UPPPD-GAMBIR",
+        needs_action=True,
+    )
+    assert total == 1
+    assert items[0].complaint_id == live_id
+    assert items[0].resolution_status == "PENDING_APPROVAL"
+
+
+def test_http_pending_count_resolved_badges_both_units(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """Gerbang tutup RESOLVED → badge login Cabang pemilik dan login Pusat."""
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Menunggu tutup",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        cid = created.json()["data"]["complaintId"]
+
+    _to_resolved(
+        service,
+        cid,
+        actor_id=str(pusat.user_id),
+        unit="PUSAT",
+        owner_id=str(cabang.user_id),
+    )
+    with _app_client(db_session, service, cabang) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+    with _app_client(db_session, service, pusat) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+

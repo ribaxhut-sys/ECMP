@@ -1,9 +1,9 @@
 /**
- * Sidebar badge refresh signal.
+ * Sidebar WP badge refresh (same tab).
  *
- * Opening a Complaint or Case marks it read server-side, but the sidebar only
- * refetches on route change — so the badge would keep the stale count while
- * the user is still on the detail page. Detail views fire this once loaded.
+ * Opening a Complaint or Case marks it read server-side. The receiving login
+ * (other session) relies on poll / tab-focus in useCmWorkBadges — this event
+ * cannot cross browsers.
  */
 export const WORK_BADGES_REFRESH_EVENT = "ecmp:work-badges-refresh";
 

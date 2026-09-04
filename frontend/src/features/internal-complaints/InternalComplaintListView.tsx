@@ -60,6 +60,7 @@ export function InternalComplaintListView() {
   const locale = useLocale();
   const orgUnitCode = useOrgUnitCode();
   const needsReceiveFromUrl = searchParams.get("needsReceive") === "1";
+  const needsActionFromUrl = searchParams.get("needsAction") === "1";
   const {
     rows: allRows,
     total,
@@ -72,22 +73,33 @@ export function InternalComplaintListView() {
   const [filters, setFilters] = useState<InternalListFilters>(() => ({
     ...defaultInternalListFilters(),
     needsReceive: needsReceiveFromUrl,
+    needsAction: needsActionFromUrl,
   }));
   const [draft, setDraft] = useState<InternalListFilters>(filters);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setFilters((current) =>
-      current.needsReceive === needsReceiveFromUrl
+      current.needsReceive === needsReceiveFromUrl &&
+      current.needsAction === needsActionFromUrl
         ? current
-        : { ...current, needsReceive: needsReceiveFromUrl },
+        : {
+            ...current,
+            needsReceive: needsReceiveFromUrl,
+            needsAction: needsActionFromUrl,
+          },
     );
     setDraft((current) =>
-      current.needsReceive === needsReceiveFromUrl
+      current.needsReceive === needsReceiveFromUrl &&
+      current.needsAction === needsActionFromUrl
         ? current
-        : { ...current, needsReceive: needsReceiveFromUrl },
+        : {
+            ...current,
+            needsReceive: needsReceiveFromUrl,
+            needsAction: needsActionFromUrl,
+          },
     );
-  }, [needsReceiveFromUrl]);
+  }, [needsReceiveFromUrl, needsActionFromUrl]);
 
   const rows = useMemo(
     () =>
@@ -117,7 +129,7 @@ export function InternalComplaintListView() {
     setDraft(next);
     setFilters(next);
     setPage(1);
-    if (needsReceiveFromUrl) {
+    if (needsReceiveFromUrl || needsActionFromUrl) {
       router.replace("/internal/complaints");
     }
   }
@@ -280,7 +292,10 @@ export function InternalComplaintListView() {
             />
           ) : null}
 
-          {filters.needsReceive ? (
+          {filters.needsAction ? (
+            <Alert tone="info" title={t("actionFilterNotice")} />
+          ) : null}
+          {filters.needsReceive && !filters.needsAction ? (
             <Alert tone="info" title={t("inboxFilterNotice")} />
           ) : null}
 

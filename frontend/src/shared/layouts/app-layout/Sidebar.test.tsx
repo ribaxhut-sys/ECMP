@@ -620,7 +620,7 @@ describe("Mode A Internal inbox badges — Cabang / Pusat", () => {
     });
     expect(complaintsLink).toHaveAttribute(
       "href",
-      "/internal/complaints?needsReceive=1",
+      "/internal/complaints?needsAction=1",
     );
     await waitFor(() => {
       expect(within(complaintsLink).getByText("4")).toBeInTheDocument();
@@ -659,6 +659,15 @@ describe("Mode A Internal inbox badges — Cabang / Pusat", () => {
       sidebar.getByRole("button", { name: /^Internal$/i }),
     );
     expect(within(internalToggle).queryByText(/^\d+$/)).not.toBeInTheDocument();
+    act(() => {
+      fireEvent.click(internalToggle);
+    });
+    const panel = document.getElementById(
+      internalToggle.getAttribute("aria-controls")!,
+    )!;
+    expect(
+      within(panel).getByRole("link", { name: /^Complaints/i }),
+    ).toHaveAttribute("href", "/internal/complaints");
   });
 });
 

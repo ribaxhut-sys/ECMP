@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
+
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import DEFAULT_PUSAT_UNIT_CODES
 from app.modules.internal_complaint.application.dto import (
     AcceptanceDTO,
     CloseCommand,
+    CountBucketDTO,
     CreateInternalComplaintCommand,
     DecideTransferRequestCommand,
     DecideWithdrawRequestCommand,
     HistoryEventDTO,
     InternalComplaintDTO,
+    InternalComplaintReportSummaryDTO,
     InternalComplaintSummaryDTO,
     RecordAcceptanceCommand,
     RequestTransferCommand,
@@ -56,6 +61,31 @@ _WITHDRAW_DECISION_MAP: dict[str, WithdrawRequestStatus] = {
     "APPROVE": WithdrawRequestStatus.APPROVED,
     "REJECT": WithdrawRequestStatus.REJECTED,
 }
+# Ceiling for one list-report PDF (API-553). A report is a document, not a
+# dump: past this the operator is told to narrow the filters instead.
+INTERNAL_REPORT_EXPORT_MAX_ROWS = 500
+
+
+def _summary_dto(r: Any, *, resolution_status: str | None = None) -> InternalComplaintSummaryDTO:
+    """ORM row -> summary DTO. Shared by the list endpoint and the PDF export."""
+    return InternalComplaintSummaryDTO(
+        complaint_id=str(r.id),
+        complaint_number=r.complaint_number,
+        status=r.status,
+        subject=r.subject,
+        category=r.category,
+        priority=r.priority,
+        owner_unit_id=r.owner_unit_id,
+        handling_unit_id=r.handling_unit_id,
+        created_at=r.created_at,
+        created_by=r.created_by,
+        related_complaint_id=r.related_complaint_id,
+        related_complaint_number=r.related_complaint_number,
+        transfer_request_status=r.transfer_request_status,
+        withdraw_request_status=r.withdraw_request_status,
+        completion_request_status=r.completion_request_status,
+        resolution_status=resolution_status,
+    )
 
 
 def _resolution_dto(r: ResolutionRecord) -> ResolutionDTO:
@@ -203,6 +233,7 @@ class InternalComplaintApplicationService:
         pending_transfer_request: bool | None = None,
         pending_withdraw_request: bool | None = None,
         needs_receive: bool | None = None,
+        needs_action: bool | None = None,
     ) -> tuple[list[InternalComplaintSummaryDTO], int]:
         visibility = resolve_internal_visibility(principal, org_unit_id=org_unit_id)
         rows, total = self._repo.list_summaries(
@@ -216,39 +247,101 @@ class InternalComplaintApplicationService:
             pending_transfer_request=pending_transfer_request,
             pending_withdraw_request=pending_withdraw_request,
             needs_receive=needs_receive,
+            needs_action=needs_action,
         )
-        items = [
-            InternalComplaintSummaryDTO(
-                complaint_id=str(r.id),
-                complaint_number=r.complaint_number,
-                status=r.status,
-                subject=r.subject,
-                category=r.category,
-                priority=r.priority,
-                owner_unit_id=r.owner_unit_id,
-                handling_unit_id=r.handling_unit_id,
-                created_at=r.created_at,
-                created_by=r.created_by,
-                related_complaint_id=r.related_complaint_id,
-                related_complaint_number=r.related_complaint_number,
-                transfer_request_status=r.transfer_request_status,
-                withdraw_request_status=r.withdraw_request_status,
-                completion_request_status=r.completion_request_status,
-            )
-            for r in rows
-        ]
-        return items, total
+        statuses = {}
+        lookup = getattr(self._repo, "latest_resolution_statuses", None)
+        if callable(lookup) and rows:
+            statuses = lookup([r.id for r in rows])
+        return [
+            _summary_dto(r, resolution_status=statuses.get(r.id)) for r in rows
+        ], total
+
+    def summarize(
+        self,
+        principal: Principal,
+        *,
+        org_unit_id: str | None = None,
+        status: str | None = None,
+        category: str | None = None,
+        priority: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        query: str | None = None,
+    ) -> InternalComplaintReportSummaryDTO:
+        """Report breakdown counted server-side (API-554).
+
+        The /internal/reports cards used to be derived from whatever rows the
+        browser had accumulated, so past the client cap every number was quietly
+        wrong. These counts come from the database over the same visible,
+        filtered population the list endpoint would return.
+        """
+        visibility = resolve_internal_visibility(principal, org_unit_id=org_unit_id)
+        total, by_status, by_priority, by_unit = self._repo.summarize(
+            visibility=visibility.value,
+            actor_id=str(principal.user_id),
+            org_unit_id=org_unit_id,
+            pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
+            status=status,
+            category=category,
+            priority=priority,
+            date_from=date_from,
+            date_to=date_to,
+            query=query,
+        )
+        return InternalComplaintReportSummaryDTO(
+            total_items=total,
+            by_status=[CountBucketDTO(key=k, count=c) for k, c in by_status],
+            by_priority=[CountBucketDTO(key=k, count=c) for k, c in by_priority],
+            by_handling_unit=[CountBucketDTO(key=k, count=c) for k, c in by_unit],
+        )
+
+    def export_summaries(
+        self,
+        principal: Principal,
+        *,
+        org_unit_id: str | None = None,
+        status: str | None = None,
+        category: str | None = None,
+        priority: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        query: str | None = None,
+    ) -> tuple[list[InternalComplaintSummaryDTO], int]:
+        """Rows for the list-report PDF (API-553).
+
+        Same visibility as :meth:`list_complaints`; one capped page instead of
+        paging, so the PDF is a bounded document. ``total`` is the unbounded
+        match count, which is how the report says out loud that it was trimmed.
+        """
+        visibility = resolve_internal_visibility(principal, org_unit_id=org_unit_id)
+        rows, total = self._repo.list_summaries(
+            visibility=visibility.value,
+            actor_id=str(principal.user_id),
+            org_unit_id=org_unit_id,
+            pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
+            status=status,
+            category=category,
+            priority=priority,
+            date_from=date_from,
+            date_to=date_to,
+            query=query,
+            page=1,
+            page_size=INTERNAL_REPORT_EXPORT_MAX_ROWS,
+            max_page_size=INTERNAL_REPORT_EXPORT_MAX_ROWS,
+        )
+        return [_summary_dto(r) for r in rows], total
 
     def count_pending_inbox(
         self, principal: Principal, *, org_unit_id: str | None = None
     ) -> int:
-        """Sidebar badge — tickets awaiting receive at the caller's handling unit."""
+        """Sidebar badge — work waiting on the caller's unit (API-551)."""
         _, total = self.list_complaints(
             principal,
             page=1,
             page_size=1,
             org_unit_id=org_unit_id,
-            needs_receive=True,
+            needs_action=True,
         )
         return total
 

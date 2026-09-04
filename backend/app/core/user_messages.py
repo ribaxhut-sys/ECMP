@@ -596,6 +596,8 @@ MESSAGES: dict[str, str] = {
     "validation.name_required": "Nama wajib diisi.",
     "validation.time_hhmm": "Harus berformat HH:MM.",
     "validation.end_after_start": "endTime harus setelah startTime.",
+    "validation.date_yyyy_mm_dd": "Tanggal harus berformat YYYY-MM-DD.",
+    "validation.date_range_invalid": "dateFrom tidak boleh setelah dateTo.",
     "escalation.target_required": ("escalatedToUserId atau escalatedToRoleId wajib diisi."),
     "complaint.route_fields_all_required": (
         "sourceType, sourceId, targetType, dan targetId wajib diisi jika salah satu diisi."

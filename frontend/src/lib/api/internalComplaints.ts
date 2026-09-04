@@ -81,6 +81,7 @@ export interface InternalComplaintSummary {
   transferRequestStatus?: InternalTransferRequestStatus | string | null;
   withdrawRequestStatus?: InternalWithdrawRequestStatus | string | null;
   completionRequestStatus?: InternalCompletionRequestStatus | string | null;
+  resolutionStatus?: string | null;
 }
 
 export interface InternalComplaint {
@@ -224,6 +225,7 @@ export function fetchInternalComplaints(options?: {
   pendingTransferRequest?: boolean;
   pendingWithdrawRequest?: boolean;
   needsReceive?: boolean;
+  needsAction?: boolean;
 }): Promise<ListResponse<InternalComplaintSummary>> {
   const params = new URLSearchParams({
     page: String(options?.page ?? 1),
@@ -238,6 +240,9 @@ export function fetchInternalComplaints(options?: {
   }
   if (options?.needsReceive !== undefined) {
     params.set("needsReceive", String(options.needsReceive));
+  }
+  if (options?.needsAction !== undefined) {
+    params.set("needsAction", String(options.needsAction));
   }
   return apiRequest<ListResponse<InternalComplaintSummary>>(
     `${internalComplaintPaths().list}?${params.toString()}`,
@@ -422,6 +427,69 @@ function saveBlob(blob: Blob, filename: string): void {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Filters mirrored to the server for the list-report PDF (API-553). */
+export interface InternalComplaintsReportFilters {
+  status?: string;
+  category?: string;
+  priority?: string;
+  /** `YYYY-MM-DD` Jakarta calendar days, inclusive. */
+  dateFrom?: string;
+  dateTo?: string;
+  q?: string;
+}
+
+export interface InternalCountBucket {
+  key: string;
+  count: number;
+}
+
+export interface InternalComplaintsReportSummary {
+  totalItems: number;
+  byStatus: InternalCountBucket[];
+  byPriority: InternalCountBucket[];
+  byHandlingUnit: InternalCountBucket[];
+}
+
+function reportFilterParams(
+  filters: InternalComplaintsReportFilters,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    const text = (value ?? "").trim();
+    if (text) params.set(key, text);
+  }
+  return params;
+}
+
+/** API-554 — GET /api/v1/internal/complaints/summary (report breakdown). */
+export function fetchInternalComplaintsReportSummary(
+  filters: InternalComplaintsReportFilters = {},
+): Promise<DataResponse<InternalComplaintsReportSummary>> {
+  const query = reportFilterParams(filters).toString();
+  return apiRequest<DataResponse<InternalComplaintsReportSummary>>(
+    query
+      ? `${internalComplaintPaths().reportSummary}?${query}`
+      : internalComplaintPaths().reportSummary,
+  );
+}
+
+/** API-553 — GET /api/v1/internal/complaints/export (list report PDF). */
+export async function downloadInternalComplaintsReportPdf(
+  filters: InternalComplaintsReportFilters = {},
+): Promise<{ filename: string }> {
+  const query = reportFilterParams(filters).toString();
+  const result = await apiRequestBlob(
+    query
+      ? `${internalComplaintPaths().exportReportPdf}?${query}`
+      : internalComplaintPaths().exportReportPdf,
+  );
+  const filename =
+    filenameFromDisposition(result.contentDisposition) ??
+    "laporan-pengaduan-internal.pdf";
+  saveBlob(result.blob, filename);
+  return { filename };
 }
 
 /** API-550 — GET /api/v1/internal/complaints/{id}/export (operator snapshot PDF). */

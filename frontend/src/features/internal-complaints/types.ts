@@ -240,7 +240,7 @@ export function mapSummaryToRow(
     closedByName: null,
     closedAt: null,
     resolutionSummary: null,
-    resolutionStatus: null,
+    resolutionStatus: row.resolutionStatus ?? null,
     resolutionComment: null,
     resolutionProposedBy: null,
     resolutionProposedByName: null,

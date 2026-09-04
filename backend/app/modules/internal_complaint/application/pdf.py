@@ -27,6 +27,15 @@ from app.modules.internal_complaint.application.dto import (
     InternalComplaintDTO,
     ResolutionDTO,
 )
+from app.modules.internal_complaint.application.pdf_labels import (
+    CATEGORY_LABEL as _CATEGORY_LABEL,
+)
+from app.modules.internal_complaint.application.pdf_labels import (
+    PRIORITY_LABEL as _PRIORITY_LABEL,
+)
+from app.modules.internal_complaint.application.pdf_labels import (
+    STATUS_LABEL as _STATUS_LABEL,
+)
 from app.modules.internal_complaint.domain.aggregate import (
     canonicalize_internal_handling_unit,
 )
@@ -37,29 +46,6 @@ _UNIT_PREFIX = re.compile(r"^(?:UPPPD|UP3D)[\s.\-]+", re.IGNORECASE)
 _NOTE_INDENT = 24
 _MACHINE_RESOLUTION = frozenset({"IC_DONE", "IC-OK"})
 
-_STATUS_LABEL = {
-    "CREATED": "Dibuat",
-    "ASSIGNED": "Ditugaskan",
-    "IN_PROGRESS": "Dalam Penanganan",
-    "RESOLVED": "Terselesaikan",
-    "CLOSED": "Ditutup",
-    "WITHDRAWN": "Dibatalkan",
-}
-_CATEGORY_LABEL = {
-    "PERFORMANCE": "Kinerja",
-    "PROCESS_SOP": "Proses/SOP",
-    "COORDINATION": "Koordinasi",
-    "COMPLIANCE": "Kepatuhan",
-    "SYSTEM": "Sistem",
-    "OPERATIONAL": "Operasional",
-    "OTHER": "Lainnya",
-}
-_PRIORITY_LABEL = {
-    "LOW": "Rendah",
-    "MEDIUM": "Sedang",
-    "HIGH": "Tinggi",
-    "CRITICAL": "Kritis",
-}
 _EVENT_LABEL = {
     "CREATED": "Pengaduan dibuat",
     "TRANSFER": "Unit penanganan dipindah",

@@ -1,6 +1,7 @@
 /** Pure filter helpers for Pengaduan Internal list. */
+import { toLocalDateKey } from "@/shared/utils/datetime";
 import type { InternalComplaint } from "./types";
-import { isIncomingInternalComplaint } from "./internalInbox";
+import { isActionNeededInternalComplaint, isIncomingInternalComplaint } from "./internalInbox";
 
 export interface InternalListFilters {
   q: string;
@@ -9,8 +10,13 @@ export interface InternalListFilters {
   priority: string;
   ownerUnitId: string;
   handlingUnitId: string;
+  /** Inclusive `createdAt` period bounds as `YYYY-MM-DD` calendar days (Asia/Jakarta). */
+  dateFrom: string;
+  dateTo: string;
   /** Incoming queue at the caller's handling unit (sidebar badge door). */
   needsReceive: boolean;
+  /** Work waiting on the signed-in unit (API-551). */
+  needsAction: boolean;
 }
 
 export function defaultInternalListFilters(): InternalListFilters {
@@ -21,7 +27,10 @@ export function defaultInternalListFilters(): InternalListFilters {
     priority: "",
     ownerUnitId: "",
     handlingUnitId: "",
+    dateFrom: "",
+    dateTo: "",
     needsReceive: false,
+    needsAction: false,
   };
 }
 
@@ -33,8 +42,22 @@ export function hasActiveInternalFilters(filters: InternalListFilters): boolean 
     Boolean(filters.priority && filters.priority.trim()) ||
     Boolean(filters.ownerUnitId && filters.ownerUnitId.trim()) ||
     Boolean(filters.handlingUnitId && filters.handlingUnitId.trim()) ||
-    filters.needsReceive
+    Boolean(filters.dateFrom && filters.dateFrom.trim()) ||
+    Boolean(filters.dateTo && filters.dateTo.trim()) ||
+    filters.needsReceive ||
+    filters.needsAction
   );
+}
+
+/**
+ * `createdAt` as an Asia/Jakarta calendar day, or `null` when the instant is
+ * unusable — the period filter compares `YYYY-MM-DD` strings, which sort
+ * lexicographically, so no Date math is needed past this point.
+ */
+function createdDateKey(row: InternalComplaint): string | null {
+  const created = new Date(row.createdAt);
+  if (Number.isNaN(created.getTime())) return null;
+  return toLocalDateKey(created);
 }
 
 export function filterInternalComplaints(
@@ -43,8 +66,13 @@ export function filterInternalComplaints(
   actorUnitCode?: string | null,
 ): InternalComplaint[] {
   const q = filters.q.trim().toLowerCase();
+  const dateFrom = filters.dateFrom?.trim() ?? "";
+  const dateTo = filters.dateTo?.trim() ?? "";
   return rows.filter((row) => {
-    if (filters.needsReceive) {
+    if (filters.needsAction) {
+      if (actorUnitCode === undefined) return true;
+      if (!isActionNeededInternalComplaint(row, actorUnitCode)) return false;
+    } else if (filters.needsReceive) {
       if (actorUnitCode === undefined) return true;
       if (!isIncomingInternalComplaint(row, actorUnitCode)) return false;
     }
@@ -57,6 +85,14 @@ export function filterInternalComplaints(
       row.handlingUnitId !== filters.handlingUnitId
     ) {
       return false;
+    }
+    if (dateFrom || dateTo) {
+      // A row whose createdAt cannot be read has no place in a period — better
+      // dropped from a dated report than silently counted in every period.
+      const day = createdDateKey(row);
+      if (day === null) return false;
+      if (dateFrom && day < dateFrom) return false;
+      if (dateTo && day > dateTo) return false;
     }
     if (!q) return true;
     const hay =

@@ -23,6 +23,9 @@ _RULE_WIDTH = 0.6
 _CONTENT_WIDTH = _PAGE_W - 2 * _MARGIN_X
 _KV_COLON_GAP = 10
 _KV_VALUE_GAP = 8
+_TABLE_SIZE = 9
+_TABLE_LINE = 12
+_TABLE_COL_GAP = 6
 
 _UNICODE_ASCII = str.maketrans(
     {
@@ -189,6 +192,55 @@ class OperatorPdfDoc:
             self._text(line, size=_BODY_SIZE)
             self._y -= _LINE
 
+    def table(
+        self,
+        headers: list[str],
+        rows: list[list[str]],
+        widths: list[float],
+        *,
+        size: int = _TABLE_SIZE,
+    ) -> None:
+        """Fixed-column list table; header repeats on every page it spills onto.
+
+        Cells are truncated, never wrapped: one record is one line, so a long
+        list stays readable as a table instead of turning into paragraphs.
+        """
+        if not headers or not widths:
+            return
+        xs: list[float] = []
+        cursor = float(_MARGIN_X)
+        for width in widths:
+            xs.append(cursor)
+            cursor += width
+
+        def draw_header() -> None:
+            self._ensure(_TABLE_LINE * 2)
+            for text, x, width in zip(headers, xs, widths, strict=False):
+                self._text(
+                    _truncate_to_width(
+                        text, width - _TABLE_COL_GAP, size, bold=True
+                    ),
+                    size=size,
+                    bold=True,
+                    x=x,
+                )
+            self._y -= _TABLE_LINE
+            self.rule()
+
+        draw_header()
+        for row in rows:
+            if self._y - _TABLE_LINE < _MARGIN_BOTTOM:
+                self._pages.append([])
+                self._y = _MARGIN_TOP
+                draw_header()
+            for text, x, width in zip(row, xs, widths, strict=False):
+                self._text(
+                    _truncate_to_width(text, width - _TABLE_COL_GAP, size, bold=False),
+                    size=size,
+                    x=x,
+                )
+            self._y -= _TABLE_LINE
+
     def blank(self) -> None:
         self._y -= 8
 
@@ -305,6 +357,27 @@ def _wrap_to_width(
     if current:
         lines.append(current)
     return lines or [""]
+
+
+def _truncate_to_width(
+    text: str, max_pt: float, size: int, *, bold: bool
+) -> str:
+    """Longest prefix that fits `max_pt`, ellipsized when something was cut."""
+    raw = (text or "").translate(_UNICODE_ASCII)
+    if max_pt <= 0:
+        return ""
+    if _helvetica_width(raw, size, bold=bold) <= max_pt:
+        return raw
+    ellipsis = "..."
+    budget = max_pt - _helvetica_width(ellipsis, size, bold=bold)
+    if budget <= 0:
+        return ""
+    kept = ""
+    for char in raw:
+        if _helvetica_width(kept + char, size, bold=bold) > budget:
+            break
+        kept += char
+    return f"{kept.rstrip()}{ellipsis}"
 
 
 def _wrap(text: str, width: int) -> list[str]:

@@ -113,6 +113,23 @@ class InternalComplaintSummaryDTO:
     transfer_request_status: str | None = None
     withdraw_request_status: str | None = None
     completion_request_status: str | None = None
+    resolution_status: str | None = None
+
+
+@dataclass(frozen=True)
+class CountBucketDTO:
+    """One bar of the report breakdown: a code and how many rows carry it."""
+
+    key: str
+    count: int
+
+
+@dataclass(frozen=True)
+class InternalComplaintReportSummaryDTO:
+    total_items: int
+    by_status: list[CountBucketDTO]
+    by_priority: list[CountBucketDTO]
+    by_handling_unit: list[CountBucketDTO]
 
 
 @dataclass

@@ -5,7 +5,8 @@ import { Button } from "@/shared/ui/button";
 
 /**
  * Persistent inline feedback (validation, permission, business warning, errors).
- * Do not use tone="success" for action success — use useToast().pushSuccess instead.
+ * Compact banner — not a card. Do not use tone="success" for action success —
+ * use useToast().pushSuccess instead.
  */
 export type AlertTone = "info" | "success" | "warning" | "danger";
 
@@ -31,9 +32,9 @@ const toneClass: Record<AlertTone, string> = {
 
 function DefaultIcon({ tone }: { tone: AlertTone }) {
   if (tone === "success") {
-    return <IconCheck className="mt-0.5 size-5 shrink-0" aria-hidden />;
+    return <IconCheck className="mt-px !size-4 shrink-0" aria-hidden />;
   }
-  return <IconAlert className="mt-0.5 size-5 shrink-0" aria-hidden />;
+  return <IconAlert className="mt-px !size-4 shrink-0" aria-hidden />;
 }
 
 export function Alert({
@@ -49,29 +50,32 @@ export function Alert({
   actions,
   ...props
 }: AlertProps) {
+  const hasBody =
+    Boolean(description) || Boolean(actions) || Boolean(actionLabel && onAction);
+
   return (
     <div
       role="alert"
       className={cn(
-        "rounded-[var(--ecmp-radius-lg)] border px-4 py-4 shadow-ecmp-surface",
+        "rounded-[var(--ecmp-radius-md)] border px-3 py-2",
         toneClass[tone],
         className,
       )}
       {...props}
     >
-      <div className="flex gap-3">
+      <div className={cn("flex gap-2", hasBody ? "items-start" : "items-center")}>
         {icon ?? <DefaultIcon tone={tone} />}
         <div className="min-w-0 flex-1">
-          <p className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
+          <p className="text-[length:var(--ecmp-font-label-size)] font-[number:var(--ecmp-font-label-weight)] leading-[var(--ecmp-font-label-line)] text-ecmp-text-primary">
             {title}
           </p>
           {description ? (
-            <div className="mt-1 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-primary/90">
+            <div className="mt-0.5 text-[length:var(--ecmp-font-helper-size)] leading-[var(--ecmp-font-helper-line)] text-ecmp-text-primary/90">
               {description}
             </div>
           ) : null}
           {actions || (actionLabel && onAction) ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               {actions}
               {actionLabel && onAction ? (
                 <Button variant="outline" size="sm" onClick={onAction}>
@@ -87,9 +91,9 @@ export function Alert({
             size="sm"
             aria-label={dismissLabel}
             onClick={onDismiss}
-            className="!min-h-9 !min-w-9 shrink-0 !px-0"
+            className="!min-h-8 !min-w-8 shrink-0 !px-0"
           >
-            <IconClose className="size-4" />
+            <IconClose className="!size-3.5" />
           </Button>
         ) : null}
       </div>

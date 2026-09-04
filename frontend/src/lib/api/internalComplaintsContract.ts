@@ -40,5 +40,7 @@ export function internalComplaintPaths() {
     pendingInboxCount: `${INTERNAL_COMPLAINTS_BASE}/inbox/pending-count`,
     exportPdf: (id: string) =>
       `${INTERNAL_COMPLAINTS_BASE}/${encodeURIComponent(id)}/export`,
+    exportReportPdf: `${INTERNAL_COMPLAINTS_BASE}/export`,
+    reportSummary: `${INTERNAL_COMPLAINTS_BASE}/summary`,
   } as const;
 }

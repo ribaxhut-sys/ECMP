@@ -244,18 +244,24 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 | API-539 | API-CM-B2-011 | GET /api/v1/cm/cases/{caseId}/export | FR-003 companion — internal Case snapshot PDF (not customer-safe; not reporting) | 🟢 Implemented (lab) |
 
-### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.2.5** — ECMP-MODEA-INT-001
+### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.3.0** — ECMP-MODEA-INT-001
 
 > Domain Pengaduan Internal (`/api/v1/internal/complaints`). **Bukan** Dual-SoT WP / Case Aggregate. Satu tiket = satu aggregate.
 
 | API ID | Logical ID | Method & Endpoint | Description | Status |
 |---|---|---|---|---|
 | API-550 | API-INT-001 | GET /api/v1/internal/complaints/{complaintId}/export | Snapshot PDF satu tiket Internal (bukan API-539; bukan laporan) | 🟢 Implemented (lab) |
-| API-551 | API-INT-002 | GET /api/v1/internal/complaints/inbox/pending-count | Badge sidebar antrian masuk (CREATED/ASSIGNED di unit penanganan pemanggil) | 🟢 Implemented (lab) |
+| API-551 | API-INT-002 | GET /api/v1/internal/complaints/inbox/pending-count | Badge sidebar perlu tindakan unit pemanggil (antrian masuk, usulan, minta batal, gerbang tutup) | 🟢 Implemented (lab) |
+| API-553 | API-INT-003 | GET /api/v1/internal/complaints/export | Laporan PDF daftar Pengaduan Internal untuk /internal/reports (bukan API-550; bukan KPI) | 🟢 Implemented (lab) |
+| API-554 | API-INT-004 | GET /api/v1/internal/complaints/summary | Angka distribusi (total, status, prioritas, unit penanganan) untuk kartu /internal/reports | 🟢 Implemented (lab) |
 
 > **2026-09-02 (Pengaduan Internal snapshot PDF):** API-550 — visibilitas sama GET; Cabang & Pusat yang boleh lihat boleh unduh.
 
+> **2026-09-04 (Internal action-needed sidebar badge):** API-551 — hitungan “perlu tindakan” per unit, bukan hanya antrian Terima. **Login Cabang:** kembalikan berkas / transfer masuk, usulan **terbaru** `PENDING_APPROVAL` (bukan riwayat PENDING setelah diterima), gerbang tutup `RESOLVED`. **Login Pusat:** create/resend masuk Pusat, rebound setelah tolak usulan / kembalikan ke pengerjaan, permintaan batal PENDING, gerbang tutup `RESOLVED`. Filter daftar: `needsAction=1`. Bukan CAP-005. Bukan unread receipt. Bukan bel Pengumuman.
+
 > **2026-09-02 (Internal inbox sidebar badge):** API-551 — Cabang = tiket menunggu Terima di cabang (kembalikan berkas / transfer masuk); Pusat = tiket menunggu Terima di Pusat (create/resend Cabang, tiket lokal belum diterima). Bukan CAP-005. Bukan unread receipt.
+
+> **2026-09-02 (Laporan Pengaduan Internal):** API-553 & API-554 — visibilitas sama dengan daftar (operator hanya bisa mencetak/menghitung yang boleh ia baca). Filter sama: status, kategori, prioritas, periode `dateFrom`/`dateTo` (hari kalender Asia/Jakarta, inklusif), dan `q`. API-553 dibatasi 500 baris dan menyatakannya di dalam PDF; API-554 menghitung di database supaya kartu distribusi tetap benar meski peramban hanya memuat sebagian baris. Ekspor API-553 tercatat di audit (`internal_complaint.report_exported`).
 
 > **2026-09-02 (Handling kanonik PUSAT):** Cabang create/transfer ke Pusat selalu `PUSAT` (bukan `PUSAT-CRO`). `/receive` diizinkan untuk semua login Pusat. Jadwal kedatangan WP tetap CRO.
 

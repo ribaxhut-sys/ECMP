@@ -22,6 +22,68 @@ from app.modules.internal_complaint.infrastructure.orm import (
 )
 
 
+def _actor_unit_clause(column, unit: str, pusat_unit_codes: frozenset[str]):
+    """Cabang: exact unit. Pusat login: any Pusat unit code."""
+    if is_pusat_unit(unit, pusat_unit_codes=pusat_unit_codes):
+        return pusat_unit_clause(column, pusat_unit_codes=pusat_unit_codes)
+    return column == unit
+
+
+def _latest_resolution_status():
+    """Status resolusi terbaru by decision/proposal time, then id."""
+    res = InternalComplaintResolutionORM
+    event_at = func.coalesce(res.decided_at, res.proposed_at, res.created_at)
+    return (
+        select(res.status)
+        .where(res.complaint_id == InternalComplaintORM.id)
+        .order_by(event_at.desc(), res.id.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
+def _needs_action_clause(unit: str, pusat_unit_codes: frozenset[str]):
+    """Work waiting on this unit — receive, usulan, rebound, withdraw, close."""
+    handling = _actor_unit_clause(
+        InternalComplaintORM.handling_unit_id, unit, pusat_unit_codes
+    )
+    owner = _actor_unit_clause(
+        InternalComplaintORM.owner_unit_id, unit, pusat_unit_codes
+    )
+    latest_pending = _latest_resolution_status()
+    latest_rebound = _latest_resolution_status()
+    incoming = and_(
+        InternalComplaintORM.status.in_(("CREATED", "ASSIGNED")),
+        handling,
+    )
+    pending_proposal = and_(
+        InternalComplaintORM.status == "IN_PROGRESS",
+        owner,
+        latest_pending == "PENDING_APPROVAL",
+    )
+    # Ball back to handling: Cabang tolak usulan, or kembalikan dari gerbang tutup.
+    handling_rebound = and_(
+        InternalComplaintORM.status == "IN_PROGRESS",
+        handling,
+        latest_rebound.in_(("REJECTED", "ACCEPTED")),
+    )
+    pending_withdraw = and_(
+        InternalComplaintORM.withdraw_request_status == "PENDING",
+        handling,
+    )
+    close_gate = and_(
+        InternalComplaintORM.status == "RESOLVED",
+        or_(owner, handling),
+    )
+    return or_(
+        incoming,
+        pending_proposal,
+        handling_rebound,
+        pending_withdraw,
+        close_gate,
+    )
+
+
 def _pusat_inbox_clause(pusat_unit_codes: frozenset[str]):
     """Pusat inbox: live tickets at Pusat; WITHDRAWN only after Pusat handled."""
     pusat_owner = pusat_unit_clause(
@@ -141,7 +203,14 @@ class SqlAlchemyInternalComplaintRepository:
             self._session.scalars(
                 select(InternalComplaintResolutionORM)
                 .where(InternalComplaintResolutionORM.complaint_id == row.id)
-                .order_by(InternalComplaintResolutionORM.created_at.asc())
+                .order_by(
+                    func.coalesce(
+                        InternalComplaintResolutionORM.decided_at,
+                        InternalComplaintResolutionORM.proposed_at,
+                        InternalComplaintResolutionORM.created_at,
+                    ).asc(),
+                    InternalComplaintResolutionORM.id.asc(),
+                )
             )
         )
         acceptances = list(
@@ -163,7 +232,7 @@ class SqlAlchemyInternalComplaintRepository:
         )
         return mappers.complaint_from_orm(row, resolutions, acceptances, events)
 
-    def list_summaries(
+    def _visible_stmt(
         self,
         *,
         visibility: str,
@@ -171,30 +240,68 @@ class SqlAlchemyInternalComplaintRepository:
         org_unit_id: str | None,
         pusat_unit_codes: frozenset[str],
         status: str | None = None,
-        page: int = 1,
-        page_size: int = 20,
+        category: str | None = None,
+        priority: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        query: str | None = None,
         pending_transfer_request: bool | None = None,
         pending_withdraw_request: bool | None = None,
         needs_receive: bool | None = None,
-    ) -> tuple[list[InternalComplaintORM], int]:
-        page = max(1, int(page))
-        page_size = max(1, min(int(page_size), 100))
+        needs_action: bool | None = None,
+    ):
+        """Filtered + visibility-scoped SELECT, or ``None`` when nothing is visible.
+
+        One place decides what a caller may see, so the paged list, the report
+        PDF and the report breakdown can never disagree about the population.
+        """
         stmt = select(InternalComplaintORM)
         if status and status.strip():
             stmt = stmt.where(
                 InternalComplaintORM.status == status.strip().upper()
             )
+        if category and category.strip():
+            stmt = stmt.where(
+                InternalComplaintORM.category == category.strip().upper()
+            )
+        if priority and priority.strip():
+            stmt = stmt.where(
+                InternalComplaintORM.priority == priority.strip().upper()
+            )
+        if date_from is not None:
+            stmt = stmt.where(InternalComplaintORM.created_at >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(InternalComplaintORM.created_at <= date_to)
+        if query and query.strip():
+            # Mirrors the on-screen search (number, subject, description, units).
+            # The reporter's display name lives in the directory, not on this
+            # row, so a name-only search can match on screen and not here.
+            needle = f"%{query.strip().lower()}%"
+            stmt = stmt.where(
+                or_(
+                    func.lower(InternalComplaintORM.complaint_number).like(needle),
+                    func.lower(InternalComplaintORM.subject).like(needle),
+                    func.lower(InternalComplaintORM.description).like(needle),
+                    func.lower(InternalComplaintORM.owner_unit_id).like(needle),
+                    func.lower(InternalComplaintORM.handling_unit_id).like(needle),
+                )
+            )
         if pending_transfer_request:
             stmt = stmt.where(InternalComplaintORM.transfer_request_status == "PENDING")
         if pending_withdraw_request:
             stmt = stmt.where(InternalComplaintORM.withdraw_request_status == "PENDING")
-        if needs_receive:
+        if needs_action:
+            unit = (org_unit_id or "").strip()
+            if not unit:
+                return None
+            stmt = stmt.where(_needs_action_clause(unit, pusat_unit_codes))
+        elif needs_receive:
             # Incoming queue: not yet received at the actor's handling unit.
             # Cabang: handling == unit. Pusat: handling is any Pusat unit.
             # No unit (lab admin without membership) → empty, not a global count.
             unit = (org_unit_id or "").strip()
             if not unit:
-                return [], 0
+                return None
             stmt = stmt.where(
                 InternalComplaintORM.status.in_(("CREATED", "ASSIGNED"))
             )
@@ -210,23 +317,63 @@ class SqlAlchemyInternalComplaintRepository:
 
         vis = (visibility or "").upper()
         if vis == "ALL":
-            pass
-        elif vis == "SELF":
-            stmt = stmt.where(InternalComplaintORM.created_by == actor_id)
-        elif vis == "UNIT":
+            return stmt
+        if vis == "SELF":
+            return stmt.where(InternalComplaintORM.created_by == actor_id)
+        if vis == "UNIT":
             unit = (org_unit_id or "").strip()
             if not unit:
-                return [], 0
+                return None
             if is_pusat_unit(unit, pusat_unit_codes=pusat_unit_codes):
-                stmt = stmt.where(_pusat_inbox_clause(pusat_unit_codes))
-            else:
-                stmt = stmt.where(
-                    (InternalComplaintORM.handling_unit_id == unit)
-                    | (InternalComplaintORM.owner_unit_id == unit)
-                )
-        elif vis == "PUSAT":
-            stmt = stmt.where(_pusat_inbox_clause(pusat_unit_codes))
-        else:
+                return stmt.where(_pusat_inbox_clause(pusat_unit_codes))
+            return stmt.where(
+                (InternalComplaintORM.handling_unit_id == unit)
+                | (InternalComplaintORM.owner_unit_id == unit)
+            )
+        if vis == "PUSAT":
+            return stmt.where(_pusat_inbox_clause(pusat_unit_codes))
+        return None
+
+    def list_summaries(
+        self,
+        *,
+        visibility: str,
+        actor_id: str,
+        org_unit_id: str | None,
+        pusat_unit_codes: frozenset[str],
+        status: str | None = None,
+        category: str | None = None,
+        priority: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        query: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+        max_page_size: int = 100,
+        pending_transfer_request: bool | None = None,
+        pending_withdraw_request: bool | None = None,
+        needs_receive: bool | None = None,
+        needs_action: bool | None = None,
+    ) -> tuple[list[InternalComplaintORM], int]:
+        page = max(1, int(page))
+        page_size = max(1, min(int(page_size), max(1, int(max_page_size))))
+        stmt = self._visible_stmt(
+            visibility=visibility,
+            actor_id=actor_id,
+            org_unit_id=org_unit_id,
+            pusat_unit_codes=pusat_unit_codes,
+            status=status,
+            category=category,
+            priority=priority,
+            date_from=date_from,
+            date_to=date_to,
+            query=query,
+            pending_transfer_request=pending_transfer_request,
+            pending_withdraw_request=pending_withdraw_request,
+            needs_receive=needs_receive,
+            needs_action=needs_action,
+        )
+        if stmt is None:
             return [], 0
 
         total = int(
@@ -241,6 +388,89 @@ class SqlAlchemyInternalComplaintRepository:
             )
         )
         return rows, total
+
+    def latest_resolution_statuses(
+        self, complaint_ids: list[UUID]
+    ) -> dict[UUID, str]:
+        """Newest resolution status per ticket (decision/proposal time, then id)."""
+        if not complaint_ids:
+            return {}
+        event_at = func.coalesce(
+            InternalComplaintResolutionORM.decided_at,
+            InternalComplaintResolutionORM.proposed_at,
+            InternalComplaintResolutionORM.created_at,
+        )
+        stmt = (
+            select(
+                InternalComplaintResolutionORM.complaint_id,
+                InternalComplaintResolutionORM.status,
+            )
+            .where(InternalComplaintResolutionORM.complaint_id.in_(complaint_ids))
+            .order_by(
+                event_at.desc(),
+                InternalComplaintResolutionORM.id.desc(),
+            )
+        )
+        out: dict[UUID, str] = {}
+        for complaint_id, status in self._session.execute(stmt):
+            if complaint_id not in out:
+                out[complaint_id] = status
+        return out
+
+    def summarize(
+        self,
+        *,
+        visibility: str,
+        actor_id: str,
+        org_unit_id: str | None,
+        pusat_unit_codes: frozenset[str],
+        status: str | None = None,
+        category: str | None = None,
+        priority: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        query: str | None = None,
+    ) -> tuple[int, list[tuple[str, int]], list[tuple[str, int]], list[tuple[str, int]]]:
+        """Counts for the report breakdown: total, by status, priority, unit.
+
+        Counted in the database over the whole visible population, so the
+        numbers hold even when the client only ever loads a page of rows.
+        """
+        stmt = self._visible_stmt(
+            visibility=visibility,
+            actor_id=actor_id,
+            org_unit_id=org_unit_id,
+            pusat_unit_codes=pusat_unit_codes,
+            status=status,
+            category=category,
+            priority=priority,
+            date_from=date_from,
+            date_to=date_to,
+            query=query,
+        )
+        if stmt is None:
+            return 0, [], [], []
+
+        scoped = stmt.subquery()
+        total = int(
+            self._session.scalar(select(func.count()).select_from(scoped)) or 0
+        )
+
+        def _group(column) -> list[tuple[str, int]]:  # noqa: ANN001
+            rows = self._session.execute(
+                select(column, func.count())
+                .select_from(scoped)
+                .group_by(column)
+                .order_by(func.count().desc(), column.asc())
+            ).all()
+            return [(str(value or ""), int(count)) for value, count in rows]
+
+        return (
+            total,
+            _group(scoped.c.status),
+            _group(scoped.c.priority),
+            _group(scoped.c.handling_unit_id),
+        )
 
     def commit(self) -> None:
         self._session.commit()

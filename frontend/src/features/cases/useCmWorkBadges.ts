@@ -8,10 +8,15 @@ import { WORK_BADGES_REFRESH_EVENT } from "./workBadgesSignal";
 
 /**
  * Sidebar work counts for Mode A: Cabang unread Cases + Pusat unopened queue.
- * Refetches on route change and on the refresh signal a detail view fires once
- * it has loaded (the read receipt is written by that same request).
+ * Same receiver pattern as Internal (two engines, one UX): kirim / kirim ulang
+ * raises the badge on the receiving login.
+ * Refetch on route change, the same-tab refresh signal, tab focus, and a
+ * quiet poll so the other login sees escalate / return / resend without
+ * navigating.
  * Fail-open: a fetch error never blocks navigation — counts hide.
  */
+export const WORK_BADGES_POLL_MS = 60_000;
+
 export function useCmWorkBadges(): {
   unreadCases: number;
   pusatQueue: number;
@@ -77,10 +82,20 @@ export function useCmWorkBadges(): {
     const isCancelled = () => cancelled;
     load(isCancelled);
     const onRefresh = () => load(isCancelled);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load(isCancelled);
+    };
     window.addEventListener(WORK_BADGES_REFRESH_EVENT, onRefresh);
+    document.addEventListener("visibilitychange", onVisible);
+    const pollId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      load(isCancelled);
+    }, WORK_BADGES_POLL_MS);
     return () => {
       cancelled = true;
       window.removeEventListener(WORK_BADGES_REFRESH_EVENT, onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(pollId);
     };
   }, [load, pathname]);
 

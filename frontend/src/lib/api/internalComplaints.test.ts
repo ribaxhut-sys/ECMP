@@ -22,6 +22,8 @@ describe("internalComplaintPaths", () => {
     expect(paths.exportPdf("id")).toBe(
       "/api/v1/internal/complaints/id/export",
     );
+    expect(paths.exportReportPdf).toBe("/api/v1/internal/complaints/export");
+    expect(paths.reportSummary).toBe("/api/v1/internal/complaints/summary");
     expect(paths.returnForCompletion("id")).toBe(
       "/api/v1/internal/complaints/id/return-for-completion",
     );

@@ -6,6 +6,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
@@ -35,10 +36,12 @@ from app.modules.audit.hooks import resolve_actor_name, write_audit
 from app.modules.internal_complaint.api.schemas import (
     AcceptanceResponse,
     CloseRequest,
+    CountBucketResponse,
     CreateInternalComplaintRequest,
     DecideTransferRequestRequest,
     DecideWithdrawRequestRequest,
     HistoryEventResponse,
+    InternalComplaintReportSummaryResponse,
     InternalComplaintResponse,
     InternalComplaintSummaryResponse,
     RecordAcceptanceRequest,
@@ -78,6 +81,12 @@ from app.modules.internal_complaint.application.pdf import (
 from app.modules.internal_complaint.application.related_aggregate import (
     resolve_related_aggregate,
 )
+from app.modules.internal_complaint.application.report_pdf import (
+    InternalReportFilters,
+    InternalReportSnapshot,
+    internal_report_pdf_filename,
+    render_internal_report_pdf,
+)
 from app.modules.internal_complaint.application.services import (
     InternalComplaintApplicationService,
 )
@@ -94,6 +103,7 @@ from app.modules.internal_complaint.infrastructure.repository import (
 
 router = APIRouter(tags=["Internal-Complaints"])
 logger = logging.getLogger(__name__)
+_REPORT_TZ = ZoneInfo("Asia/Jakarta")
 
 
 def get_internal_complaint_service(
@@ -406,6 +416,184 @@ def _audit_internal_export(
         logger.exception("internal complaint pdf export audit failed")
 
 
+def _audit_internal_report_export(
+    session: Session,
+    *,
+    request: Request,
+    principal: Principal,
+    filename: str,
+    row_count: int,
+    total_matched: int,
+) -> None:
+    try:
+        write_audit(
+            session,
+            request=request,
+            principal=principal,
+            event_type="internal_complaint.report_exported",
+            entity_type="InternalComplaintReport",
+            action=AuditAction.EXPORT,
+            entity_id=None,
+            metadata={
+                "filename": filename,
+                "rowCount": row_count,
+                "totalMatched": total_matched,
+            },
+        )
+    except Exception:
+        logger.exception("internal complaint report pdf export audit failed")
+
+
+def _report_period_bounds(
+    date_from: str | None, date_to: str | None
+) -> tuple[datetime | None, datetime | None]:
+    """`YYYY-MM-DD` Jakarta calendar days -> inclusive UTC instants."""
+    start = _parse_report_day(date_from, end_of_day=False)
+    end = _parse_report_day(date_to, end_of_day=True)
+    if start and end and start > end:
+        raise ValidationAppError(m("validation.date_range_invalid"))
+    return start, end
+
+
+def _parse_report_day(value: str | None, *, end_of_day: bool) -> datetime | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        day = datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValidationAppError(m("validation.date_yyyy_mm_dd")) from exc
+    moment = (
+        day.replace(hour=23, minute=59, second=59, microsecond=999999)
+        if end_of_day
+        else day.replace(hour=0, minute=0, second=0, microsecond=0)
+    )
+    return moment.replace(tzinfo=_REPORT_TZ).astimezone(UTC)
+
+
+@router.get(
+    "/api/v1/internal/complaints/summary",
+    response_model=DataResponse[InternalComplaintReportSummaryResponse],
+)
+def get_internal_complaints_report_summary(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    status: Annotated[str | None, Query()] = None,
+    category: Annotated[str | None, Query()] = None,
+    priority: Annotated[str | None, Query()] = None,
+    date_from: Annotated[str | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[str | None, Query(alias="dateTo")] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+) -> DataResponse[InternalComplaintReportSummaryResponse]:
+    """API-554 — counts behind the /internal/reports breakdown.
+
+    Same visibility and same filters as the list endpoint, counted in the
+    database: the cards stay right even when the client holds only one page.
+    """
+    period_from, period_to = _report_period_bounds(date_from, date_to)
+    summary = service.summarize(
+        principal,
+        org_unit_id=_actor_unit(principal, session),
+        status=status,
+        category=category,
+        priority=priority,
+        date_from=period_from,
+        date_to=period_to,
+        query=q,
+    )
+    return DataResponse(
+        data=InternalComplaintReportSummaryResponse(
+            totalItems=summary.total_items,
+            byStatus=[
+                CountBucketResponse(key=b.key, count=b.count) for b in summary.by_status
+            ],
+            byPriority=[
+                CountBucketResponse(key=b.key, count=b.count)
+                for b in summary.by_priority
+            ],
+            byHandlingUnit=[
+                CountBucketResponse(key=b.key, count=b.count)
+                for b in summary.by_handling_unit
+            ],
+        )
+    )
+
+
+@router.get("/api/v1/internal/complaints/export")
+def export_internal_complaints_report_pdf(
+    request: Request,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[
+        InternalComplaintApplicationService, Depends(get_internal_complaint_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    status: Annotated[str | None, Query()] = None,
+    category: Annotated[str | None, Query()] = None,
+    priority: Annotated[str | None, Query()] = None,
+    date_from: Annotated[str | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[str | None, Query(alias="dateTo")] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+) -> Response:
+    """API-553 — list report PDF for /internal/reports.
+
+    Same visibility as the list endpoint: an operator can only print what they
+    could already read. Read-only; no status is touched. Capped at
+    ``INTERNAL_REPORT_EXPORT_MAX_ROWS`` rows, and the PDF says so when the cap
+    trimmed the tail.
+    """
+    period_from, period_to = _report_period_bounds(date_from, date_to)
+    rows, total = service.export_summaries(
+        principal,
+        org_unit_id=_actor_unit(principal, session),
+        status=status,
+        category=category,
+        priority=priority,
+        date_from=period_from,
+        date_to=period_to,
+        query=q,
+    )
+    exported_at = datetime.now(UTC)
+    try:
+        actor_name = resolve_actor_name(session, principal.user_id)
+    except Exception:
+        actor_name = None
+    snapshot = InternalReportSnapshot(
+        rows=rows,
+        total_matched=total,
+        filters=InternalReportFilters(
+            status=status,
+            category=category,
+            priority=priority,
+            date_from=date_from,
+            date_to=date_to,
+            query=q,
+        ),
+        exported_by=actor_name or str(principal.user_id),
+        exported_at=exported_at,
+    )
+    payload = render_internal_report_pdf(snapshot)
+    filename = internal_report_pdf_filename(exported_at)
+    _audit_internal_report_export(
+        session,
+        request=request,
+        principal=principal,
+        filename=filename,
+        row_count=len(rows),
+        total_matched=total,
+    )
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.get("/api/v1/internal/complaints")
 def list_internal_complaints(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
@@ -423,6 +611,7 @@ def list_internal_complaints(
         bool | None, Query(alias="pendingWithdrawRequest")
     ] = None,
     needs_receive: Annotated[bool | None, Query(alias="needsReceive")] = None,
+    needs_action: Annotated[bool | None, Query(alias="needsAction")] = None,
 ) -> ListResponse[InternalComplaintSummaryResponse]:
     items, total = service.list_complaints(
         principal,
@@ -433,6 +622,7 @@ def list_internal_complaints(
         pending_transfer_request=pending_transfer_request,
         pending_withdraw_request=pending_withdraw_request,
         needs_receive=needs_receive,
+        needs_action=needs_action,
     )
     creator_ids = {i.created_by for i in items if i.created_by}
     names = (
@@ -459,6 +649,7 @@ def list_internal_complaints(
                 transferRequestStatus=i.transfer_request_status,
                 withdrawRequestStatus=i.withdraw_request_status,
                 completionRequestStatus=i.completion_request_status,
+                resolutionStatus=i.resolution_status,
             )
             for i in items
         ],
@@ -474,11 +665,14 @@ def get_pending_inbox_count(
     ],
     session: Annotated[Session, Depends(get_db_session)],
 ) -> DataResponse[int]:
-    """Sidebar badge — incoming tickets awaiting receive at the caller's unit.
+    """Sidebar badge — work waiting on the caller's unit.
 
-    Cabang: CREATED/ASSIGNED whose handling unit is the branch.
-    Pusat: CREATED/ASSIGNED whose handling unit is a Pusat unit.
-    Tickets the caller sent away (handling elsewhere) do not count.
+    Cabang: incoming ASSIGNED, live PENDING_APPROVAL usulan they own, and
+    RESOLVED close-gate.
+    Pusat: incoming CREATED/ASSIGNED at Pusat, rebound after owner REJECTED
+    usulan or kembalikan ke pengerjaan, pending withdraw, and RESOLVED
+    close-gate.
+    Not CAP-005. Not unread receipts.
     """
     count = service.count_pending_inbox(
         principal, org_unit_id=_actor_unit(principal, session)

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.2.5
+  version: 1.4.0
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -69,6 +69,16 @@ paths:
             Incoming queue at the caller's handling unit (CREATED or ASSIGNED).
             Cabang: handling unit is the branch. Pusat: handling unit is a Pusat
             unit. Tickets sent away (handling elsewhere) are excluded.
+        - name: needsAction
+          in: query
+          schema: { type: boolean }
+          description: >
+            Work waiting on the caller's unit (API-551 population): incoming
+            CREATED/ASSIGNED at handling, owner-side live PENDING_APPROVAL
+            usulan, handling-side rebound after REJECTED usulan or return
+            from close-gate (latest ACCEPTED while IN_PROGRESS), handling-side
+            PENDING withdraw, and RESOLVED close-gate. Historical PENDING
+            rows after ACCEPT do not count on the owner side.
       responses:
         "200":
           description: Paginated list
@@ -99,14 +109,16 @@ paths:
       operationId: getPendingInboxCount
       x-ear-id: API-551
       tags: [Internal-Complaints]
-      summary: Sidebar badge — incoming tickets awaiting receive at the caller's unit
+      summary: Sidebar badge — work waiting on the caller's unit
       description: >
-        Cabang: count of CREATED/ASSIGNED whose handling unit is the branch
-        (return-for-completion, transfer in). Pusat: count of CREATED/ASSIGNED
-        whose handling unit is a Pusat unit (Cabang create/resend, Pusat-local
-        not yet received). Not CAP-005. Not unread receipts — queue count drops
-        when status leaves CREATED/ASSIGNED (propose auto-claim or return).
-        Fail-open on the client.
+        Cabang: incoming ASSIGNED (return-for-completion / transfer in),
+        live (latest) PENDING_APPROVAL usulan on tickets they own, and
+        RESOLVED close-gate.
+        Pusat: incoming CREATED/ASSIGNED at Pusat (Cabang create/resend,
+        Pusat-local), rebound after owner REJECTED usulan or kembalikan ke
+        pengerjaan, PENDING withdraw they must decide, and RESOLVED
+        close-gate. Not CAP-005. Not unread receipts — queue count, not
+        per-user read receipts. Fail-open on the client.
       responses:
         "200":
           description: Count
@@ -164,6 +176,109 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/InternalComplaint"
+  /api/v1/internal/complaints/export:
+    get:
+      operationId: exportInternalComplaintsReportPdf
+      tags: [Internal-Complaints]
+      summary: Download Pengaduan Internal list report PDF
+      description: >
+        Server-rendered report behind `/internal/reports` (API-553): criteria,
+        status breakdown and one line per ticket, on the operator letterhead.
+        Same visibility as the list endpoint — an operator can only print what
+        they may already read. Read-only; no status is touched. Capped at 500
+        rows; when the cap trims the tail the PDF says so and asks for a
+        narrower filter. Not a per-ticket snapshot (API-550). Not KPI.
+      x-ear-id: API-553
+      x-ecmp-logical-id: API-INT-003
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { type: string }
+        - name: dateFrom
+          in: query
+          description: Inclusive `YYYY-MM-DD` Asia/Jakarta calendar day.
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          description: Inclusive `YYYY-MM-DD` Asia/Jakarta calendar day.
+          schema: { type: string, format: date }
+        - name: q
+          in: query
+          description: Matches number, subject, description, owner/handling unit.
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: Operator list report PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="laporan-pengaduan-internal_{YYYYMMDD}.pdf"
+                (YYYYMMDD in Asia/Jakarta)
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Malformed or inverted period
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+  /api/v1/internal/complaints/summary:
+    get:
+      operationId: getInternalComplaintsReportSummary
+      tags: [Internal-Complaints]
+      summary: Pengaduan Internal report breakdown (counts)
+      description: >
+        Counts behind the `/internal/reports` cards (API-554): total, by status,
+        by priority and by handling unit, over the same filtered and visible
+        population the list endpoint would return. Counted in the database, so
+        the cards stay correct when the client holds only a page of rows.
+      x-ear-id: API-554
+      x-ecmp-logical-id: API-INT-004
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { type: string }
+        - name: dateFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          schema: { type: string, format: date }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: Report breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InternalComplaintReportSummary"
+        "400":
+          description: Malformed or inverted period
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
   /api/v1/internal/complaints/{complaintId}/export:
     get:
       operationId: exportInternalComplaintPdf
@@ -472,6 +587,28 @@ paths:
           description: Closed or conflict if dual acceptance incomplete
 components:
   schemas:
+    InternalCountBucket:
+      type: object
+      required: [key, count]
+      properties:
+        key:
+          type: string
+          description: Status / priority / handling-unit code the count belongs to.
+        count: { type: integer }
+    InternalComplaintReportSummary:
+      type: object
+      required: [totalItems, byStatus, byPriority, byHandlingUnit]
+      properties:
+        totalItems: { type: integer }
+        byStatus:
+          type: array
+          items: { $ref: "#/components/schemas/InternalCountBucket" }
+        byPriority:
+          type: array
+          items: { $ref: "#/components/schemas/InternalCountBucket" }
+        byHandlingUnit:
+          type: array
+          items: { $ref: "#/components/schemas/InternalCountBucket" }
     CreateInternalComplaintRequest:
       type: object
       required: [subject, description, category]
@@ -535,6 +672,10 @@ components:
           nullable: true
           enum: [PENDING]
           description: PENDING = Pusat asked the branch to complete documents
+        resolutionStatus:
+          type: string
+          nullable: true
+          description: Latest resolution proposal status (e.g. PENDING_APPROVAL)
     InternalComplaint:
       type: object
       properties:

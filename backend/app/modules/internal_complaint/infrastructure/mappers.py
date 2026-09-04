@@ -70,6 +70,7 @@ def resolution_from_orm(row: InternalComplaintResolutionORM) -> ResolutionRecord
 def resolution_to_orm(
     complaint_id: UUID, record: ResolutionRecord
 ) -> InternalComplaintResolutionORM:
+    stamped = record.decided_at or record.proposed_at
     return InternalComplaintResolutionORM(
         id=UUID(record.resolution_id),
         complaint_id=complaint_id,
@@ -83,6 +84,7 @@ def resolution_to_orm(
         decided_by=record.decided_by,
         decided_at=record.decided_at,
         rejection_reason=record.rejection_reason,
+        created_at=stamped,
     )
 
 

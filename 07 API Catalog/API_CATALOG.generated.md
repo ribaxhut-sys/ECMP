@@ -272,7 +272,7 @@
 |---|---|---|
 | — | `GET //api/v1/internal/complaints` | List Pengaduan Internal (visibility-scoped) |
 | — | `POST //api/v1/internal/complaints` | Create Pengaduan Internal (Owner = creator unit) |
-| API-551 | `GET //api/v1/internal/complaints/inbox/pending-count` | Sidebar badge — incoming tickets awaiting receive at the caller's unit |
+| API-551 | `GET //api/v1/internal/complaints/inbox/pending-count` | Sidebar badge — work waiting on the caller's unit |
 | — | `GET //api/v1/internal/complaints/transfer-requests/pending-count` | Sidebar badge — count of PENDING Agent transfer requests (visibility-scoped) |
 | — | `GET //api/v1/internal/complaints/withdraw-requests/pending-count` | Sidebar badge — count of PENDING branch withdraw requests (visibility-scoped) |
 | — | `GET //api/v1/internal/complaints/{complaintId}` | Get Pengaduan Internal detail + history |

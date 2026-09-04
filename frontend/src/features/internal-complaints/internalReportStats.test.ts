@@ -4,8 +4,11 @@ import {
   countByPriority,
   countByStatus,
   maxCount,
+  priorityCountsFromSummary,
+  statusBucketsFromSummary,
+  unitBucketsFromSummary,
 } from "./internalReportStats";
-import type { InternalComplaint } from "./types";
+import { INTERNAL_STATUSES, type InternalComplaint } from "./types";
 
 function row(overrides: Partial<InternalComplaint>): InternalComplaint {
   return {
@@ -134,5 +137,45 @@ describe("maxCount", () => {
   });
   it("returns the largest count", () => {
     expect(maxCount([{ count: 1 }, { count: 5 }, { count: 3 }])).toBe(5);
+  });
+});
+
+describe("server-counted buckets (API-554)", () => {
+  it("zero-fills status in INTERNAL_STATUSES order", () => {
+    const buckets = statusBucketsFromSummary([{ key: "CLOSED", count: 3 }]);
+    expect(buckets.map((b) => b.key)).toEqual([...INTERNAL_STATUSES]);
+    expect(buckets.find((b) => b.key === "CLOSED")?.count).toBe(3);
+    expect(buckets.find((b) => b.key === "CREATED")?.count).toBe(0);
+  });
+
+  it("zero-fills every priority, ignoring codes it does not know", () => {
+    expect(
+      priorityCountsFromSummary([
+        { key: "HIGH", count: 2 },
+        { key: "UNKNOWN", count: 9 },
+      ]),
+    ).toEqual({ LOW: 0, MEDIUM: 0, HIGH: 2, CRITICAL: 0 });
+  });
+
+  it("merges Pusat variants into one bar instead of two with one label", () => {
+    expect(
+      unitBucketsFromSummary([
+        { key: "PUSAT", count: 4 },
+        { key: "PUSAT-CRO", count: 3 },
+        { key: "UPPPD-GAMBIR", count: 2 },
+      ]),
+    ).toEqual([
+      { unitId: "PUSAT", count: 7 },
+      { unitId: "UPPPD-GAMBIR", count: 2 },
+    ]);
+  });
+
+  it("keeps the server order for units and displays their codes", () => {
+    expect(
+      unitBucketsFromSummary([
+        { key: "PUSAT", count: 5 },
+        { key: "UPPPD-GAMBIR", count: 1 },
+      ]).map((b) => b.count),
+    ).toEqual([5, 1]);
   });
 });

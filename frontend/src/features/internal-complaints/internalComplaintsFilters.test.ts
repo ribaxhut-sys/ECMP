@@ -136,6 +136,62 @@ describe("internalComplaintsFilters", () => {
     ).toBe("1");
   });
 
+  it("filters by an inclusive createdAt period", () => {
+    const rows = [
+      row({ id: "1", number: "a", createdAt: "2026-01-31T17:00:00Z" }),
+      row({ id: "2", number: "b", createdAt: "2026-02-15T03:00:00Z" }),
+      row({ id: "3", number: "c", createdAt: "2026-03-01T00:00:00Z" }),
+    ];
+    // 2026-01-31T17:00Z is already 2026-02-01 in Asia/Jakarta.
+    expect(
+      filterInternalComplaints(rows, {
+        ...defaultInternalListFilters(),
+        dateFrom: "2026-02-01",
+        dateTo: "2026-02-15",
+      }).map((r) => r.id),
+    ).toEqual(["1", "2"]);
+    expect(
+      filterInternalComplaints(rows, {
+        ...defaultInternalListFilters(),
+        dateFrom: "2026-02-15",
+      }).map((r) => r.id),
+    ).toEqual(["2", "3"]);
+    expect(
+      filterInternalComplaints(rows, {
+        ...defaultInternalListFilters(),
+        dateTo: "2026-02-01",
+      }).map((r) => r.id),
+    ).toEqual(["1"]);
+  });
+
+  it("drops rows with an unreadable createdAt only while a period is set", () => {
+    const rows = [row({ id: "1", number: "a", createdAt: "not-a-date" })];
+    expect(
+      filterInternalComplaints(rows, defaultInternalListFilters()),
+    ).toHaveLength(1);
+    expect(
+      filterInternalComplaints(rows, {
+        ...defaultInternalListFilters(),
+        dateFrom: "2026-01-01",
+      }),
+    ).toHaveLength(0);
+  });
+
+  it("counts a period as an active filter", () => {
+    expect(
+      hasActiveInternalFilters({
+        ...defaultInternalListFilters(),
+        dateFrom: "2026-01-01",
+      }),
+    ).toBe(true);
+    expect(
+      hasActiveInternalFilters({
+        ...defaultInternalListFilters(),
+        dateTo: "2026-01-31",
+      }),
+    ).toBe(true);
+  });
+
   it("sorts newest first", () => {
     const rows = [
       row({ id: "1", number: "a", createdAt: "2026-01-01T00:00:00Z" }),
@@ -204,6 +260,60 @@ describe("internalComplaintsFilters", () => {
         needsReceive: true,
       }),
     ).toBe(true);
+  });
+
+  it("keeps owner usulan in the needsAction queue for Cabang, not Pusat", () => {
+    const rows = [
+      row({
+        id: "proposal",
+        number: "PI-U",
+        status: "IN_PROGRESS",
+        ownerUnitId: "UPPPD-JOHAR-BARU",
+        handlingUnitId: "PUSAT",
+        resolutionStatus: "PENDING_APPROVAL",
+      }),
+    ];
+    expect(
+      filterInternalComplaints(
+        rows,
+        { ...defaultInternalListFilters(), needsAction: true },
+        "UPPPD-JOHAR-BARU",
+      ).map((r) => r.id),
+    ).toEqual(["proposal"]);
+    expect(
+      filterInternalComplaints(
+        rows,
+        { ...defaultInternalListFilters(), needsAction: true },
+        "PUSAT",
+      ),
+    ).toEqual([]);
+  });
+
+  it("drops IN_PROGRESS ACCEPTED from Cabang needsAction, keeps it for Pusat rebound", () => {
+    const rows = [
+      row({
+        id: "stale",
+        number: "PI-STALE",
+        status: "IN_PROGRESS",
+        ownerUnitId: "UPPPD-JOHAR-BARU",
+        handlingUnitId: "PUSAT",
+        resolutionStatus: "ACCEPTED",
+      }),
+    ];
+    expect(
+      filterInternalComplaints(
+        rows,
+        { ...defaultInternalListFilters(), needsAction: true },
+        "UPPPD-JOHAR-BARU",
+      ),
+    ).toEqual([]);
+    expect(
+      filterInternalComplaints(
+        rows,
+        { ...defaultInternalListFilters(), needsAction: true },
+        "PUSAT",
+      ).map((r) => r.id),
+    ).toEqual(["stale"]);
   });
 
   it("sorts rows needing attention before the rest, newest first within each group", () => {

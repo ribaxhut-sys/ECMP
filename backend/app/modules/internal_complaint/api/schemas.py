@@ -37,6 +37,9 @@ class InternalComplaintSummaryResponse(BaseModel):
     completion_request_status: str | None = Field(
         default=None, alias="completionRequestStatus"
     )
+    resolution_status: str | None = Field(
+        default=None, alias="resolutionStatus"
+    )
 
 
 class ResolutionResponse(BaseModel):
@@ -320,3 +323,21 @@ class DecideWithdrawRequestRequest(BaseModel):
 
     decision: Literal["APPROVE", "REJECT"]
     reason: str | None = None
+
+
+class CountBucketResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    key: str
+    count: int
+
+
+class InternalComplaintReportSummaryResponse(BaseModel):
+    """API-554 — report breakdown counted server-side, not in the browser."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    total_items: int = Field(alias="totalItems")
+    by_status: list[CountBucketResponse] = Field(alias="byStatus")
+    by_priority: list[CountBucketResponse] = Field(alias="byPriority")
+    by_handling_unit: list[CountBucketResponse] = Field(alias="byHandlingUnit")

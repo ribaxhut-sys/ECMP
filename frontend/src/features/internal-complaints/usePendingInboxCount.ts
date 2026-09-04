@@ -7,10 +7,18 @@ import { fetchPendingInboxCount } from "@/lib/api/internalComplaints";
 import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { INTERNAL_INBOX_BADGES_REFRESH_EVENT } from "./inboxBadgesSignal";
 
+/** Background poll so the receiving unit sees create / return / resend. */
+export const INTERNAL_INBOX_BADGE_POLL_MS = 60_000;
+
 /**
- * Sidebar badge — incoming Pengaduan Internal awaiting receive at this unit.
- * Cabang and Pusat both use the same endpoint (API-551); the server scopes
- * handling-unit. Fail-open: a fetch error never blocks navigation.
+ * Sidebar badge — work waiting on this unit (API-551).
+ * Cabang: incoming, owner usulan hidup, close-gate.
+ * Pusat: incoming, rebound after tolak/kembalikan, withdraw, close-gate.
+ * Fail-open: a fetch error never blocks navigation.
+ *
+ * Refetch on route change, the same-tab refresh signal, tab focus, and a
+ * quiet poll so the other login sees kirim / kembalikan / kirim ulang /
+ * usulan without navigating.
  */
 export function usePendingInboxCount(): number {
   const pathname = usePathname();
@@ -43,10 +51,20 @@ export function usePendingInboxCount(): number {
     const isCancelled = () => cancelled;
     load(isCancelled);
     const onRefresh = () => load(isCancelled);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load(isCancelled);
+    };
     window.addEventListener(INTERNAL_INBOX_BADGES_REFRESH_EVENT, onRefresh);
+    document.addEventListener("visibilitychange", onVisible);
+    const pollId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      load(isCancelled);
+    }, INTERNAL_INBOX_BADGE_POLL_MS);
     return () => {
       cancelled = true;
       window.removeEventListener(INTERNAL_INBOX_BADGES_REFRESH_EVENT, onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(pollId);
     };
   }, [load, pathname]);
 
