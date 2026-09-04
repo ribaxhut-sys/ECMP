@@ -23,6 +23,7 @@ ticket they authored on their own unit.
 from __future__ import annotations
 
 from app.core.authorization.org_unit_resolver import OrgUnitResolver
+from app.core.authorization.visibility import is_pusat_unit
 from app.core.authorization.principal import Principal
 from app.core.errors import PermissionDeniedError
 from app.core.user_messages import m
@@ -71,6 +72,7 @@ def assert_case_acceptance_authorized(
     actor_unit_id: str | None,
     complaint_creator_id: str | None,
     agent_may_accept: bool = True,
+    pusat_units_equivalent: bool = False,
 ) -> None:
     """Authorize Handling Unit / Owner acceptance for the acting principal.
 
@@ -109,6 +111,15 @@ def assert_case_acceptance_authorized(
         required = OrgUnitResolver.normalize(handling_unit_id)
         mismatch_message = "case.acceptance_handling_unit_mismatch"
     own_unit = bool(required) and actor_unit == required
+    if (
+        not own_unit
+        and pusat_units_equivalent
+        and required
+        and actor_unit
+        and is_pusat_unit(required)
+        and is_pusat_unit(actor_unit)
+    ):
+        own_unit = True
 
     if is_creator and not (
         (is_agent and agent_may_accept) or (is_unit_approver and own_unit)

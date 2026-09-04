@@ -712,7 +712,8 @@
     "dataScopeDenied": "Data access denied because it is outside your authorized scope.",
     "orgScopeDenied": "Access denied because it is outside your organization scope.",
     "passwordChangeRequired": "You must change your password before accessing the application.",
-    "methodNotAllowed": "HTTP method not allowed."
+    "methodNotAllowed": "HTTP method not allowed.",
+    "resolutionProposalPending": "Decide the live resolution proposal before this action."
   },
   "validation": {
     "required": "{field} is required.",

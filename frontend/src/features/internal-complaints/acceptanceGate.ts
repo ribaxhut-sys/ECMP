@@ -81,10 +81,9 @@ export function mayRecordInternalAcceptance(input: {
     input.party === "OWNER"
       ? normalizeAcceptanceUnit(input.ownerUnitId)
       : normalizeAcceptanceUnit(input.handlingUnitId);
-  const ownUnit =
-    input.party === "HANDLING_UNIT" && isPusatUnitCode(required)
-      ? isPusatUnitCode(actorUnit)
-      : Boolean(required) && actorUnit === required;
+  const ownUnit = isPusatUnitCode(required)
+    ? isPusatUnitCode(actorUnit)
+    : Boolean(required) && actorUnit === required;
 
   if (isCreator && !(isUnitApprover && ownUnit)) {
     return false;

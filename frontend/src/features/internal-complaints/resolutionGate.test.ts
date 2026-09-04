@@ -107,6 +107,33 @@ describe("resolutionGate", () => {
     ).toBe(false);
   });
 
+  it("lets any Pusat login decide when the owner unit is a Pusat alias", () => {
+    expect(
+      mayDecideResolutionProposal({
+        status: "IN_PROGRESS",
+        actorUnitCode: "PUSAT",
+        ownerUnitId: "PUSAT-CRO",
+        hasUpdatePermission: true,
+        roles: ["SUPERVISOR"],
+        actorUserId: "pusat-sv",
+        proposedBy: "cabang-1",
+        resolutionStatus: "PENDING_APPROVAL",
+      }),
+    ).toBe(true);
+    expect(
+      mayDecideResolutionProposal({
+        status: "IN_PROGRESS",
+        actorUnitCode: "UPPPD-TANAH-ABANG",
+        ownerUnitId: "PUSAT-CRO",
+        hasUpdatePermission: true,
+        roles: ["SUPERVISOR"],
+        actorUserId: "cabang-sv",
+        proposedBy: "cabang-1",
+        resolutionStatus: "PENDING_APPROVAL",
+      }),
+    ).toBe(false);
+  });
+
   it("hides accept when there is no pending proposal", () => {
     expect(
       mayDecideResolutionProposal({

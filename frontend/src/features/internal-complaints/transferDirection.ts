@@ -78,6 +78,15 @@ export function actorMatchesInternalHandlingUnit(
   return Boolean(a) && Boolean(b) && a === b;
 }
 
+/** Cabang: exact owner unit. Pusat owner: any Pusat login or Admin. */
+export function actorMatchesInternalOwnerUnit(
+  actorUnitCode: string | null | undefined,
+  ownerUnitId: string,
+  roles: readonly string[] = [],
+): boolean {
+  return actorMatchesInternalHandlingUnit(actorUnitCode, ownerUnitId, roles);
+}
+
 /** Pengaduan Internal never displays Pusat sub-units (PUSAT-CRO → PUSAT). */
 export function displayInternalUnitCode(
   code: string | null | undefined,

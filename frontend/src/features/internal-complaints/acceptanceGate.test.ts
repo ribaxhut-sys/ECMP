@@ -62,6 +62,20 @@ describe("mayRecordInternalAcceptance", () => {
     ).toBe(true);
   });
 
+  it("lets Staff KaSatPel Pusat accept owner on a legacy CRO owner unit", () => {
+    expect(
+      mayRecordInternalAcceptance({
+        roles: ["SUPERVISOR"],
+        actorUnitCode: "PUSAT",
+        actorUserId: "user-31206",
+        ownerUnitId: "PUSAT-CRO",
+        handlingUnitId: "UPPPD-TANAH-ABANG",
+        creatorUserId: "user-3102",
+        party: "OWNER",
+      }),
+    ).toBe(true);
+  });
+
   it("lets Staff KaSatPel owner accept when actor unit is owner", () => {
     expect(
       mayRecordInternalAcceptance({

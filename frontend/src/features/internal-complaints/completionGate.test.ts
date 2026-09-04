@@ -39,6 +39,13 @@ describe("completionGate", () => {
         withdrawRequestStatus: "PENDING",
       }),
     ).toBe(false);
+    expect(
+      mayReturnForCompletion({
+        ...base,
+        status: "IN_PROGRESS",
+        resolutionStatus: "PENDING_APPROVAL",
+      }),
+    ).toBe(false);
   });
 
   it("hides return once already awaiting completion", () => {

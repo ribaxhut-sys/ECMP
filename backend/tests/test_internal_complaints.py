@@ -899,6 +899,30 @@ def test_supervisor_may_accept_when_authorized():
     )
 
 
+def test_internal_pusat_alias_close_gate_requires_flag():
+    sv = _principal(roles=("SUPERVISOR",), org_unit_id="PUSAT")
+    with pytest.raises(PermissionDeniedError):
+        assert_case_acceptance_authorized(
+            sv,
+            party="OWNER",
+            owner_unit_id="PUSAT-CRO",
+            handling_unit_id="UPPPD-GAMBIR",
+            actor_unit_id="PUSAT",
+            complaint_creator_id="other",
+            agent_may_accept=False,
+        )
+    assert_case_acceptance_authorized(
+        sv,
+        party="OWNER",
+        owner_unit_id="PUSAT-CRO",
+        handling_unit_id="UPPPD-GAMBIR",
+        actor_unit_id="PUSAT",
+        complaint_creator_id="other",
+        agent_may_accept=False,
+        pusat_units_equivalent=True,
+    )
+
+
 def test_manager_may_accept_when_authorized():
     mgr = _principal(roles=("MANAGER",), org_unit_id="PUSAT")
     assert_case_acceptance_authorized(
@@ -2098,6 +2122,84 @@ def test_pending_withdraw_blocks_return_and_propose(
             )
         )
     assert blocked_propose.value.code == "WITHDRAW_REQUEST_PENDING"
+
+
+def test_pending_proposal_blocks_return_transfer_and_withdraw_request(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="UPPPD-GAMBIR")
+    _to_in_progress(service, cid, actor_id="handler-sv", unit="PUSAT")
+    _propose_resolution(service, cid, actor_id="handler-sv", unit="PUSAT")
+    with pytest.raises(ApiError) as blocked_return:
+        service.return_for_completion(
+            ReturnForCompletionCommand(
+                complaint_id=cid,
+                actor_id="pusat-sv",
+                actor_unit_id="PUSAT",
+                reason="Scan tidak terbaca",
+            )
+        )
+    assert blocked_return.value.code == "RESOLUTION_PROPOSAL_PENDING"
+    with pytest.raises(ApiError) as blocked_transfer:
+        service.transfer(
+            TransferCommand(
+                complaint_id=cid,
+                destination_unit_id="UPPPD-GAMBIR",
+                actor_id="pusat-sv",
+                actor_unit_id="PUSAT",
+                reason="kembalikan handling",
+            )
+        )
+    assert blocked_transfer.value.code == "RESOLUTION_PROPOSAL_PENDING"
+    with pytest.raises(ApiError) as blocked_withdraw:
+        service.request_withdraw(
+            RequestWithdrawCommand(
+                complaint_id=cid,
+                actor_id="creator-1",
+                reason="Sudah selesai di cabang",
+                actor_unit_id="UPPPD-GAMBIR",
+            )
+        )
+    assert blocked_withdraw.value.code == "RESOLUTION_PROPOSAL_PENDING"
+
+
+def test_pusat_login_may_accept_proposal_for_pusat_cro_owner(
+    service: InternalComplaintApplicationService,
+):
+    cid = _create(service, owner_unit_id="PUSAT-CRO")
+    service.transfer(
+        TransferCommand(
+            complaint_id=cid,
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="pusat-sv",
+            actor_unit_id="PUSAT-CRO",
+            reason="ke cabang",
+        )
+    )
+    service.start_handling(
+        StartHandlingCommand(
+            complaint_id=cid, actor_id="cabang-sv", actor_unit_id="UPPPD-GAMBIR"
+        )
+    )
+    _propose_resolution(
+        service,
+        cid,
+        actor_id="cabang-sv",
+        unit="UPPPD-GAMBIR",
+        summary="Selesai di cabang",
+    )
+    dto = service.resolve(
+        ResolveCommand(
+            complaint_id=cid,
+            action="ACCEPT",
+            comment="",
+            actor_id="pusat-sv",
+            actor_unit_id="PUSAT",
+        )
+    )
+    assert dto.status == "RESOLVED"
+    assert dto.resolution is not None
+    assert dto.resolution.status == "ACCEPTED"
 
 
 def test_http_branch_withdraw_before_receive(

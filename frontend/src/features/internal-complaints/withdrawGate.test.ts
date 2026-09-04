@@ -126,6 +126,13 @@ describe("withdrawGate", () => {
         withdrawRequestStatus: "PENDING",
       }),
     ).toBe(false);
+    expect(
+      mayRequestWithdraw({
+        ...base,
+        status: "IN_PROGRESS",
+        resolutionStatus: "PENDING_APPROVAL",
+      }),
+    ).toBe(false);
   });
 
   it("lets Pusat decide a pending withdraw request", () => {

@@ -2,18 +2,10 @@
 
 import {
   actorMatchesInternalHandlingUnit,
+  actorMatchesInternalOwnerUnit,
   isAdminFamily,
 } from "./transferDirection";
 import { isPendingWithdrawRequest } from "./withdrawGate";
-
-function unitsEqual(
-  left: string | null | undefined,
-  right: string | null | undefined,
-): boolean {
-  const a = (left || "").trim().toUpperCase();
-  const b = (right || "").trim().toUpperCase();
-  return Boolean(a) && Boolean(b) && a === b;
-}
 
 function idsEqual(
   left: string | null | undefined,
@@ -76,7 +68,11 @@ export function mayDecideResolutionProposal(input: {
   if (!isPendingResolutionProposal(input.resolutionStatus)) return false;
   if (idsEqual(input.actorUserId, input.proposedBy)) return false;
   if (isAdminFamily(input.roles)) return true;
-  return unitsEqual(input.actorUnitCode, input.ownerUnitId);
+  return actorMatchesInternalOwnerUnit(
+    input.actorUnitCode,
+    input.ownerUnitId,
+    input.roles,
+  );
 }
 
 export function isWaitingOnResolutionProposal(input: {

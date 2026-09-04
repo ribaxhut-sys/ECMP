@@ -93,6 +93,7 @@ export function mayRequestWithdraw(input: {
   ownerUnitId: string;
   handlingUnitId: string;
   withdrawRequestStatus: string | null | undefined;
+  resolutionStatus?: string | null;
   roles: readonly string[];
   actorUserId: string;
   creatorUserId: string;
@@ -101,6 +102,9 @@ export function mayRequestWithdraw(input: {
 }): boolean {
   if (input.status !== "IN_PROGRESS") return false;
   if (isPendingWithdrawRequest(input.withdrawRequestStatus)) return false;
+  if ((input.resolutionStatus || "").trim().toUpperCase() === "PENDING_APPROVAL") {
+    return false;
+  }
   if (isPusatUnitCode(input.ownerUnitId) || !isPusatUnitCode(input.handlingUnitId)) {
     return false;
   }

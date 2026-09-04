@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   actorMatchesInternalHandlingUnit,
+  actorMatchesInternalOwnerUnit,
   displayInternalUnitCode,
   filterInternalTransferDestinations,
   filterTransferDestinations,
@@ -111,6 +112,22 @@ describe("transferDirection", () => {
     expect(
       resolveCreateSourceUnitCode(null, { treatMissingAsPusat: false }),
     ).toBeNull();
+  });
+
+  it("matches any Pusat login to a Pusat owner unit, not Cabang", () => {
+    expect(
+      actorMatchesInternalOwnerUnit("PUSAT", "PUSAT-CRO", ["SUPERVISOR"]),
+    ).toBe(true);
+    expect(
+      actorMatchesInternalOwnerUnit("UPPPD-GAMBIR", "PUSAT-CRO", [
+        "SUPERVISOR",
+      ]),
+    ).toBe(false);
+    expect(
+      actorMatchesInternalOwnerUnit("UPPPD-GAMBIR", "UPPPD-GAMBIR", [
+        "SUPERVISOR",
+      ]),
+    ).toBe(true);
   });
 
   it("matches any Pusat login to Pusat handling, not Cabang", () => {

@@ -35,6 +35,9 @@ CODE_DEFAULTS: dict[str, str] = {
         "Pengaduan WP itu tidak bisa ditautkan dari akun Anda. "
         "Pilih pengaduan yang Anda buat atau milik unit Anda, atau kosongkan kolom pencarian."
     ),
+    "RESOLUTION_PROPOSAL_PENDING": (
+        "Putuskan usulan penyelesaian dulu sebelum tindakan ini."
+    ),
 }
 
 MESSAGES: dict[str, str] = {

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.4.0
+  version: 1.4.1
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -24,7 +24,9 @@ info:
     Pusat memutus via `/withdraw-request/decision`. Pusat boleh mengembalikan
     ke cabang jika berkas kurang (`/return-for-completion`, alasan wajib) —
     dari antrian tanpa klaim; cabang mengirim ulang via `/resend-to-pusat`.
-    Diblokir saat withdraw request PENDING. Bukan Tolak/`WITHDRAWN`. Lampiran memakai mesin
+    Diblokir saat withdraw request PENDING. Diblokir saat usulan penyelesaian
+    masih `PENDING_APPROVAL` (`/return-for-completion`, `/transfer`,
+    `/withdraw-request`) — putuskan Terima/Tolak usulan dulu. Bukan Tolak/`WITHDRAWN`. Lampiran memakai mesin
     bersama CAPABILITY-011 (`POST/GET /api/v1/attachments`) dengan
     `aggregateType=InternalComplaint` — bukan staging Batch-1 / FR-004.
     Tipe yang diizinkan untuk Internal: gambar (JPEG/PNG/GIF/WebP) dan ZIP
@@ -322,6 +324,10 @@ paths:
       operationId: transferInternalComplaint
       tags: [Internal-Complaints]
       summary: Transfer Handling Unit (Owner unchanged)
+      description: >
+        Cabang ↔ Pusat only. Blocked while a resolution proposal is
+        `PENDING_APPROVAL` (409 RESOLUTION_PROPOSAL_PENDING) or a withdraw
+        request is PENDING.
       parameters:
         - name: complaintId
           in: path
@@ -336,6 +342,10 @@ paths:
       responses:
         "200":
           description: Transferred
+        "409":
+          description: >
+            TRANSFER_DIRECTION_NOT_ALLOWED, WITHDRAW_REQUEST_PENDING, or
+            RESOLUTION_PROPOSAL_PENDING
   /api/v1/internal/complaints/{complaintId}/transfer-request:
     post:
       operationId: requestInternalTransfer
@@ -418,7 +428,8 @@ paths:
         `/receive`). Reason required.
         Status stays ASSIGNED at the owner unit; completionRequestStatus
         becomes PENDING. Ticket remains alive. Branch then uses
-        `/resend-to-pusat`.
+        `/resend-to-pusat`. Blocked while a resolution proposal is
+        `PENDING_APPROVAL` (409 RESOLUTION_PROPOSAL_PENDING).
       parameters:
         - name: complaintId
           in: path
@@ -434,7 +445,9 @@ paths:
         "200":
           description: Returned to owner unit (ASSIGNED, PENDING completion)
         "409":
-          description: Not a branch→Pusat ticket, or already awaiting completion
+          description: >
+            Not a branch→Pusat ticket, already awaiting completion, withdraw
+            pending, or live RESOLUTION_PROPOSAL_PENDING
   /api/v1/internal/complaints/{complaintId}/resend-to-pusat:
     post:
       operationId: resendInternalComplaintToPusat
@@ -485,6 +498,10 @@ paths:
       operationId: requestInternalWithdraw
       tags: [Internal-Complaints]
       summary: After Pusat received — branch asks Pusat to withdraw (work at HQ frozen)
+      description: >
+        Login Cabang (owner) only. Blocked while a resolution proposal is
+        `PENDING_APPROVAL` (409 RESOLUTION_PROPOSAL_PENDING) — putuskan usulan
+        dulu. After submit, login Pusat memutus via `/withdraw-request/decision`.
       parameters:
         - name: complaintId
           in: path
@@ -499,6 +516,8 @@ paths:
       responses:
         "200":
           description: Request submitted (status PENDING)
+        "409":
+          description: WITHDRAW_REQUEST_PENDING or RESOLUTION_PROPOSAL_PENDING
   /api/v1/internal/complaints/{complaintId}/withdraw-request/decision:
     post:
       operationId: decideInternalWithdrawRequest
@@ -539,8 +558,10 @@ paths:
       description: >
         PROPOSE = handling unit only; CREATED/ASSIGNED auto-claims (receive)
         then stays IN_PROGRESS with PENDING_APPROVAL. ACCEPT/REJECT = owner
-        unit only and require a pending proposal; the proposer cannot decide
-        their own proposal. ACCEPT without a pending proposal is rejected.
+        unit only (Pusat owner: any Pusat login) and require a pending proposal;
+        the proposer cannot decide their own proposal. ACCEPT without a pending
+        proposal is rejected. While PENDING_APPROVAL, return / transfer /
+        withdraw-request are blocked (409 RESOLUTION_PROPOSAL_PENDING).
       parameters:
         - name: complaintId
           in: path

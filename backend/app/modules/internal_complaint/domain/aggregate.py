@@ -47,6 +47,18 @@ def actor_matches_internal_handling(
     return _unit_ids_equal(actor_unit_id, handling_unit_id)
 
 
+def actor_matches_internal_owner(
+    actor_unit_id: str | None,
+    owner_unit_id: str,
+    *,
+    actor_is_admin: bool = False,
+) -> bool:
+    """Cabang: exact owner unit. Pusat owner: any Pusat login (or Admin)."""
+    return actor_matches_internal_handling(
+        actor_unit_id, owner_unit_id, actor_is_admin=actor_is_admin
+    )
+
+
 def is_branch_pusat_transfer(source_unit_id: str, target_unit_id: str) -> bool:
     """True only for Cabang ↔ Pusat (XOR). Forbids Cabang↔Cabang and Pusat↔Pusat."""
     source_is_pusat = is_pusat_unit(source_unit_id)
@@ -354,6 +366,7 @@ class InternalComplaintAggregate:
                 destination_unit_id=target,
             )
         self._assert_no_pending_withdraw_request()
+        self._assert_no_pending_resolution()
         self.handling_unit_id = target
         self.status = InternalStatus.ASSIGNED
         if is_pusat_unit(target):
@@ -562,6 +575,13 @@ class InternalComplaintAggregate:
                 "A withdraw request is already pending decision.",
             )
 
+    def _assert_no_pending_resolution(self) -> None:
+        if self._pending_resolution() is not None:
+            raise err.conflict(
+                "RESOLUTION_PROPOSAL_PENDING",
+                "Putuskan usulan penyelesaian dulu sebelum tindakan ini.",
+            )
+
     def return_for_completion(
         self,
         *,
@@ -590,6 +610,7 @@ class InternalComplaintAggregate:
                 "Documents were already requested from the branch.",
             )
         self._assert_no_pending_withdraw_request()
+        self._assert_no_pending_resolution()
         reason_text = (reason or "").strip()
         if not reason_text:
             raise err.validation(
@@ -714,6 +735,7 @@ class InternalComplaintAggregate:
                 "WITHDRAW_REQUEST_PENDING",
                 "A withdraw request is already pending decision.",
             )
+        self._assert_no_pending_resolution()
         reason_text = (reason or "").strip()
         if not reason_text:
             raise err.validation(
@@ -882,15 +904,20 @@ class InternalComplaintAggregate:
     ) -> None:
         if actor_is_admin:
             return
-        if not _unit_ids_equal(actor_unit_id, self.owner_unit_id):
-            raise err.conflict(
-                "RESOLUTION_OWNER_UNIT_REQUIRED",
-                "Only the owner unit may accept or reject a resolution proposal.",
-                details={
-                    "actorUnitId": actor_unit_id,
-                    "ownerUnitId": self.owner_unit_id,
-                },
-            )
+        if actor_matches_internal_owner(
+            actor_unit_id,
+            self.owner_unit_id,
+            actor_is_admin=False,
+        ):
+            return
+        raise err.conflict(
+            "RESOLUTION_OWNER_UNIT_REQUIRED",
+            "Only the owner unit may accept or reject a resolution proposal.",
+            details={
+                "actorUnitId": actor_unit_id,
+                "ownerUnitId": self.owner_unit_id,
+            },
+        )
 
     def _assert_not_self_proposal_decision(
         self, *, actor_id: str, pending: ResolutionRecord

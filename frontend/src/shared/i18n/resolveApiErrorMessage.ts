@@ -20,6 +20,7 @@ const ERROR_CODE_TO_KEY: Record<string, string> = {
   INTERNAL_ERROR: "internalError",
   METHOD_NOT_ALLOWED: "methodNotAllowed",
   PASSWORD_CHANGE_REQUIRED: "passwordChangeRequired",
+  RESOLUTION_PROPOSAL_PENDING: "resolutionProposalPending",
 };
 
 /**

@@ -1260,7 +1260,10 @@ def resolve_internal_complaint(
     if action == "PROPOSE":
         _enforce_internal_org_scope(principal, current.handling_unit_id, settings)
     elif action in {"ACCEPT", "REJECT"}:
-        _enforce_internal_org_scope(principal, current.owner_unit_id, settings)
+        if not (
+            is_pusat_unit(actor_unit) and is_pusat_unit(current.owner_unit_id)
+        ):
+            _enforce_internal_org_scope(principal, current.owner_unit_id, settings)
     else:
         _enforce_internal_org_scope(principal, current.handling_unit_id, settings)
     if not _may_resolve_action(principal):
@@ -1310,6 +1313,7 @@ def record_internal_acceptance(
         actor_unit_id=actor_unit,
         complaint_creator_id=current.created_by,
         agent_may_accept=False,
+        pusat_units_equivalent=True,
     )
     dto = service.record_acceptance(
         RecordAcceptanceCommand(

@@ -52,7 +52,10 @@ import {
   visibleInternalAcceptanceActions,
 } from "./acceptanceGate";
 import { buildInternalResolveRequest } from "./resolvePayload";
-import { visibleInternalResolutionActions } from "./resolutionGate";
+import {
+  isPendingResolutionProposal,
+  visibleInternalResolutionActions,
+} from "./resolutionGate";
 import {
   HISTORY_LABEL_KEY,
   canRequestTransfer,
@@ -369,6 +372,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     hasUpdatePermission: canUpdate,
     completionRequestStatus: complaint.completionRequestStatus,
     withdrawRequestStatus: complaint.withdrawRequestStatus,
+    resolutionStatus: complaint.resolutionStatus,
     roles,
   });
   const showResend = mayResendToPusat({
@@ -386,6 +390,7 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     ownerUnitId: complaint.ownerUnitId,
     handlingUnitId: complaint.handlingUnitId,
     withdrawRequestStatus: complaint.withdrawRequestStatus,
+    resolutionStatus: complaint.resolutionStatus,
     roles,
     actorUserId: userId ?? "",
     creatorUserId: complaint.createdBy,
@@ -404,7 +409,8 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
     canAssign &&
     unitOptions.length > 0 &&
     !awaitingCompletion &&
-    !pendingWithdraw;
+    !pendingWithdraw &&
+    !isPendingResolutionProposal(complaint.resolutionStatus);
   const resolutionActions = visibleInternalResolutionActions({
     status: complaint.status,
     actorUnitCode: actorUnitCode ?? null,

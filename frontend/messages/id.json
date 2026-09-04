@@ -712,7 +712,8 @@
     "dataScopeDenied": "Akses data ditolak karena di luar cakupan wewenang Anda.",
     "orgScopeDenied": "Akses ditolak karena di luar cakupan organisasi Anda.",
     "passwordChangeRequired": "Anda harus mengubah kata sandi sebelum mengakses aplikasi.",
-    "methodNotAllowed": "Metode HTTP tidak diizinkan."
+    "methodNotAllowed": "Metode HTTP tidak diizinkan.",
+    "resolutionProposalPending": "Putuskan usulan penyelesaian dulu sebelum tindakan ini."
   },
   "validation": {
     "required": "{field} wajib diisi.",

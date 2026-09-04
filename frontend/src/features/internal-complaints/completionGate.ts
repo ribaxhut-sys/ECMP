@@ -4,6 +4,7 @@ import {
   actorMatchesInternalHandlingUnit,
   isPusatUnitCode,
 } from "./transferDirection";
+import { isPendingResolutionProposal } from "./resolutionGate";
 import { isPendingWithdrawRequest } from "./withdrawGate";
 
 function unitsEqual(
@@ -29,10 +30,12 @@ export function mayReturnForCompletion(input: {
   hasUpdatePermission: boolean;
   completionRequestStatus: string | null | undefined;
   withdrawRequestStatus?: string | null;
+  resolutionStatus?: string | null;
   roles?: readonly string[];
 }): boolean {
   if (!input.hasUpdatePermission) return false;
   if (isPendingWithdrawRequest(input.withdrawRequestStatus)) return false;
+  if (isPendingResolutionProposal(input.resolutionStatus)) return false;
   if (isAwaitingCompletion(input.completionRequestStatus)) return false;
   if (input.status !== "ASSIGNED" && input.status !== "IN_PROGRESS") return false;
   if (isPusatUnitCode(input.ownerUnitId) || !isPusatUnitCode(input.handlingUnitId)) {
