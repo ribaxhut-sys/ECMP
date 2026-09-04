@@ -712,7 +712,9 @@ export function InternalComplaintDetailView({ id }: { id: string }) {
       {showRequestWithdraw && complaint.withdrawRequestStatus === "REJECTED" ? (
         <Alert tone="info" title={t("requestWithdrawHint")} />
       ) : null}
-      {showClosureHint ? (
+      {showSelfApprovalBlockedHint ? (
+        <Alert tone="info" title={t("closureHintSelfApprovalBlocked")} />
+      ) : showClosureHint ? (
         <Alert
           tone="info"
           title={
