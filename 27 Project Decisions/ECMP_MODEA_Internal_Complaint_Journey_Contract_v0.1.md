@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | ECMP-MODEA-INT-001 |
-| Version | 0.14 |
+| Version | 0.15 |
 | Owner | Product Owner / Domain PO |
 | Reviewer | Solution Architect |
 | Approver | Business Owner (Mode A lab) |
-| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19); v0.5 snapshot PDF (2026-09-02); v0.6 handling kanonik PUSAT (2026-09-02); v0.7 klaim otomatis usulan (2026-09-02); v0.8 urutan riwayat klaim+usulan (2026-09-02); v0.9 tanpa tombol Ambil tiket (2026-09-02); v0.10 beku kerja saat minta batal + wewenang Pusat setara + Staff KaSatPel/KaSatPel tutup tiket sendiri (2026-09-02); v0.11 CRO Cabang/Pusat tidak menutup — wajib Staff KaSatPel/KaSatPel (2026-09-02); v0.12 badge perlu tindakan unit login (2026-09-04); v0.13 usulan terbaru saja di badge (2026-09-04); v0.14 rebound badge ke unit penanganan (2026-09-04) |
+| Status | 🟢 Accepted for Mode A UI (2026-08-17); v0.2 kelengkapan berkas; v0.3 visibilitas WITHDRAWN; v0.4 usulan dua pihak (2026-08-19); v0.5 snapshot PDF (2026-09-02); v0.6 handling kanonik PUSAT (2026-09-02); v0.7 klaim otomatis usulan (2026-09-02); v0.8 urutan riwayat klaim+usulan (2026-09-02); v0.9 tanpa tombol Ambil tiket (2026-09-02); v0.10 beku kerja saat minta batal + wewenang Pusat setara + Staff KaSatPel/KaSatPel tutup tiket sendiri (2026-09-02); v0.11 CRO Cabang/Pusat tidak menutup — wajib Staff KaSatPel/KaSatPel (2026-09-02); v0.12 badge perlu tindakan unit login (2026-09-04); v0.13 usulan terbaru saja di badge (2026-09-04); v0.14 rebound badge ke unit penanganan (2026-09-04); v0.15 nomor tiket tebal sampai GET detail (typography); badge API-551 tidak turun karena dibuka (2026-09-04) |
 | Date | 2026-09-02 |
 | Type | Mode A lab contract (non-ADR, non-DEC) |
 | Related | DEC-025 §14.1 D (`/internal/*` bukan Dual-SoT WP); OpenAPI `internal-complaints.v1.yaml` |
@@ -89,6 +89,8 @@ Assignments / Follow-up / Verification / Reports adalah **filter daftar tiket In
 
 Badge sidebar Internal (API-551) = **perlu tindakan unit login**, bukan bel Pengumuman. **Login Cabang:** antrian masuk di cabang, usulan **terbaru** `PENDING_APPROVAL` (bukan baris PENDING lama setelah diterima), gerbang tutup `RESOLVED`. **Login Pusat:** antrian masuk di Pusat (kirim/kirim ulang), rebound setelah Cabang **tolak usulan** atau **kembalikan ke pengerjaan**, permintaan batal PENDING, gerbang tutup `RESOLVED`. Satu tiket = 1. Pintu daftar: `?needsAction=1` hanya jika angka > 0.
 
+Nomor tiket **tebal** selama tiket itu masih perlu tindakan unit login **dan** petugas ini belum membuka GET detail sejak bump terakhir. Setelah dibuka, font biasa; badge **tidak** turun. Petugas lain di unit yang sama tetap tebal sampai mereka membuka. Kerja baru (kirim ulang, usulan, rebound, gerbang tutup) membuat tebal lagi. Bukan receipt WP Case. Bukan bel Pengumuman.
+
 ### Visibilitas `WITHDRAWN` (daftar + GET + lampiran)
 
 Cabang pemilik selalu melihat tiketnya yang dibatalkan.
@@ -122,3 +124,4 @@ Menyalin alur WP (Case, intake HQ, BQ-007). Izin `internal:*` penuh. Laporan/KPI
 - v0.12: Badge sidebar = perlu tindakan unit login (API-551). Bukan bel Pengumuman. `?needsAction=1` hanya jika angka > 0.
 - v0.13: Usulan di badge/daftar = status resolusi **terbaru** `PENDING_APPROVAL`. Baris PENDING lama setelah diterima tidak dihitung.
 - v0.14: **Login Pusat** (unit penanganan) mendapat badge rebound setelah Cabang tolak usulan atau kembalikan ke pengerjaan. **Login Cabang** tidak. Usulan ulang menaikkan badge Cabang lagi.
+- v0.15: Nomor tiket tebal sampai GET detail per petugas. Badge API-551 tidak turun karena dibuka.

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ECMP Pengaduan Internal API
-  version: 1.4.1
+  version: 1.4.2
   description: >
     Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
     (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
@@ -120,7 +120,8 @@ paths:
         Pusat-local), rebound after owner REJECTED usulan or kembalikan ke
         pengerjaan, PENDING withdraw they must decide, and RESOLVED
         close-gate. Not CAP-005. Not unread receipts — queue count, not
-        per-user read receipts. Fail-open on the client.
+        per-user read receipts (those drive list typography via `isRead`
+        only). Fail-open on the client.
       responses:
         "200":
           description: Count
@@ -163,6 +164,11 @@ paths:
       operationId: getInternalComplaint
       tags: [Internal-Complaints]
       summary: Get Pengaduan Internal detail + history
+      description: >
+        Same visibility as the list. GET writes a per-user seen receipt so
+        the list number is no longer bold for this login. Does not change
+        API-551 pending-count (badge stays until the unit finishes the work).
+        PDF export does not mark seen.
       parameters:
         - name: complaintId
           in: path
@@ -697,6 +703,12 @@ components:
           type: string
           nullable: true
           description: Latest resolution proposal status (e.g. PENDING_APPROVAL)
+        isRead:
+          type: boolean
+          description: >
+            False when this ticket still needs action for the caller's unit
+            and this login has not opened GET detail since the last bump.
+            Typography only. API-551 badge does not use this field.
     InternalComplaint:
       type: object
       properties:

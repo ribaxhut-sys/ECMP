@@ -50,6 +50,7 @@ from app.modules.internal_complaint.infrastructure.orm import (
     InternalComplaintNumberCounterORM,
     InternalComplaintORM,
     InternalComplaintResolutionORM,
+    InternalComplaintSeenORM,
     InternalComplaintUnitCounterORM,
 )
 from app.modules.internal_complaint.infrastructure.repository import (
@@ -63,6 +64,7 @@ _TABLES = [
     InternalComplaintEventORM.__table__,
     InternalComplaintNumberCounterORM.__table__,
     InternalComplaintUnitCounterORM.__table__,
+    InternalComplaintSeenORM.__table__,
     CmBatch1ComplaintORM.__table__,
 ]
 
@@ -3161,6 +3163,102 @@ def test_http_pending_count_resolved_badges_both_units(
             "data"
         ] == 1
     with _app_client(db_session, service, pusat) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+
+
+def test_http_opening_ticket_clears_bold_not_badge(
+    db_session: Session, service: InternalComplaintApplicationService
+):
+    """GET detail marks seen for that login; API-551 badge stays until work is done.
+
+    Login Pusat: bold until opened; colleague still bold. Login Cabang
+    pengirim: not unread (ticket is not their action).
+    """
+    cabang = Principal(
+        user_id=uuid.uuid4(),
+        roles=("AGENT",),
+        org_unit_id="UPPPD-GAMBIR",
+        permissions=_PERMS,
+    )
+    pusat_a = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    pusat_b = Principal(
+        user_id=uuid.uuid4(),
+        roles=("SUPERVISOR",),
+        org_unit_id="PUSAT",
+        permissions=_PERMS,
+    )
+    with _app_client(db_session, service, cabang) as client:
+        created = client.post(
+            "/api/v1/internal/complaints",
+            json={
+                "subject": "Masuk Pusat",
+                "description": "d",
+                "category": "OPERATIONAL",
+            },
+        )
+        assert created.status_code == 201, created.text
+        cid = created.json()["data"]["complaintId"]
+        cabang_rows, cabang_total = service.list_complaints(
+            cabang,
+            page=1,
+            page_size=20,
+            org_unit_id="UPPPD-GAMBIR",
+            needs_action=True,
+        )
+        assert cabang_total == 0
+        assert cabang_rows == []
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 0
+
+    before, before_total = service.list_complaints(
+        pusat_a,
+        page=1,
+        page_size=20,
+        org_unit_id="PUSAT",
+        needs_action=True,
+    )
+    assert before_total == 1
+    assert before[0].complaint_id == cid
+    assert before[0].is_read is False
+
+    with _app_client(db_session, service, pusat_a) as client:
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+        opened = client.get(f"/api/v1/internal/complaints/{cid}")
+        assert opened.status_code == 200, opened.text
+        assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
+            "data"
+        ] == 1
+
+    after, after_total = service.list_complaints(
+        pusat_a,
+        page=1,
+        page_size=20,
+        org_unit_id="PUSAT",
+        needs_action=True,
+    )
+    assert after_total == 1
+    assert after[0].is_read is True
+
+    other, other_total = service.list_complaints(
+        pusat_b,
+        page=1,
+        page_size=20,
+        org_unit_id="PUSAT",
+        needs_action=True,
+    )
+    assert other_total == 1
+    assert other[0].is_read is False
+    with _app_client(db_session, service, pusat_b) as client:
         assert client.get("/api/v1/internal/complaints/inbox/pending-count").json()[
             "data"
         ] == 1

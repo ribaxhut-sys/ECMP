@@ -40,6 +40,7 @@ class InternalComplaintSummaryResponse(BaseModel):
     resolution_status: str | None = Field(
         default=None, alias="resolutionStatus"
     )
+    is_read: bool = Field(default=True, alias="isRead")
 
 
 class ResolutionResponse(BaseModel):

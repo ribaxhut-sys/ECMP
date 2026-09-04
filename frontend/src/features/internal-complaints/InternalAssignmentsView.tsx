@@ -30,6 +30,7 @@ import {
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
 import { displayInternalUnitCode } from "./transferDirection";
+import { internalTicketNumberClass } from "./internalReadState";
 
 function FilteredList({
   title,
@@ -63,7 +64,11 @@ function FilteredList({
       cell: (row) => (
         <button
           type="button"
-          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+          className={internalTicketNumberClass(
+            row.isRead,
+            "font-semibold text-ecmp-primary underline-offset-2 hover:underline",
+            "font-medium text-ecmp-primary underline-offset-2 hover:underline",
+          )}
           onClick={() =>
             router.push(`/internal/complaints/${encodeURIComponent(row.id)}`)
           }

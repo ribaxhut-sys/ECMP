@@ -96,6 +96,7 @@ export interface InternalComplaint {
   completionReturnedBy: string | null;
   completionReturnedByName: string | null;
   completionReturnedAt: string | null;
+  isRead: boolean;
 }
 
 /** Matches backend case_acceptance._AGENT_ROLES for related Aggregate filter. */
@@ -275,6 +276,7 @@ export function mapSummaryToRow(
     completionReturnedBy: null,
     completionReturnedByName: null,
     completionReturnedAt: null,
+    isRead: row.isRead !== false,
   };
 }
 
@@ -337,6 +339,7 @@ export function mapDetailToRow(dto: ApiInternalComplaint): InternalComplaint {
     completionReturnedBy: dto.completionReturnedBy ?? null,
     completionReturnedByName: dto.completionReturnedByName ?? null,
     completionReturnedAt: dto.completionReturnedAt ?? null,
+    isRead: true,
   };
 }
 

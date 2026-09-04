@@ -244,7 +244,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
 | API-539 | API-CM-B2-011 | GET /api/v1/cm/cases/{caseId}/export | FR-003 companion — internal Case snapshot PDF (not customer-safe; not reporting) | 🟢 Implemented (lab) |
 
-### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.4.1** — ECMP-MODEA-INT-001
+### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.4.2** — ECMP-MODEA-INT-001
 
 > Domain Pengaduan Internal (`/api/v1/internal/complaints`). **Bukan** Dual-SoT WP / Case Aggregate. Satu tiket = satu aggregate.
 
@@ -258,6 +258,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > **2026-09-02 (Pengaduan Internal snapshot PDF):** API-550 — visibilitas sama GET; Cabang & Pusat yang boleh lihat boleh unduh.
 
 > **2026-09-04 (Internal ping-pong lock):** Usulan hidup `PENDING_APPROVAL` mengunci **login Pusat** (Kembalikan / Pindahkan) dan **login Cabang** (Minta pembatalan). 409 `RESOLUTION_PROPOSAL_PENDING`. Putusan usulan milik Pusat: semua login Pusat (`PUSAT` / `PUSAT-CRO`).
+
+> **2026-09-04 (Internal list typography):** List `isRead` = belum dibuka GET detail oleh petugas ini, hanya jika tiket masih perlu tindakan unit login. **Login Cabang** dan **login Pusat** sama: tebal sampai orang itu membuka; petugas lain di unit tetap tebal. Badge API-551 tidak memakai `isRead` — angka tetap sampai kerja unit selesai.
 
 > **2026-09-04 (Internal action-needed sidebar badge):** API-551 — hitungan “perlu tindakan” per unit, bukan hanya antrian Terima. **Login Cabang:** kembalikan berkas / transfer masuk, usulan **terbaru** `PENDING_APPROVAL` (bukan riwayat PENDING setelah diterima), gerbang tutup `RESOLVED`. **Login Pusat:** create/resend masuk Pusat, rebound setelah tolak usulan / kembalikan ke pengerjaan, permintaan batal PENDING, gerbang tutup `RESOLVED`. Filter daftar: `needsAction=1`. Bukan CAP-005. Bukan unread receipt. Bukan bel Pengumuman.
 

@@ -29,6 +29,7 @@ import {
 } from "./components/InternalBadges";
 import { displayInternalUnitCode } from "./transferDirection";
 import { isInternalTerminalStatus } from "./types";
+import { internalTicketNumberClass } from "./internalReadState";
 
 function ClickableStat({
   href,
@@ -170,7 +171,13 @@ export function InternalDashboardView() {
                   }
                 >
                   <div className="min-w-[220px] flex-1">
-                    <div className="text-[length:var(--ecmp-font-caption-size)] font-semibold tabular-nums text-ecmp-text-secondary">
+                    <div
+                      className={internalTicketNumberClass(
+                        row.isRead,
+                        "text-[length:var(--ecmp-font-caption-size)] font-semibold tabular-nums text-ecmp-text-primary",
+                        "text-[length:var(--ecmp-font-caption-size)] font-medium tabular-nums text-ecmp-text-secondary",
+                      )}
+                    >
                       {row.number}
                     </div>
                     <div className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">

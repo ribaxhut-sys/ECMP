@@ -82,6 +82,8 @@ export interface InternalComplaintSummary {
   withdrawRequestStatus?: InternalWithdrawRequestStatus | string | null;
   completionRequestStatus?: InternalCompletionRequestStatus | string | null;
   resolutionStatus?: string | null;
+  /** False = number stays bold for this login; API-551 badge ignores this. */
+  isRead?: boolean | null;
 }
 
 export interface InternalComplaint {

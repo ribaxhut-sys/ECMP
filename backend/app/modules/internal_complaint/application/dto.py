@@ -114,6 +114,7 @@ class InternalComplaintSummaryDTO:
     withdraw_request_status: str | None = None
     completion_request_status: str | None = None
     resolution_status: str | None = None
+    is_read: bool = True
 
 
 @dataclass(frozen=True)

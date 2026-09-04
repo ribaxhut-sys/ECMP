@@ -650,6 +650,7 @@ def list_internal_complaints(
                 withdrawRequestStatus=i.withdraw_request_status,
                 completionRequestStatus=i.completion_request_status,
                 resolutionStatus=i.resolution_status,
+                isRead=i.is_read,
             )
             for i in items
         ],
@@ -883,7 +884,21 @@ def get_internal_complaint(
         session=session,
         settings=settings,
     )
-    return DataResponse(data=_to_response(dto, session=session))
+    body = DataResponse(data=_to_response(dto, session=session))
+    # Per-user typography receipt. Does not change API-551 pending-count.
+    try:
+        with session.begin_nested():
+            SqlAlchemyInternalComplaintRepository(session).mark_seen(
+                dto.complaint_id, str(principal.user_id)
+            )
+        session.commit()
+    except Exception:
+        logger.exception("internal complaint mark-seen failed")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    return body
 
 
 @router.get("/api/v1/internal/complaints/{complaint_id}/export")

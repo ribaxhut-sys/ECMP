@@ -47,6 +47,7 @@ import {
   InternalWithdrawRequestBadge,
 } from "./components/InternalBadges";
 import { displayInternalUnitCode } from "./transferDirection";
+import { internalTicketNumberClass } from "./internalReadState";
 
 /** Client-side page window over the filtered rows. */
 const LIST_PAGE_SIZE = 20;
@@ -163,7 +164,11 @@ export function InternalComplaintListView() {
       cell: (row) => (
         <button
           type="button"
-          className="cursor-pointer text-left font-medium text-ecmp-primary underline-offset-2 hover:underline"
+          className={internalTicketNumberClass(
+            row.isRead,
+            "cursor-pointer text-left font-semibold text-ecmp-primary underline-offset-2 hover:underline",
+            "cursor-pointer text-left font-medium text-ecmp-primary underline-offset-2 hover:underline",
+          )}
           onClick={() =>
             router.push(`/internal/complaints/${encodeURIComponent(row.id)}`)
           }

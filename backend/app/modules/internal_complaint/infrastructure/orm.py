@@ -263,6 +263,40 @@ class InternalComplaintEventORM(Base):
     )
 
 
+class InternalComplaintSeenORM(Base):
+    """Per-user read receipt for Internal list typography.
+
+    Written on GET detail. List ``isRead`` is derived: unread while this
+    ticket still needs action for the caller's unit and ``seen_at`` is older
+    than ``internal_complaints.updated_at``. Not used by API-551.
+    """
+
+    __tablename__ = "internal_complaint_seen"
+    __table_args__ = (
+        UniqueConstraint(
+            "complaint_id", "user_id", name="uq_internal_complaint_seen_pair"
+        ),
+        Index("ix_internal_complaint_seen_user_id", "user_id"),
+        Index("ix_internal_complaint_seen_complaint_id", "complaint_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("internal_complaints.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class InternalComplaintNumberCounterORM(Base):
     """Legacy per-year global counter — kept read-only for rows already on disk.
 

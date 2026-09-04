@@ -68,6 +68,7 @@ function row(
     completionReturnedBy: null,
     completionReturnedByName: null,
     completionReturnedAt: null,
+    isRead: true,
     ...partial,
   };
 }

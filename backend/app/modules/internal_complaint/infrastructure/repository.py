@@ -18,6 +18,7 @@ from app.modules.internal_complaint.infrastructure.orm import (
     InternalComplaintEventORM,
     InternalComplaintORM,
     InternalComplaintResolutionORM,
+    InternalComplaintSeenORM,
     InternalComplaintUnitCounterORM,
 )
 
@@ -416,6 +417,62 @@ class SqlAlchemyInternalComplaintRepository:
             if complaint_id not in out:
                 out[complaint_id] = status
         return out
+
+    def action_needed_ids(
+        self,
+        *,
+        org_unit_id: str,
+        pusat_unit_codes: frozenset[str],
+        complaint_ids: list[UUID],
+    ) -> set[UUID]:
+        """Which of these tickets still need action for this unit (API-551)."""
+        unit = (org_unit_id or "").strip()
+        if not unit or not complaint_ids:
+            return set()
+        stmt = select(InternalComplaintORM.id).where(
+            InternalComplaintORM.id.in_(complaint_ids),
+            _needs_action_clause(unit, pusat_unit_codes),
+        )
+        return set(self._session.scalars(stmt).all())
+
+    def seen_at_map(
+        self, user_id: str, complaint_ids: list[UUID]
+    ) -> dict[UUID, datetime]:
+        uid = (user_id or "").strip()
+        if not uid or not complaint_ids:
+            return {}
+        stmt = select(
+            InternalComplaintSeenORM.complaint_id,
+            InternalComplaintSeenORM.seen_at,
+        ).where(
+            InternalComplaintSeenORM.user_id == uid,
+            InternalComplaintSeenORM.complaint_id.in_(complaint_ids),
+        )
+        return {cid: seen_at for cid, seen_at in self._session.execute(stmt)}
+
+    def mark_seen(self, complaint_id: str, user_id: str) -> None:
+        """Upsert this user's read receipt (idempotent). Does not touch API-551."""
+        uid = (user_id or "").strip()
+        if not uid:
+            return
+        try:
+            cid = UUID(str(complaint_id).strip())
+        except ValueError:
+            return
+        now = datetime.now(UTC)
+        row = self._session.scalar(
+            select(InternalComplaintSeenORM).where(
+                InternalComplaintSeenORM.complaint_id == cid,
+                InternalComplaintSeenORM.user_id == uid,
+            )
+        )
+        if row is None:
+            self._session.add(
+                InternalComplaintSeenORM(complaint_id=cid, user_id=uid, seen_at=now)
+            )
+        else:
+            row.seen_at = now
+        self._session.flush()
 
     def summarize(
         self,

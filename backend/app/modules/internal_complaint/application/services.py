@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from app.core.authorization.principal import Principal
 from app.core.authorization.visibility import DEFAULT_PUSAT_UNIT_CODES
@@ -64,6 +65,35 @@ _WITHDRAW_DECISION_MAP: dict[str, WithdrawRequestStatus] = {
 # Ceiling for one list-report PDF (API-553). A report is a document, not a
 # dump: past this the operator is told to narrow the filters instead.
 INTERNAL_REPORT_EXPORT_MAX_ROWS = 500
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _summary_is_read(
+    *,
+    complaint_id: UUID,
+    needed_ids: set[UUID],
+    seen_at: datetime | None,
+    updated_at: datetime | None,
+) -> bool:
+    """Bold in the list while action-needed and this user has not opened since the bump.
+
+    Tickets that are not work for the caller's unit are never unread. Badge
+    count (API-551) does not use this.
+    """
+    if complaint_id not in needed_ids:
+        return True
+    seen = _as_utc(seen_at)
+    bumped = _as_utc(updated_at)
+    if seen is None or bumped is None:
+        return False
+    return seen >= bumped
 
 
 def _summary_dto(r: Any, *, resolution_status: str | None = None) -> InternalComplaintSummaryDTO:
@@ -253,9 +283,30 @@ class InternalComplaintApplicationService:
         lookup = getattr(self._repo, "latest_resolution_statuses", None)
         if callable(lookup) and rows:
             statuses = lookup([r.id for r in rows])
-        return [
-            _summary_dto(r, resolution_status=statuses.get(r.id)) for r in rows
-        ], total
+        needed_ids: set[UUID] = set()
+        seen_map: dict[UUID, datetime] = {}
+        lookup_needed = getattr(self._repo, "action_needed_ids", None)
+        lookup_seen = getattr(self._repo, "seen_at_map", None)
+        ids = [r.id for r in rows]
+        if callable(lookup_needed) and ids and org_unit_id:
+            needed_ids = lookup_needed(
+                org_unit_id=org_unit_id,
+                pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
+                complaint_ids=ids,
+            )
+        if callable(lookup_seen) and ids:
+            seen_map = lookup_seen(str(principal.user_id), ids)
+        summaries: list[InternalComplaintSummaryDTO] = []
+        for r in rows:
+            dto = _summary_dto(r, resolution_status=statuses.get(r.id))
+            dto.is_read = _summary_is_read(
+                complaint_id=r.id,
+                needed_ids=needed_ids,
+                seen_at=seen_map.get(r.id),
+                updated_at=r.updated_at,
+            )
+            summaries.append(dto)
+        return summaries, total
 
     def summarize(
         self,

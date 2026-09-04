@@ -69,6 +69,7 @@ function row(overrides: Partial<InternalComplaint>): InternalComplaint {
     completionReturnedBy: null,
     completionReturnedByName: null,
     completionReturnedAt: null,
+    isRead: true,
     ...overrides,
   };
 }
